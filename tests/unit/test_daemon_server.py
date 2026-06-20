@@ -188,6 +188,13 @@ class TestDaemonServerLifecycle:
         server.stop()
         thread.join(timeout=3)
 
+        # Poll briefly — server thread's finally:stop() may still be
+        # cleaning up if the test's stop() raced with _running (#1295)
+        for _ in range(10):
+            if not lock_path.exists():
+                break
+            time.sleep(0.1)
+
         assert not lock_path.exists()
 
     def test_pid_file_not_written_before_socket(self, short_state_dir, monkeypatch):

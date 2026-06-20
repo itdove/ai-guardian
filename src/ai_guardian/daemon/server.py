@@ -103,6 +103,9 @@ class DaemonServer:
         """Graceful shutdown (idempotent, thread-safe)."""
         with self._stop_lock:
             if not self._running:
+                # start() may have created state files before setting
+                # _running — clean them up even on the early-return path
+                self._cleanup_state_files()
                 return
             self._running = False
 
@@ -130,9 +133,11 @@ class DaemonServer:
             except Exception:
                 pass
 
-        # Delete state files: socket first, then PID, lock last.
-        # Order matters: other processes check socket/PID to detect
-        # a running daemon, so remove them before releasing the lock.
+        self._cleanup_state_files()
+        logger.info("Daemon stopped")
+
+    def _cleanup_state_files(self):
+        """Remove socket, PID, and lock files (idempotent)."""
         if not self._use_tcp:
             get_socket_path().unlink(missing_ok=True)
         get_pid_path().unlink(missing_ok=True)
@@ -142,8 +147,6 @@ class DaemonServer:
                 os.unlink(lock_path)
             except OSError:
                 pass
-
-        logger.info("Daemon stopped")
 
     def _setup_socket(self):
         """Create and bind the server socket."""
