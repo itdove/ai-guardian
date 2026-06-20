@@ -699,6 +699,22 @@ class SSRFProtector:
 
         return False, "", False
 
+    def _compute_url_position(self, command: str, url: str) -> None:
+        """Compute line/column of a URL within a command string."""
+        url_pos = command.find(url)
+        if url_pos < 0:
+            stripped = url.strip('\'"')
+            url_pos = command.find(stripped)
+        if url_pos >= 0:
+            self.last_line_number = command[:url_pos].count('\n') + 1
+            line_start = command.rfind('\n', 0, url_pos) + 1
+            self.last_start_column = url_pos - line_start
+            self.last_end_column = url_pos - line_start + len(url)
+        else:
+            self.last_line_number = 1
+            self.last_start_column = None
+            self.last_end_column = None
+
     def check(self, tool_name: str, tool_input: Dict[str, Any]) -> Tuple[bool, Optional[str]]:
         """
         Check if a tool call contains SSRF attempts.
@@ -712,6 +728,10 @@ class SSRFProtector:
             - should_block: Whether to block execution (False in log/warn mode, True in block mode)
             - error_message: Formatted error message if should_block is True, warning if warn mode, None if log-only
         """
+        self.last_line_number = None
+        self.last_start_column = None
+        self.last_end_column = None
+
         if not self.enabled:
             return False, None
 
@@ -740,6 +760,7 @@ class SSRFProtector:
                 if is_ssrf:
                     # SSRF detected!
                     logger.error(f"SSRF attempt detected: {reason}, URL={url}")
+                    self._compute_url_position(command, url)
 
                     # Immutable patterns (core IPs, metadata endpoints, dangerous schemes)
                     # ALWAYS block regardless of action mode — cannot be downgraded

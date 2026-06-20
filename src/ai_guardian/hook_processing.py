@@ -2263,6 +2263,8 @@ def _log_supply_chain_violation(filename: str, context: Optional[Dict] = None,
                                 matched_text: Optional[str] = None,
                                 category: Optional[str] = None,
                                 line_number: Optional[int] = None,
+                                start_column: Optional[int] = None,
+                                end_column: Optional[int] = None,
                                 violation_logger=None):
     """Log a supply chain threat violation."""
     if not HAS_VIOLATION_LOGGER:
@@ -2278,6 +2280,10 @@ def _log_supply_chain_violation(filename: str, context: Optional[Dict] = None,
             "category": category or "unknown",
             "reason": "Supply chain threat detected in agent configuration"
         }
+        if start_column is not None:
+            blocked_entry["start_column"] = start_column
+        if end_column is not None:
+            blocked_entry["end_column"] = end_column
         if matched_text:
             blocked_entry["matched_text"] = matched_text[:100]
         if violation_logger is None:
@@ -2333,6 +2339,16 @@ def _log_pii_violation(violation_logger, pii_config, pii_redactions,
     pii_types = list(set(r['type'] for r in pii_redactions))
     pii_first_line = pii_redactions[0].get('line_number') if pii_redactions else None
 
+    first_redaction = pii_redactions[0] if pii_redactions else {}
+    pii_start_column = first_redaction.get('column')
+    if pii_start_column is not None:
+        pii_start_column = pii_start_column - 1
+    pii_end_column = None
+    if pii_start_column is not None:
+        orig_len = first_redaction.get('original_length', 0)
+        if orig_len:
+            pii_end_column = pii_start_column + orig_len
+
     pii_blocked = {
         'tool': tool_identifier,
         'hook': hook_name,
@@ -2341,6 +2357,10 @@ def _log_pii_violation(violation_logger, pii_config, pii_redactions,
         'pii_count': len(pii_redactions),
         'pii_types': pii_types,
     }
+    if pii_start_column is not None:
+        pii_blocked['start_column'] = pii_start_column
+    if pii_end_column is not None:
+        pii_blocked['end_column'] = pii_end_column
     if bash_command:
         pii_blocked['command'] = bash_command
     snippet = _extract_context_snippet(snippet_text, pii_first_line)
@@ -5232,7 +5252,9 @@ def process_hook_data(hook_data, daemon_state=None):
                             matched_pattern=sc_scanner.last_matched_pattern,
                             matched_text=sc_scanner.last_matched_text,
                             category=sc_scanner.last_category,
-                            line_number=sc_scanner.last_line_number
+                            line_number=sc_scanner.last_line_number,
+                            start_column=sc_scanner.last_start_column,
+                            end_column=sc_scanner.last_end_column,
                         )
 
                         sc_action = sc_config.get("action", "block")
@@ -5342,14 +5364,19 @@ def process_hook_data(hook_data, daemon_state=None):
                                     exfil_ctx["tool_use_id"] = hook_tool_use_id
                                 if hook_session_id:
                                     exfil_ctx["session_id"] = hook_session_id
+                                exfil_blocked = {
+                                    "file_path": file_path,
+                                    "line_number": config_details.get("line_number") if config_details else None,
+                                    "reason": config_error,
+                                    "details": config_details
+                                }
+                                if config_details and config_details.get("start_column") is not None:
+                                    exfil_blocked["start_column"] = config_details["start_column"]
+                                if config_details and config_details.get("end_column") is not None:
+                                    exfil_blocked["end_column"] = config_details["end_column"]
                                 violation_logger.log_violation(
                                     violation_type=ViolationType.CONFIG_FILE_EXFIL,
-                                    blocked={
-                                        "file_path": file_path,
-                                        "line_number": None,
-                                        "reason": config_error,
-                                        "details": config_details
-                                    },
+                                    blocked=exfil_blocked,
                                     context=exfil_ctx,
                                     suggestion={
                                         "action": "review_config_file",

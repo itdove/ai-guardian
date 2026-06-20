@@ -214,6 +214,8 @@ class SupplyChainScanner:
         self.last_matched_text: Optional[str] = None
         self.last_category: Optional[str] = None
         self.last_line_number: Optional[int] = None
+        self.last_start_column: Optional[int] = None
+        self.last_end_column: Optional[int] = None
 
     def is_agent_config(self, file_path: str) -> bool:
         if not file_path:
@@ -259,6 +261,8 @@ class SupplyChainScanner:
         self.last_matched_text = None
         self.last_category = None
         self.last_line_number = None
+        self.last_start_column = None
+        self.last_end_column = None
 
         if not self.enabled or not content or not content.strip():
             return False, None, None
@@ -284,6 +288,8 @@ class SupplyChainScanner:
         self.last_matched_text = None
         self.last_category = None
         self.last_line_number = None
+        self.last_start_column = None
+        self.last_end_column = None
 
         if not self.enabled:
             return False, None, None
@@ -333,10 +339,16 @@ class SupplyChainScanner:
                     matched_text = match.group(0)
                     snippet = lines[line_number - 1].strip() if line_number <= len(lines) else ""
 
+                    line_start = content.rfind('\n', 0, match.start()) + 1
+                    start_column = match.start() - line_start
+                    end_column = match.end() - line_start
+
                     self.last_matched_pattern = description
                     self.last_matched_text = matched_text
                     self.last_category = category
                     self.last_line_number = line_number
+                    self.last_start_column = start_column
+                    self.last_end_column = end_column
 
                     should_block = self.action == "block"
                     action_label = "blocked" if should_block else "warning"
@@ -349,6 +361,8 @@ class SupplyChainScanner:
                         "pattern": description,
                         "matched_text": matched_text,
                         "line_number": line_number,
+                        "start_column": start_column,
+                        "end_column": end_column,
                         "snippet": snippet,
                         "file_path": label,
                     }
