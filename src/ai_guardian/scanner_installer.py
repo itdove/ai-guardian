@@ -78,14 +78,21 @@ class ScannerInstaller:
         Initialize scanner installer.
 
         Args:
-            install_dir: Directory to install scanners (default: /usr/local/bin)
+            install_dir: Directory to install scanners. Platform defaults:
+                - Windows: %LOCALAPPDATA%\\ai-guardian\\bin
+                - Unix: /usr/local/bin (fallback: ~/.local/bin)
         """
         if install_dir:
-            # Custom path provided - use it directly
             self.install_dir = install_dir
             self.install_dir.mkdir(parents=True, exist_ok=True)
+        elif sys.platform == "win32":
+            local_app_data = os.environ.get("LOCALAPPDATA")
+            if local_app_data:
+                self.install_dir = Path(local_app_data) / "ai-guardian" / "bin"
+            else:
+                self.install_dir = Path.home() / "AppData" / "Local" / "ai-guardian" / "bin"
+            self.install_dir.mkdir(parents=True, exist_ok=True)
         else:
-            # Try /usr/local/bin first, fall back to ~/.local/bin if not writable
             default_dir = Path("/usr/local/bin")
             if default_dir.exists() and os.access(default_dir, os.W_OK):
                 self.install_dir = default_dir
@@ -105,6 +112,12 @@ class ScannerInstaller:
                 self.install_dir.mkdir(parents=True, exist_ok=True)
 
         self.scanner_config = self._load_scanner_config()
+
+    def _get_binary_name(self, scanner_name: str) -> str:
+        """Return scanner binary name with .exe extension on Windows."""
+        if sys.platform == "win32":
+            return f"{scanner_name}.exe"
+        return scanner_name
 
     def _load_scanner_config(self) -> Dict[str, Any]:
         """
@@ -528,12 +541,10 @@ class ScannerInstaller:
         arch = platform_arch.split("_")[1]
 
         # Determine file extension and binary name
+        binary_name = self._get_binary_name(scanner_name)
         if system == "windows":
             ext = "zip"
-            binary_name = f"{scanner_name}.exe"
         else:
-            binary_name = scanner_name
-            # leaktk uses .tar.xz, others use .tar.gz
             ext = "tar.xz" if scanner_name == "leaktk" else "tar.gz"
 
         # Build filename - different scanners have different naming conventions
@@ -724,7 +735,7 @@ class ScannerInstaller:
         if installed_version and ensure_only:
             binary_path = shutil.which(scanner_name)
             if not binary_path:
-                binary_path = self.install_dir / scanner_name
+                binary_path = self.install_dir / self._get_binary_name(scanner_name)
             print(f"✓ {scanner_name} {installed_version} is already installed")
             print(f"  Path: {binary_path}")
             return True
@@ -736,7 +747,7 @@ class ScannerInstaller:
                 # Already up-to-date, skip installation
                 binary_path = shutil.which(scanner_name)
                 if not binary_path:
-                    binary_path = self.install_dir / scanner_name
+                    binary_path = self.install_dir / self._get_binary_name(scanner_name)
                 print(f"✓ {scanner_name} {installed_version} is already installed (up-to-date)")
                 print(f"  Path: {binary_path}")
                 print()
@@ -752,7 +763,7 @@ class ScannerInstaller:
                 # Installed version is newer, don't auto-downgrade
                 binary_path = shutil.which(scanner_name)
                 if not binary_path:
-                    binary_path = self.install_dir / scanner_name
+                    binary_path = self.install_dir / self._get_binary_name(scanner_name)
                 print(f"✓ {scanner_name} {installed_version} is already installed")
                 print(f"  Path: {binary_path}")
                 print()
@@ -812,8 +823,8 @@ class ScannerInstaller:
         """
         binary_path = shutil.which(scanner_name)
         if not binary_path:
-            # Check in install_dir
-            binary_path = self.install_dir / scanner_name
+            # Check in install_dir (with .exe on Windows)
+            binary_path = self.install_dir / self._get_binary_name(scanner_name)
             if not binary_path.exists():
                 return None
             binary_path = str(binary_path)
@@ -906,8 +917,8 @@ class ScannerInstaller:
         """
         binary_path = shutil.which(scanner_name)
         if not binary_path:
-            # Check in install_dir
-            binary_path = self.install_dir / scanner_name
+            # Check in install_dir (with .exe on Windows)
+            binary_path = self.install_dir / self._get_binary_name(scanner_name)
             if not binary_path.exists():
                 return False
             binary_path = str(binary_path)
