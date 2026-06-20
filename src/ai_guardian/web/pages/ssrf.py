@@ -445,6 +445,134 @@ def create_ssrf_page(service, daemon_name: str):
 
                             ui.button("Add", icon="add", on_click=add_allowed).props("dense")
 
+                    # --- Ignore files ---
+                    with ui.card().classes("w-full"):
+                        ui.label("Ignore Files").classes("text-lg font-bold")
+                        ui.label(
+                            "Glob patterns for files to exclude from SSRF checks."
+                        ).classes("text-xs text-grey-6")
+
+                        ignore_files = sp.get("ignore_files", [])
+                        if ignore_files:
+                            for idx, entry in enumerate(ignore_files):
+                                with ui.row().classes("items-center gap-2 w-full"):
+                                    ui.icon("visibility_off").classes("text-grey-6")
+                                    ui.label(entry).classes("flex-grow text-sm").style(
+                                        "font-family: monospace"
+                                    )
+
+                                    async def remove_ignore_file(i=idx):
+                                        cfg = await run.io_bound(load_web_config)
+                                        sect = cfg.get("ssrf_protection", {})
+                                        if not isinstance(sect, dict):
+                                            return
+                                        items = sect.get("ignore_files", [])
+                                        if i < len(items):
+                                            items.pop(i)
+                                            sect["ignore_files"] = items
+                                            cfg["ssrf_protection"] = sect
+                                            await run.io_bound(save_web_config, cfg)
+                                            ui.notify("File pattern removed", type="positive")
+                                            await refresh()
+
+                                    ui.button(
+                                        icon="delete", on_click=remove_ignore_file, color="red"
+                                    ).props("flat dense size=sm")
+                        else:
+                            ui.label("No ignore file patterns.").classes("text-grey-6 text-sm")
+
+                        with ui.row().classes("items-center gap-2 mt-2"):
+                            if_input = ui.input(
+                                placeholder="Enter glob pattern (e.g. **/tests/**)"
+                            ).props("dense outlined").classes("flex-grow")
+
+                            async def add_ignore_file():
+                                val = if_input.value.strip()
+                                if not val:
+                                    ui.notify("Enter a pattern", type="negative")
+                                    return
+                                cfg = await run.io_bound(load_web_config)
+                                sect = cfg.get("ssrf_protection", {})
+                                if not isinstance(sect, dict):
+                                    sect = {}
+                                items = sect.get("ignore_files", [])
+                                if val in items:
+                                    ui.notify("Pattern already exists", type="warning")
+                                    return
+                                items.append(val)
+                                sect["ignore_files"] = items
+                                cfg["ssrf_protection"] = sect
+                                await run.io_bound(save_web_config, cfg)
+                                if_input.value = ""
+                                ui.notify(f"Added: {val}", type="positive")
+                                await refresh()
+
+                            ui.button("Add", icon="add", on_click=add_ignore_file).props("dense")
+
+                    # --- Ignore tools ---
+                    with ui.card().classes("w-full"):
+                        ui.label("Ignore Tools").classes("text-lg font-bold")
+                        ui.label(
+                            "Tool name patterns to exclude from SSRF checks."
+                        ).classes("text-xs text-grey-6")
+
+                        ignore_tools = sp.get("ignore_tools", [])
+                        if ignore_tools:
+                            for idx, entry in enumerate(ignore_tools):
+                                with ui.row().classes("items-center gap-2 w-full"):
+                                    ui.icon("build").classes("text-grey-6")
+                                    ui.label(entry).classes("flex-grow text-sm").style(
+                                        "font-family: monospace"
+                                    )
+
+                                    async def remove_ignore_tool(i=idx):
+                                        cfg = await run.io_bound(load_web_config)
+                                        sect = cfg.get("ssrf_protection", {})
+                                        if not isinstance(sect, dict):
+                                            return
+                                        items = sect.get("ignore_tools", [])
+                                        if i < len(items):
+                                            items.pop(i)
+                                            sect["ignore_tools"] = items
+                                            cfg["ssrf_protection"] = sect
+                                            await run.io_bound(save_web_config, cfg)
+                                            ui.notify("Tool pattern removed", type="positive")
+                                            await refresh()
+
+                                    ui.button(
+                                        icon="delete", on_click=remove_ignore_tool, color="red"
+                                    ).props("flat dense size=sm")
+                        else:
+                            ui.label("No ignore tool patterns.").classes("text-grey-6 text-sm")
+
+                        with ui.row().classes("items-center gap-2 mt-2"):
+                            it_input = ui.input(
+                                placeholder="Enter tool name pattern (e.g. mcp__*)"
+                            ).props("dense outlined").classes("flex-grow")
+
+                            async def add_ignore_tool():
+                                val = it_input.value.strip()
+                                if not val:
+                                    ui.notify("Enter a pattern", type="negative")
+                                    return
+                                cfg = await run.io_bound(load_web_config)
+                                sect = cfg.get("ssrf_protection", {})
+                                if not isinstance(sect, dict):
+                                    sect = {}
+                                items = sect.get("ignore_tools", [])
+                                if val in items:
+                                    ui.notify("Pattern already exists", type="warning")
+                                    return
+                                items.append(val)
+                                sect["ignore_tools"] = items
+                                cfg["ssrf_protection"] = sect
+                                await run.io_bound(save_web_config, cfg)
+                                it_input.value = ""
+                                ui.notify(f"Added: {val}", type="positive")
+                                await refresh()
+
+                            ui.button("Add", icon="add", on_click=add_ignore_tool).props("dense")
+
                     with ui.card().classes("w-full"):
                         ui.label("SSRF Statistics").classes("text-lg font-bold")
                         total = await run.io_bound(_load_stats)

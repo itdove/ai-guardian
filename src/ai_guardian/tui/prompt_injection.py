@@ -223,6 +223,34 @@ class PromptInjectionContent(SchemaDefaultsMixin, Container):
                     yield Static("", id="custom-patterns")
                 yield Input(placeholder="Enter custom pattern to detect (press 'c' to add)", id="new-custom-input")
 
+            # Ignore files section
+            with Container(classes="section"):
+                yield Static("[bold]Ignore Files[/bold]", classes="section-title")
+                yield Static(
+                    "[dim]Glob patterns for files to skip during prompt injection detection.[/dim]",
+                    classes="section-title",
+                )
+                with VerticalScroll(classes="list-scroll"):
+                    yield Static("", id="pi-ignore-files-list")
+                yield Input(
+                    placeholder="Enter glob pattern (e.g. **/.claude/skills/*/SKILL.md)",
+                    id="pi-ignore-file-input",
+                )
+
+            # Ignore tools section
+            with Container(classes="section"):
+                yield Static("[bold]Ignore Tools[/bold]", classes="section-title")
+                yield Static(
+                    "[dim]Tool name patterns to skip during prompt injection detection.[/dim]",
+                    classes="section-title",
+                )
+                with VerticalScroll(classes="list-scroll"):
+                    yield Static("", id="pi-ignore-tools-list")
+                yield Input(
+                    placeholder="Enter tool pattern (e.g. Skill:code-review)",
+                    id="pi-ignore-tool-input",
+                )
+
             # Statistics section
             with Container(classes="section"):
                 yield Static("[bold]Detection Statistics[/bold]", classes="section-title")
@@ -333,6 +361,28 @@ class PromptInjectionContent(SchemaDefaultsMixin, Container):
             custom_text = "[dim]No custom patterns configured[/dim]"
         self.query_one("#custom-patterns", Static).update(custom_text)
 
+        # Update ignore files list
+        ignore_files = pi_config.get("ignore_files", [])
+        try:
+            if ignore_files:
+                ignore_files_text = "\n".join(f"  {f}" for f in ignore_files)
+            else:
+                ignore_files_text = "[dim]No ignore patterns configured[/dim]"
+            self.query_one("#pi-ignore-files-list", Static).update(ignore_files_text)
+        except Exception:
+            pass
+
+        # Update ignore tools list
+        ignore_tools = pi_config.get("ignore_tools", [])
+        try:
+            if ignore_tools:
+                ignore_tools_text = "\n".join(f"  {t}" for t in ignore_tools)
+            else:
+                ignore_tools_text = "[dim]No ignored tools configured[/dim]"
+            self.query_one("#pi-ignore-tools-list", Static).update(ignore_tools_text)
+        except Exception:
+            pass
+
         self._apply_default_indicators(pi_config)
 
         # Get violation stats
@@ -381,6 +431,10 @@ class PromptInjectionContent(SchemaDefaultsMixin, Container):
             self.add_allowlist_pattern()
         elif event.input.id == "new-custom-input":
             self.add_custom_pattern()
+        elif event.input.id == "pi-ignore-file-input":
+            self._add_ignore_item("ignore_files", event.input)
+        elif event.input.id == "pi-ignore-tool-input":
+            self._add_ignore_item("ignore_tools", event.input)
 
     def on_checkbox_changed(self, event: Checkbox.Changed) -> None:
         """Handle checkbox changes - save unicode detection settings immediately."""
@@ -584,6 +638,43 @@ class PromptInjectionContent(SchemaDefaultsMixin, Container):
 
             self.load_config()
             self.app.notify(f"✓ Added custom pattern: {pattern}", severity="success")
+
+        except Exception as e:
+            self.app.notify(f"Error adding pattern: {e}", severity="error")
+
+    def _add_ignore_item(self, field: str, input_widget: Input) -> None:
+        """Add an item to prompt_injection.ignore_files or ignore_tools."""
+        value = input_widget.value.strip()
+        if not value:
+            self.app.notify("Please enter a pattern", severity="error")
+            return
+
+        config_dir = get_config_dir()
+        config_path = config_dir / "ai-guardian.json"
+
+        try:
+            config = {}
+            if config_path.exists():
+                with open(config_path, 'r', encoding='utf-8') as f:
+                    config = json.load(f)
+
+            if "prompt_injection" not in config:
+                config["prompt_injection"] = {}
+            if field not in config["prompt_injection"]:
+                config["prompt_injection"][field] = []
+
+            if value in config["prompt_injection"][field]:
+                self.app.notify("Pattern already exists", severity="warning")
+                return
+
+            config["prompt_injection"][field].append(value)
+
+            with open(config_path, 'w', encoding='utf-8') as f:
+                json.dump(config, f, indent=2)
+
+            input_widget.value = ""
+            self.load_config()
+            self.app.notify(f"Added: {value}", severity="success")
 
         except Exception as e:
             self.app.notify(f"Error adding pattern: {e}", severity="error")

@@ -575,6 +575,8 @@
     "action": "block",
     "additional_files": [],
     "ignore_files": [],
+    "_comment_ignore_tools": "Tool name patterns to skip during config file scanning. Supports wildcards: * (any chars), ? (single char)",
+    "ignore_tools": [],
     "additional_patterns": [],
     "_pattern_server_example": {
       "_comment": "Optional: Fetch exfiltration patterns from a dedicated pattern server",
@@ -753,6 +755,11 @@
     "allow_localhost": false,
     "_allow_localhost_comment": "Set to true for local development (NEVER in production)",
     "_allow_localhost_security_warning": "Only enable in development environments",
+
+    "_comment_ignore_files": "Glob patterns for files to skip during SSRF checks (e.g., '**/tests/**', '**/fixtures/**')",
+    "ignore_files": [],
+    "_comment_ignore_tools": "Tool name patterns to skip during SSRF checks. Supports wildcards: * (any chars), ? (single char)",
+    "ignore_tools": [],
 
     "_pattern_server_example": {
       "_comment": "Optional: Fetch SSRF protection patterns from a dedicated pattern server",
