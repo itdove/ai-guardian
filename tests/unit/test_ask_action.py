@@ -556,6 +556,90 @@ class TestHandleAskMode:
         mock_write.assert_called_once_with("secret_scanning", r"FAKE\w+", config_path=None)
 
 
+class TestAskCacheInvalidation:
+    """Tests for config cache invalidation after ask dialog saves (#1301)."""
+
+    @patch("ai_guardian.tui.ask_dialog.show_ask_dialog")
+    def test_allow_always_clears_config_cache(self, mock_dialog):
+        from ai_guardian.hook_processing import _handle_ask_mode
+        from ai_guardian.tui.ask_dialog import AskResult, AskDecision
+        mock_dialog.return_value = AskResult(
+            decision=AskDecision.ALLOW_ALWAYS,
+            allowlist_pattern=r"FAKE\w+"
+        )
+        with patch("ai_guardian.config_writer.save_ask_pattern") as mock_write, \
+             patch("ai_guardian.config_loaders._clear_config_cache") as mock_clear:
+            mock_write.return_value = True
+            _handle_ask_mode(
+                "ask", "secret_detected", "FAKE_TOKEN", "secret_scanning", "error"
+            )
+        mock_clear.assert_called_once()
+        _, kwargs = mock_clear.call_args
+        assert "project_key" in kwargs
+
+    @patch("ai_guardian.tui.ask_dialog.show_ask_dialog")
+    def test_allow_always_clears_cache_with_project_path(self, mock_dialog):
+        from ai_guardian.hook_processing import _handle_ask_mode
+        from ai_guardian.tui.ask_dialog import AskResult, AskDecision
+        mock_dialog.return_value = AskResult(
+            decision=AskDecision.ALLOW_ALWAYS,
+            allowlist_pattern=r"FAKE\w+"
+        )
+        with patch("ai_guardian.config_writer.save_ask_pattern") as mock_write, \
+             patch("ai_guardian.config_loaders._clear_config_cache") as mock_clear:
+            mock_write.return_value = True
+            _handle_ask_mode(
+                "ask", "secret_detected", "FAKE_TOKEN", "secret_scanning", "error",
+                hook_context={"project_path": "/tmp/my-project"}
+            )
+        mock_clear.assert_called_once_with(project_key="/tmp/my-project")
+
+    @patch("ai_guardian.tui.ask_dialog.show_ask_dialog")
+    def test_allow_always_config_saved_still_clears_cache(self, mock_dialog):
+        """Cache must be cleared even when the dialog already saved the config."""
+        from ai_guardian.hook_processing import _handle_ask_mode
+        from ai_guardian.tui.ask_dialog import AskResult, AskDecision
+        mock_dialog.return_value = AskResult(
+            decision=AskDecision.ALLOW_ALWAYS,
+            allowlist_pattern=r"FAKE\w+",
+            config_saved=True,
+        )
+        with patch("ai_guardian.config_loaders._clear_config_cache") as mock_clear:
+            _handle_ask_mode(
+                "ask", "secret_detected", "FAKE_TOKEN", "secret_scanning", "error",
+                hook_context={"project_path": "/tmp/my-project"}
+            )
+        mock_clear.assert_called_once_with(project_key="/tmp/my-project")
+
+    @patch("ai_guardian.tui.ask_dialog.show_ask_dialog")
+    def test_ignore_file_clears_config_cache(self, mock_dialog):
+        from ai_guardian.hook_processing import _handle_ask_mode
+        from ai_guardian.tui.ask_dialog import AskResult, AskDecision
+        mock_dialog.return_value = AskResult(
+            decision=AskDecision.IGNORE_FILE,
+            ignore_path="src/generated/*.py",
+        )
+        with patch("ai_guardian.tui.ask_dialog._save_ignore_path") as mock_save, \
+             patch("ai_guardian.config_loaders._clear_config_cache") as mock_clear:
+            mock_save.return_value = True
+            _handle_ask_mode(
+                "ask", "secret_detected", "FAKE_TOKEN", "secret_scanning", "error",
+                hook_context={"project_path": "/tmp/my-project"}
+            )
+        mock_clear.assert_called_once_with(project_key="/tmp/my-project")
+
+    @patch("ai_guardian.tui.ask_dialog.show_ask_dialog")
+    def test_allow_once_does_not_clear_cache(self, mock_dialog):
+        from ai_guardian.hook_processing import _handle_ask_mode
+        from ai_guardian.tui.ask_dialog import AskResult, AskDecision
+        mock_dialog.return_value = AskResult(decision=AskDecision.ALLOW_ONCE)
+        with patch("ai_guardian.config_loaders._clear_config_cache") as mock_clear:
+            _handle_ask_mode(
+                "ask", "secret_detected", "FAKE_TOKEN", "secret_scanning", "error"
+            )
+        mock_clear.assert_not_called()
+
+
 class TestAskDialogTiming:
     """Tests for ask dialog wait time tracking (#1159)."""
 

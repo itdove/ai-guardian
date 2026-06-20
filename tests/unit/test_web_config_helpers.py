@@ -56,6 +56,24 @@ class TestSaveWebConfig:
         assert '  "a": 1' in written
 
 
+class TestCacheInvalidation:
+    """Tests for config cache invalidation on save (#1301)."""
+
+    def test_save_clears_config_cache(self, tmp_path):
+        with patch("ai_guardian.config_utils.get_config_dir", return_value=tmp_path), \
+             patch("ai_guardian.config_writer.get_config_dir", return_value=tmp_path), \
+             patch("ai_guardian.config_loaders._clear_config_cache") as mock_clear:
+            save_web_config({"key": "value"})
+        assert mock_clear.called
+
+    def test_save_global_scope_clears_all_caches(self, tmp_path):
+        with patch("ai_guardian.config_utils.get_config_dir", return_value=tmp_path), \
+             patch("ai_guardian.config_writer.get_config_dir", return_value=tmp_path), \
+             patch("ai_guardian.config_loaders._clear_config_cache") as mock_clear:
+            save_web_config({"key": "value"})
+        assert any(c == ((), {}) for c in mock_clear.call_args_list)
+
+
 class TestRoundTrip:
     """Verify save then load returns same data."""
 

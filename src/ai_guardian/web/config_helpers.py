@@ -94,6 +94,7 @@ def save_web_config(config: dict) -> None:
             return False, f"Saved web config [{scope}]"
 
         _atomic_config_update(config_path, updater)
+        _invalidate_config_cache_after_save(scope, project_dir)
         return
     except Exception:
         pass
@@ -104,6 +105,19 @@ def save_web_config(config: dict) -> None:
     with open(path, "w", encoding="utf-8") as f:
         json.dump(config, f, indent=2)
         f.write("\n")
+    _invalidate_config_cache_after_save("global", None)
+
+
+def _invalidate_config_cache_after_save(scope: str, project_dir: Optional[str]) -> None:
+    """Invalidate the daemon config cache after a web console save."""
+    try:
+        from ai_guardian.config_loaders import _clear_config_cache
+        if scope == "project" and project_dir:
+            _clear_config_cache(project_key=project_dir)
+        else:
+            _clear_config_cache()
+    except Exception:
+        pass
 
 
 def get_web_config_provenance() -> dict:
