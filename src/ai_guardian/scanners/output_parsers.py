@@ -444,7 +444,7 @@ class SecretlintOutputParser(ScannerOutputParser):
                 return [data]
             return None
         except json.JSONDecodeError:
-            pass
+            pass  # intentionally silent — best-effort operation
 
         results = []
         for line in content.split("\n"):

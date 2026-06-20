@@ -84,7 +84,7 @@ def _parse_enabled(status):
                 if datetime.now(timezone.utc) < dt:
                     return False, dt
             except (ValueError, TypeError):
-                pass
+                pass  # intentionally silent — invalid value uses default
             return True, None
         return status.get("value", True), None
     return bool(status), None
@@ -160,7 +160,7 @@ def _load_recent_violations():
                 if (now - dt).total_seconds() <= 86400:
                     recent.append(v)
             except (ValueError, TypeError):
-                pass
+                pass  # intentionally silent — best-effort operation
         return recent
     except Exception:
         return []

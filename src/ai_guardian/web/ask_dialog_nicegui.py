@@ -215,7 +215,7 @@ def _show_nicegui_ignore_file(dialog_self, app, v):
                 toml_text, _ = generate_aiguardignore_preview(path, scanner_types)
                 preview_code.set_content(toml_text)
             except Exception:
-                pass
+                pass  # intentionally silent — preview generation best-effort
 
         path_input.on_value_change(lambda _: update_preview())
         scope_radio.on_value_change(lambda _: update_preview())
@@ -416,7 +416,7 @@ class _NiceGuiAskDialog:
                     capture_output=True, text=True, timeout=3,
                 ).stdout.strip()
             except Exception:
-                pass
+                pass  # intentionally silent — best-effort operation
 
         webbrowser.open(f"http://127.0.0.1:{port}")
 
@@ -429,7 +429,7 @@ class _NiceGuiAskDialog:
                     capture_output=True, timeout=3,
                 )
             except Exception:
-                pass
+                pass  # intentionally silent — best-effort operation
 
         return self._result
 

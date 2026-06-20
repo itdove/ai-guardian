@@ -74,7 +74,7 @@ class CopilotAdapter(HookAdapter):
             try:
                 tool_input = json.loads(tool_args_str)
             except json.JSONDecodeError:
-                pass
+                pass  # intentionally silent — best-effort operation
         if not tool_input:
             tool_input = self._extract_tool_input(hook_data)
 

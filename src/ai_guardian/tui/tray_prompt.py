@@ -65,7 +65,7 @@ class _TkinterPromptApp:
                 from AppKit import NSApplication
                 NSApplication.sharedApplication().activateIgnoringOtherApps_(True)
             except Exception:
-                pass
+                pass  # intentionally silent — optional dependency
         self._root.title(self._title)
         self._root.resizable(False, False)
         self._root.protocol("WM_DELETE_WINDOW", self._cancel)
@@ -500,7 +500,7 @@ def _native_file_picker(pick_directory=False):
             if result.returncode == 0 and result.stdout.strip():
                 return result.stdout.strip()
     except (subprocess.TimeoutExpired, FileNotFoundError, OSError):
-        pass
+        pass  # intentionally silent — subprocess may fail
     return None
 
 
@@ -594,7 +594,7 @@ class _NiceGuiPromptApp:
                             try:
                                 num_val = float(default)
                             except (ValueError, TypeError):
-                                pass
+                                pass  # intentionally silent — invalid value uses default
                         w = ui.number(
                             value=num_val, **kwargs,
                         ).classes("w-full")

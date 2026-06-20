@@ -172,12 +172,12 @@ class PerformanceContent(Container):
             toggle = self.query_one("#perf_enabled_toggle", TimeBasedToggle)
             toggle.load_value(cfg.get("enabled", False))
         except Exception:
-            pass
+            pass  # intentionally silent — optional dependency
 
         try:
             self.query_one("#perf-max-entries", Input).value = str(cfg.get("max_entries", 5000))
         except Exception:
-            pass
+            pass  # intentionally silent — optional dependency
         try:
             self.query_one("#perf-retention-days", Input).value = str(cfg.get("retention_days", 30))
         except Exception:

@@ -1,5 +1,6 @@
 """Performance page — hook latency statistics and per-check breakdown."""
 
+import logging
 import json
 import tempfile
 
@@ -34,8 +35,8 @@ def _save_latency_config(updates):
         try:
             with open(path, "r", encoding="utf-8") as f:
                 config = json.load(f)
-        except Exception:
-            pass
+        except Exception as e:
+            logging.warning("Failed to read config: %s", e)
     if "latency_tracking" not in config:
         config["latency_tracking"] = {}
     config["latency_tracking"].update(updates)

@@ -53,7 +53,7 @@ def _parse_enabled(raw):
                 if datetime.now(timezone.utc) < until_dt:
                     return True, until_dt, raw.get("reason", ""), False
             except (ValueError, TypeError):
-                pass
+                pass  # intentionally silent — invalid value uses default
         return False, None, "", bool(raw.get("value", True))
     return False, None, "", bool(raw)
 
@@ -344,7 +344,7 @@ def create_secrets_page(service, daemon_name: str):
                                     sw_data.get("stopwords", {}).get("words", [])
                                 )
                         except Exception:
-                            pass
+                            pass  # intentionally silent — optional dependency
 
                         ui.label(
                             f"Bundled: {bundled_count} words (always active)"

@@ -52,7 +52,7 @@ def _is_stop_requested():
         marker = get_state_dir() / "daemon.stop-requested"
         return marker.exists()
     except Exception:
-        pass
+        pass  # intentionally silent — optional dependency
     return False
 
 
@@ -67,13 +67,13 @@ def _ensure_daemon_started():
         if not is_daemon_running():
             start_daemon_background()
     except Exception:
-        pass
+        pass  # intentionally silent — best-effort operation
 
     try:
         from ai_guardian.daemon.auto_setup import auto_setup_tray
         auto_setup_tray()
     except Exception:
-        pass
+        pass  # intentionally silent — best-effort operation
 
 
 def _handle_ml_command(args, ml_parser):
@@ -157,7 +157,7 @@ def main():
             sys.stdout.reconfigure(encoding="utf-8", errors="replace")
             sys.stderr.reconfigure(encoding="utf-8", errors="replace")
         except (AttributeError, OSError):
-            pass
+            pass  # intentionally silent — encoding reconfigure best-effort
 
     # If arguments are provided, handle them
     if len(sys.argv) > 1:
@@ -1690,7 +1690,7 @@ def main():
     try:
         _hook_config, _ = _load_config_file()
     except Exception:
-        pass
+        pass  # intentionally silent — best-effort operation
     def _has_ask_action(config):
         """Check if any feature uses the ask action mode."""
         for section in ("secret_scanning", "prompt_injection", "scan_pii", "context_poisoning"):

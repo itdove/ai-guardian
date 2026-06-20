@@ -308,7 +308,7 @@ class TimeBasedToggle(VerticalGroup):
 
             status_widget.update(status_text)
         except Exception:
-            pass
+            pass  # intentionally silent — best-effort operation
 
     def get_value(self) -> Union[bool, Dict[str, Any]]:
         if self.current_mode == "enabled":

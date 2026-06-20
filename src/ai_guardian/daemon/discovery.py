@@ -53,7 +53,7 @@ def _detect_engine(client, source: str) -> str:
             if "podman" in comp.get("Name", "").lower():
                 return "podman"
     except Exception:
-        pass
+        pass  # intentionally silent — daemon comm best-effort
     return _engine_from_source(source)
 
 from ai_guardian.daemon import (
@@ -181,8 +181,8 @@ class DaemonDiscovery:
             cfg_name = config_data.get("daemon", {}).get("name")
             if cfg_name:
                 name = cfg_name
-        except (json.JSONDecodeError, OSError):
-            pass
+        except (json.JSONDecodeError, OSError) as e:
+            logger.debug("Failed to read config: %s", e)
 
         target = DaemonTarget(
             name=name,
@@ -209,8 +209,8 @@ class DaemonDiscovery:
                     target.status = "running"
                     target.last_seen = time.monotonic()
                     return target
-            except (json.JSONDecodeError, OSError):
-                pass
+            except (json.JSONDecodeError, OSError) as e:
+                logger.debug("Failed to read config: %s", e)
 
         from ai_guardian.daemon.client import is_daemon_running
         if is_daemon_running():
@@ -279,7 +279,7 @@ class DaemonDiscovery:
                 try:
                     client.close()
                 except Exception:
-                    pass
+                    pass  # intentionally silent — cleanup best-effort
 
         return list(seen_ids.values())
 
@@ -440,7 +440,7 @@ class DaemonDiscovery:
                 if name:
                     return name
         except Exception:
-            pass
+            pass  # intentionally silent — best-effort operation
 
         try:
             exit_code, output = container.exec_run(
@@ -451,7 +451,7 @@ class DaemonDiscovery:
                 data = json.loads(output.decode("utf-8", errors="replace"))
                 return data.get("name") or data.get("daemon", {}).get("name")
         except Exception:
-            pass
+            pass  # intentionally silent — best-effort operation
 
         return None
 
@@ -468,7 +468,7 @@ class DaemonDiscovery:
                 return parsed
             return [parsed]
         except json.JSONDecodeError:
-            pass
+            pass  # intentionally silent — best-effort operation
 
         results = []
         for line in output.splitlines():
@@ -578,7 +578,7 @@ class DaemonDiscovery:
                 if name:
                     return name
         except (subprocess.TimeoutExpired, OSError):
-            pass
+            pass  # intentionally silent — subprocess may fail
 
         try:
             result = subprocess.run(
@@ -589,8 +589,8 @@ class DaemonDiscovery:
             if result.returncode == 0:
                 data = json.loads(result.stdout)
                 return data.get("name") or data.get("daemon", {}).get("name")
-        except (subprocess.TimeoutExpired, OSError, json.JSONDecodeError):
-            pass
+        except (subprocess.TimeoutExpired, OSError, json.JSONDecodeError) as e:
+            logger.debug("Failed to read config: %s", e)
 
         return None
 
@@ -616,7 +616,7 @@ class DaemonDiscovery:
                         logger.warning("Refusing HTTP probe to non-private host: %s", host)
                         return None
                 except ValueError:
-                    pass
+                    pass  # intentionally silent — daemon comm best-effort
             url = f"http://{host}:{port}/api/status"
             with urlopen(url, timeout=timeout) as resp:
                 return json_mod.loads(resp.read().decode("utf-8"))

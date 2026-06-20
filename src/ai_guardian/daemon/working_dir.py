@@ -92,7 +92,7 @@ def shorten_path(path: str) -> str:
         if path.startswith(home + os.sep):
             return "~" + path[len(home):]
     except RuntimeError:
-        pass
+        pass  # intentionally silent — best-effort operation
     return path
 
 

@@ -100,7 +100,7 @@ def auto_setup_tray():
             from ai_guardian.config_loaders import _load_config_file
             config, _ = _load_config_file()
         except Exception:
-            pass
+            pass  # intentionally silent — best-effort operation
 
         if _is_auto_install_disabled(config):
             logger.debug("Auto-setup: skipped (disabled in config)")

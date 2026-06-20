@@ -40,7 +40,7 @@ def _get_active_project_dirs(service, daemon_name: str):
         if status:
             return status.get("active_project_dirs") or []
     except Exception:
-        pass
+        pass  # intentionally silent — best-effort operation
     return []
 
 

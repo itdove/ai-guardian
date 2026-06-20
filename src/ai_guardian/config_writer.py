@@ -92,7 +92,7 @@ def _atomic_config_update(
                 from ai_guardian.config_loaders import _clear_config_cache
                 _clear_config_cache()
             except ImportError:
-                pass
+                pass  # intentionally silent — optional dependency
 
             logger.info(log_msg)
             return True

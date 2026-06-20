@@ -228,7 +228,7 @@ def write_annotated_source(file_path: str, content: str) -> bool:
             try:
                 os.unlink(tmp_path)
             except OSError:
-                pass
+                pass  # intentionally silent — best-effort operation
             raise
     except Exception as e:
         logger.warning("Failed to write annotated source: %s", e)

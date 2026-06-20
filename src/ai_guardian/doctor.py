@@ -307,7 +307,7 @@ class Doctor:
                 if prop_schema.get("deprecated"):
                     deprecated_keys.append(key)
         except Exception:
-            pass
+            pass  # intentionally silent — diagnostic check best-effort
 
         found = [k for k in deprecated_keys if k in self._config]
         if found:
@@ -546,7 +546,7 @@ class Doctor:
                         message=f"Token found in {_tilde(token_file)}",
                     )
             except Exception:
-                pass
+                pass  # intentionally silent — diagnostic check best-effort
 
         return CheckResult(
             name="ps_auth",
@@ -602,7 +602,7 @@ class Doctor:
                 try:
                     token = token_file.read_text().strip()
                 except Exception:
-                    pass
+                    pass  # intentionally silent — diagnostic check best-effort
         if token:
             headers["Authorization"] = f"Bearer {token}"
 
@@ -666,7 +666,7 @@ class Doctor:
             if isinstance(rules, list):
                 return len(rules)
         except Exception:
-            pass
+            pass  # intentionally silent — diagnostic check best-effort
         return None
 
     def check_ps_cache_freshness(self) -> CheckResult:
@@ -720,7 +720,7 @@ class Doctor:
             content = cache_file.read_text()
             rule_count = self._count_toml_rules(content)
         except Exception:
-            pass
+            pass  # intentionally silent — diagnostic check best-effort
 
         age_str = f"{int(age_days)} days old" if age_days >= 1 else "< 1 day old"
         rule_str = f", {rule_count} rules" if rule_count is not None else ""
@@ -936,7 +936,7 @@ class Doctor:
                                 old_path.unlink()
                                 removed.append(f)
                             except OSError:
-                                pass
+                                pass  # intentionally silent — cleanup best-effort
                     return CheckResult(
                         name="state_dir",
                         status=CheckStatus.PASS,
@@ -960,7 +960,7 @@ class Doctor:
                 count = sum(1 for _ in open(violations_file))
                 detail = f"{count} violations logged"
             except Exception:
-                pass
+                pass  # intentionally silent — diagnostic check best-effort
 
         return CheckResult(
             name="state_dir",
@@ -1385,7 +1385,7 @@ class Doctor:
             import tkinter  # noqa: F401
             has_tkinter = True
         except ImportError:
-            pass
+            pass  # intentionally silent — optional dependency
 
         if has_tkinter:
             return CheckResult(
@@ -1399,7 +1399,7 @@ class Doctor:
             import nicegui  # noqa: F401
             has_nicegui = True
         except ImportError:
-            pass
+            pass  # intentionally silent — optional dependency
 
         if has_nicegui:
             return CheckResult(
@@ -1686,7 +1686,7 @@ class Doctor:
                 importlib.import_module(module_name)
                 available.append(lang_name.capitalize())
             except ImportError:
-                pass
+                pass  # intentionally silent — optional dependency
 
         if not available:
             return CheckResult(

@@ -314,7 +314,7 @@ def add_ignore_path(
             try:
                 os.unlink(tmp_path)
             except OSError:
-                pass
+                pass  # intentionally silent — best-effort operation
             raise
 
         reset_cache()
@@ -405,7 +405,7 @@ def write_aiguardignore_text(
             try:
                 os.unlink(tmp_path)
             except OSError:
-                pass
+                pass  # intentionally silent — best-effort operation
             raise
 
         reset_cache()

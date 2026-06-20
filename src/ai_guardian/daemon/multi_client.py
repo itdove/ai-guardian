@@ -187,7 +187,7 @@ class MultiDaemonClient:
             if target.runtime == "kubernetes":
                 return self._kubectl_exec(target, cmd, timeout=10) is not None
         except (subprocess.TimeoutExpired, OSError):
-            pass
+            pass  # intentionally silent — subprocess may fail
         return False
 
     @staticmethod

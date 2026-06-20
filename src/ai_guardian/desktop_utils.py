@@ -111,5 +111,5 @@ def _get_default_browser() -> str | None:
         if shutil.which(name):
             return name
     except (OSError, subprocess.TimeoutExpired):
-        pass
+        pass  # intentionally silent — subprocess may fail
     return None

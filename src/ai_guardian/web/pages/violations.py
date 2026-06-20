@@ -835,7 +835,7 @@ def _show_ignore_file_flow(violation):
                 toml_text, _ = generate_aiguardignore_preview(path, scanner_types)
                 preview_code.set_content(toml_text)
             except Exception:
-                pass
+                pass  # intentionally silent — preview generation best-effort
 
         path_input.on_value_change(lambda _: update_preview())
         scope_radio.on_value_change(lambda _: update_preview())

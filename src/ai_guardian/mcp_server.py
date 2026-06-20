@@ -96,7 +96,7 @@ def _load_skill_instructions() -> str:
                     content = content[end + 3 :].strip()
             return content
     except Exception:
-        pass
+        pass  # intentionally silent — optional dependency
     return (
         "AI Guardian security advisor. Use check_path before accessing unfamiliar files, "
         "check_command before running sensitive commands, sanitize_text before outputting "
@@ -269,7 +269,7 @@ def create_server() -> "FastMCP":
                     out_dir.relative_to(resolved)
                     return {"status": "error", "message": "Output directory cannot be inside source directory"}
                 except ValueError:
-                    pass
+                    pass  # intentionally silent — best-effort operation
             else:
                 out_dir = Path(tempfile.mkdtemp(prefix="ai-guardian-sanitized-"))
                 (out_dir / ".ai-read-deny").touch()
@@ -312,7 +312,7 @@ def create_server() -> "FastMCP":
                     resolved.relative_to(pdir)
                     return {"valid": False, "warnings": ["Path is protected"]}
                 except ValueError:
-                    pass
+                    pass  # intentionally silent — best-effort operation
             content = path.read_text(errors="replace")
             _, _, _, warnings = process_annotations(content, file_path)
             return {

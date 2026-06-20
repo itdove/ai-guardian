@@ -181,7 +181,7 @@ class DaemonPanelContent(Static):
                 from ai_guardian.daemon.client import send_reload_config
                 send_reload_config()
             except Exception:
-                pass
+                pass  # intentionally silent — optional dependency
 
             self.app.notify("Daemon config saved", severity="information")
         except Exception as e:
@@ -218,7 +218,7 @@ class DaemonPanelContent(Static):
                     pid_info = json.loads(pid_path.read_text())
                     pid = pid_info.get("pid", "?")
                 except Exception:
-                    pass
+                    pass  # intentionally silent — best-effort operation
 
                 lines = [
                     f"[green]Running[/green] (pid {pid}){paused}",
@@ -244,5 +244,5 @@ class DaemonPanelContent(Static):
                 config = json.loads(config_path.read_text(encoding="utf-8"))
                 return config.get("daemon", {})
         except Exception:
-            pass
+            pass  # intentionally silent — best-effort operation
         return {}

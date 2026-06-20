@@ -373,6 +373,27 @@ The system tray is the controlling component and connects to daemons across loca
 
 ## Code Quality
 
+### Log Level Guidelines
+
+Use `logging.getLogger(__name__)` in all modules. Choose levels as follows:
+
+- **CRITICAL**: Security audit gaps — a violation was detected and blocked but the violation record failed to persist (e.g., secret detection log failure). Operators must be alerted immediately.
+- **ERROR**: Operation failures needing investigation — violation logging failures (non-secret), daemon startup failures, config load errors that fall back to defaults.
+- **WARNING**: Degraded protection — a security scanner check raised an exception and was skipped for one file, URL parse failure in SSRF protector, config value parse failure using default instead.
+- **INFO**: Normal operational events — daemon started/stopped, config reloaded, scanner installed/updated.
+- **DEBUG**: Expected operational conditions — daemon not running when client checks, optional module not available, network timeouts during discovery.
+
+**Silent `except...pass`** is acceptable ONLY for:
+- Import availability checks (`except ImportError: HAS_X = False`)
+- Cleanup/teardown (socket close, file close, process kill)
+- TUI widget queries during Textual mount/dismount lifecycle
+- Must include `# intentionally silent — <reason>` comment
+
+**Never silently swallow**:
+- Security-relevant exceptions (violation detection or logging paths)
+- Config file read/parse errors (log at WARNING minimum)
+- Bare `except:` — always use specific exception types
+
 ### Linting
 
 The project uses multiple linters to maintain code quality:

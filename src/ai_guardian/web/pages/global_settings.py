@@ -105,7 +105,7 @@ def _get_enabled(config, section):
                     if datetime.now(timezone.utc) < dt:
                         return "temp_disabled", dt, enabled.get("reason", "")
                 except (ValueError, TypeError):
-                    pass
+                    pass  # intentionally silent — invalid value uses default
                 return True, None, ""
             return enabled.get("value", default_enabled), None, ""
         return enabled, None, ""

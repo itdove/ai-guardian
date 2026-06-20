@@ -63,7 +63,7 @@ def _write_tray_lock():
             if is_pid_alive(old_pid):
                 raise RuntimeError(f"Tray already starting (pid {old_pid})")
         except (ValueError, OSError):
-            pass
+            pass  # intentionally silent — stale lock cleanup
         lock_path.unlink(missing_ok=True)
         try:
             fd = os.open(str(lock_path), os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
@@ -82,7 +82,7 @@ def _remove_tray_lock():
             if pid == os.getpid():
                 lock_path.unlink(missing_ok=True)
     except (ValueError, OSError):
-        pass
+        pass  # intentionally silent — stale lock cleanup
 
 def _ensure_system_gi():
     """Make system GObject Introspection visible in isolated environments.
@@ -98,7 +98,7 @@ def _ensure_system_gi():
         import gi  # noqa: F401
         return
     except ImportError:
-        pass
+        pass  # intentionally silent — optional dependency
     for python in ("/usr/bin/python3", "/usr/bin/python", "python3", "python"):
         try:
             result = subprocess.run(
@@ -155,7 +155,7 @@ def _restore_stderr(saved_fd):
             os.dup2(saved_fd, 2)
             os.close(saved_fd)
         except OSError:
-            pass
+            pass  # intentionally silent — best-effort operation
 
 
 def _check_gi_available():
@@ -340,7 +340,7 @@ class DaemonTray:
             try:
                 self._icon.stop()
             except Exception:
-                pass
+                pass  # intentionally silent — cleanup best-effort
         _remove_tray_lock()
 
     def _stop_web_console(self):
@@ -357,7 +357,7 @@ class DaemonTray:
         try:
             port_file.unlink(missing_ok=True)
         except OSError:
-            pass
+            pass  # intentionally silent — cleanup best-effort
 
     _AUTOSTART_COOLDOWN = 5.0
 
@@ -404,7 +404,7 @@ class DaemonTray:
                 self._request_discovery_refresh(wait=False)
                 return True
         except Exception:
-            pass
+            pass  # intentionally silent — optional dependency
         return False
 
     def update_status(self, status):
@@ -464,9 +464,9 @@ class DaemonTray:
                     if icon_image:
                         app.setApplicationIconImage_(icon_image)
             except Exception:
-                pass
+                pass  # intentionally silent — optional dependency
         except Exception:
-            pass
+            pass  # intentionally silent — optional dependency
 
     def _run(self):
         """Run tray icon (blocking, called in thread)."""
@@ -518,7 +518,7 @@ class DaemonTray:
             try:
                 img = Image.open(icon_path).convert("RGBA")
             except Exception:
-                pass
+                pass  # intentionally silent — icon loading best-effort
         if img is None:
             img = self._create_fallback_icon(22)
         if self._needs_dark_icon():
@@ -614,7 +614,7 @@ class DaemonTray:
                 if isinstance(ref, Path) and ref.exists():
                     return str(ref)
             except Exception:
-                pass
+                pass  # intentionally silent — resource loading best-effort
 
         # Strategy 2: For zipped wheels, extract via as_file() and copy to
         # a persistent temp directory so the path survives context exit.
@@ -635,7 +635,7 @@ class DaemonTray:
                             shutil.copy2(str(p), str(dest))
                         return str(dest)
             except Exception:
-                pass
+                pass  # intentionally silent — resource loading best-effort
 
         # Strategy 3: Filesystem fallback (development layout).
         src_dir = Path(__file__).resolve().parent.parent
@@ -660,7 +660,7 @@ class DaemonTray:
         try:
             draw.text((size // 4, size // 6), "G", fill=(255, 255, 255, 255))
         except Exception:
-            pass
+            pass  # intentionally silent — icon loading best-effort
         return image
 
     def _generate_discovery_frames(self):
@@ -815,7 +815,7 @@ class DaemonTray:
                 config = json.loads(config_path.read_text(encoding="utf-8"))
                 return config.get("mcp_server", {}).get("proactive_level", "low")
         except Exception:
-            pass
+            pass  # intentionally silent — optional dependency
         return "medium"
 
     @staticmethod
@@ -927,7 +927,7 @@ class DaemonTray:
             try:
                 port_file.unlink()
             except OSError:
-                pass
+                pass  # intentionally silent — cleanup best-effort
         try:
             cmd = DaemonTray._resolve_cli_cmd("console") + ["--web", "--no-open"]
             logger.debug("Starting web console with command: %s", cmd)
@@ -961,7 +961,7 @@ class DaemonTray:
                         f"http://127.0.0.1:{port}",
                     )
                 except (ValueError, OSError):
-                    pass
+                    pass  # intentionally silent — invalid value uses default
                 return
             time.sleep(1)
 
@@ -993,7 +993,7 @@ class DaemonTray:
                 )
                 subprocess.Popen(["powershell", "-NoProfile", "-Command", ps])
         except OSError:
-            pass
+            pass  # intentionally silent — subprocess may fail
 
     @staticmethod
     def _is_web_console_alive(port_file):
@@ -1037,7 +1037,7 @@ class DaemonTray:
                 path = f"{path}/{page}"
             open_url(f"http://127.0.0.1:{port}{path}")
         except (ValueError, OSError):
-            pass
+            pass  # intentionally silent — invalid value uses default
 
     @staticmethod
     def _launch_shell(cwd=None):
@@ -1084,7 +1084,7 @@ class DaemonTray:
                     text += self._format_daemon_list()
                 show_dialog("About AI Guardian", text)
             except Exception:
-                pass
+                pass  # intentionally silent — optional dependency
         threading.Thread(target=_show, daemon=True, name="about-dialog").start()
 
     def _daemon_about_label(self, slot):
@@ -1121,7 +1121,7 @@ class DaemonTray:
                         text = self._build_about_text()
                     show_dialog(f"About {target.name}", text)
                 except Exception:
-                    pass
+                    pass  # intentionally silent — optional dependency
             threading.Thread(target=_show, daemon=True, name="daemon-about-dialog").start()
         return action
 
@@ -1192,7 +1192,7 @@ class DaemonTray:
             callAfter(func)
             return
         except ImportError:
-            pass
+            pass  # intentionally silent — optional dependency
         try:
             import platform
             if platform.system() == "Linux":
@@ -1200,11 +1200,11 @@ class DaemonTray:
                 GLib.idle_add(func)
                 return
         except (ImportError, ValueError):
-            pass
+            pass  # intentionally silent — optional dependency
         try:
             func()
         except Exception:
-            pass
+            pass  # intentionally silent — optional dependency
 
     def _refresh_menu(self):
         """Refresh the tray menu (must be called on main thread)."""
@@ -1212,7 +1212,7 @@ class DaemonTray:
             try:
                 self._icon.update_menu()
             except Exception:
-                pass
+                pass  # intentionally silent — best-effort operation
 
     def _refresh_menu_if_changed(self):
         """Refresh the tray menu only if stats changed.
@@ -1312,7 +1312,7 @@ class DaemonTray:
                 "Config error detected — run Doctor from tray menu for details",
             )
         except Exception:
-            pass
+            pass  # intentionally silent — optional dependency
 
     @staticmethod
     def _parse_version_tuple(version_str):
@@ -1383,7 +1383,7 @@ class DaemonTray:
                 f"upgrade to v{tray_version} recommended",
             )
         except Exception:
-            pass
+            pass  # intentionally silent — optional dependency
 
     def _check_pypi_version(self):
         """Fetch latest version from PyPI (throttled to every 300s)."""
@@ -1398,7 +1398,7 @@ class DaemonTray:
             if version:
                 self._pypi_latest = version
         except (OSError, ValueError, KeyError):
-            pass
+            pass  # intentionally silent — best-effort operation
 
     def _check_pip_available_for_target(self, target):
         """Check pip availability on a target (runs in background thread)."""
@@ -1471,7 +1471,7 @@ class DaemonTray:
                 else f"Syncing ai-guardian on '{target.name}'…",
             )
         except Exception:
-            pass
+            pass  # intentionally silent — optional dependency
 
         success = False
         output = ""
@@ -1511,7 +1511,7 @@ class DaemonTray:
                     f"Version sync failed on '{target.name}': {first_line}",
                 )
         except Exception:
-            pass
+            pass  # intentionally silent — daemon comm best-effort
         finally:
             self._upgrade_in_progress.discard(key)
             self._dispatch_to_main(self._refresh_menu)
@@ -1599,7 +1599,7 @@ class DaemonTray:
             center, token = self._wake_observer
             center.removeObserver_(token)
         except Exception:
-            pass
+            pass  # intentionally silent — best-effort operation
         self._wake_observer = None
 
     def _start_stats_refresh(self):
@@ -2759,7 +2759,7 @@ class DaemonTray:
                             p for p in plugins if p.scope == "global"
                         ]
             except Exception:
-                pass
+                pass  # intentionally silent — best-effort operation
         for i in reachable_slots:
             for p in self._daemon_global_plugins.get(i, []):
                 if p.name not in seen_global_names:
@@ -2893,7 +2893,7 @@ class DaemonTray:
             else:
                 subprocess.run(cmd_parts, timeout=60)
         except Exception:
-            pass
+            pass  # intentionally silent — best-effort operation
 
     def _execute_plugin_command_with_params(self, plugin_item_dict, target=None):
         """Collect parameters via direct call or subprocess, then execute.

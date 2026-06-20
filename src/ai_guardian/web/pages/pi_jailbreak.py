@@ -60,7 +60,7 @@ def _parse_enabled(raw):
                 if datetime.now(timezone.utc) < until_dt:
                     return True, until_dt, raw.get("reason", ""), False
             except (ValueError, TypeError):
-                pass
+                pass  # intentionally silent — invalid value uses default
         return False, None, "", bool(raw.get("value", True))
     return False, None, "", bool(raw)
 

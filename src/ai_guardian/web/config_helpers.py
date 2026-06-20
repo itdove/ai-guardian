@@ -62,7 +62,7 @@ def load_web_config_global() -> dict:
         from ai_guardian.config_writer import load_scoped_config
         return load_scoped_config("global")
     except Exception:
-        pass
+        pass  # intentionally silent — optional dependency
 
     from ai_guardian.config_utils import get_config_dir
     path = get_config_dir() / "ai-guardian.json"
@@ -71,7 +71,7 @@ def load_web_config_global() -> dict:
             with open(path, "r", encoding="utf-8") as f:
                 return json.load(f)
         except Exception:
-            pass
+            pass  # intentionally silent — optional dependency
     return {}
 
 
@@ -97,7 +97,7 @@ def save_web_config(config: dict) -> None:
         _invalidate_config_cache_after_save(scope, project_dir)
         return
     except Exception:
-        pass
+        pass  # intentionally silent — optional dependency
 
     from ai_guardian.config_utils import get_config_dir
     path = get_config_dir() / "ai-guardian.json"
@@ -117,7 +117,7 @@ def _invalidate_config_cache_after_save(scope: str, project_dir: Optional[str]) 
         else:
             _clear_config_cache()
     except Exception:
-        pass
+        pass  # intentionally silent — optional dependency
 
 
 def get_web_config_provenance() -> dict:

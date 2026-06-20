@@ -117,7 +117,7 @@ def get_local_menu_tags():
             if isinstance(tags, list):
                 return [t for t in tags if isinstance(t, str) and t]
     except Exception:
-        pass
+        pass  # intentionally silent — optional dependency
     return []
 
 

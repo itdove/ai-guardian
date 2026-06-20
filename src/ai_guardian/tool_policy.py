@@ -2022,7 +2022,7 @@ class ToolPolicyChecker:
             )
 
         except Exception as e:
-            logger.debug(f"Failed to log violation: {e}")
+            logger.error(f"Failed to log violation: {e}")
 
     def _detect_ide_type(self, hook_data: Dict) -> str:
         """

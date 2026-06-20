@@ -6,6 +6,7 @@ Manage auto-generated directory rules from skill permissions.
 Toggle enabled/allow_symlinks and view discovered rules (read-only).
 """
 
+import logging
 import json
 from pathlib import Path
 
@@ -171,8 +172,8 @@ class AutoDirectoryRulesContent(Container):
             try:
                 with open(config_path, "r", encoding="utf-8") as f:
                     config = json.load(f)
-            except Exception:
-                pass
+            except Exception as e:
+                logging.warning("Failed to read config: %s", e)
 
         permissions = config.get("permissions", {})
         auto_config = (

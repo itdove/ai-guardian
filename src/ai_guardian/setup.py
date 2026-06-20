@@ -153,7 +153,7 @@ def _notify_daemon_reload():
         if send_reload_config():
             print("Daemon reloaded with new configuration")
     except Exception:
-        pass
+        pass  # intentionally silent — optional dependency
 
 
 class IDESetup:
@@ -922,7 +922,7 @@ class IDESetup:
                         if "ai-guardian" in content:
                             return True
                     except Exception:
-                        pass
+                        pass  # intentionally silent — best-effort operation
                 return False
 
             # Extension-based hooks (AiderDesk, OpenClaw): check directory for index.ts
@@ -935,7 +935,7 @@ class IDESetup:
                         if "ai-guardian" in content:
                             return True
                     except Exception:
-                        pass
+                        pass  # intentionally silent — best-effort operation
                 return False
 
             # Script-based hooks (Cline, ZooCode, Kiro): check directory for scripts
@@ -954,7 +954,7 @@ class IDESetup:
                                 if "ai-guardian" in content:
                                     return True
                             except Exception:
-                                pass
+                                pass  # intentionally silent — best-effort operation
                 return False
 
             with open(config_path, 'r', encoding='utf-8') as f:
@@ -2923,8 +2923,8 @@ def _install_mcp_config(setup: IDESetup, ide_type: str, dry_run: bool = False) -
                 raw = IDESetup._strip_jsonc_comments(raw)
             if raw.strip():
                 config = json.loads(raw)
-        except (json.JSONDecodeError, OSError):
-            pass
+        except (json.JSONDecodeError, OSError) as e:
+            logger.warning("Failed to read config: %s", e)
 
     # Add MCP server entry with absolute path
     abs_path = _resolve_binary_path()
@@ -2965,8 +2965,8 @@ def _install_mcp_config(setup: IDESetup, ide_type: str, dry_run: bool = False) -
                         "  MCP servers should be in ~/.claude.json. "
                         "Remove the entry from settings.json to avoid conflicts."
                     )
-        except (json.JSONDecodeError, OSError):
-            pass
+        except (json.JSONDecodeError, OSError) as e:
+            logger.warning("Failed to read config: %s", e)
 
 
 def _remove_mcp_config(setup: IDESetup, ide_type: str, dry_run: bool = False) -> None:

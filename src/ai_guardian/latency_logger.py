@@ -196,14 +196,14 @@ def _parse_since(value: str) -> datetime:
             days = int(value[:-1])
             return datetime.now(timezone.utc) - timedelta(days=days)
         except ValueError:
-            pass
+            pass  # intentionally silent — invalid value uses default
     try:
         dt = datetime.fromisoformat(value)
         if dt.tzinfo is None:
             dt = dt.replace(tzinfo=timezone.utc)
         return dt
     except ValueError:
-        pass
+        pass  # intentionally silent — invalid value uses default
     raise ValueError(
         f"Invalid --since value: '{value}'. "
         f"Use Nd for days (e.g. 30d) or ISO date (e.g. 2026-05-01)"

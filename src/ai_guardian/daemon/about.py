@@ -28,7 +28,7 @@ def get_about_info() -> dict:
         from ai_guardian.config_utils import get_config_dir
         config_path = str(get_config_dir() / "ai-guardian.json")
     except Exception:
-        pass
+        pass  # intentionally silent — optional dependency
 
     scanners = []
     try:
@@ -39,7 +39,7 @@ def get_about_info() -> dict:
         for s in sm.list_configured():
             scanners.append({"name": s.name, "version": s.version, "is_default": s.is_default})
     except Exception:
-        pass
+        pass  # intentionally silent — optional dependency
 
     try:
         hostname = socket.gethostname()
@@ -53,7 +53,7 @@ def get_about_info() -> dict:
         if cfg:
             name = cfg.get("name")
     except Exception:
-        pass
+        pass  # intentionally silent — daemon comm best-effort
 
     return {
         "version": __version__,

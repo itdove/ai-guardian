@@ -28,7 +28,7 @@ def parse_pr_ref(value: str) -> int:
     try:
         return int(value)
     except ValueError:
-        pass
+        pass  # intentionally silent — invalid value uses default
     m = _PR_URL_RE.search(value)
     if m:
         return int(m.group(1))
@@ -47,7 +47,7 @@ def parse_mr_ref(value: str) -> tuple:
     try:
         return int(value), None
     except ValueError:
-        pass
+        pass  # intentionally silent — invalid value uses default
     m = _MR_URL_RE.search(value)
     if m:
         return int(m.group(2)), m.group(1)

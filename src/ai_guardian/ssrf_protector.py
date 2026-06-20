@@ -418,7 +418,7 @@ class SSRFProtector:
 
             return scheme, hostname, path, url, parsed.port
         except Exception as e:
-            logger.debug(f"Failed to parse URL '{url}': {e}")
+            logger.warning(f"Failed to parse URL '{url}': {e}")
             return None, None, None, None, None
 
     def _is_ip_blocked(self, ip_str: str) -> bool:

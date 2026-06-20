@@ -1112,7 +1112,7 @@ class AIGuardianTUI(App):
                 if self.copy_to_clipboard(selection):
                     self.notify("Copied to clipboard", severity="information")
         except (IndexError, AttributeError):
-            pass
+            pass  # intentionally silent — best-effort operation
 
     def on_descendant_focus(self, event: events.DescendantFocus) -> None:
         """Store original value when Input gets focus."""

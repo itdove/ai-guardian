@@ -58,7 +58,7 @@ def _parse_since(value: str) -> datetime:
             days = int(value[:-1])
             return datetime.now(timezone.utc) - timedelta(days=days)
         except ValueError:
-            pass
+            pass  # intentionally silent — invalid value uses default
 
     try:
         dt = datetime.fromisoformat(value)
@@ -66,7 +66,7 @@ def _parse_since(value: str) -> datetime:
             dt = dt.replace(tzinfo=timezone.utc)
         return dt
     except ValueError:
-        pass
+        pass  # intentionally silent — invalid value uses default
 
     raise ValueError(
         f"Invalid --since value: '{value}'. "

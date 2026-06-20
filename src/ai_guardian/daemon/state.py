@@ -273,7 +273,7 @@ class DaemonState:
             try:
                 callback()
             except Exception:
-                pass
+                pass  # intentionally silent — cleanup best-effort
         return config
 
     def force_reload_config(self):
@@ -287,7 +287,7 @@ class DaemonState:
             try:
                 callback()
             except Exception:
-                pass
+                pass  # intentionally silent — cleanup best-effort
 
     def _check_config_reload(self):
         """Check if config file has changed (must be called with lock held).
@@ -430,7 +430,7 @@ class DaemonState:
             try:
                 callback()
             except Exception:
-                pass
+                pass  # intentionally silent — cleanup best-effort
 
     def _cleanup_stale_project_configs(self):
         """Remove project config entries not seen for PROJECT_CONFIG_TTL.
@@ -456,17 +456,17 @@ class DaemonState:
                 from ai_guardian.gitleaks_config import cleanup_stale_entries as _gc_cleanup
                 _gc_cleanup(PROJECT_CONFIG_TTL)
             except Exception:
-                pass
+                pass  # intentionally silent — optional dependency
             try:
                 from ai_guardian.aiguardignore import cleanup_stale_entries as _ai_cleanup
                 _ai_cleanup(PROJECT_CONFIG_TTL)
             except Exception:
-                pass
+                pass  # intentionally silent — optional dependency
             try:
                 from ai_guardian.config_loaders import cleanup_stale_entries as _cl_cleanup
                 _cl_cleanup(PROJECT_CONFIG_TTL)
             except Exception:
-                pass
+                pass  # intentionally silent — optional dependency
 
     # --- Compiled regex pattern cache ---
 

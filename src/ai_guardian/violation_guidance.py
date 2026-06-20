@@ -109,7 +109,7 @@ def get_resolution_instructions(violation: dict) -> Tuple[str, str]:
                 if parsed.hostname:
                     domain = parsed.hostname
             except Exception:
-                pass
+                pass  # intentionally silent — optional dependency
         snippet = json.dumps(
             {"ssrf_protection": {"additional_allowed_domains": [domain]}}, indent=2
         )

@@ -105,5 +105,5 @@ class ScanAuditLogger:
                     except json.JSONDecodeError:
                         continue
         except Exception:
-            pass
+            pass  # intentionally silent — best-effort operation
         return entries[-limit:]

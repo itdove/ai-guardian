@@ -98,7 +98,7 @@ class ViolationLogger:
                 from ai_guardian.violation_counter import ViolationCounter
                 ViolationCounter().increment(violation_type)
             except Exception as counter_err:
-                logger.debug(f"Failed to increment violation counter: {counter_err}")
+                logger.warning(f"Failed to increment violation counter: {counter_err}")
 
             # Rotate log if needed
             self._rotate_log_if_needed()
@@ -329,7 +329,7 @@ class ViolationLogger:
             return config.get("violation_logging", self._get_default_config())
 
         except Exception as e:
-            logger.debug(f"Error loading violation logging config: {e}")
+            logger.warning(f"Error loading violation logging config: {e}")
             return self._get_default_config()
 
     def _get_default_config(self) -> Dict:

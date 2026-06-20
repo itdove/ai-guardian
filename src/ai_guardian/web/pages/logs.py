@@ -99,6 +99,7 @@ def create_logs_page(service, daemon_name: str):
                         "INFO": "INFO+",
                         "WARNING": "WARNING+",
                         "ERROR": "ERROR+",
+                        "CRITICAL": "CRITICAL only",
                     },
                     value="INFO", label="Log Level",
                 ).classes("w-48")

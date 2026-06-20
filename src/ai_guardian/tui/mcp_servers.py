@@ -5,6 +5,7 @@ MCP Servers Tab Content
 Manage MCP server permissions (allow/deny rules for MCP server tools).
 """
 
+import logging
 import json
 from pathlib import Path
 from typing import Dict
@@ -398,8 +399,8 @@ class MCPServersContent(Container):
                 with open(config_path, "r", encoding="utf-8") as f:
                     config = json.load(f)
                 level = config.get("mcp_server", {}).get("proactive_level", "low")
-            except (json.JSONDecodeError, OSError):
-                pass
+            except (json.JSONDecodeError, OSError) as e:
+                logging.warning("Failed to read config: %s", e)
         try:
             select = self.query_one("#proactive-level", Select)
             select.value = level
@@ -437,8 +438,8 @@ class MCPServersContent(Container):
                 with open(config_path, "r", encoding="utf-8") as f:
                     config = json.load(f)
                 support = config.get("support", {})
-            except (json.JSONDecodeError, OSError):
-                pass
+            except (json.JSONDecodeError, OSError) as e:
+                logging.warning("Failed to read config: %s", e)
 
         try:
             dest_input = self.query_one("#support-destination", Input)
@@ -459,8 +460,8 @@ class MCPServersContent(Container):
             try:
                 with open(config_path, "r", encoding="utf-8") as f:
                     config = json.load(f)
-            except (json.JSONDecodeError, OSError):
-                pass
+            except (json.JSONDecodeError, OSError) as e:
+                logging.warning("Failed to read config: %s", e)
 
         if "support" not in config:
             config["support"] = {}

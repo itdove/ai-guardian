@@ -331,7 +331,7 @@ class MetricsContent(Container):
                     from ai_guardian.violation_counter import ViolationCounter
                     ViolationCounter().reset_to_current_log()
                 except Exception:
-                    pass
+                    pass  # intentionally silent — optional dependency
                 self._load_metrics()
 
         self.app.push_screen(ConfirmResetModal(), handle_confirm)
