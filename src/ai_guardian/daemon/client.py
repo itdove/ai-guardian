@@ -413,7 +413,7 @@ def _check_dev_source_restart():
         return start_daemon_background()
 
     except Exception as e:
-        logger.debug(f"Dev source restart check failed: {e}")
+        logger.error(f"Dev source restart check failed: {e}")
         return False
 
 
