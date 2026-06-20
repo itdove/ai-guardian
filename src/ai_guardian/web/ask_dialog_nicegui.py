@@ -309,6 +309,8 @@ class _NiceGuiAskDialog:
                     with ui.row().classes("items-center gap-2"):
                         ui.label(f"Type: {icon} {v.violation_type}").classes("text-sm")
                         ui.badge(v.violation_type, color=quasar_color(badge_color)).classes("text-xs")
+                    if v.hook_event:
+                        ui.label(f"Hook: {v.hook_event}").classes("text-sm")
                     ui.label(f"Summary: {v.summary}").classes("text-sm")
                     if v.file_path:
                         loc = v.file_path

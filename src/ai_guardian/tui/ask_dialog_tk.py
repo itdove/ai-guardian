@@ -127,8 +127,10 @@ class _TkinterAskDialog:
 
         details = [
             ("Type", f"{icon} {v.violation_type}"),
-            ("Summary", v.summary),
         ]
+        if v.hook_event:
+            details.append(("Hook", v.hook_event))
+        details.append(("Summary", v.summary))
         if v.file_path:
             loc = v.file_path
             if v.line_number:

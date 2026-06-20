@@ -919,6 +919,7 @@ def _handle_prompt_ask(args):
         start_column=violation_data.get("start_column"),
         project_path=violation_data.get("project_path"),
         session_id=violation_data.get("session_id"),
+        hook_event=violation_data.get("hook_event"),
     )
 
     fallback = getattr(args, "fallback", "block")
