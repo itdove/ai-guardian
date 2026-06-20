@@ -52,6 +52,14 @@ def clear_project_dir_override():
     _thread_local.project_dir = None
 
 
+def get_project_dir() -> str:
+    """Return the hook's actual project directory.
+
+    Uses the per-thread daemon override when set, falls back to os.getcwd().
+    """
+    return getattr(_thread_local, 'project_dir', None) or os.getcwd()
+
+
 def _clear_project_config_cache():
     """Clear the project config path cache."""
     global _project_config_path_cache, _project_config_path_cached
