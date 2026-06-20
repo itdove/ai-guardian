@@ -6,6 +6,12 @@ and inline config editor using CodeMirror.
 
 import platform
 
+from ai_guardian.theme import (
+    quasar_button,
+    quasar_color,
+    violation_badge,
+    VIOLATION_BADGES,
+)
 from ai_guardian.tui.ask_dialog import (
     AskDecision,
     AskViolationInfo,
@@ -104,7 +110,7 @@ def _show_nicegui_config_editor(dialog_self, app, save_pat, config_section):
                     editor_status.classes(replace="text-sm text-red")
 
             ui.button("Cancel", on_click=on_cancel).props("flat")
-            ui.button("Save", on_click=on_save).props("color=positive")
+            ui.button("Save", on_click=on_save).props(f"color={quasar_button('save')}")
 
     editor_dlg.open()
 
@@ -153,7 +159,7 @@ def _show_nicegui_suppress_in_source(dialog_self, app, v):
                     status.text = "Failed to write file"
                     status.classes(replace="text-sm text-red")
 
-            ui.button("Save", on_click=on_save).props("color=positive")
+            ui.button("Save", on_click=on_save).props(f"color={quasar_button('save')}")
 
     dlg.open()
 
@@ -258,11 +264,11 @@ def _show_nicegui_ignore_file(dialog_self, app, v):
                                 editor_status.text = "Failed to write .aiguardignore.toml"
                                 editor_status.classes(replace="text-sm text-red")
 
-                        ui.button("Save", on_click=on_save).props("color=positive")
+                        ui.button("Save", on_click=on_save).props(f"color={quasar_button('save')}")
 
                 editor_dlg.open()
 
-            ui.button("Add to .aiguardignore.toml", on_click=on_confirm).props("color=positive")
+            ui.button("Add to .aiguardignore.toml", on_click=on_confirm).props(f"color={quasar_button('save')}")
 
     dlg.open()
 
@@ -293,11 +299,16 @@ class _NiceGuiAskDialog:
             ptype_label = PATTERN_TYPES.get(ptype, ptype)
 
             with ui.card().classes("w-full max-w-2xl mx-auto mt-8"):
-                ui.label(build_dialog_title(v)).classes("text-xl font-bold")
+                icon, badge_color = violation_badge(v.violation_type)
+                with ui.row().classes("items-center"):
+                    ui.label(icon).classes("text-2xl")
+                    ui.label(build_dialog_title(v)).classes("text-xl font-bold")
                 ui.separator()
 
                 with ui.card_section():
-                    ui.label(f"Type: {v.violation_type}").classes("text-sm")
+                    with ui.row().classes("items-center gap-2"):
+                        ui.label(f"Type: {icon} {v.violation_type}").classes("text-sm")
+                        ui.badge(v.violation_type, color=quasar_color(badge_color)).classes("text-xs")
                     ui.label(f"Summary: {v.summary}").classes("text-sm")
                     if v.file_path:
                         loc = v.file_path
@@ -317,7 +328,7 @@ class _NiceGuiAskDialog:
                         ui.run_javascript("window.close()")
                         app.shutdown()
 
-                    ui.button("Allow Once", on_click=lambda: decide(AskDecision.ALLOW_ONCE)).props("color=primary")
+                    ui.button("Allow Once", on_click=lambda: decide(AskDecision.ALLOW_ONCE)).props(f"color={quasar_button('allow_once')}")
 
                     def show_editor():
                         with ui.dialog() as dlg, ui.card().classes("w-full max-w-xl"):
@@ -368,29 +379,29 @@ class _NiceGuiAskDialog:
                                     dlg.close()
                                     _show_nicegui_config_editor(dialog_self, app, pat, v.config_section)
 
-                                ui.button("Add to Allowlist", on_click=on_confirm).props("color=positive")
+                                ui.button("Add to Allowlist", on_click=on_confirm).props(f"color={quasar_button('save')}")
 
                         dlg.open()
 
-                    ui.button("Allow Always...", on_click=show_editor).props("color=positive")
+                    ui.button("Allow Always...", on_click=show_editor).props(f"color={quasar_button('allow_always')}")
 
                     if v.file_path:
                         def view_file():
                             from ai_guardian.tui.file_opener import open_in_editor
                             open_in_editor(v.file_path, v.line_number)
-                        ui.button("View File", on_click=view_file).props("color=info")
+                        ui.button("View File", on_click=view_file).props(f"color={quasar_button('view_file')}")
 
                         from ai_guardian.tui.source_annotator import get_comment_prefix
                         if get_comment_prefix(v.file_path) is not None:
                             def show_suppress_source():
                                 _show_nicegui_suppress_in_source(dialog_self, app, v)
-                            ui.button("Suppress in Source...", on_click=show_suppress_source).props("color=warning")
+                            ui.button("Suppress in Source...", on_click=show_suppress_source).props(f"color={quasar_button('suppress_in_source')}")
 
                         def show_ignore_file():
                             _show_nicegui_ignore_file(dialog_self, app, v)
-                        ui.button("Ignore File...", on_click=show_ignore_file).props("color=warning")
+                        ui.button("Ignore File...", on_click=show_ignore_file).props(f"color={quasar_button('ignore_file')}")
 
-                    ui.button("Block", on_click=lambda: decide(AskDecision.BLOCK)).props("color=negative")
+                    ui.button("Block", on_click=lambda: decide(AskDecision.BLOCK)).props(f"color={quasar_button('block')}")
 
         import subprocess as _sp
         import webbrowser
