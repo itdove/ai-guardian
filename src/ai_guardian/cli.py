@@ -1749,7 +1749,12 @@ def main():
         logging.info(f"Daemon client error, falling back to direct: {e}")
 
     if response is None:
-        if hook_data is not None:
+        # Check persisted pause state before direct-mode fallback (#1319)
+        from ai_guardian.daemon.state import DaemonState
+        if DaemonState.is_paused_on_disk(cwd=os.getcwd()):
+            logging.info("Scanning paused (persisted state), skipping direct fallback")
+            response = {"output": "{}", "exit_code": 0}
+        elif hook_data is not None:
             response = process_hook_data(hook_data)
         elif stdin_consumed:
             response = {"output": None, "exit_code": 0}

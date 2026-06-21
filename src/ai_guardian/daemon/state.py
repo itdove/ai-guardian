@@ -28,13 +28,15 @@ SESSION_TTL = 86400  # 24 hours
 PROJECT_CONFIG_TTL = 86400  # 24 hours — prune stale project entries
 PERSIST_DEBOUNCE = 2.0  # seconds before writing to disk
 DAEMON_SESSIONS_FILENAME = "daemon_sessions.json"
+DAEMON_PAUSE_FILENAME = "daemon.paused"
 
 
 class DaemonState:
     """Thread-safe in-memory state for the daemon process."""
 
     def __init__(self, config_path=None, idle_timeout=DEFAULT_IDLE_TIMEOUT,
-                 context_ttl=DEFAULT_CONTEXT_TTL, sessions_file=None):
+                 context_ttl=DEFAULT_CONTEXT_TTL, sessions_file=None,
+                 pause_file=None):
         self._lock = threading.Lock()
 
         # Source file mtime tracking for dev-mode auto-restart (#1223)
@@ -101,6 +103,9 @@ class DaemonState:
         self._security_injected_sessions = set()
         self._security_reinject_sessions = set()
 
+        # Pause state persistence (#1319)
+        self._pause_file = pause_file or self._default_pause_path()
+
         # Session persistence (#592)
         self._sessions_file = sessions_file or self._default_sessions_path()
         self._session_last_activity = {}  # session_key -> unix timestamp
@@ -122,6 +127,9 @@ class DaemonState:
         # Load persisted session state
         self._load_sessions()
 
+        # Restore pause state from disk (#1319)
+        self._load_pause_state()
+
     @staticmethod
     def _default_config_path():
         return get_config_dir() / "ai-guardian.json"
@@ -129,6 +137,10 @@ class DaemonState:
     @staticmethod
     def _default_sessions_path():
         return get_state_dir() / DAEMON_SESSIONS_FILENAME
+
+    @staticmethod
+    def _default_pause_path():
+        return get_state_dir() / DAEMON_PAUSE_FILENAME
 
     # --- Cross-hook correlation ---
 
@@ -569,6 +581,7 @@ class DaemonState:
             else:
                 self._paused_until = 0.0
                 logger.info("Daemon paused indefinitely")
+        self._persist_pause_state()
 
     def resume(self):
         """Resume hook scanning."""
@@ -576,6 +589,7 @@ class DaemonState:
             self._paused = False
             self._paused_until = 0.0
             logger.info("Daemon resumed")
+        self._persist_pause_state()
 
     def pause_remaining_seconds(self):
         """Get remaining seconds of a time-limited pause.
@@ -611,6 +625,7 @@ class DaemonState:
             else:
                 self._paused_dirs[directory] = 0.0
                 logger.info("Directory paused indefinitely: %s", directory)
+        self._persist_pause_state()
 
     def resume_dir(self, directory):
         """Resume scanning for a specific project directory.
@@ -625,6 +640,7 @@ class DaemonState:
                 logger.info("Directory resumed: %s", directory)
             else:
                 logger.debug("Directory was not paused: %s", directory)
+        self._persist_pause_state()
 
     def is_dir_paused(self, directory):
         """Check if scanning is paused for a specific directory.
@@ -660,6 +676,139 @@ class DaemonState:
         """
         with self._lock:
             return self._get_paused_dirs_locked()
+
+    # --- Pause persistence (#1319) ---
+
+    def _load_pause_state(self):
+        """Restore pause state from disk on startup."""
+        try:
+            if not self._pause_file or not Path(self._pause_file).exists():
+                return
+            content = Path(self._pause_file).read_text(encoding="utf-8")
+            if not content.strip():
+                return
+            data = json.loads(content)
+            now = time.time()
+            mono_now = time.monotonic()
+
+            g = data.get("global", {})
+            if g.get("paused"):
+                until_wall = g.get("until", 0.0)
+                if until_wall > 0 and now >= until_wall:
+                    logger.info("Persisted global pause expired, not restoring")
+                else:
+                    self._paused = True
+                    if until_wall > 0:
+                        self._paused_until = mono_now + (until_wall - now)
+                    else:
+                        self._paused_until = 0.0
+                    logger.info("Restored global pause from disk")
+
+            dirs = data.get("dirs", {})
+            for directory, info in dirs.items():
+                until_wall = info.get("until", 0.0)
+                if until_wall > 0 and now >= until_wall:
+                    continue
+                if until_wall > 0:
+                    self._paused_dirs[directory] = mono_now + (until_wall - now)
+                else:
+                    self._paused_dirs[directory] = 0.0
+            if self._paused_dirs:
+                logger.info(
+                    "Restored %d paused dir(s) from disk", len(self._paused_dirs)
+                )
+        except (json.JSONDecodeError, OSError) as e:
+            logger.debug("Could not load persisted pause state: %s", e)
+
+    def _persist_pause_state(self):
+        """Write current pause state to disk."""
+        if not self._pause_file:
+            return
+        with self._lock:
+            now = time.time()
+            mono_now = time.monotonic()
+
+            global_until = 0.0
+            if self._paused and self._paused_until > 0:
+                global_until = now + (self._paused_until - mono_now)
+
+            dirs = {}
+            for directory, until_mono in self._paused_dirs.items():
+                if until_mono > 0:
+                    dirs[directory] = {"until": now + (until_mono - mono_now)}
+                else:
+                    dirs[directory] = {"until": 0.0}
+
+            data = {
+                "global": {"paused": self._paused, "until": global_until},
+                "dirs": dirs,
+            }
+
+        try:
+            parent = Path(self._pause_file).parent
+            parent.mkdir(parents=True, exist_ok=True)
+            content = json.dumps(data)
+            fd, tmp_path = tempfile.mkstemp(
+                dir=str(parent), prefix=".daemon-pause-", suffix=".tmp"
+            )
+            closed = False
+            try:
+                if hasattr(os, "fchmod"):
+                    os.fchmod(fd, stat.S_IRUSR | stat.S_IWUSR)
+                os.write(fd, content.encode("utf-8"))
+                os.close(fd)
+                closed = True
+                os.replace(tmp_path, str(self._pause_file))
+            except BaseException:
+                if not closed:
+                    os.close(fd)
+                if os.path.exists(tmp_path):
+                    os.unlink(tmp_path)
+                raise
+        except OSError as e:
+            logger.debug("Error writing pause state: %s", e)
+
+    @staticmethod
+    def is_paused_on_disk(cwd=None, pause_file=None):
+        """Check if scanning is paused by reading the persisted pause file.
+
+        For use by the CLI direct-mode fallback when daemon is unavailable.
+
+        Args:
+            cwd: Optional working directory to check per-directory pause
+            pause_file: Optional override for pause file path
+
+        Returns:
+            bool: True if globally paused or cwd is directory-paused
+        """
+        try:
+            path = Path(pause_file) if pause_file else get_state_dir() / DAEMON_PAUSE_FILENAME
+            if not path.exists():
+                return False
+            content = path.read_text(encoding="utf-8")
+            if not content.strip():
+                return False
+            data = json.loads(content)
+            now = time.time()
+
+            g = data.get("global", {})
+            if g.get("paused"):
+                until_wall = g.get("until", 0.0)
+                if until_wall <= 0 or now < until_wall:
+                    return True
+
+            if cwd:
+                cwd = os.path.realpath(cwd)
+                dirs = data.get("dirs", {})
+                info = dirs.get(cwd)
+                if info is not None:
+                    until_wall = info.get("until", 0.0)
+                    if until_wall <= 0 or now < until_wall:
+                        return True
+
+            return False
+        except (json.JSONDecodeError, OSError):
+            return False
 
     # --- Stats ---
 

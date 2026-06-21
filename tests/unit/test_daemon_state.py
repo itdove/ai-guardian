@@ -336,6 +336,203 @@ class TestPerDirectoryPause:
         assert len(stats["paused_dirs"]) == 1
 
 
+class TestPausePersistence:
+    """Tests for pause state persistence across restarts (#1319)."""
+
+    def test_persist_global_pause_indefinite(self, tmp_path):
+        pause_file = tmp_path / "daemon.paused"
+        state = DaemonState(
+            config_path=tmp_path / "nonexistent.json",
+            pause_file=pause_file,
+        )
+        state.pause()
+        assert pause_file.exists()
+        data = json.loads(pause_file.read_text())
+        assert data["global"]["paused"] is True
+        assert data["global"]["until"] == 0.0
+
+    def test_persist_global_pause_with_duration(self, tmp_path):
+        pause_file = tmp_path / "daemon.paused"
+        state = DaemonState(
+            config_path=tmp_path / "nonexistent.json",
+            pause_file=pause_file,
+        )
+        state.pause(duration_minutes=10)
+        data = json.loads(pause_file.read_text())
+        assert data["global"]["paused"] is True
+        assert data["global"]["until"] > time.time()
+
+    def test_persist_resume_clears_pause(self, tmp_path):
+        pause_file = tmp_path / "daemon.paused"
+        state = DaemonState(
+            config_path=tmp_path / "nonexistent.json",
+            pause_file=pause_file,
+        )
+        state.pause()
+        assert pause_file.exists()
+        state.resume()
+        data = json.loads(pause_file.read_text())
+        assert data["global"]["paused"] is False
+
+    def test_persist_dir_pause(self, tmp_path):
+        pause_file = tmp_path / "daemon.paused"
+        state = DaemonState(
+            config_path=tmp_path / "nonexistent.json",
+            pause_file=pause_file,
+        )
+        state.pause_dir("/project/a")
+        data = json.loads(pause_file.read_text())
+        real_dir = os.path.realpath("/project/a")
+        assert real_dir in data["dirs"]
+        assert data["dirs"][real_dir]["until"] == 0.0
+
+    def test_persist_dir_resume(self, tmp_path):
+        pause_file = tmp_path / "daemon.paused"
+        state = DaemonState(
+            config_path=tmp_path / "nonexistent.json",
+            pause_file=pause_file,
+        )
+        state.pause_dir("/project/a")
+        state.resume_dir("/project/a")
+        data = json.loads(pause_file.read_text())
+        real_dir = os.path.realpath("/project/a")
+        assert real_dir not in data["dirs"]
+
+    def test_load_restores_global_pause(self, tmp_path):
+        pause_file = tmp_path / "daemon.paused"
+        data = {
+            "global": {"paused": True, "until": 0.0},
+            "dirs": {},
+        }
+        pause_file.write_text(json.dumps(data))
+        state = DaemonState(
+            config_path=tmp_path / "nonexistent.json",
+            pause_file=pause_file,
+        )
+        assert state.paused is True
+
+    def test_load_restores_timed_pause(self, tmp_path):
+        pause_file = tmp_path / "daemon.paused"
+        data = {
+            "global": {"paused": True, "until": time.time() + 600},
+            "dirs": {},
+        }
+        pause_file.write_text(json.dumps(data))
+        state = DaemonState(
+            config_path=tmp_path / "nonexistent.json",
+            pause_file=pause_file,
+        )
+        assert state.paused is True
+        assert state.pause_remaining_seconds() > 500
+
+    def test_load_skips_expired_pause(self, tmp_path):
+        pause_file = tmp_path / "daemon.paused"
+        data = {
+            "global": {"paused": True, "until": time.time() - 10},
+            "dirs": {},
+        }
+        pause_file.write_text(json.dumps(data))
+        state = DaemonState(
+            config_path=tmp_path / "nonexistent.json",
+            pause_file=pause_file,
+        )
+        assert state.paused is False
+
+    def test_load_restores_dir_pause(self, tmp_path):
+        pause_file = tmp_path / "daemon.paused"
+        real_dir = os.path.realpath("/project/a")
+        data = {
+            "global": {"paused": False, "until": 0.0},
+            "dirs": {real_dir: {"until": 0.0}},
+        }
+        pause_file.write_text(json.dumps(data))
+        state = DaemonState(
+            config_path=tmp_path / "nonexistent.json",
+            pause_file=pause_file,
+        )
+        assert state.is_dir_paused(real_dir) is True
+
+    def test_load_skips_expired_dir_pause(self, tmp_path):
+        pause_file = tmp_path / "daemon.paused"
+        real_dir = os.path.realpath("/project/a")
+        data = {
+            "global": {"paused": False, "until": 0.0},
+            "dirs": {real_dir: {"until": time.time() - 10}},
+        }
+        pause_file.write_text(json.dumps(data))
+        state = DaemonState(
+            config_path=tmp_path / "nonexistent.json",
+            pause_file=pause_file,
+        )
+        assert state.is_dir_paused(real_dir) is False
+
+    def test_load_missing_file_no_error(self, tmp_path):
+        state = DaemonState(
+            config_path=tmp_path / "nonexistent.json",
+            pause_file=tmp_path / "nonexistent.paused",
+        )
+        assert state.paused is False
+
+    def test_load_corrupt_file_no_error(self, tmp_path):
+        pause_file = tmp_path / "daemon.paused"
+        pause_file.write_text("not json{{{")
+        state = DaemonState(
+            config_path=tmp_path / "nonexistent.json",
+            pause_file=pause_file,
+        )
+        assert state.paused is False
+
+    def test_is_paused_on_disk_global(self, tmp_path):
+        pause_file = tmp_path / "daemon.paused"
+        data = {
+            "global": {"paused": True, "until": 0.0},
+            "dirs": {},
+        }
+        pause_file.write_text(json.dumps(data))
+        assert DaemonState.is_paused_on_disk(pause_file=pause_file) is True
+
+    def test_is_paused_on_disk_expired(self, tmp_path):
+        pause_file = tmp_path / "daemon.paused"
+        data = {
+            "global": {"paused": True, "until": time.time() - 10},
+            "dirs": {},
+        }
+        pause_file.write_text(json.dumps(data))
+        assert DaemonState.is_paused_on_disk(pause_file=pause_file) is False
+
+    def test_is_paused_on_disk_dir(self, tmp_path):
+        pause_file = tmp_path / "daemon.paused"
+        real_dir = os.path.realpath("/project/a")
+        data = {
+            "global": {"paused": False, "until": 0.0},
+            "dirs": {real_dir: {"until": 0.0}},
+        }
+        pause_file.write_text(json.dumps(data))
+        assert DaemonState.is_paused_on_disk(cwd=real_dir, pause_file=pause_file) is True
+        assert DaemonState.is_paused_on_disk(cwd="/other/dir", pause_file=pause_file) is False
+
+    def test_is_paused_on_disk_no_file(self, tmp_path):
+        assert DaemonState.is_paused_on_disk(pause_file=tmp_path / "nonexistent") is False
+
+    def test_roundtrip_pause_restart(self, tmp_path):
+        """Simulate daemon restart: pause, create new state, verify still paused."""
+        pause_file = tmp_path / "daemon.paused"
+        state1 = DaemonState(
+            config_path=tmp_path / "nonexistent.json",
+            pause_file=pause_file,
+        )
+        state1.pause()
+        state1.pause_dir("/project/x")
+        del state1
+
+        state2 = DaemonState(
+            config_path=tmp_path / "nonexistent.json",
+            pause_file=pause_file,
+        )
+        assert state2.paused is True
+        assert state2.is_dir_paused(os.path.realpath("/project/x")) is True
+
+
 class TestStats:
     def test_initial_stats(self, tmp_path):
         state = DaemonState(config_path=tmp_path / "nonexistent.json")
