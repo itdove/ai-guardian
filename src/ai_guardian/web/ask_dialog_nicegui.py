@@ -303,6 +303,12 @@ class _NiceGuiAskDialog:
                 with ui.row().classes("items-center"):
                     ui.label(icon).classes("text-2xl")
                     ui.label(build_dialog_title(v)).classes("text-xl font-bold")
+                    if v.total_findings and v.total_findings > 1:
+                        remaining = v.total_findings - (v.finding_index or 0) - 1
+                        counter = f"{v.finding_index + 1} of {v.total_findings}"
+                        if remaining > 0:
+                            counter += f" ({remaining} more)"
+                        ui.badge(counter, color="info").classes("ml-2")
                 ui.separator()
 
                 with ui.card_section():
@@ -404,6 +410,8 @@ class _NiceGuiAskDialog:
                         ui.button("Ignore File...", on_click=show_ignore_file).props(f"color={quasar_button('ignore_file')}")
 
                     ui.button("Block", on_click=lambda: decide(AskDecision.BLOCK)).props(f"color={quasar_button('block')}")
+                    if v.total_findings and v.total_findings > 1:
+                        ui.button("Block All", on_click=lambda: decide(AskDecision.BLOCK_ALL)).props(f"color={quasar_button('block')}")
 
         import subprocess as _sp
         import webbrowser

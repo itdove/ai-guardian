@@ -216,6 +216,7 @@ class SupplyChainScanner:
         self.last_line_number: Optional[int] = None
         self.last_start_column: Optional[int] = None
         self.last_end_column: Optional[int] = None
+        self.findings: List[Dict[str, Any]] = []
 
     def is_agent_config(self, file_path: str) -> bool:
         if not file_path:
@@ -263,6 +264,7 @@ class SupplyChainScanner:
         self.last_line_number = None
         self.last_start_column = None
         self.last_end_column = None
+        self.findings = []
 
         if not self.enabled or not content or not content.strip():
             return False, None, None
@@ -290,6 +292,7 @@ class SupplyChainScanner:
         self.last_line_number = None
         self.last_start_column = None
         self.last_end_column = None
+        self.findings = []
 
         if not self.enabled:
             return False, None, None
@@ -330,6 +333,9 @@ class SupplyChainScanner:
         categories: List[str],
     ) -> Tuple[bool, Optional[str], Optional[Dict[str, Any]]]:
         lines = content.split('\n')
+        should_block = self.action == "block"
+        action_label = "blocked" if should_block else "warning"
+
         for category in categories:
             category_patterns = patterns.get(category, [])
             for compiled_re, description in category_patterns:
@@ -343,32 +349,37 @@ class SupplyChainScanner:
                     start_column = match.start() - line_start
                     end_column = match.end() - line_start
 
-                    self.last_matched_pattern = description
-                    self.last_matched_text = matched_text
-                    self.last_category = category
-                    self.last_line_number = line_number
-                    self.last_start_column = start_column
-                    self.last_end_column = end_column
-
-                    should_block = self.action == "block"
-                    action_label = "blocked" if should_block else "warning"
                     error_msg = (
                         f"Supply chain threat {action_label}: {description} "
                         f"in {os.path.basename(label)} (line {line_number})"
                     )
-                    details = {
+                    self.findings.append({
                         "category": category,
                         "pattern": description,
                         "matched_text": matched_text,
+                        "matched_pattern": compiled_re.pattern,
                         "line_number": line_number,
                         "start_column": start_column,
                         "end_column": end_column,
                         "snippet": snippet,
                         "file_path": label,
-                    }
-                    return should_block, error_msg, details
+                        "error_message": error_msg,
+                    })
 
-        return False, None, None
+        if not self.findings:
+            return False, None, None
+
+        first = self.findings[0]
+        self.last_matched_pattern = first["pattern"]
+        self.last_matched_text = first["matched_text"]
+        self.last_category = first["category"]
+        self.last_line_number = first["line_number"]
+        self.last_start_column = first["start_column"]
+        self.last_end_column = first["end_column"]
+
+        details = {k: v for k, v in first.items() if k not in ("error_message", "matched_pattern")}
+        details["total_findings"] = len(self.findings)
+        return should_block, first["error_message"], details
 
 
 def check_supply_chain_threats(

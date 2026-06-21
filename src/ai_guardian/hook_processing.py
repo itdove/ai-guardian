@@ -1808,6 +1808,8 @@ def _enrich_blocked_from_details(blocked_info, details):
         blocked_info["end_column"] = details["end_column"]
     if details.get("total_findings"):
         blocked_info["total_findings"] = details["total_findings"]
+    if details.get("findings"):
+        blocked_info["findings"] = details["findings"]
     if details.get("validation"):
         blocked_info["validation"] = details["validation"]
 
@@ -1976,7 +1978,8 @@ def _build_permission_matched_text(tool_name, tool_input, tool_identifier):
 
 def _handle_ask_mode(action_str, violation_type, matched_text, config_section, error_msg,
                      file_path=None, line_number=None, start_column=None,
-                     matched_pattern="", latency_timer=None, hook_context=None):
+                     matched_pattern="", latency_timer=None, hook_context=None,
+                     finding_index=None, total_findings=None):
     """Handle 'ask' action mode by showing an interactive dialog.
 
     Returns an AskResult if action is 'ask', or None if action is not 'ask'.
@@ -2047,6 +2050,8 @@ def _handle_ask_mode(action_str, violation_type, matched_text, config_section, e
             project_path=hctx.get("project_path") or get_project_dir(),
             session_id=hctx.get("session_id"),
             hook_event=format_hook_label(hctx.get("hook_event"), hctx.get("tool_name")),
+            finding_index=finding_index,
+            total_findings=total_findings,
         )
 
         _dialog_t0 = time.perf_counter()
@@ -2078,6 +2083,75 @@ def _handle_ask_mode(action_str, violation_type, matched_text, config_section, e
         logging.warning(f"Ask dialog error, falling back to {fallback_action}: {e}")
         from ai_guardian.tui.ask_dialog import AskResult, AskDecision, _map_fallback_to_decision
         return AskResult(decision=_map_fallback_to_decision(fallback_action))
+
+
+def _handle_ask_mode_multi(action_str, violation_type, findings, config_section, error_msg,
+                           file_path=None, matched_pattern="", latency_timer=None, hook_context=None):
+    """Handle 'ask' action mode for multiple findings.
+
+    Loops through findings sequentially, calling _handle_ask_mode for each.
+    BLOCK/BLOCK_ALL on any finding stops the loop immediately.
+    Returns the final AskResult (BLOCK if any blocked, ALLOW_ONCE if all allowed).
+    Also returns the per-finding results list as result.per_finding_results.
+    """
+    from ai_guardian.tui.ask_dialog import AskResult, AskDecision
+    from ai_guardian.constants import parse_ask_action, ActionMode
+
+    primary_action, _ = parse_ask_action(action_str)
+    if primary_action != ActionMode.ASK:
+        return None
+
+    if not findings or len(findings) <= 1:
+        single_finding = findings[0] if findings else {}
+        return _handle_ask_mode(
+            action_str, violation_type,
+            matched_text=single_finding.get("matched_text", ""),
+            config_section=config_section,
+            error_msg=single_finding.get("error_message", error_msg),
+            file_path=file_path,
+            line_number=single_finding.get("line_number"),
+            start_column=single_finding.get("start_column"),
+            matched_pattern=single_finding.get("matched_pattern", matched_pattern),
+            latency_timer=latency_timer,
+            hook_context=hook_context,
+        )
+
+    per_finding_results = []
+    total = len(findings)
+    total_dialog_ms = 0.0
+
+    for idx, finding in enumerate(findings):
+        result = _handle_ask_mode(
+            action_str, violation_type,
+            matched_text=finding.get("matched_text", ""),
+            config_section=config_section,
+            error_msg=finding.get("error_message", error_msg),
+            file_path=file_path,
+            line_number=finding.get("line_number"),
+            start_column=finding.get("start_column"),
+            matched_pattern=finding.get("matched_pattern", matched_pattern),
+            latency_timer=latency_timer,
+            hook_context=hook_context,
+            finding_index=idx,
+            total_findings=total,
+        )
+
+        if result is None:
+            return None
+
+        per_finding_results.append(result)
+        total_dialog_ms += result.dialog_wait_ms
+
+        if result.decision in (AskDecision.BLOCK, AskDecision.BLOCK_ALL):
+            aggregate = AskResult(decision=AskDecision.BLOCK)
+            aggregate.dialog_wait_ms = total_dialog_ms
+            aggregate.per_finding_results = per_finding_results
+            return aggregate
+
+    aggregate = AskResult(decision=AskDecision.ALLOW_ONCE)
+    aggregate.dialog_wait_ms = total_dialog_ms
+    aggregate.per_finding_results = per_finding_results
+    return aggregate
 
 
 _ASK_VIOLATION_LABELS = {
@@ -2714,6 +2788,7 @@ def _run_secret_validation(secret_config, secrets_list, content, context):
 _last_secret_matched_text = ""
 _last_secret_line_number = None
 _last_secret_start_column = None
+_last_secret_findings = []
 
 
 def _extract_matched_text_for_ask(secret_details, content):
@@ -2787,10 +2862,11 @@ def check_secrets_with_gitleaks(content, filename="temp_file", context: Optional
         Secret scanning ALWAYS blocks when secrets are detected (no "log" mode).
         This prevents secrets from reaching Claude's API or being exposed in sessions.
     """
-    global _last_secret_matched_text, _last_secret_line_number, _last_secret_start_column
+    global _last_secret_matched_text, _last_secret_line_number, _last_secret_start_column, _last_secret_findings
     _last_secret_matched_text = ""
     _last_secret_line_number = None
     _last_secret_start_column = None
+    _last_secret_findings = []
     try:
         # Check if tool should be ignored
         if ignore_tools and tool_name:
@@ -3079,6 +3155,20 @@ def check_secrets_with_gitleaks(content, filename="temp_file", context: Optional
                         )
 
                         first_secret = strategy_result.secrets[0]
+                        secret_findings_list = [
+                            {
+                                "matched_text": _extract_matched_text_for_ask(
+                                    {"matched_text": s.secret, "line_number": s.line_number}, content
+                                ) if content else s.secret,
+                                "matched_pattern": s.rule_id or "",
+                                "rule_id": s.rule_id,
+                                "line_number": s.line_number,
+                                "start_column": s.start_column,
+                                "end_column": s.end_column,
+                                "category": s.category,
+                            }
+                            for s in strategy_result.secrets
+                        ]
                         secret_details = {
                             "rule_id": first_secret.rule_id,
                             "file": file_path or filename,
@@ -3091,6 +3181,7 @@ def check_secrets_with_gitleaks(content, filename="temp_file", context: Optional
                             "engine": strategy_result.engine,
                             "category": first_secret.category,
                             "matched_text": first_secret.secret,
+                            "findings": secret_findings_list,
                         }
                         if validation_info:
                             secret_details["validation"] = validation_info
@@ -3114,6 +3205,7 @@ def check_secrets_with_gitleaks(content, filename="temp_file", context: Optional
                         _last_secret_matched_text = _extract_matched_text_for_ask(secret_details, content)
                         _last_secret_line_number = secret_details.get("line_number")
                         _last_secret_start_column = secret_details.get("start_column")
+                        _last_secret_findings = secret_findings_list
                         return True, error_msg
 
                     # No secrets found — check for engine errors that need user attention
@@ -4098,22 +4190,30 @@ def process_hook_data(hook_data, daemon_state=None):
                                      warning_message=error_message)
 
             if has_secrets:
-                # Check ask action mode before blocking
                 secret_action = secret_config.get("action", "block") if secret_config else "block"
-                ask_result = _handle_ask_mode(
-                    secret_action, ViolationType.SECRET_DETECTED,
-                    matched_text=_last_secret_matched_text,
-                    config_section="secret_scanning",
-                    error_msg=error_message,
-                    file_path=file_path if 'file_path' in dir() else None,
-                    start_column=_last_secret_start_column,
-                    latency_timer=_latency_timer,
-                    hook_context={"session_id": hook_session_id, "project_path": get_project_dir(), "hook_event": hook_event, "tool_name": tool_name},
-                )
+                if _last_secret_findings and len(_last_secret_findings) > 1:
+                    ask_result = _handle_ask_mode_multi(
+                        secret_action, ViolationType.SECRET_DETECTED,
+                        _last_secret_findings, "secret_scanning", error_message,
+                        file_path=file_path if 'file_path' in dir() else None,
+                        latency_timer=_latency_timer,
+                        hook_context={"session_id": hook_session_id, "project_path": get_project_dir(), "hook_event": hook_event, "tool_name": tool_name},
+                    )
+                else:
+                    ask_result = _handle_ask_mode(
+                        secret_action, ViolationType.SECRET_DETECTED,
+                        matched_text=_last_secret_matched_text,
+                        config_section="secret_scanning",
+                        error_msg=error_message,
+                        file_path=file_path if 'file_path' in dir() else None,
+                        start_column=_last_secret_start_column,
+                        latency_timer=_latency_timer,
+                        hook_context={"session_id": hook_session_id, "project_path": get_project_dir(), "hook_event": hook_event, "tool_name": tool_name},
+                    )
                 logging.debug(f"[ASK-DEBUG] ask_result={ask_result}")
                 if ask_result is not None:
                     from ai_guardian.tui.ask_dialog import AskDecision
-                    if ask_result.decision != AskDecision.BLOCK:
+                    if ask_result.decision not in (AskDecision.BLOCK, AskDecision.BLOCK_ALL):
                         _advance_transcript_position(hook_data)
                         info_msg = _format_ask_info_message(ViolationType.SECRET_DETECTED, ask_result.decision)
                         _log_ask_decision(ViolationType.SECRET_DETECTED, ask_result.decision,
@@ -4328,7 +4428,7 @@ def process_hook_data(hook_data, daemon_state=None):
                         )
                         if pii_ask_result is not None:
                             from ai_guardian.tui.ask_dialog import AskDecision
-                            if pii_ask_result.decision != AskDecision.BLOCK:
+                            if pii_ask_result.decision not in (AskDecision.BLOCK, AskDecision.BLOCK_ALL):
                                 pii_action = 'warn'
                                 pii_info_msg = _format_ask_info_message(ViolationType.PII_DETECTED, pii_ask_result.decision)
                                 warning_messages.append(pii_info_msg)
@@ -4450,7 +4550,7 @@ def process_hook_data(hook_data, daemon_state=None):
                                 )
                                 if post_pi_ask is not None:
                                     from ai_guardian.tui.ask_dialog import AskDecision
-                                    if post_pi_ask.decision != AskDecision.BLOCK:
+                                    if post_pi_ask.decision not in (AskDecision.BLOCK, AskDecision.BLOCK_ALL):
                                         pi_info = _format_ask_info_message(ViolationType.PROMPT_INJECTION, post_pi_ask.decision)
                                         post_warning_messages.append(pi_info)
                                         post_pi_block = False
@@ -4551,7 +4651,7 @@ def process_hook_data(hook_data, daemon_state=None):
                                     )
                                     if post_cp_ask is not None:
                                         from ai_guardian.tui.ask_dialog import AskDecision
-                                        if post_cp_ask.decision != AskDecision.BLOCK:
+                                        if post_cp_ask.decision not in (AskDecision.BLOCK, AskDecision.BLOCK_ALL):
                                             cp_info = _format_ask_info_message(ViolationType.CONTEXT_POISONING, post_cp_ask.decision)
                                             post_warning_messages.append(cp_info)
                                             post_cp_block = False
@@ -4644,7 +4744,7 @@ def process_hook_data(hook_data, daemon_state=None):
                             )
                             if perm_ask_result is not None:
                                 from ai_guardian.tui.ask_dialog import AskDecision
-                                if perm_ask_result.decision != AskDecision.BLOCK:
+                                if perm_ask_result.decision not in (AskDecision.BLOCK, AskDecision.BLOCK_ALL):
                                     perm_ask_allowed = True
                                     warning_messages.append(
                                         _format_ask_info_message(ViolationType.TOOL_PERMISSION, perm_ask_result.decision,
@@ -4789,7 +4889,7 @@ def process_hook_data(hook_data, daemon_state=None):
                     )
                     if dir_ask_result is not None:
                         from ai_guardian.tui.ask_dialog import AskDecision
-                        if dir_ask_result.decision != AskDecision.BLOCK:
+                        if dir_ask_result.decision not in (AskDecision.BLOCK, AskDecision.BLOCK_ALL):
                             is_denied = False
                             warning_messages.append(
                                 _format_ask_info_message(ViolationType.DIRECTORY_BLOCKING, dir_ask_result.decision,
@@ -5093,7 +5193,7 @@ def process_hook_data(hook_data, daemon_state=None):
                         )
                         if pi_ask_result is not None:
                             from ai_guardian.tui.ask_dialog import AskDecision
-                            if pi_ask_result.decision != AskDecision.BLOCK:
+                            if pi_ask_result.decision not in (AskDecision.BLOCK, AskDecision.BLOCK_ALL):
                                 pi_info_msg = _format_ask_info_message(ViolationType.PROMPT_INJECTION, pi_ask_result.decision)
                                 warning_messages.append(pi_info_msg)
                                 should_block = False
@@ -5191,7 +5291,7 @@ def process_hook_data(hook_data, daemon_state=None):
                             )
                             if cp_ask_result is not None:
                                 from ai_guardian.tui.ask_dialog import AskDecision
-                                if cp_ask_result.decision != AskDecision.BLOCK:
+                                if cp_ask_result.decision not in (AskDecision.BLOCK, AskDecision.BLOCK_ALL):
                                     cp_info_msg = _format_ask_info_message(ViolationType.CONTEXT_POISONING, cp_ask_result.decision)
                                     warning_messages.append(cp_info_msg)
                                     cp_should_block = False
@@ -5273,7 +5373,7 @@ def process_hook_data(hook_data, daemon_state=None):
                         )
                         if sc_ask_result is not None:
                             from ai_guardian.tui.ask_dialog import AskDecision
-                            if sc_ask_result.decision != AskDecision.BLOCK:
+                            if sc_ask_result.decision not in (AskDecision.BLOCK, AskDecision.BLOCK_ALL):
                                 sc_should_block = False
                                 warning_messages.append(
                                     _format_ask_info_message(ViolationType.SUPPLY_CHAIN, sc_ask_result.decision,
@@ -5337,7 +5437,7 @@ def process_hook_data(hook_data, daemon_state=None):
                         )
                         if cfs_ask_result is not None:
                             from ai_guardian.tui.ask_dialog import AskDecision
-                            if cfs_ask_result.decision != AskDecision.BLOCK:
+                            if cfs_ask_result.decision not in (AskDecision.BLOCK, AskDecision.BLOCK_ALL):
                                 should_block = False
                                 warning_messages.append(
                                     _format_ask_info_message(ViolationType.CONFIG_FILE_EXFIL, cfs_ask_result.decision,
@@ -5468,7 +5568,7 @@ def process_hook_data(hook_data, daemon_state=None):
                 )
                 if ask_result_pre is not None:
                     from ai_guardian.tui.ask_dialog import AskDecision
-                    if ask_result_pre.decision != AskDecision.BLOCK:
+                    if ask_result_pre.decision not in (AskDecision.BLOCK, AskDecision.BLOCK_ALL):
                         info_msg = _format_ask_info_message(ViolationType.SECRET_DETECTED, ask_result_pre.decision)
                         warning_messages.append(info_msg)
                         has_secrets = False
@@ -5554,7 +5654,7 @@ def process_hook_data(hook_data, daemon_state=None):
                         )
                         if pii_ask_result2 is not None:
                             from ai_guardian.tui.ask_dialog import AskDecision
-                            if pii_ask_result2.decision != AskDecision.BLOCK:
+                            if pii_ask_result2.decision not in (AskDecision.BLOCK, AskDecision.BLOCK_ALL):
                                 pii_action = 'warn'
                             else:
                                 pii_action = 'block'
