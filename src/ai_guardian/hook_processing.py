@@ -2029,7 +2029,7 @@ def _handle_ask_mode(action_str, violation_type, matched_text, config_section, e
 
         summary_lines = []
         if error_msg:
-            for prefix in ("Secret Type:", "Location:", "Scanner:"):
+            for prefix in ("Secret Type:", "Scanner:"):
                 import re as _re
                 m = _re.search(rf"{prefix}\s*(.+)", error_msg)
                 if m:
@@ -2152,6 +2152,43 @@ def _handle_ask_mode_multi(action_str, violation_type, findings, config_section,
     aggregate.dialog_wait_ms = total_dialog_ms
     aggregate.per_finding_results = per_finding_results
     return aggregate
+
+
+def _handle_ask_mode_auto(action_str, violation_type, config_section, error_msg,
+                          file_path=None, matched_text=None, line_number=None,
+                          start_column=None, matched_pattern='',
+                          latency_timer=None, hook_context=None,
+                          findings=None):
+    """Route to multi or single ask dialog based on findings count."""
+    if findings and len(findings) > 1:
+        return _handle_ask_mode_multi(
+            action_str, violation_type, findings, config_section, error_msg,
+            file_path=file_path, matched_pattern=matched_pattern,
+            latency_timer=latency_timer, hook_context=hook_context)
+    if findings and len(findings) == 1:
+        f = findings[0]
+        return _handle_ask_mode(
+            action_str, violation_type,
+            matched_text=f.get("matched_text", ""),
+            config_section=config_section,
+            error_msg=f.get("error_message", error_msg),
+            file_path=file_path,
+            line_number=f.get("line_number"),
+            start_column=f.get("start_column"),
+            matched_pattern=f.get("matched_pattern", matched_pattern),
+            latency_timer=latency_timer,
+            hook_context=hook_context)
+    return _handle_ask_mode(
+        action_str, violation_type,
+        matched_text=matched_text or "",
+        config_section=config_section,
+        error_msg=error_msg,
+        file_path=file_path,
+        line_number=line_number,
+        start_column=start_column,
+        matched_pattern=matched_pattern,
+        latency_timer=latency_timer,
+        hook_context=hook_context)
 
 
 _ASK_VIOLATION_LABELS = {
@@ -2816,6 +2853,26 @@ def _extract_pii_matched_text(pii_redactions, content):
     if pos >= 0 and length > 0 and pos + length <= len(content):
         return content[pos:pos + length]
     return ""
+
+
+def _pii_redactions_to_findings(pii_redactions, content, error_msg=""):
+    """Convert PII redaction list to findings format for multi-finding ask dialog."""
+    if not pii_redactions or not content:
+        return None
+    findings = []
+    for r in pii_redactions:
+        pos = r.get('position', -1)
+        length = r.get('original_length', 0)
+        matched = ""
+        if pos >= 0 and length > 0 and pos + length <= len(content):
+            matched = content[pos:pos + length]
+        findings.append({
+            "matched_text": matched,
+            "line_number": r.get('line_number'),
+            "start_column": r.get('column'),
+            "error_message": f"PII: {r.get('type', 'unknown')}",
+        })
+    return findings if findings else None
 
 
 def _extract_file_path_from_pii_warning(pii_warning):
@@ -4191,25 +4248,17 @@ def process_hook_data(hook_data, daemon_state=None):
 
             if has_secrets:
                 secret_action = secret_config.get("action", "block") if secret_config else "block"
-                if _last_secret_findings and len(_last_secret_findings) > 1:
-                    ask_result = _handle_ask_mode_multi(
-                        secret_action, ViolationType.SECRET_DETECTED,
-                        _last_secret_findings, "secret_scanning", error_message,
-                        file_path=file_path if 'file_path' in dir() else None,
-                        latency_timer=_latency_timer,
-                        hook_context={"session_id": hook_session_id, "project_path": get_project_dir(), "hook_event": hook_event, "tool_name": tool_name},
-                    )
-                else:
-                    ask_result = _handle_ask_mode(
-                        secret_action, ViolationType.SECRET_DETECTED,
-                        matched_text=_last_secret_matched_text,
-                        config_section="secret_scanning",
-                        error_msg=error_message,
-                        file_path=file_path if 'file_path' in dir() else None,
-                        start_column=_last_secret_start_column,
-                        latency_timer=_latency_timer,
-                        hook_context={"session_id": hook_session_id, "project_path": get_project_dir(), "hook_event": hook_event, "tool_name": tool_name},
-                    )
+                ask_result = _handle_ask_mode_auto(
+                    secret_action, ViolationType.SECRET_DETECTED,
+                    config_section="secret_scanning",
+                    error_msg=error_message,
+                    file_path=file_path if 'file_path' in dir() else None,
+                    matched_text=_last_secret_matched_text,
+                    start_column=_last_secret_start_column,
+                    latency_timer=_latency_timer,
+                    hook_context={"session_id": hook_session_id, "project_path": get_project_dir(), "hook_event": hook_event, "tool_name": tool_name},
+                    findings=_last_secret_findings if _last_secret_findings else None,
+                )
                 logging.debug(f"[ASK-DEBUG] ask_result={ask_result}")
                 if ask_result is not None:
                     from ai_guardian.tui.ask_dialog import AskDecision
@@ -4411,20 +4460,22 @@ def process_hook_data(hook_data, daemon_state=None):
                         )
                         logging.warning(f"PII detected in {tool_identifier} output: {pii_types}")
 
-                        # Extract actual PII text from content for ask dialog
+                        # Build multi-finding list from PII redactions
                         pii_matched_text = _extract_pii_matched_text(pii_redactions, tool_output)
+                        pii_findings = _pii_redactions_to_findings(pii_redactions, tool_output, pii_warning)
 
                         # Check ask action mode before standard routing
                         pii_line_number = pii_redactions[0].get('line_number') if pii_redactions else None
-                        pii_ask_result = _handle_ask_mode(
+                        pii_ask_result = _handle_ask_mode_auto(
                             pii_action, ViolationType.PII_DETECTED,
-                            matched_text=pii_matched_text,
                             config_section="scan_pii",
                             error_msg=pii_warning,
                             file_path=pii_file_path,
+                            matched_text=pii_matched_text,
                             line_number=pii_line_number,
                             latency_timer=_latency_timer,
                             hook_context={"session_id": hook_session_id, "project_path": get_project_dir(), "hook_event": hook_event, "tool_name": tool_name},
+                            findings=pii_findings,
                         )
                         if pii_ask_result is not None:
                             from ai_guardian.tui.ask_dialog import AskDecision
@@ -4537,12 +4588,12 @@ def process_hook_data(hook_data, daemon_state=None):
 
                             if post_pi_block:
                                 post_pi_action = post_pi_config.get("action", "block")
-                                post_pi_ask = _handle_ask_mode(
+                                post_pi_ask = _handle_ask_mode_auto(
                                     post_pi_action, ViolationType.PROMPT_INJECTION,
-                                    matched_text=post_pi_detector.last_matched_text or "",
                                     config_section="prompt_injection",
                                     error_msg=post_pi_error_msg,
                                     file_path=post_pi_file,
+                                    matched_text=post_pi_detector.last_matched_text or "",
                                     line_number=post_pi_detector.last_line_number,
                                     matched_pattern=post_pi_detector.last_matched_pattern or "",
                                     latency_timer=_latency_timer,
@@ -4638,12 +4689,12 @@ def process_hook_data(hook_data, daemon_state=None):
 
                                 if post_cp_block:
                                     cp_action = post_cp_config.get("action", "warn")
-                                    post_cp_ask = _handle_ask_mode(
+                                    post_cp_ask = _handle_ask_mode_auto(
                                         cp_action, ViolationType.CONTEXT_POISONING,
-                                        matched_text=post_cp_detector.last_matched_text or "",
                                         config_section="context_poisoning",
                                         error_msg=post_cp_error_msg,
                                         file_path=post_cp_file,
+                                        matched_text=post_cp_detector.last_matched_text or "",
                                         line_number=post_cp_detector.last_line_number,
                                         matched_pattern=post_cp_detector.last_matched_pattern or "",
                                         latency_timer=_latency_timer,
@@ -4733,11 +4784,11 @@ def process_hook_data(hook_data, daemon_state=None):
                             perm_matched_text = _build_permission_matched_text(
                                 tool_name, tool_input, tool_identifier
                             )
-                            perm_ask_result = _handle_ask_mode(
+                            perm_ask_result = _handle_ask_mode_auto(
                                 deny_action, ViolationType.TOOL_PERMISSION,
-                                matched_text=perm_matched_text,
                                 config_section="permissions",
                                 error_msg=error_message,
+                                matched_text=perm_matched_text,
                                 matched_pattern=getattr(policy_checker, 'last_deny_matched_pattern', '') or '',
                                 latency_timer=_latency_timer,
                                 hook_context={"session_id": hook_session_id, "project_path": get_project_dir(), "hook_event": hook_event, "tool_name": tool_name},
@@ -4878,12 +4929,12 @@ def process_hook_data(hook_data, daemon_state=None):
                 # Check if directory access is denied
                 if is_denied:
                     dir_action = _get_directory_action_from_config()
-                    dir_ask_result = _handle_ask_mode(
+                    dir_ask_result = _handle_ask_mode_auto(
                         dir_action, ViolationType.DIRECTORY_BLOCKING,
-                        matched_text=file_path or "",
                         config_section="directory_rules",
                         error_msg=deny_reason,
                         file_path=file_path,
+                        matched_text=file_path or "",
                         latency_timer=_latency_timer,
                         hook_context={"session_id": hook_session_id, "project_path": get_project_dir(), "hook_event": hook_event, "tool_name": tool_name},
                     )
@@ -5180,12 +5231,12 @@ def process_hook_data(hook_data, daemon_state=None):
                     if should_block:
                         # Check ask action mode before blocking
                         pi_action = injection_config.get("action", "block") if injection_config else "block"
-                        pi_ask_result = _handle_ask_mode(
+                        pi_ask_result = _handle_ask_mode_auto(
                             pi_action, ViolationType.PROMPT_INJECTION,
-                            matched_text=detector.last_matched_text or "",
                             config_section="prompt_injection",
                             error_msg=injection_error,
                             file_path=file_path,
+                            matched_text=detector.last_matched_text or "",
                             line_number=detector.last_line_number,
                             matched_pattern=detector.last_matched_pattern or "",
                             latency_timer=_latency_timer,
@@ -5278,12 +5329,12 @@ def process_hook_data(hook_data, daemon_state=None):
                         if cp_should_block:
                             # Check ask action mode before blocking
                             cp_action = cp_config.get("action", "warn") if cp_config else "warn"
-                            cp_ask_result = _handle_ask_mode(
+                            cp_ask_result = _handle_ask_mode_auto(
                                 cp_action, ViolationType.CONTEXT_POISONING,
-                                matched_text=cp_detector.last_matched_text or "",
                                 config_section="context_poisoning",
                                 error_msg=cp_error_msg,
                                 file_path=file_path if 'file_path' in dir() else None,
+                                matched_text=cp_detector.last_matched_text or "",
                                 line_number=cp_detector.last_line_number,
                                 matched_pattern=cp_detector.last_matched_pattern or "",
                                 latency_timer=_latency_timer,
@@ -5360,12 +5411,12 @@ def process_hook_data(hook_data, daemon_state=None):
                         )
 
                         sc_action = sc_config.get("action", "block")
-                        sc_ask_result = _handle_ask_mode(
+                        sc_ask_result = _handle_ask_mode_auto(
                             sc_action, ViolationType.SUPPLY_CHAIN,
-                            matched_text=sc_scanner.last_matched_text or "",
                             config_section="supply_chain",
                             error_msg=sc_error_msg,
                             file_path=sc_file_path,
+                            matched_text=sc_scanner.last_matched_text or "",
                             line_number=sc_scanner.last_line_number,
                             matched_pattern=sc_scanner.last_matched_pattern or "",
                             latency_timer=_latency_timer,
@@ -5424,13 +5475,13 @@ def process_hook_data(hook_data, daemon_state=None):
                     if should_block:
                         cfs_action = scanner_config.get("action", "block") if scanner_config else "block"
                         cfs_matched_pattern = config_details.get("pattern_name", "") if config_details else ""
-                        cfs_ask_result = _handle_ask_mode(
+                        cfs_ask_result = _handle_ask_mode_auto(
                             cfs_action,
                             ViolationType.CONFIG_FILE_EXFIL,
-                            matched_text=file_path,
                             config_section="config_file_scanning",
                             error_msg=config_error or "",
                             file_path=file_path,
+                            matched_text=file_path,
                             matched_pattern=cfs_matched_pattern,
                             latency_timer=_latency_timer,
                             hook_context={"session_id": hook_session_id, "project_path": get_project_dir(), "hook_event": hook_event, "tool_name": tool_name},
@@ -5556,15 +5607,16 @@ def process_hook_data(hook_data, daemon_state=None):
             if has_secrets:
                 # Check ask action mode before blocking
                 secret_action_pre = secret_config.get("action", "block") if secret_config else "block"
-                ask_result_pre = _handle_ask_mode(
+                ask_result_pre = _handle_ask_mode_auto(
                     secret_action_pre, ViolationType.SECRET_DETECTED,
-                    matched_text=_last_secret_matched_text,
                     config_section="secret_scanning",
                     error_msg=error_message,
                     file_path=file_path,
+                    matched_text=_last_secret_matched_text,
                     start_column=_last_secret_start_column,
                     latency_timer=_latency_timer,
                     hook_context={"session_id": hook_session_id, "project_path": get_project_dir(), "hook_event": hook_event, "tool_name": tool_name},
+                    findings=_last_secret_findings if _last_secret_findings else None,
                 )
                 if ask_result_pre is not None:
                     from ai_guardian.tui.ask_dialog import AskDecision
@@ -5634,23 +5686,25 @@ def process_hook_data(hook_data, daemon_state=None):
                         )
                         logging.warning(f"PII detected: {pii_types}")
 
-                        # Extract actual PII text from content for ask dialog
+                        # Build multi-finding list from PII redactions
                         pii_matched_text = _extract_pii_matched_text(pii_redactions, pii_scan_content)
+                        pii_findings = _pii_redactions_to_findings(pii_redactions, pii_scan_content, pii_warning)
 
                         # Check ask action mode before blocking
                         pii_line_number2 = pii_redactions[0].get('line_number') if pii_redactions else None
                         pii_file_path2 = file_path
                         if not pii_file_path2:
                             pii_file_path2 = _extract_file_path_from_pii_warning(pii_warning)
-                        pii_ask_result2 = _handle_ask_mode(
+                        pii_ask_result2 = _handle_ask_mode_auto(
                             pii_action, ViolationType.PII_DETECTED,
-                            matched_text=pii_matched_text,
                             config_section="scan_pii",
                             error_msg=pii_warning,
                             file_path=pii_file_path2,
+                            matched_text=pii_matched_text,
                             line_number=pii_line_number2,
                             latency_timer=_latency_timer,
                             hook_context={"session_id": hook_session_id, "project_path": get_project_dir(), "hook_event": hook_event, "tool_name": tool_name},
+                            findings=pii_findings,
                         )
                         if pii_ask_result2 is not None:
                             from ai_guardian.tui.ask_dialog import AskDecision
