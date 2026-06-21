@@ -54,6 +54,7 @@ class AskViolationInfo:
     start_column: Optional[int] = None
     project_path: Optional[str] = None
     session_id: Optional[str] = None
+    tool_name: Optional[str] = None
     hook_event: Optional[str] = None
     finding_index: Optional[int] = None
     total_findings: Optional[int] = None
@@ -73,24 +74,38 @@ class AskResult:
 
 
 def build_dialog_title(violation_info: AskViolationInfo) -> str:
-    """Build dialog title with project/session context for multi-session identification."""
+    """Build dialog title with project/tool/file context for multi-session identification."""
     from pathlib import Path
     parts = ["ai-guardian: Violation Detected"]
     if violation_info.project_path:
         parts.append(f"— {Path(violation_info.project_path).name}")
+    tool_file_parts = []
+    if violation_info.tool_name:
+        tool_file_parts.append(violation_info.tool_name)
+    if violation_info.file_path:
+        tool_file_parts.append(Path(violation_info.file_path).name)
+    if tool_file_parts:
+        parts.append(f"— {' '.join(tool_file_parts)}")
     if violation_info.session_id:
-        parts.append(f"[{violation_info.session_id[:8]}]")
+        parts.append(f"[{violation_info.session_id[:4]}]")
     return " ".join(parts)
 
 
 def build_sub_dialog_title(base_title: str, violation_info: AskViolationInfo) -> str:
-    """Build sub-dialog title with project/session context prefix."""
+    """Build sub-dialog title with project/tool/session context prefix."""
     from pathlib import Path
     prefix_parts = []
     if violation_info.project_path:
         prefix_parts.append(Path(violation_info.project_path).name)
+    tool_file_parts = []
+    if violation_info.tool_name:
+        tool_file_parts.append(violation_info.tool_name)
+    if violation_info.file_path:
+        tool_file_parts.append(Path(violation_info.file_path).name)
+    if tool_file_parts:
+        prefix_parts.append(" ".join(tool_file_parts))
     if violation_info.session_id:
-        prefix_parts.append(f"[{violation_info.session_id[:8]}]")
+        prefix_parts.append(f"[{violation_info.session_id[:4]}]")
     if prefix_parts:
         return f"{' '.join(prefix_parts)} — {base_title}"
     return base_title
@@ -241,6 +256,7 @@ def _show_via_daemon(
             "start_column": violation.start_column,
             "project_path": violation.project_path,
             "session_id": violation.session_id,
+            "tool_name": violation.tool_name,
             "hook_event": violation.hook_event,
             "finding_index": violation.finding_index,
             "total_findings": violation.total_findings,
@@ -309,6 +325,7 @@ def _show_via_subprocess(
         "start_column": violation.start_column,
         "project_path": violation.project_path,
         "session_id": violation.session_id,
+        "tool_name": violation.tool_name,
         "hook_event": violation.hook_event,
         "finding_index": violation.finding_index,
         "total_findings": violation.total_findings,

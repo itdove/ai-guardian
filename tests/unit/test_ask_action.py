@@ -2456,3 +2456,104 @@ class TestAskViolationInfoHookEvent:
             hook_event="PreToolUse (reading file)",
         )
         assert v.hook_event == "PreToolUse (reading file)"
+
+
+class TestBuildDialogTitle:
+    """Tests for build_dialog_title and build_sub_dialog_title (#1317)."""
+
+    def test_minimal_title(self):
+        from ai_guardian.tui.ask_dialog import build_dialog_title, AskViolationInfo
+        v = AskViolationInfo(
+            violation_type="secret_detected", summary="s",
+            matched_text="x", config_section="secret_scanning",
+        )
+        assert build_dialog_title(v) == "ai-guardian: Violation Detected"
+
+    def test_project_only(self):
+        from ai_guardian.tui.ask_dialog import build_dialog_title, AskViolationInfo
+        v = AskViolationInfo(
+            violation_type="secret_detected", summary="s",
+            matched_text="x", config_section="secret_scanning",
+            project_path="/home/user/my-project",
+        )
+        assert build_dialog_title(v) == "ai-guardian: Violation Detected — my-project"
+
+    def test_full_title_with_tool_file_session(self):
+        from ai_guardian.tui.ask_dialog import build_dialog_title, AskViolationInfo
+        v = AskViolationInfo(
+            violation_type="secret_detected", summary="s",
+            matched_text="x", config_section="secret_scanning",
+            project_path="/home/user/devaiflow",
+            tool_name="Read",
+            file_path="/home/user/devaiflow/src/SKILL.md",
+            session_id="f983ab72-1234-5678-9abc-def012345678",
+        )
+        title = build_dialog_title(v)
+        assert title == "ai-guardian: Violation Detected — devaiflow — Read SKILL.md [f983]"
+
+    def test_session_id_truncated_to_4(self):
+        from ai_guardian.tui.ask_dialog import build_dialog_title, AskViolationInfo
+        v = AskViolationInfo(
+            violation_type="secret_detected", summary="s",
+            matched_text="x", config_section="secret_scanning",
+            session_id="abcdefgh-long-session-id",
+        )
+        title = build_dialog_title(v)
+        assert "[abcd]" in title
+        assert "[abcdefgh]" not in title
+
+    def test_tool_without_file(self):
+        from ai_guardian.tui.ask_dialog import build_dialog_title, AskViolationInfo
+        v = AskViolationInfo(
+            violation_type="secret_detected", summary="s",
+            matched_text="x", config_section="secret_scanning",
+            tool_name="Bash",
+        )
+        assert "— Bash" in build_dialog_title(v)
+
+    def test_file_without_tool(self):
+        from ai_guardian.tui.ask_dialog import build_dialog_title, AskViolationInfo
+        v = AskViolationInfo(
+            violation_type="secret_detected", summary="s",
+            matched_text="x", config_section="secret_scanning",
+            file_path="/some/path/config.json",
+        )
+        assert "— config.json" in build_dialog_title(v)
+
+    def test_sub_dialog_title_full(self):
+        from ai_guardian.tui.ask_dialog import build_sub_dialog_title, AskViolationInfo
+        v = AskViolationInfo(
+            violation_type="secret_detected", summary="s",
+            matched_text="x", config_section="secret_scanning",
+            project_path="/home/user/myapp",
+            tool_name="Edit",
+            file_path="/home/user/myapp/main.py",
+            session_id="deadbeef-cafe",
+        )
+        title = build_sub_dialog_title("Allow Always", v)
+        assert title == "myapp Edit main.py [dead] — Allow Always"
+
+    def test_sub_dialog_title_minimal(self):
+        from ai_guardian.tui.ask_dialog import build_sub_dialog_title, AskViolationInfo
+        v = AskViolationInfo(
+            violation_type="secret_detected", summary="s",
+            matched_text="x", config_section="secret_scanning",
+        )
+        assert build_sub_dialog_title("Block", v) == "Block"
+
+    def test_tool_name_field_exists(self):
+        from ai_guardian.tui.ask_dialog import AskViolationInfo
+        v = AskViolationInfo(
+            violation_type="secret_detected", summary="s",
+            matched_text="x", config_section="secret_scanning",
+            tool_name="Read",
+        )
+        assert v.tool_name == "Read"
+
+    def test_tool_name_default_none(self):
+        from ai_guardian.tui.ask_dialog import AskViolationInfo
+        v = AskViolationInfo(
+            violation_type="secret_detected", summary="s",
+            matched_text="x", config_section="secret_scanning",
+        )
+        assert v.tool_name is None

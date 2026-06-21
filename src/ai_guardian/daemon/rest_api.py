@@ -632,6 +632,7 @@ class _RestHandler(BaseHTTPRequestHandler):
             start_column=violation_data.get("start_column"),
             project_path=violation_data.get("project_path"),
             session_id=violation_data.get("session_id"),
+            tool_name=violation_data.get("tool_name"),
             hook_event=violation_data.get("hook_event"),
             finding_index=violation_data.get("finding_index"),
             total_findings=violation_data.get("total_findings"),

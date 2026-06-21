@@ -2049,6 +2049,7 @@ def _handle_ask_mode(action_str, violation_type, matched_text, config_section, e
             start_column=start_column,
             project_path=hctx.get("project_path") or get_project_dir(),
             session_id=hctx.get("session_id"),
+            tool_name=hctx.get("tool_name"),
             hook_event=format_hook_label(hctx.get("hook_event"), hctx.get("tool_name")),
             finding_index=finding_index,
             total_findings=total_findings,
