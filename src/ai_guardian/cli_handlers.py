@@ -490,6 +490,7 @@ def _handle_daemon_command(args):
         sock_path = get_socket_path()
         lock_path = str(pid_path) + ".lock"
         marker_path = state_dir / "daemon.stop-requested"
+        pause_path = state_dir / "daemon.paused"
 
         actions = []
 
@@ -531,6 +532,7 @@ def _handle_daemon_command(args):
             (lock_path, "daemon.pid.lock"),
             (sock_path, "daemon.sock"),
             (marker_path, "daemon.stop-requested"),
+            (pause_path, "daemon.paused"),
         ]:
             p = Path(path) if isinstance(path, str) else path
             if p.exists():

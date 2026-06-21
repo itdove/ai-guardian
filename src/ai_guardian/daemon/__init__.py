@@ -82,6 +82,11 @@ def get_pid_path():
     return get_state_dir() / "daemon.pid"
 
 
+def get_pause_path():
+    """Get the pause state file path for persisting pause across restarts."""
+    return get_state_dir() / "daemon.paused"
+
+
 def get_tray_targets_path():
     """Get the path for manual tray daemon targets config."""
     return get_config_dir() / "tray-targets.json"
