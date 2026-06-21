@@ -633,6 +633,8 @@ class _RestHandler(BaseHTTPRequestHandler):
             project_path=violation_data.get("project_path"),
             session_id=violation_data.get("session_id"),
             hook_event=violation_data.get("hook_event"),
+            finding_index=violation_data.get("finding_index"),
+            total_findings=violation_data.get("total_findings"),
         )
 
         result = _show_via_subprocess(violation, fallback, timeout)

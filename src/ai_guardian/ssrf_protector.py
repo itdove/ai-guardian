@@ -173,6 +173,7 @@ class SSRFProtector:
         self.enabled = self.config.get("enabled", True)
         self.action = self.config.get("action", "block")
         self.allow_localhost = self.config.get("allow_localhost", False)
+        self.findings: List[Dict[str, Any]] = []
 
         # Parse allowed domains (for allow-list functionality)
         # Dual-path: exact strings use exact/subdomain matching (backward compat),
@@ -699,6 +700,45 @@ class SSRFProtector:
 
         return False, "", False
 
+    @staticmethod
+    def _format_ssrf_error(reason: str, url: str, command: str, immutable_note: str = "") -> str:
+        return (
+            f"\n{'='*70}\n"
+            f"🚨 BLOCKED BY POLICY\n"
+            f"🚨 SSRF PATTERN DETECTED{immutable_note}\n"
+            f"{'='*70}\n\n"
+            "AI Guardian has detected a Server-Side Request Forgery (SSRF) attempt.\n"
+            "This operation has been blocked for security.\n\n"
+            f"Detected threat:\n"
+            f"  • Reason: {reason}\n"
+            f"  • URL: {url}\n"
+            f"  • Command: {command[:100]}{'...' if len(command) > 100 else ''}\n\n"
+            "SSRF attacks can:\n"
+            "  • Exfiltrate cloud credentials from metadata endpoints\n"
+            "  • Access internal network services\n"
+            "  • Read local files via file:// URLs\n"
+            "  • Bypass firewalls and network segmentation\n\n"
+            "Blocked resources:\n"
+            "  • Private IP ranges (10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16)\n"
+            "  • Cloud metadata endpoints (169.254.169.254, metadata.google.internal)\n"
+            "  • Dangerous schemes (file://, gopher://, ftp://, data://)\n"
+            "  • Localhost (127.0.0.1, ::1)\n\n"
+            "⚠️  NOTE: Pattern-based detection only\n"
+            "    ai-guardian blocks explicit URLs in command strings and parameters.\n"
+            "    It CANNOT detect network calls inside MCP server implementations.\n\n"
+            "For comprehensive SSRF protection, configure:\n"
+            "  • Firewall egress rules (block 169.254.169.254)\n"
+            "  • Network segmentation (VPC/subnet isolation)\n"
+            "  • MCP server sandboxing (Docker with network policies)\n\n"
+            "If this is legitimate (e.g., local development):\n"
+            "  1. Set action to 'warn' in ~/.config/ai-guardian/ai-guardian.json\n"
+            "  2. Enable allow_localhost for local testing\n"
+            "  3. Temporarily disable: \"ssrf_protection\": {\"enabled\": false}\n\n"
+            "Public AWS services (s3.amazonaws.com, etc.) are NOT blocked.\n\n"
+            "See: docs/SSRF_PROTECTION.md for details\n"
+            f"{'='*70}\n"
+        )
+
     def _compute_url_position(self, command: str, url: str) -> None:
         """Compute line/column of a URL within a command string."""
         url_pos = command.find(url)
@@ -731,130 +771,89 @@ class SSRFProtector:
         self.last_line_number = None
         self.last_start_column = None
         self.last_end_column = None
+        self.findings = []
 
         if not self.enabled:
             return False, None
 
-        # Only check Bash tool (primary attack vector for SSRF)
-        # Other tools (Read, Write, etc.) don't access network resources
         if tool_name != "Bash":
             return False, None
 
-        # Extract command from tool input
         command = tool_input.get("command", "")
         if not command or not command.strip():
             return False, None
 
         try:
-            # Extract URLs from command
             urls = self._extract_urls(command)
 
             if not urls:
-                # No URLs found - allow
                 return False, None
 
-            # Check each URL for SSRF
             for url in urls:
                 is_ssrf, reason, is_immutable = self._check_url(url)
 
                 if is_ssrf:
-                    # SSRF detected!
                     logger.error(f"SSRF attempt detected: {reason}, URL={url}")
                     self._compute_url_position(command, url)
 
-                    # Immutable patterns (core IPs, metadata endpoints, dangerous schemes)
-                    # ALWAYS block regardless of action mode — cannot be downgraded
                     effective_action = "block" if is_immutable else self.action
 
-                    # Handle ask action mode (non-immutable violations only)
-                    if effective_action.startswith("ask"):
-                        try:
-                            from ai_guardian.hook_processing import _handle_ask_mode
-                            from ai_guardian.tui.ask_dialog import AskDecision
-                            ask_result = _handle_ask_mode(
-                                effective_action,
-                                "ssrf_blocked",
-                                matched_text=url,
-                                config_section="ssrf_protection",
-                                error_msg=f"SSRF pattern detected: {reason}\nURL: {url}\nCommand: {command[:100]}",
-                            )
-                            if ask_result is not None:
-                                if ask_result.decision != AskDecision.BLOCK:
-                                    from ai_guardian.hook_processing import _format_ask_info_message, _log_ask_decision
-                                    info_msg = _format_ask_info_message("ssrf_blocked", ask_result.decision, detail=url)
-                                    _log_ask_decision("ssrf_blocked", ask_result.decision,
-                                                      matched_text=url, error_msg=reason)
-                                    return False, info_msg
-                                # User chose Block — fall through to block handling
-                        except Exception as e:
-                            logger.warning(f"Ask dialog failed for SSRF: {e}")
-                            # Fall through to standard action handling
+                    immutable_note = " (immutable — cannot be downgraded to warn/log-only)" if is_immutable and self.action != "block" else ""
+                    error_msg = self._format_ssrf_error(reason, url, command, immutable_note)
 
-                    if effective_action == "warn":
-                        warn_msg = (
-                            f"⚠️  SSRF Protection Warning: {reason}\n"
-                            f"   URL: {url}\n"
-                            f"   Execution allowed (warn mode)\n\n"
-                            f"   ⚠️  NOTE: Pattern-based detection only\n"
-                            f"   ai-guardian blocks explicit URLs in command strings.\n"
-                            f"   It CANNOT detect network calls inside MCP servers.\n"
-                            f"   See: docs/SSRF_PROTECTION.md for details"
-                        )
-                        logger.warning(f"SSRF detected (warn mode): {reason}, URL={url} - execution allowed")
-                        return False, warn_msg
+                    self.findings.append({
+                        "matched_text": url,
+                        "matched_pattern": reason,
+                        "line_number": self.last_line_number,
+                        "start_column": self.last_start_column,
+                        "end_column": self.last_end_column,
+                        "is_immutable": is_immutable,
+                        "reason": reason,
+                        "error_message": error_msg,
+                        "effective_action": effective_action,
+                    })
 
-                    elif effective_action == "log-only":
-                        log_msg = (
-                            f"⚠️  SSRF Protection (log-only): {reason}\n"
-                            f"   URL: {url}\n"
-                            f"   Execution allowed (log-only mode)"
-                        )
-                        logger.warning(f"SSRF detected (log-only mode): {reason}, URL={url} - execution allowed")
-                        return False, log_msg
+            if not self.findings:
+                return False, None
 
-                    else:  # block mode (default) or immutable override
-                        immutable_note = " (immutable — cannot be downgraded to warn/log-only)" if is_immutable and self.action != "block" else ""
-                        error_msg = (
-                            f"\n{'='*70}\n"
-                            f"🚨 BLOCKED BY POLICY\n"
-                            f"🚨 SSRF PATTERN DETECTED{immutable_note}\n"
-                            f"{'='*70}\n\n"
-                            "AI Guardian has detected a Server-Side Request Forgery (SSRF) attempt.\n"
-                            "This operation has been blocked for security.\n\n"
-                            f"Detected threat:\n"
-                            f"  • Reason: {reason}\n"
-                            f"  • URL: {url}\n"
-                            f"  • Command: {command[:100]}{'...' if len(command) > 100 else ''}\n\n"
-                            "SSRF attacks can:\n"
-                            "  • Exfiltrate cloud credentials from metadata endpoints\n"
-                            "  • Access internal network services\n"
-                            "  • Read local files via file:// URLs\n"
-                            "  • Bypass firewalls and network segmentation\n\n"
-                            "Blocked resources:\n"
-                            "  • Private IP ranges (10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16)\n"
-                            "  • Cloud metadata endpoints (169.254.169.254, metadata.google.internal)\n"
-                            "  • Dangerous schemes (file://, gopher://, ftp://, data://)\n"
-                            "  • Localhost (127.0.0.1, ::1)\n\n"
-                            "⚠️  NOTE: Pattern-based detection only\n"
-                            "    ai-guardian blocks explicit URLs in command strings and parameters.\n"
-                            "    It CANNOT detect network calls inside MCP server implementations.\n\n"
-                            "For comprehensive SSRF protection, configure:\n"
-                            "  • Firewall egress rules (block 169.254.169.254)\n"
-                            "  • Network segmentation (VPC/subnet isolation)\n"
-                            "  • MCP server sandboxing (Docker with network policies)\n\n"
-                            "If this is legitimate (e.g., local development):\n"
-                            "  1. Set action to 'warn' in ~/.config/ai-guardian/ai-guardian.json\n"
-                            "  2. Enable allow_localhost for local testing\n"
-                            "  3. Temporarily disable: \"ssrf_protection\": {\"enabled\": false}\n\n"
-                            "Public AWS services (s3.amazonaws.com, etc.) are NOT blocked.\n\n"
-                            "See: docs/SSRF_PROTECTION.md for details\n"
-                            f"{'='*70}\n"
-                        )
+            first = self.findings[0]
+            self.last_line_number = first["line_number"]
+            self.last_start_column = first["start_column"]
+            self.last_end_column = first["end_column"]
 
-                        return True, error_msg
+            effective_action = first["effective_action"]
 
-            # All URLs are safe
-            return False, None
+            if effective_action.startswith("ask"):
+                return True, first["error_message"]
+
+            if effective_action == "warn":
+                url = first["matched_text"]
+                reason = first["reason"]
+                warn_msg = (
+                    f"⚠️  SSRF Protection Warning: {reason}\n"
+                    f"   URL: {url}\n"
+                    f"   Execution allowed (warn mode)\n\n"
+                    f"   ⚠️  NOTE: Pattern-based detection only\n"
+                    f"   ai-guardian blocks explicit URLs in command strings.\n"
+                    f"   It CANNOT detect network calls inside MCP servers.\n"
+                    f"   See: docs/SSRF_PROTECTION.md for details"
+                )
+                logger.warning(f"SSRF detected (warn mode): {reason}, URL={url} - execution allowed")
+                return False, warn_msg
+
+            elif effective_action == "log-only":
+                url = first["matched_text"]
+                reason = first["reason"]
+                log_msg = (
+                    f"⚠️  SSRF Protection (log-only): {reason}\n"
+                    f"   URL: {url}\n"
+                    f"   Execution allowed (log-only mode)"
+                )
+                logger.warning(f"SSRF detected (log-only mode): {reason}, URL={url} - execution allowed")
+                return False, log_msg
+
+            else:
+                return True, first["error_message"]
 
         except Exception as e:
             # Fail-closed: block on errors to prevent bypasses

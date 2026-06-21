@@ -874,6 +874,7 @@ class PromptInjectionDetector:
         self.last_line_number = None
         self.last_start_column = None
         self.last_end_column = None
+        self.findings: List[Dict[str, Any]] = []
 
         # Initialize Unicode attack detector
         unicode_config = self.config.get("unicode_detection", {})
@@ -1106,13 +1107,10 @@ class PromptInjectionDetector:
         if not matches:
             return False, 0.0, "", "", "injection", None, None, None
 
-        # Calculate confidence score based on matches
         high_confidence_matches = [m for m in matches if m[0] == "high"]
         medium_confidence_matches = [m for m in matches if m[0] == "medium"]
 
-        # Scoring logic
         if high_confidence_matches:
-            # Found high-confidence pattern match
             confidence = 0.9 if len(high_confidence_matches) == 1 else 0.95
             matched_text = high_confidence_matches[0][1]
             matched_pattern = high_confidence_matches[0][2]
@@ -1120,14 +1118,11 @@ class PromptInjectionDetector:
             match_offset = high_confidence_matches[0][4]
             match_end_offset = high_confidence_matches[0][5]
         elif medium_confidence_matches:
-            # Only medium-confidence matches
             matched_text = medium_confidence_matches[0][1]
             matched_pattern = medium_confidence_matches[0][2]
             attack_type = medium_confidence_matches[0][3]
             match_offset = medium_confidence_matches[0][4]
             match_end_offset = medium_confidence_matches[0][5]
-            # Check if pattern has context (not standalone)
-            # Look at the full content to see if there's more than just the keyword
             content_words = len(content.split())
             pattern_words = len(matched_text.split())
             has_context = content_words > pattern_words or 'mode' in content.lower() or 'activated' in content.lower()
@@ -1138,20 +1133,17 @@ class PromptInjectionDetector:
         else:
             return False, 0.0, "", "", "injection", None, None, None
 
-        # Different thresholds based on source type
         if source_type == "file_content":
-            # Higher threshold for file content (more strict)
             sensitivity_thresholds = {
-                "low": 0.95,    # Only very obvious attacks
-                "medium": 0.90,  # High confidence only
-                "high": 0.85,    # Still require high confidence
+                "low": 0.95,
+                "medium": 0.90,
+                "high": 0.85,
             }
         else:
-            # Normal thresholds for user prompts
             sensitivity_thresholds = {
-                "low": 0.85,    # Only very obvious attacks
-                "medium": 0.75,  # Balanced approach
-                "high": 0.60,    # More aggressive detection
+                "low": 0.85,
+                "medium": 0.75,
+                "high": 0.60,
             }
 
         threshold = sensitivity_thresholds.get(self.sensitivity, 0.75 if source_type == "user_prompt" else 0.90)
@@ -1163,6 +1155,19 @@ class PromptInjectionDetector:
 
         if is_injection:
             logger.debug(f"Detected {attack_type} pattern in {source_type}: '{matched_text[:50]}...'")
+
+            # Populate findings from all matches that contributed to the detection
+            passing_matches = high_confidence_matches if high_confidence_matches else medium_confidence_matches
+            for m_conf, m_text, m_pattern, m_atype, m_start, m_end in passing_matches:
+                self.findings.append({
+                    "matched_text": m_text,
+                    "matched_pattern": m_pattern,
+                    "confidence": confidence,
+                    "attack_type": m_atype,
+                    "line_number": _offset_to_line_number(content, m_start),
+                    "start_column": _offset_to_column(content, m_start),
+                    "end_column": _offset_to_column(content, m_end),
+                })
 
         return is_injection, confidence, matched_text, matched_pattern, attack_type, line_number, start_column, end_column
 
@@ -1371,6 +1376,8 @@ class PromptInjectionDetector:
             - error_message: Formatted error message if should_block is True, None otherwise
             - detected: Whether injection was detected (True even in log mode, for violation logging)
         """
+        self.findings = []
+
         if not self.enabled:
             return False, None, False
 
@@ -1378,7 +1385,6 @@ class PromptInjectionDetector:
             return False, None, False
 
         try:
-            # Check if tool should be ignored
             if self._is_tool_ignored(tool_name):
                 logger.info(f"Skipping prompt injection detection for ignored tool: {tool_name}")
                 return False, None, False
@@ -1410,7 +1416,16 @@ class PromptInjectionDetector:
             # Unicode attacks can be anywhere in the text
             is_unicode_attack, unicode_details = self.unicode_detector.check(content)
             if is_unicode_attack:
-                # Format source information for logging
+                self.findings.append({
+                    "matched_text": unicode_details,
+                    "matched_pattern": "unicode_attack",
+                    "confidence": 0.95,
+                    "attack_type": "unicode",
+                    "line_number": None,
+                    "start_column": None,
+                    "end_column": None,
+                })
+
                 if file_path:
                     source_info = f"file='{file_path}'"
                 elif tool_name:

@@ -174,6 +174,7 @@ class ConfigFileScanner:
         self.config = config or {}
         self.enabled = self.config.get("enabled", True)
         self.action = self.config.get("action", "block")
+        self.findings: List[Dict[str, Any]] = []
         self.additional_files = self.config.get("additional_files", [])
         self.ignore_files = self.config.get("ignore_files", [])
 
@@ -409,46 +410,45 @@ class ConfigFileScanner:
         if not content:
             return False, None, None
 
-        # Check each compiled pattern
         for pattern_def in self._compiled_patterns:
             match = pattern_def["regex"].search(content)
 
             if match:
-                # Extract context
                 line_number, matched_text, context = self._extract_context(content, match.start())
 
-                # Check if this is documentation/example context
                 if self._is_documentation_context(content, line_number - 1):
                     logger.debug(f"Pattern '{pattern_def['name']}' matched but in documentation context - allowing")
                     continue
 
-                # Malicious pattern detected!
                 logger.error(f"Credential exfiltration pattern detected: {pattern_def['name']}")
 
-                # Truncate matched text for display (first 100 chars)
                 display_text = matched_text[:100] + "..." if len(matched_text) > 100 else matched_text
-
                 reason = f"credential exfiltration pattern detected ({pattern_def['description']})"
 
                 line_start = content.rfind('\n', 0, match.start()) + 1
                 start_column = match.start() - line_start
                 end_column = match.end() - line_start
 
-                details = {
+                self.findings.append({
                     "pattern_name": pattern_def["name"],
                     "pattern_description": pattern_def["description"],
+                    "matched_pattern": pattern_def["regex"].pattern,
                     "line_number": line_number,
                     "start_column": start_column,
                     "end_column": end_column,
                     "matched_text": display_text,
                     "context": context,
                     "file_path": file_path,
-                }
+                    "error_message": reason,
+                })
 
-                return True, reason, details
+        if not self.findings:
+            return False, None, None
 
-        # No patterns matched
-        return False, None, None
+        first = self.findings[0]
+        details = {k: v for k, v in first.items() if k not in ("error_message", "matched_pattern")}
+        details["total_findings"] = len(self.findings)
+        return True, first["error_message"], details
 
     def scan(self, file_path: str, content: str) -> Tuple[bool, Optional[str], Optional[Dict[str, Any]]]:
         """
@@ -464,6 +464,8 @@ class ConfigFileScanner:
             - error_message: Formatted error/warning message if detected, None otherwise
             - details: Dictionary with detection details (pattern, line, context) or None
         """
+        self.findings = []
+
         if not self.enabled:
             return False, None, None
 
@@ -556,6 +558,8 @@ class ConfigFileScanner:
         Returns:
             Tuple of (should_block, error_message, details)
         """
+        self.findings = []
+
         if not self.enabled:
             return False, None, None
 

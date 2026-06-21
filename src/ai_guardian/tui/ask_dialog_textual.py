@@ -94,7 +94,15 @@ class _TextualAskDialog:
                 icon, _ = violation_badge(v.violation_type)
                 yield Header(show_clock=False)
                 with Container(id="ask-container"):
-                    yield Static(f"[bold]{icon} {build_dialog_title(v)}[/bold]", id="title")
+                    title_text = f"[bold]{icon} {build_dialog_title(v)}[/bold]"
+                    if v.total_findings and v.total_findings > 1:
+                        remaining = v.total_findings - (v.finding_index or 0) - 1
+                        counter = f" ({v.finding_index + 1} of {v.total_findings}"
+                        if remaining > 0:
+                            counter += f", {remaining} more"
+                        counter += ")"
+                        title_text += f"  {counter}"
+                    yield Static(title_text, id="title")
                     yield Static(f"[bold]Type:[/bold] {icon} {v.violation_type}", classes="detail-row")
                     if v.hook_event:
                         yield Static(f"[bold]Hook:[/bold] {v.hook_event}", classes="detail-row")
@@ -118,6 +126,8 @@ class _TextualAskDialog:
                                 yield Button("Suppress in Source...", id="btn-suppress-source", variant="warning")
                             yield Button("Ignore File...", id="btn-ignore-file", variant="default")
                         yield Button("Block", id="btn-block", variant="error")
+                        if v.total_findings and v.total_findings > 1:
+                            yield Button("Block All", id="btn-block-all", variant="error")
 
                     with Container(id="editor-section"):
                         yield Static("[bold]Pattern Editor[/bold]")
@@ -148,6 +158,9 @@ class _TextualAskDialog:
                     self.exit()
                 elif bid == "btn-block":
                     dialog_self._result = AskResult(decision=AskDecision.BLOCK)
+                    self.exit()
+                elif bid == "btn-block-all":
+                    dialog_self._result = AskResult(decision=AskDecision.BLOCK_ALL)
                     self.exit()
                 elif bid == "btn-allow-always":
                     self._show_editor()

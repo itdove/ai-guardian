@@ -136,6 +136,7 @@ class ContextPoisoningDetector:
         self.last_start_column: Optional[int] = None
         self.last_end_column: Optional[int] = None
         self.last_attack_type: str = "context_poisoning"
+        self.findings: List[Dict[str, Any]] = []
 
     def _check_allowlist(self, content: str) -> bool:
         for pat in self.allowlist_patterns:
@@ -166,6 +167,7 @@ class ContextPoisoningDetector:
         self.last_line_number = None
         self.last_start_column = None
         self.last_end_column = None
+        self.findings = []
 
         if not self.enabled:
             return False, None, False
@@ -192,55 +194,67 @@ class ContextPoisoningDetector:
                 return m
         return None
 
+    @staticmethod
+    def _all_matches(patterns, text):
+        """Return all regex matches across patterns."""
+        matches = []
+        for pat in patterns:
+            for m in pat.finditer(text):
+                matches.append(m)
+        return matches
+
     def _run_detection(self, content: str) -> Tuple[bool, Optional[str], bool]:
         persistence_compiled, dangerous_compiled = _get_compiled_patterns()
         low_threshold, high_threshold = self._get_sensitivity_thresholds()
 
-        persistence_match = self._first_match(persistence_compiled, content)
-        if not persistence_match:
-            persistence_match = self._first_match(self.custom_patterns, content)
+        persistence_matches = self._all_matches(persistence_compiled, content)
+        if not persistence_matches:
+            persistence_matches = self._all_matches(self.custom_patterns, content)
 
-        if not persistence_match:
+        if not persistence_matches:
             return False, None, False
 
         dangerous_match = self._first_match(dangerous_compiled, content)
 
-        if dangerous_match:
-            confidence = high_threshold
-            self.last_matched_pattern = persistence_match.re.pattern + " + " + dangerous_match.re.pattern
-            self.last_matched_text = content[persistence_match.start():min(persistence_match.end() + 80, len(content))]
-            self.last_confidence = confidence
-            self.last_line_number = _offset_to_line_number(content, persistence_match.start())
-            self.last_start_column = _offset_to_column(content, persistence_match.start())
-            self.last_end_column = _offset_to_column(content, persistence_match.end())
+        for p_match in persistence_matches:
+            if dangerous_match:
+                confidence = high_threshold
+                matched_pattern = p_match.re.pattern + " + " + dangerous_match.re.pattern
+                matched_text = content[p_match.start():min(p_match.end() + 80, len(content))]
+                error_msg = self._format_error(
+                    p_match.group(), dangerous_match.group(),
+                    confidence, is_dangerous=True,
+                )
+            else:
+                confidence = low_threshold
+                matched_pattern = p_match.re.pattern
+                matched_text = p_match.group()
+                error_msg = self._format_error(
+                    p_match.group(), None,
+                    confidence, is_dangerous=False,
+                )
 
-            error_msg = self._format_error(
-                persistence_match.group(),
-                dangerous_match.group(),
-                confidence,
-                is_dangerous=True,
-            )
+            self.findings.append({
+                "matched_text": matched_text,
+                "matched_pattern": matched_pattern,
+                "confidence": confidence,
+                "line_number": _offset_to_line_number(content, p_match.start()),
+                "start_column": _offset_to_column(content, p_match.start()),
+                "end_column": _offset_to_column(content, p_match.end()),
+                "attack_type": "context_poisoning",
+                "error_message": error_msg,
+            })
 
-            should_block = self.action == "block"
-            return should_block, error_msg, True
-
-        confidence = low_threshold
-        self.last_matched_pattern = persistence_match.re.pattern
-        self.last_matched_text = persistence_match.group()
-        self.last_confidence = confidence
-        self.last_line_number = _offset_to_line_number(content, persistence_match.start())
-        self.last_start_column = _offset_to_column(content, persistence_match.start())
-        self.last_end_column = _offset_to_column(content, persistence_match.end())
-
-        error_msg = self._format_error(
-            persistence_match.group(),
-            None,
-            confidence,
-            is_dangerous=False,
-        )
+        first = self.findings[0]
+        self.last_matched_pattern = first["matched_pattern"]
+        self.last_matched_text = first["matched_text"]
+        self.last_confidence = first["confidence"]
+        self.last_line_number = first["line_number"]
+        self.last_start_column = first["start_column"]
+        self.last_end_column = first["end_column"]
 
         should_block = self.action == "block"
-        return should_block, error_msg, True
+        return should_block, first["error_message"], True
 
     def _format_error(
         self,

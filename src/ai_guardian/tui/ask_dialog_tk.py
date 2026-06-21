@@ -120,6 +120,13 @@ class _TkinterAskDialog:
             bg=SURFACE, fg=badge_color,
         ).pack(side="left")
         ttk.Label(header_frame, text="Violation Detected", font=("", 14, "bold")).pack(side="left")
+        if v.total_findings and v.total_findings > 1:
+            remaining = v.total_findings - (v.finding_index or 0) - 1
+            counter_text = f"  ({v.finding_index + 1} of {v.total_findings}"
+            if remaining > 0:
+                counter_text += f", {remaining} more"
+            counter_text += ")"
+            ttk.Label(header_frame, text=counter_text, font=("", 11)).pack(side="left", padx=(5, 0))
         ttk.Separator(main, orient="horizontal").pack(fill="x", pady=(5, 10))
 
         info_frame = ttk.LabelFrame(main, text="Details", padding=10)
@@ -186,6 +193,11 @@ class _TkinterAskDialog:
                 command=lambda: self._on_ignore_file(root),
             ).pack(side="left", padx=5)
 
+        if v.total_findings and v.total_findings > 1:
+            ttk.Button(
+                btn_frame, text="Block All", style="Block.TButton",
+                command=lambda: self._on_decision(root, AskDecision.BLOCK_ALL),
+            ).pack(side="right", padx=(5, 0))
         ttk.Button(
             btn_frame, text="Block", style="Block.TButton",
             command=lambda: self._on_decision(root, AskDecision.BLOCK),

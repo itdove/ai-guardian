@@ -723,7 +723,7 @@ class TestSSRFAskAction:
     @patch("ai_guardian.tui.ask_dialog._show_via_subprocess", return_value=None)
     @patch("subprocess.run")
     def test_ssrf_ask_warn_headless_allows(self, mock_sub_run, _mock_sub, _mock_daemon):
-        """Headless with 'ask:warn' should fall back to ALLOW_ONCE."""
+        """With ask:warn, check() returns True (ask needed) — caller handles fallback."""
         mock_sub_run.side_effect = FileNotFoundError
         from ai_guardian.ssrf_protector import SSRFProtector
         config = {
@@ -733,7 +733,8 @@ class TestSSRFAskAction:
         }
         protector = SSRFProtector(config)
         should_block, msg = protector.check("Bash", {"command": "curl http://evil.internal.corp"})
-        assert should_block is False
+        assert should_block is True
+        assert len(protector.findings) == 1
 
     def test_ssrf_immutable_skips_ask(self):
         """Private IP with 'ask' action should always block without showing dialog."""

@@ -37,6 +37,7 @@ class AskDecision(str, Enum):
     SUPPRESS_IN_SOURCE = "suppress_in_source"
     IGNORE_FILE = "ignore_file"
     BLOCK = "block"
+    BLOCK_ALL = "block_all"
 
 
 @dataclass
@@ -54,6 +55,8 @@ class AskViolationInfo:
     project_path: Optional[str] = None
     session_id: Optional[str] = None
     hook_event: Optional[str] = None
+    finding_index: Optional[int] = None
+    total_findings: Optional[int] = None
 
 
 @dataclass
@@ -239,6 +242,8 @@ def _show_via_daemon(
             "project_path": violation.project_path,
             "session_id": violation.session_id,
             "hook_event": violation.hook_event,
+            "finding_index": violation.finding_index,
+            "total_findings": violation.total_findings,
         },
         "fallback": fallback_action,
         "timeout": timeout_seconds,
@@ -305,6 +310,8 @@ def _show_via_subprocess(
         "project_path": violation.project_path,
         "session_id": violation.session_id,
         "hook_event": violation.hook_event,
+        "finding_index": violation.finding_index,
+        "total_findings": violation.total_findings,
     })
 
     tmpdir = tempfile.mkdtemp(prefix="ai-guardian-ask-")
