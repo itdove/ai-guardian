@@ -20,6 +20,7 @@ from ai_guardian.config_utils import validate_regex_pattern, is_feature_enabled
 from ai_guardian import allowlist_utils
 from ai_guardian.patterns import BUNDLED_FILES, load_bundled_rules
 from ai_guardian.patterns.toml_parser import load_and_compile
+from ai_guardian.patterns.validators import luhn_check, iban_check, VALID_CC_PREFIXES
 
 logger = logging.getLogger(__name__)
 
@@ -48,52 +49,6 @@ class SecretRedactor:
         if "s" in raw_flags or pattern_info.get("dotall", False):
             flags |= re.DOTALL
         return flags
-
-    VALID_CC_PREFIXES = (
-        '4',
-        '51', '52', '53', '54', '55',
-        '2221', '2222', '2223', '2224', '2225', '2226', '2227', '2228', '2229',
-        '223', '224', '225', '226', '227', '228', '229',
-        '23', '24', '25', '26',
-        '270', '271', '2720',
-        '34', '37',
-        '6011', '65', '644', '645', '646', '647', '648', '649',
-        '35',
-        '30', '36', '38', '39',
-    )
-
-
-    @staticmethod
-    def _luhn_check(number_str: str, min_digits: int = 13, max_digits: int = 19) -> bool:
-        """Validate a number string using the Luhn algorithm."""
-        digits = [int(d) for d in number_str if d.isdigit()]
-        if len(digits) < min_digits or len(digits) > max_digits:
-            return False
-        checksum = 0
-        for i, digit in enumerate(reversed(digits)):
-            if i % 2 == 1:
-                digit *= 2
-                if digit > 9:
-                    digit -= 9
-            checksum += digit
-        return checksum % 10 == 0
-
-    @staticmethod
-    def _iban_check(iban_str: str) -> bool:
-        """Validate an IBAN using the mod-97 algorithm."""
-        iban = iban_str.replace(' ', '').upper()
-        if len(iban) < 15 or len(iban) > 34:
-            return False
-        rearranged = iban[4:] + iban[:4]
-        numeric = ''
-        for ch in rearranged:
-            if ch.isdigit():
-                numeric += ch
-            elif ch.isalpha():
-                numeric += str(ord(ch) - ord('A') + 10)
-            else:
-                return False
-        return int(numeric) % 97 == 1
 
     def __init__(self, config: Optional[Dict] = None, pii_config: Optional[Dict] = None, pii_only: bool = False):
         """
@@ -386,12 +341,17 @@ class SecretRedactor:
             if self.log_redactions:
                 logging.info(f"Redacted {secret_type} at position {start} using {strategy}")
 
-        # Phase 3: Apply all replacements right-to-left on original text
-        redacted_text = text
-        for start, end, original, redacted, _metadata, _strategy, _secret_type in sorted(
-            all_pending, key=lambda x: x[0], reverse=True
+        # Phase 3: Build redacted text in a single forward pass
+        segments = []
+        pos = 0
+        for start, end, _original, redacted, _metadata, _strategy, _secret_type in sorted(
+            all_pending, key=lambda x: x[0]
         ):
-            redacted_text = redacted_text[:start] + redacted + redacted_text[end:]
+            segments.append(text[pos:start])
+            segments.append(redacted)
+            pos = end
+        segments.append(text[pos:])
+        redacted_text = ''.join(segments)
 
         return {
             'redacted_text': redacted_text,
@@ -400,75 +360,53 @@ class SecretRedactor:
             'redacted_length': len(redacted_text)
         }
 
+    _STRATEGY_DISPATCH = {
+        'env_assignment': '_redact_env_assignment',
+        'json_field': '_redact_json_field',
+        'auth_header': '_redact_auth_header',
+        'header_value': '_redact_header_value',
+        'connection_string': '_redact_connection_string',
+        'aws_secret': '_redact_aws_secret',
+        'yaml_password': '_redact_yaml_password',
+        'context_secret': '_redact_context_secret',
+        'credit_card': '_redact_credit_card',
+        'pii_email': '_redact_pii_email',
+        'iban': '_redact_iban',
+        'canada_sin': '_redact_canada_sin',
+        'aadhaar': '_redact_aadhaar',
+    }
+
     def _apply_strategy(self, match: re.Match, strategy: str, secret_type: str) -> Tuple[str, Dict]:
-        """
-        Apply a masking strategy to a matched secret.
-
-        Args:
-            match: Regex match object
-            strategy: Masking strategy name
-            secret_type: Type of secret being redacted
-
-        Returns:
-            Tuple of (redacted_string, metadata_dict)
-        """
-        if strategy == 'preserve_prefix_suffix':
-            return self._preserve_prefix_suffix(match)
-        elif strategy == 'full_redact':
+        """Apply a masking strategy to a matched secret."""
+        if strategy == 'full_redact':
             return self._full_redact(secret_type)
-        elif strategy == 'env_assignment':
-            return self._redact_env_assignment(match)
-        elif strategy == 'json_field':
-            return self._redact_json_field(match)
-        elif strategy == 'auth_header':
-            return self._redact_auth_header(match)
-        elif strategy == 'header_value':
-            return self._redact_header_value(match)
-        elif strategy == 'connection_string':
-            return self._redact_connection_string(match)
-        elif strategy == 'private_key':
+        if strategy == 'private_key':
             return ('[REDACTED PRIVATE KEY]', {'method': 'full'})
-        elif strategy == 'aws_secret':
-            return self._redact_aws_secret(match)
-        elif strategy == 'yaml_password':
-            return self._redact_yaml_password(match)
-        elif strategy == 'context_secret':
-            return self._redact_context_secret(match)
-        elif strategy == 'credit_card':
-            return self._redact_credit_card(match)
-        elif strategy == 'pii_email':
-            return self._redact_pii_email(match)
-        elif strategy == 'iban':
-            return self._redact_iban(match)
-        elif strategy == 'canada_sin':
-            return self._redact_canada_sin(match)
-        elif strategy == 'aadhaar':
-            return self._redact_aadhaar(match)
-        else:
-            # Default to preserve_prefix_suffix
-            return self._preserve_prefix_suffix(match)
+        method_name = self._STRATEGY_DISPATCH.get(strategy)
+        if method_name:
+            return getattr(self, method_name)(match)
+        return self._preserve_prefix_suffix(match)
+
+    @staticmethod
+    def _truncate_secret(secret: str) -> Tuple[str, bool]:
+        """Mask a secret string, preserving prefix/suffix for long values.
+
+        Returns (masked_string, was_short).
+        """
+        if len(secret) <= 18:
+            return '***', True
+        prefix_len = min(6, len(secret) // 3)
+        suffix_len = min(4, len(secret) // 4)
+        return f"{secret[:prefix_len]}...{secret[-suffix_len:]}", False
 
     def _preserve_prefix_suffix(self, match: re.Match) -> Tuple[str, Dict]:
-        """
-        Preserve first 6 and last 4 characters, redact middle.
-
-        Example: sk-proj-abc123def456ghi789jkl012mno345pqr678stu901vwx
-                 -> sk-pro...1vwx
-        """
+        """Preserve first 6 and last 4 characters, redact middle."""
         secret = match.group(1) if match.lastindex and match.lastindex >= 1 else match.group(0)
-
-        if len(secret) <= 18:
-            # Too short to preserve format meaningfully
-            return ('***', {'method': 'short'})
-
-        # Preserve prefix and suffix - for debugging while hiding the secret
-        prefix_len = min(6, len(secret) // 3)  # Max 6 chars, but not more than 1/3 of total
-        suffix_len = min(4, len(secret) // 4)  # Max 4 chars, but not more than 1/4 of total
-
-        prefix = secret[:prefix_len]
-        suffix = secret[-suffix_len:]
-        redacted = f"{prefix}...{suffix}"
-
+        redacted, was_short = self._truncate_secret(secret)
+        if was_short:
+            return (redacted, {'method': 'short'})
+        prefix_len = min(6, len(secret) // 3)
+        suffix_len = min(4, len(secret) // 4)
         return (redacted, {'method': 'preserve_prefix_suffix', 'preserved_chars': prefix_len + suffix_len})
 
     def _full_redact(self, secret_type: str) -> Tuple[str, Dict]:
@@ -583,33 +521,11 @@ class SecretRedactor:
         return (redacted, {'method': 'yaml_password'})
 
     def _redact_context_secret(self, match: re.Match) -> Tuple[str, Dict]:
-        """
-        Redact secret with context keyword prefix.
-
-        Preserves the context keyword (secret, key, token, etc.) and separator,
-        but redacts the secret value using prefix/suffix preservation.
-
-        Example: api_secret: abcdef1234567890abcdef1234567890abcdef123456
-                 -> api_secret: abcdef...123456
-        """
-        context_prefix = match.group(1)  # "secret: ", "key=", etc.
-        secret = match.group(2)  # The actual secret value
-
-        # Redact the secret part using prefix/suffix preservation
-        if len(secret) <= 18:
-            # Too short to preserve format meaningfully
-            redacted_secret = '***'
-        else:
-            # Preserve prefix and suffix for debugging while hiding the secret
-            prefix_len = min(6, len(secret) // 3)
-            suffix_len = min(4, len(secret) // 4)
-            prefix = secret[:prefix_len]
-            suffix = secret[-suffix_len:]
-            redacted_secret = f"{prefix}...{suffix}"
-
-        redacted = f"{context_prefix}{redacted_secret}"
-
-        return (redacted, {'method': 'context_secret', 'context': context_prefix.strip()})
+        """Redact secret with context keyword prefix, preserving prefix/suffix."""
+        context_prefix = match.group(1)
+        secret = match.group(2)
+        redacted_secret, _ = self._truncate_secret(secret)
+        return (f"{context_prefix}{redacted_secret}", {'method': 'context_secret', 'context': context_prefix.strip()})
 
     def _redact_credit_card(self, match: re.Match) -> Tuple[str, Dict]:
         """
@@ -619,9 +535,9 @@ class SecretRedactor:
         """
         number = match.group(0)
         digits_only = re.sub(r'[- ]', '', number)
-        if not self._luhn_check(digits_only):
+        if not luhn_check(digits_only):
             return (None, None)
-        if not digits_only.startswith(self.VALID_CC_PREFIXES):
+        if not digits_only.startswith(VALID_CC_PREFIXES):
             return (None, None)
         last_four = digits_only[-4:]
         return (f"[HIDDEN CREDIT CARD ****{last_four}]", {'method': 'credit_card', 'last_four': last_four})
@@ -644,7 +560,7 @@ class SecretRedactor:
         Returns (None, None) if the string fails IBAN check.
         """
         iban = match.group(0)
-        if not self._iban_check(iban):
+        if not iban_check(iban):
             return (None, None)
         country = iban[:2]
         last_four = iban[-4:]
@@ -657,7 +573,7 @@ class SecretRedactor:
         Returns (None, None) if the number fails Luhn check.
         """
         sin = match.group(0)
-        if not self._luhn_check(sin, min_digits=9, max_digits=9):
+        if not luhn_check(sin, min_digits=9, max_digits=9):
             return (None, None)
         return ('[HIDDEN Canadian SIN]', {'method': 'canada_sin'})
 

@@ -7,7 +7,6 @@ Also provides scoped config read/write/delete/provenance utilities for the
 Global/Project scope selector feature.
 """
 
-import copy
 import json
 import logging
 import os
@@ -158,7 +157,7 @@ def add_allowlist_pattern(
         return False
 
     if config_path is None:
-        config_path = get_config_dir() / "ai-guardian.json"
+        config_path = _resolve_config_path("global")
 
     pattern_entry = pattern
     if valid_until:
@@ -182,132 +181,72 @@ def add_allowlist_pattern(
     return _atomic_config_update(config_path, updater)
 
 
+def _add_to_config_list(
+    section_name: str,
+    list_key: str,
+    value: str,
+    config_path: Optional[Path] = None,
+    normalizer: Optional[Callable[[str], str]] = None,
+) -> bool:
+    """Add a value to a section's list in ai-guardian.json.
+
+    Generic helper for the common pattern: ensure section exists, ensure list
+    exists, dedup-check, append, write atomically.
+    """
+    if not value:
+        return False
+    if normalizer:
+        value = normalizer(value)
+        if not value:
+            return False
+    if config_path is None:
+        config_path = _resolve_config_path("global")
+
+    def updater(config):
+        section = _ensure_section(config, section_name)
+        items = _ensure_list(section, list_key)
+        if value in items:
+            return True, f"Value already in {section_name}.{list_key}: {value}"
+        items.append(value)
+        section[list_key] = items
+        return False, f"Added to {section_name}.{list_key}: {value}"
+
+    return _atomic_config_update(config_path, updater)
+
+
 def add_directory_exclusion(
     pattern: str,
     config_path: Optional[Path] = None,
 ) -> bool:
-    """Add a glob pattern to directory_rules.exclusions in ai-guardian.json.
-
-    Args:
-        pattern: Glob pattern string to add (e.g. "/home/user/project/**").
-        config_path: Override config file path (defaults to global config).
-
-    Returns:
-        True if pattern was added successfully, False on failure.
-    """
-    if not pattern:
-        return False
-
-    if config_path is None:
-        config_path = get_config_dir() / "ai-guardian.json"
-
-    def updater(config):
-        section = _ensure_section(config, "directory_rules")
-        exclusions = _ensure_list(section, "exclusions")
-        if pattern in exclusions:
-            return True, f"Pattern already in directory_rules.exclusions: {pattern}"
-        exclusions.append(pattern)
-        section["exclusions"] = exclusions
-        return False, f"Added pattern to directory_rules.exclusions: {pattern}"
-
-    return _atomic_config_update(config_path, updater)
+    """Add a glob pattern to directory_rules.exclusions in ai-guardian.json."""
+    return _add_to_config_list("directory_rules", "exclusions", pattern, config_path)
 
 
 def add_supply_chain_path(
     pattern: str,
     config_path: Optional[Path] = None,
 ) -> bool:
-    """Add a glob pattern to supply_chain.allowlist_paths in ai-guardian.json.
-
-    Args:
-        pattern: Glob pattern string to add (e.g. "~/.claude/settings.json").
-        config_path: Override config file path (defaults to global config).
-
-    Returns:
-        True if pattern was added successfully, False on failure.
-    """
-    if not pattern:
-        return False
-
-    if config_path is None:
-        config_path = get_config_dir() / "ai-guardian.json"
-
-    def updater(config):
-        section = _ensure_section(config, "supply_chain")
-        paths = _ensure_list(section, "allowlist_paths")
-        if pattern in paths:
-            return True, f"Path already in supply_chain.allowlist_paths: {pattern}"
-        paths.append(pattern)
-        section["allowlist_paths"] = paths
-        return False, f"Added path to supply_chain.allowlist_paths: {pattern}"
-
-    return _atomic_config_update(config_path, updater)
+    """Add a glob pattern to supply_chain.allowlist_paths in ai-guardian.json."""
+    return _add_to_config_list("supply_chain", "allowlist_paths", pattern, config_path)
 
 
 def add_allowed_domain(
     domain: str,
     config_path: Optional[Path] = None,
 ) -> bool:
-    """Add a domain to ssrf_protection.allowed_domains in ai-guardian.json.
-
-    Args:
-        domain: Domain string to add (e.g. "api.example.com").
-        config_path: Override config file path (defaults to global config).
-
-    Returns:
-        True if domain was added successfully, False on failure.
-    """
-    if not domain:
-        return False
-
-    domain = domain.lower().strip()
-    if not domain:
-        return False
-
-    if config_path is None:
-        config_path = get_config_dir() / "ai-guardian.json"
-
-    def updater(config):
-        section = _ensure_section(config, "ssrf_protection")
-        domains = _ensure_list(section, "allowed_domains")
-        if domain in domains:
-            return True, f"Domain already in ssrf_protection.allowed_domains: {domain}"
-        domains.append(domain)
-        section["allowed_domains"] = domains
-        return False, f"Added domain to ssrf_protection.allowed_domains: {domain}"
-
-    return _atomic_config_update(config_path, updater)
+    """Add a domain to ssrf_protection.allowed_domains in ai-guardian.json."""
+    return _add_to_config_list(
+        "ssrf_protection", "allowed_domains", domain, config_path,
+        normalizer=lambda d: d.lower().strip(),
+    )
 
 
 def add_config_ignore_file(
     pattern: str,
     config_path: Optional[Path] = None,
 ) -> bool:
-    """Add a glob pattern to config_file_scanning.ignore_files in ai-guardian.json.
-
-    Args:
-        pattern: Glob pattern string to add (e.g. "**/docs/security-examples.md").
-        config_path: Override config file path (defaults to global config).
-
-    Returns:
-        True if pattern was added successfully, False on failure.
-    """
-    if not pattern:
-        return False
-
-    if config_path is None:
-        config_path = get_config_dir() / "ai-guardian.json"
-
-    def updater(config):
-        section = _ensure_section(config, "config_file_scanning")
-        ignore_files = _ensure_list(section, "ignore_files")
-        if pattern in ignore_files:
-            return True, f"Pattern already in config_file_scanning.ignore_files: {pattern}"
-        ignore_files.append(pattern)
-        section["ignore_files"] = ignore_files
-        return False, f"Added pattern to config_file_scanning.ignore_files: {pattern}"
-
-    return _atomic_config_update(config_path, updater)
+    """Add a glob pattern to config_file_scanning.ignore_files in ai-guardian.json."""
+    return _add_to_config_list("config_file_scanning", "ignore_files", pattern, config_path)
 
 
 def add_permission_rule(
@@ -331,7 +270,7 @@ def add_permission_rule(
         return False
 
     if config_path is None:
-        config_path = get_config_dir() / "ai-guardian.json"
+        config_path = _resolve_config_path("global")
 
     def updater(config):
         section = _ensure_section(config, "permissions")
@@ -535,69 +474,7 @@ def compute_provenance(
         Nested dict mirroring config structure with leaf values of
         "global", "project", or "merged" (for concatenated lists).
     """
-    global_cfg = _load_json_file(_resolve_config_path("global"))
-    project_cfg = _load_json_file(_resolve_config_path("project", project_dir))
-
-    if not project_cfg:
-        return _mark_all_provenance(global_cfg, "global")
-
-    from ai_guardian.config_utils import deep_merge
-    merged = deep_merge(global_cfg, project_cfg)
-    return _compute_provenance_recursive(global_cfg, project_cfg, merged)
-
-
-def _mark_all_provenance(config: dict, source: str) -> dict:
-    """Mark all keys in a config dict as coming from the given source."""
-    result: Dict[str, Any] = {}
-    for key, value in config.items():
-        if key.startswith("_"):
-            continue
-        if isinstance(value, dict):
-            result[key] = _mark_all_provenance(value, source)
-        else:
-            result[key] = source
-    return result
-
-
-def _compute_provenance_recursive(
-    global_cfg: dict,
-    project_cfg: dict,
-    merged: dict,
-) -> Dict[str, Any]:
-    """Recursively compute provenance for merged config."""
-    result: Dict[str, Any] = {}
-    for key in merged:
-        if key.startswith("_"):
-            continue
-        in_global = key in global_cfg
-        in_project = key in project_cfg
-
-        if in_project and in_global:
-            g_val = global_cfg[key]
-            p_val = project_cfg[key]
-            m_val = merged[key]
-            if isinstance(m_val, dict) and isinstance(g_val, dict) and isinstance(p_val, dict):
-                result[key] = _compute_provenance_recursive(g_val, p_val, m_val)
-            elif isinstance(m_val, list) and isinstance(g_val, list) and isinstance(p_val, list):
-                result[key] = "merged"
-            else:
-                result[key] = "project"
-        elif in_project:
-            if isinstance(merged[key], dict):
-                result[key] = _mark_all_provenance(merged[key], "project")
-            else:
-                result[key] = "project"
-        else:
-            if isinstance(merged[key], dict):
-                result[key] = _mark_all_provenance(merged[key], "global")
-            else:
-                result[key] = "global"
-    return result
-
-
-# ---------------------------------------------------------------------------
-# Detailed provenance with per-list-item source
-# ---------------------------------------------------------------------------
+    return _compute_provenance_impl(project_dir, detailed=False)
 
 
 def compute_detailed_provenance(
@@ -609,38 +486,47 @@ def compute_detailed_provenance(
     ``{"value": item, "source": "global"|"project"}`` dicts instead of
     the string ``"merged"``.
     """
+    return _compute_provenance_impl(project_dir, detailed=True)
+
+
+def _compute_provenance_impl(
+    project_dir: Optional[str],
+    detailed: bool,
+) -> Dict[str, Any]:
+    """Shared implementation for compute_provenance / compute_detailed_provenance."""
     global_cfg = _load_json_file(_resolve_config_path("global"))
     project_cfg = _load_json_file(_resolve_config_path("project", project_dir))
 
     if not project_cfg:
-        return _mark_all_provenance_detailed(global_cfg, "global")
+        return _mark_all_provenance(global_cfg, "global", detailed)
 
     from ai_guardian.config_utils import deep_merge
     merged = deep_merge(global_cfg, project_cfg)
-    return _compute_detailed_recursive(global_cfg, project_cfg, merged)
+    return _compute_provenance_recursive(global_cfg, project_cfg, merged, detailed)
 
 
-def _mark_all_provenance_detailed(config: dict, source: str) -> dict:
-    """Mark all keys with source; lists get per-item annotation."""
+def _mark_all_provenance(config: dict, source: str, detailed: bool = False) -> dict:
+    """Mark all keys in a config dict as coming from the given source."""
     result: Dict[str, Any] = {}
     for key, value in config.items():
         if key.startswith("_"):
             continue
         if isinstance(value, dict):
-            result[key] = _mark_all_provenance_detailed(value, source)
-        elif isinstance(value, list):
+            result[key] = _mark_all_provenance(value, source, detailed)
+        elif detailed and isinstance(value, list):
             result[key] = [{"value": item, "source": source} for item in value]
         else:
             result[key] = source
     return result
 
 
-def _compute_detailed_recursive(
+def _compute_provenance_recursive(
     global_cfg: dict,
     project_cfg: dict,
     merged: dict,
+    detailed: bool = False,
 ) -> Dict[str, Any]:
-    """Recursively compute detailed provenance for merged config."""
+    """Recursively compute provenance for merged config."""
     result: Dict[str, Any] = {}
     for key in merged:
         if key.startswith("_"):
@@ -653,29 +539,30 @@ def _compute_detailed_recursive(
             g_val = global_cfg[key]
             p_val = project_cfg[key]
             if isinstance(m_val, dict) and isinstance(g_val, dict) and isinstance(p_val, dict):
-                result[key] = _compute_detailed_recursive(g_val, p_val, m_val)
+                result[key] = _compute_provenance_recursive(g_val, p_val, m_val, detailed)
             elif isinstance(m_val, list):
-                g_list = g_val if isinstance(g_val, list) else []
-                p_list = p_val if isinstance(p_val, list) else []
-                g_set = set(str(i) for i in g_list)
-                items = []
-                for item in m_val:
-                    src = "global" if str(item) in g_set else "project"
-                    items.append({"value": item, "source": src})
-                result[key] = items
+                if detailed:
+                    g_list = g_val if isinstance(g_val, list) else []
+                    g_set = set(str(i) for i in g_list)
+                    result[key] = [
+                        {"value": item, "source": "global" if str(item) in g_set else "project"}
+                        for item in m_val
+                    ]
+                else:
+                    result[key] = "merged"
             else:
                 result[key] = "project"
         elif in_project:
             if isinstance(m_val, dict):
-                result[key] = _mark_all_provenance_detailed(m_val, "project")
-            elif isinstance(m_val, list):
+                result[key] = _mark_all_provenance(m_val, "project", detailed)
+            elif detailed and isinstance(m_val, list):
                 result[key] = [{"value": item, "source": "project"} for item in m_val]
             else:
                 result[key] = "project"
         else:
             if isinstance(m_val, dict):
-                result[key] = _mark_all_provenance_detailed(m_val, "global")
-            elif isinstance(m_val, list):
+                result[key] = _mark_all_provenance(m_val, "global", detailed)
+            elif detailed and isinstance(m_val, list):
                 result[key] = [{"value": item, "source": "global"} for item in m_val]
             else:
                 result[key] = "global"

@@ -540,9 +540,9 @@ class TestTomlOnlyPatternLoading:
 
     def test_valid_cc_prefixes_still_present(self):
         """VALID_CC_PREFIXES is validation data and must remain."""
-        assert hasattr(SecretRedactor, 'VALID_CC_PREFIXES')
-        assert isinstance(SecretRedactor.VALID_CC_PREFIXES, tuple)
-        assert len(SecretRedactor.VALID_CC_PREFIXES) > 0
+        from ai_guardian.patterns.validators import VALID_CC_PREFIXES
+        assert isinstance(VALID_CC_PREFIXES, tuple)
+        assert len(VALID_CC_PREFIXES) > 0
 
     def test_toml_loads_all_secret_patterns(self):
         """TOML loading produces 44 secret patterns."""

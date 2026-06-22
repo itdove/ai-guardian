@@ -57,13 +57,15 @@ class CursorAdapter(HookAdapter):
         event_name = hook_data.get("hook_event_name", "").lower()
         hook_name = hook_data.get("hook_name", "").lower()
 
-        if event_name in ("beforesubmitprompt",) or hook_name in ("beforesubmitprompt",):
+        effective = event_name or hook_name
+
+        if effective == "beforesubmitprompt":
             event = HookEvent.PROMPT
-        elif event_name in ("beforereadfile",):
+        elif effective == "beforereadfile":
             event = HookEvent.BEFORE_READ_FILE
-        elif event_name in ("pretooluse", "beforeshellexecution") or hook_name in ("pretooluse",):
+        elif effective in ("pretooluse", "beforeshellexecution"):
             event = HookEvent.PRE_TOOL_USE
-        elif event_name in ("posttooluse",):
+        elif effective == "posttooluse":
             event = HookEvent.POST_TOOL_USE
         else:
             event = HookEvent.PROMPT
@@ -95,21 +97,19 @@ class CursorAdapter(HookAdapter):
         violation_type: Optional[str] = None,
         security_message: Optional[str] = None,
     ) -> Dict:
-        final_error = self._combine_error_messages(error_message, warning_message) if has_secrets else None
-
         if hook_event == HookEvent.PRE_TOOL_USE:
             response = {"permission": "deny" if has_secrets else "allow"}
-            if has_secrets and final_error:
-                response["user_message"] = final_error
+            if has_secrets:
+                final_error = self._combine_error_messages(error_message, warning_message)
+                if final_error:
+                    response["user_message"] = final_error
                 response["agent_message"] = "Operation blocked by ai-guardian security policy"
-        elif hook_event == HookEvent.BEFORE_READ_FILE:
-            response = {"continue": not has_secrets}
-            if has_secrets and final_error:
-                response["user_message"] = final_error
         else:
             response = {"continue": not has_secrets}
-            if has_secrets and final_error:
-                response["user_message"] = final_error
+            if has_secrets:
+                final_error = self._combine_error_messages(error_message, warning_message)
+                if final_error:
+                    response["user_message"] = final_error
 
         return self._add_metadata(
             {"output": json.dumps(response), "exit_code": 0},

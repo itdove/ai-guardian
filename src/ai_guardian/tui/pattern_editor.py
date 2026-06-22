@@ -10,8 +10,6 @@ from config_utils for pattern safety checks.
 import fnmatch
 import json
 import re
-import logging
-from dataclasses import dataclass, field
 from typing import Optional, Tuple
 from urllib.parse import urlparse
 
@@ -19,8 +17,6 @@ from pathlib import Path
 
 from ai_guardian.config_utils import validate_regex_pattern
 from ai_guardian.allowlist_utils import DANGEROUS_PATTERNS
-
-logger = logging.getLogger(__name__)
 
 PATTERN_TYPES = {
     "string": "Plain string (exact match)",
@@ -89,15 +85,6 @@ def config_section_for_rule_id(rule_id: str) -> Optional[str]:
 def get_pattern_type_for_section(config_section: str) -> str:
     """Return the pattern type for a config section."""
     return SECTION_PATTERN_TYPE.get(config_section, "regex")
-
-
-@dataclass
-class PatternEditorResult:
-    """Result from the pattern editor."""
-    pattern: str
-    pattern_type: str = "regex"
-    config_section: str = "secret_scanning"
-    valid_until: Optional[str] = None
 
 
 def convert_to_regex(pattern: str, pattern_type: str) -> str:

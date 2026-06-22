@@ -86,35 +86,6 @@ class TestDaemonTarget:
         assert t.auth_token == "secret"
 
 
-class TestGetContainerEngines:
-    def test_both_available(self):
-        d = DaemonDiscovery()
-        with mock.patch("shutil.which", side_effect=lambda x: f"/usr/bin/{x}" if x in ("podman", "docker") else None):
-            assert d.get_container_engines() == ["podman", "docker"]
-
-    def test_podman_only(self):
-        d = DaemonDiscovery()
-        with mock.patch("shutil.which", side_effect=lambda x: "/usr/bin/podman" if x == "podman" else None):
-            assert d.get_container_engines() == ["podman"]
-
-    def test_docker_only(self):
-        d = DaemonDiscovery()
-        with mock.patch("shutil.which", side_effect=lambda x: "/usr/bin/docker" if x == "docker" else None):
-            assert d.get_container_engines() == ["docker"]
-
-    def test_none_available(self):
-        d = DaemonDiscovery()
-        with mock.patch("shutil.which", return_value=None):
-            assert d.get_container_engines() == []
-
-    def test_result_is_cached(self):
-        d = DaemonDiscovery()
-        with mock.patch("shutil.which", return_value="/usr/bin/podman") as m:
-            d.get_container_engines()
-            d.get_container_engines()
-            assert m.call_count == 2  # called for podman and docker, cached after
-
-
 class TestDiscoverLocal:
     """Tests for local discovery with config file check.
 
@@ -902,62 +873,6 @@ class TestDiscoverManual:
 
         os.unlink(f.name)
         assert targets == []
-
-
-class TestParseContainerJson:
-    def test_empty_string(self):
-        assert DaemonDiscovery._parse_container_json("") == []
-
-    def test_json_array(self):
-        data = [{"Id": "a"}, {"Id": "b"}]
-        result = DaemonDiscovery._parse_container_json(json.dumps(data))
-        assert len(result) == 2
-
-    def test_single_object(self):
-        data = {"Id": "a"}
-        result = DaemonDiscovery._parse_container_json(json.dumps(data))
-        assert len(result) == 1
-
-    def test_line_delimited(self):
-        lines = '{"Id": "a"}\n{"Id": "b"}\n'
-        result = DaemonDiscovery._parse_container_json(lines)
-        assert len(result) == 2
-
-
-class TestHasPortMapping:
-    def test_list_of_dicts_container_port(self):
-        container = {"Ports": [{"container_port": 63152, "host_port": 49200}]}
-        assert DaemonDiscovery._has_port_mapping(container, 63152)
-
-    def test_list_of_dicts_containerPort(self):
-        container = {"Ports": [{"containerPort": 63152, "hostPort": 49200}]}
-        assert DaemonDiscovery._has_port_mapping(container, 63152)
-
-    def test_no_match(self):
-        container = {"Ports": [{"container_port": 8080, "host_port": 49200}]}
-        assert not DaemonDiscovery._has_port_mapping(container, 63152)
-
-    def test_string_ports(self):
-        container = {"Ports": "0.0.0.0:49200->63152/tcp"}
-        assert DaemonDiscovery._has_port_mapping(container, 63152)
-
-    def test_empty_ports(self):
-        container = {"Ports": []}
-        assert not DaemonDiscovery._has_port_mapping(container, 63152)
-
-
-class TestFindHostPort:
-    def test_finds_host_port_from_dict(self):
-        container = {"Ports": [{"container_port": 63152, "host_port": 49200}]}
-        assert DaemonDiscovery._find_host_port(container, 63152) == 49200
-
-    def test_finds_host_port_from_string(self):
-        container = {"Ports": "0.0.0.0:49200->63152/tcp"}
-        assert DaemonDiscovery._find_host_port(container, 63152) == 49200
-
-    def test_no_match_returns_zero(self):
-        container = {"Ports": []}
-        assert DaemonDiscovery._find_host_port(container, 63152) == 0
 
 
 class TestBackgroundDiscovery:

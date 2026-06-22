@@ -10,6 +10,7 @@ from datetime import datetime, timezone
 
 import pytest
 from ai_guardian.secret_redactor import SecretRedactor
+from ai_guardian.patterns.validators import luhn_check, iban_check, VALID_CC_PREFIXES
 
 
 PII_CONFIG = {
@@ -724,45 +725,45 @@ class TestSINLuhnValidation:
 
     def test_sin_luhn_valid(self):
         """Valid SIN passes Luhn check."""
-        assert SecretRedactor._luhn_check("046-454-286", 9, 9) is True
+        assert luhn_check("046-454-286", 9, 9) is True
 
     def test_sin_luhn_valid_no_separators(self):
         """Valid SIN passes without separators."""
-        assert SecretRedactor._luhn_check("046454286", 9, 9) is True
+        assert luhn_check("046454286", 9, 9) is True
 
     def test_sin_luhn_invalid(self):
         """Invalid SIN fails Luhn check."""
-        assert SecretRedactor._luhn_check("123-456-789", 9, 9) is False
+        assert luhn_check("123-456-789", 9, 9) is False
 
     def test_sin_luhn_wrong_length(self):
         """Wrong length fails Luhn check."""
-        assert SecretRedactor._luhn_check("12345", 9, 9) is False
+        assert luhn_check("12345", 9, 9) is False
 
     def test_sin_luhn_too_long(self):
         """Too long fails Luhn check."""
-        assert SecretRedactor._luhn_check("0464542861", 9, 9) is False
+        assert luhn_check("0464542861", 9, 9) is False
 
 
 class TestLuhnValidation:
     """Test Luhn checksum validation."""
 
     def test_luhn_valid_visa(self):
-        assert SecretRedactor._luhn_check("4532015112830366") is True
+        assert luhn_check("4532015112830366") is True
 
     def test_luhn_valid_mastercard(self):
-        assert SecretRedactor._luhn_check("5425233430109903") is True
+        assert luhn_check("5425233430109903") is True
 
     def test_luhn_invalid(self):
-        assert SecretRedactor._luhn_check("1234567890123456") is False
+        assert luhn_check("1234567890123456") is False
 
     def test_luhn_too_short(self):
-        assert SecretRedactor._luhn_check("123456") is False
+        assert luhn_check("123456") is False
 
     def test_luhn_too_long(self):
-        assert SecretRedactor._luhn_check("1" * 20) is False
+        assert luhn_check("1" * 20) is False
 
     def test_luhn_with_separators(self):
-        assert SecretRedactor._luhn_check("4532-0151-1283-0366") is True
+        assert luhn_check("4532-0151-1283-0366") is True
 
 
 class TestCreditCardIINValidation:
@@ -770,61 +771,61 @@ class TestCreditCardIINValidation:
 
     def test_valid_cc_prefixes_constant_exists(self):
         """VALID_CC_PREFIXES class constant is defined."""
-        assert hasattr(SecretRedactor, 'VALID_CC_PREFIXES')
-        assert isinstance(SecretRedactor.VALID_CC_PREFIXES, tuple)
-        assert len(SecretRedactor.VALID_CC_PREFIXES) > 0
+        assert VALID_CC_PREFIXES is not None
+        assert isinstance(VALID_CC_PREFIXES, tuple)
+        assert len(VALID_CC_PREFIXES) > 0
 
     def test_visa_prefix_accepted(self):
         """Visa prefix (4) is in valid prefixes."""
-        assert any(p == '4' for p in SecretRedactor.VALID_CC_PREFIXES)
+        assert any(p == '4' for p in VALID_CC_PREFIXES)
 
     def test_amex_prefixes_accepted(self):
         """Amex prefixes (34, 37) are in valid prefixes."""
-        assert '34' in SecretRedactor.VALID_CC_PREFIXES
-        assert '37' in SecretRedactor.VALID_CC_PREFIXES
+        assert '34' in VALID_CC_PREFIXES
+        assert '37' in VALID_CC_PREFIXES
 
     def test_prefix_0_rejected(self):
         """Prefix 0 is not a valid card network."""
-        assert not '0'.startswith(SecretRedactor.VALID_CC_PREFIXES)
+        assert not '0'.startswith(VALID_CC_PREFIXES)
 
     def test_prefix_1_rejected(self):
         """Prefix 1 is not a valid card network."""
-        assert not '1'.startswith(SecretRedactor.VALID_CC_PREFIXES)
+        assert not '1'.startswith(VALID_CC_PREFIXES)
 
     def test_prefix_7_rejected(self):
         """Prefix 7 is not a valid card network."""
-        assert not '7000'.startswith(SecretRedactor.VALID_CC_PREFIXES)
+        assert not '7000'.startswith(VALID_CC_PREFIXES)
 
     def test_prefix_8_rejected(self):
         """Prefix 8 is not a valid card network."""
-        assert not '8000'.startswith(SecretRedactor.VALID_CC_PREFIXES)
+        assert not '8000'.startswith(VALID_CC_PREFIXES)
 
     def test_prefix_9_rejected(self):
         """Prefix 9 is not a valid card network."""
-        assert not '9000'.startswith(SecretRedactor.VALID_CC_PREFIXES)
+        assert not '9000'.startswith(VALID_CC_PREFIXES)
 
 
 class TestIBANValidation:
     """Test IBAN mod-97 validation."""
 
     def test_iban_valid_gb(self):
-        assert SecretRedactor._iban_check("GB29NWBK60161331926819") is True
+        assert iban_check("GB29NWBK60161331926819") is True
 
     def test_iban_valid_de(self):
-        assert SecretRedactor._iban_check("DE89370400440532013000") is True
+        assert iban_check("DE89370400440532013000") is True
 
     def test_iban_invalid(self):
-        assert SecretRedactor._iban_check("GB00XXXX12345678901234") is False
+        assert iban_check("GB00XXXX12345678901234") is False
 
     def test_iban_too_short(self):
-        assert SecretRedactor._iban_check("GB29") is False
+        assert iban_check("GB29") is False
 
     def test_iban_valid_with_spaces(self):
         """Validator strips spaces before validation (Issue #677)."""
-        assert SecretRedactor._iban_check("GB29 NWBK 6016 1331 9268 19") is True
+        assert iban_check("GB29 NWBK 6016 1331 9268 19") is True
 
     def test_iban_valid_de_with_spaces(self):
-        assert SecretRedactor._iban_check("DE89 3704 0044 0532 0130 00") is True
+        assert iban_check("DE89 3704 0044 0532 0130 00") is True
 
 
 class TestPIIPerformance:

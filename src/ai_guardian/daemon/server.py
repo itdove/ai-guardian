@@ -15,7 +15,7 @@ import socket
 import threading
 import time
 
-from ai_guardian.daemon import get_pid_path, get_socket_path, is_pid_alive
+from ai_guardian.daemon import get_pid_path, get_socket_path, is_pid_alive, is_pid_active
 from ai_guardian.daemon.protocol import (
     decode_message,
     encode_message,
@@ -479,33 +479,6 @@ class DaemonServer:
         except Exception as e:
             logger.debug(f"REST API failed to start: {e}")
 
-    @staticmethod
-    def _is_pid_active(pid):
-        """Check if a PID belongs to a live (non-zombie) process."""
-        if not _is_pid_alive(pid):
-            return False
-        # Linux: check /proc/<pid>/status for zombie state
-        try:
-            with open(f"/proc/{pid}/status") as f:
-                for line in f:
-                    if line.startswith("State:"):
-                        return "Z" not in line
-        except (FileNotFoundError, PermissionError, OSError):
-            pass  # intentionally silent — cleanup best-effort
-        # macOS/BSD: use ps to check process state
-        try:
-            import subprocess
-            result = subprocess.run(
-                ["ps", "-o", "state=", "-p", str(pid)],
-                capture_output=True, text=True, timeout=2,
-            )
-            if result.returncode == 0:
-                state = result.stdout.strip()
-                return bool(state) and "Z" not in state
-        except (subprocess.TimeoutExpired, OSError):
-            pass  # intentionally silent — subprocess may fail
-        return _is_pid_alive(pid)
-
     def _acquire_pid_lock(self):
         """Atomically create a lock file to prevent concurrent daemon starts.
 
@@ -525,7 +498,7 @@ class DaemonServer:
             try:
                 lock_content = open(lock_path).read().strip()
                 lock_pid = int(lock_content) if lock_content else 0
-                if lock_pid and self._is_pid_active(lock_pid):
+                if lock_pid and is_pid_active(lock_pid):
                     raise RuntimeError(
                         f"Another daemon is starting (pid {lock_pid}). "
                         f"Stop it first with: ai-guardian daemon stop"
@@ -591,7 +564,7 @@ class DaemonServer:
             try:
                 lock_content = open(lock_path).read().strip()
                 lock_pid = int(lock_content) if lock_content else 0
-                if not lock_pid or not self._is_pid_active(lock_pid):
+                if not lock_pid or not is_pid_active(lock_pid):
                     os.unlink(lock_path)
                     logger.info("Cleaned up stale daemon lock file")
             except (ValueError, OSError):
@@ -601,7 +574,6 @@ class DaemonServer:
                     pass  # intentionally silent — stale lock cleanup
 
         # Only clean socket if PID file was successfully removed (daemon is dead)
-        sock_path = get_socket_path()
         if sock_path.exists() and not self._use_tcp and not pid_path.exists():
             sock_path.unlink()
             logger.info("Cleaned up stale socket file")
