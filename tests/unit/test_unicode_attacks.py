@@ -361,8 +361,11 @@ class PromptInjectionUnicodeIntegrationTest(unittest.TestCase):
         should_block, error_msg, detected = detector.detect(content)
         self.assertTrue(should_block)
         self.assertTrue(detected)
-        # Should detect Unicode first (runs before pattern matching)
-        self.assertIn("UNICODE ATTACK", error_msg)
+        # Both findings collected; heuristic result returned as primary
+        # (has line numbers and pattern details for the ask dialog)
+        attack_types = {f["attack_type"] for f in detector.findings}
+        self.assertIn("unicode", attack_types)
+        self.assertTrue(len(detector.findings) >= 2)
 
     def test_hermes_zero_width_payload(self):
         """Test Hermes zero-width character attack payload"""

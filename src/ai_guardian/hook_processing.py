@@ -4599,6 +4599,7 @@ def process_hook_data(hook_data, daemon_state=None):
                                     matched_pattern=post_pi_detector.last_matched_pattern or "",
                                     latency_timer=_latency_timer,
                                     hook_context={"session_id": hook_session_id, "project_path": get_project_dir(), "hook_event": hook_event, "tool_name": tool_name},
+                                    findings=post_pi_detector.findings if post_pi_detector.findings else None,
                                 )
                                 if post_pi_ask is not None:
                                     from ai_guardian.tui.ask_dialog import AskDecision
@@ -5242,6 +5243,7 @@ def process_hook_data(hook_data, daemon_state=None):
                             matched_pattern=detector.last_matched_pattern or "",
                             latency_timer=_latency_timer,
                             hook_context={"session_id": hook_session_id, "project_path": get_project_dir(), "hook_event": hook_event, "tool_name": tool_name},
+                            findings=detector.findings if detector.findings else None,
                         )
                         if pi_ask_result is not None:
                             from ai_guardian.tui.ask_dialog import AskDecision
