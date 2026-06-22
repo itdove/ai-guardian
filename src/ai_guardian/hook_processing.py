@@ -536,7 +536,7 @@ def check_directory_denied(file_path, config=None):
                 if rule_action == ActionMode.WARN:
                     logging.warning(f"Policy violation (warn mode): {file_path} - .ai-read-deny marker in {denied_directory} but allowed for audit")
                     _log_directory_blocking_violation(file_path, denied_directory, is_excluded=False)
-                    warn_msg = f"⚠️  Policy violation (warn mode): Directory '{denied_directory}' denied by marker but allowed for audit"
+                    warn_msg = "⚠️  Directory access policy violation (warn mode) - execution allowed"
                     return False, None, warn_msg, matched_pattern  # ALLOW - logged for audit, with warning
                 elif rule_action == ActionMode.LOG_ONLY:
                     logging.warning(f"Policy violation (log-only mode): {file_path} - .ai-read-deny marker in {denied_directory} but allowed for audit (silent)")
@@ -561,7 +561,7 @@ def check_directory_denied(file_path, config=None):
                 logging.warning(f"Policy violation (warn mode): {file_path} - denied by rules but allowed for audit")
                 _log_directory_blocking_violation(file_path, os.path.dirname(abs_path), is_excluded=False,
                                                   reason=rule_reason, suggestion=rule_suggestion)
-                warn_msg = f"⚠️  Policy violation (warn mode): Directory rules deny '{file_path}' but allowed for audit"
+                warn_msg = "⚠️  Directory access policy violation (warn mode) - execution allowed"
                 return False, None, warn_msg, matched_pattern  # ALLOW - logged for audit, with warning
             elif rule_action == ActionMode.LOG_ONLY:
                 logging.warning(f"Policy violation (log-only mode): {file_path} - denied by rules but allowed for audit (silent)")

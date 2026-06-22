@@ -508,13 +508,7 @@ class ConfigFileScanner:
 
     def _format_warning_message(self, file_path: str, reason: str, details: Dict[str, Any]) -> str:
         """Format warning message for warn mode."""
-        return (
-            f"⚠️  Config File Threat Warning: {reason}\n"
-            f"   File: {file_path}\n"
-            f"   Line: {details['line_number']}\n"
-            f"   Pattern: {details['pattern_name']}\n"
-            f"   Execution allowed (warn mode)"
-        )
+        return "⚠️  Config file threat detected (warn mode) - execution allowed"
 
     def _format_error_message(self, file_path: str, reason: str, details: Dict[str, Any]) -> str:
         """Format error message for block mode."""
@@ -573,23 +567,12 @@ class ConfigFileScanner:
                 return False, None, None
 
             if self.action == "warn":
-                warn_msg = (
-                    f"⚠️  Config Exfiltration Warning: {reason}\n"
-                    f"   Command: {command[:100]}{'...' if len(command) > 100 else ''}\n"
-                    f"   Pattern: {details['pattern_name']}\n"
-                    f"   Execution allowed (warn mode)"
-                )
                 logger.warning(f"Exfil pattern detected in Bash command (warn mode): {reason}")
-                return False, warn_msg, details
+                return False, "⚠️  Credential exfiltration pattern detected (warn mode) - execution allowed", details
 
             elif self.action == "log-only":
-                log_msg = (
-                    f"⚠️  Config Exfiltration (log-only): {reason}\n"
-                    f"   Command: {command[:100]}{'...' if len(command) > 100 else ''}\n"
-                    f"   Execution allowed (log-only mode)"
-                )
                 logger.warning(f"Exfil pattern detected in Bash command (log-only mode): {reason}")
-                return False, log_msg, details
+                return False, None, details
 
             else:  # block mode (default)
                 error_msg = (

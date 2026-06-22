@@ -50,7 +50,7 @@ class ToolPermissionsEnforcementTest(unittest.TestCase):
         # Should be allowed in log mode with warning message
         self.assertTrue(is_allowed, "Warn mode should allow execution")
         self.assertIsNotNone(warn_msg, "Warning message should be returned in warn mode")
-        self.assertIn("Policy violation (warn mode)", warn_msg, "Warning should indicate warn mode")
+        self.assertIn("warn mode", warn_msg.lower(), "Warning should indicate warn mode")
         self.assertEqual(tool_name, "Skill")
 
     def test_skill_block_mode_not_in_allowlist(self):
@@ -108,7 +108,7 @@ class ToolPermissionsEnforcementTest(unittest.TestCase):
         # Should be allowed with warning message
         self.assertTrue(is_allowed, "Warn mode should allow execution")
         self.assertIsNotNone(warn_msg, "Warning message should be returned in warn mode")
-        self.assertIn("Policy violation (warn mode)", warn_msg, "Warning should indicate warn mode")
+        self.assertIn("warn mode", warn_msg.lower(), "Warning should indicate warn mode")
 
 
 class SecretScanningEnforcementTest(unittest.TestCase):
@@ -401,7 +401,7 @@ class MCPAllowRuleActionTest(unittest.TestCase):
         checker = ToolPolicyChecker(config)
         is_allowed, msg, _ = checker.check_tool_allowed(self._make_hook())
         self.assertTrue(is_allowed, "Non-matching MCP tool should be allowed with action=warn")
-        self.assertIn("Policy violation (warn mode)", msg)
+        self.assertIn("warn mode", msg.lower())
 
     def test_mcp_not_in_list_action_log_only(self):
         """Tool NOT in allow list with action=log-only should allow silently."""

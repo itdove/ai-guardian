@@ -77,7 +77,8 @@ class TestContextPoisoningDetector(unittest.TestCase):
         )
         self.assertTrue(detected)
         self.assertFalse(should_block)
-        self.assertIn("persistence keyword", error.lower())
+        self.assertIn("Context Poisoning", error)
+        self.assertNotIn("persistence keyword", error.lower())
 
     def test_remember_always_format(self):
         """Legitimate coding preference."""
@@ -151,6 +152,7 @@ class TestContextPoisoningDetector(unittest.TestCase):
         )
         self.assertTrue(detected)
         self.assertFalse(should_block)
+        self.assertIsNone(error)
 
     # --- Disabled ---
 

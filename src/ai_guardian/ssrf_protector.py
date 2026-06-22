@@ -829,28 +829,14 @@ class SSRFProtector:
             if effective_action == "warn":
                 url = first["matched_text"]
                 reason = first["reason"]
-                warn_msg = (
-                    f"⚠️  SSRF Protection Warning: {reason}\n"
-                    f"   URL: {url}\n"
-                    f"   Execution allowed (warn mode)\n\n"
-                    f"   ⚠️  NOTE: Pattern-based detection only\n"
-                    f"   ai-guardian blocks explicit URLs in command strings.\n"
-                    f"   It CANNOT detect network calls inside MCP servers.\n"
-                    f"   See: docs/SSRF_PROTECTION.md for details"
-                )
                 logger.warning(f"SSRF detected (warn mode): {reason}, URL={url} - execution allowed")
-                return False, warn_msg
+                return False, "⚠️  SSRF protection violation detected (warn mode) - execution allowed"
 
             elif effective_action == "log-only":
                 url = first["matched_text"]
                 reason = first["reason"]
-                log_msg = (
-                    f"⚠️  SSRF Protection (log-only): {reason}\n"
-                    f"   URL: {url}\n"
-                    f"   Execution allowed (log-only mode)"
-                )
                 logger.warning(f"SSRF detected (log-only mode): {reason}, URL={url} - execution allowed")
-                return False, log_msg
+                return False, None
 
             else:
                 return True, first["error_message"]
