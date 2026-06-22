@@ -1077,32 +1077,38 @@ class PromptInjectionDetector:
                 ("high", self._compiled_jailbreak, "jailbreak"),
             ]
 
-        # Check patterns based on source type
+        # Check patterns based on source type (finditer to collect ALL occurrences)
         for confidence_level, pattern_list, attack_type in pattern_sets:
             for pattern in pattern_list:
-                match = pattern.search(content)
-                if match:
+                for match in pattern.finditer(content):
                     matches.append((confidence_level, match.group(0), pattern.pattern, attack_type, match.start(), match.end()))
 
         # Check user-defined jailbreak patterns (user prompts only, high confidence)
         if source_type == "user_prompt":
             for pattern in self._compiled_user_jailbreak:
-                match = pattern.search(content)
-                if match:
+                for match in pattern.finditer(content):
                     matches.append(("high", match.group(0), pattern.pattern, "jailbreak", match.start(), match.end()))
 
         # Check custom patterns (treat as high confidence, check for all sources)
         for pattern in self._compiled_custom:
-            match = pattern.search(content)
-            if match:
+            for match in pattern.finditer(content):
                 matches.append(("high", match.group(0), pattern.pattern, "injection", match.start(), match.end()))
 
         # Check suspicious patterns (lower confidence) - only for user prompts
         if source_type == "user_prompt" and self.sensitivity in ["medium", "high"]:
             for pattern in self._compiled_suspicious:
-                match = pattern.search(content)
-                if match:
+                for match in pattern.finditer(content):
                     matches.append(("medium", match.group(0), pattern.pattern, "injection", match.start(), match.end()))
+
+        # Deduplicate by (line_number, matched_text) to avoid redundant findings
+        seen = set()
+        deduped = []
+        for m in matches:
+            key = (_offset_to_line_number(content, m[4]), m[1])
+            if key not in seen:
+                seen.add(key)
+                deduped.append(m)
+        matches = deduped
 
         if not matches:
             return False, 0.0, "", "", "injection", None, None, None
@@ -1415,7 +1421,12 @@ class PromptInjectionDetector:
             # Check for Unicode-based attacks (use original content, not stripped)
             # Unicode attacks can be anywhere in the text
             is_unicode_attack, unicode_details = self.unicode_detector.check(content)
+            unicode_should_block = False
+            unicode_error_msg = None
+            unicode_detected = False
+
             if is_unicode_attack:
+                unicode_detected = True
                 self.findings.append({
                     "matched_text": unicode_details,
                     "matched_pattern": "unicode_attack",
@@ -1433,18 +1444,15 @@ class PromptInjectionDetector:
                 else:
                     source_info = "source='user_prompt'"
 
-                # Check action
                 if self.action == "warn":
                     logger.warning(f"Unicode attack detected (warn mode): {source_info}, details='{unicode_details}' - execution allowed")
-                    warn_msg = f"⚠️  Unicode attack detected (warn mode): {unicode_details} - execution allowed"
-                    return False, warn_msg, True  # Allow execution, warning message, detected
+                    unicode_error_msg = f"⚠️  Unicode attack detected (warn mode): {unicode_details} - execution allowed"
                 elif self.action == "log-only":
                     logger.warning(f"Unicode attack detected (log-only mode): {source_info}, details='{unicode_details}' - execution allowed (silent)")
-                    return False, None, True  # Allow execution, no warning, detected
                 else:
-                    # Block execution
                     logger.error(f"Unicode attack detected: {source_info}, details='{unicode_details}'")
-                    error_msg = (
+                    unicode_should_block = True
+                    unicode_error_msg = (
                         f"\n{'='*70}\n"
                         f"🚨 BLOCKED BY POLICY\n"
                         f"🚨 UNICODE ATTACK DETECTED\n"
@@ -1461,9 +1469,8 @@ class PromptInjectionDetector:
                         "  • Homoglyphs (look-alike character substitution)\n\n"
                         f"{'='*70}\n"
                     )
-                    return True, error_msg, True  # Block, error message, detected
 
-            # Perform detection based on configured detector type (use stripped content)
+            # Always run heuristic/ML detection (even if unicode was found)
             if self.detector_type in ("ml", "hybrid"):
                 is_injection, confidence, matched_text, matched_pattern, attack_type, line_number, start_column, end_column = self._ml_or_hybrid_detection(content_to_check, source_type)
             else:
@@ -1526,6 +1533,22 @@ class PromptInjectionDetector:
                     logger.error(f"{detection_label} detected: {source_info}, confidence={confidence:.2f}, pattern='{pattern_preview}', text='{text_preview}', prompt='{content_preview}'")
                     return True, error_msg, True  # Block, error message, detected
 
+            # No heuristic injection — check if unicode was detected
+            if unicode_detected:
+                self.last_attack_type = "unicode"
+                self.last_matched_pattern = "unicode_attack"
+                self.last_matched_text = unicode_details
+                self.last_confidence = 0.95
+                self.last_line_number = None
+                self.last_start_column = None
+                self.last_end_column = None
+                if unicode_should_block:
+                    return True, unicode_error_msg, True
+                elif unicode_error_msg:
+                    return False, unicode_error_msg, True
+                else:
+                    return False, None, True
+
             return False, None, False  # No injection detected
 
         except Exception as e:
@@ -1538,6 +1561,31 @@ class PromptInjectionDetector:
             # Return warning message to alert user of the error
             warn_msg = f"⚠️  Prompt injection detection error - operation allowed: {str(e)[:100]}"
             return False, warn_msg, False
+
+    def detect_all(self, content: str, file_path: Optional[str] = None,
+                   tool_name: Optional[str] = None,
+                   source_type: str = "user_prompt") -> List[Dict[str, Any]]:
+        """
+        Detect ALL prompt injection findings in the given content.
+
+        Unlike detect() which returns on the first actionable result,
+        this method always runs all detection passes and returns every
+        finding collected in self.findings.
+
+        Args:
+            content: The text to check for prompt injection
+            file_path: Optional file path being scanned
+            tool_name: Optional tool name being used
+            source_type: Source of content - "user_prompt" or "file_content"
+
+        Returns:
+            List of finding dicts, each with keys: matched_text,
+            matched_pattern, confidence, attack_type, line_number,
+            start_column, end_column.
+        """
+        self.detect(content, file_path=file_path, tool_name=tool_name,
+                    source_type=source_type)
+        return self.findings
 
 
 def check_prompt_injection(content: str, config: Optional[Dict[str, Any]] = None, file_path: Optional[str] = None, tool_name: Optional[str] = None, source_type: str = "user_prompt") -> Tuple[bool, Optional[str], bool]:
