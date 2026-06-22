@@ -9,7 +9,6 @@ from typing import Optional
 
 from ai_guardian.theme import (
     ANNOTATION_FG,
-    BUTTON_COLORS,
     CODE_BG,
     ERROR,
     HIGHLIGHT_BG,
@@ -20,7 +19,6 @@ from ai_guardian.theme import (
     TEXT,
     TEXT_DIM,
     TEXT_MUTED,
-    VIOLATION_BADGES,
     WARNING,
     get_image_path,
     violation_badge,
@@ -72,6 +70,32 @@ def _apply_dark_root(root):
             root._theme_icon = icon  # prevent GC
     except Exception:
         pass  # intentionally silent — best-effort operation
+
+
+# Monospace font for code/config editors — computed once at module scope
+_CODE_FONT = ("Menlo" if platform.system() == "Darwin" else "Consolas", 11)
+
+
+def _format_location(v) -> str:
+    """Build 'path:line:col' string from a violation info object."""
+    loc = v.file_path or ""
+    if v.line_number:
+        loc += f":{v.line_number}"
+        if v.start_column is not None:
+            loc += f":{v.start_column + 1}"
+    return loc
+
+
+def _setup_sub_dialog(editor, root):
+    """Apply standard boilerplate to a Toplevel sub-dialog."""
+    editor.attributes("-topmost", True)
+    editor.protocol("WM_DELETE_WINDOW", lambda: (editor.destroy(), root.deiconify()))
+    editor.focus_force()
+    editor.grab_set()
+    editor.configure(bg=SURFACE)
+
+    from tkinter import ttk
+    ttk.Style(editor).theme_use("clam")
 
 
 class _TkinterAskDialog:
@@ -139,12 +163,7 @@ class _TkinterAskDialog:
             details.append(("Hook", v.hook_event))
         details.append(("Summary", v.summary))
         if v.file_path:
-            loc = v.file_path
-            if v.line_number:
-                loc += f":{v.line_number}"
-                if v.start_column is not None:
-                    loc += f":{v.start_column + 1}"
-            details.append(("Location", loc))
+            details.append(("Location", _format_location(v)))
 
         for label, value in details:
             row = ttk.Frame(info_frame)
@@ -237,22 +256,14 @@ class _TkinterAskDialog:
         editor.title(build_sub_dialog_title("Config Editor — ai-guardian.json", self._violation))
         editor.resizable(True, True)
         editor.geometry("700x500")
-        editor.attributes("-topmost", True)
-        editor.protocol("WM_DELETE_WINDOW", lambda: (editor.destroy(), root.deiconify()))
-        editor.focus_force()
-        editor.grab_set()
-        editor.configure(bg=SURFACE)
-        ttk.Style(editor).theme_use("clam")
+        _setup_sub_dialog(editor, root)
 
         frame = ttk.Frame(editor, padding=10)
         frame.pack(fill="both", expand=True)
 
         ttk.Label(frame, text="Review Config", font=("", 14, "bold")).pack(anchor="w")
         if v.file_path:
-            line_info = f":{v.line_number}" if v.line_number else ""
-            if v.start_column is not None and v.line_number:
-                line_info += f":{v.start_column + 1}"
-            ttk.Label(frame, text=f"Source: {v.file_path}{line_info}", wraplength=650).pack(anchor="w", pady=(0, 5))
+            ttk.Label(frame, text=f"Source: {_format_location(v)}", wraplength=650).pack(anchor="w", pady=(0, 5))
         ttk.Label(
             frame,
             text="The pattern has been inserted below. Review the full config, then Save or Cancel.",
@@ -301,7 +312,7 @@ class _TkinterAskDialog:
 
         config_text = tk.Text(
             text_frame, wrap="none", undo=True,
-            font=("Menlo" if platform.system() == "Darwin" else "Consolas", 11),
+            font=_CODE_FONT,
             yscrollcommand=scrollbar.set,
         )
         config_text.pack(fill="both", expand=True)
@@ -361,22 +372,14 @@ class _TkinterAskDialog:
         editor = tk.Toplevel(root)
         editor.title(build_sub_dialog_title("Allow Always — Edit Pattern", self._violation))
         editor.resizable(False, False)
-        editor.attributes("-topmost", True)
-        editor.protocol("WM_DELETE_WINDOW", lambda: (editor.destroy(), root.deiconify()))
-        editor.focus_force()
-        editor.grab_set()
-        editor.configure(bg=SURFACE)
-        ttk.Style(editor).theme_use("clam")
+        _setup_sub_dialog(editor, root)
 
         frame = ttk.Frame(editor, padding=15)
         frame.pack(fill="both", expand=True)
 
         ttk.Label(frame, text="Allow Always — Edit Pattern", font=("", 12, "bold")).pack(anchor="w")
         if v.file_path:
-            line_info = f":{v.line_number}" if v.line_number else ""
-            if v.start_column is not None and v.line_number:
-                line_info += f":{v.start_column + 1}"
-            ttk.Label(frame, text=f"File: {v.file_path}{line_info}", wraplength=500).pack(anchor="w", pady=(0, 5))
+            ttk.Label(frame, text=f"File: {_format_location(v)}", wraplength=500).pack(anchor="w", pady=(0, 5))
         ttk.Label(frame, text=f"Edit the {ptype_label.lower()} below to match this text. The pattern will be added to the allowlist.", wraplength=500).pack(anchor="w", pady=(0, 5))
         ttk.Separator(frame, orient="horizontal").pack(fill="x", pady=(0, 10))
 
@@ -468,21 +471,13 @@ class _TkinterAskDialog:
         editor.title(build_sub_dialog_title(f"Suppress in Source — {ann_label}", self._violation))
         editor.resizable(True, True)
         editor.geometry("800x550")
-        editor.attributes("-topmost", True)
-        editor.protocol("WM_DELETE_WINDOW", lambda: (editor.destroy(), root.deiconify()))
-        editor.focus_force()
-        editor.grab_set()
-        editor.configure(bg=SURFACE)
-        ttk.Style(editor).theme_use("clam")
+        _setup_sub_dialog(editor, root)
 
         frame = ttk.Frame(editor, padding=10)
         frame.pack(fill="both", expand=True)
 
         ttk.Label(frame, text=f"Suppress in Source — {ann_label}", font=("", 14, "bold")).pack(anchor="w")
-        line_info = f":{violation_line}" if violation_line and violation_line > 1 else ""
-        if v.start_column is not None and violation_line and violation_line > 1:
-            line_info += f":{v.start_column + 1}"
-        ttk.Label(frame, text=f"File: {v.file_path}{line_info}", wraplength=700).pack(anchor="w", pady=(0, 5))
+        ttk.Label(frame, text=f"File: {_format_location(v)}", wraplength=700).pack(anchor="w", pady=(0, 5))
         ttk.Label(
             frame,
             text="Review the annotated source below. Save to write the file.",
@@ -500,8 +495,6 @@ class _TkinterAskDialog:
         text_frame = ttk.Frame(frame)
         text_frame.pack(fill="both", expand=True, pady=(0, 5))
 
-        code_font = ("Menlo" if platform.system() == "Darwin" else "Consolas", 11)
-
         yscrollbar = ttk.Scrollbar(text_frame, orient="vertical")
         yscrollbar.pack(side="right", fill="y")
 
@@ -511,12 +504,12 @@ class _TkinterAskDialog:
         gutter = tk.Text(
             text_frame, width=5, padx=4, takefocus=0,
             border=0, state="disabled", wrap="none",
-            font=code_font, background=CODE_BG, foreground=TEXT_DIM,
+            font=_CODE_FONT, background=CODE_BG, foreground=TEXT_DIM,
         )
         gutter.pack(side="left", fill="y")
 
         source_text = tk.Text(
-            text_frame, wrap="none", undo=True, font=code_font,
+            text_frame, wrap="none", undo=True, font=_CODE_FONT,
             yscrollcommand=yscrollbar.set,
             xscrollcommand=xscrollbar.set,
         )
@@ -604,21 +597,13 @@ class _TkinterAskDialog:
         editor.title(build_sub_dialog_title("Ignore File — .aiguardignore.toml", self._violation))
         editor.resizable(True, True)
         editor.geometry("700x550")
-        editor.attributes("-topmost", True)
-        editor.protocol("WM_DELETE_WINDOW", lambda: (editor.destroy(), root.deiconify()))
-        editor.focus_force()
-        editor.grab_set()
-        editor.configure(bg=SURFACE)
-        ttk.Style(editor).theme_use("clam")
+        _setup_sub_dialog(editor, root)
 
         frame = ttk.Frame(editor, padding=10)
         frame.pack(fill="both", expand=True)
 
         ttk.Label(frame, text="Ignore File — .aiguardignore.toml", font=("", 14, "bold")).pack(anchor="w")
-        line_info = f":{v.line_number}" if v.line_number else ""
-        if v.start_column is not None and v.line_number:
-            line_info += f":{v.start_column + 1}"
-        ttk.Label(frame, text=f"File: {v.file_path}{line_info}", wraplength=650).pack(anchor="w", pady=(0, 5))
+        ttk.Label(frame, text=f"File: {_format_location(v)}", wraplength=650).pack(anchor="w", pady=(0, 5))
         ttk.Separator(frame, orient="horizontal").pack(fill="x", pady=(0, 10))
 
         ttk.Label(frame, text="Path pattern (editable):", font=("", 0, "bold")).pack(anchor="w")
@@ -720,12 +705,7 @@ class _TkinterAskDialog:
         editor.title(build_sub_dialog_title("Config Editor — .aiguardignore.toml", self._violation))
         editor.resizable(True, True)
         editor.geometry("700x500")
-        editor.attributes("-topmost", True)
-        editor.protocol("WM_DELETE_WINDOW", lambda: (editor.destroy(), root.deiconify()))
-        editor.focus_force()
-        editor.grab_set()
-        editor.configure(bg=SURFACE)
-        ttk.Style(editor).theme_use("clam")
+        _setup_sub_dialog(editor, root)
 
         frame = ttk.Frame(editor, padding=10)
         frame.pack(fill="both", expand=True)
@@ -753,7 +733,7 @@ class _TkinterAskDialog:
 
         config_text = tk.Text(
             text_frame, wrap="none", undo=True,
-            font=("Menlo" if platform.system() == "Darwin" else "Consolas", 11),
+            font=_CODE_FONT,
             yscrollcommand=scrollbar.set,
         )
         config_text.pack(fill="both", expand=True)

@@ -17,9 +17,7 @@ import logging
 import os
 import platform
 import re
-import subprocess
-import time
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple, Set, Union
 
@@ -1217,118 +1215,6 @@ class ToolPolicyChecker:
         except Exception as e:
             logger.error(f"Error extracting tool info: {e}")
             return None, {}
-
-    def _sanitize_for_logging(self, text: str) -> str:
-        """
-        Sanitize text to prevent secrets from leaking in logs.
-
-        Redacts common secret patterns:
-        - API keys, tokens, passwords
-        - Environment variable values
-        - Long alphanumeric strings (potential tokens)
-        - Base64-encoded credentials
-
-        Args:
-            text: The text to sanitize
-
-        Returns:
-            Sanitized text with secrets redacted
-        """
-        import re
-
-        # Redact common secret patterns (case-insensitive)
-        # Pattern: key=value or key='value' or key="value"
-        secret_patterns = [
-            (r'(api[_-]?key|apikey|token|password|passwd|pwd|secret|auth|authorization|bearer)\s*[=:]\s*["\']?([^"\'\s]{8,})["\']?', r'\1=***REDACTED***'),
-            # Environment variables with common secret names
-            (r'(API_KEY|TOKEN|PASSWORD|SECRET|GITHUB_TOKEN|AWS_SECRET|OPENAI_API_KEY)=([^\s]{8,})', r'\1=***REDACTED***'),
-            # Long alphanumeric strings (potential tokens) - 32+ chars
-            (r'\b([a-zA-Z0-9]{32,})\b', r'***REDACTED-TOKEN***'),
-            # Base64-encoded strings (potential credentials) - must be 24+ chars and end with padding or not
-            (r'\b([A-Za-z0-9+/]{24,}={0,2})\b', r'***REDACTED-BASE64***'),
-        ]
-
-        sanitized = text
-        for pattern, replacement in secret_patterns:
-            sanitized = re.sub(pattern, replacement, sanitized, flags=re.IGNORECASE)
-
-        return sanitized
-
-    def _format_tool_log_details(self, tool_name: str, tool_input: Dict) -> str:
-        """
-        Format detailed tool parameters for logging (full details for debugging).
-
-        IMPORTANT: Sanitizes output to prevent secrets from leaking in logs.
-
-        Args:
-            tool_name: The tool name
-            tool_input: The tool input parameters
-
-        Returns:
-            Formatted details string for logging (e.g., " (skill='daf-jira', args='view AAP-12345')")
-        """
-        if not tool_input:
-            return ""
-
-        # For Skill tool: show skill name and args (sanitized)
-        if tool_name == "Skill" and "skill" in tool_input:
-            skill_name = tool_input.get("skill", "unknown")
-            skill_args = tool_input.get("args", "")
-            # Sanitize args before truncating
-            sanitized_args = self._sanitize_for_logging(skill_args)
-            args_preview = sanitized_args[:50] + "..." if len(sanitized_args) > 50 else sanitized_args
-            return f" (skill='{skill_name}', args='{args_preview}')"
-
-        # For Read/Write/Edit: show full file path (already safe)
-        if tool_name in ["Read", "Write", "Edit"] and "file_path" in tool_input:
-            file_path = tool_input["file_path"]
-            return f" (file_path='{file_path}')"
-
-        # For Bash: show command preview (sanitized, first 100 chars)
-        if tool_name == "Bash" and "command" in tool_input:
-            command = tool_input["command"]
-            # Sanitize command before truncating
-            sanitized_cmd = self._sanitize_for_logging(command)
-            cmd_preview = sanitized_cmd[:100] + "..." if len(sanitized_cmd) > 100 else sanitized_cmd
-            return f" (command='{cmd_preview}')"
-
-        return ""
-
-    def _format_tool_display_name(self, tool_name: str, tool_input: Dict) -> str:
-        """
-        Format a user-friendly display name for a tool with its key parameters.
-
-        Args:
-            tool_name: The tool name (e.g., "Skill", "Read", "Bash")
-            tool_input: The tool input parameters
-
-        Returns:
-            Formatted display name (e.g., "Skill(database-migration)", "Read(file.txt)", "Bash(ls -la)")
-        """
-        if not tool_input:
-            return tool_name
-
-        # For Skill tool: show skill name
-        if tool_name == "Skill" and "skill" in tool_input:
-            return f"Skill({tool_input['skill']})"
-
-        # For Read/Write/Edit: show file path (basename only for brevity)
-        if tool_name in ["Read", "Write", "Edit"] and "file_path" in tool_input:
-            import os
-            file_path = tool_input["file_path"]
-            basename = os.path.basename(file_path) if file_path else "unknown"
-            return f"{tool_name}({basename})"
-
-        # For Bash: show first 40 chars of command
-        if tool_name == "Bash" and "command" in tool_input:
-            command = tool_input["command"]
-            if len(command) > 40:
-                command = command[:37] + "..."
-            return f"Bash({command})"
-
-        # For MCP tools: already have descriptive names like "mcp__server__tool"
-        # Just return as-is
-        return tool_name
 
     def _extract_pattern_string(self, pattern_entry: Union[str, Dict]) -> str:
         """

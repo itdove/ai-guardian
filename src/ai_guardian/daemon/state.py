@@ -464,21 +464,13 @@ class DaemonState:
                 logger.debug(f"Pruned {len(stale)} stale project config entries")
 
         if stale:
-            try:
-                from ai_guardian.gitleaks_config import cleanup_stale_entries as _gc_cleanup
-                _gc_cleanup(PROJECT_CONFIG_TTL)
-            except Exception:
-                pass  # intentionally silent — optional dependency
-            try:
-                from ai_guardian.aiguardignore import cleanup_stale_entries as _ai_cleanup
-                _ai_cleanup(PROJECT_CONFIG_TTL)
-            except Exception:
-                pass  # intentionally silent — optional dependency
-            try:
-                from ai_guardian.config_loaders import cleanup_stale_entries as _cl_cleanup
-                _cl_cleanup(PROJECT_CONFIG_TTL)
-            except Exception:
-                pass  # intentionally silent — optional dependency
+            import importlib
+            for mod_name in ("gitleaks_config", "aiguardignore", "config_loaders"):
+                try:
+                    mod = importlib.import_module(f"ai_guardian.{mod_name}")
+                    mod.cleanup_stale_entries(PROJECT_CONFIG_TTL)
+                except Exception:
+                    pass
 
     # --- Compiled regex pattern cache ---
 
@@ -592,16 +584,9 @@ class DaemonState:
         self._persist_pause_state()
 
     def pause_remaining_seconds(self):
-        """Get remaining seconds of a time-limited pause.
-
-        Returns:
-            float: Seconds remaining, 0 if not paused or indefinite pause
-        """
+        """Get remaining seconds of a time-limited pause."""
         with self._lock:
-            if not self._paused or self._paused_until <= 0:
-                return 0.0
-            remaining = self._paused_until - time.monotonic()
-            return max(0.0, remaining)
+            return self._pause_remaining_locked()
 
     # --- Per-directory pause/resume (#958) ---
 
@@ -744,29 +729,7 @@ class DaemonState:
                 "dirs": dirs,
             }
 
-        try:
-            parent = Path(self._pause_file).parent
-            parent.mkdir(parents=True, exist_ok=True)
-            content = json.dumps(data)
-            fd, tmp_path = tempfile.mkstemp(
-                dir=str(parent), prefix=".daemon-pause-", suffix=".tmp"
-            )
-            closed = False
-            try:
-                if hasattr(os, "fchmod"):
-                    os.fchmod(fd, stat.S_IRUSR | stat.S_IWUSR)
-                os.write(fd, content.encode("utf-8"))
-                os.close(fd)
-                closed = True
-                os.replace(tmp_path, str(self._pause_file))
-            except BaseException:
-                if not closed:
-                    os.close(fd)
-                if os.path.exists(tmp_path):
-                    os.unlink(tmp_path)
-                raise
-        except OSError as e:
-            logger.debug("Error writing pause state: %s", e)
+        self._atomic_write_json(self._pause_file, data, ".daemon-pause-")
 
     @staticmethod
     def is_paused_on_disk(cwd=None, pause_file=None):
@@ -1046,6 +1009,33 @@ class DaemonState:
                 "ml_load_error": self._ml_load_error,
             }
 
+    @staticmethod
+    def _atomic_write_json(path, data, prefix):
+        """Atomically write JSON data to a file with owner-only permissions."""
+        try:
+            parent = Path(path).parent
+            parent.mkdir(parents=True, exist_ok=True)
+            content = json.dumps(data)
+            fd, tmp_path = tempfile.mkstemp(
+                dir=str(parent), prefix=prefix, suffix=".tmp"
+            )
+            closed = False
+            try:
+                if hasattr(os, "fchmod"):
+                    os.fchmod(fd, stat.S_IRUSR | stat.S_IWUSR)
+                os.write(fd, content.encode("utf-8"))
+                os.close(fd)
+                closed = True
+                os.replace(tmp_path, str(path))
+            except BaseException:
+                if not closed:
+                    os.close(fd)
+                if os.path.exists(tmp_path):
+                    os.unlink(tmp_path)
+                raise
+        except OSError as e:
+            logger.debug("Error writing %s: %s", path, e)
+
     def _pause_remaining_locked(self):
         """Get remaining pause seconds (must be called with lock held)."""
         if not self._paused or self._paused_until <= 0:
@@ -1158,26 +1148,4 @@ class DaemonState:
         """Atomic write of session data to disk."""
         if not self._sessions_file:
             return
-        try:
-            parent = self._sessions_file.parent
-            parent.mkdir(parents=True, exist_ok=True)
-            content = json.dumps(data)
-            fd, tmp_path = tempfile.mkstemp(
-                dir=str(parent), prefix=".daemon-sess-", suffix=".tmp"
-            )
-            closed = False
-            try:
-                if hasattr(os, 'fchmod'):
-                    os.fchmod(fd, stat.S_IRUSR | stat.S_IWUSR)
-                os.write(fd, content.encode("utf-8"))
-                os.close(fd)
-                closed = True
-                os.replace(tmp_path, str(self._sessions_file))
-            except BaseException:
-                if not closed:
-                    os.close(fd)
-                if os.path.exists(tmp_path):
-                    os.unlink(tmp_path)
-                raise
-        except OSError as e:
-            logger.debug(f"Error writing daemon sessions: {e}")
+        self._atomic_write_json(self._sessions_file, data, ".daemon-sess-")

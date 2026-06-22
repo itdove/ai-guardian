@@ -1738,8 +1738,7 @@ def _log_directory_blocking_violation(file_path: str, denied_directory: str, is_
 
     try:
         hctx = hook_context or {}
-        if violation_logger is None:
-            violation_logger = ViolationLogger()
+        violation_logger = violation_logger or ViolationLogger()
 
         context = {
             "project_path": get_project_dir(),
@@ -1839,8 +1838,7 @@ def _log_secret_detection_violation(filename: str, context: Optional[Dict] = Non
         }
         _enrich_blocked_from_details(blocked_info, details)
 
-        if violation_logger is None:
-            violation_logger = ViolationLogger()
+        violation_logger = violation_logger or ViolationLogger()
         if details.get("end_line") and details["end_line"] != details.get("line_number"):
             line_num = details.get("line_number")
             end_line = details["end_line"]
@@ -1914,8 +1912,7 @@ def _log_finding_violation(filename: str, context: Optional[Dict] = None,
         }
         _enrich_blocked_from_details(blocked_info, details)
 
-        if violation_logger is None:
-            violation_logger = ViolationLogger()
+        violation_logger = violation_logger or ViolationLogger()
         if details.get("end_line") and details["end_line"] != details.get("line_number"):
             line_num = details.get("line_number")
             end_line = details["end_line"]
@@ -2308,8 +2305,7 @@ def _log_prompt_injection_violation(filename: str, context: Optional[Dict] = Non
             blocked_entry["end_column"] = end_column
         if matched_text:
             blocked_entry["matched_text"] = matched_text[:100]
-        if violation_logger is None:
-            violation_logger = ViolationLogger()
+        violation_logger = violation_logger or ViolationLogger()
         violation_logger.log_violation(
             violation_type=vtype,
             blocked=blocked_entry,
@@ -2354,8 +2350,7 @@ def _log_context_poisoning_violation(filename: str, context: Optional[Dict] = No
             blocked_entry["end_column"] = end_column
         if matched_text:
             blocked_entry["matched_text"] = matched_text[:100]
-        if violation_logger is None:
-            violation_logger = ViolationLogger()
+        violation_logger = violation_logger or ViolationLogger()
         violation_logger.log_violation(
             violation_type=ViolationType.CONTEXT_POISONING,
             blocked=blocked_entry,
@@ -2399,8 +2394,7 @@ def _log_supply_chain_violation(filename: str, context: Optional[Dict] = None,
             blocked_entry["end_column"] = end_column
         if matched_text:
             blocked_entry["matched_text"] = matched_text[:100]
-        if violation_logger is None:
-            violation_logger = ViolationLogger()
+        violation_logger = violation_logger or ViolationLogger()
         violation_logger.log_violation(
             violation_type=ViolationType.SUPPLY_CHAIN,
             blocked=blocked_entry,

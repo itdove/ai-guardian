@@ -20,7 +20,6 @@ from typing import Callable, Dict, List, Optional, Tuple
 
 try:
     import docker as docker_sdk
-    from docker.errors import DockerException
     HAS_DOCKER_SDK = True
 except ImportError:
     HAS_DOCKER_SDK = False
@@ -100,7 +99,6 @@ class DaemonDiscovery:
         self._lock = threading.Lock()
         self._running = False
         self._thread: Optional[threading.Thread] = None
-        self._container_engines: Optional[List[str]] = None
         self._callback: Optional[Callable] = None
         self._refresh_event: Optional[threading.Event] = None
         self._last_refresh: float = 0.0
@@ -456,145 +454,6 @@ class DaemonDiscovery:
         return None
 
     @staticmethod
-    def _parse_container_json(output):
-        """Parse container JSON output (handles both array and line-delimited)."""
-        output = output.strip()
-        if not output:
-            return []
-
-        try:
-            parsed = json.loads(output)
-            if isinstance(parsed, list):
-                return parsed
-            return [parsed]
-        except json.JSONDecodeError:
-            pass  # intentionally silent — best-effort operation
-
-        results = []
-        for line in output.splitlines():
-            line = line.strip()
-            if not line:
-                continue
-            try:
-                results.append(json.loads(line))
-            except json.JSONDecodeError:
-                continue
-        return results
-
-    @staticmethod
-    def _has_port_mapping(container, rest_port):
-        """Check if a container has a port mapping to the given port."""
-        ports = container.get("Ports", [])
-        if isinstance(ports, list):
-            for p in ports:
-                if isinstance(p, dict):
-                    if p.get("container_port") == rest_port:
-                        return True
-                    if p.get("containerPort") == rest_port:
-                        return True
-        elif isinstance(ports, str):
-            if str(rest_port) in ports:
-                return True
-        return False
-
-    def _containers_to_targets(self, engine, containers, rest_port):
-        """Convert container dicts to DaemonTarget list."""
-        targets = []
-        for c in containers:
-            container_id = (
-                c.get("Id") or c.get("ID") or c.get("id") or ""
-            )
-            if not container_id or not _CONTAINER_ID_RE.match(container_id):
-                continue
-
-            labels = c.get("Labels", {})
-            if isinstance(labels, str):
-                labels = self._parse_label_string(labels)
-
-            orig_container_name = self._get_container_name(c) or None
-
-            raw_name = (
-                labels.get("ai-guardian.name")
-                or orig_container_name
-                or container_id[:12]
-            )
-            name = raw_name[:128]
-
-            label_port = labels.get("ai-guardian.rest-port")
-            try:
-                target_rest_port = int(label_port) if label_port else rest_port
-            except (ValueError, TypeError):
-                target_rest_port = rest_port
-
-            host_port = self._find_host_port(c, target_rest_port)
-
-            status = "unknown"
-            if host_port:
-                api_data = self._probe_daemon(host_port)
-                if api_data:
-                    status = "paused" if api_data.get("paused") else "running"
-                    if not labels.get("ai-guardian.name") and api_data.get("name"):
-                        name = api_data["name"]
-
-            if not labels.get("ai-guardian.name") and status not in (
-                "running", "paused"
-            ):
-                exec_name = self._exec_instance_name(engine, container_id)
-                if exec_name:
-                    name = exec_name
-
-            target = DaemonTarget(
-                name=name,
-                runtime="container",
-                status=status,
-                host="127.0.0.1",
-                port=host_port,
-                container_id=container_id,
-                container_engine=engine,
-                container_name=orig_container_name,
-                last_seen=time.monotonic(),
-            )
-            targets.append(target)
-
-        return targets
-
-    @staticmethod
-    def _exec_instance_name(engine, container_id, timeout=3):
-        """Read daemon name from container config via podman/docker exec."""
-        try:
-            result = subprocess.run(
-                [engine, "exec", container_id,
-                 "python3", "-c",
-                 "import json; "
-                 "f=open('/etc/ai-guardian/ai-guardian.json'); "
-                 "c=json.load(f); "
-                 "n=c.get('name') or c.get('daemon',{}).get('name',''); "
-                 "print(n)"
-                 ],
-                capture_output=True, text=True, timeout=timeout,
-            )
-            if result.returncode == 0:
-                name = result.stdout.strip()
-                if name:
-                    return name
-        except (subprocess.TimeoutExpired, OSError):
-            pass  # intentionally silent — subprocess may fail
-
-        try:
-            result = subprocess.run(
-                [engine, "exec", container_id,
-                 "ai-guardian", "show-config", "--json"],
-                capture_output=True, text=True, timeout=timeout,
-            )
-            if result.returncode == 0:
-                data = json.loads(result.stdout)
-                return data.get("name") or data.get("daemon", {}).get("name")
-        except (subprocess.TimeoutExpired, OSError, json.JSONDecodeError) as e:
-            logger.debug("Failed to read config: %s", e)
-
-        return None
-
-    @staticmethod
     def _probe_daemon(port, host="127.0.0.1", timeout=1.0):
         """Probe a daemon's REST API. Returns status dict or None if unreachable."""
         import socket as _socket
@@ -622,46 +481,6 @@ class DaemonDiscovery:
                 return json_mod.loads(resp.read().decode("utf-8"))
         except Exception:
             return None
-
-    @staticmethod
-    def _parse_label_string(labels_str):
-        """Parse comma-separated label string into dict."""
-        result = {}
-        for pair in labels_str.split(","):
-            pair = pair.strip()
-            if "=" in pair:
-                k, v = pair.split("=", 1)
-                result[k.strip()] = v.strip()
-        return result
-
-    @staticmethod
-    def _get_container_name(container):
-        """Extract display name from container info."""
-        names = container.get("Names", container.get("Name", ""))
-        if isinstance(names, list):
-            return names[0].lstrip("/") if names else ""
-        return str(names).lstrip("/")
-
-    @staticmethod
-    def _find_host_port(container, container_port):
-        """Find the host-side port mapped to the given container port."""
-        ports = container.get("Ports", [])
-
-        if isinstance(ports, list):
-            for p in ports:
-                if isinstance(p, dict):
-                    cp = p.get("container_port") or p.get("containerPort", 0)
-                    hp = p.get("host_port") or p.get("hostPort", 0)
-                    if int(cp) == container_port and hp:
-                        return int(hp)
-
-        elif isinstance(ports, str):
-            pattern = rf"(?:[\d.]+:)?(\d+)->{container_port}/tcp"
-            match = re.search(pattern, ports)
-            if match:
-                return int(match.group(1))
-
-        return 0
 
     def discover_kubernetes(self) -> List[DaemonTarget]:
         """Discover Kubernetes pod daemons via kubectl."""
@@ -774,17 +593,6 @@ class DaemonDiscovery:
             targets.append(target)
 
         return targets
-
-    def get_container_engines(self) -> List[str]:
-        """Return all available container engines (podman and/or docker)."""
-        if self._container_engines is not None:
-            return self._container_engines
-
-        self._container_engines = [
-            engine for engine in ("podman", "docker")
-            if shutil.which(engine)
-        ]
-        return self._container_engines
 
     def start_background_discovery(self, callback: Callable):
         """Start background discovery thread (event-driven, not periodic).

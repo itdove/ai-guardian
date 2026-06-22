@@ -43,6 +43,35 @@ def is_pid_alive(pid):
         return False
 
 
+def is_pid_active(pid):
+    """Check if a PID belongs to a live (non-zombie) process.
+
+    Extends is_pid_alive() with zombie detection on Linux (/proc) and
+    macOS/BSD (ps).
+    """
+    if not is_pid_alive(pid):
+        return False
+    try:
+        with open(f"/proc/{pid}/status") as f:
+            for line in f:
+                if line.startswith("State:"):
+                    return "Z" not in line
+    except (FileNotFoundError, PermissionError, OSError):
+        pass
+    try:
+        import subprocess
+        result = subprocess.run(
+            ["ps", "-o", "state=", "-p", str(pid)],
+            capture_output=True, text=True, timeout=2,
+        )
+        if result.returncode == 0:
+            state = result.stdout.strip()
+            return bool(state) and "Z" not in state
+    except (subprocess.TimeoutExpired, OSError):
+        pass
+    return is_pid_alive(pid)
+
+
 def get_executable_command():
     """Resolve the command to launch ai-guardian.
 
