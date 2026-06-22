@@ -383,8 +383,8 @@ class TestActionModes:
         assert "SSRF" in msg
         assert "warn mode" in msg.lower()
 
-    def test_log_only_mode_returns_message(self):
-        """Test log-only mode allows execution but returns message for violation logging."""
+    def test_log_only_mode_no_agent_message(self):
+        """Test log-only mode allows execution with no agent-facing message."""
         protector = SSRFProtector({
             "action": "log-only",
             "additional_blocked_domains": ["evil.test"],
@@ -395,8 +395,7 @@ class TestActionModes:
         )
 
         assert not should_block  # Execution allowed
-        assert msg is not None  # Message returned for violation logging
-        assert "log-only" in msg.lower()
+        assert msg is None  # No message sent to agent
 
     def test_immutable_pattern_blocks_in_warn_mode(self):
         """Immutable SSRF patterns (metadata endpoints) always block regardless of action mode."""

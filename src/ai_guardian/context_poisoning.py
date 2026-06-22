@@ -253,8 +253,12 @@ class ContextPoisoningDetector:
         self.last_start_column = first["start_column"]
         self.last_end_column = first["end_column"]
 
-        should_block = self.action == "block"
-        return should_block, first["error_message"], True
+        if self.action == "block":
+            return True, first["error_message"], True
+        elif self.action == "log-only":
+            return False, None, True
+        else:
+            return False, "⚠️  Context Poisoning detected (warn mode) - execution allowed", True
 
     def _format_error(
         self,

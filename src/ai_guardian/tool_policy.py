@@ -1100,9 +1100,7 @@ class ToolPolicyChecker:
 
                 if final_action == "warn":
                     logger.warning(f"Policy violation (warn mode): {tool_name} - {matched_pattern} - execution allowed")
-                    display_name = self._format_tool_display_name(tool_name, tool_input)
-                    warn_msg = f"⚠️  Policy violation (warn mode): {display_name} matched deny pattern - execution allowed"
-                    return True, warn_msg, tool_name
+                    return True, "⚠️  Tool policy violation (warn mode) - execution allowed", tool_name
                 elif final_action == "log-only":
                     logger.warning(f"Policy violation (log-only mode): {tool_name} - {matched_pattern} - execution allowed (silent)")
                     return True, None, tool_name

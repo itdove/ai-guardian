@@ -1523,7 +1523,7 @@ class PromptInjectionDetector:
                 # Check action
                 if self.action == "warn":
                     logger.warning(f"{detection_label} detected (warn mode): {source_info}, confidence={confidence:.2f}, pattern='{pattern_preview}', text='{text_preview}', prompt='{content_preview}' - execution allowed")
-                    warn_msg = f"⚠️  {detection_label} detected (warn mode): confidence={confidence:.2f} - execution allowed"
+                    warn_msg = f"⚠️  {detection_label} detected (warn mode) - execution allowed"
                     return False, warn_msg, True  # Allow execution, warning message, detected
                 elif self.action == "log-only":
                     logger.warning(f"{detection_label} detected (log-only mode): {source_info}, confidence={confidence:.2f}, pattern='{pattern_preview}', text='{text_preview}', prompt='{content_preview}' - execution allowed (silent)")

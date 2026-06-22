@@ -333,8 +333,6 @@ class SupplyChainScanner:
         categories: List[str],
     ) -> Tuple[bool, Optional[str], Optional[Dict[str, Any]]]:
         lines = content.split('\n')
-        should_block = self.action == "block"
-        action_label = "blocked" if should_block else "warning"
 
         for category in categories:
             category_patterns = patterns.get(category, [])
@@ -350,7 +348,7 @@ class SupplyChainScanner:
                     end_column = match.end() - line_start
 
                     error_msg = (
-                        f"Supply chain threat {action_label}: {description} "
+                        f"Supply chain threat blocked: {description} "
                         f"in {os.path.basename(label)} (line {line_number})"
                     )
                     self.findings.append({
@@ -379,7 +377,17 @@ class SupplyChainScanner:
 
         details = {k: v for k, v in first.items() if k not in ("error_message", "matched_pattern")}
         details["total_findings"] = len(self.findings)
-        return should_block, first["error_message"], details
+
+        if self.action == "block":
+            return True, first["error_message"], details
+        elif self.action == "log-only":
+            return False, None, details
+        else:
+            warn_msg = (
+                f"Supply chain threat detected in {os.path.basename(label)} "
+                f"(warn mode) - execution allowed"
+            )
+            return False, warn_msg, details
 
 
 def check_supply_chain_threats(
