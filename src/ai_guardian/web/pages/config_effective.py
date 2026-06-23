@@ -10,6 +10,8 @@ from ai_guardian.web.components.header import create_header, create_sidebar
 def _load_effective_data(project_dir=None):
     """Load merged config, provenance, and project config.
 
+    Includes auto-generated directory rules with 'generated' provenance.
+
     Args:
         project_dir: Project directory for multi-project daemon routing.
 
@@ -23,9 +25,42 @@ def _load_effective_data(project_dir=None):
         merged = load_scoped_config("merged", project_dir)
         provenance = compute_detailed_provenance(project_dir)
         project = load_scoped_config("project", project_dir)
+
+        _inject_generated_rules(merged, provenance)
+
         return merged, provenance, project, None
     except Exception as e:
         return None, None, None, str(e)
+
+
+def _inject_generated_rules(merged, provenance):
+    """Run auto-generation and inject generated rules into merged config and provenance."""
+    if not merged:
+        return
+    auto_config = (merged.get("permissions") or {}).get("auto_directory_rules", {})
+    if not auto_config.get("enabled"):
+        return
+    try:
+        from ai_guardian.directory_rule_generator import (
+            DirectoryRuleGenerator,
+            insert_generated_rules,
+        )
+        generator = DirectoryRuleGenerator(merged)
+        generated_rules = generator.generate_directory_rules()
+        if not generated_rules:
+            return
+        insert_generated_rules(merged, generated_rules)
+
+        dir_prov = provenance.get("directory_rules")
+        if isinstance(dir_prov, dict):
+            rules_prov = dir_prov.get("rules")
+            if isinstance(rules_prov, list):
+                for rule in generated_rules:
+                    rules_prov.append({"value": rule, "source": "generated"})
+            else:
+                dir_prov["rules"] = [{"value": r, "source": "generated"} for r in generated_rules]
+    except Exception:
+        pass
 
 
 def _get_active_project_dirs(service, daemon_name: str):
@@ -60,12 +95,16 @@ def _provenance_color(source: str) -> str:
     """CSS color for a provenance source."""
     if source == "project":
         return "blue"
+    if source == "generated":
+        return "amber-8"
     return "grey-6"
 
 
 def _provenance_label(source: str) -> str:
     if source == "project":
         return "Project"
+    if source == "generated":
+        return "Generated"
     return "Global"
 
 

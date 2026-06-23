@@ -76,8 +76,8 @@ class ConfigDisplay:
         else:
             self._add_all_sections(output, show_all)
 
-        # Add legend if showing all
-        if show_all:
+        # Add legend if generated or immutable rules exist
+        if show_all or self._has_generated_rules():
             output.append("")
             output.append("=" * 70)
             output.append("LEGEND")
@@ -94,7 +94,7 @@ class ConfigDisplay:
         Output configuration as JSON.
 
         Args:
-            show_all: Include auto-generated rules
+            show_all: Include auto-generated rules (kept for backward compat)
             section: Filter to specific section name
 
         Returns:
@@ -103,10 +103,6 @@ class ConfigDisplay:
         # Deep copy config to avoid modifying original
         import copy
         output_config = copy.deepcopy(self.config)
-
-        # Filter auto-generated rules if not showing all
-        if not show_all:
-            output_config = self._filter_generated_rules(output_config)
 
         # Filter to specific section if requested
         if section:
@@ -241,10 +237,6 @@ class ConfigDisplay:
         # Determine source label
         label = self._get_rule_label(rule)
 
-        # Skip generated rules if not showing all
-        if label == "GENERATED" and not show_all:
-            return
-
         matcher = rule.get("matcher", "unknown")
         mode = rule.get("mode", "unknown")
         patterns = rule.get("patterns", [])
@@ -299,10 +291,6 @@ class ConfigDisplay:
         # Determine source label
         label = self._get_rule_label(rule)
 
-        # Skip generated rules if not showing all
-        if label == "GENERATED" and not show_all:
-            return
-
         mode = rule.get("mode", "unknown")
         paths = rule.get("paths", [])
 
@@ -334,6 +322,17 @@ class ConfigDisplay:
                     output.append(f"  {key}: {value}")
         else:
             output.append(f"  {json.dumps(section, indent=2)}")
+
+    def _has_generated_rules(self) -> bool:
+        """Check if the config contains any auto-generated rules."""
+        for section_key in ("permissions", "directory_rules"):
+            section = self.config.get(section_key)
+            if not section:
+                continue
+            rules = section.get("rules", []) if isinstance(section, dict) else section if isinstance(section, list) else []
+            if any(isinstance(r, dict) and r.get("_generated") for r in rules):
+                return True
+        return False
 
     def _get_rule_label(self, rule: Dict) -> str:
         """
