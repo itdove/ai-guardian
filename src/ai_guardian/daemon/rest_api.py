@@ -487,11 +487,9 @@ class _RestHandler(BaseHTTPRequestHandler):
                     from ai_guardian.sanitizer import sanitize_text
                     san_result = sanitize_text(content)
                     redacted = san_result.get("sanitized_text") or san_result.get("redacted")
-                    if redacted is None:
-                        redacted = content
                 except Exception as e:
                     logger.warning("Sanitization failed: %s", e)
-                    redacted = content
+                    redacted = None
 
             elapsed = (_time.monotonic() - t0) * 1000
 

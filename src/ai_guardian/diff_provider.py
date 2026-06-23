@@ -105,22 +105,25 @@ def get_merge_base(base_ref: Optional[str] = None, repo_path: str = ".") -> str:
 
 def _detect_default_branch(repo_path: str = ".") -> str:
     """Auto-detect the default branch (origin/main, origin/master, etc.)."""
-    result = subprocess.run(
-        ["git", "rev-parse", "--abbrev-ref", "origin/HEAD"],
-        capture_output=True, text=True, timeout=10, cwd=repo_path,
-    )
-    if result.returncode == 0:
-        ref = result.stdout.strip()
-        if ref and ref != "origin/HEAD":
-            return ref
-
-    for candidate in ["origin/main", "origin/master"]:
+    try:
         result = subprocess.run(
-            ["git", "rev-parse", "--verify", candidate],
+            ["git", "rev-parse", "--abbrev-ref", "origin/HEAD"],
             capture_output=True, text=True, timeout=10, cwd=repo_path,
         )
         if result.returncode == 0:
-            return candidate
+            ref = result.stdout.strip()
+            if ref and ref != "origin/HEAD":
+                return ref
+
+        for candidate in ["origin/main", "origin/master"]:
+            result = subprocess.run(
+                ["git", "rev-parse", "--verify", candidate],
+                capture_output=True, text=True, timeout=10, cwd=repo_path,
+            )
+            if result.returncode == 0:
+                return candidate
+    except subprocess.TimeoutExpired:
+        raise DiffProviderError("git timed out detecting default branch")
 
     raise DiffProviderError(
         "Could not detect default branch. Use --base to specify explicitly."

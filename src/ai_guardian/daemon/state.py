@@ -684,7 +684,8 @@ class DaemonState:
                 else:
                     self._paused = True
                     if until_wall > 0:
-                        self._paused_until = mono_now + (until_wall - now)
+                        remaining = max(0, until_wall - now)
+                        self._paused_until = mono_now + remaining
                     else:
                         self._paused_until = 0.0
                     logger.info("Restored global pause from disk")
@@ -695,7 +696,8 @@ class DaemonState:
                 if until_wall > 0 and now >= until_wall:
                     continue
                 if until_wall > 0:
-                    self._paused_dirs[directory] = mono_now + (until_wall - now)
+                    remaining = max(0, until_wall - now)
+                    self._paused_dirs[directory] = mono_now + remaining
                 else:
                     self._paused_dirs[directory] = 0.0
             if self._paused_dirs:

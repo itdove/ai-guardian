@@ -246,8 +246,10 @@ class _DirectSession(GuardSession):
                 except Exception as e:
                     logger.debug("Supply chain check unavailable: %s", e)
 
-            content_result = self.check_content(content, filename=file_path)
-            self._results.pop()
+            try:
+                content_result = self.check_content(content, filename=file_path)
+            finally:
+                self._results.pop()
             if content_result.detected:
                 results.append(content_result)
 

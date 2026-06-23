@@ -10,6 +10,7 @@ Global/Project scope selector feature.
 import json
 import logging
 import os
+import sys
 import tempfile
 from pathlib import Path
 from typing import Any, Callable, Dict, Optional, Tuple
@@ -54,6 +55,12 @@ def _atomic_config_update(
         try:
             if HAS_FCNTL:
                 fcntl.flock(lock_fd, fcntl.LOCK_EX)
+            elif sys.platform == "win32":
+                try:
+                    import msvcrt
+                    msvcrt.locking(lock_fd, msvcrt.LK_LOCK, 1)
+                except (ImportError, OSError):
+                    pass
 
             config = {}
             if config_path.exists():

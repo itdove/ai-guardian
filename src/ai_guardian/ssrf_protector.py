@@ -186,6 +186,10 @@ class SSRFProtector:
                 continue
             if _regex_metachar_re.search(domain):
                 try:
+                    from ai_guardian.config_utils import validate_regex_pattern
+                    if not validate_regex_pattern(domain):
+                        logger.warning(f"ReDoS-unsafe regex in allowed_domains, skipping: {domain}")
+                        continue
                     compiled = re.compile(domain, re.IGNORECASE)
                     self._allowed_domain_regexes.append(compiled)
                 except re.error as e:

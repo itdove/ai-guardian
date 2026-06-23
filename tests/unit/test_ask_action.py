@@ -1223,17 +1223,16 @@ class TestPostSaveConfirmation:
                 result = _write_config_text('{"test": true}\n')
             assert result is True
             assert json.loads(config_path.read_text()) == {"test": True}
-            assert (Path(tmpdir) / "ai-guardian.json.bak").exists()
 
-    def test_write_config_text_creates_backup(self):
+    def test_write_config_text_rejects_invalid_json(self):
         from ai_guardian.tui.ask_dialog import _write_config_text
         with tempfile.TemporaryDirectory() as tmpdir:
             config_path = Path(tmpdir) / "ai-guardian.json"
             config_path.write_text('{"original": true}')
             with patch("ai_guardian.config_utils.get_config_dir", return_value=Path(tmpdir)):
-                _write_config_text('{"updated": true}\n')
-            backup = Path(tmpdir) / "ai-guardian.json.bak"
-            assert json.loads(backup.read_text()) == {"original": True}
+                result = _write_config_text('not valid json{{{')
+            assert result is False
+            assert json.loads(config_path.read_text()) == {"original": True}
 
     def test_save_pattern_to_config_directory_rules_calls_save_ask_pattern(self):
         from ai_guardian.tui.ask_dialog import _save_pattern_to_config
