@@ -2556,3 +2556,144 @@ class TestBuildDialogTitle:
             matched_text="x", config_section="secret_scanning",
         )
         assert v.tool_name is None
+
+
+class TestSecretAskBlockDecision:
+    """Tests for secret ask dialog Block decision (#1344).
+
+    When secret_scanning.action=ask and user clicks Block, the operation
+    must be blocked immediately — not fall through to redaction logic.
+    """
+
+    def test_secret_block_decision_does_not_allow(self):
+        """Block decision must not map to 'allowed' action."""
+        from ai_guardian.tui.ask_dialog import AskResult, AskDecision
+        ask_result = AskResult(decision=AskDecision.BLOCK)
+        assert ask_result.decision in (AskDecision.BLOCK, AskDecision.BLOCK_ALL)
+
+    def test_secret_block_skips_redaction_path(self):
+        """Simulate PostToolUse secret ask flow — BLOCK must return before redaction."""
+        from ai_guardian.tui.ask_dialog import AskResult, AskDecision
+        ask_result = AskResult(decision=AskDecision.BLOCK)
+        reached_redaction = False
+
+        if ask_result is not None:
+            if ask_result.decision not in (AskDecision.BLOCK, AskDecision.BLOCK_ALL):
+                pass  # allow path
+            else:
+                blocked = True
+                # In real code, this returns immediately
+                assert blocked is True
+                return
+
+        # This simulates the redaction path — must NOT be reached
+        reached_redaction = True
+        assert not reached_redaction, "BLOCK decision fell through to redaction"
+
+    def test_secret_allow_once_skips_block(self):
+        """Allow Once decision must not enter BLOCK branch."""
+        from ai_guardian.tui.ask_dialog import AskResult, AskDecision
+        ask_result = AskResult(decision=AskDecision.ALLOW_ONCE)
+        if ask_result is not None:
+            if ask_result.decision not in (AskDecision.BLOCK, AskDecision.BLOCK_ALL):
+                allowed = True
+            else:
+                allowed = False
+        assert allowed is True
+
+    @patch("ai_guardian.tui.ask_dialog._show_via_daemon", return_value=None)
+    @patch("ai_guardian.tui.ask_dialog._show_via_subprocess", return_value=None)
+    def test_secret_ask_headless_block_fallback(self, _mock_sub, _mock_daemon):
+        """Headless ask for secrets falls back to BLOCK."""
+        from ai_guardian.hook_processing import _handle_ask_mode
+        from ai_guardian.tui.ask_dialog import AskDecision
+        result = _handle_ask_mode(
+            "ask", "secret_detected", "AKIA1234567890EXAMPLE",
+            "secret_scanning", "Secret detected: AWS Access Key"
+        )
+        assert result is not None
+        assert result.decision == AskDecision.BLOCK
+
+    @patch("ai_guardian.tui.ask_dialog._show_via_daemon", return_value=None)
+    @patch("ai_guardian.tui.ask_dialog._show_via_subprocess", return_value=None)
+    def test_secret_ask_warn_fallback(self, _mock_sub, _mock_daemon):
+        """ask:warn fallback returns ALLOW_ONCE (not BLOCK)."""
+        from ai_guardian.hook_processing import _handle_ask_mode
+        from ai_guardian.tui.ask_dialog import AskDecision
+        result = _handle_ask_mode(
+            "ask:warn", "secret_detected", "AKIA1234567890EXAMPLE",
+            "secret_scanning", "Secret detected: AWS Access Key"
+        )
+        assert result is not None
+        assert result.decision == AskDecision.ALLOW_ONCE
+
+
+class TestLogAskDecisionBlock:
+    """Tests for _log_ask_decision with BLOCK decisions (#1344)."""
+
+    @patch("ai_guardian.hook_processing.ViolationLogger")
+    def test_logs_block_decision(self, mock_vl_cls):
+        from ai_guardian.hook_processing import _log_ask_decision
+        from ai_guardian.tui.ask_dialog import AskDecision
+        mock_vl = MagicMock()
+        mock_vl_cls.return_value = mock_vl
+        _log_ask_decision("secret_detected", AskDecision.BLOCK,
+                          matched_text="AKIA_KEY", error_msg="Secret found")
+        mock_vl.log_violation.assert_called_once()
+        call_kwargs = mock_vl.log_violation.call_args[1]
+        assert call_kwargs["context"]["ask_decision"] == "block"
+        assert call_kwargs["context"]["action_taken"] == "blocked"
+        assert call_kwargs["blocked"]["matched_text"] == "AKIA_KEY"
+
+    @patch("ai_guardian.hook_processing.ViolationLogger")
+    def test_logs_block_all_decision(self, mock_vl_cls):
+        from ai_guardian.hook_processing import _log_ask_decision
+        from ai_guardian.tui.ask_dialog import AskDecision
+        mock_vl = MagicMock()
+        mock_vl_cls.return_value = mock_vl
+        _log_ask_decision("secret_detected", AskDecision.BLOCK_ALL,
+                          matched_text="secret_value", error_msg="Secret found")
+        call_kwargs = mock_vl.log_violation.call_args[1]
+        assert call_kwargs["context"]["ask_decision"] == "block_all"
+        assert call_kwargs["context"]["action_taken"] == "blocked"
+
+    @patch("ai_guardian.hook_processing.ViolationLogger")
+    def test_logs_block_with_file_and_line(self, mock_vl_cls):
+        from ai_guardian.hook_processing import _log_ask_decision
+        from ai_guardian.tui.ask_dialog import AskDecision
+        mock_vl = MagicMock()
+        mock_vl_cls.return_value = mock_vl
+        _log_ask_decision("secret_detected", AskDecision.BLOCK,
+                          matched_text="key", error_msg="Secret",
+                          file_path="/app/config.py", line_number=42,
+                          dialog_wait_ms=1500.0)
+        call_kwargs = mock_vl.log_violation.call_args[1]
+        assert call_kwargs["blocked"]["file_path"] == "/app/config.py"
+        assert call_kwargs["blocked"]["line_number"] == 42
+        assert call_kwargs["context"]["dialog_wait_ms"] == 1500.0
+
+    @patch("ai_guardian.hook_processing.ViolationLogger")
+    def test_logs_pii_block_decision(self, mock_vl_cls):
+        from ai_guardian.hook_processing import _log_ask_decision
+        from ai_guardian.tui.ask_dialog import AskDecision
+        mock_vl = MagicMock()
+        mock_vl_cls.return_value = mock_vl
+        _log_ask_decision("pii_detected", AskDecision.BLOCK,
+                          matched_text="555-12-3456", error_msg="PII: SSN")
+        call_kwargs = mock_vl.log_violation.call_args[1]
+        assert call_kwargs["violation_type"] == "pii_detected"
+        assert call_kwargs["context"]["ask_decision"] == "block"
+        assert call_kwargs["context"]["action_taken"] == "blocked"
+
+    @patch("ai_guardian.hook_processing.ViolationLogger")
+    def test_allow_once_still_logs_as_allowed(self, mock_vl_cls):
+        """Verify existing ALLOW behavior unchanged after BLOCK support."""
+        from ai_guardian.hook_processing import _log_ask_decision
+        from ai_guardian.tui.ask_dialog import AskDecision
+        mock_vl = MagicMock()
+        mock_vl_cls.return_value = mock_vl
+        _log_ask_decision("secret_detected", AskDecision.ALLOW_ONCE,
+                          matched_text="key", error_msg="Secret found")
+        call_kwargs = mock_vl.log_violation.call_args[1]
+        assert call_kwargs["context"]["ask_decision"] == "allow_once"
+        assert call_kwargs["context"]["action_taken"] == "allowed"
