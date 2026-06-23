@@ -1,10 +1,12 @@
 """Windsurf hook adapter.
 
 Windsurf uses snake_case agent_action_name field instead of
-hook_event_name. Response format is the same as Claude Code.
+hook_event_name. Windsurf communicates via exit codes and streams:
+exit 2 blocks (stderr reaches the agent), exit 0 allows.
 """
 
-from typing import ClassVar, Dict, List
+import sys
+from typing import ClassVar, Dict, List, Optional
 
 from ai_guardian.constants import HookEvent
 from ai_guardian.hook_adapters.base import NormalizedHookInput
@@ -27,7 +29,8 @@ class WindsurfAdapter(ClaudeCodeAdapter):
     """Adapter for Windsurf (Codeium).
 
     Detection: agent_action_name field in hook data.
-    Uses Claude Code response format.
+    Windsurf uses exit codes + streams: exit 2 blocks (stderr reaches
+    the Cascade agent), exit 0 allows. No structured JSON response.
     """
 
     ENV_ALIASES: ClassVar[List[str]] = ["windsurf"]
@@ -64,4 +67,36 @@ class WindsurfAdapter(ClaudeCodeAdapter):
             tool_response=hook_data.get("tool_response"),
             transcript_path=self._extract_transcript_path(hook_data),
             raw_data=hook_data,
+        )
+
+    def format_response(
+        self,
+        has_secrets: bool,
+        error_message: Optional[str] = None,
+        hook_event: HookEvent = HookEvent.PROMPT,
+        warning_message: Optional[str] = None,
+        modified_output: Optional[str] = None,
+        violation_type: Optional[str] = None,
+        security_message: Optional[str] = None,
+    ) -> Dict:
+        if has_secrets and error_message:
+            final_error = self._combine_error_messages(error_message, warning_message)
+            print(final_error, file=sys.stderr)
+            return self._add_metadata(
+                {"output": None, "exit_code": 2},
+                has_secrets,
+                violation_type,
+            )
+
+        parts = []
+        if hook_event == HookEvent.PROMPT and security_message:
+            parts.append(security_message)
+        if warning_message:
+            parts.append(warning_message)
+        output = "\n\n".join(parts) if parts else None
+
+        return self._add_metadata(
+            {"output": output, "exit_code": 0},
+            has_secrets,
+            violation_type,
         )

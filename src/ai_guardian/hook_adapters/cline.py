@@ -80,7 +80,7 @@ class ClineAdapter(HookAdapter):
     ) -> Dict:
         if has_secrets and error_message:
             final_error = self._combine_error_messages(error_message, warning_message)
-            response = {"cancel": True, "reason": final_error}
+            response = {"cancel": True, "errorMessage": final_error}
         else:
             response = {}
             parts = []
@@ -90,8 +90,7 @@ class ClineAdapter(HookAdapter):
                 parts.append(warning_message)
             if parts:
                 combined = "\n\n".join(parts)
-                response["message"] = combined
-                response["agent_context"] = combined
+                response["contextModification"] = combined
 
         return self._add_metadata(
             {"output": json.dumps(response), "exit_code": 0},

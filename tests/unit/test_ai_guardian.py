@@ -891,7 +891,7 @@ Yyv2dJ5Y2LtZ7YywIDAQABAoIBADCNMXk8y5K6lVZMsEHHWpdGIyDyUPsryXctAJAc
         self.assertEqual(result["exit_code"], 0)
         output = json.loads(result["output"])
         self.assertTrue(output["cancel"])
-        self.assertEqual(output["reason"], "Secret detected in tool input")
+        self.assertEqual(output["errorMessage"], "Secret detected in tool input")
 
     def test_format_response_cline_allow(self):
         """Test Cline allow response format"""
@@ -915,7 +915,7 @@ Yyv2dJ5Y2LtZ7YywIDAQABAoIBADCNMXk8y5K6lVZMsEHHWpdGIyDyUPsryXctAJAc
         self.assertEqual(result["exit_code"], 0)
         output = json.loads(result["output"])
         self.assertTrue(output["cancel"])
-        self.assertIn("Secrets found", output["reason"])
+        self.assertIn("Secrets found", output["errorMessage"])
 
     def test_format_response_cline_prompt_with_security_message(self):
         """Test Cline prompt response with security instructions"""
@@ -927,7 +927,7 @@ Yyv2dJ5Y2LtZ7YywIDAQABAoIBADCNMXk8y5K6lVZMsEHHWpdGIyDyUPsryXctAJAc
         )
         self.assertEqual(result["exit_code"], 0)
         output = json.loads(result["output"])
-        self.assertEqual(output["message"], "Security rules...")
+        self.assertEqual(output["contextModification"], "Security rules...")
 
     def test_format_response_cline_block_with_warning(self):
         """Test Cline block response includes warning message"""
@@ -940,8 +940,8 @@ Yyv2dJ5Y2LtZ7YywIDAQABAoIBADCNMXk8y5K6lVZMsEHHWpdGIyDyUPsryXctAJAc
         )
         output = json.loads(result["output"])
         self.assertTrue(output["cancel"])
-        self.assertIn("Log mode warning", output["reason"])
-        self.assertIn("Secret detected", output["reason"])
+        self.assertIn("Log mode warning", output["errorMessage"])
+        self.assertIn("Secret detected", output["errorMessage"])
 
     def test_extract_file_content_tool_use_format(self):
         """Test file extraction from tool_use.parameters format"""

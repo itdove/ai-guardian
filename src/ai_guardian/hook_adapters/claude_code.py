@@ -79,7 +79,6 @@ class ClaudeCodeAdapter(HookAdapter):
                     "reason": final_error or "Secrets detected in tool output",
                     "hookSpecificOutput": {
                         "hookEventName": "PostToolUse",
-                        "additionalContext": "Tool output contained sensitive information and was blocked by ai-guardian",
                     },
                 }
             else:

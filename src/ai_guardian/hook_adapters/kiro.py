@@ -78,8 +78,9 @@ class KiroAdapter(HookAdapter):
         if has_secrets and error_message:
             final_error = self._combine_error_messages(error_message, warning_message)
             print(final_error, file=sys.stderr)
+            exit_code = 2 if hook_event == HookEvent.PRE_TOOL_USE else 1
             return self._add_metadata(
-                {"output": None, "exit_code": 1},
+                {"output": None, "exit_code": exit_code},
                 has_secrets,
                 violation_type,
             )

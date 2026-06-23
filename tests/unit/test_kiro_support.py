@@ -80,14 +80,14 @@ class TestKiroResponseFormat:
     """Test response formatting for Kiro."""
 
     def test_pretooluse_block(self, capsys):
-        """Blocking PreToolUse returns exit code 1 and writes to stderr."""
+        """Blocking PreToolUse returns exit code 2 and writes to stderr."""
         result = format_response(
             IDEType.KIRO,
             has_secrets=True,
             error_message="Secret detected in command",
             hook_event=HookEvent.PRE_TOOL_USE,
         )
-        assert result["exit_code"] == 1
+        assert result["exit_code"] == 2
         assert result["output"] is None
         assert result["_blocked"] is True
         captured = capsys.readouterr()
@@ -123,7 +123,7 @@ class TestKiroResponseFormat:
             hook_event=HookEvent.PRE_TOOL_USE,
             warning_message="Warning prefix",
         )
-        assert result["exit_code"] == 1
+        assert result["exit_code"] == 2
         captured = capsys.readouterr()
         assert "Warning prefix" in captured.err
         assert "Secret detected" in captured.err

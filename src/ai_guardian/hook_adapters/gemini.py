@@ -90,7 +90,8 @@ class GeminiCLIAdapter(HookAdapter):
             if parts:
                 combined = "\n\n".join(parts)
                 response["systemMessage"] = combined
-                response["additionalContext"] = combined
+                if hook_event != HookEvent.PRE_TOOL_USE:
+                    response["hookSpecificOutput"] = {"additionalContext": combined}
 
         return self._add_metadata(
             {"output": json.dumps(response), "exit_code": 0},
