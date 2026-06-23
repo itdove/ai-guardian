@@ -472,6 +472,54 @@ ai-guardian setup --ide cursor --uninstall-ide claude
 
 ---
 
+## Known Claude Code Limitations
+
+These are open upstream issues in the Claude Code runtime that affect ai-guardian's security enforcement. They are not bugs in ai-guardian — they are limitations in the hook system that ai-guardian cannot work around.
+
+For per-violation-type impact details, see [AGENT_SUPPORT.md — Known Limitations](AGENT_SUPPORT.md#known-limitations).
+
+### Secret/PII Redaction Bypassed in Bash Output
+
+**Symptom:** ai-guardian detects a secret or PII in Bash output and redacts it, but the model still sees the original unredacted text.
+
+**Cause:** Claude Code ignores the `updatedToolOutput` field returned by `PostToolUse` hooks for Bash tool results.
+
+**Workaround:** Use `block` action mode for secrets and PII instead of `warn` or `log-only`. This prevents the tool call entirely rather than relying on post-execution redaction.
+
+**Upstream:** [anthropics/claude-code#64326](https://github.com/anthropics/claude-code/issues/64326)
+
+### Image/Binary File Reads Not Scanned
+
+**Symptom:** ai-guardian does not detect secrets or PII in image files read by Claude Code.
+
+**Cause:** Claude Code does not fire `PreToolUse` hooks (or does not include scannable content) when reading image/binary files.
+
+**Workaround:** Use directory rules to block access to directories containing sensitive images. There is no way to scan image content inline.
+
+**Upstream:** [anthropics/claude-code#62639](https://github.com/anthropics/claude-code/issues/62639)
+
+### Skill Tool Calls Bypass All Hooks
+
+**Symptom:** Tool calls made within a skill (slash command) are not checked by ai-guardian — no permission enforcement, no directory blocking, no SSRF protection.
+
+**Cause:** Claude Code does not fire `PreToolUse` hooks for tool calls originating from skill invocations.
+
+**Workaround:** Audit installed skills and limit skill access to trusted sources. There is no hook-based enforcement for skill tool calls.
+
+**Upstream:** [anthropics/claude-code#66446](https://github.com/anthropics/claude-code/issues/66446)
+
+### No Tool Result Transform Hook
+
+**Symptom:** ai-guardian cannot sanitize or transform tool output before the model processes it.
+
+**Cause:** Claude Code does not provide a hook event for modifying tool results. The `PostToolUse` hook can inspect but not reliably transform output.
+
+**Workaround:** ai-guardian strips detection patterns from its own warn/log-only messages ([#1327](https://github.com/itdove/ai-guardian/issues/1327)), but cannot sanitize arbitrary tool output.
+
+**Upstream:** [anthropics/claude-code#18653](https://github.com/anthropics/claude-code/issues/18653)
+
+---
+
 ## File Locations Quick Reference
 
 | File | Default Path | Purpose |
