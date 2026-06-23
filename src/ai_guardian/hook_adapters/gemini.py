@@ -88,7 +88,9 @@ class GeminiCLIAdapter(HookAdapter):
             if warning_message:
                 parts.append(warning_message)
             if parts:
-                response["systemMessage"] = "\n\n".join(parts)
+                combined = "\n\n".join(parts)
+                response["systemMessage"] = combined
+                response["additionalContext"] = combined
 
         return self._add_metadata(
             {"output": json.dumps(response), "exit_code": 0},

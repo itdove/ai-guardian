@@ -111,8 +111,8 @@ class TestFormatResponseSecurityMessage(TestCase):
         output = json.loads(result["output"])
         self.assertNotIn("TEST_SECURITY_RULES", json.dumps(output))
 
-    def test_security_message_ignored_for_cursor(self):
-        """Security message parameter is ignored for Cursor IDE."""
+    def test_security_message_delivered_to_cursor_agent(self):
+        """Security message is delivered via agent_message for Cursor IDE."""
         result = format_response(
             IDEType.CURSOR,
             has_secrets=False,
@@ -120,7 +120,7 @@ class TestFormatResponseSecurityMessage(TestCase):
             security_message="TEST_SECURITY_RULES"
         )
         output = json.loads(result["output"])
-        self.assertNotIn("TEST_SECURITY_RULES", json.dumps(output))
+        self.assertIn("TEST_SECURITY_RULES", output.get("agent_message", ""))
 
 
 class TestProcessHookDataSecurityMessage(TestCase):
