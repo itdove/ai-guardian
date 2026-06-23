@@ -221,6 +221,29 @@ class HookAdapter(ABC):
                 return val
         return None
 
+    _BLOCK_REASON_MAP: ClassVar[Dict[str, str]] = {
+        "secret_detected": "secret detected",
+        "pii_detected": "PII detected",
+        "directory_blocking": "directory access blocked",
+        "tool_permission": "tool permission denied",
+        "prompt_injection": "prompt injection detected",
+        "jailbreak_detected": "jailbreak attempt detected",
+        "ssrf_blocked": "SSRF protection triggered",
+        "config_file_exfil": "config file exfiltration blocked",
+        "context_poisoning": "context poisoning detected",
+        "supply_chain": "supply chain threat detected",
+        "secret_redaction": "secret redacted from output",
+        "secret_in_transcript": "secret detected in transcript",
+        "pii_in_transcript": "PII detected in transcript",
+        "image_secret_detected": "secret detected in image",
+        "image_pii_detected": "PII detected in image",
+    }
+
+    @classmethod
+    def _sanitize_block_reason(cls, violation_type: Optional[str]) -> str:
+        label = cls._BLOCK_REASON_MAP.get(violation_type or "", "security violation")
+        return f"Operation blocked by ai-guardian: {label}"
+
     @staticmethod
     def _combine_error_messages(error_message: Optional[str], warning_message: Optional[str]) -> Optional[str]:
         """Combine error and warning messages."""

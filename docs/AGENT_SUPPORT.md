@@ -190,19 +190,21 @@ Each agent uses different event names. The adapter layer normalizes these.
 
 ## Agent-Facing Message Delivery
 
-When ai-guardian detects a non-blocking issue (warn/log mode) or injects security rules, the message must reach both the user and the AI agent. Agent-facing fields are used for **warn/log-only messages only** — block responses do NOT inject context into the agent.
+When ai-guardian detects a non-blocking issue (warn/log mode) or injects security rules, the message must reach both the user and the AI agent. Agent-facing fields carry warn/log-only messages and, for PreToolUse deny responses, a sanitized block reason so the agent can report why the operation was blocked.
+
+**PreToolUse deny**: The agent continues after a PreToolUse deny (it tries a different approach), so it receives a sanitized summary via the agent-facing field (e.g., `"Operation blocked by ai-guardian: secret detected"`). The sanitized message contains only the violation type — no patterns, regex, or matched text. PostToolUse and Prompt blocks do NOT inject agent context since the agent stops after those.
 
 | Agent | User-facing field | Agent-facing field | Events | Status |
 |-------|------------------|-------------------|--------|--------|
-| Claude Code | `systemMessage` | `hookSpecificOutput.additionalContext` | All | Confirmed |
-| Augment | `systemMessage` | `hookSpecificOutput.additionalContext` | All | Confirmed (inherits Claude Code) |
-| Codex | `systemMessage` | `hookSpecificOutput.additionalContext` | All | Confirmed (inherits Claude Code) |
-| OpenCode | `systemMessage` | `hookSpecificOutput.additionalContext` | All | Best-effort (bridge plugin) |
-| Cursor | `user_message` | `agent_message` | All | Confirmed |
-| Gemini CLI | `systemMessage` | `hookSpecificOutput.additionalContext` | Prompt, PostToolUse | Confirmed |
-| Cline | `errorMessage` (block) | `contextModification` | All | Confirmed |
+| Claude Code | `systemMessage` | `hookSpecificOutput.additionalContext` | All (incl. PreToolUse deny) | Confirmed |
+| Augment | `systemMessage` | `hookSpecificOutput.additionalContext` | All (incl. PreToolUse deny) | Confirmed (inherits Claude Code) |
+| Codex | `systemMessage` | `hookSpecificOutput.additionalContext` | All (incl. PreToolUse deny) | Confirmed (inherits Claude Code) |
+| OpenCode | `systemMessage` | `hookSpecificOutput.additionalContext` | All (incl. PreToolUse deny) | Best-effort (bridge plugin) |
+| Cursor | `user_message` | `agent_message` | All (incl. PreToolUse deny) | Confirmed |
+| Gemini CLI | `systemMessage` | `additionalContext` | Prompt, PostToolUse, PreToolUse deny (best-effort) | Confirmed |
+| Cline | `errorMessage` (block) | `contextModification` | All (incl. block) | Confirmed |
 | Kiro | stderr (errors) | stdout | Prompt, PreToolUse | Confirmed (process I/O) |
-| Copilot | `permissionDecisionReason` (deny) | `additionalContext` | PreToolUse, PostToolUse | Best-effort (see bugs) |
+| Copilot | `permissionDecisionReason` (deny) | `additionalContext` | PreToolUse (incl. deny), PostToolUse | Best-effort (see bugs) |
 | Windsurf | stderr (exit 2) | stdout (exit 0) | PreToolUse (block) | Limited |
 
 **Confirmed** — documented in the agent's hook protocol and verified to reach the AI model. **Best-effort** — field exists in spec but has known implementation bugs. **Limited** — only blocking responses have a confirmed agent channel.

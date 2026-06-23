@@ -516,10 +516,14 @@ class TestResponseFormatting:
             has_secrets=True,
             error_message="Secret found",
             hook_event=HookEvent.PRE_TOOL_USE,
+            violation_type="secret_detected",
         )
         assert result["exit_code"] == 0
         data = json.loads(result["output"])
         assert data["hookSpecificOutput"]["permissionDecision"] == "deny"
+        assert "blocked by ai-guardian" in data["hookSpecificOutput"]["additionalContext"]
+        assert "secret detected" in data["hookSpecificOutput"]["additionalContext"]
+        assert "Secret found" not in data["hookSpecificOutput"]["additionalContext"]
         assert result["_blocked"] is True
 
     def test_claude_code_pretooluse_allow(self):
@@ -564,11 +568,13 @@ class TestResponseFormatting:
             has_secrets=True,
             error_message="Secret found",
             hook_event=HookEvent.PRE_TOOL_USE,
+            violation_type="secret_detected",
         )
         data = json.loads(result["output"])
         assert data["permission"] == "deny"
         assert "Secret found" in data["user_message"]
-        assert "agent_message" not in data
+        assert "blocked by ai-guardian" in data["agent_message"]
+        assert "Secret found" not in data["agent_message"]
 
     def test_cursor_pretooluse_allow(self):
         result = CursorAdapter().format_response(
@@ -613,9 +619,11 @@ class TestResponseFormatting:
             has_secrets=True,
             error_message="Secret",
             hook_event=HookEvent.PRE_TOOL_USE,
+            violation_type="secret_detected",
         )
         data = json.loads(result["output"])
         assert data["permissionDecision"] == "deny"
+        assert "blocked by ai-guardian" in data["additionalContext"]
 
     def test_copilot_prompt_block(self, capsys):
         result = CopilotAdapter().format_response(
@@ -632,9 +640,11 @@ class TestResponseFormatting:
             has_secrets=True,
             error_message="Secret found",
             hook_event=HookEvent.PRE_TOOL_USE,
+            violation_type="secret_detected",
         )
         data = json.loads(result["output"])
         assert data["decision"] == "deny"
+        assert "blocked by ai-guardian" in data["additionalContext"]
 
     def test_gemini_allow_with_system_message(self):
         result = GeminiCLIAdapter().format_response(
@@ -650,11 +660,13 @@ class TestResponseFormatting:
             has_secrets=True,
             error_message="Secret found",
             hook_event=HookEvent.PRE_TOOL_USE,
+            violation_type="secret_detected",
         )
         data = json.loads(result["output"])
         assert data["cancel"] is True
         assert "Secret found" in data["errorMessage"]
-        assert "contextModification" not in data
+        assert "blocked by ai-guardian" in data["contextModification"]
+        assert "Secret found" not in data["contextModification"]
 
     def test_cline_allow_with_message(self):
         result = ClineAdapter().format_response(
@@ -761,15 +773,20 @@ class TestAgentFacingMessages:
         data = json.loads(result["output"])
         assert data == {}
 
-    def test_claude_code_pretooluse_block_unchanged(self):
+    def test_claude_code_pretooluse_block_has_sanitized_context(self):
         result = ClaudeCodeAdapter().format_response(
             has_secrets=True,
-            error_message="Secret found",
+            error_message="Secret found: matched pattern /sk-[a-z]+/",
             hook_event=HookEvent.PRE_TOOL_USE,
+            violation_type="secret_detected",
         )
         data = json.loads(result["output"])
         assert data["hookSpecificOutput"]["permissionDecision"] == "deny"
-        assert "additionalContext" not in data.get("hookSpecificOutput", {})
+        ctx = data["hookSpecificOutput"]["additionalContext"]
+        assert "blocked by ai-guardian" in ctx
+        assert "secret detected" in ctx
+        assert "sk-" not in ctx
+        assert "matched pattern" not in ctx
 
     # -- Cursor: agent_message --
 
@@ -812,15 +829,18 @@ class TestAgentFacingMessages:
         assert data["decision"] == "block"
         assert "additionalContext" not in data.get("hookSpecificOutput", {})
 
-    def test_cursor_pretooluse_block_no_agent_message(self):
+    def test_cursor_pretooluse_block_has_agent_message(self):
         result = CursorAdapter().format_response(
             has_secrets=True,
-            error_message="Secret found",
+            error_message="Secret found: API key sk-test123",
             hook_event=HookEvent.PRE_TOOL_USE,
+            violation_type="secret_detected",
         )
         data = json.loads(result["output"])
         assert data["permission"] == "deny"
-        assert "agent_message" not in data
+        ctx = data["agent_message"]
+        assert "blocked by ai-guardian" in ctx
+        assert "sk-test123" not in ctx
 
     # -- Gemini CLI: hookSpecificOutput.additionalContext --
 
@@ -935,6 +955,27 @@ class TestAgentFacingMessages:
             hook_event=HookEvent.PROMPT,
         )
         assert result["exit_code"] == 1
+
+    # -- Sanitized block reason helper --
+
+    def test_sanitize_block_reason_known_types(self):
+        adapter = ClaudeCodeAdapter()
+        assert adapter._sanitize_block_reason("secret_detected") == \
+            "Operation blocked by ai-guardian: secret detected"
+        assert adapter._sanitize_block_reason("prompt_injection") == \
+            "Operation blocked by ai-guardian: prompt injection detected"
+        assert adapter._sanitize_block_reason("directory_blocking") == \
+            "Operation blocked by ai-guardian: directory access blocked"
+        assert adapter._sanitize_block_reason("tool_permission") == \
+            "Operation blocked by ai-guardian: tool permission denied"
+        assert adapter._sanitize_block_reason("ssrf_blocked") == \
+            "Operation blocked by ai-guardian: SSRF protection triggered"
+
+    def test_sanitize_block_reason_unknown_type(self):
+        assert "security violation" in ClaudeCodeAdapter._sanitize_block_reason("unknown_type")
+
+    def test_sanitize_block_reason_none(self):
+        assert "security violation" in ClaudeCodeAdapter._sanitize_block_reason(None)
 
 
 # ── Warning + Error Combination ─────────────────────────────────────────
