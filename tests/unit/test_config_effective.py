@@ -5,7 +5,7 @@ import os
 import sys
 import pytest
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import patch, MagicMock
 
 
 @pytest.fixture
@@ -272,8 +272,51 @@ class TestWebConfigEffective:
         from ai_guardian.web.pages.config_effective import _provenance_label
         assert _provenance_label("project") == "Project"
         assert _provenance_label("global") == "Global"
+        assert _provenance_label("generated") == "Generated"
 
     def test_provenance_color(self):
         from ai_guardian.web.pages.config_effective import _provenance_color
         assert _provenance_color("project") == "blue"
         assert _provenance_color("global") == "grey-6"
+        assert _provenance_color("generated") == "amber-8"
+
+    def test_inject_generated_rules_adds_provenance(self):
+        """Generated rules should be injected with 'generated' provenance."""
+        from ai_guardian.web.pages.config_effective import _inject_generated_rules
+        merged = {
+            "permissions": {
+                "auto_directory_rules": {"enabled": True},
+                "rules": [{"matcher": "Skill", "mode": "allow", "patterns": ["test-*"]}],
+            },
+            "directory_rules": {"action": "block", "rules": []},
+        }
+        provenance = {
+            "directory_rules": {"action": "global", "rules": []},
+        }
+        with patch(
+            "ai_guardian.directory_rule_generator.DirectoryRuleGenerator"
+        ) as mock_cls:
+            mock_gen = MagicMock()
+            mock_gen.generate_directory_rules.return_value = [
+                {"mode": "allow", "paths": ["~/.claude/skills/s1/**"], "_generated": True}
+            ]
+            mock_cls.return_value = mock_gen
+            with patch(
+                "ai_guardian.directory_rule_generator.insert_generated_rules"
+            ) as mock_insert:
+                _inject_generated_rules(merged, provenance)
+                mock_insert.assert_called_once()
+                # Provenance should have generated entries
+                rules_prov = provenance["directory_rules"]["rules"]
+                assert any(
+                    isinstance(e, dict) and e.get("source") == "generated"
+                    for e in rules_prov
+                )
+
+    def test_inject_generated_rules_noop_when_disabled(self):
+        """No injection when auto_directory_rules is disabled."""
+        from ai_guardian.web.pages.config_effective import _inject_generated_rules
+        merged = {"permissions": {"auto_directory_rules": {"enabled": False}}}
+        provenance = {}
+        _inject_generated_rules(merged, provenance)
+        assert "directory_rules" not in merged

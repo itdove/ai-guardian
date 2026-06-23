@@ -32,8 +32,8 @@ class TestConfigDisplay:
         assert "Tool Permissions" in output
         assert "enabled: True" in output
 
-    def test_show_user_rules_only_by_default(self):
-        """Should show only user rules by default (not generated)."""
+    def test_generated_rules_shown_by_default(self):
+        """Should show generated rules by default with [GENERATED] label."""
         config = {
             "permissions": {
                 "enabled": True,
@@ -47,10 +47,10 @@ class TestConfigDisplay:
         display = ConfigDisplay(config)
         output = display.show(show_all=False)
 
-        # Generated rule should NOT appear
-        assert "test-*" not in output
-        # User rule should appear
+        # Both rules should appear
         assert "daf-*" in output
+        assert "test-*" in output
+        assert "[GENERATED]" in output
 
     def test_show_all_includes_generated(self):
         """Should show generated rules when show_all=True."""
@@ -322,6 +322,45 @@ class TestConfigDisplay:
         assert "✓" in output or "✗" in output
 
 
+    def test_json_output_includes_generated_rules(self):
+        """JSON output should include generated rules with _generated marker."""
+        import json
+        config = {
+            "directory_rules": {
+                "action": "block",
+                "rules": [
+                    {"mode": "deny", "paths": ["~/.ssh/**"]},
+                    {"mode": "allow", "paths": ["~/.claude/skills/test/**"], "_generated": True}
+                ]
+            }
+        }
+
+        display = ConfigDisplay(config)
+        output = display.show(output_json=True)
+        parsed = json.loads(output)
+
+        rules = parsed["directory_rules"]["rules"]
+        assert len(rules) == 2
+        assert any(r.get("_generated") for r in rules)
+
+    def test_legend_shown_when_generated_rules_exist(self):
+        """Legend should appear when generated rules exist, even without --all."""
+        config = {
+            "permissions": {
+                "enabled": True,
+                "rules": [
+                    {"matcher": "Skill", "mode": "allow", "patterns": ["gen-*"], "_generated": True}
+                ]
+            }
+        }
+
+        display = ConfigDisplay(config)
+        output = display.show(show_all=False)
+
+        assert "LEGEND" in output
+        assert "[GENERATED]" in output
+
+
 class TestMultiIDEDisplaySupport:
     """Test display of multi-IDE skill directories."""
 
@@ -399,8 +438,8 @@ class TestImmutableRuleVisibility:
         assert "[IMMUTABLE]" in output
         assert "enterprise-policy.json" in output
 
-    def test_immutable_rules_shown_even_without_all_flag(self):
-        """Immutable rules should be visible even with show_all=False."""
+    def test_all_rule_types_shown_without_all_flag(self):
+        """All rule types (user, generated, immutable) visible without --all."""
         config = {
             "directory_rules": {
                 "action": "block",
@@ -415,10 +454,9 @@ class TestImmutableRuleVisibility:
         display = ConfigDisplay(config)
         output = display.show(show_all=False)
 
-        # Generated should be hidden
-        assert "safe" not in output or "[GENERATED]" not in output
-
-        # User and immutable should be shown
+        # All three types should be visible
+        assert "~/.claude/skills/safe/**" in output
+        assert "[GENERATED]" in output
         assert "~/.ssh/**" in output
         assert "~/.aws/**" in output
 
