@@ -233,7 +233,69 @@ When AI tries to execute a tool:
 6. Tool executes OR user gets error
 ```
 
-**Important:** Deny rules take precedence over allow rules (deny-first approach)
+**Important:** MCP servers and Skills are blocked by default (deny-by-default posture). Built-in tools are allowed because hooks scan their content. See [Default Security Posture](#default-security-posture).
+
+### Rule Evaluation Order (Last-Match-Wins)
+
+Both `permissions.rules` and `directory_rules.rules` are evaluated **in array order**. The **last matching rule wins**.
+
+This means rule ordering matters:
+
+**Correct — deny broad, then allow specific:**
+```json
+{
+  "permissions": {
+    "rules": [
+      { "matcher": "Skill", "mode": "deny", "patterns": ["team-*"] },
+      { "matcher": "Skill", "mode": "allow", "patterns": ["team-safe"] }
+    ]
+  }
+}
+```
+Result: `team-safe` is allowed (last match), all other `team-*` skills are denied.
+
+**Wrong — allow first, then deny-all (kills the allow):**
+```json
+{
+  "permissions": {
+    "rules": [
+      { "matcher": "Skill", "mode": "allow", "patterns": ["team-safe"] },
+      { "matcher": "Skill", "mode": "deny", "patterns": ["team-*"] }
+    ]
+  }
+}
+```
+Result: `team-safe` is **denied** because the deny-all rule comes last and overrides the earlier allow.
+
+The same applies to `directory_rules`:
+
+**Correct — deny home, then allow workspace:**
+```json
+{
+  "directory_rules": {
+    "rules": [
+      { "mode": "deny", "paths": ["~/**"] },
+      { "mode": "allow", "paths": ["~/development/workspace/**"] }
+    ]
+  }
+}
+```
+Result: Only `~/development/workspace/` is accessible. All other home paths are denied.
+
+**Wrong — allow workspace first, then deny home (kills the allow):**
+```json
+{
+  "directory_rules": {
+    "rules": [
+      { "mode": "allow", "paths": ["~/development/workspace/**"] },
+      { "mode": "deny", "paths": ["~/**"] }
+    ]
+  }
+}
+```
+Result: The workspace allow is overridden — **everything** under `~/` is denied, including the workspace.
+
+> **Rule of thumb:** Place broad deny rules first, then narrow allow rules after.
 
 ---
 

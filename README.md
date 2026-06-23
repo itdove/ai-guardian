@@ -383,6 +383,9 @@ Publishing attack patterns makes them easier to misuse and would cause ai-guardi
 **Q: What's `permissions` vs `permissions_directories` vs `directory_rules`?**
 `permissions` = which **tools** can run. `permissions_directories` = auto-discover tool permissions from repos. `directory_rules` = which **paths** can be accessed. See [docs/TOOL_POLICY.md](https://github.com/itdove/ai-guardian/blob/main/docs/TOOL_POLICY.md) and [docs/security/DIRECTORY_RULES.md](https://github.com/itdove/ai-guardian/blob/main/docs/security/DIRECTORY_RULES.md).
 
+**Q: How are multiple rules evaluated?**
+Both `permissions.rules` and `directory_rules` use **last-match-wins**: rules are checked in array order and the last matching rule determines the outcome. Place broad deny rules first, then specific allow rules after. Common mistake: putting an allow rule before a deny-all — the deny-all wins because it comes last. See [docs/TOOL_POLICY.md](https://github.com/itdove/ai-guardian/blob/main/docs/TOOL_POLICY.md#rule-evaluation-order-last-match-wins).
+
 ## License
 
 Apache 2.0 - see [LICENSE](https://github.com/itdove/ai-guardian/blob/main/LICENSE) file for details.
