@@ -4268,6 +4268,13 @@ def process_hook_data(hook_data, daemon_state=None):
                                           dialog_wait_ms=ask_result.dialog_wait_ms)
                         return format_response(ide_type, has_secrets=False, hook_event=hook_event,
                                              warning_message=info_msg)
+                    else:
+                        result = format_response(ide_type, has_secrets=True,
+                                                 error_message=error_message,
+                                                 hook_event=hook_event,
+                                                 violation_type=ViolationType.SECRET_DETECTED)
+                        _advance_transcript_position(hook_data)
+                        return result
 
                 # Check if redaction is enabled
                 redaction_config, redaction_error = _load_secret_redaction_config()
@@ -5905,6 +5912,7 @@ def process_hook_data(hook_data, daemon_state=None):
         # Fail-open: allow operation on errors
         return {"output": None, "exit_code": 0}
     finally:
+        logging.disable(logging.NOTSET)
         _finalize_latency(_latency_timer, _latency_event, _latency_tool)
         if (_latency_timer is not None and _latency_timer.ask_wait_total_ms > 0
                 and daemon_state is not None):

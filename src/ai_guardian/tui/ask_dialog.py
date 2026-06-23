@@ -12,6 +12,7 @@ Shared types and dispatch live here. Tier-specific implementations:
   - tui/ask_dialog_textual.py  — Textual (terminal)
 """
 
+import json
 import logging
 import os
 import platform
@@ -71,6 +72,7 @@ class AskResult:
     ignore_path: Optional[str] = None
     ignore_scanner_types: Optional[List[str]] = None
     config_path: Optional[str] = None
+    per_finding_results: Optional[List] = None
 
 
 def build_dialog_title(violation_info: AskViolationInfo) -> str:
@@ -158,24 +160,27 @@ def _save_pattern_to_config(
 
 def _write_config_text(json_text: str, config_path_str: Optional[str] = None) -> bool:
     """Write JSON text directly to ai-guardian.json with backup. Returns True on success."""
-    import shutil
     from pathlib import Path
+    try:
+        new_config = json.loads(json_text)
+    except json.JSONDecodeError as e:
+        logger.warning("Invalid JSON, not writing config: %s", e)
+        return False
     try:
         if config_path_str:
             config_path = Path(config_path_str)
         else:
             from ai_guardian.config_utils import get_config_dir
             config_path = get_config_dir() / "ai-guardian.json"
-        config_path.parent.mkdir(parents=True, exist_ok=True)
-        if config_path.exists():
-            shutil.copy2(config_path, config_path.with_suffix(".json.bak"))
-        config_path.write_text(json_text, encoding="utf-8")
-        try:
-            from ai_guardian.config_loaders import _clear_config_cache
-            _clear_config_cache()
-        except ImportError:
-            pass  # intentionally silent — optional dependency
-        return True
+
+        from ai_guardian.config_writer import _atomic_config_update
+
+        def _replace_config(config):
+            config.clear()
+            config.update(new_config)
+            return False, "Manual config update from pattern editor"
+
+        return _atomic_config_update(config_path, _replace_config)
     except Exception as e:
         logger.warning("Failed to write config: %s", e)
         return False

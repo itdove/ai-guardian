@@ -86,7 +86,7 @@ class LatencyLogger:
             with self._lock:
                 with open(self.log_path, "a", encoding="utf-8") as f:
                     f.write(line)
-            self._rotate_if_needed()
+                self._rotate_if_needed_locked()
         except Exception as e:
             logger.debug(f"Latency log write failed (non-fatal): {e}")
 
@@ -124,6 +124,12 @@ class LatencyLogger:
         return is_feature_enabled(self.config.get("enabled"), default=False)
 
     def _rotate_if_needed(self):
+        """Rotate log file if needed (acquires lock)."""
+        with self._lock:
+            self._rotate_if_needed_locked()
+
+    def _rotate_if_needed_locked(self):
+        """Rotate log file if needed (caller must hold self._lock)."""
         try:
             if not self.log_path.exists():
                 return
@@ -131,25 +137,24 @@ class LatencyLogger:
             retention_days = self.config.get("retention_days", 30)
             cutoff = datetime.now(timezone.utc) - timedelta(days=retention_days)
 
-            with self._lock:
-                entries = []
-                with open(self.log_path, "r", encoding="utf-8") as f:
-                    for line in f:
-                        try:
-                            entries.append(json.loads(line))
-                        except json.JSONDecodeError:
-                            continue
+            entries = []
+            with open(self.log_path, "r", encoding="utf-8") as f:
+                for line in f:
+                    try:
+                        entries.append(json.loads(line))
+                    except json.JSONDecodeError:
+                        continue
 
-                entries = [
-                    e for e in entries
-                    if _parse_timestamp(e.get("timestamp")) > cutoff
-                ]
-                if len(entries) > max_entries:
-                    entries = entries[-max_entries:]
+            entries = [
+                e for e in entries
+                if _parse_timestamp(e.get("timestamp")) > cutoff
+            ]
+            if len(entries) > max_entries:
+                entries = entries[-max_entries:]
 
-                with open(self.log_path, "w", encoding="utf-8") as f:
-                    for entry in entries:
-                        f.write(json.dumps(entry) + "\n")
+            with open(self.log_path, "w", encoding="utf-8") as f:
+                for entry in entries:
+                    f.write(json.dumps(entry) + "\n")
         except Exception as e:
             logger.debug(f"Latency log rotation failed (non-fatal): {e}")
 
