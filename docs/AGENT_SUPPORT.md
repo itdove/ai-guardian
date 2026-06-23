@@ -77,6 +77,42 @@ Agents with full hook support not shown individually (Windsurf, Gemini CLI, Clin
 
 ## Known Limitations
 
+### Claude Code upstream issues
+
+These are open issues in the Claude Code runtime that affect ai-guardian's enforcement capabilities. They apply only to Claude Code — other agents are not affected.
+
+#### PostToolUse `updatedToolOutput` not honored for Bash
+
+When ai-guardian redacts secrets or PII from Bash output via the `PostToolUse` hook, the redacted text is returned in `updatedToolOutput`. Claude Code currently ignores this field for Bash tool results, so the unredacted output remains visible to the model.
+
+- **Impact:** Secret and PII redaction in Bash output is bypassed. The model sees the original unredacted content.
+- **Workaround:** Use `block` action mode instead of `warn`/`log-only` for secrets and PII to prevent the tool call entirely. Directory rules can also block access to sensitive paths before Bash executes.
+- **Upstream:** [anthropics/claude-code#64326](https://github.com/anthropics/claude-code/issues/64326)
+
+#### PreToolUse skips image/binary file reads
+
+When Claude Code reads an image or binary file, the `PreToolUse` hook does not fire or does not include the file content in a scannable format. This prevents ai-guardian from scanning images for embedded secrets or PII.
+
+- **Impact:** Image-based secret and PII scanning (`image_secret`, `image_pii` violation types) cannot enforce on binary reads. The "Caution" rating in the coverage matrix reflects this.
+- **Workaround:** None. Use directory rules to block access to directories containing sensitive images.
+- **Upstream:** [anthropics/claude-code#62639](https://github.com/anthropics/claude-code/issues/62639)
+
+#### Skill invocations bypass permission hooks
+
+When Claude Code invokes a skill (slash command), the skill's tool calls do not trigger `PreToolUse` hooks. This means ai-guardian's tool permission rules, directory blocking, SSRF protection, and other PreToolUse-based enforcement are bypassed for tool calls made within a skill.
+
+- **Impact:** Tool permission enforcement, directory blocking, SSRF protection, secret scanning, and prompt injection detection are all bypassed for tool calls originating from skill invocations.
+- **Workaround:** None. Audit skills installed in the project and limit skill access to trusted sources.
+- **Upstream:** [anthropics/claude-code#66446](https://github.com/anthropics/claude-code/issues/66446)
+
+#### Tool result transform hook missing
+
+Claude Code does not provide a hook event that allows modifying tool results before they are shown to the model. The `PostToolUse` hook can inspect output but cannot reliably transform it (see the `updatedToolOutput` issue above for Bash).
+
+- **Impact:** Content sanitization (stripping detection patterns, redacting matched text) cannot be applied to tool results before the model processes them. Warn-mode messages may leak detection patterns into the model context.
+- **Workaround:** ai-guardian strips detection patterns from warn/log-only messages (see [#1327](https://github.com/itdove/ai-guardian/issues/1327)), but this only covers ai-guardian's own messages, not arbitrary tool output.
+- **Upstream:** [anthropics/claude-code#18653](https://github.com/anthropics/claude-code/issues/18653)
+
 ### Image scanning (all agents)
 
 Claude Code binary file reads bypass hooks — image content may not pass through PreToolUse in a scannable format. Image scanning works best when images are base64-encoded in tool output, not when read as raw binary. See [#801](https://github.com/itdove/ai-guardian/issues/801) for tracking.
