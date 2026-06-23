@@ -103,7 +103,6 @@ class CursorAdapter(HookAdapter):
                 final_error = self._combine_error_messages(error_message, warning_message)
                 if final_error:
                     response["user_message"] = final_error
-                response["agent_message"] = "Operation blocked by ai-guardian security policy"
             else:
                 agent_parts = []
                 if security_message:

@@ -113,6 +113,14 @@ class CopilotAdapter(HookAdapter):
                 final_error = self._combine_error_messages(error_message, warning_message)
                 if final_error:
                     response["permissionDecisionReason"] = final_error
+            else:
+                agent_parts = []
+                if security_message:
+                    agent_parts.append(security_message)
+                if warning_message:
+                    agent_parts.append(warning_message)
+                if agent_parts:
+                    response["additionalContext"] = "\n\n".join(agent_parts)
             return self._add_metadata(
                 {"output": json.dumps(response), "exit_code": 0},
                 has_secrets,
@@ -122,8 +130,22 @@ class CopilotAdapter(HookAdapter):
             if has_secrets and error_message:
                 final_error = self._combine_error_messages(error_message, warning_message)
                 print(final_error, file=sys.stderr)
+                return self._add_metadata(
+                    {"output": None, "exit_code": 2},
+                    has_secrets,
+                    violation_type,
+                )
+            response = {}
+            agent_parts = []
+            if security_message:
+                agent_parts.append(security_message)
+            if warning_message:
+                agent_parts.append(warning_message)
+            if agent_parts:
+                response["additionalContext"] = "\n\n".join(agent_parts)
+            output = json.dumps(response) if response else None
             return self._add_metadata(
-                {"output": None, "exit_code": 2 if has_secrets else 0},
+                {"output": output, "exit_code": 0},
                 has_secrets,
                 violation_type,
             )

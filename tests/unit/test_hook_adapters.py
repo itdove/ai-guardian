@@ -568,7 +568,7 @@ class TestResponseFormatting:
         data = json.loads(result["output"])
         assert data["permission"] == "deny"
         assert "Secret found" in data["user_message"]
-        assert data["agent_message"] == "Operation blocked by ai-guardian security policy"
+        assert "agent_message" not in data
 
     def test_cursor_pretooluse_allow(self):
         result = CursorAdapter().format_response(
@@ -653,7 +653,8 @@ class TestResponseFormatting:
         )
         data = json.loads(result["output"])
         assert data["cancel"] is True
-        assert "Secret found" in data["reason"]
+        assert "Secret found" in data["errorMessage"]
+        assert "contextModification" not in data
 
     def test_cline_allow_with_message(self):
         result = ClineAdapter().format_response(
@@ -662,7 +663,8 @@ class TestResponseFormatting:
             security_message="SECURITY RULES",
         )
         data = json.loads(result["output"])
-        assert "SECURITY RULES" in data["message"]
+        assert "SECURITY RULES" in data["contextModification"]
+        assert "message" not in data
 
     def test_kiro_block(self, capsys):
         result = KiroAdapter().format_response(
@@ -670,7 +672,7 @@ class TestResponseFormatting:
             error_message="Secret found",
             hook_event=HookEvent.PRE_TOOL_USE,
         )
-        assert result["exit_code"] == 1
+        assert result["exit_code"] == 2
         assert result["output"] is None
         captured = capsys.readouterr()
         assert "Secret found" in captured.err
@@ -800,7 +802,27 @@ class TestAgentFacingMessages:
         assert data["permission"] == "allow"
         assert "agent_message" not in data
 
-    # -- Gemini CLI: additionalContext --
+    def test_claude_code_posttooluse_block_no_additional_context(self):
+        result = ClaudeCodeAdapter().format_response(
+            has_secrets=True,
+            error_message="Secret in output",
+            hook_event=HookEvent.POST_TOOL_USE,
+        )
+        data = json.loads(result["output"])
+        assert data["decision"] == "block"
+        assert "additionalContext" not in data.get("hookSpecificOutput", {})
+
+    def test_cursor_pretooluse_block_no_agent_message(self):
+        result = CursorAdapter().format_response(
+            has_secrets=True,
+            error_message="Secret found",
+            hook_event=HookEvent.PRE_TOOL_USE,
+        )
+        data = json.loads(result["output"])
+        assert data["permission"] == "deny"
+        assert "agent_message" not in data
+
+    # -- Gemini CLI: hookSpecificOutput.additionalContext --
 
     def test_gemini_prompt_security_has_additional_context(self):
         result = GeminiCLIAdapter().format_response(
@@ -810,19 +832,109 @@ class TestAgentFacingMessages:
         )
         data = json.loads(result["output"])
         assert "SECURITY RULES" in data["systemMessage"]
-        assert "SECURITY RULES" in data["additionalContext"]
+        assert "SECURITY RULES" in data["hookSpecificOutput"]["additionalContext"]
 
-    # -- Cline: agent_context --
+    def test_gemini_posttooluse_warn_has_additional_context(self):
+        result = GeminiCLIAdapter().format_response(
+            has_secrets=False,
+            hook_event=HookEvent.POST_TOOL_USE,
+            warning_message="Log mode: secret in output",
+        )
+        data = json.loads(result["output"])
+        assert "Log mode: secret in output" in data["hookSpecificOutput"]["additionalContext"]
 
-    def test_cline_prompt_security_has_agent_context(self):
+    def test_gemini_pretooluse_warn_no_additional_context(self):
+        result = GeminiCLIAdapter().format_response(
+            has_secrets=False,
+            hook_event=HookEvent.PRE_TOOL_USE,
+            warning_message="Log mode: violation",
+        )
+        data = json.loads(result["output"])
+        assert "Log mode: violation" in data["systemMessage"]
+        assert "hookSpecificOutput" not in data
+
+    # -- Cline: contextModification --
+
+    def test_cline_prompt_security_has_context_modification(self):
         result = ClineAdapter().format_response(
             has_secrets=False,
             hook_event=HookEvent.PROMPT,
             security_message="SECURITY RULES",
         )
         data = json.loads(result["output"])
-        assert "SECURITY RULES" in data["message"]
-        assert "SECURITY RULES" in data["agent_context"]
+        assert "SECURITY RULES" in data["contextModification"]
+        assert "message" not in data
+        assert "agent_context" not in data
+
+    # -- Copilot: additionalContext --
+
+    def test_copilot_pretooluse_warn_has_additional_context(self):
+        result = CopilotAdapter().format_response(
+            has_secrets=False,
+            hook_event=HookEvent.PRE_TOOL_USE,
+            warning_message="Log mode: violation",
+        )
+        data = json.loads(result["output"])
+        assert "Log mode: violation" in data["additionalContext"]
+
+    def test_copilot_posttooluse_warn_has_additional_context(self):
+        result = CopilotAdapter().format_response(
+            has_secrets=False,
+            hook_event=HookEvent.POST_TOOL_USE,
+            warning_message="Log mode: secret in output",
+        )
+        data = json.loads(result["output"])
+        assert "Log mode: secret in output" in data["additionalContext"]
+
+    # -- Windsurf: exit codes + stderr --
+
+    def test_windsurf_block_uses_exit_code_2(self, capsys):
+        result = WindsurfAdapter().format_response(
+            has_secrets=True,
+            error_message="Secret found",
+            hook_event=HookEvent.PRE_TOOL_USE,
+        )
+        assert result["exit_code"] == 2
+        assert result["output"] is None
+        captured = capsys.readouterr()
+        assert "Secret found" in captured.err
+
+    def test_windsurf_warn_uses_stdout(self):
+        result = WindsurfAdapter().format_response(
+            has_secrets=False,
+            hook_event=HookEvent.PROMPT,
+            security_message="SECURITY RULES",
+        )
+        assert result["exit_code"] == 0
+        assert "SECURITY RULES" in result["output"]
+
+    def test_windsurf_allow_no_output(self):
+        result = WindsurfAdapter().format_response(
+            has_secrets=False,
+            hook_event=HookEvent.PRE_TOOL_USE,
+        )
+        assert result["exit_code"] == 0
+        assert result["output"] is None
+
+    # -- Kiro: exit code 2 for preToolUse --
+
+    def test_kiro_pretooluse_block_exit_code_2(self, capsys):
+        result = KiroAdapter().format_response(
+            has_secrets=True,
+            error_message="Secret found",
+            hook_event=HookEvent.PRE_TOOL_USE,
+        )
+        assert result["exit_code"] == 2
+        captured = capsys.readouterr()
+        assert "Secret found" in captured.err
+
+    def test_kiro_prompt_block_exit_code_1(self, capsys):
+        result = KiroAdapter().format_response(
+            has_secrets=True,
+            error_message="Injection detected",
+            hook_event=HookEvent.PROMPT,
+        )
+        assert result["exit_code"] == 1
 
 
 # ── Warning + Error Combination ─────────────────────────────────────────

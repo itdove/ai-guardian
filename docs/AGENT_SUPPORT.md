@@ -183,31 +183,36 @@ Each agent uses different event names. The adapter layer normalizes these.
 | GitHub Copilot | JSON (PreToolUse) or exit code 2 | `{"permissionDecision": "deny"}` |
 | Gemini CLI | JSON `decision` field | `{"decision": "deny", "reason": "..."}` |
 | Cline | JSON `cancel` field | `{"cancel": true, "reason": "..."}` |
-| Kiro | Exit code 1 + stderr | stderr = error message |
-| Windsurf | Same as Claude Code | Same as Claude Code |
+| Kiro | Exit code 2 (PreToolUse) or 1 (other) + stderr | stderr = error message |
+| Windsurf | Exit code 2 + stderr | stderr = error message |
 | Codex | Same as Claude Code | Same as Claude Code |
 | OpenCode | Same as Claude Code | Same as Claude Code |
 
 ## Agent-Facing Message Delivery
 
-When ai-guardian detects a non-blocking issue (warn/log mode) or injects security rules, the message must reach both the user and the AI agent. Different agents use different mechanisms for agent-visible messages:
+When ai-guardian detects a non-blocking issue (warn/log mode) or injects security rules, the message must reach both the user and the AI agent. Agent-facing fields are used for **warn/log-only messages only** — block responses do NOT inject context into the agent.
 
-| Agent | User-facing field | Agent-facing field | Status |
-|-------|------------------|-------------------|--------|
-| Claude Code | `systemMessage` | `hookSpecificOutput.additionalContext` | Confirmed |
-| Windsurf | `systemMessage` | `hookSpecificOutput.additionalContext` | Confirmed (inherits Claude Code) |
-| OpenCode | `systemMessage` | `hookSpecificOutput.additionalContext` | Confirmed (inherits Claude Code) |
-| Augment | `systemMessage` | `hookSpecificOutput.additionalContext` | Confirmed (inherits Claude Code) |
-| Codex | `systemMessage` | `hookSpecificOutput.additionalContext` | Confirmed (inherits Claude Code) |
-| Cursor | `user_message` | `agent_message` | Confirmed |
-| Gemini CLI | `systemMessage` | `additionalContext` | Best-effort |
-| Cline | `message` | `agent_context` | Best-effort |
-| Kiro | stderr (errors) | stdout | Confirmed (process I/O) |
-| Copilot | stderr | N/A | No non-blocking agent channel |
+| Agent | User-facing field | Agent-facing field | Events | Status |
+|-------|------------------|-------------------|--------|--------|
+| Claude Code | `systemMessage` | `hookSpecificOutput.additionalContext` | All | Confirmed |
+| Augment | `systemMessage` | `hookSpecificOutput.additionalContext` | All | Confirmed (inherits Claude Code) |
+| Codex | `systemMessage` | `hookSpecificOutput.additionalContext` | All | Confirmed (inherits Claude Code) |
+| OpenCode | `systemMessage` | `hookSpecificOutput.additionalContext` | All | Best-effort (bridge plugin) |
+| Cursor | `user_message` | `agent_message` | All | Confirmed |
+| Gemini CLI | `systemMessage` | `hookSpecificOutput.additionalContext` | Prompt, PostToolUse | Confirmed |
+| Cline | `errorMessage` (block) | `contextModification` | All | Confirmed |
+| Kiro | stderr (errors) | stdout | Prompt, PreToolUse | Confirmed (process I/O) |
+| Copilot | `permissionDecisionReason` (deny) | `additionalContext` | PreToolUse, PostToolUse | Best-effort (see bugs) |
+| Windsurf | stderr (exit 2) | stdout (exit 0) | PreToolUse (block) | Limited |
 
-**Confirmed** fields are documented in the agent's hook protocol and verified to reach the AI model. **Best-effort** fields are added speculatively — they are harmless if the agent ignores unknown JSON fields, and will work automatically if the agent adds support.
+**Confirmed** — documented in the agent's hook protocol and verified to reach the AI model. **Best-effort** — field exists in spec but has known implementation bugs. **Limited** — only blocking responses have a confirmed agent channel.
 
-`systemMessage` is preserved for backward compatibility and user display. The agent-facing field is added alongside it, not as a replacement.
+### Known Limitations
+
+- **Gemini CLI PreToolUse**: `additionalContext` is not supported for BeforeTool responses — only BeforeAgent (Prompt) and AfterTool (PostToolUse). Non-blocking PreToolUse messages display to the user via `systemMessage` only.
+- **Copilot CLI**: `additionalContext` is documented for PreToolUse and PostToolUse but is silently dropped due to bugs ([#2585](https://github.com/github/copilot-cli/issues/2585), [#2980](https://github.com/github/copilot-cli/issues/2980)). ai-guardian sends it anyway so it works automatically when the bugs are fixed.
+- **Windsurf**: No non-blocking agent-visible channel exists. Only stderr on exit code 2 (blocking) reaches the Cascade agent. Non-blocking warn messages are written to stdout as best-effort.
+- **OpenCode**: The bridge plugin translates to Claude Code format, but native OpenCode plugins do not support `additionalContext`. Agent-visible message delivery depends on the bridge implementation.
 
 ## Architecture
 

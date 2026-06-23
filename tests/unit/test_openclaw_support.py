@@ -39,7 +39,7 @@ class TestOpenClawResponseFormat:
             error_message="Secret detected in command",
             hook_event=HookEvent.PRE_TOOL_USE,
         )
-        assert result["exit_code"] == 1
+        assert result["exit_code"] == 2
         assert result["output"] is None
         assert result["_blocked"] is True
         captured = capsys.readouterr()
