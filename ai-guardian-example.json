@@ -38,6 +38,9 @@
     "_comment3": "This is the actual enforcement layer - rules here are checked when tools execute",
     "_comment4": "Works with permissions_directories (auto-discovery feeds INTO this section)",
     "_comment5": "NEW unified structure in v1.4.0: combines enabled flag and rules in one object",
+    "_comment6": "⚠️ RULE ORDER MATTERS: Rules are evaluated sequentially - LAST matching rule wins",
+    "_comment7": "  ✅ Correct: deny broad first, then allow specific after",
+    "_comment8": "  ❌ Wrong:   allow specific first, then deny broad (kills the allow)",
     "enabled": true,
     "auto_directory_rules": {
       "_comment": "Auto-generate directory rules from skill permissions (Issue #144)",
