@@ -188,6 +188,27 @@ Each agent uses different event names. The adapter layer normalizes these.
 | Codex | Same as Claude Code | Same as Claude Code |
 | OpenCode | Same as Claude Code | Same as Claude Code |
 
+## Agent-Facing Message Delivery
+
+When ai-guardian detects a non-blocking issue (warn/log mode) or injects security rules, the message must reach both the user and the AI agent. Different agents use different mechanisms for agent-visible messages:
+
+| Agent | User-facing field | Agent-facing field | Status |
+|-------|------------------|-------------------|--------|
+| Claude Code | `systemMessage` | `hookSpecificOutput.additionalContext` | Confirmed |
+| Windsurf | `systemMessage` | `hookSpecificOutput.additionalContext` | Confirmed (inherits Claude Code) |
+| OpenCode | `systemMessage` | `hookSpecificOutput.additionalContext` | Confirmed (inherits Claude Code) |
+| Augment | `systemMessage` | `hookSpecificOutput.additionalContext` | Confirmed (inherits Claude Code) |
+| Codex | `systemMessage` | `hookSpecificOutput.additionalContext` | Confirmed (inherits Claude Code) |
+| Cursor | `user_message` | `agent_message` | Confirmed |
+| Gemini CLI | `systemMessage` | `additionalContext` | Best-effort |
+| Cline | `message` | `agent_context` | Best-effort |
+| Kiro | stderr (errors) | stdout | Confirmed (process I/O) |
+| Copilot | stderr | N/A | No non-blocking agent channel |
+
+**Confirmed** fields are documented in the agent's hook protocol and verified to reach the AI model. **Best-effort** fields are added speculatively — they are harmless if the agent ignores unknown JSON fields, and will work automatically if the agent adds support.
+
+`systemMessage` is preserved for backward compatibility and user display. The agent-facing field is added alongside it, not as a replacement.
+
 ## Architecture
 
 ### Adapter Layer

@@ -700,6 +700,131 @@ class TestResponseFormatting:
         assert "redacted" in result["output"]
 
 
+# ── Agent-Facing Message Delivery (#1334) ──────────────────────────────
+
+
+class TestAgentFacingMessages:
+    """Test that warn/security messages reach the AI agent via agent-facing fields."""
+
+    # -- Claude Code: additionalContext --
+
+    def test_claude_code_prompt_security_has_additional_context(self):
+        result = ClaudeCodeAdapter().format_response(
+            has_secrets=False,
+            hook_event=HookEvent.PROMPT,
+            security_message="SECURITY RULES",
+        )
+        data = json.loads(result["output"])
+        assert "SECURITY RULES" in data["systemMessage"]
+        assert data["hookSpecificOutput"]["additionalContext"] == "SECURITY RULES"
+        assert data["hookSpecificOutput"]["hookEventName"] == "UserPromptSubmit"
+
+    def test_claude_code_prompt_security_and_warning_has_additional_context(self):
+        result = ClaudeCodeAdapter().format_response(
+            has_secrets=False,
+            hook_event=HookEvent.PROMPT,
+            security_message="SECURITY RULES",
+            warning_message="Config warning",
+        )
+        data = json.loads(result["output"])
+        assert "SECURITY RULES" in data["hookSpecificOutput"]["additionalContext"]
+        assert "Config warning" in data["hookSpecificOutput"]["additionalContext"]
+
+    def test_claude_code_pretooluse_warn_has_additional_context(self):
+        result = ClaudeCodeAdapter().format_response(
+            has_secrets=False,
+            hook_event=HookEvent.PRE_TOOL_USE,
+            warning_message="Log mode: tool policy violation",
+        )
+        data = json.loads(result["output"])
+        assert data["systemMessage"] == "Log mode: tool policy violation"
+        assert data["hookSpecificOutput"]["additionalContext"] == "Log mode: tool policy violation"
+        assert data["hookSpecificOutput"]["hookEventName"] == "PreToolUse"
+
+    def test_claude_code_posttooluse_warn_has_additional_context(self):
+        result = ClaudeCodeAdapter().format_response(
+            has_secrets=False,
+            hook_event=HookEvent.POST_TOOL_USE,
+            warning_message="Log mode: secret detected in output",
+        )
+        data = json.loads(result["output"])
+        assert data["systemMessage"] == "Log mode: secret detected in output"
+        assert data["hookSpecificOutput"]["additionalContext"] == "Log mode: secret detected in output"
+
+    def test_claude_code_pretooluse_allow_no_additional_context(self):
+        result = ClaudeCodeAdapter().format_response(
+            has_secrets=False,
+            hook_event=HookEvent.PRE_TOOL_USE,
+        )
+        data = json.loads(result["output"])
+        assert data == {}
+
+    def test_claude_code_pretooluse_block_unchanged(self):
+        result = ClaudeCodeAdapter().format_response(
+            has_secrets=True,
+            error_message="Secret found",
+            hook_event=HookEvent.PRE_TOOL_USE,
+        )
+        data = json.loads(result["output"])
+        assert data["hookSpecificOutput"]["permissionDecision"] == "deny"
+        assert "additionalContext" not in data.get("hookSpecificOutput", {})
+
+    # -- Cursor: agent_message --
+
+    def test_cursor_prompt_security_has_agent_message(self):
+        result = CursorAdapter().format_response(
+            has_secrets=False,
+            hook_event=HookEvent.PROMPT,
+            security_message="SECURITY RULES",
+        )
+        data = json.loads(result["output"])
+        assert data["continue"] is True
+        assert "SECURITY RULES" in data["agent_message"]
+
+    def test_cursor_pretooluse_warn_has_agent_message(self):
+        result = CursorAdapter().format_response(
+            has_secrets=False,
+            hook_event=HookEvent.PRE_TOOL_USE,
+            warning_message="Log mode: violation detected",
+        )
+        data = json.loads(result["output"])
+        assert data["permission"] == "allow"
+        assert "Log mode: violation detected" in data["agent_message"]
+
+    def test_cursor_pretooluse_allow_no_agent_message(self):
+        result = CursorAdapter().format_response(
+            has_secrets=False,
+            hook_event=HookEvent.PRE_TOOL_USE,
+        )
+        data = json.loads(result["output"])
+        assert data["permission"] == "allow"
+        assert "agent_message" not in data
+
+    # -- Gemini CLI: additionalContext --
+
+    def test_gemini_prompt_security_has_additional_context(self):
+        result = GeminiCLIAdapter().format_response(
+            has_secrets=False,
+            hook_event=HookEvent.PROMPT,
+            security_message="SECURITY RULES",
+        )
+        data = json.loads(result["output"])
+        assert "SECURITY RULES" in data["systemMessage"]
+        assert "SECURITY RULES" in data["additionalContext"]
+
+    # -- Cline: agent_context --
+
+    def test_cline_prompt_security_has_agent_context(self):
+        result = ClineAdapter().format_response(
+            has_secrets=False,
+            hook_event=HookEvent.PROMPT,
+            security_message="SECURITY RULES",
+        )
+        data = json.loads(result["output"])
+        assert "SECURITY RULES" in data["message"]
+        assert "SECURITY RULES" in data["agent_context"]
+
+
 # ── Warning + Error Combination ─────────────────────────────────────────
 
 

@@ -86,6 +86,9 @@ class ClaudeCodeAdapter(HookAdapter):
                 response = {}
                 if warning_message:
                     response["systemMessage"] = warning_message
+                    if "hookSpecificOutput" not in response:
+                        response["hookSpecificOutput"] = {"hookEventName": "PostToolUse"}
+                    response["hookSpecificOutput"]["additionalContext"] = warning_message
                 if modified_output is not None:
                     if "hookSpecificOutput" not in response:
                         response["hookSpecificOutput"] = {"hookEventName": "PostToolUse"}
@@ -106,7 +109,12 @@ class ClaudeCodeAdapter(HookAdapter):
                 if warning_message:
                     parts.append(warning_message)
                 if parts:
-                    response["systemMessage"] = "\n\n".join(parts)
+                    combined = "\n\n".join(parts)
+                    response["systemMessage"] = combined
+                    response["hookSpecificOutput"] = {
+                        "hookEventName": "UserPromptSubmit",
+                        "additionalContext": combined,
+                    }
         else:
             # PreToolUse
             if has_secrets and error_message:
@@ -118,7 +126,13 @@ class ClaudeCodeAdapter(HookAdapter):
                     "systemMessage": final_error,
                 }
             elif warning_message:
-                response = {"systemMessage": warning_message}
+                response = {
+                    "systemMessage": warning_message,
+                    "hookSpecificOutput": {
+                        "hookEventName": "PreToolUse",
+                        "additionalContext": warning_message,
+                    },
+                }
             else:
                 response = {}
 

@@ -89,7 +89,9 @@ class ClineAdapter(HookAdapter):
             if warning_message:
                 parts.append(warning_message)
             if parts:
-                response["message"] = "\n\n".join(parts)
+                combined = "\n\n".join(parts)
+                response["message"] = combined
+                response["agent_context"] = combined
 
         return self._add_metadata(
             {"output": json.dumps(response), "exit_code": 0},

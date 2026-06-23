@@ -104,12 +104,28 @@ class CursorAdapter(HookAdapter):
                 if final_error:
                     response["user_message"] = final_error
                 response["agent_message"] = "Operation blocked by ai-guardian security policy"
+            else:
+                agent_parts = []
+                if security_message:
+                    agent_parts.append(security_message)
+                if warning_message:
+                    agent_parts.append(warning_message)
+                if agent_parts:
+                    response["agent_message"] = "\n\n".join(agent_parts)
         else:
             response = {"continue": not has_secrets}
             if has_secrets:
                 final_error = self._combine_error_messages(error_message, warning_message)
                 if final_error:
                     response["user_message"] = final_error
+            else:
+                agent_parts = []
+                if security_message:
+                    agent_parts.append(security_message)
+                if warning_message:
+                    agent_parts.append(warning_message)
+                if agent_parts:
+                    response["agent_message"] = "\n\n".join(agent_parts)
 
         return self._add_metadata(
             {"output": json.dumps(response), "exit_code": 0},
