@@ -121,6 +121,7 @@ class ClaudeCodeAdapter(HookAdapter):
                     "hookSpecificOutput": {
                         "permissionDecision": "deny",
                         "hookEventName": "PreToolUse",
+                        "additionalContext": self._sanitize_block_reason(violation_type),
                     },
                     "systemMessage": final_error,
                 }

@@ -103,6 +103,7 @@ class CursorAdapter(HookAdapter):
                 final_error = self._combine_error_messages(error_message, warning_message)
                 if final_error:
                     response["user_message"] = final_error
+                response["agent_message"] = self._sanitize_block_reason(violation_type)
             else:
                 agent_parts = []
                 if security_message:

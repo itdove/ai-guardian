@@ -79,7 +79,11 @@ class GeminiCLIAdapter(HookAdapter):
     ) -> Dict:
         if has_secrets and error_message:
             final_error = self._combine_error_messages(error_message, warning_message)
-            response = {"decision": "deny", "reason": final_error}
+            response = {
+                "decision": "deny",
+                "reason": final_error,
+                "additionalContext": self._sanitize_block_reason(violation_type),
+            }
         else:
             response = {}
             parts = []
