@@ -2221,7 +2221,7 @@ def _format_ask_info_message(violation_type, decision, detail=""):
 
 def _log_ask_decision(violation_type, decision, matched_text="", error_msg="", file_path=None,
                       line_number=None, dialog_wait_ms=0.0):
-    """Log an ask-mode allow decision to violations.jsonl."""
+    """Log an ask-mode decision (allow or block) to violations.jsonl."""
     if not HAS_VIOLATION_LOGGER:
         return
     try:
@@ -2235,15 +2235,25 @@ def _log_ask_decision(violation_type, decision, matched_text="", error_msg="", f
             blocked_info["file_path"] = file_path
         if line_number:
             blocked_info["line_number"] = line_number
-        if decision == AskDecision.ALLOW_ALWAYS:
+        if decision == AskDecision.BLOCK:
+            decision_str = "block"
+            action_taken = "blocked"
+        elif decision == AskDecision.BLOCK_ALL:
+            decision_str = "block_all"
+            action_taken = "blocked"
+        elif decision == AskDecision.ALLOW_ALWAYS:
             decision_str = "allow_always"
+            action_taken = "allowed"
         elif decision == AskDecision.SUPPRESS_IN_SOURCE:
             decision_str = "suppress_in_source"
+            action_taken = "allowed"
         elif decision == AskDecision.IGNORE_FILE:
             decision_str = "ignore_file"
+            action_taken = "allowed"
         else:
             decision_str = "allow_once"
-        ctx = {"ask_decision": decision_str, "action_taken": "allowed"}
+            action_taken = "allowed"
+        ctx = {"ask_decision": decision_str, "action_taken": action_taken}
         if dialog_wait_ms > 0:
             ctx["dialog_wait_ms"] = round(dialog_wait_ms, 1)
         vlogger.log_violation(
@@ -4269,6 +4279,12 @@ def process_hook_data(hook_data, daemon_state=None):
                         return format_response(ide_type, has_secrets=False, hook_event=hook_event,
                                              warning_message=info_msg)
                     else:
+                        _log_ask_decision(ViolationType.SECRET_DETECTED, ask_result.decision,
+                                          matched_text=_last_secret_matched_text or "",
+                                          error_msg=error_message or "",
+                                          file_path=file_path if 'file_path' in dir() else None,
+                                          line_number=_last_secret_line_number,
+                                          dialog_wait_ms=ask_result.dialog_wait_ms)
                         result = format_response(ide_type, has_secrets=True,
                                                  error_message=error_message,
                                                  hook_event=hook_event,
@@ -4492,6 +4508,11 @@ def process_hook_data(hook_data, daemon_state=None):
                                                   dialog_wait_ms=pii_ask_result.dialog_wait_ms)
                             else:
                                 pii_action = 'block'
+                                _log_ask_decision(ViolationType.PII_DETECTED, pii_ask_result.decision,
+                                                  matched_text=pii_matched_text, error_msg=pii_warning or "",
+                                                  file_path=pii_file_path,
+                                                  line_number=pii_line_number,
+                                                  dialog_wait_ms=pii_ask_result.dialog_wait_ms)
 
                         if pii_action == 'block':
                             result = format_response(ide_type, has_secrets=True, hook_event=hook_event,
@@ -5634,6 +5655,13 @@ def process_hook_data(hook_data, daemon_state=None):
                                           file_path=file_path,
                                           line_number=_last_secret_line_number,
                                           dialog_wait_ms=ask_result_pre.dialog_wait_ms)
+                    else:
+                        _log_ask_decision(ViolationType.SECRET_DETECTED, ask_result_pre.decision,
+                                          matched_text=_last_secret_matched_text or "",
+                                          error_msg=error_message or "",
+                                          file_path=file_path,
+                                          line_number=_last_secret_line_number,
+                                          dialog_wait_ms=ask_result_pre.dialog_wait_ms)
 
             if has_secrets:
                 combined_warning = "\n\n".join(warning_messages) if warning_messages else None
@@ -5714,8 +5742,18 @@ def process_hook_data(hook_data, daemon_state=None):
                             from ai_guardian.tui.ask_dialog import AskDecision
                             if pii_ask_result2.decision not in (AskDecision.BLOCK, AskDecision.BLOCK_ALL):
                                 pii_action = 'warn'
+                                _log_ask_decision(ViolationType.PII_DETECTED, pii_ask_result2.decision,
+                                                  matched_text=pii_matched_text, error_msg=pii_warning or "",
+                                                  file_path=pii_file_path2,
+                                                  line_number=pii_line_number2,
+                                                  dialog_wait_ms=pii_ask_result2.dialog_wait_ms)
                             else:
                                 pii_action = 'block'
+                                _log_ask_decision(ViolationType.PII_DETECTED, pii_ask_result2.decision,
+                                                  matched_text=pii_matched_text, error_msg=pii_warning or "",
+                                                  file_path=pii_file_path2,
+                                                  line_number=pii_line_number2,
+                                                  dialog_wait_ms=pii_ask_result2.dialog_wait_ms)
 
                         if pii_action in ('block', 'redact'):
                             combined_warning = "\n\n".join(warning_messages) if warning_messages else None
