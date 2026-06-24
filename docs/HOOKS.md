@@ -24,7 +24,7 @@ Claude Code's hook system runs hooks sequentially, but only the **first hook's `
 
 - **PreToolUse**: Tool permissions, directory rules
 - **UserPromptSubmit**: Prompt injection  
-- **PostToolUse**: (No log mode warnings - secret scanning always blocks)
+- **PostToolUse**: (No log mode warnings - secret/prompt-injection/context-poisoning scanning always blocks)
 
 If another hook runs before ai-guardian, warnings are silently suppressed.
 
@@ -135,7 +135,7 @@ UserPromptSubmit says: ⚠️ Prompt injection detected (log mode): confidence=0
 
 **Displays:** No log mode warnings (secret scanning always blocks)
 
-**Hook ordering doesn't matter** for log mode warnings because PostToolUse only scans tool outputs for secrets, which always blocks execution regardless of order.
+**Hook ordering doesn't matter** for log mode warnings because PostToolUse scans tool outputs for secrets, prompt injection, and context poisoning — all of which always block execution regardless of order.
 
 ```json
 "PostToolUse": [
@@ -351,7 +351,7 @@ cat ~/.local/state/ai-guardian/violations.jsonl | jq .
 ### Critical Requirements (Log Mode Only)
 - **PreToolUse**: ai-guardian MUST be first (displays tool permissions & directory rules warnings)
 - **UserPromptSubmit**: ai-guardian MUST be first if using prompt injection log mode (secret scanning blocks regardless of order)
-- **PostToolUse**: Order doesn't matter for log mode (no warnings displayed, only blocks secrets)
+- **PostToolUse**: Order doesn't matter for log mode (no warnings displayed, blocks secrets/prompt-injection/context-poisoning)
 
 ### Do's and Don'ts
 

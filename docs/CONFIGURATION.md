@@ -426,6 +426,29 @@ This is a critical security feature.
 | `allowlist_patterns` | `[]` | Regex patterns to ignore false positives |
 | `custom_patterns` | `[]` | Additional persistence patterns beyond the 13 built-in defaults |
 
+## Per-Scanner Filtering
+
+**NEW in v1.12.0** — Exclude specific tools or file patterns from individual scanners.
+
+Available on: `secret_scanning`, `prompt_injection`, `scan_pii`, `context_poisoning`, `config_scanner`, `supply_chain`.
+
+```json
+{
+  "secret_scanning": {
+    "enabled": true,
+    "ignore_tools": ["Read"],
+    "ignore_files": ["*.test.py", "docs/*.md"]
+  }
+}
+```
+
+| Setting | Default | Description |
+|---------|---------|-------------|
+| `ignore_tools` | `[]` | Tool names to skip when scanning (glob patterns supported) |
+| `ignore_files` | `[]` | File path patterns to skip for this scanner (glob patterns supported) |
+
+These are per-scanner overrides. For project-wide file exclusions shared via version control, see [.aiguardignore.toml](#project-level-aiguardignoretoml) above.
+
 ## Secret Liveness Validation
 
 **NEW in v1.11.0** — After detecting a secret, optionally check if it is still active by calling provider APIs.

@@ -316,7 +316,11 @@ This eliminates false positives from patterns like `def __init__(self):` or `ski
 | Import statement | ❌ No | `from __future__ import` |
 | Variable assignment | ❌ No | `skip_validation = True` |
 
-### 4. Why This Matters
+### 4. Tool Output Scanning (v1.12.0)
+
+> **v1.12.0**: Prompt injection scanning now also runs on **PostToolUse** events to catch injection payloads hidden in tool outputs ([Issue #1290](https://github.com/itdove/ai-guardian/issues/1290)). This defends against indirect prompt injection where a malicious instruction is returned by a tool (e.g., fetched web page, API response) rather than typed by the user.
+
+### 5. Why This Matters
 
 **User prompts** need strict checking because:
 - Direct input from potentially malicious users

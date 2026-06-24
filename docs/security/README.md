@@ -11,6 +11,7 @@ This directory contains detailed documentation for AI Guardian's security detect
 | **Prompt Injection** | Detect and block jailbreak attempts and instruction override attacks | [PROMPT_INJECTION.md](PROMPT_INJECTION.md) |
 | **SSRF Protection** | Detect and block Server-Side Request Forgery attempts in tool calls | [SSRF_PROTECTION.md](SSRF_PROTECTION.md) |
 | **Unicode Attacks** | Detect invisible characters, homoglyphs, and bidirectional text attacks | [UNICODE_ATTACKS.md](UNICODE_ATTACKS.md) |
+| **Context Poisoning** | Detect persistent malicious instructions injected into conversation context (LLM03) | [CONTEXT_POISONING.md](CONTEXT_POISONING.md) |
 | **Credential Exfiltration** | Scan config files for credential theft commands | [CREDENTIAL_EXFILTRATION.md](CREDENTIAL_EXFILTRATION.md) |
 | **Directory Rules** | Control which files and directories AI can access | [DIRECTORY_RULES.md](DIRECTORY_RULES.md) |
 

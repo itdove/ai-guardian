@@ -24,12 +24,12 @@ Every time AI Guardian blocks something, it creates a log entry:
 |----------------|-------------------|-------------|
 | **Tool Permission** | Blocked command execution | Command, tool name, policy rule |
 | **Directory Blocking** | Restricted path access | File path, requested operation |
-| **Secret Detected** | Secret found in commit/file | Secret type, file location, line number |
+| **Secret Detected** | Secret found in commit/file | Secret type, file location, line/column number |
 | **Secret Redaction** | Secret masked in output | Secret type, masking strategy |
 | **Prompt Injection** | Malicious prompt detected | Pattern matched, confidence score |
 | **SSRF Protection** | Dangerous network request | URL, reason (private IP, metadata, etc.) |
-| **Config File Threat** | Exfiltration in config file | Pattern, file, line number |
-| **Unicode Attack** | Hidden characters detected | Character type, position, Unicode code point |
+| **Config File Threat** | Exfiltration in config file | Pattern, file, line/column number |
+| **Unicode Attack** | Hidden characters detected | Character type, line/column position, Unicode code point |
 
 ---
 
@@ -88,6 +88,7 @@ Each violation is logged as a single JSON object per line (JSONL format).
     "secret_type": "GitHub Personal Token",
     "file": "config/settings.py",
     "line": 42,
+    "column": 15,
     "scanner": "gitleaks"
   },
   "context": {
@@ -213,6 +214,7 @@ cat ~/.local/state/ai-guardian/violations.jsonl | \
   "details": {
     "file": "docs/SECURITY_EXAMPLES.md",
     "line": 42,
+    "column": 8,
     "pattern": "ghp_"
   }
 }
@@ -443,3 +445,4 @@ Violation logging is **extremely efficient**:
 - **v1.3.0** - Added retention policies and log rotation
 - **v1.5.0** - Extended log types (SSRF, Unicode, config threats)
 - **v1.6.0** - Enhanced SIEM integration and export formats
+- **v1.12.0** - Added column-level position tracking across all scanner types (#1261)

@@ -86,11 +86,13 @@ Configure via:
 
 | Tool | Parameters | Returns | Purpose |
 |------|-----------|---------|---------|
-| `check_path` | `path` | `allowed` / `denied` / `not_found` | Is this path protected? |
+| `check_path` | `path`, `operation?` | `allowed` / `denied` / `not_found` | Is this path protected? |
 | `check_command` | `command` | `allowed` / `blocked` + reason | Would this command be blocked? |
 | `check_mcp_trust` | `server_name` | `trusted` / `untrusted` | Is this MCP server allowed? |
 | `sanitize_text` | `text` | sanitized text + redaction count | Redact secrets/PII from text |
 | `check_annotations` | `file_path` | valid/invalid + warnings | Are annotation pairs matched? |
+
+`operation` (v1.12.0+): `"read"` (default), `"write"`, or `"edit"`. Checks whether the specific operation type is allowed on the path.
 
 ### Information (Query)
 
@@ -125,7 +127,7 @@ The MCP server is a **security advisor, not a security map**. It answers yes/no 
 
 | Tool | Exposes | Does NOT expose |
 |------|---------|-----------------|
-| `check_path` | allowed/denied | Which rule matched, full rules list |
+| `check_path` | allowed/denied for operation | Which rule matched, full rules list |
 | `check_command` | allowed/blocked + reason category | Which pattern matched, the deny list |
 | `get_config` | Feature on/off, action mode | Allowlist patterns, regex, rule details |
 | `get_violations` | Type, timestamp, file:line, action | Matched pattern internals |
