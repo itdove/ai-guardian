@@ -9,7 +9,6 @@ with support for remote configuration URLs.
 import contextlib
 import io
 import json
-import logging
 import os
 import platform
 import shutil
@@ -19,7 +18,7 @@ from importlib.resources import files
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
-from ai_guardian.config_utils import get_cache_dir, get_config_dir
+from ai_guardian.config_utils import get_config_dir
 
 
 def _resolve_binary_path() -> str:
@@ -51,7 +50,9 @@ def _is_ai_guardian_command(cmd: str) -> bool:
     base = Path(first_token).stem
     if base in ("ai-guardian", "ai-guardian.exe"):
         return True
-    if first_token == "ai-guardian" or first_token.endswith(("/ai-guardian", "\\ai-guardian")):
+    if first_token == "ai-guardian" or first_token.endswith(
+        ("/ai-guardian", "\\ai-guardian")
+    ):
         return True
     if first_token.endswith(("/ai-guardian.exe", "\\ai-guardian.exe")):
         return True
@@ -86,7 +87,9 @@ def _walk_commands(obj, predicate, transform, *, copy=True):
                     _walk_commands(v, predicate, transform, copy=False)
     elif isinstance(obj, list):
         if copy:
-            return [_walk_commands(item, predicate, transform, copy=True) for item in obj]
+            return [
+                _walk_commands(item, predicate, transform, copy=True) for item in obj
+            ]
         else:
             for item in obj:
                 _walk_commands(item, predicate, transform, copy=False)
@@ -118,7 +121,9 @@ def _upgrade_ide_flag(obj, ide_type: str):
     """
     _walk_commands(
         obj,
-        predicate=lambda v: isinstance(v, str) and _is_ai_guardian_command(v) and "--ide" not in v,
+        predicate=lambda v: isinstance(v, str)
+        and _is_ai_guardian_command(v)
+        and "--ide" not in v,
         transform=lambda v: f"{v} --ide {ide_type}",
         copy=False,
     )
@@ -150,6 +155,7 @@ def _notify_daemon_reload():
     """Notify daemon to reload config if running. Silent on failure."""
     try:
         from ai_guardian.daemon.client import send_reload_config
+
         if send_reload_config():
             print("Daemon reloaded with new configuration")
     except Exception:
@@ -182,9 +188,9 @@ class IDESetup:
                             {
                                 "type": "command",
                                 "command": "ai-guardian",
-                                "statusMessage": "🛡️ Scanning prompt..."
+                                "statusMessage": "🛡️ Scanning prompt...",
                             }
-                        ]
+                        ],
                     }
                 ],
                 "PreToolUse": [
@@ -194,9 +200,9 @@ class IDESetup:
                             {
                                 "type": "command",
                                 "command": "ai-guardian",
-                                "statusMessage": "🛡️ Checking tool permissions..."
+                                "statusMessage": "🛡️ Checking tool permissions...",
                             }
-                        ]
+                        ],
                     }
                 ],
                 "PostToolUse": [
@@ -206,32 +212,18 @@ class IDESetup:
                             {
                                 "type": "command",
                                 "command": "ai-guardian",
-                                "statusMessage": "🛡️ Scanning tool output..."
+                                "statusMessage": "🛡️ Scanning tool output...",
                             }
-                        ]
+                        ],
                     }
                 ],
                 "SessionEnd": [
-                    {
-                        "hooks": [
-                            {
-                                "type": "command",
-                                "command": "ai-guardian"
-                            }
-                        ]
-                    }
+                    {"hooks": [{"type": "command", "command": "ai-guardian"}]}
                 ],
                 "PostCompact": [
-                    {
-                        "hooks": [
-                            {
-                                "type": "command",
-                                "command": "ai-guardian"
-                            }
-                        ]
-                    }
-                ]
-            }
+                    {"hooks": [{"type": "command", "command": "ai-guardian"}]}
+                ],
+            },
         },
         "cursor": {
             "name": "Cursor IDE",
@@ -240,32 +232,12 @@ class IDESetup:
             "config_filename": "hooks.json",
             "hooks": {
                 "version": 1,
-                "beforeSubmitPrompt": [
-                    {
-                        "command": "ai-guardian"
-                    }
-                ],
-                "beforeReadFile": [
-                    {
-                        "command": "ai-guardian"
-                    }
-                ],
-                "beforeShellExecution": [
-                    {
-                        "command": "ai-guardian"
-                    }
-                ],
-                "afterShellExecution": [
-                    {
-                        "command": "ai-guardian"
-                    }
-                ],
-                "postToolUse": [
-                    {
-                        "command": "ai-guardian"
-                    }
-                ]
-            }
+                "beforeSubmitPrompt": [{"command": "ai-guardian"}],
+                "beforeReadFile": [{"command": "ai-guardian"}],
+                "beforeShellExecution": [{"command": "ai-guardian"}],
+                "afterShellExecution": [{"command": "ai-guardian"}],
+                "postToolUse": [{"command": "ai-guardian"}],
+            },
         },
         "copilot": {
             "name": "GitHub Copilot",
@@ -273,17 +245,9 @@ class IDESetup:
             "config_dir_env_var": None,
             "config_filename": "hooks.json",
             "hooks": {
-                "userPromptSubmitted": [
-                    {
-                        "command": "ai-guardian"
-                    }
-                ],
-                "preToolUse": [
-                    {
-                        "command": "ai-guardian"
-                    }
-                ]
-            }
+                "userPromptSubmitted": [{"command": "ai-guardian"}],
+                "preToolUse": [{"command": "ai-guardian"}],
+            },
         },
         "codex": {
             "name": "OpenAI Codex",
@@ -298,7 +262,7 @@ class IDESetup:
                                 "type": "command",
                                 "command": "ai-guardian",
                                 "timeout": 30,
-                                "statusMessage": "🛡️ Scanning prompt..."
+                                "statusMessage": "🛡️ Scanning prompt...",
                             }
                         ]
                     }
@@ -311,9 +275,9 @@ class IDESetup:
                                 "type": "command",
                                 "command": "ai-guardian",
                                 "timeout": 30,
-                                "statusMessage": "🛡️ Checking tool permissions..."
+                                "statusMessage": "🛡️ Checking tool permissions...",
                             }
-                        ]
+                        ],
                     }
                 ],
                 "PostToolUse": [
@@ -324,12 +288,12 @@ class IDESetup:
                                 "type": "command",
                                 "command": "ai-guardian",
                                 "timeout": 30,
-                                "statusMessage": "🛡️ Scanning tool output..."
+                                "statusMessage": "🛡️ Scanning tool output...",
                             }
-                        ]
+                        ],
                     }
-                ]
-            }
+                ],
+            },
         },
         "windsurf": {
             "name": "Windsurf",
@@ -338,35 +302,17 @@ class IDESetup:
             "config_filename": "hooks.json",
             "hooks": {
                 "hooks": {
-                    "pre_user_prompt": [
-                        {"command": "ai-guardian"}
-                    ],
-                    "pre_run_command": [
-                        {"command": "ai-guardian"}
-                    ],
-                    "post_run_command": [
-                        {"command": "ai-guardian"}
-                    ],
-                    "pre_read_code": [
-                        {"command": "ai-guardian"}
-                    ],
-                    "post_read_code": [
-                        {"command": "ai-guardian"}
-                    ],
-                    "pre_write_code": [
-                        {"command": "ai-guardian"}
-                    ],
-                    "post_write_code": [
-                        {"command": "ai-guardian"}
-                    ],
-                    "pre_mcp_tool_use": [
-                        {"command": "ai-guardian"}
-                    ],
-                    "post_mcp_tool_use": [
-                        {"command": "ai-guardian"}
-                    ]
+                    "pre_user_prompt": [{"command": "ai-guardian"}],
+                    "pre_run_command": [{"command": "ai-guardian"}],
+                    "post_run_command": [{"command": "ai-guardian"}],
+                    "pre_read_code": [{"command": "ai-guardian"}],
+                    "post_read_code": [{"command": "ai-guardian"}],
+                    "pre_write_code": [{"command": "ai-guardian"}],
+                    "post_write_code": [{"command": "ai-guardian"}],
+                    "pre_mcp_tool_use": [{"command": "ai-guardian"}],
+                    "post_mcp_tool_use": [{"command": "ai-guardian"}],
                 }
-            }
+            },
         },
         "gemini": {
             "name": "Google Gemini CLI",
@@ -375,22 +321,11 @@ class IDESetup:
             "config_filename": "settings.json",
             "hooks": {
                 "hooks": [
-                    {
-                        "event": "BeforeAgent",
-                        "command": "ai-guardian"
-                    },
-                    {
-                        "event": "BeforeTool",
-                        "matcher": ".*",
-                        "command": "ai-guardian"
-                    },
-                    {
-                        "event": "AfterTool",
-                        "matcher": ".*",
-                        "command": "ai-guardian"
-                    }
+                    {"event": "BeforeAgent", "command": "ai-guardian"},
+                    {"event": "BeforeTool", "matcher": ".*", "command": "ai-guardian"},
+                    {"event": "AfterTool", "matcher": ".*", "command": "ai-guardian"},
                 ]
-            }
+            },
         },
         "cline": {
             "name": "Cline",
@@ -461,14 +396,14 @@ class IDESetup:
                                 {
                                     "type": "command",
                                     "command": "ai-guardian",
-                                    "timeout": 5000
+                                    "timeout": 5000,
                                 }
                             ],
                             "metadata": {
                                 "includeUserContext": False,
                                 "includeMCPMetadata": False,
-                                "includeConversationData": False
-                            }
+                                "includeConversationData": False,
+                            },
                         }
                     ],
                     "PostToolUse": [
@@ -478,19 +413,19 @@ class IDESetup:
                                 {
                                     "type": "command",
                                     "command": "ai-guardian",
-                                    "timeout": 5000
+                                    "timeout": 5000,
                                 }
                             ],
                             "metadata": {
                                 "includeUserContext": False,
                                 "includeMCPMetadata": False,
-                                "includeConversationData": False
-                            }
+                                "includeConversationData": False,
+                            },
                         }
-                    ]
+                    ],
                 }
-            }
-        }
+            },
+        },
     }
 
     @staticmethod
@@ -554,14 +489,15 @@ class IDESetup:
         """
         try:
             result = subprocess.run(
-                ['gitleaks', 'version'],
-                capture_output=True,
-                text=True,
-                timeout=5
+                ["gitleaks", "version"], capture_output=True, text=True, timeout=5
             )
             if result.returncode == 0:
                 # Extract version from output (first line typically contains version)
-                version_line = result.stdout.strip().split('\n')[0] if result.stdout else "unknown version"
+                version_line = (
+                    result.stdout.strip().split("\n")[0]
+                    if result.stdout
+                    else "unknown version"
+                )
                 return True, f"✓ Gitleaks is installed: {version_line}"
             else:
                 return False, "❌ Gitleaks command failed - please reinstall"
@@ -626,13 +562,13 @@ class IDESetup:
             if not config_path.exists():
                 return None
 
-            backup_path = config_path.with_suffix(config_path.suffix + '.backup')
+            backup_path = config_path.with_suffix(config_path.suffix + ".backup")
 
             # Read and write to create backup
-            with open(config_path, 'r', encoding='utf-8') as src:
+            with open(config_path, "r", encoding="utf-8") as src:
                 content = src.read()
 
-            with open(backup_path, 'w', encoding='utf-8') as dst:
+            with open(backup_path, "w", encoding="utf-8") as dst:
                 dst.write(content)
 
             return backup_path
@@ -641,7 +577,9 @@ class IDESetup:
             print(f"Error creating backup: {e}", file=sys.stderr)
             return None
 
-    def merge_hooks(self, existing_config: Dict, ai_guardian_hooks: Dict, ide_type: str) -> Tuple[Dict, List[str]]:
+    def merge_hooks(
+        self, existing_config: Dict, ai_guardian_hooks: Dict, ide_type: str
+    ) -> Tuple[Dict, List[str]]:
         """
         Merge ai-guardian hooks into existing config, ensuring ai-guardian is first.
 
@@ -666,8 +604,13 @@ class IDESetup:
                 existing_config["hooks"] = {}
 
             # Merge UserPromptSubmit, PreToolUse, PostToolUse, SessionEnd, PostCompact hooks
-            for hook_name in ["UserPromptSubmit", "PreToolUse", "PostToolUse",
-                              "SessionEnd", "PostCompact"]:
+            for hook_name in [
+                "UserPromptSubmit",
+                "PreToolUse",
+                "PostToolUse",
+                "SessionEnd",
+                "PostCompact",
+            ]:
                 if hook_name not in ai_guardian_hooks:
                     continue
 
@@ -703,7 +646,9 @@ class IDESetup:
                 other_hooks = []
 
                 for idx, hook in enumerate(hooks_array):
-                    if isinstance(hook, dict) and _is_ai_guardian_command(hook.get("command", "")):
+                    if isinstance(hook, dict) and _is_ai_guardian_command(
+                        hook.get("command", "")
+                    ):
                         ai_guardian_exists = True
                     else:
                         other_hooks.append(hook)
@@ -741,8 +686,13 @@ class IDESetup:
                 existing_config["version"] = 1
 
             # Merge all Cursor hooks
-            for hook_name in ["beforeSubmitPrompt", "beforeReadFile", "beforeShellExecution",
-                             "afterShellExecution", "postToolUse"]:
+            for hook_name in [
+                "beforeSubmitPrompt",
+                "beforeReadFile",
+                "beforeShellExecution",
+                "afterShellExecution",
+                "postToolUse",
+            ]:
                 if hook_name in ai_guardian_hooks:
                     existing_config["hooks"][hook_name] = ai_guardian_hooks[hook_name]
 
@@ -767,7 +717,10 @@ class IDESetup:
                 matched_entry = None
                 matched_idx = -1
                 for idx, entry in enumerate(hook_list):
-                    if isinstance(entry, dict) and entry.get("matcher") == target_matcher:
+                    if (
+                        isinstance(entry, dict)
+                        and entry.get("matcher") == target_matcher
+                    ):
                         matched_entry = entry
                         matched_idx = idx
                         break
@@ -782,14 +735,20 @@ class IDESetup:
                 hooks_array = matched_entry["hooks"]
                 other_hooks = []
                 for hook in hooks_array:
-                    if isinstance(hook, dict) and _is_ai_guardian_command(hook.get("command", "")):
+                    if isinstance(hook, dict) and _is_ai_guardian_command(
+                        hook.get("command", "")
+                    ):
                         continue
                     other_hooks.append(hook)
 
                 ai_guardian_hook = template_entry["hooks"][0]
 
                 if other_hooks:
-                    hook_names = [h.get("command", "unknown") for h in other_hooks if isinstance(h, dict)]
+                    hook_names = [
+                        h.get("command", "unknown")
+                        for h in other_hooks
+                        if isinstance(h, dict)
+                    ]
                     warnings.append(
                         f"⚠️  {hook_name}: Found other hooks [{', '.join(hook_names)}]. "
                         f"ai-guardian has been placed first to ensure warnings display correctly."
@@ -805,9 +764,15 @@ class IDESetup:
                 existing_config["hooks"] = {}
 
             windsurf_events = [
-                "pre_user_prompt", "pre_run_command", "post_run_command",
-                "pre_read_code", "post_read_code", "pre_write_code",
-                "post_write_code", "pre_mcp_tool_use", "post_mcp_tool_use",
+                "pre_user_prompt",
+                "pre_run_command",
+                "post_run_command",
+                "pre_read_code",
+                "post_read_code",
+                "pre_write_code",
+                "post_write_code",
+                "pre_mcp_tool_use",
+                "post_mcp_tool_use",
             ]
             template_hooks = ai_guardian_hooks.get("hooks", ai_guardian_hooks)
             for event_name in windsurf_events:
@@ -823,13 +788,18 @@ class IDESetup:
             template_hooks = ai_guardian_hooks.get("hooks", [])
 
             other_hooks = [
-                h for h in existing_config["hooks"]
-                if not (isinstance(h, dict) and _is_ai_guardian_command(h.get("command", "")))
+                h
+                for h in existing_config["hooks"]
+                if not (
+                    isinstance(h, dict)
+                    and _is_ai_guardian_command(h.get("command", ""))
+                )
             ]
 
             ag_events = {h.get("event") for h in template_hooks if isinstance(h, dict)}
             other_same_event = [
-                h for h in other_hooks
+                h
+                for h in other_hooks
                 if isinstance(h, dict) and h.get("event") in ag_events
             ]
             if other_same_event:
@@ -861,7 +831,10 @@ class IDESetup:
                 matched_entry = None
                 matched_idx = -1
                 for idx, entry in enumerate(hook_list):
-                    if isinstance(entry, dict) and entry.get("matcher") == target_matcher:
+                    if (
+                        isinstance(entry, dict)
+                        and entry.get("matcher") == target_matcher
+                    ):
                         matched_entry = entry
                         matched_idx = idx
                         break
@@ -876,14 +849,20 @@ class IDESetup:
                 hooks_array = matched_entry["hooks"]
                 other_hooks_list = []
                 for hook in hooks_array:
-                    if isinstance(hook, dict) and _is_ai_guardian_command(hook.get("command", "")):
+                    if isinstance(hook, dict) and _is_ai_guardian_command(
+                        hook.get("command", "")
+                    ):
                         continue
                     other_hooks_list.append(hook)
 
                 ai_guardian_hook = template_entry["hooks"][0]
 
                 if other_hooks_list:
-                    hook_names = [h.get("command", "unknown") for h in other_hooks_list if isinstance(h, dict)]
+                    hook_names = [
+                        h.get("command", "unknown")
+                        for h in other_hooks_list
+                        if isinstance(h, dict)
+                    ]
                     warnings.append(
                         f"⚠️  {hook_name}: Found other hooks [{', '.join(hook_names)}]. "
                         f"ai-guardian has been placed first to ensure warnings display correctly."
@@ -957,7 +936,7 @@ class IDESetup:
                                 pass  # intentionally silent — best-effort operation
                 return False
 
-            with open(config_path, 'r', encoding='utf-8') as f:
+            with open(config_path, "r", encoding="utf-8") as f:
                 config = json.load(f)
 
             if ide_type in ("claude", "codex"):
@@ -968,41 +947,66 @@ class IDESetup:
                         hook_list = hooks[hook_name]
                         if isinstance(hook_list, list):
                             for hook_entry in hook_list:
-                                if isinstance(hook_entry, dict) and "hooks" in hook_entry:
+                                if (
+                                    isinstance(hook_entry, dict)
+                                    and "hooks" in hook_entry
+                                ):
                                     for h in hook_entry["hooks"]:
-                                        if isinstance(h, dict) and _is_ai_guardian_command(h.get("command", "")):
+                                        if isinstance(
+                                            h, dict
+                                        ) and _is_ai_guardian_command(
+                                            h.get("command", "")
+                                        ):
                                             return True
 
             elif ide_type == "cursor":
                 hooks = config.get("hooks", {})
                 # Check if any Cursor hooks contain ai-guardian
-                for hook_name in ["beforeSubmitPrompt", "beforeReadFile", "beforeShellExecution",
-                                 "afterShellExecution", "postToolUse"]:
+                for hook_name in [
+                    "beforeSubmitPrompt",
+                    "beforeReadFile",
+                    "beforeShellExecution",
+                    "afterShellExecution",
+                    "postToolUse",
+                ]:
                     if hook_name in hooks:
                         hook_list = hooks[hook_name]
                         if isinstance(hook_list, list):
                             for h in hook_list:
-                                if isinstance(h, dict) and _is_ai_guardian_command(h.get("command", "")):
+                                if isinstance(h, dict) and _is_ai_guardian_command(
+                                    h.get("command", "")
+                                ):
                                     return True
 
             elif ide_type == "windsurf":
                 hooks = config.get("hooks", {})
-                for event_name in ["pre_user_prompt", "pre_run_command", "pre_read_code",
-                                   "pre_write_code", "pre_mcp_tool_use",
-                                   "post_run_command", "post_read_code", "post_write_code",
-                                   "post_mcp_tool_use"]:
+                for event_name in [
+                    "pre_user_prompt",
+                    "pre_run_command",
+                    "pre_read_code",
+                    "pre_write_code",
+                    "pre_mcp_tool_use",
+                    "post_run_command",
+                    "post_read_code",
+                    "post_write_code",
+                    "post_mcp_tool_use",
+                ]:
                     if event_name in hooks:
                         hook_list = hooks[event_name]
                         if isinstance(hook_list, list):
                             for h in hook_list:
-                                if isinstance(h, dict) and _is_ai_guardian_command(h.get("command", "")):
+                                if isinstance(h, dict) and _is_ai_guardian_command(
+                                    h.get("command", "")
+                                ):
                                     return True
 
             elif ide_type == "gemini":
                 hooks = config.get("hooks", [])
                 if isinstance(hooks, list):
                     for h in hooks:
-                        if isinstance(h, dict) and _is_ai_guardian_command(h.get("command", "")):
+                        if isinstance(h, dict) and _is_ai_guardian_command(
+                            h.get("command", "")
+                        ):
                             return True
 
             elif ide_type == "augment":
@@ -1012,9 +1016,16 @@ class IDESetup:
                         hook_list = hooks[hook_name]
                         if isinstance(hook_list, list):
                             for hook_entry in hook_list:
-                                if isinstance(hook_entry, dict) and "hooks" in hook_entry:
+                                if (
+                                    isinstance(hook_entry, dict)
+                                    and "hooks" in hook_entry
+                                ):
                                     for h in hook_entry["hooks"]:
-                                        if isinstance(h, dict) and _is_ai_guardian_command(h.get("command", "")):
+                                        if isinstance(
+                                            h, dict
+                                        ) and _is_ai_guardian_command(
+                                            h.get("command", "")
+                                        ):
                                             return True
 
             return False
@@ -1054,7 +1065,9 @@ class IDESetup:
         if is_windows:
             script_content = f"@echo off\r\n{cmd}\r\n"
         else:
-            script_content = ide_config.get("script_content", "#!/bin/sh\nai-guardian\n")
+            script_content = ide_config.get(
+                "script_content", "#!/bin/sh\nai-guardian\n"
+            )
             script_content = script_content.replace("ai-guardian", cmd, 1)
 
         if dry_run:
@@ -1088,9 +1101,9 @@ class IDESetup:
                 "      AI Guardian requires Gitleaks for secret detection.\n"
             )
 
-        message += f"\n  Next steps:\n"
+        message += "\n  Next steps:\n"
         if not gitleaks_installed:
-            message += f"  1. Install Gitleaks (see above)\n"
+            message += "  1. Install Gitleaks (see above)\n"
             message += f"  2. Restart {ide_name} for changes to take effect\n"
         else:
             message += f"  1. Restart {ide_name} for changes to take effect\n"
@@ -1104,6 +1117,7 @@ class IDESetup:
         Quote-aware: skips // and /* inside JSON string literals.
         """
         import re
+
         result = []
         i = 0
         in_string = False
@@ -1111,7 +1125,7 @@ class IDESetup:
             c = text[i]
             if in_string:
                 result.append(c)
-                if c == '\\' and i + 1 < len(text):
+                if c == "\\" and i + 1 < len(text):
                     i += 1
                     result.append(text[i])
                 elif c == '"':
@@ -1119,19 +1133,19 @@ class IDESetup:
             elif c == '"':
                 in_string = True
                 result.append(c)
-            elif c == '/' and i + 1 < len(text) and text[i + 1] == '/':
-                while i < len(text) and text[i] != '\n':
+            elif c == "/" and i + 1 < len(text) and text[i + 1] == "/":
+                while i < len(text) and text[i] != "\n":
                     i += 1
                 continue
-            elif c == '/' and i + 1 < len(text) and text[i + 1] == '*':
-                end = text.find('*/', i + 2)
+            elif c == "/" and i + 1 < len(text) and text[i + 1] == "*":
+                end = text.find("*/", i + 2)
                 i = end + 2 if end != -1 else len(text)
                 continue
             else:
                 result.append(c)
             i += 1
-        stripped = ''.join(result)
-        stripped = re.sub(r',\s*([}\]])', r'\1', stripped)
+        stripped = "".join(result)
+        stripped = re.sub(r",\s*([}\]])", r"\1", stripped)
         return stripped
 
     def _setup_plugin_file(
@@ -1173,7 +1187,7 @@ class IDESetup:
                 "      AI Guardian requires Gitleaks for secret detection.\n"
             )
 
-        message += f"\n  Next steps:\n"
+        message += "\n  Next steps:\n"
         step = 1
         if not gitleaks_installed:
             message += f"  {step}. Install Gitleaks (see above)\n"
@@ -1220,20 +1234,24 @@ class IDESetup:
         if ide_type == "openclaw":
             package_path.write_text(_OPENCLAW_PACKAGE_JSON, encoding="utf-8")
             index_path.write_text(
-                _OPENCLAW_PLUGIN_TS.replace("execSync('ai-guardian'", f"execSync('{cmd}'"),
+                _OPENCLAW_PLUGIN_TS.replace(
+                    "execSync('ai-guardian'", f"execSync('{cmd}'"
+                ),
                 encoding="utf-8",
             )
         else:
             package_path.write_text(_AIDERDESK_PACKAGE_JSON, encoding="utf-8")
             index_path.write_text(
-                _AIDERDESK_EXTENSION_TS.replace("execSync('ai-guardian'", f"execSync('{cmd}'"),
+                _AIDERDESK_EXTENSION_TS.replace(
+                    "execSync('ai-guardian'", f"execSync('{cmd}'"
+                ),
                 encoding="utf-8",
             )
 
         gitleaks_installed, gitleaks_message = self.verify_gitleaks_installed()
 
         message = f"✓ Successfully configured {ide_name} extension at {ext_dir}\n"
-        message += f"  Created: index.ts, package.json\n"
+        message += "  Created: index.ts, package.json\n"
         message += f"\n  {gitleaks_message}\n"
 
         if not gitleaks_installed:
@@ -1242,22 +1260,21 @@ class IDESetup:
                 "      AI Guardian requires Gitleaks for secret detection.\n"
             )
 
-        message += f"\n  Next steps:\n"
+        message += "\n  Next steps:\n"
         step = 1
         if not gitleaks_installed:
             message += f"  {step}. Install Gitleaks (see above)\n"
             step += 1
         message += f"  {step}. Run: cd {ext_dir} && npm install\n"
         step += 1
-        message += f"  {step}. Restart {ide_name} (extension hot-reloads automatically)\n"
+        message += (
+            f"  {step}. Restart {ide_name} (extension hot-reloads automatically)\n"
+        )
 
         return True, message
 
     def setup_ide_hooks(
-        self,
-        ide_type: str,
-        dry_run: bool = False,
-        force: bool = False
+        self, ide_type: str, dry_run: bool = False, force: bool = False
     ) -> Tuple[bool, str]:
         """
         Setup IDE hooks for the specified IDE.
@@ -1289,53 +1306,78 @@ class IDESetup:
 
             # Check if hooks already configured
             if not force and self.check_hooks_configured(config_path, ide_type):
-                return False, f"ai-guardian hooks already configured for {ide_name}. Use --force to overwrite."
+                return (
+                    False,
+                    f"ai-guardian hooks already configured for {ide_name}. Use --force to overwrite.",
+                )
 
             # Plugin-file IDEs (OpenCode): drop a single .ts file in plugins dir
             if ide_config.get("plugin_file"):
-                return self._setup_plugin_file(ide_type, ide_config, config_path, dry_run)
+                return self._setup_plugin_file(
+                    ide_type, ide_config, config_path, dry_run
+                )
 
             # Extension-based IDEs (AiderDesk): create TypeScript extension
             if ide_config.get("extension_based"):
-                return self._setup_extension_based_hooks(ide_type, ide_config, config_path, dry_run)
+                return self._setup_extension_based_hooks(
+                    ide_type, ide_config, config_path, dry_run
+                )
 
             # Script-based IDEs (Cline, ZooCode): create executable scripts
             if ide_config.get("script_based"):
-                return self._setup_script_based_hooks(ide_type, ide_config, config_path, dry_run)
+                return self._setup_script_based_hooks(
+                    ide_type, ide_config, config_path, dry_run
+                )
 
             # Load existing config or create new
             existing_config = {}
             if config_path.exists():
                 try:
-                    with open(config_path, 'r', encoding='utf-8') as f:
+                    with open(config_path, "r", encoding="utf-8") as f:
                         existing_config = json.load(f)
                 except json.JSONDecodeError as e:
                     return False, f"Invalid JSON in {config_path}: {e}"
 
             # Resolve absolute path and substitute into hook templates
             abs_path = _resolve_binary_path()
-            resolved_hooks = _substitute_command(ide_config["hooks"], abs_path, ide_type)
+            resolved_hooks = _substitute_command(
+                ide_config["hooks"], abs_path, ide_type
+            )
 
             # Merge hooks
             hook_warnings = []
             if ide_type == "claude":
-                merged_config, hook_warnings = self.merge_hooks(existing_config, resolved_hooks, ide_type)
+                merged_config, hook_warnings = self.merge_hooks(
+                    existing_config, resolved_hooks, ide_type
+                )
             elif ide_type == "cursor":
-                merged_config, hook_warnings = self.merge_hooks(existing_config, resolved_hooks, ide_type)
+                merged_config, hook_warnings = self.merge_hooks(
+                    existing_config, resolved_hooks, ide_type
+                )
             elif ide_type == "copilot":
                 # GitHub Copilot: merge hooks at top level
                 merged_config = existing_config.copy()
-                merged_config["userPromptSubmitted"] = resolved_hooks["userPromptSubmitted"]
+                merged_config["userPromptSubmitted"] = resolved_hooks[
+                    "userPromptSubmitted"
+                ]
                 merged_config["preToolUse"] = resolved_hooks["preToolUse"]
                 # Fall through to common config-write path (don't return early)
             elif ide_type == "codex":
-                merged_config, hook_warnings = self.merge_hooks(existing_config, resolved_hooks, ide_type)
+                merged_config, hook_warnings = self.merge_hooks(
+                    existing_config, resolved_hooks, ide_type
+                )
             elif ide_type == "windsurf":
-                merged_config, hook_warnings = self.merge_hooks(existing_config, resolved_hooks, ide_type)
+                merged_config, hook_warnings = self.merge_hooks(
+                    existing_config, resolved_hooks, ide_type
+                )
             elif ide_type == "gemini":
-                merged_config, hook_warnings = self.merge_hooks(existing_config, resolved_hooks, ide_type)
+                merged_config, hook_warnings = self.merge_hooks(
+                    existing_config, resolved_hooks, ide_type
+                )
             elif ide_type == "augment":
-                merged_config, hook_warnings = self.merge_hooks(existing_config, resolved_hooks, ide_type)
+                merged_config, hook_warnings = self.merge_hooks(
+                    existing_config, resolved_hooks, ide_type
+                )
 
             # Upgrade any pre-existing ai-guardian commands to include --ide
             _upgrade_ide_flag(merged_config, ide_type)
@@ -1344,7 +1386,9 @@ class IDESetup:
 
             if dry_run:
                 # Show what would be changed
-                message = f"[DRY RUN] Would configure {ide_name} hooks at {config_path}:\n"
+                message = (
+                    f"[DRY RUN] Would configure {ide_name} hooks at {config_path}:\n"
+                )
                 message += json.dumps(merged_config, indent=2)
                 return True, message
 
@@ -1358,9 +1402,9 @@ class IDESetup:
             config_path.parent.mkdir(parents=True, exist_ok=True)
 
             # Write merged config
-            with open(config_path, 'w', encoding='utf-8') as f:
+            with open(config_path, "w", encoding="utf-8") as f:
                 json.dump(merged_config, f, indent=2)
-                f.write('\n')  # Add trailing newline
+                f.write("\n")  # Add trailing newline
 
             # Generate VBS wrapper on Windows for fully hidden execution
             vbs_path = _create_vbs_wrapper(
@@ -1396,14 +1440,14 @@ class IDESetup:
                     "      AI Guardian requires Gitleaks for secret detection.\n"
                 )
 
-            message += f"\n  Next steps:\n"
+            message += "\n  Next steps:\n"
             if not gitleaks_installed:
-                message += f"  1. Install Gitleaks (see above)\n"
+                message += "  1. Install Gitleaks (see above)\n"
                 message += f"  2. Restart {ide_name} for changes to take effect\n"
-                message += f"  3. Test with: echo '{{\"prompt\": \"test\"}}' | ai-guardian\n"
+                message += '  3. Test with: echo \'{"prompt": "test"}\' | ai-guardian\n'
             else:
                 message += f"  1. Restart {ide_name} for changes to take effect\n"
-                message += f"  2. Test with: echo '{{\"prompt\": \"test\"}}' | ai-guardian\n"
+                message += '  2. Test with: echo \'{"prompt": "test"}\' | ai-guardian\n'
 
             return True, message
 
@@ -1448,8 +1492,13 @@ class IDESetup:
             engines = ss.get("engines", ["gitleaks"])
             inserted = False
             for i, engine_spec in enumerate(engines):
-                is_gitleaks_str = isinstance(engine_spec, str) and engine_spec == "gitleaks"
-                is_gitleaks_dict = isinstance(engine_spec, dict) and engine_spec.get("type") == "gitleaks"
+                is_gitleaks_str = (
+                    isinstance(engine_spec, str) and engine_spec == "gitleaks"
+                )
+                is_gitleaks_dict = (
+                    isinstance(engine_spec, dict)
+                    and engine_spec.get("type") == "gitleaks"
+                )
 
                 if is_gitleaks_str:
                     engines[i] = {"type": "gitleaks", "pattern_server": ps_config}
@@ -1488,7 +1537,7 @@ class IDESetup:
             config = {}
             if config_path.exists():
                 try:
-                    with open(config_path, 'r', encoding='utf-8') as f:
+                    with open(config_path, "r", encoding="utf-8") as f:
                         config = json.load(f)
                 except json.JSONDecodeError as e:
                     return False, f"Invalid JSON in {config_path}: {e}"
@@ -1500,8 +1549,10 @@ class IDESetup:
                 config["remote_configs"]["urls"] = []
 
             # Check if URL already exists
-            existing_urls = [entry.get('url') if isinstance(entry, dict) else entry
-                           for entry in config["remote_configs"]["urls"]]
+            existing_urls = [
+                entry.get("url") if isinstance(entry, dict) else entry
+                for entry in config["remote_configs"]["urls"]
+            ]
             if url in existing_urls:
                 return False, f"Remote config URL already exists: {url}"
 
@@ -1524,9 +1575,9 @@ class IDESetup:
                     print(f"✓ Backup created: {backup_path}", file=sys.stderr)
 
             # Write config
-            with open(config_path, 'w', encoding='utf-8') as f:
+            with open(config_path, "w", encoding="utf-8") as f:
                 json.dump(config, f, indent=2)
-                f.write('\n')  # Add trailing newline
+                f.write("\n")  # Add trailing newline
 
             message = f"✓ Successfully added remote config URL to {config_path}\n"
             message += f"  URL: {url}\n"
@@ -1537,9 +1588,7 @@ class IDESetup:
             return False, f"Error setting up remote config: {e}"
 
     def check_and_migrate_pattern_server(
-        self,
-        dry_run: bool = False,
-        interactive: bool = True
+        self, dry_run: bool = False, interactive: bool = True
     ) -> Tuple[bool, str]:
         """
         Check for deprecated pattern_server config and migrate to per-engine format.
@@ -1563,7 +1612,7 @@ class IDESetup:
                 return True, "No ai-guardian.json found - nothing to migrate"
 
             try:
-                with open(config_path, 'r', encoding='utf-8') as f:
+                with open(config_path, "r", encoding="utf-8") as f:
                     config = json.load(f)
             except json.JSONDecodeError as e:
                 return False, f"Invalid JSON in {config_path}: {e}"
@@ -1571,7 +1620,10 @@ class IDESetup:
             migrated, updated_config = self.migrate_pattern_server_config(config)
 
             if not migrated:
-                return True, "✓ Configuration already using per-engine pattern_server format"
+                return (
+                    True,
+                    "✓ Configuration already using per-engine pattern_server format",
+                )
 
             message = "Found deprecated pattern_server configuration.\n"
             message += "Will migrate to per-engine format: secret_scanning.engines[].pattern_server\n\n"
@@ -1586,7 +1638,7 @@ class IDESetup:
                 print(f"Config file: {config_path}")
                 try:
                     response = input("\nMigrate now? [y/N]: ")
-                    if response.lower() not in ['y', 'yes']:
+                    if response.lower() not in ["y", "yes"]:
                         return False, "Migration cancelled"
                 except KeyboardInterrupt:
                     return False, "\nMigration cancelled"
@@ -1595,15 +1647,15 @@ class IDESetup:
             if backup_path:
                 print(f"✓ Backup created: {backup_path}", file=sys.stderr)
 
-            with open(config_path, 'w', encoding='utf-8') as f:
+            with open(config_path, "w", encoding="utf-8") as f:
                 json.dump(updated_config, f, indent=2)
-                f.write('\n')
+                f.write("\n")
 
-            message = f"✓ Successfully migrated pattern_server configuration\n"
+            message = "✓ Successfully migrated pattern_server configuration\n"
             message += f"  Config file: {config_path}\n"
             message += f"  Backup: {backup_path}\n"
-            message += f"\n  Changes:\n"
-            message += f"  • Moved pattern_server to per-engine format (engines[].pattern_server)\n"
+            message += "\n  Changes:\n"
+            message += "  • Moved pattern_server to per-engine format (engines[].pattern_server)\n"
 
             return True, message
 
@@ -1638,6 +1690,7 @@ def create_default_config(
         # Generate config based on mode
         if profile:
             from ai_guardian.profile_manager import load_profile, ProfileNotFoundError
+
             try:
                 config = load_profile(profile)
             except ProfileNotFoundError as e:
@@ -1666,33 +1719,35 @@ def create_default_config(
         config_dir.mkdir(parents=True, exist_ok=True)
 
         # Write config
-        with open(config_path, 'w', encoding='utf-8') as f:
+        with open(config_path, "w", encoding="utf-8") as f:
             json.dump(config, f, indent=2)
-            f.write('\n')
+            f.write("\n")
 
         if profile:
             message = f"✓ Created config from profile '{profile}': {config_path}\n"
-            pi_sensitivity = config.get("prompt_injection", {}).get("sensitivity", "medium")
+            pi_sensitivity = config.get("prompt_injection", {}).get(
+                "sensitivity", "medium"
+            )
             on_error = config.get("on_scan_error", "allow")
             perms = config.get("permissions", {}).get("enabled", True)
-            message += f"\n  Security settings:\n"
+            message += "\n  Security settings:\n"
             message += f"  • Prompt injection sensitivity: {pi_sensitivity}\n"
             message += f"  • On scan error: {on_error}\n"
             message += f"  • Permissions: {'Enabled' if perms else 'Disabled'}\n"
         else:
             message = f"✓ Created default config: {config_path}\n"
-            message += f"\n  Security settings:\n"
-            message += f"  • Secret scanning: Enabled (LeakTK patterns)\n"
-            message += f"  • Prompt injection: Enabled (medium sensitivity)\n"
-            message += f"  • SSRF protection: Enabled (blocks private IPs, metadata endpoints)\n"
+            message += "\n  Security settings:\n"
+            message += "  • Secret scanning: Enabled (LeakTK patterns)\n"
+            message += "  • Prompt injection: Enabled (medium sensitivity)\n"
+            message += "  • SSRF protection: Enabled (blocks private IPs, metadata endpoints)\n"
 
             if permissive:
-                message += f"  • Permissions: Disabled (all tools allowed)\n"
+                message += "  • Permissions: Disabled (all tools allowed)\n"
             else:
-                message += f"  • Permissions: Enabled (Skills/MCP blocked by default)\n"
+                message += "  • Permissions: Enabled (Skills/MCP blocked by default)\n"
 
-        message += f"\n  Next steps:\n"
-        message += f"  1. Run 'ai-guardian console' to configure allowed skills\n"
+        message += "\n  Next steps:\n"
+        message += "  1. Run 'ai-guardian console' to configure allowed skills\n"
         message += f"  2. Or edit {config_path} manually\n"
 
         return True, message
@@ -1725,7 +1780,6 @@ def _get_default_config_template(permissive: bool = False) -> Dict:
 
     config = {
         "$schema": schema_uri,
-
         "_comment_project_overlay": "Project-level .ai-guardian/ai-guardian.json at repo root merges on top of this global config. Use immutable arrays to lock fields from project override.",
         "_comment_secret_scanning": "Scan for secrets (API keys, tokens, passwords). Supported engines: gitleaks, betterleaks, leaktk, trufflehog, detect-secrets, secretlint, gitguardian",
         "secret_scanning": {
@@ -1737,9 +1791,7 @@ def _get_default_config_template(permissive: bool = False) -> Dict:
             "allowlist_patterns": [],
             "_comment_engines": "Engines tried in order. Built-in: gitleaks, betterleaks, leaktk, trufflehog, detect-secrets, secretlint, gitguardian. Python-based custom scanners: {type: python, module/path: ..., class: ...}. Cloud engines (gitguardian) require consent: ai-guardian engine consent gitguardian",
             "engines": [
-                {
-                    "type": "toml-patterns"
-                },
+                {"type": "toml-patterns"},
                 {
                     "type": "gitleaks",
                     "binary": "gitleaks",
@@ -1749,10 +1801,10 @@ def _get_default_config_template(permissive: bool = False) -> Dict:
                         "warn_on_failure": True,
                         "cache": {
                             "refresh_interval_hours": 12,
-                            "expire_after_hours": 168
-                        }
-                    }
-                }
+                            "expire_after_hours": 168,
+                        },
+                    },
+                },
             ],
             "_comment_strategy": "Strategies: first-match (default), any-match (block if ANY finds secrets), consensus (block only if N agree)",
             "execution_strategy": "first-match",
@@ -1771,9 +1823,8 @@ def _get_default_config_template(permissive: bool = False) -> Dict:
             "_comment_entropy": "Minimum Shannon entropy for secret matches. Range: 0.0 (identical chars) to ~6.0 (fully random). 3.0 filters placeholders while keeping real secrets (4.0+). Set to null to disable.",
             "min_entropy": 3.0,
             "_comment_stopwords": "Additional stopwords MERGED with bundled list (example, test, sample, placeholder, etc.). Never replaces bundled words. Case-insensitive substring match. Min word length: 3.",
-            "stopwords": []
+            "stopwords": [],
         },
-
         "_comment_prompt_injection": "Detect and block prompt injection attacks that try to manipulate AI behavior",
         "prompt_injection": {
             "enabled": True,
@@ -1793,30 +1844,37 @@ def _get_default_config_template(permissive: bool = False) -> Dict:
                 "detect_tag_chars": True,
                 "detect_homoglyphs": True,
                 "allow_rtl_languages": True,
-                "allow_emoji": True
-            }
+                "allow_emoji": True,
+            },
         },
-
         "_comment_secret_redaction": "Redact secrets from tool outputs instead of blocking (NEW in v1.5.0, Phase 4)",
         "secret_redaction": {
             "enabled": True,
             "action": "warn",
             "preserve_format": True,
             "log_redactions": True,
-            "additional_patterns": []
+            "additional_patterns": [],
         },
-
         "_comment_scan_pii": "PII detection for GDPR/CCPA compliance (v1.6.0+). Phase 1: SSN, credit card, phone, US passport, IBAN, international phone. Phase 2 defaults (v1.10.0): medical_id, passport, uk_nin. Opt-in: canada_sin, india_aadhaar, address, email.",
         "scan_pii": {
             "enabled": True,
-            "pii_types": ["ssn", "credit_card", "phone", "us_passport", "iban", "intl_phone", "medical_id", "passport", "uk_nin"],
+            "pii_types": [
+                "ssn",
+                "credit_card",
+                "phone",
+                "us_passport",
+                "iban",
+                "intl_phone",
+                "medical_id",
+                "passport",
+                "uk_nin",
+            ],
             "action": "block",
             "ignore_files": [],
             "ignore_tools": [],
             "allowlist_patterns": [],
-            "pattern_server": None
+            "pattern_server": None,
         },
-
         "_comment_image_scanning": "OCR-based image scanning for secrets and PII (NEW in v1.10.0, Issue #720). Scans image files for embedded secrets before they reach the AI model.",
         "image_scanning": {
             "enabled": True,
@@ -1831,7 +1889,6 @@ def _get_default_config_template(permissive: bool = False) -> Dict:
             "ignore_tools": [],
             "max_image_size_mb": 10,
         },
-
         "_comment_ssrf_protection": "Prevent SSRF attacks by blocking access to private networks, metadata endpoints, and dangerous URL schemes (NEW in v1.5.0)",
         "ssrf_protection": {
             "enabled": True,
@@ -1846,7 +1903,6 @@ def _get_default_config_template(permissive: bool = False) -> Dict:
             "ignore_files": [],
             "ignore_tools": [],
         },
-
         "_comment_config_file_scanning": "Detect credential exfiltration commands in AI config files (CLAUDE.md, AGENTS.md, etc.) - Phase 3 of Hermes integration (NEW in v1.5.0)",
         "config_file_scanning": {
             "enabled": True,
@@ -1854,9 +1910,8 @@ def _get_default_config_template(permissive: bool = False) -> Dict:
             "additional_files": [],
             "ignore_files": [],
             "ignore_tools": [],
-            "additional_patterns": []
+            "additional_patterns": [],
         },
-
         "_comment_supply_chain": "Detect malicious patterns in agent config files — hooks, MCP servers, and plugin files (NEW in v1.11.0, Issue #1055)",
         "supply_chain": {
             "enabled": True,
@@ -1866,98 +1921,81 @@ def _get_default_config_template(permissive: bool = False) -> Dict:
             "scan_plugins": True,
             "allowlist_paths": [],
         },
-
         "_comment_permissions": "Control which tools (Skills, MCP servers, Bash, etc.) are allowed to run. Rules evaluated in order, last match wins.",
         "permissions": {
             "enabled": not permissive,
-            "auto_directory_rules": {
-                "enabled": False,
-                "allow_symlinks": True
-            },
-            "rules": [
-                {
-                    "_comment": "Allow all tools — minimal profile has no restrictions",
-                    "matcher": "*",
-                    "mode": "allow",
-                    "patterns": ["*"]
-                }
-            ] if permissive else [
-                {
-                    "_comment": "Allow all tools by default (built-in tools like Bash, Read, Write, Edit)",
-                    "matcher": "*",
-                    "mode": "allow",
-                    "patterns": ["*"]
-                },
-                {
-                    "_comment": "Warn on unknown MCP servers (new servers allowed with warning)",
-                    "matcher": "mcp__*",
-                    "mode": "deny",
-                    "patterns": ["*"],
-                    "action": "warn"
-                },
-                {
-                    "_comment": "Allow ai-guardian MCP server (no warning needed)",
-                    "matcher": "mcp__ai-guardian__*",
-                    "mode": "allow",
-                    "patterns": ["*"]
-                },
-                {
-                    "_comment": "Warn on unknown Skills",
-                    "matcher": "Skill",
-                    "mode": "deny",
-                    "patterns": ["*"],
-                    "action": "warn"
-                }
-            ]
+            "auto_directory_rules": {"enabled": False, "allow_symlinks": True},
+            "rules": (
+                [
+                    {
+                        "_comment": "Allow all tools — minimal profile has no restrictions",
+                        "matcher": "*",
+                        "mode": "allow",
+                        "patterns": ["*"],
+                    }
+                ]
+                if permissive
+                else [
+                    {
+                        "_comment": "Allow all tools by default (built-in tools like Bash, Read, Write, Edit)",
+                        "matcher": "*",
+                        "mode": "allow",
+                        "patterns": ["*"],
+                    },
+                    {
+                        "_comment": "Warn on unknown MCP servers (new servers allowed with warning)",
+                        "matcher": "mcp__*",
+                        "mode": "deny",
+                        "patterns": ["*"],
+                        "action": "warn",
+                    },
+                    {
+                        "_comment": "Allow ai-guardian MCP server (no warning needed)",
+                        "matcher": "mcp__ai-guardian__*",
+                        "mode": "allow",
+                        "patterns": ["*"],
+                    },
+                    {
+                        "_comment": "Warn on unknown Skills",
+                        "matcher": "Skill",
+                        "mode": "deny",
+                        "patterns": ["*"],
+                        "action": "warn",
+                    },
+                ]
+            ),
         },
-
         "_comment_permissions_directories": "OPTIONAL/ADVANCED: Auto-discover tool permissions from directories/GitHub repos. Scans for permission files and merges discovered rules into permissions.rules. Most users should use remote_configs instead.",
         "_permissions_directories_example": [
             {
                 "_comment": "Example: scan local skills directory to auto-allow discovered skills",
                 "matcher": "Skill",
                 "mode": "allow",
-                "url": "~/.claude/skills"
+                "url": "~/.claude/skills",
             },
             {
                 "_comment": "Example: scan GitHub repository for skills",
                 "matcher": "Skill",
                 "mode": "allow",
                 "url": "https://github.com/your-org/skills/tree/main/skills",
-                "token_env": "GITHUB_TOKEN"
-            }
+                "token_env": "GITHUB_TOKEN",
+            },
         ],
-
         "_comment_directory_rules": "OPTIONAL: Control AI access to specific directories (e.g., block ~/.ssh). Last-match-wins evaluation order. See ai-guardian-example.json for examples.",
-        "directory_rules": {
-            "action": "block",
-            "rules": []
-        },
-
+        "directory_rules": {"action": "block", "rules": []},
         "_comment_remote_configs": "Load additional policies from remote URLs (for enterprise/team policies)",
-        "remote_configs": {
-            "urls": []
-        },
-
+        "remote_configs": {"urls": []},
         "_comment_console": "Console settings (editor theme, web console)",
-        "console": {
-            "editor_theme": "monokai",
-            "web": {
-                "port": 0,
-                "host": "127.0.0.1"
-            }
-        },
-
+        "console": {"editor_theme": "monokai", "web": {"port": 0, "host": "127.0.0.1"}},
         "_comment_transcript_scanning": "Scan conversation transcript for secrets, PII, and prompt injection from ! shell commands (NEW in v1.7.0, Issue #430)",
         "transcript_scanning": {
             "enabled": True,
         },
-
         "_comment_annotations": "Inline annotation suppression for secrets and PII (NEW in v1.8.0, Issue #481). "
-                                "Hardcoded: ai-guardian:allow (inline), ai-guardian:begin-allow/end-allow (block). "
-                                "Configurable aliases: inline_allow (secrets+PII), inline_allow_secrets (secrets only). "
-                                "Prompt injection, jailbreak, config exfil always scanned. "
-                                "Set enabled to false for strict compliance environments.",
+        "Hardcoded: ai-guardian:allow (inline), ai-guardian:begin-allow/end-allow (block). "
+        "Configurable aliases: inline_allow (secrets+PII), inline_allow_secrets (secrets only). "
+        "Prompt injection, jailbreak, config exfil always scanned. "
+        "Set enabled to false for strict compliance environments.",
         "annotations": {
             "enabled": True,
             "inline_allow": [],
@@ -1965,44 +2003,52 @@ def _get_default_config_template(permissive: bool = False) -> Dict:
             "block_begin": [],
             "block_end": [],
         },
-
         "_comment_latency_tracking": "Hook latency tracking — records per-hook timing to latency.jsonl for performance analysis. Disabled by default. (NEW in v1.11.0, Issue #1057)",
         "latency_tracking": {
             "enabled": False,
             "max_entries": 5000,
-            "retention_days": 30
+            "retention_days": 30,
         },
-
         "_comment_violation_logging": "Log blocked operations for audit and review (NEW in v1.1.0)",
         "violation_logging": {
             "enabled": True,
             "max_entries": 1000,
             "retention_days": 30,
-            "log_types": ["tool_permission", "directory_blocking", "secret_detected", "secret_redaction", "prompt_injection", "jailbreak_detected", "ssrf_blocked", "config_file_exfil", "pii_detected", "secret_in_transcript", "pii_in_transcript", "prompt_injection_in_transcript", "annotation_suppressed", "image_secret_detected", "image_pii_detected", "supply_chain"]
+            "log_types": [
+                "tool_permission",
+                "directory_blocking",
+                "secret_detected",
+                "secret_redaction",
+                "prompt_injection",
+                "jailbreak_detected",
+                "ssrf_blocked",
+                "config_file_exfil",
+                "pii_detected",
+                "secret_in_transcript",
+                "pii_in_transcript",
+                "prompt_injection_in_transcript",
+                "annotation_suppressed",
+                "image_secret_detected",
+                "image_pii_detected",
+                "supply_chain",
+            ],
         },
         "_comment_daemon": "Background daemon for faster hook processing. Auto-starts on any command, falls back to direct if unavailable.",
         "daemon": {
             "idle_timeout_minutes": 0,
             "client_timeout_seconds": 2.0,
-            "tray": {
-                "enabled": True,
-                "auto_install": True
-            }
+            "tray": {"enabled": True, "auto_install": True},
         },
-
         "_comment_on_scan_error": "Global behavior when a scanner encounters an error. 'allow' (default, fail-open): log warning, allow operation. 'block' (fail-closed): block operation if any scanner fails. For strict compliance environments. (NEW in v1.7.0, Issue #461)",
         "on_scan_error": "allow",
-
         "_comment_security_instructions": "Security rule injection into AI context via systemMessage. Injected on first UserPromptSubmit per session and re-injected after blocks. Disable only for ai-guardian development. (v1.7.0 #580, v1.8.0 #584)",
         "security_instructions": {
             "inject_on_prompt": True,
         },
-
         "_comment_mcp_server": "MCP security advisor server. Exposes read-only security tools for AI agents. Install via: ai-guardian setup --ide claude --mcp. (NEW in v1.7.0, Issue #477)",
         "mcp_server": {
             "proactive_level": "low",
         },
-
         "_comment_support": "Support bundle export. Two-step process: prepare (sanitize + review) then send (with user approval). Destination: local path, S3 URI, GCS URI (gs://bucket-name/), or email (mailto:support@company.com). (NEW in v1.7.0, Issue #477; email: Issue #932)",
         "support": {
             "export_destination": "",
@@ -2030,7 +2076,9 @@ def _get_default_config_template(permissive: bool = False) -> Dict:
     return config
 
 
-def _auto_install_hook(git_root_path: Path, hooks_dir: Path, git_template: Path, yaml_template: Path) -> Tuple[bool, str]:
+def _auto_install_hook(
+    git_root_path: Path, hooks_dir: Path, git_template: Path, yaml_template: Path
+) -> Tuple[bool, str]:
     """
     Automatically install pre-commit hook.
 
@@ -2062,7 +2110,12 @@ def _auto_install_hook(git_root_path: Path, hooks_dir: Path, git_template: Path,
 
             # Run pre-commit install
             try:
-                subprocess.run(["pre-commit", "install"], cwd=git_root_path, check=True, capture_output=True)
+                subprocess.run(
+                    ["pre-commit", "install"],
+                    cwd=git_root_path,
+                    check=True,
+                    capture_output=True,
+                )
                 return True, (
                     f"✅ Auto-installed pre-commit framework hook!\n"
                     f"  Config: {dest}\n"
@@ -2093,7 +2146,9 @@ def _auto_install_hook(git_root_path: Path, hooks_dir: Path, git_template: Path,
         return False, f"Error auto-installing hook: {e}"
 
 
-def uninstall_precommit_hooks(dry_run: bool = False, interactive: bool = True) -> Tuple[bool, str]:
+def uninstall_precommit_hooks(
+    dry_run: bool = False, interactive: bool = True
+) -> Tuple[bool, str]:
     """
     Remove AI Guardian pre-commit hooks.
 
@@ -2112,7 +2167,7 @@ def uninstall_precommit_hooks(dry_run: bool = False, interactive: bool = True) -
         git_root = subprocess.check_output(
             ["git", "rev-parse", "--show-toplevel"],
             stderr=subprocess.DEVNULL,
-            text=True
+            text=True,
         ).strip()
     except (subprocess.CalledProcessError, FileNotFoundError):
         return False, "Error: Not in a git repository"
@@ -2128,13 +2183,16 @@ def uninstall_precommit_hooks(dry_run: bool = False, interactive: bool = True) -
     # Check git hook
     if git_hook.exists():
         try:
-            with open(git_hook, 'r') as f:
+            with open(git_hook, "r") as f:
                 content = f.read()
                 # Check if this is our hook
-                if 'AI Guardian pre-commit hook' in content or 'ai-guardian scan' in content:
+                if (
+                    "AI Guardian pre-commit hook" in content
+                    or "ai-guardian scan" in content
+                ):
                     if interactive and not dry_run:
                         response = input(f"Remove git hook at {git_hook}? [y/N]: ")
-                        if response.lower() != 'y':
+                        if response.lower() != "y":
                             return False, "Removal cancelled"
 
                     if not dry_run:
@@ -2154,14 +2212,16 @@ def uninstall_precommit_hooks(dry_run: bool = False, interactive: bool = True) -
     # Check pre-commit config
     if yaml_config.exists():
         try:
-            with open(yaml_config, 'r') as f:
+            with open(yaml_config, "r") as f:
                 content = f.read()
                 # Check if this is entirely our config or mixed
-                if '# AI Guardian pre-commit hook configuration' in content:
+                if "# AI Guardian pre-commit hook configuration" in content:
                     # This is our file
                     if interactive and not dry_run:
-                        response = input(f"Remove pre-commit config at {yaml_config}? [y/N]: ")
-                        if response.lower() != 'y':
+                        response = input(
+                            f"Remove pre-commit config at {yaml_config}? [y/N]: "
+                        )
+                        if response.lower() != "y":
                             return False, "Removal cancelled"
 
                     if not dry_run:
@@ -2169,7 +2229,7 @@ def uninstall_precommit_hooks(dry_run: bool = False, interactive: bool = True) -
                         removed.append(f"Pre-commit config: {yaml_config}")
                     else:
                         removed.append(f"Would remove config: {yaml_config}")
-                elif 'ai-guardian' in content.lower():
+                elif "ai-guardian" in content.lower():
                     cannot_remove.append(
                         f"Found ai-guardian in {yaml_config}\n"
                         f"  This appears to be a mixed configuration.\n"
@@ -2197,7 +2257,9 @@ def uninstall_precommit_hooks(dry_run: bool = False, interactive: bool = True) -
     return True, "\n".join(message)
 
 
-def install_precommit_hooks(dry_run: bool = False, interactive: bool = True, allow_auto_install: bool = False) -> Tuple[bool, str]:
+def install_precommit_hooks(
+    dry_run: bool = False, interactive: bool = True, allow_auto_install: bool = False
+) -> Tuple[bool, str]:
     """
     Show pre-commit hook templates and integration instructions.
 
@@ -2219,7 +2281,7 @@ def install_precommit_hooks(dry_run: bool = False, interactive: bool = True, all
         git_root = subprocess.check_output(
             ["git", "rev-parse", "--show-toplevel"],
             stderr=subprocess.DEVNULL,
-            text=True
+            text=True,
         ).strip()
     except (subprocess.CalledProcessError, FileNotFoundError):
         return False, "Error: Not in a git repository"
@@ -2232,6 +2294,7 @@ def install_precommit_hooks(dry_run: bool = False, interactive: bool = True, all
 
     # Get template paths
     import ai_guardian
+
     # Templates are in the repo root, not in the package
     package_dir = Path(ai_guardian.__file__).parent
     # Go up to find templates (handles both dev and installed scenarios)
@@ -2259,10 +2322,14 @@ def install_precommit_hooks(dry_run: bool = False, interactive: bool = True, all
     if existing_git_hook.exists() and not existing_git_hook.is_symlink():
         # Check if it's a real hook (not just the sample)
         try:
-            with open(existing_git_hook, 'r') as f:
+            with open(existing_git_hook, "r") as f:
                 content = f.read()
                 # Git's sample hooks start with a shebang and contain "sample"
-                if content.strip() and not (content.startswith('#!/bin/sh') and 'sample' in content.lower() and len(content) < 500):
+                if content.strip() and not (
+                    content.startswith("#!/bin/sh")
+                    and "sample" in content.lower()
+                    and len(content) < 500
+                ):
                     warnings.append(f"⚠️  Existing git hook found: {existing_git_hook}")
                     has_existing_hooks = True
         except Exception:
@@ -2279,11 +2346,7 @@ def install_precommit_hooks(dry_run: bool = False, interactive: bool = True, all
 
     # Check if pre-commit framework is available
     try:
-        subprocess.run(
-            ["pre-commit", "--version"],
-            capture_output=True,
-            check=True
-        )
+        subprocess.run(["pre-commit", "--version"], capture_output=True, check=True)
         has_precommit_framework = True
     except (subprocess.CalledProcessError, FileNotFoundError):
         has_precommit_framework = False
@@ -2299,90 +2362,108 @@ def install_precommit_hooks(dry_run: bool = False, interactive: bool = True, all
     ]
 
     if allow_auto_install and has_existing_hooks:
-        message.extend([
-            "ℹ️  Auto-install flag provided, but existing hooks detected.",
-            "   Showing manual integration instructions to avoid conflicts.",
-            "",
-        ])
+        message.extend(
+            [
+                "ℹ️  Auto-install flag provided, but existing hooks detected.",
+                "   Showing manual integration instructions to avoid conflicts.",
+                "",
+            ]
+        )
 
     if warnings:
         message.extend(warnings)
-        message.extend([
-            "",
-            "❌ Auto-install disabled - existing hooks detected!",
-            "",
-            "To avoid conflicts with company/existing hooks, AI Guardian",
-            "does NOT auto-install. Instead, manually integrate:",
-            "",
-        ])
+        message.extend(
+            [
+                "",
+                "❌ Auto-install disabled - existing hooks detected!",
+                "",
+                "To avoid conflicts with company/existing hooks, AI Guardian",
+                "does NOT auto-install. Instead, manually integrate:",
+                "",
+            ]
+        )
     else:
-        message.extend([
-            "No existing hooks detected.",
-            "",
-            "Choose your integration method:",
-            "",
-        ])
+        message.extend(
+            [
+                "No existing hooks detected.",
+                "",
+                "Choose your integration method:",
+                "",
+            ]
+        )
 
     # Option 1: Git hook (always available)
-    message.extend([
-        "Option 1: Git Hook (Direct Integration)",
-        "──────────────────────────────────────",
-        f"  cp {git_template} {existing_git_hook}",
-        f"  chmod +x {existing_git_hook}",
-        "",
-        "  Or if you have existing hooks, add this to your hook:",
-        "  ┌─────────────────────────────────────────┐",
-        "  │ ai-guardian scan --exit-code .          │",
-        "  └─────────────────────────────────────────┘",
-        "",
-    ])
+    message.extend(
+        [
+            "Option 1: Git Hook (Direct Integration)",
+            "──────────────────────────────────────",
+            f"  cp {git_template} {existing_git_hook}",
+            f"  chmod +x {existing_git_hook}",
+            "",
+            "  Or if you have existing hooks, add this to your hook:",
+            "  ┌─────────────────────────────────────────┐",
+            "  │ ai-guardian scan --exit-code .          │",
+            "  └─────────────────────────────────────────┘",
+            "",
+        ]
+    )
 
     # Option 2: pre-commit framework (if available)
     if has_precommit_framework:
-        message.extend([
-            "Option 2: pre-commit Framework (Recommended)",
-            "─────────────────────────────────────────────",
-        ])
+        message.extend(
+            [
+                "Option 2: pre-commit Framework (Recommended)",
+                "─────────────────────────────────────────────",
+            ]
+        )
         if existing_yaml_config.exists():
-            message.extend([
-                f"  Add to existing {existing_yaml_config}:",
-                "  ┌─────────────────────────────────────────┐",
-                "  │ repos:                                  │",
-                "  │   - repo: local                         │",
-                "  │     hooks:                              │",
-                "  │       - id: ai-guardian                 │",
-                "  │         name: AI Guardian Security Scan │",
-                "  │         entry: ai-guardian scan --exit-code │",
-                "  │         language: system                │",
-                "  │         pass_filenames: false           │",
-                "  └─────────────────────────────────────────┘",
-            ])
+            message.extend(
+                [
+                    f"  Add to existing {existing_yaml_config}:",
+                    "  ┌─────────────────────────────────────────┐",
+                    "  │ repos:                                  │",
+                    "  │   - repo: local                         │",
+                    "  │     hooks:                              │",
+                    "  │       - id: ai-guardian                 │",
+                    "  │         name: AI Guardian Security Scan │",
+                    "  │         entry: ai-guardian scan --exit-code │",
+                    "  │         language: system                │",
+                    "  │         pass_filenames: false           │",
+                    "  └─────────────────────────────────────────┘",
+                ]
+            )
         else:
-            message.extend([
-                f"  cp {yaml_template} {existing_yaml_config}",
-                "  pre-commit install",
-            ])
+            message.extend(
+                [
+                    f"  cp {yaml_template} {existing_yaml_config}",
+                    "  pre-commit install",
+                ]
+            )
         message.extend(["", "  Then test: pre-commit run --all-files", ""])
     else:
-        message.extend([
-            "Option 2: pre-commit Framework",
-            "──────────────────────────────",
-            "  Not installed. Install with:",
-            "    pip install pre-commit",
-            "",
-            f"  Then: cp {yaml_template} {existing_yaml_config}",
-            "        pre-commit install",
-            "",
-        ])
+        message.extend(
+            [
+                "Option 2: pre-commit Framework",
+                "──────────────────────────────",
+                "  Not installed. Install with:",
+                "    pip install pre-commit",
+                "",
+                f"  Then: cp {yaml_template} {existing_yaml_config}",
+                "        pre-commit install",
+                "",
+            ]
+        )
 
     # Footer
-    message.extend([
-        "Testing:",
-        "  git commit      # Hook runs automatically",
-        "  git commit --no-verify  # Skip hook (not recommended)",
-        "",
-        "Need help? See templates for full examples.",
-    ])
+    message.extend(
+        [
+            "Testing:",
+            "  git commit      # Hook runs automatically",
+            "  git commit --no-verify  # Skip hook (not recommended)",
+            "",
+            "Need help? See templates for full examples.",
+        ]
+    )
 
     return True, "\n".join(message)
 
@@ -2454,16 +2535,21 @@ def setup_hooks(
     # Handle profile listing if requested
     if list_profiles:
         from ai_guardian.profile_manager import format_profile_list
+
         print(format_profile_list())
         return True
 
     # Handle saving current config as a profile
     if save_profile:
         from ai_guardian.profile_manager import save_profile as _save_profile
+
         config_dir = get_config_dir()
         config_path = config_dir / "ai-guardian.json"
         if not config_path.exists():
-            print("Error: No config file found. Create one first with --create-config", file=sys.stderr)
+            print(
+                "Error: No config file found. Create one first with --create-config",
+                file=sys.stderr,
+            )
             return False
         try:
             with open(config_path, "r", encoding="utf-8") as f:
@@ -2478,19 +2564,29 @@ def setup_hooks(
     # Validate --profile usage
     if profile and not create_config:
         print("Error: --profile requires --create-config", file=sys.stderr)
-        print("Usage: ai-guardian setup --create-config --profile @strict", file=sys.stderr)
+        print(
+            "Usage: ai-guardian setup --create-config --profile @strict",
+            file=sys.stderr,
+        )
         return False
 
     if profile and permissive:
-        print("Warning: --profile overrides --permissive, ignoring --permissive", file=sys.stderr)
+        print(
+            "Warning: --profile overrides --permissive, ignoring --permissive",
+            file=sys.stderr,
+        )
 
     # Handle scanner installation if requested (NEW in v1.6.0)
     if install_scanner:
         if dry_run:
             if use_pinned:
-                print(f"[DRY RUN] Would install pinned scanner(s): {', '.join(install_scanner)}")
+                print(
+                    f"[DRY RUN] Would install pinned scanner(s): {', '.join(install_scanner)}"
+                )
             else:
-                print(f"[DRY RUN] Would install scanner(s): {', '.join(install_scanner)}")
+                print(
+                    f"[DRY RUN] Would install scanner(s): {', '.join(install_scanner)}"
+                )
         else:
             try:
                 from ai_guardian.scanner_installer import ScannerInstaller
@@ -2510,31 +2606,34 @@ def setup_hooks(
                         if installer.verify_installation(scanner_name):
                             print(f"\n✓ {scanner_name} is ready to use\n")
                         else:
-                            print(f"\n⚠  Installation completed but {scanner_name} verification failed")
+                            print(
+                                f"\n⚠  Installation completed but {scanner_name} verification failed"
+                            )
                             print("Make sure ~/.local/bin is in your PATH\n")
                             if interactive:
-                                response = input("Continue with IDE setup anyway? (y/n): ")
-                                if response.lower() != 'y':
+                                response = input(
+                                    "Continue with IDE setup anyway? (y/n): "
+                                )
+                                if response.lower() != "y":
                                     return False
                     else:
                         print(f"\n✗ Failed to install {scanner_name}\n")
                         if interactive:
                             response = input("Continue with IDE setup anyway? (y/n): ")
-                            if response.lower() != 'y':
+                            if response.lower() != "y":
                                 return False
 
             except Exception as e:
                 print(f"Error installing scanner: {e}")
                 if interactive:
                     response = input("Continue with IDE setup anyway? (y/n): ")
-                    if response.lower() != 'y':
+                    if response.lower() != "y":
                         return False
 
     # Handle pre-commit hook uninstallation if requested
     if pre_commit and uninstall_hooks:
         success, message = uninstall_precommit_hooks(
-            dry_run=dry_run,
-            interactive=interactive
+            dry_run=dry_run, interactive=interactive
         )
         print(message)
         return success
@@ -2544,29 +2643,49 @@ def setup_hooks(
         success, message = install_precommit_hooks(
             dry_run=dry_run,
             interactive=interactive,
-            allow_auto_install=auto_install_hooks
+            allow_auto_install=auto_install_hooks,
         )
         print(message)
         if not success:
             return False
         # If only installing pre-commit (no IDE setup or config), return early
-        if ide_type is None and not remote_config_url and not migrate_pattern_server and not create_config:
+        if (
+            ide_type is None
+            and not remote_config_url
+            and not migrate_pattern_server
+            and not create_config
+        ):
             return success
 
     # Handle default config creation if requested
     if create_config:
         config_success, message = create_default_config(
-            permissive=permissive, dry_run=dry_run, json_output=False,
-            profile=profile, force=force,
+            permissive=permissive,
+            dry_run=dry_run,
+            json_output=False,
+            profile=profile,
+            force=force,
         )
         print(message)
         if not config_success:
             # Only fail if create_config was the sole operation requested
-            if ide_type is None and not remote_config_url and not migrate_pattern_server and not mcp and not no_mcp:
+            if (
+                ide_type is None
+                and not remote_config_url
+                and not migrate_pattern_server
+                and not mcp
+                and not no_mcp
+            ):
                 return False
         else:
             # If only creating config (no IDE setup or remote config), return early
-            if ide_type is None and not remote_config_url and not migrate_pattern_server and not mcp and not no_mcp:
+            if (
+                ide_type is None
+                and not remote_config_url
+                and not migrate_pattern_server
+                and not mcp
+                and not no_mcp
+            ):
                 if config_success:
                     _notify_daemon_reload()
                 return config_success
@@ -2574,8 +2693,7 @@ def setup_hooks(
     # Handle pattern_server migration if requested
     if migrate_pattern_server:
         success, message = setup.check_and_migrate_pattern_server(
-            dry_run=dry_run,
-            interactive=interactive
+            dry_run=dry_run, interactive=interactive
         )
         print(message)
         if not success and not message.endswith("cancelled"):
@@ -2599,7 +2717,10 @@ def setup_hooks(
         detected_ides = setup.list_detected_ides()
 
         if not detected_ides:
-            print("Error: No IDE detected. Please install Claude Code or Cursor IDE.", file=sys.stderr)
+            print(
+                "Error: No IDE detected. Please install Claude Code or Cursor IDE.",
+                file=sys.stderr,
+            )
             print("\nSupported IDEs:", file=sys.stderr)
             print("  - Claude Code: https://claude.ai/code", file=sys.stderr)
             print("  - Cursor: https://cursor.sh", file=sys.stderr)
@@ -2628,7 +2749,10 @@ def setup_hooks(
                     print("\nError: Invalid input", file=sys.stderr)
                     return False
             else:
-                print("\nError: Multiple IDEs detected. Please specify with --ide flag.", file=sys.stderr)
+                print(
+                    "\nError: Multiple IDEs detected. Please specify with --ide flag.",
+                    file=sys.stderr,
+                )
                 return False
 
     # Validate IDE type
@@ -2639,7 +2763,7 @@ def setup_hooks(
 
     # Confirm with user if interactive
     if interactive and not dry_run and not force:
-        ide_name = setup.IDE_CONFIGS[ide_type]['name']
+        ide_name = setup.IDE_CONFIGS[ide_type]["name"]
         config_path = setup.get_config_path(ide_type)
 
         print(f"\nThis will configure ai-guardian hooks for {ide_name}")
@@ -2647,7 +2771,7 @@ def setup_hooks(
 
         try:
             response = input("\nContinue? [y/N]: ")
-            if response.lower() not in ['y', 'yes']:
+            if response.lower() not in ["y", "yes"]:
                 print("Aborted.")
                 return False
         except KeyboardInterrupt:
@@ -2694,6 +2818,7 @@ def _setup_hooks_json_output(
     if create_config:
         if profile:
             from ai_guardian.profile_manager import load_profile, ProfileNotFoundError
+
             try:
                 ag_config = load_profile(profile)
             except (ProfileNotFoundError, json.JSONDecodeError) as e:
@@ -2724,10 +2849,15 @@ def _setup_hooks_json_output(
             if create_config:
                 print(json.dumps(result, indent=2))
                 return True
-            print(json.dumps({
-                "success": False,
-                "error": "No IDE detected. Specify --ide flag.",
-            }, indent=2))
+            print(
+                json.dumps(
+                    {
+                        "success": False,
+                        "error": "No IDE detected. Specify --ide flag.",
+                    },
+                    indent=2,
+                )
+            )
             return False
         elif len(detected_ides) == 1:
             ide_type = detected_ides[0]
@@ -2735,20 +2865,30 @@ def _setup_hooks_json_output(
             if create_config:
                 print(json.dumps(result, indent=2))
                 return True
-            print(json.dumps({
-                "success": False,
-                "error": (
-                    f"Multiple IDEs detected: {', '.join(detected_ides)}. "
-                    "Specify --ide flag."
-                ),
-            }, indent=2))
+            print(
+                json.dumps(
+                    {
+                        "success": False,
+                        "error": (
+                            f"Multiple IDEs detected: {', '.join(detected_ides)}. "
+                            "Specify --ide flag."
+                        ),
+                    },
+                    indent=2,
+                )
+            )
             return False
 
     if ide_type not in setup.IDE_CONFIGS:
-        print(json.dumps({
-            "success": False,
-            "error": f"Unknown IDE type: {ide_type}",
-        }, indent=2))
+        print(
+            json.dumps(
+                {
+                    "success": False,
+                    "error": f"Unknown IDE type: {ide_type}",
+                },
+                indent=2,
+            )
+        )
         return False
 
     result["ide"] = ide_type
@@ -2758,7 +2898,9 @@ def _setup_hooks_json_output(
     _devnull = io.StringIO()
     with contextlib.redirect_stdout(_devnull), contextlib.redirect_stderr(_devnull):
         success, message = setup.setup_ide_hooks(
-            ide_type, dry_run=dry_run, force=force,
+            ide_type,
+            dry_run=dry_run,
+            force=force,
         )
 
     result["success"] = success
@@ -2772,18 +2914,28 @@ def _setup_hooks_json_output(
         with contextlib.redirect_stdout(_devnull), contextlib.redirect_stderr(_devnull):
             if no_mcp:
                 _handle_mcp_setup(
-                    setup, ide_type, mcp=False, no_mcp=True, dry_run=dry_run,
+                    setup,
+                    ide_type,
+                    mcp=False,
+                    no_mcp=True,
+                    dry_run=dry_run,
                 )
             else:
                 _handle_mcp_setup(
-                    setup, ide_type, mcp=True, no_mcp=False, dry_run=dry_run,
+                    setup,
+                    ide_type,
+                    mcp=True,
+                    no_mcp=False,
+                    dry_run=dry_run,
                 )
 
     # Always include MCP server config in JSON output (unless --no-mcp)
     if success and not no_mcp:
         mcp_ide = _MCP_IDE_CONFIGS.get(ide_type, {})
         mcp_path = mcp_ide.get("config_file", "")
-        result["mcp_config_path"] = str(Path(mcp_path).expanduser()) if mcp_path else None
+        result["mcp_config_path"] = (
+            str(Path(mcp_path).expanduser()) if mcp_path else None
+        )
         abs_path = _resolve_binary_path()
         mcp_entry = dict(_MCP_SERVER_ENTRY)
         mcp_entry["command"] = abs_path

@@ -12,9 +12,9 @@ import logging
 import os
 import sys
 import time
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Dict, Optional, Tuple
+from typing import Any, Dict, Optional
 
 from ai_guardian.config_utils import (
     get_config_dir,
@@ -26,6 +26,7 @@ from ai_guardian.config_utils import (
 
 try:
     from ai_guardian import aiguardignore as _aiguardignore_cfg
+
     HAS_AIGUARDIGNORE = True
 except ImportError:
     HAS_AIGUARDIGNORE = False
@@ -50,6 +51,7 @@ def _merge_aiguardignore(scanner_config, scanner_type):
 @dataclass
 class _ConfigCacheEntry:
     """Cached config state to avoid redundant file reads."""
+
     result: Any = None  # (config_dict, error_msg) tuple or None
     global_mtime: Optional[float] = None
     project_mtime: Optional[float] = None
@@ -130,8 +132,9 @@ def _resolve_sdk_overlay() -> Optional[Dict[str, Any]]:
             inline_overlay = json.loads(inline_json)
             if isinstance(inline_overlay, dict):
                 if result is not None:
-                    result = deep_merge(result, inline_overlay,
-                                        global_only_sections=frozenset())
+                    result = deep_merge(
+                        result, inline_overlay, global_only_sections=frozenset()
+                    )
                 else:
                     result = inline_overlay
             else:
@@ -141,8 +144,7 @@ def _resolve_sdk_overlay() -> Optional[Dict[str, Any]]:
 
     if _sdk_overlay is not None:
         if result is not None:
-            result = deep_merge(result, _sdk_overlay,
-                                global_only_sections=frozenset())
+            result = deep_merge(result, _sdk_overlay, global_only_sections=frozenset())
         else:
             result = copy.deepcopy(_sdk_overlay)
 
@@ -171,7 +173,7 @@ def _normalize_permissions(config):
     if isinstance(permissions, list):
         logger.warning(
             "DEPRECATED: permissions as array format detected. "
-            "Update to: {\"permissions\": {\"enabled\": true, \"rules\": [...]}}"
+            'Update to: {"permissions": {"enabled": true, "rules": [...]}}'
         )
         config = dict(config)
         config["permissions"] = {
@@ -231,11 +233,16 @@ def _load_config_file():
         current_sdk_id = id(_sdk_overlay) if _sdk_overlay is not None else None
 
         # No config files and no overlay at all
-        if (global_path is None and project_path is None
-                and not overlay_env_path and not inline_value
-                and _sdk_overlay is None):
+        if (
+            global_path is None
+            and project_path is None
+            and not overlay_env_path
+            and not inline_value
+            and _sdk_overlay is None
+        ):
             _caches[cache_key] = _ConfigCacheEntry(
-                result=(None, None), last_accessed=time.monotonic(),
+                result=(None, None),
+                last_accessed=time.monotonic(),
             )
             return _caches[cache_key].result
 
@@ -289,9 +296,7 @@ def _load_config_file():
 
         # Merge (use `is not None` — empty dict {} is a valid config)
         if global_config is not None and project_config is not None:
-            logger.debug(
-                f"Config merge: global={global_path}, project={project_path}"
-            )
+            logger.debug(f"Config merge: global={global_path}, project={project_path}")
             effective = deep_merge(global_config, project_config)
         elif global_config is not None:
             effective = global_config
@@ -304,8 +309,9 @@ def _load_config_file():
         overlay = _resolve_sdk_overlay()
         if overlay is not None:
             if effective is not None:
-                effective = deep_merge(effective, overlay,
-                                       global_only_sections=frozenset())
+                effective = deep_merge(
+                    effective, overlay, global_only_sections=frozenset()
+                )
             else:
                 effective = copy.deepcopy(overlay)
             logger.debug("Config merge: SDK overlay applied")
@@ -335,8 +341,7 @@ def cleanup_stale_entries(max_age: float = 86400.0):
     """Remove cache entries not accessed within max_age seconds."""
     now = time.monotonic()
     stale_keys = [
-        k for k, entry in _caches.items()
-        if now - entry.last_accessed > max_age
+        k for k, entry in _caches.items() if now - entry.last_accessed > max_age
     ]
     for key in stale_keys:
         _caches.pop(key, None)
@@ -352,7 +357,7 @@ def _load_json_config(config_path):
         tuple: (config_dict or None, error_message or None)
     """
     try:
-        with open(config_path, 'r') as f:
+        with open(config_path, "r") as f:
             config = json.load(f)
         return config, None
     except json.JSONDecodeError as e:
@@ -396,9 +401,9 @@ def _load_pattern_server_config():
             logging.warning(
                 "DEPRECATED: 'secret_scanning.pattern_server' is a global setting "
                 "but only applies to gitleaks. Move to per-engine format:\n"
-                "  \"secret_scanning\": {\n"
-                "    \"engines\": [\n"
-                "      {\"type\": \"gitleaks\", \"pattern_server\": {...}}\n"
+                '  "secret_scanning": {\n'
+                '    "engines": [\n'
+                '      {"type": "gitleaks", "pattern_server": {...}}\n'
                 "    ]\n"
                 "  }\n"
                 "Run: ai-guardian setup --migrate-pattern-server\n"
@@ -406,7 +411,9 @@ def _load_pattern_server_config():
             )
 
             if pattern_config is None:
-                logging.debug("Pattern server explicitly disabled (secret_scanning.pattern_server = null)")
+                logging.debug(
+                    "Pattern server explicitly disabled (secret_scanning.pattern_server = null)"
+                )
                 return None
 
             if isinstance(pattern_config, dict):
@@ -416,10 +423,14 @@ def _load_pattern_server_config():
                         return None
 
                 if pattern_config.get("url"):
-                    logging.debug("Using pattern server from secret_scanning.pattern_server")
+                    logging.debug(
+                        "Using pattern server from secret_scanning.pattern_server"
+                    )
                     return pattern_config
                 else:
-                    logging.debug("Pattern server section present but no URL configured")
+                    logging.debug(
+                        "Pattern server section present but no URL configured"
+                    )
                     return None
 
         if "pattern_server" in config:
@@ -429,9 +440,9 @@ def _load_pattern_server_config():
                 "DEPRECATED: Root-level 'pattern_server' configuration. "
                 "Move to 'secret_scanning.pattern_server' instead. "
                 "Example:\n"
-                "  \"secret_scanning\": {\n"
-                "    \"enabled\": true,\n"
-                "    \"pattern_server\": {...}\n"
+                '  "secret_scanning": {\n'
+                '    "enabled": true,\n'
+                '    "pattern_server": {...}\n'
                 "  }\n"
                 "Root-level support will be removed in v2.0.0."
             )
@@ -507,13 +518,23 @@ def _load_secret_redaction_config():
 
 
 _PII_DEFAULTS = {
-    'enabled': True,
-    'pii_types': ['ssn', 'credit_card', 'phone', 'us_passport', 'iban', 'intl_phone', 'medical_id', 'passport', 'uk_nin'],
-    'action': 'block',
-    'ignore_files': [],
-    'ignore_tools': [],
-    'allowlist_patterns': [],
-    'pattern_server': None,
+    "enabled": True,
+    "pii_types": [
+        "ssn",
+        "credit_card",
+        "phone",
+        "us_passport",
+        "iban",
+        "intl_phone",
+        "medical_id",
+        "passport",
+        "uk_nin",
+    ],
+    "action": "block",
+    "ignore_files": [],
+    "ignore_tools": [],
+    "allowlist_patterns": [],
+    "pattern_server": None,
 }
 
 
@@ -524,7 +545,7 @@ def _load_pii_config():
 
 def _load_transcript_scanning_config():
     """Load transcript scanning configuration. Returns defaults when section is absent."""
-    return _load_config_section("transcript_scanning", defaults={'enabled': True})
+    return _load_config_section("transcript_scanning", defaults={"enabled": True})
 
 
 def _load_annotations_config():
@@ -533,52 +554,58 @@ def _load_annotations_config():
 
 
 _IMAGE_SCANNING_DEFAULTS = {
-    'enabled': True,
-    'action': 'block',
-    'scan_types': ['secrets', 'pii'],
-    'max_processing_ms': 1500,
-    'min_confidence': 0.5,
-    'redaction_method': 'blur',
-    'qr_scanning': False,
-    'face_detection': False,
-    'ignore_files': [],
-    'ignore_tools': [],
-    'max_image_size_mb': 10,
+    "enabled": True,
+    "action": "block",
+    "scan_types": ["secrets", "pii"],
+    "max_processing_ms": 1500,
+    "min_confidence": 0.5,
+    "redaction_method": "blur",
+    "qr_scanning": False,
+    "face_detection": False,
+    "ignore_files": [],
+    "ignore_tools": [],
+    "max_image_size_mb": 10,
 }
 
 
 def _load_image_scanning_config():
     """Load image scanning configuration. Returns defaults when section is absent."""
-    return _load_config_section("image_scanning", defaults=_IMAGE_SCANNING_DEFAULTS, merge_ignore=True)
+    return _load_config_section(
+        "image_scanning", defaults=_IMAGE_SCANNING_DEFAULTS, merge_ignore=True
+    )
 
 
 _CONTEXT_POISONING_DEFAULTS = {
-    'enabled': True,
-    'action': 'warn',
-    'allowlist_patterns': [],
-    'custom_patterns': [],
-    'sensitivity': 'medium',
+    "enabled": True,
+    "action": "warn",
+    "allowlist_patterns": [],
+    "custom_patterns": [],
+    "sensitivity": "medium",
 }
 
 
 def _load_context_poisoning_config():
     """Load context poisoning configuration. Returns defaults when section is absent."""
-    return _load_config_section("context_poisoning", defaults=_CONTEXT_POISONING_DEFAULTS, merge_ignore=True)
+    return _load_config_section(
+        "context_poisoning", defaults=_CONTEXT_POISONING_DEFAULTS, merge_ignore=True
+    )
 
 
 _SUPPLY_CHAIN_DEFAULTS = {
-    'enabled': True,
-    'action': 'block',
-    'scan_hooks': True,
-    'scan_mcp_configs': True,
-    'scan_plugins': True,
-    'allowlist_paths': [],
+    "enabled": True,
+    "action": "block",
+    "scan_hooks": True,
+    "scan_mcp_configs": True,
+    "scan_plugins": True,
+    "allowlist_paths": [],
 }
 
 
 def _load_supply_chain_config():
     """Load supply chain scanning configuration. Returns defaults when section is absent."""
-    return _load_config_section("supply_chain", defaults=_SUPPLY_CHAIN_DEFAULTS, merge_ignore=True)
+    return _load_config_section(
+        "supply_chain", defaults=_SUPPLY_CHAIN_DEFAULTS, merge_ignore=True
+    )
 
 
 def _load_security_instructions_config():

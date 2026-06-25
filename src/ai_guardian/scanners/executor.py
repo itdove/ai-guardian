@@ -13,7 +13,6 @@ import logging
 import os
 import subprocess
 import time
-from pathlib import Path
 from typing import Optional
 
 from ai_guardian.scanners.engine_builder import EngineConfig, build_scanner_command
@@ -26,6 +25,7 @@ def _cache_get(cache, content_hash, engine_config, engine_label):
     if not (cache and content_hash):
         return None, None
     from ai_guardian.scanners.cache import ScanResultCache
+
     cfg_hash = ScanResultCache.config_hash(engine_config)
     cached = cache.get(content_hash, engine_label, cfg_hash)
     if cached is not None:
@@ -66,15 +66,19 @@ def run_single_engine(
     Returns:
         ScanResult with findings from this engine
     """
-    cached, cfg_hash = _cache_get(cache, content_hash, engine_config, engine_config.type)
+    cached, cfg_hash = _cache_get(
+        cache, content_hash, engine_config, engine_config.type
+    )
     if cached is not None:
         return cached
 
-    if hasattr(engine_config, 'api_key_env') and engine_config.api_key_env:
+    if hasattr(engine_config, "api_key_env") and engine_config.api_key_env:
         if not os.environ.get(engine_config.api_key_env):
             return ScanResult(
-                has_secrets=False, secrets=[], engine=engine_config.type,
-                error=f"API key not set: ${engine_config.api_key_env}"
+                has_secrets=False,
+                secrets=[],
+                engine=engine_config.type,
+                error=f"API key not set: ${engine_config.api_key_env}",
             )
 
     start_time = time.monotonic()
@@ -84,17 +88,12 @@ def run_single_engine(
             engine_config=engine_config,
             source_file=source_file,
             report_file=report_file,
-            config_path=config_path
+            config_path=config_path,
         )
 
         logging.debug(f"Engine {engine_config.type}: running {' '.join(cmd)}")
 
-        result = subprocess.run(
-            cmd,
-            capture_output=True,
-            text=True,
-            timeout=timeout
-        )
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
 
         elapsed_ms = (time.monotonic() - start_time) * 1000
 
@@ -102,7 +101,7 @@ def run_single_engine(
         # (TruffleHog, detect-secrets), write stdout to the report file
         if "{report_file}" not in " ".join(engine_config.command_template):
             if result.stdout:
-                with open(report_file, 'w', encoding='utf-8') as f:
+                with open(report_file, "w", encoding="utf-8") as f:
                     f.write(result.stdout)
 
         # Gitleaks/betterleaks exit code 1 special case (Issue #411):
@@ -127,7 +126,7 @@ def run_single_engine(
                 has_secrets=False,
                 secrets=[],
                 engine=engine_config.type,
-                scan_time_ms=elapsed_ms
+                scan_time_ms=elapsed_ms,
             )
             _cache_put(cache, content_hash, engine_config.type, cfg_hash, clean_result)
             return clean_result
@@ -135,7 +134,9 @@ def run_single_engine(
         # Unexpected exit code
         stderr_preview = ""
         if result.stderr:
-            stderr_lines = [line.strip() for line in result.stderr.split('\n') if line.strip()]
+            stderr_lines = [
+                line.strip() for line in result.stderr.split("\n") if line.strip()
+            ]
             if stderr_lines:
                 stderr_preview = stderr_lines[0][:200]
 
@@ -148,7 +149,7 @@ def run_single_engine(
             secrets=[],
             engine=engine_config.type,
             error=f"Unexpected exit code {result.returncode}: {stderr_preview}",
-            scan_time_ms=elapsed_ms
+            scan_time_ms=elapsed_ms,
         )
 
     except subprocess.TimeoutExpired:
@@ -159,17 +160,19 @@ def run_single_engine(
             secrets=[],
             engine=engine_config.type,
             error=f"Timed out after {timeout}s",
-            scan_time_ms=elapsed_ms
+            scan_time_ms=elapsed_ms,
         )
     except FileNotFoundError:
         elapsed_ms = (time.monotonic() - start_time) * 1000
-        logging.warning(f"Engine {engine_config.type} binary not found: {engine_config.binary}")
+        logging.warning(
+            f"Engine {engine_config.type} binary not found: {engine_config.binary}"
+        )
         return ScanResult(
             has_secrets=False,
             secrets=[],
             engine=engine_config.type,
             error=f"Binary not found: {engine_config.binary}",
-            scan_time_ms=elapsed_ms
+            scan_time_ms=elapsed_ms,
         )
     except Exception as e:
         elapsed_ms = (time.monotonic() - start_time) * 1000
@@ -179,7 +182,7 @@ def run_single_engine(
             secrets=[],
             engine=engine_config.type,
             error=str(e),
-            scan_time_ms=elapsed_ms
+            scan_time_ms=elapsed_ms,
         )
 
 
@@ -242,19 +245,21 @@ def run_python_scanner(
 
         secrets = []
         for finding in findings:
-            secrets.append(SecretMatch(
-                rule_id=finding.rule_id,
-                description=finding.description,
-                file=source_file,
-                line_number=finding.line_number,
-                end_line=finding.end_line,
-                start_column=finding.start_column,
-                end_column=finding.end_column,
-                commit=finding.commit,
-                engine=scanner_name,
-                category=finding.category,
-                secret=finding.matched_text,
-            ))
+            secrets.append(
+                SecretMatch(
+                    rule_id=finding.rule_id,
+                    description=finding.description,
+                    file=source_file,
+                    line_number=finding.line_number,
+                    end_line=finding.end_line,
+                    start_column=finding.start_column,
+                    end_column=finding.end_column,
+                    commit=finding.commit,
+                    engine=scanner_name,
+                    category=finding.category,
+                    secret=finding.matched_text,
+                )
+            )
 
         logging.info(
             f"Engine scan complete: engine={scanner_name} "
@@ -311,19 +316,27 @@ def run_engine(
     """
     if engine_config.python_scanner is not None:
         return run_python_scanner(
-            engine_config, source_file, report_file, config_path,
-            timeout, cache, content_hash,
+            engine_config,
+            source_file,
+            report_file,
+            config_path,
+            timeout,
+            cache,
+            content_hash,
         )
     return run_single_engine(
-        engine_config, source_file, report_file, config_path,
-        timeout, cache, content_hash,
+        engine_config,
+        source_file,
+        report_file,
+        config_path,
+        timeout,
+        cache,
+        content_hash,
     )
 
 
 def _parse_secrets_result(
-    engine_config: EngineConfig,
-    report_file: str,
-    elapsed_ms: float
+    engine_config: EngineConfig, report_file: str, elapsed_ms: float
 ) -> ScanResult:
     """Parse scanner output into ScanResult with SecretMatch objects."""
     try:
@@ -340,24 +353,26 @@ def _parse_secrets_result(
                 has_secrets=False,
                 secrets=[],
                 engine=engine_config.type,
-                scan_time_ms=elapsed_ms
+                scan_time_ms=elapsed_ms,
             )
 
         secrets = []
         for finding in parsed.get("findings", []):
-            secrets.append(SecretMatch(
-                rule_id=finding.get("rule_id", "unknown"),
-                description=finding.get("description", "Secret detected"),
-                file=finding.get("file", "unknown"),
-                line_number=finding.get("line_number", 0),
-                end_line=finding.get("end_line"),
-                start_column=finding.get("start_column"),
-                end_column=finding.get("end_column"),
-                commit=finding.get("commit"),
-                engine=engine_config.type,
-                verified=finding.get("verified", False),
-                secret=finding.get("matched_text"),
-            ))
+            secrets.append(
+                SecretMatch(
+                    rule_id=finding.get("rule_id", "unknown"),
+                    description=finding.get("description", "Secret detected"),
+                    file=finding.get("file", "unknown"),
+                    line_number=finding.get("line_number", 0),
+                    end_line=finding.get("end_line"),
+                    start_column=finding.get("start_column"),
+                    end_column=finding.get("end_column"),
+                    commit=finding.get("commit"),
+                    engine=engine_config.type,
+                    verified=finding.get("verified", False),
+                    secret=finding.get("matched_text"),
+                )
+            )
 
         logging.info(
             f"Engine scan complete: engine={engine_config.type} "
@@ -368,21 +383,23 @@ def _parse_secrets_result(
             has_secrets=True,
             secrets=secrets,
             engine=engine_config.type,
-            scan_time_ms=elapsed_ms
+            scan_time_ms=elapsed_ms,
         )
 
     except Exception as e:
         logging.error(f"Failed to parse {engine_config.type} output: {e}")
         return ScanResult(
             has_secrets=True,
-            secrets=[SecretMatch(
-                rule_id="parse-error",
-                description=f"Scanner detected secrets but output parsing failed: {e}",
-                file="unknown",
-                line_number=0,
-                engine=engine_config.type,
-            )],
+            secrets=[
+                SecretMatch(
+                    rule_id="parse-error",
+                    description=f"Scanner detected secrets but output parsing failed: {e}",
+                    file="unknown",
+                    line_number=0,
+                    engine=engine_config.type,
+                )
+            ],
             engine=engine_config.type,
             error=f"Parse error: {e}",
-            scan_time_ms=elapsed_ms
+            scan_time_ms=elapsed_ms,
         )

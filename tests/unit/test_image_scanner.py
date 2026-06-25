@@ -25,8 +25,6 @@ from ai_guardian.image_scanner import (
     ImageScanResult,
     scan_image,
     _box_points_to_bbox,
-    IMAGE_EXTENSIONS,
-    HAS_RAPIDOCR,
 )
 
 
@@ -102,6 +100,7 @@ class TestImageDetector(TestCase):
 
     def test_is_base64_image_valid(self):
         import base64
+
         data = _create_test_image()
         b64 = base64.b64encode(data).decode()
         text = f"Here is an image: data:image/png;base64,{b64}"
@@ -113,6 +112,7 @@ class TestImageDetector(TestCase):
 
     def test_extract_base64_images(self):
         import base64
+
         data = _create_test_image()
         b64 = base64.b64encode(data).decode()
         text = f"Image: data:image/png;base64,{b64} end"
@@ -122,6 +122,7 @@ class TestImageDetector(TestCase):
 
     def test_extract_multiple_base64_images(self):
         import base64
+
         data1 = _create_test_image(color="red")
         data2 = _create_test_image(color="blue")
         b64_1 = base64.b64encode(data1).decode()
@@ -132,6 +133,7 @@ class TestImageDetector(TestCase):
 
     def test_strip_base64_images_removes_data_uri(self):
         import base64
+
         data = _create_test_image()
         b64 = base64.b64encode(data).decode()
         text = f"Hello world data:image/png;base64,{b64} some text after"
@@ -147,6 +149,7 @@ class TestImageDetector(TestCase):
 
     def test_strip_base64_images_multiple(self):
         import base64
+
         data1 = _create_test_image(color="red")
         data2 = _create_test_image(color="blue")
         b64_1 = base64.b64encode(data1).decode()
@@ -161,6 +164,7 @@ class TestImageDetector(TestCase):
     def test_strip_base64_images_preserves_ocr_text(self):
         """Verify that stripping happens on the original content, not on appended OCR text."""
         import base64
+
         data = _create_test_image()
         b64 = base64.b64encode(data).decode()
         content = f"User prompt data:image/png;base64,{b64}"
@@ -176,7 +180,10 @@ class TestOCREngine(TestCase):
     """Test OCR engine with mocked rapidocr."""
 
     @patch("ai_guardian.image_scanner.HAS_RAPIDOCR", True)
-    @pytest.mark.skipif(sys.platform == "win32", reason="OCR dependencies may not be available on Windows CI")
+    @pytest.mark.skipif(
+        sys.platform == "win32",
+        reason="OCR dependencies may not be available on Windows CI",
+    )
     def test_extract_text_basic(self):
         mock_engine = MagicMock()
         mock_engine.return_value = (
@@ -303,7 +310,11 @@ class TestImageRedactor(TestCase):
         img.save(buf, format="PNG")
         data_with_text = buf.getvalue()
 
-        regions = [TextRegion(text="AKIAIOSFODNN7EXAMPLE", bbox=(10, 10, 100, 20), confidence=0.9)]
+        regions = [
+            TextRegion(
+                text="AKIAIOSFODNN7EXAMPLE", bbox=(10, 10, 100, 20), confidence=0.9
+            )
+        ]
         redactor = ImageRedactor(method="pixelate")
         result = redactor.redact_regions(data_with_text, regions)
         result_img = Image.open(io.BytesIO(result))
@@ -334,7 +345,9 @@ class TestImageRedactor(TestCase):
         img.save(buf, format="PNG")
         data = buf.getvalue()
 
-        regions = [TextRegion(text="SECRET_KEY=abc123", bbox=(10, 10, 80, 20), confidence=0.9)]
+        regions = [
+            TextRegion(text="SECRET_KEY=abc123", bbox=(10, 10, 80, 20), confidence=0.9)
+        ]
         redactor = ImageRedactor(method="blur")
         result = redactor.redact_regions(data, regions)
         result_img = Image.open(io.BytesIO(result))
@@ -369,14 +382,23 @@ class TestBoxPointsToBbox(TestCase):
 class TestScanImage(TestCase):
     """Test the scan_image orchestrator function."""
 
-    @pytest.mark.skipif(sys.platform == "win32", reason="OCR dependencies may not be available on Windows CI")
+    @pytest.mark.skipif(
+        sys.platform == "win32",
+        reason="OCR dependencies may not be available on Windows CI",
+    )
     @patch("ai_guardian.image_scanner.OCREngine")
     def test_scan_image_with_text(self, mock_engine_cls):
         mock_engine = MagicMock()
         mock_engine_cls.return_value = mock_engine
         mock_engine.extract_text.return_value = OCRResult(
             text="AWS_SECRET=AKIAIOSFODNN7EXAMPLE",
-            regions=[TextRegion(text="AWS_SECRET=AKIAIOSFODNN7EXAMPLE", bbox=(10, 10, 100, 20), confidence=0.95)],
+            regions=[
+                TextRegion(
+                    text="AWS_SECRET=AKIAIOSFODNN7EXAMPLE",
+                    bbox=(10, 10, 100, 20),
+                    confidence=0.95,
+                )
+            ],
             confidence=0.95,
             elapsed_ms=200.0,
         )
@@ -406,7 +428,11 @@ class TestScanImage(TestCase):
         mock_engine_cls.return_value = mock_engine
         mock_engine.extract_text.side_effect = RuntimeError("OCR crash")
 
-        config = {"max_image_size_mb": 10, "qr_scanning": False, "face_detection": False}
+        config = {
+            "max_image_size_mb": 10,
+            "qr_scanning": False,
+            "face_detection": False,
+        }
         result = scan_image(_create_test_image(), config)
         self.assertEqual(result.extracted_text, "")
 
@@ -435,6 +461,7 @@ class TestQRScanner(TestCase):
     @patch("ai_guardian.image_scanner.HAS_PYZBAR", False)
     def test_no_pyzbar_returns_empty(self):
         from ai_guardian.image_scanner import QRScanner
+
         result = QRScanner.scan(_create_test_image())
         self.assertEqual(result, [])
 
@@ -445,6 +472,7 @@ class TestFaceDetector(TestCase):
     @patch("ai_guardian.image_scanner.HAS_OPENCV", False)
     def test_no_opencv_returns_empty(self):
         from ai_guardian.image_scanner import FaceDetector
+
         result = FaceDetector.detect_faces(_create_test_image())
         self.assertEqual(result, [])
 
@@ -456,6 +484,7 @@ class TestConfigLoader(TestCase):
     def test_default_config(self, mock_load):
         mock_load.return_value = ({}, None)
         from ai_guardian.config_loaders import _load_image_scanning_config
+
         config, error = _load_image_scanning_config()
         self.assertIsNone(error)
         self.assertIsNotNone(config)
@@ -470,6 +499,7 @@ class TestConfigLoader(TestCase):
             None,
         )
         from ai_guardian.config_loaders import _load_image_scanning_config
+
         config, error = _load_image_scanning_config()
         self.assertIsNone(error)
         self.assertFalse(config["enabled"])
@@ -486,14 +516,29 @@ class TestHookIntegration(TestCase):
         """When a Read tool accesses an image file, OCR should run."""
         mock_ps.return_value = None
         mock_ss.return_value = ({"enabled": True}, None)
-        mock_img.return_value = ({"enabled": True, "action": "block", "scan_types": ["secrets"], "max_image_size_mb": 10, "ignore_files": [], "ignore_tools": [], "qr_scanning": False, "face_detection": False, "min_confidence": 0.5}, None)
+        mock_img.return_value = (
+            {
+                "enabled": True,
+                "action": "block",
+                "scan_types": ["secrets"],
+                "max_image_size_mb": 10,
+                "ignore_files": [],
+                "ignore_tools": [],
+                "qr_scanning": False,
+                "face_detection": False,
+                "min_confidence": 0.5,
+            },
+            None,
+        )
 
         with tempfile.TemporaryDirectory() as tmpdir:
             img_path = _create_test_image_file(tmpdir, "screenshot.png")
 
-            with patch("ai_guardian.hook_processing.HAS_IMAGE_SCANNER", True), \
-                 patch("ai_guardian.hook_processing.ImageDetector") as mock_detector, \
-                 patch("ai_guardian.hook_processing.scan_image") as mock_scan:
+            with (
+                patch("ai_guardian.hook_processing.HAS_IMAGE_SCANNER", True),
+                patch("ai_guardian.hook_processing.ImageDetector") as mock_detector,
+                patch("ai_guardian.hook_processing.scan_image") as mock_scan,
+            ):
 
                 mock_detector.is_image_file.return_value = True
                 mock_scan.return_value = ImageScanResult(
@@ -524,9 +569,11 @@ class TestHookIntegration(TestCase):
         with tempfile.TemporaryDirectory() as tmpdir:
             img_path = _create_test_image_file(tmpdir, "test.png")
 
-            with patch("ai_guardian.hook_processing.HAS_IMAGE_SCANNER", True), \
-                 patch("ai_guardian.hook_processing.ImageDetector") as mock_detector, \
-                 patch("ai_guardian.hook_processing.scan_image") as mock_scan:
+            with (
+                patch("ai_guardian.hook_processing.HAS_IMAGE_SCANNER", True),
+                patch("ai_guardian.hook_processing.ImageDetector") as mock_detector,
+                patch("ai_guardian.hook_processing.scan_image") as mock_scan,
+            ):
 
                 mock_detector.is_image_file.return_value = True
 

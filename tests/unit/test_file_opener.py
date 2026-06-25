@@ -33,7 +33,9 @@ class TestBuildEditorCommand:
 
     @patch("ai_guardian.tui.file_opener.shutil.which")
     def test_vscode_preferred_over_cursor(self, mock_which):
-        mock_which.side_effect = lambda x: f"/usr/bin/{x}" if x in ("code", "cursor") else None
+        mock_which.side_effect = lambda x: (
+            f"/usr/bin/{x}" if x in ("code", "cursor") else None
+        )
         cmd, name = _build_editor_command("/tmp/test.py", 5)
         assert cmd == ["code", "--goto", "/tmp/test.py:5"]
         assert name == "VS Code"
@@ -80,7 +82,9 @@ class TestOpenInEditor:
         assert editor == "VS Code"
         mock_popen.assert_called_once()
 
-    @patch("ai_guardian.tui.file_opener.subprocess.Popen", side_effect=FileNotFoundError)
+    @patch(
+        "ai_guardian.tui.file_opener.subprocess.Popen", side_effect=FileNotFoundError
+    )
     @patch("ai_guardian.tui.file_opener.shutil.which")
     def test_popen_failure_returns_false(self, mock_which, _mock_popen):
         mock_which.side_effect = lambda x: "/usr/bin/code" if x == "code" else None
@@ -102,6 +106,7 @@ class TestOpenInEditor:
         mock_popen.return_value = MagicMock()
         open_in_editor("/tmp/test.py", 10)
         import subprocess
+
         call_kwargs = mock_popen.call_args
         assert call_kwargs.kwargs.get("stdin") == subprocess.DEVNULL
         assert call_kwargs.kwargs.get("stdout") == subprocess.DEVNULL

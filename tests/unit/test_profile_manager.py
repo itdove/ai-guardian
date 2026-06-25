@@ -2,9 +2,6 @@
 """Tests for the profile_manager module."""
 
 import json
-import os
-from pathlib import Path
-from unittest import mock
 
 import pytest
 
@@ -79,7 +76,7 @@ class TestResolveProfile:
 
     def test_resolve_json_extension_treated_as_file(self, tmp_path):
         profile_file = tmp_path / "custom.json"
-        profile_file.write_text('{}')
+        profile_file.write_text("{}")
         ptype, path = resolve_profile(str(profile_file))
         assert ptype == "file"
 
@@ -114,11 +111,13 @@ class TestLoadProfile:
     def test_cache_omits_path_for_runtime_resolution(self):
         config = load_profile("@standard")
         engines = config["secret_scanning"]["engines"]
-        gitleaks = next(e for e in engines if isinstance(e, dict) and e.get("type") == "gitleaks")
-        cache = gitleaks["pattern_server"]["cache"]
-        assert "path" not in cache, (
-            "cache.path should not be in profile; get_cache_dir() resolves at runtime"
+        gitleaks = next(
+            e for e in engines if isinstance(e, dict) and e.get("type") == "gitleaks"
         )
+        cache = gitleaks["pattern_server"]["cache"]
+        assert (
+            "path" not in cache
+        ), "cache.path should not be in profile; get_cache_dir() resolves at runtime"
 
     @pytest.mark.parametrize("profile_name", ["@minimal", "@standard", "@strict"])
     def test_profiles_use_per_engine_pattern_server(self, profile_name):
@@ -126,9 +125,9 @@ class TestLoadProfile:
         config = load_profile(profile_name)
         ss = config["secret_scanning"]
 
-        assert "pattern_server" not in ss, (
-            f"{profile_name}: top-level secret_scanning.pattern_server is deprecated"
-        )
+        assert (
+            "pattern_server" not in ss
+        ), f"{profile_name}: top-level secret_scanning.pattern_server is deprecated"
 
         engines = ss["engines"]
         gitleaks = next(
@@ -136,15 +135,18 @@ class TestLoadProfile:
             None,
         )
         assert gitleaks is not None, f"{profile_name}: missing gitleaks engine dict"
-        assert "pattern_server" in gitleaks, (
-            f"{profile_name}: gitleaks engine must have per-engine pattern_server"
-        )
+        assert (
+            "pattern_server" in gitleaks
+        ), f"{profile_name}: gitleaks engine must have per-engine pattern_server"
 
     def test_standard_matches_default_template(self):
         from ai_guardian.setup import _get_default_config_template
+
         default = _get_default_config_template(permissive=False)
         standard = load_profile("@standard")
-        assert json.dumps(default, sort_keys=True) == json.dumps(standard, sort_keys=True)
+        assert json.dumps(default, sort_keys=True) == json.dumps(
+            standard, sort_keys=True
+        )
 
     def test_load_custom_profile(self, tmp_path):
         profiles_dir = tmp_path / "auto_config" / "profiles"
@@ -233,7 +235,7 @@ class TestListProfiles:
     def test_list_with_custom(self, tmp_path):
         profiles_dir = tmp_path / "auto_config" / "profiles"
         profiles_dir.mkdir(parents=True, exist_ok=True)
-        (profiles_dir / "my-team.json").write_text('{}')
+        (profiles_dir / "my-team.json").write_text("{}")
 
         profiles = list_profiles()
         custom = [p for p in profiles if p["type"] == "custom"]
@@ -244,7 +246,7 @@ class TestListProfiles:
         profiles_dir = tmp_path / "auto_config" / "profiles"
         profiles_dir.mkdir(parents=True, exist_ok=True)
         (profiles_dir / "readme.txt").write_text("not a profile")
-        (profiles_dir / "valid.json").write_text('{}')
+        (profiles_dir / "valid.json").write_text("{}")
 
         profiles = list_profiles()
         custom = [p for p in profiles if p["type"] == "custom"]
@@ -265,7 +267,7 @@ class TestFormatProfileList:
     def test_format_includes_custom(self, tmp_path):
         profiles_dir = tmp_path / "auto_config" / "profiles"
         profiles_dir.mkdir(parents=True, exist_ok=True)
-        (profiles_dir / "my-team.json").write_text('{}')
+        (profiles_dir / "my-team.json").write_text("{}")
 
         output = format_profile_list()
         assert "Custom:" in output
@@ -279,7 +281,9 @@ class TestProfileSchemaValidation:
         import jsonschema
         from importlib.resources import files
 
-        schema_path = files("ai_guardian") / "schemas" / "ai-guardian-config.schema.json"
+        schema_path = (
+            files("ai_guardian") / "schemas" / "ai-guardian-config.schema.json"
+        )
         with open(str(schema_path)) as f:
             schema = json.load(f)
 

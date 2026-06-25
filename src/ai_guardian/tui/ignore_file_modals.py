@@ -4,7 +4,7 @@ Used by violations page and directory scan page.
 """
 
 from textual.binding import Binding
-from textual.containers import Container, Horizontal, Vertical
+from textual.containers import Container, Horizontal
 from textual.screen import ModalScreen
 from textual.widgets import Button, Static
 
@@ -51,6 +51,7 @@ class IgnoreFileEditorModal(ModalScreen):
         self.config_section = config_section
         self._scope = SCOPE_THIS_SCANNER
         from ai_guardian.tui.ignore_file_editor import get_project_root_for_file
+
         self._project_root = get_project_root_for_file(file_path)
 
     def compose(self):
@@ -74,17 +75,29 @@ class IgnoreFileEditorModal(ModalScreen):
             ]
             yield Select(scope_options, value=SCOPE_THIS_SCANNER, id="scope-select")
 
-            yield Static("\n[bold]Select scanners:[/bold]", id="scanner-select-label", classes="hidden")
+            yield Static(
+                "\n[bold]Select scanners:[/bold]",
+                id="scanner-select-label",
+                classes="hidden",
+            )
             for st in sorted(SCANNER_TYPES):
                 label = SCANNER_LABELS.get(st, st)
                 from textual.widgets import Checkbox
-                yield Checkbox(label, id=f"scanner-{st}", value=(st == self.config_section), classes="scanner-checkbox hidden")
+
+                yield Checkbox(
+                    label,
+                    id=f"scanner-{st}",
+                    value=(st == self.config_section),
+                    classes="scanner-checkbox hidden",
+                )
 
             yield Static("\n[bold]Preview:[/bold]")
             yield TextArea("", id="ignore-preview", read_only=True)
 
             with Horizontal(id="modal-actions"):
-                yield Button("Add to .aiguardignore.toml", id="confirm-ignore", variant="success")
+                yield Button(
+                    "Add to .aiguardignore.toml", id="confirm-ignore", variant="success"
+                )
                 yield Button("Cancel", id="cancel-ignore", variant="primary")
 
     def on_mount(self) -> None:
@@ -93,11 +106,11 @@ class IgnoreFileEditorModal(ModalScreen):
     def on_select_changed(self, event) -> None:
         if event.select.id == "scope-select":
             self._scope = event.value
-            show_scanners = (self._scope == SCOPE_SELECT_SCANNERS)
+            show_scanners = self._scope == SCOPE_SELECT_SCANNERS
             try:
                 label = self.query_one("#scanner-select-label", Static)
                 label.set_class(not show_scanners, "hidden")
-                from textual.widgets import Checkbox
+
                 for cb in self.query(".scanner-checkbox"):
                     cb.set_class(not show_scanners, "hidden")
             except Exception:
@@ -114,6 +127,7 @@ class IgnoreFileEditorModal(ModalScreen):
 
     def _get_selected_scanners(self):
         from textual.widgets import Checkbox
+
         selected = []
         for cb in self.query(".scanner-checkbox"):
             if isinstance(cb, Checkbox) and cb.value and cb.id:
@@ -123,6 +137,7 @@ class IgnoreFileEditorModal(ModalScreen):
 
     def _update_preview(self):
         from textual.widgets import Input, TextArea
+
         try:
             path_input = self.query_one("#ignore-path-input", Input)
             path = path_input.value.strip()
@@ -142,7 +157,10 @@ class IgnoreFileEditorModal(ModalScreen):
 
         try:
             from ai_guardian.aiguardignore import generate_aiguardignore_preview
-            toml_text, _ = generate_aiguardignore_preview(path, scanner_types, project_root=self._project_root)
+
+            toml_text, _ = generate_aiguardignore_preview(
+                path, scanner_types, project_root=self._project_root
+            )
             preview = self.query_one("#ignore-preview", TextArea)
             preview.load_text(toml_text)
         except Exception:
@@ -156,6 +174,7 @@ class IgnoreFileEditorModal(ModalScreen):
 
     def _confirm(self):
         from textual.widgets import Input
+
         path_input = self.query_one("#ignore-path-input", Input)
         path = path_input.value.strip()
 
@@ -170,7 +189,9 @@ class IgnoreFileEditorModal(ModalScreen):
         )
 
         self.app.push_screen(
-            IgnoreFileConfigEditorModal(path, scanner_types, project_root=self._project_root)
+            IgnoreFileConfigEditorModal(
+                path, scanner_types, project_root=self._project_root
+            )
         )
 
 
@@ -199,7 +220,9 @@ class IgnoreFileConfigEditorModal(ModalScreen):
     }
     """
 
-    def __init__(self, path_pattern: str, scanner_types, *args, project_root=None, **kwargs):
+    def __init__(
+        self, path_pattern: str, scanner_types, *args, project_root=None, **kwargs
+    ):
         super().__init__(*args, **kwargs)
         self.path_pattern = path_pattern
         self.scanner_types = scanner_types
@@ -209,8 +232,11 @@ class IgnoreFileConfigEditorModal(ModalScreen):
         from textual.widgets import TextArea
 
         from ai_guardian.aiguardignore import generate_aiguardignore_preview
+
         toml_text, line_number = generate_aiguardignore_preview(
-            self.path_pattern, self.scanner_types, project_root=self._project_root,
+            self.path_pattern,
+            self.scanner_types,
+            project_root=self._project_root,
         )
 
         with Container(id="toml-editor-container"):
@@ -237,10 +263,12 @@ class IgnoreFileConfigEditorModal(ModalScreen):
 
     def _save(self):
         from textual.widgets import TextArea
+
         editor = self.query_one("#toml-editor-area", TextArea)
         text = editor.text
 
         from ai_guardian.tui.ask_dialog import _write_aiguardignore_text
+
         if _write_aiguardignore_text(text, project_root=self._project_root):
             self.app.notify("Path saved to .aiguardignore.toml", severity="information")
             self.dismiss()

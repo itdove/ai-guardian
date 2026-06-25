@@ -73,6 +73,7 @@ class LatencyLogger:
         self.config = config or self._load_config()
         if log_path is None:
             from ai_guardian.config_utils import get_state_dir
+
             log_path = get_state_dir() / "latency.jsonl"
         self.log_path = log_path
         if self._is_enabled():
@@ -121,6 +122,7 @@ class LatencyLogger:
 
     def _is_enabled(self) -> bool:
         from ai_guardian.config_utils import is_feature_enabled
+
         return is_feature_enabled(self.config.get("enabled"), default=False)
 
     def _rotate_if_needed(self):
@@ -146,8 +148,7 @@ class LatencyLogger:
                         continue
 
             entries = [
-                e for e in entries
-                if _parse_timestamp(e.get("timestamp")) > cutoff
+                e for e in entries if _parse_timestamp(e.get("timestamp")) > cutoff
             ]
             if len(entries) > max_entries:
                 entries = entries[-max_entries:]
@@ -161,6 +162,7 @@ class LatencyLogger:
     def _load_config(self) -> Dict:
         try:
             from ai_guardian.config_utils import get_config_dir
+
             config_dir = get_config_dir()
             config_path = config_dir / "ai-guardian.json"
             if not config_path.exists():
@@ -251,7 +253,14 @@ class LatencyReport:
 
 def _compute_stats(values: List[float]) -> Dict:
     if not values:
-        return {"avg": 0.0, "stddev": 0.0, "p95": 0.0, "min": 0.0, "max": 0.0, "count": 0}
+        return {
+            "avg": 0.0,
+            "stddev": 0.0,
+            "p95": 0.0,
+            "min": 0.0,
+            "max": 0.0,
+            "count": 0,
+        }
     n = len(values)
     avg = sum(values) / n
     if n < 2:
@@ -275,7 +284,9 @@ def _compute_stats(values: List[float]) -> Dict:
 class LatencyComputer:
     """Reads latency.jsonl and computes aggregate statistics."""
 
-    def __init__(self, since_date: Optional[str] = None, since_days: Optional[int] = None):
+    def __init__(
+        self, since_date: Optional[str] = None, since_days: Optional[int] = None
+    ):
         if since_date:
             self._cutoff = _parse_since(since_date)
         elif since_days is not None:

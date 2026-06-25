@@ -27,6 +27,7 @@ class TestDirectoryRulesNavigation(unittest.TestCase):
 
     def test_directory_rules_in_permissions_group(self):
         from ai_guardian.tui.app import NAV_GROUPS
+
         for name, items in NAV_GROUPS:
             if name == "Permissions":
                 assert "panel-directory-rules" in [pid for _, pid in items]
@@ -35,6 +36,7 @@ class TestDirectoryRulesNavigation(unittest.TestCase):
 
     def test_directory_protection_not_in_any_group(self):
         from ai_guardian.tui.app import NAV_GROUPS
+
         all_ids = [pid for _, items in NAV_GROUPS for _, pid in items]
         assert "panel-directory-protection" not in all_ids
 
@@ -44,14 +46,17 @@ class TestDirectoryRulesHelpDocs(unittest.TestCase):
 
     def test_directory_rules_panel_has_help(self):
         from ai_guardian.tui.app import HELP_DOCS
+
         assert "panel-directory-rules" in HELP_DOCS
 
     def test_directory_protection_panel_no_help(self):
         from ai_guardian.tui.app import HELP_DOCS
+
         assert "panel-directory-protection" not in HELP_DOCS
 
     def test_permissions_help_mentions_directory_rules(self):
         from ai_guardian.tui.app import HELP_DOCS
+
         assert "Directory Rules" in HELP_DOCS.get("Permissions", "")
 
 
@@ -68,7 +73,7 @@ class TestDirectoryRulesConfigParsing:
                         "rules": [
                             {"mode": "deny", "paths": ["~/.ssh/**"]},
                             {"mode": "allow", "paths": ["~/dev/**"]},
-                        ]
+                        ],
                     }
                 },
                 lambda cfg: (
@@ -102,6 +107,7 @@ class TestGetRulesSection:
     @staticmethod
     def _make():
         from ai_guardian.tui.directory_rules import DirectoryRulesContent
+
         return DirectoryRulesContent()
 
     @pytest.mark.parametrize(
@@ -141,6 +147,7 @@ class TestParseRules:
     @staticmethod
     def _make():
         from ai_guardian.tui.directory_rules import DirectoryRulesContent
+
         return DirectoryRulesContent()
 
     def test_valid_rules(self):
@@ -160,7 +167,9 @@ class TestParseRules:
         "text, error_substring",
         [
             pytest.param("{bad json", None, id="invalid-json"),
-            pytest.param('{"mode": "deny"}', "Rules must be a JSON array", id="not-array"),
+            pytest.param(
+                '{"mode": "deny"}', "Rules must be a JSON array", id="not-array"
+            ),
             pytest.param('[{"mode": "block", "paths": []}]', "mode", id="invalid-mode"),
             pytest.param('[{"mode": "deny"}]', "paths", id="missing-paths"),
         ],
@@ -180,8 +189,7 @@ class TestParseRules:
             {"mode": "allow", "paths": ["~/dev/**"], "_generated": True},
         ]
         display_rules = [
-            {k: v for k, v in r.items() if not k.startswith("_")}
-            for r in rules
+            {k: v for k, v in r.items() if not k.startswith("_")} for r in rules
         ]
         assert len(display_rules) == 2
         assert "_generated" not in display_rules[1]
@@ -195,17 +203,20 @@ class TestRuleClassification:
         [
             pytest.param(
                 {"mode": "deny", "paths": ["~/.ssh/**"]},
-                False, False,
+                False,
+                False,
                 id="user-rule",
             ),
             pytest.param(
                 {"mode": "allow", "paths": [], "_generated": True},
-                True, False,
+                True,
+                False,
                 id="generated-rule",
             ),
             pytest.param(
                 {"mode": "deny", "paths": [], "_immutable": True},
-                False, True,
+                False,
+                True,
                 id="immutable-rule",
             ),
         ],

@@ -160,11 +160,13 @@ class HealthCheckContent(ScrollableContainer):
         except Exception as e:
             logger.error("Doctor checks failed: %s", e)
             report = DoctorReport()
-            report.checks.append(CheckResult(
-                name="doctor",
-                status=CheckStatus.FAIL,
-                message=f"Doctor failed to run: {e}",
-            ))
+            report.checks.append(
+                CheckResult(
+                    name="doctor",
+                    status=CheckStatus.FAIL,
+                    message=f"Doctor failed to run: {e}",
+                )
+            )
 
         self._update_display(report, fixed=fix)
 
@@ -216,7 +218,6 @@ class HealthCheckContent(ScrollableContainer):
     def _confirm_fix(self) -> None:
         """Show confirmation before running auto-fix."""
         from textual.screen import ModalScreen
-        from textual.widgets import Label
         from textual.binding import Binding
 
         panel = self
@@ -256,12 +257,8 @@ class HealthCheckContent(ScrollableContainer):
                         "Continue?"
                     )
                     with Horizontal(id="confirm-buttons"):
-                        yield Button(
-                            "Fix", id="confirm-yes", variant="warning"
-                        )
-                        yield Button(
-                            "Cancel", id="confirm-no", variant="default"
-                        )
+                        yield Button("Fix", id="confirm-yes", variant="warning")
+                        yield Button("Cancel", id="confirm-no", variant="default")
 
             def on_button_pressed(self_inner, event: Button.Pressed) -> None:
                 if event.button.id == "confirm-yes":

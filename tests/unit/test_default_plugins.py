@@ -11,9 +11,21 @@ import pytest
 from ai_guardian.daemon.tray_plugins import load_plugins, load_merged_plugins
 
 
-_TEMPLATE_DIR = Path(__file__).resolve().parents[2] / "src" / "ai_guardian" / "templates" / "tray-plugins"
+_TEMPLATE_DIR = (
+    Path(__file__).resolve().parents[2]
+    / "src"
+    / "ai_guardian"
+    / "templates"
+    / "tray-plugins"
+)
 
-_SCHEMA_PATH = Path(__file__).resolve().parents[2] / "src" / "ai_guardian" / "schemas" / "tray-plugin.schema.json"
+_SCHEMA_PATH = (
+    Path(__file__).resolve().parents[2]
+    / "src"
+    / "ai_guardian"
+    / "schemas"
+    / "tray-plugin.schema.json"
+)
 
 
 def _load_schema():
@@ -61,9 +73,7 @@ class TestDefaultPluginContent:
         self.global_data = json.loads(
             (_TEMPLATE_DIR / "default-global.json").read_text(encoding="utf-8")
         )
-        self.daemon_data = json.loads(
-            _active_daemon_file().read_text(encoding="utf-8")
-        )
+        self.daemon_data = json.loads(_active_daemon_file().read_text(encoding="utf-8"))
 
     def test_global_scope(self):
         assert self.global_data["scope"] == "global"
@@ -96,7 +106,9 @@ class TestDefaultPluginContent:
         assert "Open Documentation" in labels
 
     def test_documentation_uses_platform_map(self):
-        doc = next(i for i in self.global_data["items"] if i["label"] == "Open Documentation")
+        doc = next(
+            i for i in self.global_data["items"] if i["label"] == "Open Documentation"
+        )
         assert isinstance(doc["command"], dict)
         assert "darwin" in doc["command"]
         assert "linux" in doc["command"]
@@ -114,13 +126,17 @@ class TestDefaultPluginContent:
         assert "View Doctor" in labels
 
     def test_scan_directory_has_params(self):
-        scan = next(i for i in self.global_data["items"] if i["label"] == "Scan Directory...")
+        scan = next(
+            i for i in self.global_data["items"] if i["label"] == "Scan Directory..."
+        )
         assert "params" in scan
         assert len(scan["params"]) >= 1
         assert scan["params"][0]["name"] == "directory"
 
     def test_install_scanner_has_params(self):
-        install = next(i for i in self.daemon_data["items"] if i["label"] == "Install Scanner...")
+        install = next(
+            i for i in self.daemon_data["items"] if i["label"] == "Install Scanner..."
+        )
         assert "params" in install
         assert len(install["params"]) >= 1
         param = install["params"][0]
@@ -154,7 +170,9 @@ class TestDefaultPluginLoad:
     """Verify bundled plugins load correctly via load_plugins()."""
 
     def test_load_global_plugin(self, tmp_path):
-        shutil.copy(_TEMPLATE_DIR / "default-global.json", tmp_path / "default-global.json")
+        shutil.copy(
+            _TEMPLATE_DIR / "default-global.json", tmp_path / "default-global.json"
+        )
         plugins = load_plugins(tmp_path)
         assert len(plugins) == 1
         assert plugins[0].scope == "global"
@@ -172,6 +190,7 @@ class TestBundledPluginVariantSelection:
     def test_web_variant_on_310(self):
         with patch("ai_guardian.daemon.tray_plugins._HAS_WEB_CONSOLE", True):
             from ai_guardian.daemon.tray_plugins import _load_bundled_plugins
+
             plugins = _load_bundled_plugins()
         names = {p.name for p in plugins}
         assert "Maintenance" in names
@@ -183,6 +202,7 @@ class TestBundledPluginVariantSelection:
     def test_tui_variant_on_39(self):
         with patch("ai_guardian.daemon.tray_plugins._HAS_WEB_CONSOLE", False):
             from ai_guardian.daemon.tray_plugins import _load_bundled_plugins
+
             plugins = _load_bundled_plugins()
         names = {p.name for p in plugins}
         assert "Maintenance" in names
@@ -192,6 +212,7 @@ class TestBundledPluginVariantSelection:
 
     def test_only_one_maintenance_loaded(self):
         from ai_guardian.daemon.tray_plugins import _load_bundled_plugins
+
         plugins = _load_bundled_plugins()
         maintenance_count = sum(1 for p in plugins if p.name == "Maintenance")
         assert maintenance_count == 1

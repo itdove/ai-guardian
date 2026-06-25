@@ -8,8 +8,13 @@ from ai_guardian.web.components.header import create_header, create_sidebar
 from ai_guardian.web.config_helpers import load_web_config, save_web_config
 
 VALID_ENGINE_TYPES = {
-    "gitleaks", "betterleaks", "leaktk", "trufflehog",
-    "detect-secrets", "secretlint", "gitguardian",
+    "gitleaks",
+    "betterleaks",
+    "leaktk",
+    "trufflehog",
+    "detect-secrets",
+    "secretlint",
+    "gitguardian",
 }
 
 
@@ -41,9 +46,7 @@ def create_secret_engines_page(service, daemon_name: str):
     create_header(daemon_name)
 
     with ui.row().classes("w-full min-h-screen no-wrap"):
-        create_sidebar(
-            daemon_name, current=f"/{daemon_name}/secret-engines"
-        )
+        create_sidebar(daemon_name, current=f"/{daemon_name}/secret-engines")
 
         with ui.column().classes("flex-grow p-6 gap-4"):
             ui.label("Engine Configuration").classes("text-2xl font-bold")
@@ -66,9 +69,7 @@ def create_secret_engines_page(service, daemon_name: str):
 
                     # Execution strategy
                     with ui.card().classes("w-full"):
-                        ui.label("Execution Strategy").classes(
-                            "text-lg font-bold"
-                        )
+                        ui.label("Execution Strategy").classes("text-lg font-bold")
                         ui.label(
                             "How multiple scanner engines coordinate detection."
                         ).classes("text-xs text-grey-6")
@@ -84,12 +85,14 @@ def create_secret_engines_page(service, daemon_name: str):
 
                         threshold_row = ui.row().classes("items-center gap-2")
                         with threshold_row:
-                            ui.label("Consensus Threshold:").classes(
-                                "text-sm"
+                            ui.label("Consensus Threshold:").classes("text-sm")
+                            thresh_input = (
+                                ui.input(
+                                    value=str(threshold),
+                                )
+                                .props("dense outlined type=number")
+                                .classes("w-24")
                             )
-                            thresh_input = ui.input(
-                                value=str(threshold),
-                            ).props("dense outlined type=number").classes("w-24")
                         threshold_row.set_visibility(strategy == "consensus")
 
                         async def save_strategy(e):
@@ -131,17 +134,20 @@ def create_secret_engines_page(service, daemon_name: str):
                     # Engines editor
                     with ui.card().classes("w-full"):
                         ui.label("Engines").classes("text-lg font-bold")
-                        ui.label(
-                            "Configure which scanner engines to use."
-                        ).classes("text-xs text-grey-6")
+                        ui.label("Configure which scanner engines to use.").classes(
+                            "text-xs text-grey-6"
+                        )
 
                         engines = ss.get("engines", ["gitleaks"])
                         engines_text = json.dumps(engines, indent=2)
 
-                        editor = ui.textarea(
-                            value=engines_text,
-                        ).props("outlined autogrow").classes("w-full").style(
-                            "font-family: monospace; min-height: 150px"
+                        editor = (
+                            ui.textarea(
+                                value=engines_text,
+                            )
+                            .props("outlined autogrow")
+                            .classes("w-full")
+                            .style("font-family: monospace; min-height: 150px")
                         )
 
                         status_label = ui.label(
@@ -154,7 +160,9 @@ def create_secret_engines_page(service, daemon_name: str):
                                 status_label.text = err
                                 status_label.classes(replace="text-xs text-red")
                             else:
-                                status_label.text = f"Valid JSON — {len(parsed)} engine(s)"
+                                status_label.text = (
+                                    f"Valid JSON — {len(parsed)} engine(s)"
+                                )
                                 status_label.classes(replace="text-xs text-green")
 
                         editor.on("update:model-value", on_edit)
@@ -162,9 +170,7 @@ def create_secret_engines_page(service, daemon_name: str):
                         with ui.row().classes("gap-2 mt-2"):
 
                             async def save_engines():
-                                parsed, err = _validate_engines_json(
-                                    editor.value
-                                )
+                                parsed, err = _validate_engines_json(editor.value)
                                 if err:
                                     ui.notify(err, type="negative")
                                     return
@@ -184,9 +190,9 @@ def create_secret_engines_page(service, daemon_name: str):
                                 await refresh()
                                 ui.notify("Engines reloaded", type="positive")
 
-                            ui.button(
-                                "Save", icon="save", on_click=save_engines
-                            ).props("dense")
+                            ui.button("Save", icon="save", on_click=save_engines).props(
+                                "dense"
+                            )
                             ui.button(
                                 "Reload",
                                 icon="refresh",
@@ -195,27 +201,21 @@ def create_secret_engines_page(service, daemon_name: str):
 
                     # Reference
                     with ui.card().classes("w-full"):
-                        ui.label("Engine Reference").classes(
-                            "text-sm font-bold"
-                        )
+                        ui.label("Engine Reference").classes("text-sm font-bold")
                         ui.label(
                             f"Valid engine types: {', '.join(sorted(VALID_ENGINE_TYPES))}"
                         ).classes("text-xs text-grey-6")
-                        ui.label("Simple format:").classes(
-                            "text-xs text-grey-6 mt-1"
-                        )
+                        ui.label("Simple format:").classes("text-xs text-grey-6 mt-1")
                         ui.code(
                             '["gitleaks", "betterleaks"]',
                             language="json",
                         ).classes("text-xs")
-                        ui.label("Advanced format:").classes(
-                            "text-xs text-grey-6 mt-1"
-                        )
+                        ui.label("Advanced format:").classes("text-xs text-grey-6 mt-1")
                         ui.code(
-                            '[\n'
+                            "[\n"
                             '  {"type": "gitleaks", "ignore_files": ["*.test"]},\n'
                             '  {"type": "trufflehog", "binary": "/usr/local/bin/trufflehog"}\n'
-                            ']',
+                            "]",
                             language="json",
                         ).classes("text-xs")
 

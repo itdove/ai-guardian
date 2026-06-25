@@ -124,6 +124,7 @@ class TestConfigCaching:
         state = DaemonState(config_path=config_path)
 
         from ai_guardian import config_loaders
+
         config_loaders._caches["proj-a"] = object()
         config_loaders._caches["proj-b"] = object()
 
@@ -508,11 +509,18 @@ class TestPausePersistence:
             "dirs": {real_dir: {"until": 0.0}},
         }
         pause_file.write_text(json.dumps(data))
-        assert DaemonState.is_paused_on_disk(cwd=real_dir, pause_file=pause_file) is True
-        assert DaemonState.is_paused_on_disk(cwd="/other/dir", pause_file=pause_file) is False
+        assert (
+            DaemonState.is_paused_on_disk(cwd=real_dir, pause_file=pause_file) is True
+        )
+        assert (
+            DaemonState.is_paused_on_disk(cwd="/other/dir", pause_file=pause_file)
+            is False
+        )
 
     def test_is_paused_on_disk_no_file(self, tmp_path):
-        assert DaemonState.is_paused_on_disk(pause_file=tmp_path / "nonexistent") is False
+        assert (
+            DaemonState.is_paused_on_disk(pause_file=tmp_path / "nonexistent") is False
+        )
 
     def test_roundtrip_pause_restart(self, tmp_path):
         """Simulate daemon restart: pause, create new state, verify still paused."""
@@ -798,9 +806,7 @@ class TestProjectConfigTracking:
             project_dir.mkdir()
             config_dir = project_dir / ".ai-guardian"
             config_dir.mkdir()
-            (config_dir / "ai-guardian.json").write_text(
-                json.dumps({"project": i})
-            )
+            (config_dir / "ai-guardian.json").write_text(json.dumps({"project": i}))
             state.check_project_config(str(project_dir))
 
         stats = state.get_stats()
@@ -827,9 +833,7 @@ class TestProjectConfigTracking:
         config_path.write_text(json.dumps({"v": 1}))
 
         state = DaemonState(config_path=tmp_path / "nonexistent.json")
-        state._on_config_reloaded = lambda: (_ for _ in ()).throw(
-            RuntimeError("boom")
-        )
+        state._on_config_reloaded = lambda: (_ for _ in ()).throw(RuntimeError("boom"))
 
         state.check_project_config(str(project_dir))
         time.sleep(0.05)
@@ -894,16 +898,20 @@ class TestSessionPersistence:
 
     def test_sessions_restored_on_init(self, tmp_path):
         sessions_file = tmp_path / "daemon_sessions.json"
-        sessions_file.write_text(json.dumps({
-            "sessions": {
-                "sess-a": {
-                    "security_injected": True,
-                    "security_reinject": False,
-                    "last_activity": time.time(),
+        sessions_file.write_text(
+            json.dumps(
+                {
+                    "sessions": {
+                        "sess-a": {
+                            "security_injected": True,
+                            "security_reinject": False,
+                            "last_activity": time.time(),
+                        }
+                    },
+                    "version": 1,
                 }
-            },
-            "version": 1,
-        }))
+            )
+        )
 
         state = DaemonState(
             config_path=tmp_path / "nonexistent.json",
@@ -913,21 +921,25 @@ class TestSessionPersistence:
 
     def test_sessions_pruned_on_load(self, tmp_path):
         sessions_file = tmp_path / "daemon_sessions.json"
-        sessions_file.write_text(json.dumps({
-            "sessions": {
-                "old-sess": {
-                    "security_injected": True,
-                    "security_reinject": False,
-                    "last_activity": time.time() - 90000,  # >24h ago
-                },
-                "recent-sess": {
-                    "security_injected": True,
-                    "security_reinject": False,
-                    "last_activity": time.time(),
-                },
-            },
-            "version": 1,
-        }))
+        sessions_file.write_text(
+            json.dumps(
+                {
+                    "sessions": {
+                        "old-sess": {
+                            "security_injected": True,
+                            "security_reinject": False,
+                            "last_activity": time.time() - 90000,  # >24h ago
+                        },
+                        "recent-sess": {
+                            "security_injected": True,
+                            "security_reinject": False,
+                            "last_activity": time.time(),
+                        },
+                    },
+                    "version": 1,
+                }
+            )
+        )
 
         state = DaemonState(
             config_path=tmp_path / "nonexistent.json",
@@ -999,7 +1011,10 @@ class TestSessionPersistence:
         )
         assert state.should_inject_security("any-session")
 
-    @pytest.mark.skipif(sys.platform == "win32", reason="Unix file permissions not applicable on Windows")
+    @pytest.mark.skipif(
+        sys.platform == "win32",
+        reason="Unix file permissions not applicable on Windows",
+    )
     def test_atomic_write_permissions(self, tmp_path):
         state = self._make_state(tmp_path)
         state.mark_security_injected("sess-perm")
@@ -1026,7 +1041,10 @@ class TestConfigError:
         config_path.write_text("{invalid json")
         state = DaemonState(config_path=config_path)
         assert state.get_config_error() is not None
-        assert "invalid" in state.get_config_error().lower() or "expect" in state.get_config_error().lower()
+        assert (
+            "invalid" in state.get_config_error().lower()
+            or "expect" in state.get_config_error().lower()
+        )
         assert state.get_stats()["config_error"] is not None
 
     def test_error_cleared_on_valid_reload(self, tmp_path):
@@ -1054,11 +1072,18 @@ class TestMcpInstalled:
 
     def test_mcp_installed_true_when_config_exists(self, tmp_path):
         config_file = tmp_path / ".claude.json"
-        config_file.write_text(json.dumps({
-            "mcpServers": {
-                "ai-guardian": {"command": "ai-guardian", "args": ["mcp-server"]}
-            }
-        }))
+        config_file.write_text(
+            json.dumps(
+                {
+                    "mcpServers": {
+                        "ai-guardian": {
+                            "command": "ai-guardian",
+                            "args": ["mcp-server"],
+                        }
+                    }
+                }
+            )
+        )
         with mock.patch("pathlib.Path.expanduser", return_value=config_file):
             assert DaemonState._check_mcp_installed() is True
 

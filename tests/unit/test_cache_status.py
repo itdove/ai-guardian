@@ -3,15 +3,15 @@
 import time
 from unittest.mock import MagicMock, patch
 
-import pytest
-
 
 class TestDaemonStateGetProjectCacheStatus:
     """Test DaemonState.get_project_cache_status()."""
 
     def _make_state(self):
-        with patch("ai_guardian.daemon.state.get_config_dir") as mock_dir, \
-             patch("ai_guardian.daemon.state.get_state_dir") as mock_state:
+        with (
+            patch("ai_guardian.daemon.state.get_config_dir") as mock_dir,
+            patch("ai_guardian.daemon.state.get_state_dir") as mock_state,
+        ):
             mock_dir.return_value = MagicMock()
             mock_dir.return_value.__truediv__ = lambda s, k: MagicMock(
                 exists=lambda: False
@@ -21,18 +21,18 @@ class TestDaemonStateGetProjectCacheStatus:
                 exists=lambda: False
             )
             with patch("ai_guardian.daemon.state.DaemonState._reload_config"):
-                with patch(
-                    "ai_guardian.daemon.state.DaemonState._load_sessions"
-                ):
+                with patch("ai_guardian.daemon.state.DaemonState._load_sessions"):
                     with patch(
                         "ai_guardian.daemon.state.DaemonState._check_mcp_installed",
                         return_value=False,
                     ):
                         from ai_guardian.daemon.state import DaemonState
+
                         return DaemonState.__new__(DaemonState)
 
     def _init_state(self):
         import threading
+
         state = self._make_state()
         state._lock = threading.Lock()
         state._project_config_mtimes = {}
@@ -43,8 +43,10 @@ class TestDaemonStateGetProjectCacheStatus:
 
     def test_empty_returns_empty_projects(self):
         state = self._init_state()
-        with patch("ai_guardian.daemon.state._caches", {}, create=True), \
-             patch("ai_guardian.config_loaders._caches", {}):
+        with (
+            patch("ai_guardian.daemon.state._caches", {}, create=True),
+            patch("ai_guardian.config_loaders._caches", {}),
+        ):
             result = state.get_project_cache_status()
         assert result["projects"] == []
         assert result["total_tracked"] == 0
@@ -225,7 +227,6 @@ class TestMultiDaemonClientCacheStatus:
         assert proj["has_project_override"] is True
         assert proj["global_config_path"] == str(Path("/g/config.json"))
 
-
     def test_get_cache_status_uses_rest_for_local_target(self):
         from ai_guardian.daemon.multi_client import MultiDaemonClient
         from ai_guardian.daemon.discovery import DaemonTarget
@@ -262,7 +263,8 @@ class TestDaemonServiceCacheStatus:
         service = DaemonService.__new__(DaemonService)
         service._client = MagicMock()
         service._client.get_cache_status.return_value = {
-            "projects": [], "total_tracked": 0,
+            "projects": [],
+            "total_tracked": 0,
         }
 
         target = MagicMock()

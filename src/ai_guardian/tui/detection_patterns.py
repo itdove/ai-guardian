@@ -10,8 +10,14 @@ from ai_guardian.pattern_lister import test_rule_matches as _test_rule_matches
 
 
 CATEGORY_ORDER = [
-    "secrets", "pii", "prompt_injection", "unicode",
-    "ssrf", "config_exfil", "context_poisoning", "supply_chain",
+    "secrets",
+    "pii",
+    "prompt_injection",
+    "unicode",
+    "ssrf",
+    "config_exfil",
+    "context_poisoning",
+    "supply_chain",
     "self_protection",
 ]
 
@@ -110,16 +116,19 @@ class DetectionPatternsContent(Container):
 
                 with Horizontal(id="dp-mode-row"):
                     yield Button(
-                        "Search Rules", id="dp-mode-search",
+                        "Search Rules",
+                        id="dp-mode-search",
                         variant="primary",
                     )
                     yield Button(
-                        "Test Match", id="dp-mode-test",
+                        "Test Match",
+                        id="dp-mode-test",
                         variant="default",
                     )
 
                 yield Static(
-                    "", id="dp-mode-hint",
+                    "",
+                    id="dp-mode-hint",
                 )
 
                 with Horizontal(id="dp-search-row"):
@@ -143,6 +152,7 @@ class DetectionPatternsContent(Container):
 
     def _load_rules(self):
         from ai_guardian.pattern_lister import PatternLister
+
         self._all_rules = PatternLister().get_all_rules()
         self._render_summary()
         self._render_table()
@@ -173,7 +183,8 @@ class DetectionPatternsContent(Container):
             else:
                 ql = q.lower()
                 rules = [
-                    r for r in rules
+                    r
+                    for r in rules
                     if ql in r.id.lower()
                     or ql in r.description.lower()
                     or ql in r.pattern.lower()
@@ -207,7 +218,7 @@ class DetectionPatternsContent(Container):
         for r in rules:
             pat = r.pattern
             if len(pat) > pat_w:
-                pat = pat[:pat_w - 3] + "..."
+                pat = pat[: pat_w - 3] + "..."
 
             sev_color = ""
             end_color = ""
@@ -244,9 +255,7 @@ class DetectionPatternsContent(Container):
                 f"your test text[/bold orange1]"
             )
         else:
-            lines.append(
-                f"\n  Showing {len(rules)} of {len(self._all_rules)} rules"
-            )
+            lines.append(f"\n  Showing {len(rules)} of {len(self._all_rules)} rules")
 
         try:
             self.query_one("#dp-table", Static).update("\n".join(lines))
@@ -260,9 +269,7 @@ class DetectionPatternsContent(Container):
             self._filter_category = None
         elif btn_id.startswith("dp-cat-"):
             cat = btn_id[7:]
-            self._filter_category = (
-                cat if cat != self._filter_category else None
-            )
+            self._filter_category = cat if cat != self._filter_category else None
         elif btn_id == "dp-mode-search":
             self._test_mode = False
             self._update_mode_ui()
@@ -319,17 +326,13 @@ class DetectionPatternsContent(Container):
     def _update_button_variants(self):
         try:
             all_btn = self.query_one("#dp-cat-all", Button)
-            all_btn.variant = (
-                "primary" if not self._filter_category else "default"
-            )
+            all_btn.variant = "primary" if not self._filter_category else "default"
         except Exception:
             pass
 
         for cat in CATEGORY_ORDER:
             try:
                 btn = self.query_one(f"#dp-cat-{cat}", Button)
-                btn.variant = (
-                    "primary" if self._filter_category == cat else "default"
-                )
+                btn.variant = "primary" if self._filter_category == cat else "default"
             except Exception:
                 pass

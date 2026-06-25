@@ -6,8 +6,7 @@ Manage tool permission rules for Skills and MCP servers.
 """
 
 import json
-from pathlib import Path
-from typing import Dict, List
+from typing import Dict
 
 from textual.app import ComposeResult
 from textual.containers import Container, Horizontal, VerticalScroll
@@ -37,7 +36,9 @@ class PermissionCard(Container):
         mode_color = "green" if mode == "allow" else "red"
 
         yield Static(f"[bold]{mode_icon} {matcher}[/bold]", classes="permission-title")
-        yield Static(f"Mode: [{mode_color}]{mode}[/{mode_color}]", classes="permission-detail")
+        yield Static(
+            f"Mode: [{mode_color}]{mode}[/{mode_color}]", classes="permission-detail"
+        )
         yield Static(f"Patterns: {', '.join(patterns)}", classes="permission-detail")
 
         with Horizontal(classes="permission-actions"):
@@ -110,7 +111,7 @@ class AddPermissionModal(ModalScreen):
                 yield Input(
                     value=self.rule.get("matcher", ""),
                     placeholder="Skill or mcp__server-name__*",
-                    id="input-matcher"
+                    id="input-matcher",
                 )
 
             with Container(classes="modal-field"):
@@ -118,16 +119,22 @@ class AddPermissionModal(ModalScreen):
                 yield Select(
                     [(line, line) for line in ["allow", "deny"]],
                     value=self.rule.get("mode", "allow"),
-                    id="select-mode"
+                    id="select-mode",
                 )
 
             with Container(classes="modal-field"):
                 yield Label("Action (deny only):")
                 yield Select(
-                    [("block", "block"), ("warn", "warn"), ("log-only", "log-only"),
-                     ("ask", "ask"), ("ask:warn", "ask:warn"), ("ask:log-only", "ask:log-only")],
+                    [
+                        ("block", "block"),
+                        ("warn", "warn"),
+                        ("log-only", "log-only"),
+                        ("ask", "ask"),
+                        ("ask:warn", "ask:warn"),
+                        ("ask:log-only", "ask:log-only"),
+                    ],
                     value=self.rule.get("action", "block"),
-                    id="select-action"
+                    id="select-action",
                 )
 
             with Container(classes="modal-field"):
@@ -137,7 +144,7 @@ class AddPermissionModal(ModalScreen):
                 yield Input(
                     value=patterns_str,
                     placeholder="daf-*, release",
-                    id="input-patterns"
+                    id="input-patterns",
                 )
 
             with Horizontal(id="modal-actions"):
@@ -166,11 +173,7 @@ class AddPermissionModal(ModalScreen):
             patterns = [p.strip() for p in patterns_str.split(",") if p.strip()]
 
             # Build rule
-            rule = {
-                "matcher": matcher,
-                "mode": mode,
-                "patterns": patterns
-            }
+            rule = {"matcher": matcher, "mode": mode, "patterns": patterns}
             if mode == "deny" and action and action != "block":
                 rule["action"] = action
 
@@ -279,7 +282,7 @@ class PermissionsScreen(Screen):
         permissions = []
         if config_path.exists():
             try:
-                with open(config_path, 'r', encoding='utf-8') as f:
+                with open(config_path, "r", encoding="utf-8") as f:
                     config = json.load(f)
                     # NEW unified structure in v1.4.0: permissions is object with rules array
                     permissions_obj = config.get("permissions", {})
@@ -287,7 +290,9 @@ class PermissionsScreen(Screen):
                         permissions = permissions_obj.get("rules", [])
                     else:
                         # Legacy format: permissions is array directly
-                        permissions = permissions_obj if isinstance(permissions_obj, list) else []
+                        permissions = (
+                            permissions_obj if isinstance(permissions_obj, list) else []
+                        )
             except Exception as e:
                 self.notify(f"Error loading permissions: {e}", severity="error")
 
@@ -323,6 +328,7 @@ class PermissionsScreen(Screen):
 
     def add_permission(self) -> None:
         """Show modal to add a new permission rule."""
+
         def handle_result(rule: Dict) -> None:
             if rule:
                 self.save_permission(rule)
@@ -339,14 +345,16 @@ class PermissionsScreen(Screen):
             return
 
         try:
-            with open(config_path, 'r', encoding='utf-8') as f:
+            with open(config_path, "r", encoding="utf-8") as f:
                 config = json.load(f)
                 # NEW unified structure in v1.4.0
                 permissions_obj = config.get("permissions", {})
                 if isinstance(permissions_obj, dict):
                     permissions = permissions_obj.get("rules", [])
                 else:
-                    permissions = permissions_obj if isinstance(permissions_obj, list) else []
+                    permissions = (
+                        permissions_obj if isinstance(permissions_obj, list) else []
+                    )
 
             if index >= len(permissions):
                 self.notify("Permission not found", severity="error")
@@ -363,7 +371,7 @@ class PermissionsScreen(Screen):
                     else:
                         config["permissions"] = {"enabled": True, "rules": permissions}
 
-                    with open(config_path, 'w', encoding='utf-8') as f:
+                    with open(config_path, "w", encoding="utf-8") as f:
                         json.dump(config, f, indent=2)
 
                     self.load_permissions()
@@ -384,14 +392,16 @@ class PermissionsScreen(Screen):
             return
 
         try:
-            with open(config_path, 'r', encoding='utf-8') as f:
+            with open(config_path, "r", encoding="utf-8") as f:
                 config = json.load(f)
                 # NEW unified structure in v1.4.0
                 permissions_obj = config.get("permissions", {})
                 if isinstance(permissions_obj, dict):
                     permissions = permissions_obj.get("rules", [])
                 else:
-                    permissions = permissions_obj if isinstance(permissions_obj, list) else []
+                    permissions = (
+                        permissions_obj if isinstance(permissions_obj, list) else []
+                    )
 
             if index >= len(permissions):
                 self.notify("Permission not found", severity="error")
@@ -405,11 +415,14 @@ class PermissionsScreen(Screen):
             else:
                 config["permissions"] = {"enabled": True, "rules": permissions}
 
-            with open(config_path, 'w', encoding='utf-8') as f:
+            with open(config_path, "w", encoding="utf-8") as f:
                 json.dump(config, f, indent=2)
 
             self.load_permissions()
-            self.notify(f"Deleted permission for {removed_rule.get('matcher')}", severity="success")
+            self.notify(
+                f"Deleted permission for {removed_rule.get('matcher')}",
+                severity="success",
+            )
 
         except Exception as e:
             self.notify(f"Error deleting permission: {e}", severity="error")
@@ -421,7 +434,7 @@ class PermissionsScreen(Screen):
 
         try:
             if config_path.exists():
-                with open(config_path, 'r', encoding='utf-8') as f:
+                with open(config_path, "r", encoding="utf-8") as f:
                     config = json.load(f)
             else:
                 config = {}
@@ -444,7 +457,7 @@ class PermissionsScreen(Screen):
             else:
                 config["permissions"] = all_permissions
 
-            with open(config_path, 'w', encoding='utf-8') as f:
+            with open(config_path, "w", encoding="utf-8") as f:
                 json.dump(config, f, indent=2)
 
             self.load_permissions()

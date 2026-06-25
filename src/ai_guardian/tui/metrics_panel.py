@@ -62,7 +62,7 @@ class ConfirmResetModal(ModalScreen):
             yield Static(
                 "This will reset all-time counters to the current\n"
                 "log file counts and update the tracking start date.",
-                id="modal-content"
+                id="modal-content",
             )
             with Horizontal(id="modal-actions"):
                 yield Button("Reset", id="confirm-reset", variant="warning")
@@ -143,6 +143,7 @@ class MetricsContent(Container):
     def _get_retention_days() -> int:
         try:
             from ai_guardian.violation_logger import ViolationLogger
+
             vl = ViolationLogger()
             return vl.config.get("retention_days", 30)
         except Exception:
@@ -158,11 +159,17 @@ class MetricsContent(Container):
         with VerticalScroll():
             with Horizontal(id="metrics-range-buttons"):
                 yield Button("7 days", id="metrics-7d", variant="default")
-                yield Button("30 days", id="metrics-30d",
-                             variant="primary" if self._retention_days >= 30 else "default",
-                             disabled=self._retention_days < 30)
-                yield Button(f"All ({self._retention_days}d)", id="metrics-all",
-                             variant="default")
+                yield Button(
+                    "30 days",
+                    id="metrics-30d",
+                    variant="primary" if self._retention_days >= 30 else "default",
+                    disabled=self._retention_days < 30,
+                )
+                yield Button(
+                    f"All ({self._retention_days}d)",
+                    id="metrics-all",
+                    variant="default",
+                )
                 yield Button("Refresh", id="metrics-refresh", variant="success")
                 yield Button("Reset Counters", id="metrics-reset", variant="warning")
 
@@ -170,8 +177,12 @@ class MetricsContent(Container):
                 yield Button("Export HTML", id="export-html", variant="default")
                 yield Button("Export JSON", id="export-json", variant="default")
                 yield Button("Export CSV", id="export-csv", variant="default")
-                yield Button("Open Folder", id="open-export-folder",
-                             variant="default", disabled=True)
+                yield Button(
+                    "Open Folder",
+                    id="open-export-folder",
+                    variant="default",
+                    disabled=True,
+                )
                 yield Static("", id="export-status")
 
             with Container(classes="section"):
@@ -271,15 +282,21 @@ class MetricsContent(Container):
     def _export(self, fmt: str) -> None:
         try:
             from ai_guardian.audit import (
-                AuditComputer, format_audit_html, format_audit_json,
+                AuditComputer,
+                format_audit_html,
+                format_audit_json,
                 format_audit_csv,
             )
+
             computer = AuditComputer(since=f"{self._since_days}d")
 
             suffix = {"html": ".html", "json": ".json", "csv": ".csv"}[fmt]
             tmp = tempfile.NamedTemporaryFile(
-                prefix="ai-guardian-audit-", suffix=suffix,
-                delete=False, mode="w", encoding="utf-8",
+                prefix="ai-guardian-audit-",
+                suffix=suffix,
+                delete=False,
+                mode="w",
+                encoding="utf-8",
             )
 
             if fmt == "html":
@@ -329,6 +346,7 @@ class MetricsContent(Container):
             if confirmed:
                 try:
                     from ai_guardian.violation_counter import ViolationCounter
+
                     ViolationCounter().reset_to_current_log()
                 except Exception:
                     pass  # intentionally silent — optional dependency
@@ -339,6 +357,7 @@ class MetricsContent(Container):
     def _load_metrics(self) -> None:
         try:
             from ai_guardian.metrics import MetricsComputer
+
             computer = MetricsComputer(since_days=self._since_days)
             report = computer.compute()
         except Exception as e:
@@ -351,7 +370,9 @@ class MetricsContent(Container):
 
         # Cumulative totals
         if report.cumulative_total > 0:
-            since_str = report.cumulative_since[:10] if report.cumulative_since else "unknown"
+            since_str = (
+                report.cumulative_since[:10] if report.cumulative_since else "unknown"
+            )
             lines = [
                 f"All-time total: [bold]{report.cumulative_total:,}[/bold]",
                 f"Tracking since: {since_str}",
@@ -372,9 +393,14 @@ class MetricsContent(Container):
             self.query_one("#metrics-summary", Static).update(
                 f"No violations in the last {self._since_days} days."
             )
-            for wid in ("metrics-by-type", "metrics-by-severity",
-                        "metrics-by-action", "metrics-top-files",
-                        "metrics-top-tools", "metrics-trend"):
+            for wid in (
+                "metrics-by-type",
+                "metrics-by-severity",
+                "metrics-by-action",
+                "metrics-top-files",
+                "metrics-top-tools",
+                "metrics-trend",
+            ):
                 self.query_one(f"#{wid}", Static).update("")
             return
 
@@ -389,13 +415,19 @@ class MetricsContent(Container):
         self.query_one("#metrics-summary", Static).update(summary)
 
         # By type
-        self._update_breakdown("metrics-by-type", report.by_type, report.total_violations)
+        self._update_breakdown(
+            "metrics-by-type", report.by_type, report.total_violations
+        )
 
         # By severity
-        self._update_breakdown("metrics-by-severity", report.by_severity, report.total_violations)
+        self._update_breakdown(
+            "metrics-by-severity", report.by_severity, report.total_violations
+        )
 
         # By action
-        self._update_breakdown("metrics-by-action", report.by_action, report.total_violations)
+        self._update_breakdown(
+            "metrics-by-action", report.by_action, report.total_violations
+        )
 
         # Top files
         if report.top_files:
@@ -405,7 +437,9 @@ class MetricsContent(Container):
                 lines.append(f"  {i:>2}. {display}  ({count:,})")
             self.query_one("#metrics-top-files", Static).update("\n".join(lines))
         else:
-            self.query_one("#metrics-top-files", Static).update("[dim]No file data[/dim]")
+            self.query_one("#metrics-top-files", Static).update(
+                "[dim]No file data[/dim]"
+            )
 
         # Top tools
         if report.top_tools:
@@ -414,7 +448,9 @@ class MetricsContent(Container):
                 lines.append(f"  {i:>2}. {tool}  ({count:,})")
             self.query_one("#metrics-top-tools", Static).update("\n".join(lines))
         else:
-            self.query_one("#metrics-top-tools", Static).update("[dim]No tool data[/dim]")
+            self.query_one("#metrics-top-tools", Static).update(
+                "[dim]No tool data[/dim]"
+            )
 
         # Daily trend
         if report.time_trend:
@@ -432,18 +468,27 @@ class MetricsContent(Container):
     def _load_audit_sections(self) -> None:
         try:
             from ai_guardian.audit import AuditComputer
+
             computer = AuditComputer(since=f"{self._since_days}d")
             audit = computer.compute()
         except Exception:
-            for wid in ("metrics-posture", "metrics-trend-comparison",
-                        "metrics-resolution", "metrics-compliance"):
+            for wid in (
+                "metrics-posture",
+                "metrics-trend-comparison",
+                "metrics-resolution",
+                "metrics-compliance",
+            ):
                 self.query_one(f"#{wid}", Static).update("[dim]Unavailable[/dim]")
             return
 
         # Security posture
         posture = audit.security_posture or "UNKNOWN"
-        colors = {"GOOD": "green", "FAIR": "yellow",
-                  "NEEDS ATTENTION": "red", "UNKNOWN": "dim"}
+        colors = {
+            "GOOD": "green",
+            "FAIR": "yellow",
+            "NEEDS ATTENTION": "red",
+            "UNKNOWN": "dim",
+        }
         color = colors.get(posture, "dim")
         self.query_one("#metrics-posture", Static).update(
             f"[{color}][bold]{posture}[/bold][/{color}]"
@@ -480,7 +525,9 @@ class MetricsContent(Container):
         if audit.compliance_features:
             comp_lines = []
             for feature, enabled in audit.compliance_features.items():
-                status = "[green]✓ enabled[/green]" if enabled else "[red]✗ disabled[/red]"
+                status = (
+                    "[green]✓ enabled[/green]" if enabled else "[red]✗ disabled[/red]"
+                )
                 count = audit.violations_per_feature.get(feature, 0)
                 count_str = f"  ({count:,} violations)" if count > 0 else ""
                 comp_lines.append(f"  {feature:<25s} {status}{count_str}")

@@ -20,7 +20,6 @@ import sys
 from collections import Counter
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
-from pathlib import Path
 from typing import Dict, List, Optional, TextIO, Tuple
 
 logger = logging.getLogger(__name__)
@@ -31,8 +30,8 @@ def _parse_timestamp(timestamp_str: Optional[str]) -> datetime:
     if not timestamp_str:
         return datetime.fromtimestamp(0, tz=timezone.utc)
     try:
-        if timestamp_str.endswith('Z'):
-            timestamp_str = timestamp_str[:-1] + '+00:00'
+        if timestamp_str.endswith("Z"):
+            timestamp_str = timestamp_str[:-1] + "+00:00"
         dt = datetime.fromisoformat(timestamp_str)
         if dt.tzinfo is None:
             dt = dt.replace(tzinfo=timezone.utc)
@@ -53,7 +52,7 @@ def _parse_since(value: str) -> datetime:
 
     value = value.strip()
 
-    if value.lower().endswith('d'):
+    if value.lower().endswith("d"):
         try:
             days = int(value[:-1])
             return datetime.now(timezone.utc) - timedelta(days=days)
@@ -147,6 +146,7 @@ class MetricsComputer:
     def _load_cumulative() -> Dict:
         try:
             from ai_guardian.violation_counter import ViolationCounter
+
             return ViolationCounter().get_counters()
         except Exception:
             return {"total": 0, "violation_totals": {}, "since": ""}
@@ -161,7 +161,7 @@ class MetricsComputer:
 
         violations: List[Dict] = []
         try:
-            with open(vl.log_path, 'r', encoding='utf-8') as f:
+            with open(vl.log_path, "r", encoding="utf-8") as f:
                 for line in f:
                     try:
                         entry = json.loads(line)
@@ -172,8 +172,10 @@ class MetricsComputer:
                     if ts < self._cutoff:
                         continue
 
-                    if (self._violation_type
-                            and entry.get("violation_type") != self._violation_type):
+                    if (
+                        self._violation_type
+                        and entry.get("violation_type") != self._violation_type
+                    ):
                         continue
 
                     violations.append(entry)
@@ -224,9 +226,9 @@ class MetricsComputer:
         counter: Counter = Counter()
         for v in violations:
             blocked = v.get("blocked") or {}
-            tool = (blocked.get("tool_name")
-                    or blocked.get("tool")
-                    or blocked.get("source"))
+            tool = (
+                blocked.get("tool_name") or blocked.get("tool") or blocked.get("source")
+            )
             if tool:
                 counter[tool] += 1
         return counter.most_common(limit)
@@ -238,10 +240,7 @@ class MetricsComputer:
             ts = _parse_timestamp(v.get("timestamp"))
             date_str = ts.strftime("%Y-%m-%d")
             counter[date_str] += 1
-        return [
-            {"date": d, "count": c}
-            for d, c in sorted(counter.items())
-        ]
+        return [{"date": d, "count": c} for d, c in sorted(counter.items())]
 
 
 def format_human(report: MetricsReport) -> str:
@@ -253,7 +252,9 @@ def format_human(report: MetricsReport) -> str:
 
     # Cumulative totals (independent of log rotation)
     if report.cumulative_total > 0:
-        since_display = report.cumulative_since[:10] if report.cumulative_since else "unknown"
+        since_display = (
+            report.cumulative_since[:10] if report.cumulative_since else "unknown"
+        )
         lines.append("")
         lines.append("Cumulative Totals")
         lines.append("-" * 40)
@@ -333,7 +334,9 @@ def format_human(report: MetricsReport) -> str:
         max_count = max(t["count"] for t in report.time_trend)
         bar_width = 20
         for entry in report.time_trend[-14:]:
-            bar_len = int(entry["count"] / max_count * bar_width) if max_count > 0 else 0
+            bar_len = (
+                int(entry["count"] / max_count * bar_width) if max_count > 0 else 0
+            )
             bar = "█" * bar_len
             lines.append(f"  {entry['date']}  {entry['count']:>4,}  {bar}")
 
@@ -356,12 +359,8 @@ def format_json(report: MetricsReport) -> str:
         "by_type": report.by_type,
         "by_severity": report.by_severity,
         "by_action": report.by_action,
-        "top_files": [
-            {"path": fp, "count": c} for fp, c in report.top_files
-        ],
-        "top_tools": [
-            {"tool": t, "count": c} for t, c in report.top_tools
-        ],
+        "top_files": [{"path": fp, "count": c} for fp, c in report.top_files],
+        "top_tools": [{"tool": t, "count": c} for t, c in report.top_tools],
         "time_trend": report.time_trend,
         "cumulative": {
             "total": report.cumulative_total,
@@ -373,8 +372,14 @@ def format_json(report: MetricsReport) -> str:
 
 
 CSV_COLUMNS = [
-    "timestamp", "violation_type", "severity", "action",
-    "file_path", "tool", "session_id", "resolved",
+    "timestamp",
+    "violation_type",
+    "severity",
+    "action",
+    "file_path",
+    "tool",
+    "session_id",
+    "resolved",
 ]
 
 
@@ -385,20 +390,24 @@ def format_csv(violations: List[Dict], stream: TextIO) -> None:
     for v in violations:
         blocked = v.get("blocked") or {}
         context = v.get("context") or {}
-        tool = (blocked.get("tool_name")
-                or blocked.get("tool")
-                or blocked.get("source")
-                or "")
-        writer.writerow([
-            v.get("timestamp", ""),
-            v.get("violation_type", ""),
-            v.get("severity", ""),
-            context.get("action", ""),
-            blocked.get("file_path", ""),
-            tool,
-            context.get("session_id", ""),
-            v.get("resolved", False),
-        ])
+        tool = (
+            blocked.get("tool_name")
+            or blocked.get("tool")
+            or blocked.get("source")
+            or ""
+        )
+        writer.writerow(
+            [
+                v.get("timestamp", ""),
+                v.get("violation_type", ""),
+                v.get("severity", ""),
+                context.get("action", ""),
+                blocked.get("file_path", ""),
+                tool,
+                context.get("session_id", ""),
+                v.get("resolved", False),
+            ]
+        )
 
 
 def metrics_command(args) -> int:
@@ -418,8 +427,11 @@ def metrics_command(args) -> int:
 
     if getattr(args, "latency", False):
         from ai_guardian.latency_logger import (
-            LatencyComputer, format_latency_human, format_latency_json,
+            LatencyComputer,
+            format_latency_human,
+            format_latency_json,
         )
+
         since_value = getattr(args, "since", "30d") or "30d"
         computer = LatencyComputer(since_date=since_value)
         report = computer.compute()
@@ -437,6 +449,7 @@ def metrics_command(args) -> int:
 
     if use_audit:
         from ai_guardian.audit import audit_command
+
         return audit_command(args)
 
     try:

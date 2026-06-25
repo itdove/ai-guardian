@@ -11,7 +11,6 @@ import tempfile
 from pathlib import Path
 from unittest.mock import patch, MagicMock
 
-import pytest
 
 from ai_guardian.tui.pi_detection import PIDetectionContent
 
@@ -36,17 +35,26 @@ class TestActionSaveField:
         with tempfile.TemporaryDirectory() as tmpdir:
             config_path = Path(tmpdir) / "ai-guardian.json"
             if existing_config:
-                with open(config_path, 'w') as f:
+                with open(config_path, "w") as f:
                     json.dump(existing_config, f)
 
             content = PIDetectionContent()
             content._loading = False
 
-            with patch("ai_guardian.tui.pi_detection.get_config_dir", return_value=Path(tmpdir)), \
-                 patch.object(type(content), "app", new_callable=lambda: property(lambda self: MagicMock())):
+            with (
+                patch(
+                    "ai_guardian.tui.pi_detection.get_config_dir",
+                    return_value=Path(tmpdir),
+                ),
+                patch.object(
+                    type(content),
+                    "app",
+                    new_callable=lambda: property(lambda self: MagicMock()),
+                ),
+            ):
                 content._save_field(field, value)
 
-            with open(config_path, 'r') as f:
+            with open(config_path, "r") as f:
                 return json.load(f)
 
     def test_save_action_block(self):
@@ -62,7 +70,13 @@ class TestActionSaveField:
         assert result["prompt_injection"]["action"] == "log-only"
 
     def test_save_action_preserves_existing(self):
-        existing = {"prompt_injection": {"enabled": True, "detector": "heuristic", "sensitivity": "medium"}}
+        existing = {
+            "prompt_injection": {
+                "enabled": True,
+                "detector": "heuristic",
+                "sensitivity": "medium",
+            }
+        }
         result = self._do_save("action", "warn", existing)
         assert result["prompt_injection"]["action"] == "warn"
         assert result["prompt_injection"]["enabled"] is True

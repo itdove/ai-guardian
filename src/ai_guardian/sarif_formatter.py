@@ -21,17 +21,19 @@ class SARIFFormatter:
         "SSRF-001": {
             "id": "SSRF-001",
             "name": "SSRFDetection",
-            "shortDescription": {"text": "Server-Side Request Forgery attempt detected"},
+            "shortDescription": {
+                "text": "Server-Side Request Forgery attempt detected"
+            },
             "fullDescription": {
                 "text": "Detects attempts to access internal/private IP addresses, cloud metadata endpoints, "
-                       "or perform URL redirects that could lead to SSRF attacks."
+                "or perform URL redirects that could lead to SSRF attacks."
             },
             "helpUri": "https://github.com/itdove/ai-guardian#ssrf-protection",
             "defaultConfiguration": {"level": "error"},
             "properties": {
                 "tags": ["security", "ssrf", "network"],
-                "precision": "high"
-            }
+                "precision": "high",
+            },
         },
         "UNICODE-001": {
             "id": "UNICODE-001",
@@ -39,31 +41,33 @@ class SARIFFormatter:
             "shortDescription": {"text": "Unicode attack detected"},
             "fullDescription": {
                 "text": "Detects malicious Unicode characters including zero-width characters, "
-                       "bidirectional override characters, homoglyphs, and tag characters used for "
-                       "prompt injection or obfuscation."
+                "bidirectional override characters, homoglyphs, and tag characters used for "
+                "prompt injection or obfuscation."
             },
             "helpUri": "https://github.com/itdove/ai-guardian#unicode-attack-detection",
             "defaultConfiguration": {"level": "error"},
             "properties": {
                 "tags": ["security", "unicode", "prompt-injection"],
-                "precision": "high"
-            }
+                "precision": "high",
+            },
         },
         "CONFIG-001": {
             "id": "CONFIG-001",
             "name": "ConfigFileExfiltration",
-            "shortDescription": {"text": "Credential exfiltration pattern in config file"},
+            "shortDescription": {
+                "text": "Credential exfiltration pattern in config file"
+            },
             "fullDescription": {
                 "text": "Detects patterns in AI configuration files (CLAUDE.md, AGENTS.md, etc.) "
-                       "that could exfiltrate credentials or sensitive data through curl, wget, "
-                       "base64 encoding, or cloud storage uploads."
+                "that could exfiltrate credentials or sensitive data through curl, wget, "
+                "base64 encoding, or cloud storage uploads."
             },
             "helpUri": "https://github.com/itdove/ai-guardian#config-file-scanner",
             "defaultConfiguration": {"level": "error"},
             "properties": {
                 "tags": ["security", "exfiltration", "credentials"],
-                "precision": "high"
-            }
+                "precision": "high",
+            },
         },
         "SECRET-001": {
             "id": "SECRET-001",
@@ -71,29 +75,28 @@ class SARIFFormatter:
             "shortDescription": {"text": "Secret or credential detected"},
             "fullDescription": {
                 "text": "Detects secrets, API keys, tokens, passwords, and other credentials "
-                       "using pattern matching from Gitleaks and custom patterns."
+                "using pattern matching from Gitleaks and custom patterns."
             },
             "helpUri": "https://github.com/itdove/ai-guardian#secret-scanning",
             "defaultConfiguration": {"level": "error"},
             "properties": {
                 "tags": ["security", "secrets", "credentials"],
-                "precision": "high"
-            }
+                "precision": "high",
+            },
         },
         "PII-001": {
             "id": "PII-001",
             "name": "PIIDetected",
-            "shortDescription": {"text": "Personally identifiable information detected"},
+            "shortDescription": {
+                "text": "Personally identifiable information detected"
+            },
             "fullDescription": {
                 "text": "Detects personally identifiable information (PII) including social security numbers, "
-                       "credit card numbers, phone numbers, email addresses, passport numbers, and IBANs."
+                "credit card numbers, phone numbers, email addresses, passport numbers, and IBANs."
             },
             "helpUri": "https://github.com/itdove/ai-guardian#pii-detection",
             "defaultConfiguration": {"level": "warning"},
-            "properties": {
-                "tags": ["security", "pii", "privacy"],
-                "precision": "high"
-            }
+            "properties": {"tags": ["security", "pii", "privacy"], "precision": "high"},
         },
         "PROMPT-INJECTION-001": {
             "id": "PROMPT-INJECTION-001",
@@ -101,14 +104,14 @@ class SARIFFormatter:
             "shortDescription": {"text": "Prompt injection pattern detected"},
             "fullDescription": {
                 "text": "Detects prompt injection attempts including instruction overrides, "
-                       "role manipulation, and other techniques to manipulate AI behavior."
+                "role manipulation, and other techniques to manipulate AI behavior."
             },
             "helpUri": "https://github.com/itdove/ai-guardian#prompt-injection-detection",
             "defaultConfiguration": {"level": "warning"},
             "properties": {
                 "tags": ["security", "prompt-injection", "ai"],
-                "precision": "medium"
-            }
+                "precision": "medium",
+            },
         },
         "SUPPLY-CHAIN-001": {
             "id": "SUPPLY-CHAIN-001",
@@ -116,16 +119,16 @@ class SARIFFormatter:
             "shortDescription": {"text": "Supply chain threat in agent config"},
             "fullDescription": {
                 "text": "Detects malicious patterns in agent configuration files including "
-                       "download-and-execute chains, obfuscation, environment variable hijacking, "
-                       "and reverse shells."
+                "download-and-execute chains, obfuscation, environment variable hijacking, "
+                "and reverse shells."
             },
             "helpUri": "https://github.com/itdove/ai-guardian#supply-chain-scanning",
             "defaultConfiguration": {"level": "error"},
             "properties": {
                 "tags": ["security", "supply-chain", "agent-config"],
-                "precision": "high"
-            }
-        }
+                "precision": "high",
+            },
+        },
     }
 
     def __init__(self, version: str = "1.5.0"):
@@ -141,7 +144,7 @@ class SARIFFormatter:
         self,
         results: List[Dict[str, Any]],
         scan_path: str = ".",
-        invocation_time: Optional[str] = None
+        invocation_time: Optional[str] = None,
     ) -> Dict[str, Any]:
         """
         Create a complete SARIF 2.1.0 report.
@@ -162,7 +165,9 @@ class SARIFFormatter:
             SARIF 2.1.0 compliant dictionary
         """
         if invocation_time is None:
-            invocation_time = datetime.now(timezone.utc).isoformat().replace('+00:00', 'Z')
+            invocation_time = (
+                datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+            )
 
         sarif_results = []
         for result in results:
@@ -185,7 +190,7 @@ class SARIFFormatter:
                             "version": self.version,
                             "informationUri": "https://github.com/itdove/ai-guardian",
                             "semanticVersion": self.version,
-                            "rules": rules
+                            "rules": rules,
                         }
                     },
                     "results": sarif_results,
@@ -193,13 +198,11 @@ class SARIFFormatter:
                         {
                             "executionSuccessful": True,
                             "endTimeUtc": invocation_time,
-                            "workingDirectory": {
-                                "uri": self._file_uri(scan_path)
-                            }
+                            "workingDirectory": {"uri": self._file_uri(scan_path)},
                         }
-                    ]
+                    ],
                 }
-            ]
+            ],
         }
 
     def _create_sarif_result(self, finding: Dict[str, Any]) -> Optional[Dict[str, Any]]:
@@ -219,9 +222,7 @@ class SARIFFormatter:
         result = {
             "ruleId": rule_id,
             "level": self._map_level(finding.get("level", "warning")),
-            "message": {
-                "text": finding.get("message", "Security issue detected")
-            }
+            "message": {"text": finding.get("message", "Security issue detected")},
         }
 
         # Add location information if available
@@ -229,10 +230,7 @@ class SARIFFormatter:
         if file_path:
             location = {
                 "physicalLocation": {
-                    "artifactLocation": {
-                        "uri": file_path,
-                        "uriBaseId": "%SRCROOT%"
-                    }
+                    "artifactLocation": {"uri": file_path, "uriBaseId": "%SRCROOT%"}
                 }
             }
 
@@ -281,7 +279,7 @@ class SARIFFormatter:
             "medium": "warning",
             "low": "note",
             "info": "note",
-            "note": "note"
+            "note": "note",
         }
         return level_map.get(level.lower(), "warning")
 
@@ -305,7 +303,7 @@ class SARIFFormatter:
         results: List[Dict[str, Any]],
         output_path: str,
         scan_path: str = ".",
-        invocation_time: Optional[str] = None
+        invocation_time: Optional[str] = None,
     ) -> None:
         """
         Create and write SARIF report to file.
@@ -326,7 +324,7 @@ def create_ssrf_finding(
     reason: str,
     file_path: Optional[str] = None,
     line_number: Optional[int] = None,
-    snippet: Optional[str] = None
+    snippet: Optional[str] = None,
 ) -> Dict[str, Any]:
     """
     Create a SARIF finding for SSRF detection.
@@ -348,7 +346,7 @@ def create_ssrf_finding(
         "file_path": file_path,
         "line_number": line_number,
         "snippet": snippet,
-        "details": {"url": url, "reason": reason}
+        "details": {"url": url, "reason": reason},
     }
 
 
@@ -357,7 +355,7 @@ def create_unicode_finding(
     details: str,
     file_path: Optional[str] = None,
     line_number: Optional[int] = None,
-    snippet: Optional[str] = None
+    snippet: Optional[str] = None,
 ) -> Dict[str, Any]:
     """
     Create a SARIF finding for Unicode attack detection.
@@ -379,7 +377,7 @@ def create_unicode_finding(
         "file_path": file_path,
         "line_number": line_number,
         "snippet": snippet,
-        "details": {"attack_type": attack_type, "details": details}
+        "details": {"attack_type": attack_type, "details": details},
     }
 
 
@@ -388,7 +386,7 @@ def create_config_finding(
     reason: str,
     file_path: str,
     line_number: Optional[int] = None,
-    snippet: Optional[str] = None
+    snippet: Optional[str] = None,
 ) -> Dict[str, Any]:
     """
     Create a SARIF finding for config file exfiltration.
@@ -410,7 +408,7 @@ def create_config_finding(
         "file_path": file_path,
         "line_number": line_number,
         "snippet": snippet,
-        "details": {"pattern": pattern, "reason": reason}
+        "details": {"pattern": pattern, "reason": reason},
     }
 
 
@@ -418,7 +416,7 @@ def create_secret_finding(
     secret_type: str,
     file_path: str,
     line_number: Optional[int] = None,
-    snippet: Optional[str] = None
+    snippet: Optional[str] = None,
 ) -> Dict[str, Any]:
     """
     Create a SARIF finding for secret detection.
@@ -433,6 +431,7 @@ def create_secret_finding(
         Finding dictionary for SARIF formatter
     """
     from ai_guardian.secret_type_names import get_secret_type_display
+
     return {
         "rule_id": "SECRET-001",
         "level": "error",
@@ -440,7 +439,7 @@ def create_secret_finding(
         "file_path": file_path,
         "line_number": line_number,
         "snippet": snippet,
-        "details": {"secret_type": secret_type}
+        "details": {"secret_type": secret_type},
     }
 
 
@@ -448,7 +447,7 @@ def create_pii_finding(
     pii_type: str,
     file_path: str,
     line_number: Optional[int] = None,
-    snippet: Optional[str] = None
+    snippet: Optional[str] = None,
 ) -> Dict[str, Any]:
     return {
         "rule_id": "PII-001",
@@ -457,7 +456,7 @@ def create_pii_finding(
         "file_path": file_path,
         "line_number": line_number,
         "snippet": snippet,
-        "details": {"pii_type": pii_type}
+        "details": {"pii_type": pii_type},
     }
 
 
@@ -490,7 +489,7 @@ def create_supply_chain_finding(
     reason: str,
     file_path: str,
     line_number: Optional[int] = None,
-    snippet: Optional[str] = None
+    snippet: Optional[str] = None,
 ) -> Dict[str, Any]:
     return {
         "rule_id": "SUPPLY-CHAIN-001",
@@ -499,5 +498,5 @@ def create_supply_chain_finding(
         "file_path": file_path,
         "line_number": line_number,
         "snippet": snippet,
-        "details": {"category": category, "reason": reason}
+        "details": {"category": category, "reason": reason},
     }

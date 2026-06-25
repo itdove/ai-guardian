@@ -17,6 +17,7 @@ from pathlib import Path
 try:
     import jsonschema
     from jsonschema import validate, ValidationError
+
     HAS_JSONSCHEMA = True
 except ImportError:
     HAS_JSONSCHEMA = False
@@ -24,7 +25,9 @@ except ImportError:
 
 # Get project root directory
 PROJECT_ROOT = Path(__file__).parent.parent.parent
-SCHEMA_PATH = PROJECT_ROOT / "src" / "ai_guardian" / "schemas" / "ai-guardian-config.schema.json"
+SCHEMA_PATH = (
+    PROJECT_ROOT / "src" / "ai_guardian" / "schemas" / "ai-guardian-config.schema.json"
+)
 EXAMPLE_CONFIG_PATH = PROJECT_ROOT / "ai-guardian-example.json"
 VALID_CONFIG_PATH = Path(__file__).parent.parent / "fixtures" / "valid-config.json"
 
@@ -32,21 +35,21 @@ VALID_CONFIG_PATH = Path(__file__).parent.parent / "fixtures" / "valid-config.js
 @pytest.fixture
 def schema():
     """Load the JSON Schema."""
-    with open(SCHEMA_PATH, 'r') as f:
+    with open(SCHEMA_PATH, "r") as f:
         return json.load(f)
 
 
 @pytest.fixture
 def example_config():
     """Load the example configuration."""
-    with open(EXAMPLE_CONFIG_PATH, 'r') as f:
+    with open(EXAMPLE_CONFIG_PATH, "r") as f:
         return json.load(f)
 
 
 @pytest.fixture
 def valid_config():
     """Load the clean test configuration (without comment fields)."""
-    with open(VALID_CONFIG_PATH, 'r') as f:
+    with open(VALID_CONFIG_PATH, "r") as f:
         return json.load(f)
 
 
@@ -57,7 +60,7 @@ def test_schema_file_exists():
 
 def test_schema_is_valid_json():
     """Test that the schema file is valid JSON."""
-    with open(SCHEMA_PATH, 'r') as f:
+    with open(SCHEMA_PATH, "r") as f:
         schema_data = json.load(f)
 
     # Verify basic schema structure
@@ -70,7 +73,7 @@ def test_schema_is_valid_json():
 
 def test_example_config_is_valid_json():
     """Test that the example config is valid JSON."""
-    with open(EXAMPLE_CONFIG_PATH, 'r') as f:
+    with open(EXAMPLE_CONFIG_PATH, "r") as f:
         config = json.load(f)
 
     # Verify it has the schema reference
@@ -90,12 +93,7 @@ def test_valid_config_validates(schema, valid_config):
 @pytest.mark.skipif(not HAS_JSONSCHEMA, reason="jsonschema not installed")
 def test_minimal_valid_config(schema):
     """Test that a minimal valid configuration passes validation."""
-    minimal_config = {
-        "permissions": {
-            "enabled": True,
-            "rules": []
-        }
-    }
+    minimal_config = {"permissions": {"enabled": True, "rules": []}}
 
     try:
         validate(instance=minimal_config, schema=schema)
@@ -121,12 +119,8 @@ def test_permission_rule_structure(schema):
         "permissions": {
             "enabled": True,
             "rules": [
-                {
-                    "matcher": "Skill",
-                    "mode": "allow",
-                    "patterns": ["daf-*", "gh-cli"]
-                }
-            ]
+                {"matcher": "Skill", "mode": "allow", "patterns": ["daf-*", "gh-cli"]}
+            ],
         }
     }
 
@@ -148,13 +142,10 @@ def test_time_based_pattern(schema):
                     "mode": "allow",
                     "patterns": [
                         "daf-*",
-                        {
-                            "pattern": "debug-*",
-                            "valid_until": "2026-04-13T12:00:00Z"
-                        }
-                    ]
+                        {"pattern": "debug-*", "valid_until": "2026-04-13T12:00:00Z"},
+                    ],
                 }
-            ]
+            ],
         }
     }
 
@@ -167,14 +158,7 @@ def test_time_based_pattern(schema):
 @pytest.mark.skipif(not HAS_JSONSCHEMA, reason="jsonschema not installed")
 def test_time_based_feature_boolean(schema):
     """Test that boolean feature toggles validate correctly."""
-    config = {
-        "permissions": {
-            "enabled": True
-        },
-        "secret_scanning": {
-            "enabled": False
-        }
-    }
+    config = {"permissions": {"enabled": True}, "secret_scanning": {"enabled": False}}
 
     try:
         validate(instance=config, schema=schema)
@@ -190,7 +174,7 @@ def test_time_based_feature_extended(schema):
             "enabled": {
                 "value": False,
                 "disabled_until": "2026-04-13T18:00:00Z",
-                "reason": "Emergency debugging"
+                "reason": "Emergency debugging",
             }
         }
     }
@@ -211,7 +195,7 @@ def test_prompt_injection_config(schema):
             "sensitivity": "medium",
             "max_score_threshold": 0.75,
             "allowlist_patterns": ["test:.*"],
-            "custom_patterns": []
+            "custom_patterns": [],
         }
     }
 
@@ -228,12 +212,8 @@ def test_invalid_mode_rejected(schema):
         "permissions": {
             "enabled": True,
             "rules": [
-                {
-                    "matcher": "Skill",
-                    "mode": "invalid_mode",
-                    "patterns": ["daf-*"]
-                }
-            ]
+                {"matcher": "Skill", "mode": "invalid_mode", "patterns": ["daf-*"]}
+            ],
         }
     }
 
@@ -244,11 +224,7 @@ def test_invalid_mode_rejected(schema):
 @pytest.mark.skipif(not HAS_JSONSCHEMA, reason="jsonschema not installed")
 def test_invalid_detector_rejected(schema):
     """Test that invalid detector type is rejected."""
-    config = {
-        "prompt_injection": {
-            "detector": "invalid_detector"
-        }
-    }
+    config = {"prompt_injection": {"detector": "invalid_detector"}}
 
     with pytest.raises(ValidationError):
         validate(instance=config, schema=schema)
@@ -257,11 +233,7 @@ def test_invalid_detector_rejected(schema):
 @pytest.mark.skipif(not HAS_JSONSCHEMA, reason="jsonschema not installed")
 def test_invalid_sensitivity_rejected(schema):
     """Test that invalid sensitivity level is rejected."""
-    config = {
-        "prompt_injection": {
-            "sensitivity": "invalid_level"
-        }
-    }
+    config = {"prompt_injection": {"sensitivity": "invalid_level"}}
 
     with pytest.raises(ValidationError):
         validate(instance=config, schema=schema)
@@ -278,7 +250,7 @@ def test_missing_required_fields_rejected(schema):
                     "matcher": "Skill",
                     # missing mode and patterns
                 }
-            ]
+            ],
         }
     }
 
@@ -296,11 +268,11 @@ def test_remote_configs_structure(schema):
                 {
                     "url": "https://example.com/policy2.json",
                     "enabled": True,
-                    "token_env": "GITHUB_TOKEN"
-                }
+                    "token_env": "GITHUB_TOKEN",
+                },
             ],
             "refresh_interval_hours": 12,
-            "expire_after_hours": 168
+            "expire_after_hours": 168,
         }
     }
 
@@ -316,10 +288,7 @@ def test_directory_exclusions(schema):
     config = {
         "directory_exclusions": {
             "enabled": True,
-            "paths": [
-                "~/development/workspace",
-                "~/repos/**"
-            ]
+            "paths": ["~/development/workspace", "~/repos/**"],
         }
     }
 
@@ -337,15 +306,12 @@ def test_pattern_server_config(schema):
             "enabled": False,
             "url": "https://patterns.example.com",
             "patterns_endpoint": "/patterns/gitleaks/8.18.1",
-            "auth": {
-                "method": "bearer",
-                "token_env": "PATTERN_TOKEN"
-            },
+            "auth": {"method": "bearer", "token_env": "PATTERN_TOKEN"},
             "cache": {
                 "path": "~/.cache/ai-guardian/patterns.toml",
                 "refresh_interval_hours": 12,
-                "expire_after_hours": 168
-            }
+                "expire_after_hours": 168,
+            },
         }
     }
 
@@ -368,11 +334,11 @@ def test_time_based_bash_allow_pattern(schema):
                     "patterns": [
                         {
                             "pattern": "*docker rm*",
-                            "valid_until": "2026-04-13T15:00:00Z"
+                            "valid_until": "2026-04-13T15:00:00Z",
                         }
-                    ]
+                    ],
                 }
-            ]
+            ],
         }
     }
 
@@ -395,13 +361,10 @@ def test_mixed_simple_and_time_based_patterns(schema):
                     "patterns": [
                         "daf-*",
                         "gh-cli",
-                        {
-                            "pattern": "debug-*",
-                            "valid_until": "2026-04-13T12:00:00Z"
-                        }
-                    ]
+                        {"pattern": "debug-*", "valid_until": "2026-04-13T12:00:00Z"},
+                    ],
                 }
-            ]
+            ],
         }
     }
 
@@ -418,10 +381,7 @@ def test_prompt_injection_time_based_allowlist(schema):
         "prompt_injection": {
             "allowlist_patterns": [
                 "test:.*",
-                {
-                    "pattern": "experimental:.*",
-                    "valid_until": "2026-04-14T00:00:00Z"
-                }
+                {"pattern": "experimental:.*", "valid_until": "2026-04-14T00:00:00Z"},
             ]
         }
     }
@@ -429,7 +389,9 @@ def test_prompt_injection_time_based_allowlist(schema):
     try:
         validate(instance=config, schema=schema)
     except ValidationError as e:
-        pytest.fail(f"Prompt injection time-based allowlist failed validation: {e.message}")
+        pytest.fail(
+            f"Prompt injection time-based allowlist failed validation: {e.message}"
+        )
 
 
 @pytest.mark.skipif(not HAS_JSONSCHEMA, reason="jsonschema not installed")
@@ -443,14 +405,14 @@ def test_permissions_directories_structure(schema):
                     "matcher": "Skill",
                     "mode": "allow",
                     "url": "https://github.com/your-org/skills/tree/main/skills",
-                    "token_env": "GITHUB_TOKEN"
+                    "token_env": "GITHUB_TOKEN",
                 },
                 {
                     "matcher": "Skill",
                     "mode": "allow",
-                    "url": "/Users/yourname/.claude/skills"
-                }
-            ]
+                    "url": "/Users/yourname/.claude/skills",
+                },
+            ],
         }
     }
 
@@ -461,17 +423,20 @@ def test_permissions_directories_structure(schema):
 
 
 @pytest.mark.skipif(not HAS_JSONSCHEMA, reason="jsonschema not installed")
-@pytest.mark.parametrize("section", [
-    "permissions",
-    "secret_scanning",
-    "prompt_injection",
-    "ssrf_protection",
-    "config_file_scanning",
-    "scan_pii",
-    "secret_redaction",
-    "violation_logging",
-    "transcript_scanning",
-])
+@pytest.mark.parametrize(
+    "section",
+    [
+        "permissions",
+        "secret_scanning",
+        "prompt_injection",
+        "ssrf_protection",
+        "config_file_scanning",
+        "scan_pii",
+        "secret_redaction",
+        "violation_logging",
+        "transcript_scanning",
+    ],
+)
 def test_time_based_enabled_all_sections_boolean(schema, section):
     """Test that all sections with enabled field accept boolean format."""
     config = {section: {"enabled": True}}
@@ -488,26 +453,24 @@ def test_time_based_enabled_all_sections_boolean(schema, section):
 
 
 @pytest.mark.skipif(not HAS_JSONSCHEMA, reason="jsonschema not installed")
-@pytest.mark.parametrize("section", [
-    "permissions",
-    "secret_scanning",
-    "prompt_injection",
-    "ssrf_protection",
-    "config_file_scanning",
-    "scan_pii",
-    "secret_redaction",
-    "violation_logging",
-    "transcript_scanning",
-])
+@pytest.mark.parametrize(
+    "section",
+    [
+        "permissions",
+        "secret_scanning",
+        "prompt_injection",
+        "ssrf_protection",
+        "config_file_scanning",
+        "scan_pii",
+        "secret_redaction",
+        "violation_logging",
+        "transcript_scanning",
+    ],
+)
 def test_time_based_enabled_all_sections_object(schema, section):
     """Test that all sections with enabled field accept time-based object format."""
     config = {
-        section: {
-            "enabled": {
-                "value": False,
-                "disabled_until": "2026-05-07T21:39:30Z"
-            }
-        }
+        section: {"enabled": {"value": False, "disabled_until": "2026-05-07T21:39:30Z"}}
     }
     try:
         validate(instance=config, schema=schema)
@@ -516,17 +479,20 @@ def test_time_based_enabled_all_sections_object(schema, section):
 
 
 @pytest.mark.skipif(not HAS_JSONSCHEMA, reason="jsonschema not installed")
-@pytest.mark.parametrize("section", [
-    "permissions",
-    "secret_scanning",
-    "prompt_injection",
-    "ssrf_protection",
-    "config_file_scanning",
-    "scan_pii",
-    "secret_redaction",
-    "violation_logging",
-    "transcript_scanning",
-])
+@pytest.mark.parametrize(
+    "section",
+    [
+        "permissions",
+        "secret_scanning",
+        "prompt_injection",
+        "ssrf_protection",
+        "config_file_scanning",
+        "scan_pii",
+        "secret_redaction",
+        "violation_logging",
+        "transcript_scanning",
+    ],
+)
 def test_time_based_enabled_all_sections_object_with_reason(schema, section):
     """Test that all sections accept time-based object with optional reason."""
     config = {
@@ -534,7 +500,7 @@ def test_time_based_enabled_all_sections_object_with_reason(schema, section):
             "enabled": {
                 "value": False,
                 "disabled_until": "2026-05-07T21:39:30Z",
-                "reason": "Temporary debugging"
+                "reason": "Temporary debugging",
             }
         }
     }
@@ -553,11 +519,8 @@ def test_invalid_timestamp_format(schema):
                 "matcher": "Skill",
                 "mode": "allow",
                 "patterns": [
-                    {
-                        "pattern": "debug-*",
-                        "valid_until": "invalid-timestamp"
-                    }
-                ]
+                    {"pattern": "debug-*", "valid_until": "invalid-timestamp"}
+                ],
             }
         ]
     }

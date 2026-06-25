@@ -396,18 +396,27 @@ Use `logging.getLogger(__name__)` in all modules. Choose levels as follows:
 
 ### Linting
 
-The project uses multiple linters to maintain code quality:
+The project uses multiple linters enforced by CI. **Run these after finishing all implementations:**
 
 ```bash
-# Run pylint
-pylint ai_guardian/
+# 1. Auto-fix formatting with black
+black src/ai_guardian/ tests/
 
-# Check formatting with black
-black --check ai_guardian/ tests/
+# 2. Auto-fix safe lint issues with ruff
+ruff check src/ai_guardian/ tests/ --fix
 
-# Run ruff
-ruff check ai_guardian/ tests/
+# 3. Re-run black (ruff fixes may need reformatting)
+black src/ai_guardian/ tests/
+
+# 4. Verify all checks pass
+ruff check src/ai_guardian/ tests/
+black --check src/ai_guardian/ tests/
+pylint src/ai_guardian/ --disable=all --enable=E \
+  --disable=E1101,E0611,E2515,E2502,E0602,E0601,E1123,E1120,E0213,E0102,E0203,E1129,E0401 \
+  --output-format=text
 ```
+
+Ruff configuration is in `pyproject.toml` under `[tool.ruff]`. Pylint only checks for E-level (error) violations — conventions and warnings are excluded.
 
 ### Pre-commit Checks
 
@@ -416,7 +425,7 @@ Before submitting a PR:
 **For code changes:**
 1. Run all tests: `pytest`
 2. Check test coverage: `pytest --cov=ai_guardian`
-3. Run linters (optional but recommended)
+3. Run linters: `black`, `ruff check`, `pylint` (required — CI will block if they fail)
 4. Update CHANGELOG.md if making notable changes
 
 **For documentation-only changes:**

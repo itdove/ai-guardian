@@ -12,9 +12,7 @@ import platform
 import shlex
 import socket
 import subprocess
-import sys
 import time
-from pathlib import Path
 
 from ai_guardian.daemon import get_pid_path, get_socket_path, is_pid_alive
 from ai_guardian.daemon.protocol import (
@@ -291,9 +289,7 @@ def send_ml_detect(content, source_type="user_prompt", timeout=2.0):
             return None
 
         try:
-            sock.sendall(encode_message(
-                make_ml_detect_request(content, source_type)
-            ))
+            sock.sendall(encode_message(make_ml_detect_request(content, source_type)))
             response = decode_message(sock, timeout=timeout)
             if response.get("type") == "response":
                 return response.get("data")
@@ -315,6 +311,7 @@ def start_daemon_background():
     try:
         # Honour explicit stop — don't auto-restart (#775)
         from ai_guardian.daemon import get_state_dir
+
         marker = get_state_dir() / "daemon.stop-requested"
         if marker.exists():
             logger.debug("Skipping auto-start: stop-requested marker present")
@@ -385,6 +382,7 @@ def _check_dev_source_restart():
     """
     try:
         from ai_guardian import __version__
+
         if not __version__.endswith("-dev"):
             return False
 
@@ -398,6 +396,7 @@ def _check_dev_source_restart():
             return False
 
         from ai_guardian.daemon.state import DaemonState
+
         current_mtime = DaemonState.get_package_max_mtime()
         if current_mtime <= startup_mtime:
             return False
@@ -473,6 +472,7 @@ def _find_executable():
         list: Command to invoke ai-guardian
     """
     from ai_guardian.daemon import get_executable_command
+
     return get_executable_command()
 
 

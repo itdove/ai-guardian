@@ -1,12 +1,9 @@
 """Tests for external scanner stopword/entropy filtering (Issue #1245)."""
 
-import pytest
-
 from ai_guardian.patterns.validators import (
     load_stopwords,
     filter_findings_by_stopwords_entropy,
     filter_findings_dicts_by_stopwords_entropy,
-    shannon_entropy,
 )
 from ai_guardian.scanners.strategies import SecretMatch
 
@@ -56,7 +53,8 @@ class TestFilterFindingsByStopwordsEntropy:
     def test_placeholder_filtered(self):
         secrets = [_make_secret_match("YOUR_TOKEN")]
         filtered, sw, ent = filter_findings_by_stopwords_entropy(
-            secrets, load_stopwords(), 3.0)
+            secrets, load_stopwords(), 3.0
+        )
         assert len(filtered) == 0
         assert sw == 1
         assert ent == 0
@@ -64,14 +62,14 @@ class TestFilterFindingsByStopwordsEntropy:
     def test_case_insensitive(self):
         secrets = [_make_secret_match("your_secret_key")]
         filtered, sw, ent = filter_findings_by_stopwords_entropy(
-            secrets, load_stopwords(), 3.0)
+            secrets, load_stopwords(), 3.0
+        )
         assert len(filtered) == 0
         assert sw == 1
 
     def test_low_entropy_filtered(self):
         secrets = [_make_secret_match("aaaaaaaaa")]
-        filtered, sw, ent = filter_findings_by_stopwords_entropy(
-            secrets, [], 3.0)
+        filtered, sw, ent = filter_findings_by_stopwords_entropy(secrets, [], 3.0)
         assert len(filtered) == 0
         assert sw == 0
         assert ent == 1
@@ -79,7 +77,8 @@ class TestFilterFindingsByStopwordsEntropy:
     def test_real_secret_passes(self):
         secrets = [_make_secret_match("sk-abcDEF12345ghiJKL67890mnoPQR")]
         filtered, sw, ent = filter_findings_by_stopwords_entropy(
-            secrets, load_stopwords(), 3.0)
+            secrets, load_stopwords(), 3.0
+        )
         assert len(filtered) == 1
 
     def test_mixed_findings(self):
@@ -88,7 +87,8 @@ class TestFilterFindingsByStopwordsEntropy:
             _make_secret_match("sk-abcDEF12345ghiJKL67890mnoPQR"),
         ]
         filtered, sw, ent = filter_findings_by_stopwords_entropy(
-            secrets, load_stopwords(), 3.0)
+            secrets, load_stopwords(), 3.0
+        )
         assert len(filtered) == 1
         assert filtered[0].secret == "sk-abcDEF12345ghiJKL67890mnoPQR"
         assert sw == 1
@@ -96,32 +96,35 @@ class TestFilterFindingsByStopwordsEntropy:
     def test_none_matched_text_passes(self):
         secrets = [_make_secret_match(None)]
         filtered, sw, ent = filter_findings_by_stopwords_entropy(
-            secrets, load_stopwords(), 3.0)
+            secrets, load_stopwords(), 3.0
+        )
         assert len(filtered) == 1
 
     def test_entropy_disabled_when_none(self):
         secrets = [_make_secret_match("aaaaaaaaa")]
-        filtered, sw, ent = filter_findings_by_stopwords_entropy(
-            secrets, [], None)
+        filtered, sw, ent = filter_findings_by_stopwords_entropy(secrets, [], None)
         assert len(filtered) == 1
         assert ent == 0
 
     def test_non_secrets_category_not_filtered(self):
         secrets = [_make_secret_match("YOUR_TOKEN", category="pii")]
         filtered, sw, ent = filter_findings_by_stopwords_entropy(
-            secrets, load_stopwords(), 3.0)
+            secrets, load_stopwords(), 3.0
+        )
         assert len(filtered) == 1
 
     def test_replace_me_filtered(self):
         secrets = [_make_secret_match("REPLACE_ME_WITH_TOKEN")]
         filtered, sw, ent = filter_findings_by_stopwords_entropy(
-            secrets, load_stopwords(), 3.0)
+            secrets, load_stopwords(), 3.0
+        )
         assert len(filtered) == 0
 
     def test_example_api_key_filtered(self):
         secrets = [_make_secret_match("AKIAIOSFODNN7EXAMPLE")]
         filtered, sw, ent = filter_findings_by_stopwords_entropy(
-            secrets, load_stopwords(), 3.0)
+            secrets, load_stopwords(), 3.0
+        )
         assert len(filtered) == 0
 
 
@@ -129,31 +132,38 @@ class TestFilterFindingsDictsByStopwordsEntropy:
     def test_placeholder_dict_filtered(self):
         findings = [{"matched_text": "YOUR_API_KEY", "rule_id": "generic-api-key"}]
         filtered, sw, ent = filter_findings_dicts_by_stopwords_entropy(
-            findings, load_stopwords(), 3.0)
+            findings, load_stopwords(), 3.0
+        )
         assert len(filtered) == 0
         assert sw == 1
 
     def test_real_secret_dict_passes(self):
-        findings = [{"matched_text": "ghp_xYz123AbCdEf456GhIjK", "rule_id": "github-pat"}]
+        findings = [
+            {"matched_text": "ghp_xYz123AbCdEf456GhIjK", "rule_id": "github-pat"}
+        ]
         filtered, sw, ent = filter_findings_dicts_by_stopwords_entropy(
-            findings, load_stopwords(), 3.0)
+            findings, load_stopwords(), 3.0
+        )
         assert len(filtered) == 1
 
     def test_low_entropy_dict_filtered(self):
         findings = [{"matched_text": "AAAAAAAAAA", "rule_id": "generic-api-key"}]
         filtered, sw, ent = filter_findings_dicts_by_stopwords_entropy(
-            findings, [], 3.0)
+            findings, [], 3.0
+        )
         assert len(filtered) == 0
         assert ent == 1
 
     def test_missing_matched_text_passes(self):
         findings = [{"rule_id": "generic-api-key"}]
         filtered, sw, ent = filter_findings_dicts_by_stopwords_entropy(
-            findings, load_stopwords(), 3.0)
+            findings, load_stopwords(), 3.0
+        )
         assert len(filtered) == 1
 
     def test_empty_matched_text_passes(self):
         findings = [{"matched_text": "", "rule_id": "generic-api-key"}]
         filtered, sw, ent = filter_findings_dicts_by_stopwords_entropy(
-            findings, load_stopwords(), 3.0)
+            findings, load_stopwords(), 3.0
+        )
         assert len(filtered) == 1

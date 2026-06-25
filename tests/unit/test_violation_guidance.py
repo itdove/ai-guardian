@@ -4,7 +4,10 @@ import json
 
 import pytest
 
-from ai_guardian.violation_guidance import get_resolution_instructions, _type_placeholders
+from ai_guardian.violation_guidance import (
+    get_resolution_instructions,
+    _type_placeholders,
+)
 
 
 class TestTypePlaceholders:
@@ -26,7 +29,9 @@ class TestToolPermission:
         v = {
             "violation_type": "tool_permission",
             "blocked": {},
-            "suggestion": {"rule": {"matcher": "Bash", "mode": "allow", "patterns": ["ls"]}},
+            "suggestion": {
+                "rule": {"matcher": "Bash", "mode": "allow", "patterns": ["ls"]}
+            },
         }
         instr, snippet = get_resolution_instructions(v)
         assert "permissions.rules" in instr
@@ -126,7 +131,10 @@ class TestPiiDetected:
     def test_with_types(self):
         v = {
             "violation_type": "pii_detected",
-            "blocked": {"file_path": "data.csv", "pii_types": ["email", "phone_number"]},
+            "blocked": {
+                "file_path": "data.csv",
+                "pii_types": ["email", "phone_number"],
+            },
             "suggestion": {},
         }
         instr, snippet = get_resolution_instructions(v)
@@ -293,22 +301,35 @@ class TestAllKnownTypesHaveInstructions:
 
     def test_all_types_produce_nonempty_output(self):
         known_types = [
-            "tool_permission", "prompt_injection", "jailbreak_detected",
-            "secret_detected", "directory_blocking", "pii_detected",
-            "secret_redaction", "ssrf_blocked", "config_file_exfil",
-            "secret_in_transcript", "pii_in_transcript",
-            "image_secret_detected", "image_pii_detected",
+            "tool_permission",
+            "prompt_injection",
+            "jailbreak_detected",
+            "secret_detected",
+            "directory_blocking",
+            "pii_detected",
+            "secret_redaction",
+            "ssrf_blocked",
+            "config_file_exfil",
+            "secret_in_transcript",
+            "pii_in_transcript",
+            "image_secret_detected",
+            "image_pii_detected",
         ]
         for vtype in known_types:
             v = {
                 "violation_type": vtype,
                 "blocked": {
-                    "pattern": "test", "file_path": "test.py",
-                    "denied_directory": "/tmp", "tool_value": "https://x.com",
-                    "pii_types": ["email"], "redacted_types": ["api-key"],
+                    "pattern": "test",
+                    "file_path": "test.py",
+                    "denied_directory": "/tmp",
+                    "tool_value": "https://x.com",
+                    "pii_types": ["email"],
+                    "redacted_types": ["api-key"],
                     "secret_type": "api-key",
                 },
-                "suggestion": {"rule": {"matcher": "Bash", "mode": "allow", "patterns": ["t"]}},
+                "suggestion": {
+                    "rule": {"matcher": "Bash", "mode": "allow", "patterns": ["t"]}
+                },
             }
             instr, snippet = get_resolution_instructions(v)
             assert instr, f"{vtype} should produce non-empty instructions"
@@ -317,17 +338,22 @@ class TestAllKnownTypesHaveInstructions:
 class TestNoGenericPlaceholdersWhenDataAvailable:
     """Ensure that when violation data contains type info, we never show '<pattern>'."""
 
-    @pytest.mark.parametrize("vtype,blocked,forbidden", [
-        ("pii_detected", {"pii_types": ["email"]}, '"<pattern>"'),
-        ("secret_redaction", {"redacted_types": ["api-key"]}, '"<pattern>"'),
-        ("pii_in_transcript", {"pii_types": ["ssn"]}, '"<pattern>"'),
-        ("secret_in_transcript", {"secret_type": "aws-key"}, '"<pattern>"'),
-        ("secret_detected", {"rule_id": "stripe"}, "your-regex-pattern"),
-    ])
+    @pytest.mark.parametrize(
+        "vtype,blocked,forbidden",
+        [
+            ("pii_detected", {"pii_types": ["email"]}, '"<pattern>"'),
+            ("secret_redaction", {"redacted_types": ["api-key"]}, '"<pattern>"'),
+            ("pii_in_transcript", {"pii_types": ["ssn"]}, '"<pattern>"'),
+            ("secret_in_transcript", {"secret_type": "aws-key"}, '"<pattern>"'),
+            ("secret_detected", {"rule_id": "stripe"}, "your-regex-pattern"),
+        ],
+    )
     def test_no_generic_placeholder(self, vtype, blocked, forbidden):
         v = {"violation_type": vtype, "blocked": blocked, "suggestion": {}}
         _, snippet = get_resolution_instructions(v)
-        assert forbidden not in snippet, f"{vtype}: snippet still contains '{forbidden}'"
+        assert (
+            forbidden not in snippet
+        ), f"{vtype}: snippet still contains '{forbidden}'"
 
 
 class TestRobustInputHandling:

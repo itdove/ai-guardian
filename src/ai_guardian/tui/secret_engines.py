@@ -12,7 +12,7 @@ from pathlib import Path
 
 from textual.app import ComposeResult
 from textual.binding import Binding
-from textual.containers import Container, Horizontal, VerticalScroll
+from textual.containers import Container, Horizontal
 from textual.widgets import Static, Label, Select, Input, TextArea
 
 from ai_guardian.config_utils import get_config_dir, get_project_config_path
@@ -115,6 +115,7 @@ class SecretEnginesContent(Container):
             if project_path:
                 return project_path
             from ai_guardian.config_utils import _find_git_root
+
             root = _find_git_root() or Path.cwd()
             return root / ".ai-guardian" / "ai-guardian.json"
         return get_config_dir() / "ai-guardian.json"
@@ -129,9 +130,7 @@ class SecretEnginesContent(Container):
 
         with Container(classes="section"):
             yield Static("[bold]Execution Strategy[/bold]", classes="section-title")
-            yield Static(
-                "[dim]How multiple engines combine results.[/dim]"
-            )
+            yield Static("[dim]How multiple engines combine results.[/dim]")
             with Horizontal(classes="setting-row"):
                 yield Label("Strategy:")
                 yield Select(
@@ -173,15 +172,15 @@ class SecretEnginesContent(Container):
                 "Simple: just engine names\n"
                 '  ["gitleaks", "trufflehog"]\n\n'
                 "Advanced: per-engine config with file routing and ignore patterns\n"
-                '[\n'
+                "[\n"
                 '  "gitleaks",\n'
-                '  {\n'
+                "  {\n"
                 '    "type": "trufflehog",\n'
                 '    "binary": "trufflehog",\n'
                 '    "ignore_files": ["**/test/**"],\n'
                 '    "file_patterns": ["*.env*", "*.yaml"]\n'
-                '  }\n'
-                ']\n\n'
+                "  }\n"
+                "]\n\n"
                 "Built-in engines: gitleaks, betterleaks, leaktk, trufflehog, detect-secrets, secretlint, gitguardian\n"
                 "Per-engine options: ignore_files, pattern_server, file_patterns\n"
                 "Cloud engines (gitguardian): require consent via 'ai-guardian engine consent'",
@@ -213,7 +212,7 @@ class SecretEnginesContent(Container):
         config = {}
         if config_path.exists():
             try:
-                with open(config_path, 'r', encoding='utf-8') as f:
+                with open(config_path, "r", encoding="utf-8") as f:
                     config = json.load(f)
             except Exception as e:
                 self.app.notify(f"Error loading config: {e}", severity="error")
@@ -292,7 +291,15 @@ class SecretEnginesContent(Container):
         if not isinstance(data, list):
             return None, "Engines must be a JSON array"
 
-        valid_presets = {"gitleaks", "betterleaks", "leaktk", "trufflehog", "detect-secrets", "secretlint", "gitguardian"}
+        valid_presets = {
+            "gitleaks",
+            "betterleaks",
+            "leaktk",
+            "trufflehog",
+            "detect-secrets",
+            "secretlint",
+            "gitguardian",
+        }
         for i, entry in enumerate(data):
             if isinstance(entry, str):
                 if entry not in valid_presets:
@@ -362,7 +369,7 @@ class SecretEnginesContent(Container):
     def _load_config_dict(self) -> dict:
         config_path = self._get_config_path()
         if config_path.exists():
-            with open(config_path, 'r', encoding='utf-8') as f:
+            with open(config_path, "r", encoding="utf-8") as f:
                 return json.load(f)
         return {}
 
@@ -372,5 +379,5 @@ class SecretEnginesContent(Container):
             backup_path = config_path.with_suffix(".json.bak")
             shutil.copy2(config_path, backup_path)
         config_path.parent.mkdir(parents=True, exist_ok=True)
-        with open(config_path, 'w', encoding='utf-8') as f:
+        with open(config_path, "w", encoding="utf-8") as f:
             json.dump(config, f, indent=2)

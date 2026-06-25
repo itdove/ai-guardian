@@ -6,26 +6,43 @@ from ai_guardian.web.components.header import create_header, create_sidebar
 from ai_guardian.web.config_helpers import load_web_config, save_web_config
 
 UNICODE_CHECKS = [
-    ("detect_zero_width", True,
-     "Detect Zero-Width Characters",
-     "Detect zero-width characters (ZWJ, ZWNJ, ZWSP) used to hide text"),
-    ("detect_bidi_override", True,
-     "Detect BiDi Override",
-     "Detect bidirectional override characters that reverse text direction"),
-    ("detect_tag_chars", True,
-     "Detect Tag Characters",
-     "Detect Unicode tag characters (U+E0000-U+E007F) used to embed invisible text"),
-    ("detect_homoglyphs", True,
-     "Detect Homoglyphs",
-     "Detect visually similar characters from different scripts (e.g., Cyrillic a vs Latin a)"),
-    ("allow_rtl_languages", True,
-     "Allow RTL Languages",
-     "Allow legitimate right-to-left scripts (Arabic, Hebrew) without triggering BiDi alerts"),
-    ("allow_emoji", True,
-     "Allow Emoji",
-     "Allow emoji characters that contain zero-width joiners"),
+    (
+        "detect_zero_width",
+        True,
+        "Detect Zero-Width Characters",
+        "Detect zero-width characters (ZWJ, ZWNJ, ZWSP) used to hide text",
+    ),
+    (
+        "detect_bidi_override",
+        True,
+        "Detect BiDi Override",
+        "Detect bidirectional override characters that reverse text direction",
+    ),
+    (
+        "detect_tag_chars",
+        True,
+        "Detect Tag Characters",
+        "Detect Unicode tag characters (U+E0000-U+E007F) used to embed invisible text",
+    ),
+    (
+        "detect_homoglyphs",
+        True,
+        "Detect Homoglyphs",
+        "Detect visually similar characters from different scripts (e.g., Cyrillic a vs Latin a)",
+    ),
+    (
+        "allow_rtl_languages",
+        True,
+        "Allow RTL Languages",
+        "Allow legitimate right-to-left scripts (Arabic, Hebrew) without triggering BiDi alerts",
+    ),
+    (
+        "allow_emoji",
+        True,
+        "Allow Emoji",
+        "Allow emoji characters that contain zero-width joiners",
+    ),
 ]
-
 
 
 def create_pi_unicode_page(service, daemon_name: str):
@@ -56,7 +73,9 @@ def create_pi_unicode_page(service, daemon_name: str):
                         ud = {}
 
                     with ui.card().classes("w-full"):
-                        ui.label("Unicode Detection Settings").classes("text-lg font-bold")
+                        ui.label("Unicode Detection Settings").classes(
+                            "text-lg font-bold"
+                        )
                         ui.label(
                             "Toggle individual Unicode attack detection checks."
                         ).classes("text-xs text-grey-6")
@@ -64,7 +83,9 @@ def create_pi_unicode_page(service, daemon_name: str):
                         for key, default, label, desc in UNICODE_CHECKS:
                             current = ud.get(key, default)
                             with ui.row().classes("items-center gap-2 w-full"):
-                                sw = ui.switch(label, value=bool(current)).classes("flex-grow")
+                                sw = ui.switch(label, value=bool(current)).classes(
+                                    "flex-grow"
+                                )
                                 ui.label(desc).classes("text-xs text-grey-6")
 
                                 async def on_change(e, k=key):
@@ -84,7 +105,9 @@ def create_pi_unicode_page(service, daemon_name: str):
                                 sw.on_value_change(on_change)
 
                     with ui.card().classes("w-full"):
-                        ui.label("Understanding Unicode Attacks").classes("text-lg font-bold")
+                        ui.label("Understanding Unicode Attacks").classes(
+                            "text-lg font-bold"
+                        )
                         ui.label(
                             "Unicode-based attacks exploit invisible or visually ambiguous characters "
                             "to hide malicious instructions within seemingly normal text."

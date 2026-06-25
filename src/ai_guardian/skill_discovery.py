@@ -17,10 +17,9 @@ import hashlib
 import json
 import logging
 import os
-import re
 import time
 from pathlib import Path
-from typing import Dict, List, Optional, Set, Tuple
+from typing import Dict, Optional, Set, Tuple
 from urllib.parse import urlparse
 
 import yaml
@@ -29,6 +28,7 @@ logger = logging.getLogger(__name__)
 
 try:
     import requests
+
     HAS_REQUESTS = True
 except ImportError:
     HAS_REQUESTS = False
@@ -47,14 +47,14 @@ def _parse_skill_frontmatter(content: str) -> Optional[str]:
     """
     try:
         # Check for YAML frontmatter delimiters
-        if not content.startswith('---\n'):
+        if not content.startswith("---\n"):
             return None
 
         # Find the closing delimiter
-        end_marker = content.find('\n---\n', 4)
+        end_marker = content.find("\n---\n", 4)
         if end_marker == -1:
             # Try alternative ending (--- at end of file)
-            end_marker = content.find('\n---', 4)
+            end_marker = content.find("\n---", 4)
             if end_marker == -1:
                 return None
 
@@ -68,7 +68,7 @@ def _parse_skill_frontmatter(content: str) -> Optional[str]:
             return None
 
         # Extract name field
-        name = frontmatter.get('name')
+        name = frontmatter.get("name")
         if name and isinstance(name, str):
             return name.strip()
 
@@ -96,7 +96,9 @@ class SkillDiscovery:
             cache_dir: Optional cache directory. If None, uses XDG_CACHE_HOME.
         """
         if cache_dir is None:
-            cache_home = os.environ.get("XDG_CACHE_HOME", os.path.expanduser("~/.cache"))
+            cache_home = os.environ.get(
+                "XDG_CACHE_HOME", os.path.expanduser("~/.cache")
+            )
             cache_dir = Path(cache_home) / "ai-guardian" / "skill-directories"
 
         self.cache_dir = cache_dir
@@ -106,7 +108,7 @@ class SkillDiscovery:
         self,
         directory_url: str,
         cache_ttl_hours: int = 24,
-        token_env: Optional[str] = None
+        token_env: Optional[str] = None,
     ) -> Set[str]:
         """
         Discover skills from a directory URL.
@@ -121,23 +123,31 @@ class SkillDiscovery:
             set: Set of skill names (e.g., {"Skill:daf-active", "Skill:gh-cli"})
         """
         if not HAS_REQUESTS:
-            logger.warning(f"Cannot discover skills from {directory_url}: requests library not installed")
+            logger.warning(
+                f"Cannot discover skills from {directory_url}: requests library not installed"
+            )
             return set()
 
         # Check cache first
         cached_skills, cache_age_hours = self._get_cached_skills(directory_url)
 
         if cached_skills is not None and cache_age_hours < cache_ttl_hours:
-            logger.debug(f"Using cached skills for {directory_url} (age: {cache_age_hours:.1f}h)")
+            logger.debug(
+                f"Using cached skills for {directory_url} (age: {cache_age_hours:.1f}h)"
+            )
             return cached_skills
 
         # Check if it's a local filesystem path
-        if not directory_url.startswith("http://") and not directory_url.startswith("https://"):
+        if not directory_url.startswith("http://") and not directory_url.startswith(
+            "https://"
+        ):
             # Local filesystem path
             skills = self._discover_local_skills(directory_url)
             if skills:
                 self._save_to_cache(directory_url, skills)
-                logger.info(f"Discovered {len(skills)} skills from local path {directory_url}")
+                logger.info(
+                    f"Discovered {len(skills)} skills from local path {directory_url}"
+                )
             return skills
 
         # Parse directory URL (GitHub/GitLab)
@@ -150,9 +160,13 @@ class SkillDiscovery:
 
         # Discover skills from API
         if platform == "github":
-            skills = self._discover_github_skills(hostname, owner, repo, branch, path, token_env)
+            skills = self._discover_github_skills(
+                hostname, owner, repo, branch, path, token_env
+            )
         elif platform == "gitlab":
-            skills = self._discover_gitlab_skills(hostname, owner, repo, branch, path, token_env)
+            skills = self._discover_gitlab_skills(
+                hostname, owner, repo, branch, path, token_env
+            )
         else:
             logger.error(f"Unknown platform: {platform}")
             return set()
@@ -166,7 +180,9 @@ class SkillDiscovery:
 
         return skills
 
-    def _parse_directory_url(self, url: str) -> Optional[Tuple[str, str, str, str, str, str]]:
+    def _parse_directory_url(
+        self, url: str
+    ) -> Optional[Tuple[str, str, str, str, str, str]]:
         """
         Parse GitHub/GitLab directory URL.
 
@@ -191,7 +207,7 @@ class SkillDiscovery:
             else:
                 return None
 
-            path_parts = parsed_url.path.strip('/').split('/')
+            path_parts = parsed_url.path.strip("/").split("/")
 
             if platform == "github":
                 # GitHub format: /org/repo/tree/branch/path/to/dir
@@ -201,7 +217,7 @@ class SkillDiscovery:
                 owner = path_parts[0]
                 repo = path_parts[1]
                 branch = path_parts[3]
-                dir_path = '/'.join(path_parts[4:]) if len(path_parts) > 4 else ""
+                dir_path = "/".join(path_parts[4:]) if len(path_parts) > 4 else ""
 
             else:  # gitlab
                 # GitLab format: /org/repo/-/tree/branch/path/to/dir
@@ -210,13 +226,16 @@ class SkillDiscovery:
                 # Find the "-/tree" separator
                 try:
                     tree_index = path_parts.index("-")
-                    if tree_index + 1 >= len(path_parts) or path_parts[tree_index + 1] != "tree":
+                    if (
+                        tree_index + 1 >= len(path_parts)
+                        or path_parts[tree_index + 1] != "tree"
+                    ):
                         return None
                 except ValueError:
                     return None
 
                 # Everything before "-" is the project path
-                project_path = '/'.join(path_parts[:tree_index])
+                project_path = "/".join(path_parts[:tree_index])
                 # Split project path into owner and repo
                 # For simplicity, treat entire path as project identifier
                 # GitLab API uses "org%2Fsubgroup%2Frepo" format
@@ -226,14 +245,22 @@ class SkillDiscovery:
                     return None
 
                 repo = path_parts[tree_index - 1]
-                owner = '/'.join(path_parts[:tree_index - 1]) if tree_index > 1 else path_parts[0]
+                owner = (
+                    "/".join(path_parts[: tree_index - 1])
+                    if tree_index > 1
+                    else path_parts[0]
+                )
 
                 # Branch and path after "-/tree"
                 if tree_index + 2 >= len(path_parts):
                     return None
 
                 branch = path_parts[tree_index + 2]
-                dir_path = '/'.join(path_parts[tree_index + 3:]) if len(path_parts) > tree_index + 3 else ""
+                dir_path = (
+                    "/".join(path_parts[tree_index + 3 :])
+                    if len(path_parts) > tree_index + 3
+                    else ""
+                )
 
             return platform, hostname, owner, repo, branch, dir_path
 
@@ -248,7 +275,7 @@ class SkillDiscovery:
         repo: str,
         branch: str,
         path: str,
-        token_env: Optional[str] = None
+        token_env: Optional[str] = None,
     ) -> Set[str]:
         """
         Discover skills from GitHub directory.
@@ -325,11 +352,20 @@ class SkillDiscovery:
                 if item.get("type") == "dir":
                     dir_name = item.get("name", "")
                     # Skip hidden directories and common non-skill dirs
-                    if dir_name and not dir_name.startswith('.') and dir_name not in ['__pycache__', 'node_modules']:
+                    if (
+                        dir_name
+                        and not dir_name.startswith(".")
+                        and dir_name not in ["__pycache__", "node_modules"]
+                    ):
                         # Try to read SKILL.md frontmatter to get canonical name
                         skill_name = self._get_skill_name_from_github(
-                            hostname, owner, repo, branch, f"{path}/{dir_name}" if path else dir_name,
-                            dir_name, headers
+                            hostname,
+                            owner,
+                            repo,
+                            branch,
+                            f"{path}/{dir_name}" if path else dir_name,
+                            dir_name,
+                            headers,
                         )
                         skills.add(skill_name)
                         logger.debug(f"Found skill: {skill_name}")
@@ -337,7 +373,7 @@ class SkillDiscovery:
             return skills
 
         except requests.exceptions.Timeout:
-            logger.error(f"Timeout fetching GitHub directory")
+            logger.error("Timeout fetching GitHub directory")
             return set()
         except requests.exceptions.RequestException as e:
             logger.error(f"Error fetching GitHub directory: {e}")
@@ -354,7 +390,7 @@ class SkillDiscovery:
         branch: str,
         skill_path: str,
         dir_name: str,
-        headers: Dict[str, str]
+        headers: Dict[str, str],
     ) -> str:
         """
         Get skill name from SKILL.md frontmatter on GitHub.
@@ -383,17 +419,24 @@ class SkillDiscovery:
                 file_data = response.json()
                 # GitHub API returns base64-encoded content
                 import base64
-                content = base64.b64decode(file_data.get('content', '')).decode('utf-8')
+
+                content = base64.b64decode(file_data.get("content", "")).decode("utf-8")
 
                 # Parse frontmatter
                 skill_name = _parse_skill_frontmatter(content)
                 if skill_name:
-                    logger.debug(f"Using frontmatter name '{skill_name}' for directory '{dir_name}'")
+                    logger.debug(
+                        f"Using frontmatter name '{skill_name}' for directory '{dir_name}'"
+                    )
                     return f"Skill:{skill_name}"
                 else:
-                    logger.warning(f"No valid frontmatter name found in {skill_md_path}, using directory name")
+                    logger.warning(
+                        f"No valid frontmatter name found in {skill_md_path}, using directory name"
+                    )
             else:
-                logger.warning(f"SKILL.md not found for {skill_path} (HTTP {response.status_code}), using directory name")
+                logger.warning(
+                    f"SKILL.md not found for {skill_path} (HTTP {response.status_code}), using directory name"
+                )
 
         except Exception as e:
             logger.debug(f"Error reading SKILL.md for {skill_path}: {e}")
@@ -408,7 +451,7 @@ class SkillDiscovery:
         repo: str,
         branch: str,
         path: str,
-        token_env: Optional[str] = None
+        token_env: Optional[str] = None,
     ) -> Set[str]:
         """
         Discover skills from GitLab directory.
@@ -433,7 +476,9 @@ class SkillDiscovery:
 
             # GitLab API endpoint
             # https://docs.gitlab.com/ee/api/repositories.html#list-repository-tree
-            api_url = f"https://{hostname}/api/v4/projects/{encoded_project}/repository/tree"
+            api_url = (
+                f"https://{hostname}/api/v4/projects/{encoded_project}/repository/tree"
+            )
 
             params = {
                 "ref": branch,
@@ -497,11 +542,19 @@ class SkillDiscovery:
                 if item.get("type") == "tree":  # GitLab uses "tree" for directories
                     dir_name = item.get("name", "")
                     # Skip hidden directories and common non-skill dirs
-                    if dir_name and not dir_name.startswith('.') and dir_name not in ['__pycache__', 'node_modules']:
+                    if (
+                        dir_name
+                        and not dir_name.startswith(".")
+                        and dir_name not in ["__pycache__", "node_modules"]
+                    ):
                         # Try to read SKILL.md frontmatter to get canonical name
                         skill_name = self._get_skill_name_from_gitlab(
-                            hostname, project_path, branch, f"{path}/{dir_name}" if path else dir_name,
-                            dir_name, headers
+                            hostname,
+                            project_path,
+                            branch,
+                            f"{path}/{dir_name}" if path else dir_name,
+                            dir_name,
+                            headers,
                         )
                         skills.add(skill_name)
                         logger.debug(f"Found skill: {skill_name}")
@@ -509,7 +562,7 @@ class SkillDiscovery:
             return skills
 
         except requests.exceptions.Timeout:
-            logger.error(f"Timeout fetching GitLab directory")
+            logger.error("Timeout fetching GitLab directory")
             return set()
         except requests.exceptions.RequestException as e:
             logger.error(f"Error fetching GitLab directory: {e}")
@@ -525,7 +578,7 @@ class SkillDiscovery:
         branch: str,
         skill_path: str,
         dir_name: str,
-        headers: Dict[str, str]
+        headers: Dict[str, str],
     ) -> str:
         """
         Get skill name from SKILL.md frontmatter on GitLab.
@@ -559,12 +612,18 @@ class SkillDiscovery:
                 # Parse frontmatter
                 skill_name = _parse_skill_frontmatter(content)
                 if skill_name:
-                    logger.debug(f"Using frontmatter name '{skill_name}' for directory '{dir_name}'")
+                    logger.debug(
+                        f"Using frontmatter name '{skill_name}' for directory '{dir_name}'"
+                    )
                     return f"Skill:{skill_name}"
                 else:
-                    logger.warning(f"No valid frontmatter name found in {skill_md_path}, using directory name")
+                    logger.warning(
+                        f"No valid frontmatter name found in {skill_md_path}, using directory name"
+                    )
             else:
-                logger.warning(f"SKILL.md not found for {skill_path} (HTTP {response.status_code}), using directory name")
+                logger.warning(
+                    f"SKILL.md not found for {skill_path} (HTTP {response.status_code}), using directory name"
+                )
 
         except Exception as e:
             logger.debug(f"Error reading SKILL.md for {skill_path}: {e}")
@@ -601,24 +660,36 @@ class SkillDiscovery:
                 if item.is_dir():
                     dir_name = item.name
                     # Skip hidden directories and common non-skill dirs
-                    if dir_name and not dir_name.startswith('.') and dir_name not in ['__pycache__', 'node_modules']:
+                    if (
+                        dir_name
+                        and not dir_name.startswith(".")
+                        and dir_name not in ["__pycache__", "node_modules"]
+                    ):
                         # Try to read SKILL.md frontmatter to get canonical name
                         skill_md_file = item / "SKILL.md"
                         skill_name = dir_name  # Default to directory name
 
                         if skill_md_file.exists() and skill_md_file.is_file():
                             try:
-                                content = skill_md_file.read_text(encoding='utf-8')
+                                content = skill_md_file.read_text(encoding="utf-8")
                                 frontmatter_name = _parse_skill_frontmatter(content)
                                 if frontmatter_name:
                                     skill_name = frontmatter_name
-                                    logger.debug(f"Using frontmatter name '{skill_name}' for directory '{dir_name}'")
+                                    logger.debug(
+                                        f"Using frontmatter name '{skill_name}' for directory '{dir_name}'"
+                                    )
                                 else:
-                                    logger.warning(f"No valid frontmatter name in {skill_md_file}, using directory name")
+                                    logger.warning(
+                                        f"No valid frontmatter name in {skill_md_file}, using directory name"
+                                    )
                             except Exception as e:
-                                logger.debug(f"Error reading SKILL.md for {dir_name}: {e}")
+                                logger.debug(
+                                    f"Error reading SKILL.md for {dir_name}: {e}"
+                                )
                         else:
-                            logger.warning(f"SKILL.md not found in {item}, using directory name")
+                            logger.warning(
+                                f"SKILL.md not found in {item}, using directory name"
+                            )
 
                         skill_name_formatted = f"Skill:{skill_name}"
                         skills.add(skill_name_formatted)
@@ -630,7 +701,9 @@ class SkillDiscovery:
             logger.error(f"Error discovering local skills from {directory_path}: {e}")
             return set()
 
-    def _get_cached_skills(self, directory_url: str) -> Tuple[Optional[Set[str]], float]:
+    def _get_cached_skills(
+        self, directory_url: str
+    ) -> Tuple[Optional[Set[str]], float]:
         """
         Get cached skills if available.
 
@@ -647,11 +720,11 @@ class SkillDiscovery:
 
         try:
             # Load cache
-            with open(cache_file, 'r') as f:
+            with open(cache_file, "r") as f:
                 cache_data = json.load(f)
 
-            cached_at = cache_data.get('cached_at', 0)
-            cached_skills = set(cache_data.get('skills', []))
+            cached_at = cache_data.get("cached_at", 0)
+            cached_skills = set(cache_data.get("skills", []))
 
             # Calculate cache age
             now = time.time()
@@ -677,13 +750,13 @@ class SkillDiscovery:
 
             # Create cache data
             cache_data = {
-                'url': directory_url,
-                'cached_at': time.time(),
-                'skills': list(skills),
+                "url": directory_url,
+                "cached_at": time.time(),
+                "skills": list(skills),
             }
 
             # Write to cache
-            with open(cache_file, 'w') as f:
+            with open(cache_file, "w") as f:
                 json.dump(cache_data, f, indent=2)
 
             logger.debug(f"Saved {len(skills)} skills to cache for {directory_url}")
@@ -708,7 +781,7 @@ class SkillDiscovery:
         parsed = self._parse_directory_url(directory_url)
         if parsed:
             platform, hostname, owner, repo, _, _ = parsed
-            prefix = f"{platform}_{owner}_{repo}".replace('/', '_').replace('.', '_')
+            prefix = f"{platform}_{owner}_{repo}".replace("/", "_").replace(".", "_")
         else:
             prefix = "unknown"
 
@@ -746,35 +819,37 @@ class SkillDiscovery:
             dict: Cache statistics
         """
         stats = {
-            'cache_dir': str(self.cache_dir),
-            'total_cached': 0,
-            'cache_files': [],
+            "cache_dir": str(self.cache_dir),
+            "total_cached": 0,
+            "cache_files": [],
         }
 
         try:
             for cache_file in self.cache_dir.glob("*.json"):
-                stats['total_cached'] += 1
+                stats["total_cached"] += 1
 
                 # Load cache metadata
-                with open(cache_file, 'r') as f:
+                with open(cache_file, "r") as f:
                     cache_data = json.load(f)
 
-                cached_at = cache_data.get('cached_at', 0)
-                url = cache_data.get('url', 'unknown')
-                skills = cache_data.get('skills', [])
+                cached_at = cache_data.get("cached_at", 0)
+                url = cache_data.get("url", "unknown")
+                skills = cache_data.get("skills", [])
 
                 # Calculate age
                 now = time.time()
                 age_hours = (now - cached_at) / 3600.0
 
-                stats['cache_files'].append({
-                    'url': url,
-                    'cached_at': cached_at,
-                    'age_hours': age_hours,
-                    'skill_count': len(skills),
-                    'skills': skills,
-                    'file': str(cache_file),
-                })
+                stats["cache_files"].append(
+                    {
+                        "url": url,
+                        "cached_at": cached_at,
+                        "age_hours": age_hours,
+                        "skill_count": len(skills),
+                        "skills": skills,
+                        "file": str(cache_file),
+                    }
+                )
 
         except Exception as e:
             logger.error(f"Error getting skill cache stats: {e}")

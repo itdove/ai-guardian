@@ -15,7 +15,6 @@ locally on developer machines, not in the repository.
 import sys
 import tempfile
 from pathlib import Path
-from datetime import datetime
 
 import pytest
 
@@ -27,6 +26,7 @@ try:
 
     sys.path.insert(0, str(skills_path))
     from release_helper import ReleaseHelper, CursorHookVerifier
+
     RELEASE_HELPER_AVAILABLE = True
 except (ImportError, ModuleNotFoundError):
     RELEASE_HELPER_AVAILABLE = False
@@ -36,7 +36,7 @@ except (ImportError, ModuleNotFoundError):
 # Skip all tests if release_helper is not available
 pytestmark = pytest.mark.skipif(
     not RELEASE_HELPER_AVAILABLE,
-    reason="release_helper module not available (.claude/skills/release/ not found)"
+    reason="release_helper module not available (.claude/skills/release/ not found)",
 )
 
 
@@ -114,7 +114,9 @@ def test_version_mismatch_detection():
         # Manually update only one file to create mismatch
         init_path = tmp_path / "src" / "ai_guardian" / "__init__.py"
         content = init_path.read_text()
-        content = content.replace('__version__ = "1.1.0-dev"', '__version__ = "1.2.0-dev"')
+        content = content.replace(
+            '__version__ = "1.1.0-dev"', '__version__ = "1.2.0-dev"'
+        )
         init_path.write_text(content)
 
         helper = ReleaseHelper(tmp_path)
@@ -197,8 +199,14 @@ def test_update_changelog():
         assert "## [1.1.0] - 2026-04-08" in changelog
         assert "### Added" in changelog
         assert "- New feature X" in changelog
-        assert "[1.1.0]: https://github.com/itdove/ai-guardian/releases/tag/v1.1.0" in changelog
-        assert "[Unreleased]: https://github.com/itdove/ai-guardian/compare/v1.1.0...HEAD" in changelog
+        assert (
+            "[1.1.0]: https://github.com/itdove/ai-guardian/releases/tag/v1.1.0"
+            in changelog
+        )
+        assert (
+            "[Unreleased]: https://github.com/itdove/ai-guardian/compare/v1.1.0...HEAD"
+            in changelog
+        )
 
 
 def test_update_changelog_empty_unreleased():
@@ -250,7 +258,9 @@ def test_validate_prerequisites_version_mismatch():
         # Create version mismatch
         init_path = tmp_path / "src" / "ai_guardian" / "__init__.py"
         content = init_path.read_text()
-        content = content.replace('__version__ = "1.1.0-dev"', '__version__ = "1.2.0-dev"')
+        content = content.replace(
+            '__version__ = "1.1.0-dev"', '__version__ = "1.2.0-dev"'
+        )
         init_path.write_text(content)
 
         helper = ReleaseHelper(tmp_path)
@@ -336,7 +346,9 @@ def _create_debug_log(debug_dir, event_name, cursor_version="0.47.1"):
         "_debug_timestamp": 1718640000.0,
         "_debug_event": event_name,
     }
-    log_file = debug_dir / f"cursor-hook-debug-{event_name}-{int(1718640000 * 1e9)}.json"
+    log_file = (
+        debug_dir / f"cursor-hook-debug-{event_name}-{int(1718640000 * 1e9)}.json"
+    )
     log_file.write_text(json.dumps(log_data, indent=2))
     return log_file
 
@@ -350,7 +362,9 @@ class TestCursorHookVerifier:
         debug_dir = tmp_path / "debug"
         debug_dir.mkdir()
 
-        verifier = CursorHookVerifier(settings_path=str(settings_path), debug_dir=str(debug_dir))
+        verifier = CursorHookVerifier(
+            settings_path=str(settings_path), debug_dir=str(debug_dir)
+        )
         result = verifier.setup()
 
         assert result is True
@@ -364,15 +378,19 @@ class TestCursorHookVerifier:
         debug_dir = tmp_path / "debug"
         debug_dir.mkdir()
 
-        verifier = CursorHookVerifier(settings_path=str(settings_path), debug_dir=str(debug_dir))
+        verifier = CursorHookVerifier(
+            settings_path=str(settings_path), debug_dir=str(debug_dir)
+        )
         verifier.setup()
 
         settings = json.loads(settings_path.read_text())
         for event in CursorHookVerifier.EXPECTED_EVENTS:
             entries = settings[event]
             debug_entries = [
-                e for e in entries
-                if isinstance(e, dict) and "cursor-hook-debug.sh" in e.get("command", "")
+                e
+                for e in entries
+                if isinstance(e, dict)
+                and "cursor-hook-debug.sh" in e.get("command", "")
             ]
             assert len(debug_entries) == 1, f"Expected 1 debug entry for {event}"
 
@@ -382,7 +400,9 @@ class TestCursorHookVerifier:
         debug_dir = tmp_path / "debug"
         debug_dir.mkdir()
 
-        verifier = CursorHookVerifier(settings_path=str(settings_path), debug_dir=str(debug_dir))
+        verifier = CursorHookVerifier(
+            settings_path=str(settings_path), debug_dir=str(debug_dir)
+        )
         verifier.setup()
 
         assert verifier.backup_path.exists()
@@ -396,7 +416,9 @@ class TestCursorHookVerifier:
         old_log = debug_dir / "cursor-hook-debug-old-12345.json"
         old_log.write_text("{}")
 
-        verifier = CursorHookVerifier(settings_path=str(settings_path), debug_dir=str(debug_dir))
+        verifier = CursorHookVerifier(
+            settings_path=str(settings_path), debug_dir=str(debug_dir)
+        )
         verifier.setup()
 
         assert not old_log.exists()
@@ -410,7 +432,9 @@ class TestCursorHookVerifier:
         backup = tmp_path / "settings.json.cursor-verify-backup"
         backup.write_text("{}")
 
-        verifier = CursorHookVerifier(settings_path=str(settings_path), debug_dir=str(debug_dir))
+        verifier = CursorHookVerifier(
+            settings_path=str(settings_path), debug_dir=str(debug_dir)
+        )
         result = verifier.setup()
         assert result is False
 
@@ -423,7 +447,9 @@ class TestCursorHookVerifier:
         for event in CursorHookVerifier.EXPECTED_EVENTS:
             _create_debug_log(debug_dir, event)
 
-        verifier = CursorHookVerifier(settings_path=str(settings_path), debug_dir=str(debug_dir))
+        verifier = CursorHookVerifier(
+            settings_path=str(settings_path), debug_dir=str(debug_dir)
+        )
         passed, cursor_version = verifier.analyze()
 
         assert passed is True
@@ -438,7 +464,9 @@ class TestCursorHookVerifier:
         for event in ["beforeSubmitPrompt", "beforeReadFile", "beforeShellExecution"]:
             _create_debug_log(debug_dir, event)
 
-        verifier = CursorHookVerifier(settings_path=str(settings_path), debug_dir=str(debug_dir))
+        verifier = CursorHookVerifier(
+            settings_path=str(settings_path), debug_dir=str(debug_dir)
+        )
         passed, cursor_version = verifier.analyze()
 
         assert passed is False
@@ -452,7 +480,9 @@ class TestCursorHookVerifier:
         for event in CursorHookVerifier.EXPECTED_EVENTS:
             _create_debug_log(debug_dir, event, cursor_version="0.50.0")
 
-        verifier = CursorHookVerifier(settings_path=str(settings_path), debug_dir=str(debug_dir))
+        verifier = CursorHookVerifier(
+            settings_path=str(settings_path), debug_dir=str(debug_dir)
+        )
         _, cursor_version = verifier.analyze()
 
         assert cursor_version == "0.50.0"
@@ -463,7 +493,9 @@ class TestCursorHookVerifier:
         debug_dir = tmp_path / "debug"
         debug_dir.mkdir()
 
-        verifier = CursorHookVerifier(settings_path=str(settings_path), debug_dir=str(debug_dir))
+        verifier = CursorHookVerifier(
+            settings_path=str(settings_path), debug_dir=str(debug_dir)
+        )
         passed, cursor_version = verifier.analyze()
 
         assert passed is False
@@ -475,7 +507,9 @@ class TestCursorHookVerifier:
         debug_dir = tmp_path / "debug"
         debug_dir.mkdir()
 
-        verifier = CursorHookVerifier(settings_path=str(settings_path), debug_dir=str(debug_dir))
+        verifier = CursorHookVerifier(
+            settings_path=str(settings_path), debug_dir=str(debug_dir)
+        )
         verifier.setup()
         verifier.cleanup()
 
@@ -492,7 +526,9 @@ class TestCursorHookVerifier:
         debug_dir = tmp_path / "debug"
         debug_dir.mkdir()
 
-        verifier = CursorHookVerifier(settings_path=str(settings_path), debug_dir=str(debug_dir))
+        verifier = CursorHookVerifier(
+            settings_path=str(settings_path), debug_dir=str(debug_dir)
+        )
         verifier.setup()
         verifier.cleanup()
 
@@ -506,7 +542,9 @@ class TestCursorHookVerifier:
         debug_dir = tmp_path / "debug"
         debug_dir.mkdir()
 
-        verifier = CursorHookVerifier(settings_path=str(settings_path), debug_dir=str(debug_dir))
+        verifier = CursorHookVerifier(
+            settings_path=str(settings_path), debug_dir=str(debug_dir)
+        )
         verifier.setup()
 
         _create_debug_log(debug_dir, "preToolUse")

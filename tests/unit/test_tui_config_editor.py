@@ -8,7 +8,6 @@ import tempfile
 from pathlib import Path
 from unittest.mock import patch
 
-import pytest
 
 from ai_guardian.tui.config_editor import (
     ConfigEditorContent,
@@ -27,10 +26,13 @@ class TestValidateJsonString:
         assert error is None
 
     def test_valid_json_complex(self):
-        text = json.dumps({
-            "permissions": {"enabled": True},
-            "secret_scanning": {"enabled": True, "scanner": "gitleaks"},
-        }, indent=2)
+        text = json.dumps(
+            {
+                "permissions": {"enabled": True},
+                "secret_scanning": {"enabled": True, "scanner": "gitleaks"},
+            },
+            indent=2,
+        )
         data, error = validate_json_string(text)
         assert data is not None
         assert error is None
@@ -58,12 +60,12 @@ class TestValidateJsonString:
         assert error == "Empty content"
 
     def test_valid_json_array(self):
-        data, error = validate_json_string('[1, 2, 3]')
+        data, error = validate_json_string("[1, 2, 3]")
         assert data == [1, 2, 3]
         assert error is None
 
     def test_valid_json_empty_object(self):
-        data, error = validate_json_string('{}')
+        data, error = validate_json_string("{}")
         assert data == {}
         assert error is None
 
@@ -120,7 +122,7 @@ class TestConfigEditorContent:
         with tempfile.TemporaryDirectory() as tmpdir:
             config_path = Path(tmpdir) / "ai-guardian.json"
             original = {"permissions": {"enabled": True}}
-            config_path.write_text(json.dumps(original, indent=2), encoding='utf-8')
+            config_path.write_text(json.dumps(original, indent=2), encoding="utf-8")
 
             widget = ConfigEditorContent()
             widget._config_path = config_path
@@ -133,10 +135,10 @@ class TestConfigEditorContent:
 
             backup_path = config_path.with_suffix(".json.bak")
             assert backup_path.exists()
-            backup_data = json.loads(backup_path.read_text(encoding='utf-8'))
+            backup_data = json.loads(backup_path.read_text(encoding="utf-8"))
             assert backup_data == original
 
-            saved_data = json.loads(config_path.read_text(encoding='utf-8'))
+            saved_data = json.loads(config_path.read_text(encoding="utf-8"))
             assert saved_data["permissions"]["enabled"] is False
 
     def test_save_creates_parent_dirs(self):
@@ -151,7 +153,7 @@ class TestConfigEditorContent:
 
             assert success is True
             assert config_path.exists()
-            assert json.loads(config_path.read_text(encoding='utf-8')) == {"test": True}
+            assert json.loads(config_path.read_text(encoding="utf-8")) == {"test": True}
 
     def test_save_no_backup_when_no_existing_file(self):
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -175,4 +177,5 @@ class TestConfigEditorThemeIntegration:
     def test_editor_uses_load_editor_theme(self):
         """Verify config editor imports and calls load_editor_theme."""
         from ai_guardian.tui.config_editor import load_editor_theme
+
         assert callable(load_editor_theme)

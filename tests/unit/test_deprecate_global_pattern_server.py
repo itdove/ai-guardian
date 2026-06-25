@@ -11,7 +11,6 @@ Verifies:
 import json
 import logging
 
-import pytest
 
 from ai_guardian.doctor import CheckStatus, Doctor
 from ai_guardian.setup import IDESetup
@@ -23,12 +22,14 @@ from ai_guardian.setup import IDESetup
 class TestDeprecationWarning:
     """Verify deprecation warning is logged for secret_scanning.pattern_server."""
 
-    def test_warning_logged_for_global_pattern_server(self, _isolate_config_dir, caplog):
+    def test_warning_logged_for_global_pattern_server(
+        self, _isolate_config_dir, caplog
+    ):
         config = {
             "secret_scanning": {
                 "pattern_server": {
                     "url": "https://example.com/patterns",
-                    "patterns_endpoint": "/patterns/gitleaks/8.18.1"
+                    "patterns_endpoint": "/patterns/gitleaks/8.18.1",
                 }
             }
         }
@@ -36,19 +37,25 @@ class TestDeprecationWarning:
         config_path.write_text(json.dumps(config))
 
         from ai_guardian import _load_pattern_server_config
+
         with caplog.at_level(logging.WARNING):
             result = _load_pattern_server_config()
 
         assert result is not None
         assert result["url"] == "https://example.com/patterns"
-        assert any("DEPRECATED" in r.message and "per-engine" in r.message
-                    for r in caplog.records)
+        assert any(
+            "DEPRECATED" in r.message and "per-engine" in r.message
+            for r in caplog.records
+        )
 
     def test_no_warning_for_per_engine_only(self, _isolate_config_dir):
         config = {
             "secret_scanning": {
                 "engines": [
-                    {"type": "gitleaks", "pattern_server": {"url": "https://example.com"}}
+                    {
+                        "type": "gitleaks",
+                        "pattern_server": {"url": "https://example.com"},
+                    }
                 ]
             }
         }
@@ -56,19 +63,17 @@ class TestDeprecationWarning:
         config_path.write_text(json.dumps(config))
 
         from ai_guardian import _load_pattern_server_config
+
         result = _load_pattern_server_config()
         assert result is None
 
     def test_root_level_still_works(self, _isolate_config_dir):
-        config = {
-            "pattern_server": {
-                "url": "https://example.com/patterns"
-            }
-        }
+        config = {"pattern_server": {"url": "https://example.com/patterns"}}
         config_path = _isolate_config_dir / "ai-guardian.json"
         config_path.write_text(json.dumps(config))
 
         from ai_guardian import _load_pattern_server_config
+
         result = _load_pattern_server_config()
         assert result is not None
         assert result["url"] == "https://example.com/patterns"
@@ -81,11 +86,11 @@ class TestDoctorGlobalPatternServer:
 
     def test_warns_for_global_pattern_server(self, _isolate_config_dir):
         config_path = _isolate_config_dir / "ai-guardian.json"
-        config_path.write_text(json.dumps({
-            "secret_scanning": {
-                "pattern_server": {"url": "https://example.com"}
-            }
-        }))
+        config_path.write_text(
+            json.dumps(
+                {"secret_scanning": {"pattern_server": {"url": "https://example.com"}}}
+            )
+        )
         doctor = Doctor()
         result = doctor.check_global_pattern_server()
         assert result.status == CheckStatus.WARN
@@ -94,31 +99,36 @@ class TestDoctorGlobalPatternServer:
 
     def test_pass_for_per_engine_only(self, _isolate_config_dir):
         config_path = _isolate_config_dir / "ai-guardian.json"
-        config_path.write_text(json.dumps({
-            "secret_scanning": {
-                "engines": [
-                    {"type": "gitleaks", "pattern_server": {"url": "https://example.com"}}
-                ]
-            }
-        }))
+        config_path.write_text(
+            json.dumps(
+                {
+                    "secret_scanning": {
+                        "engines": [
+                            {
+                                "type": "gitleaks",
+                                "pattern_server": {"url": "https://example.com"},
+                            }
+                        ]
+                    }
+                }
+            )
+        )
         doctor = Doctor()
         result = doctor.check_global_pattern_server()
         assert result.status == CheckStatus.PASS
 
     def test_pass_for_no_pattern_server(self, _isolate_config_dir):
         config_path = _isolate_config_dir / "ai-guardian.json"
-        config_path.write_text(json.dumps({
-            "secret_scanning": {"enabled": True}
-        }))
+        config_path.write_text(json.dumps({"secret_scanning": {"enabled": True}}))
         doctor = Doctor()
         result = doctor.check_global_pattern_server()
         assert result.status == CheckStatus.PASS
 
     def test_pass_for_null_pattern_server(self, _isolate_config_dir):
         config_path = _isolate_config_dir / "ai-guardian.json"
-        config_path.write_text(json.dumps({
-            "secret_scanning": {"pattern_server": None}
-        }))
+        config_path.write_text(
+            json.dumps({"secret_scanning": {"pattern_server": None}})
+        )
         doctor = Doctor()
         result = doctor.check_global_pattern_server()
         assert result.status == CheckStatus.PASS
@@ -136,14 +146,21 @@ class TestDoctorGetPsConfig:
 
     def test_per_engine_takes_priority(self, _isolate_config_dir):
         config_path = _isolate_config_dir / "ai-guardian.json"
-        config_path.write_text(json.dumps({
-            "secret_scanning": {
-                "pattern_server": {"url": "https://global.example.com"},
-                "engines": [
-                    {"type": "gitleaks", "pattern_server": {"url": "https://engine.example.com"}}
-                ]
-            }
-        }))
+        config_path.write_text(
+            json.dumps(
+                {
+                    "secret_scanning": {
+                        "pattern_server": {"url": "https://global.example.com"},
+                        "engines": [
+                            {
+                                "type": "gitleaks",
+                                "pattern_server": {"url": "https://engine.example.com"},
+                            }
+                        ],
+                    }
+                }
+            )
+        )
         doctor = Doctor()
         ps = doctor._get_ps_config()
         assert ps is not None
@@ -151,12 +168,16 @@ class TestDoctorGetPsConfig:
 
     def test_falls_back_to_global(self, _isolate_config_dir):
         config_path = _isolate_config_dir / "ai-guardian.json"
-        config_path.write_text(json.dumps({
-            "secret_scanning": {
-                "pattern_server": {"url": "https://global.example.com"},
-                "engines": ["gitleaks"]
-            }
-        }))
+        config_path.write_text(
+            json.dumps(
+                {
+                    "secret_scanning": {
+                        "pattern_server": {"url": "https://global.example.com"},
+                        "engines": ["gitleaks"],
+                    }
+                }
+            )
+        )
         doctor = Doctor()
         ps = doctor._get_ps_config()
         assert ps is not None
@@ -164,9 +185,9 @@ class TestDoctorGetPsConfig:
 
     def test_falls_back_to_root(self, _isolate_config_dir):
         config_path = _isolate_config_dir / "ai-guardian.json"
-        config_path.write_text(json.dumps({
-            "pattern_server": {"url": "https://root.example.com"}
-        }))
+        config_path.write_text(
+            json.dumps({"pattern_server": {"url": "https://root.example.com"}})
+        )
         doctor = Doctor()
         ps = doctor._get_ps_config()
         assert ps is not None
@@ -174,9 +195,7 @@ class TestDoctorGetPsConfig:
 
     def test_none_when_no_ps(self, _isolate_config_dir):
         config_path = _isolate_config_dir / "ai-guardian.json"
-        config_path.write_text(json.dumps({
-            "secret_scanning": {"enabled": True}
-        }))
+        config_path.write_text(json.dumps({"secret_scanning": {"enabled": True}}))
         doctor = Doctor()
         ps = doctor._get_ps_config()
         assert ps is None
@@ -194,8 +213,11 @@ class TestMigrationStage2:
     def test_global_to_first_gitleaks_string_engine(self):
         config = {
             "secret_scanning": {
-                "pattern_server": {"url": "https://example.com", "patterns_endpoint": "/p"},
-                "engines": ["gitleaks", "betterleaks"]
+                "pattern_server": {
+                    "url": "https://example.com",
+                    "patterns_endpoint": "/p",
+                },
+                "engines": ["gitleaks", "betterleaks"],
             }
         }
         migrated, result = self.ide_setup.migrate_pattern_server_config(config)
@@ -213,8 +235,8 @@ class TestMigrationStage2:
                 "pattern_server": {"url": "https://example.com"},
                 "engines": [
                     {"type": "gitleaks", "extra_flags": ["--verbose"]},
-                    "betterleaks"
-                ]
+                    "betterleaks",
+                ],
             }
         }
         migrated, result = self.ide_setup.migrate_pattern_server_config(config)
@@ -230,9 +252,9 @@ class TestMigrationStage2:
                 "engines": [
                     {
                         "type": "gitleaks",
-                        "pattern_server": {"url": "https://per-engine.example.com"}
+                        "pattern_server": {"url": "https://per-engine.example.com"},
                     }
-                ]
+                ],
             }
         }
         migrated, result = self.ide_setup.migrate_pattern_server_config(config)
@@ -245,7 +267,7 @@ class TestMigrationStage2:
         config = {
             "secret_scanning": {
                 "pattern_server": {"url": "https://example.com"},
-                "engines": ["betterleaks", "leaktk"]
+                "engines": ["betterleaks", "leaktk"],
             }
         }
         migrated, result = self.ide_setup.migrate_pattern_server_config(config)
@@ -258,9 +280,7 @@ class TestMigrationStage2:
     def test_full_chain_root_to_per_engine(self):
         config = {
             "pattern_server": {"url": "https://example.com"},
-            "secret_scanning": {
-                "engines": ["gitleaks"]
-            }
+            "secret_scanning": {"engines": ["gitleaks"]},
         }
         migrated, result = self.ide_setup.migrate_pattern_server_config(config)
         assert migrated is True
@@ -271,12 +291,7 @@ class TestMigrationStage2:
         assert engine["pattern_server"]["url"] == "https://example.com"
 
     def test_null_global_pattern_server(self):
-        config = {
-            "secret_scanning": {
-                "pattern_server": None,
-                "engines": ["gitleaks"]
-            }
-        }
+        config = {"secret_scanning": {"pattern_server": None, "engines": ["gitleaks"]}}
         migrated, result = self.ide_setup.migrate_pattern_server_config(config)
         assert migrated is True
         assert "pattern_server" not in result["secret_scanning"]
@@ -286,7 +301,10 @@ class TestMigrationStage2:
         config = {
             "secret_scanning": {
                 "engines": [
-                    {"type": "gitleaks", "pattern_server": {"url": "https://example.com"}}
+                    {
+                        "type": "gitleaks",
+                        "pattern_server": {"url": "https://example.com"},
+                    }
                 ]
             }
         }
@@ -297,7 +315,7 @@ class TestMigrationStage2:
         config = {
             "secret_scanning": {
                 "pattern_server": {"url": "https://example.com"},
-                "engines": ["gitleaks"]
+                "engines": ["gitleaks"],
             }
         }
         _, result1 = self.ide_setup.migrate_pattern_server_config(config)
@@ -306,11 +324,7 @@ class TestMigrationStage2:
         assert result1 == result2
 
     def test_default_engines_when_missing(self):
-        config = {
-            "secret_scanning": {
-                "pattern_server": {"url": "https://example.com"}
-            }
-        }
+        config = {"secret_scanning": {"pattern_server": {"url": "https://example.com"}}}
         migrated, result = self.ide_setup.migrate_pattern_server_config(config)
         assert migrated is True
         engine = result["secret_scanning"]["engines"][0]
@@ -323,8 +337,8 @@ class TestMigrationStage2:
             "pattern_server": {"url": "https://root.example.com"},
             "secret_scanning": {
                 "pattern_server": {"url": "https://global.example.com"},
-                "engines": ["gitleaks"]
-            }
+                "engines": ["gitleaks"],
+            },
         }
         migrated, result = self.ide_setup.migrate_pattern_server_config(config)
         assert migrated is True
@@ -342,12 +356,16 @@ class TestDoctorFixGlobalPatternServer:
 
     def test_fix_migrates_successfully(self, _isolate_config_dir):
         config_path = _isolate_config_dir / "ai-guardian.json"
-        config_path.write_text(json.dumps({
-            "secret_scanning": {
-                "pattern_server": {"url": "https://example.com"},
-                "engines": ["gitleaks"]
-            }
-        }))
+        config_path.write_text(
+            json.dumps(
+                {
+                    "secret_scanning": {
+                        "pattern_server": {"url": "https://example.com"},
+                        "engines": ["gitleaks"],
+                    }
+                }
+            )
+        )
         doctor = Doctor(fix=True)
         result = doctor.check_global_pattern_server()
         assert result.status == CheckStatus.PASS
@@ -357,12 +375,16 @@ class TestDoctorFixGlobalPatternServer:
 
     def test_fix_false_still_warns(self, _isolate_config_dir):
         config_path = _isolate_config_dir / "ai-guardian.json"
-        config_path.write_text(json.dumps({
-            "secret_scanning": {
-                "pattern_server": {"url": "https://example.com"},
-                "engines": ["gitleaks"]
-            }
-        }))
+        config_path.write_text(
+            json.dumps(
+                {
+                    "secret_scanning": {
+                        "pattern_server": {"url": "https://example.com"},
+                        "engines": ["gitleaks"],
+                    }
+                }
+            )
+        )
         doctor = Doctor(fix=False)
         result = doctor.check_global_pattern_server()
         assert result.status == CheckStatus.WARN

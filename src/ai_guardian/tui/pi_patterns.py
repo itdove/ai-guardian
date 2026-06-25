@@ -64,7 +64,9 @@ class PIPatternsContent(Container):
     """
 
     def compose(self) -> ComposeResult:
-        yield Static("[bold]Prompt Injection — Patterns[/bold]", id="pi-patterns-header")
+        yield Static(
+            "[bold]Prompt Injection — Patterns[/bold]", id="pi-patterns-header"
+        )
 
         with VerticalScroll():
             with Container(classes="section"):
@@ -81,7 +83,9 @@ class PIPatternsContent(Container):
                 )
 
             with Container(classes="section"):
-                yield Static("[bold]Custom Detection Patterns[/bold]", classes="section-title")
+                yield Static(
+                    "[bold]Custom Detection Patterns[/bold]", classes="section-title"
+                )
                 yield Static(
                     "[dim]Additional regex patterns to detect as prompt injection. "
                     "Matched against tool inputs and outputs.[/dim]",
@@ -116,7 +120,7 @@ class PIPatternsContent(Container):
         config = {}
         if config_path.exists():
             try:
-                with open(config_path, 'r', encoding='utf-8') as f:
+                with open(config_path, "r", encoding="utf-8") as f:
                     config = json.load(f)
             except Exception as e:
                 self.app.notify(f"Error loading config: {e}", severity="error")
@@ -133,16 +137,26 @@ class PIPatternsContent(Container):
                     valid_until = pattern.get("valid_until", "")
                     if valid_until:
                         try:
-                            expiry_dt = datetime.fromisoformat(valid_until.replace('Z', '+00:00'))
+                            expiry_dt = datetime.fromisoformat(
+                                valid_until.replace("Z", "+00:00")
+                            )
                             now = datetime.now(timezone.utc)
                             if expiry_dt <= now:
-                                pattern_lines.append(f"  {pattern_str} [status-error][EXPIRED][/status-error]")
+                                pattern_lines.append(
+                                    f"  {pattern_str} [status-error][EXPIRED][/status-error]"
+                                )
                             elif (expiry_dt - now).total_seconds() < 86400:
-                                pattern_lines.append(f"  {pattern_str} [status-warn][expires {format_local_time(valid_until)}][/status-warn]")
+                                pattern_lines.append(
+                                    f"  {pattern_str} [status-warn][expires {format_local_time(valid_until)}][/status-warn]"
+                                )
                             else:
-                                pattern_lines.append(f"  {pattern_str} [dim][until {format_local_time(valid_until)}][/dim]")
+                                pattern_lines.append(
+                                    f"  {pattern_str} [dim][until {format_local_time(valid_until)}][/dim]"
+                                )
                         except Exception:
-                            pattern_lines.append(f"  {pattern_str} [dim][until {format_local_time(valid_until)}][/dim]")
+                            pattern_lines.append(
+                                f"  {pattern_str} [dim][until {format_local_time(valid_until)}][/dim]"
+                            )
                     else:
                         pattern_lines.append(f"  {pattern_str}")
                 else:
@@ -192,7 +206,7 @@ class PIPatternsContent(Container):
         try:
             config = {}
             if config_path.exists():
-                with open(config_path, 'r', encoding='utf-8') as f:
+                with open(config_path, "r", encoding="utf-8") as f:
                     config = json.load(f)
 
             if "prompt_injection" not in config:
@@ -206,7 +220,7 @@ class PIPatternsContent(Container):
 
             config["prompt_injection"][field].append(pattern)
 
-            with open(config_path, 'w', encoding='utf-8') as f:
+            with open(config_path, "w", encoding="utf-8") as f:
                 json.dump(config, f, indent=2)
 
             input_widget.value = ""

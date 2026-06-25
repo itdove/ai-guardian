@@ -7,7 +7,6 @@ Manage MCP server permissions (allow/deny rules for MCP server tools).
 
 import logging
 import json
-from pathlib import Path
 from typing import Dict
 
 from textual.app import ComposeResult
@@ -38,7 +37,9 @@ class MCPPermissionCard(Container):
         mode_color = "green" if mode == "allow" else "red"
 
         yield Static(f"[bold]{mode_icon} {matcher}[/bold]", classes="permission-title")
-        yield Static(f"Mode: [{mode_color}]{mode}[/{mode_color}]", classes="permission-detail")
+        yield Static(
+            f"Mode: [{mode_color}]{mode}[/{mode_color}]", classes="permission-detail"
+        )
         yield Static(f"Patterns: {', '.join(patterns)}", classes="permission-detail")
 
         with Horizontal(classes="permission-actions"):
@@ -119,7 +120,11 @@ class AddMCPPermissionModal(ModalScreen):
     def compose(self) -> ComposeResult:
         """Compose the modal."""
         with Container(id="modal-container"):
-            title = "Edit MCP Server Permission" if self.is_edit else "Add MCP Server Permission"
+            title = (
+                "Edit MCP Server Permission"
+                if self.is_edit
+                else "Add MCP Server Permission"
+            )
             yield Static(f"[bold]{title}[/bold]", id="modal-header")
 
             with Container(classes="modal-field"):
@@ -127,7 +132,7 @@ class AddMCPPermissionModal(ModalScreen):
                 yield Input(
                     value=self.rule.get("matcher", ""),
                     placeholder="mcp__server-name__*",
-                    id="input-matcher"
+                    id="input-matcher",
                 )
 
             with Container(classes="modal-field"):
@@ -135,7 +140,7 @@ class AddMCPPermissionModal(ModalScreen):
                 yield Select(
                     [(line, line) for line in ["allow", "deny"]],
                     value=self.rule.get("mode", "allow"),
-                    id="select-mode"
+                    id="select-mode",
                 )
 
             with Container(classes="modal-field"):
@@ -145,7 +150,7 @@ class AddMCPPermissionModal(ModalScreen):
                 yield Input(
                     value=patterns_str,
                     placeholder="*, notebook_*, chat_*",
-                    id="input-patterns"
+                    id="input-patterns",
                 )
 
             with Horizontal(id="modal-actions"):
@@ -173,11 +178,7 @@ class AddMCPPermissionModal(ModalScreen):
             patterns = [p.strip() for p in patterns_str.split(",") if p.strip()]
 
             # Build rule
-            rule = {
-                "matcher": matcher,
-                "mode": mode,
-                "patterns": patterns
-            }
+            rule = {"matcher": matcher, "mode": mode, "patterns": patterns}
 
             self.dismiss(rule)
 
@@ -305,7 +306,9 @@ class MCPServersContent(Container):
         # Support Bundle config (Issue #477)
         with Container(id="support-section"):
             yield Static("[bold]Support Bundle Export[/bold]")
-            yield Static("[dim]Destination for sanitized diagnostic bundles (local path or s3://...)[/dim]")
+            yield Static(
+                "[dim]Destination for sanitized diagnostic bundles (local path or s3://...)[/dim]"
+            )
             yield Input(
                 placeholder="e.g., ~/support-bundles or s3://bucket/prefix/",
                 id="support-destination",
@@ -321,7 +324,7 @@ class MCPServersContent(Container):
         yield Static(
             "[dim]Manage MCP server tool permissions (e.g., mcp__notebooklm-mcp__*). "
             "Press 'a' to add new permission.[/dim]",
-            classes="permission-detail"
+            classes="permission-detail",
         )
 
         yield VerticalScroll(id="mcp-list")
@@ -344,16 +347,22 @@ class MCPServersContent(Container):
         permissions = []
         if config_path.exists():
             try:
-                with open(config_path, 'r', encoding='utf-8') as f:
+                with open(config_path, "r", encoding="utf-8") as f:
                     config = json.load(f)
                     # NEW unified structure in v1.4.0
                     permissions_obj = config.get("permissions", {})
                     if isinstance(permissions_obj, dict):
                         all_permissions = permissions_obj.get("rules", [])
                     else:
-                        all_permissions = permissions_obj if isinstance(permissions_obj, list) else []
+                        all_permissions = (
+                            permissions_obj if isinstance(permissions_obj, list) else []
+                        )
                     # Filter only MCP permissions
-                    permissions = [p for p in all_permissions if p.get("matcher", "").startswith("mcp__")]
+                    permissions = [
+                        p
+                        for p in all_permissions
+                        if p.get("matcher", "").startswith("mcp__")
+                    ]
             except Exception as e:
                 self.app.notify(f"Error loading permissions: {e}", severity="error")
 
@@ -472,7 +481,9 @@ class MCPServersContent(Container):
 
             ttl_input = self.query_one("#support-ttl", Input)
             try:
-                config["support"]["bundle_ttl_minutes"] = int(ttl_input.value.strip() or "30")
+                config["support"]["bundle_ttl_minutes"] = int(
+                    ttl_input.value.strip() or "30"
+                )
             except ValueError:
                 config["support"]["bundle_ttl_minutes"] = 30
         except Exception:
@@ -491,6 +502,7 @@ class MCPServersContent(Container):
 
     def add_permission(self) -> None:
         """Show modal to add a new MCP server permission rule."""
+
         def handle_result(rule: Dict) -> None:
             if rule:
                 self.save_permission(rule)
@@ -507,15 +519,21 @@ class MCPServersContent(Container):
             return
 
         try:
-            with open(config_path, 'r', encoding='utf-8') as f:
+            with open(config_path, "r", encoding="utf-8") as f:
                 config = json.load(f)
                 # NEW unified structure in v1.4.0
                 permissions_obj = config.get("permissions", {})
                 if isinstance(permissions_obj, dict):
                     all_permissions = permissions_obj.get("rules", [])
                 else:
-                    all_permissions = permissions_obj if isinstance(permissions_obj, list) else []
-                mcp_permissions = [p for p in all_permissions if p.get("matcher", "").startswith("mcp__")]
+                    all_permissions = (
+                        permissions_obj if isinstance(permissions_obj, list) else []
+                    )
+                mcp_permissions = [
+                    p
+                    for p in all_permissions
+                    if p.get("matcher", "").startswith("mcp__")
+                ]
 
             if index >= len(mcp_permissions):
                 self.app.notify("Permission not found", severity="error")
@@ -538,9 +556,12 @@ class MCPServersContent(Container):
                     if isinstance(config.get("permissions"), dict):
                         config["permissions"]["rules"] = all_permissions
                     else:
-                        config["permissions"] = {"enabled": True, "rules": all_permissions}
+                        config["permissions"] = {
+                            "enabled": True,
+                            "rules": all_permissions,
+                        }
 
-                    with open(config_path, 'w', encoding='utf-8') as f:
+                    with open(config_path, "w", encoding="utf-8") as f:
                         json.dump(config, f, indent=2)
 
                     self.load_permissions()
@@ -561,14 +582,16 @@ class MCPServersContent(Container):
             return
 
         try:
-            with open(config_path, 'r', encoding='utf-8') as f:
+            with open(config_path, "r", encoding="utf-8") as f:
                 config = json.load(f)
                 # NEW unified structure in v1.4.0
                 permissions_obj = config.get("permissions", {})
                 if isinstance(permissions_obj, dict):
                     all_permissions = permissions_obj.get("rules", [])
                 else:
-                    all_permissions = permissions_obj if isinstance(permissions_obj, list) else []
+                    all_permissions = (
+                        permissions_obj if isinstance(permissions_obj, list) else []
+                    )
 
             # Find and remove the MCP permission
             mcp_count = 0
@@ -585,7 +608,7 @@ class MCPServersContent(Container):
             else:
                 config["permissions"] = {"enabled": True, "rules": all_permissions}
 
-            with open(config_path, 'w', encoding='utf-8') as f:
+            with open(config_path, "w", encoding="utf-8") as f:
                 json.dump(config, f, indent=2)
 
             self.load_permissions()
@@ -601,7 +624,7 @@ class MCPServersContent(Container):
 
         try:
             if config_path.exists():
-                with open(config_path, 'r', encoding='utf-8') as f:
+                with open(config_path, "r", encoding="utf-8") as f:
                     config = json.load(f)
             else:
                 config = {}
@@ -620,7 +643,9 @@ class MCPServersContent(Container):
             # Check if a rule with same matcher+mode already exists
             existing_rule = None
             for perm in all_permissions:
-                if perm.get("matcher") == rule.get("matcher") and perm.get("mode") == rule.get("mode"):
+                if perm.get("matcher") == rule.get("matcher") and perm.get(
+                    "mode"
+                ) == rule.get("mode"):
                     existing_rule = perm
                     break
 
@@ -639,7 +664,7 @@ class MCPServersContent(Container):
             else:
                 config["permissions"] = all_permissions
 
-            with open(config_path, 'w', encoding='utf-8') as f:
+            with open(config_path, "w", encoding="utf-8") as f:
                 json.dump(config, f, indent=2)
 
             self.load_permissions()

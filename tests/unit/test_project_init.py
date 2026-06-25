@@ -1,16 +1,16 @@
 """Tests for ai-guardian init-project command."""
 
 import json
-from pathlib import Path
-from unittest.mock import patch
 
-import pytest
 
-from ai_guardian.language_patterns import LANGUAGE_REGISTRY, SKIP_DIRS, LanguageDefinition
+from ai_guardian.language_patterns import (
+    LANGUAGE_REGISTRY,
+    SKIP_DIRS,
+    LanguageDefinition,
+)
 from ai_guardian.project_init import (
     AllowlistEntry,
     DetectedLanguage,
-    InitResult,
     ProjectInitializer,
     _format_evidence,
     init_project_command,
@@ -216,7 +216,9 @@ class TestGenerateConfig:
     def test_generates_valid_structure(self, tmp_path):
         init = ProjectInitializer(tmp_path)
         entries = [
-            AllowlistEntry(pattern="__init__", language="Python", identifier="__init__"),
+            AllowlistEntry(
+                pattern="__init__", language="Python", identifier="__init__"
+            ),
         ]
 
         config = init.generate_config(entries, [])
@@ -242,8 +244,12 @@ class TestGenerateConfig:
     def test_config_is_json_serializable(self, tmp_path):
         init = ProjectInitializer(tmp_path)
         entries = [
-            AllowlistEntry(pattern="__init__", language="Python", identifier="__init__"),
-            AllowlistEntry(pattern="__class__", language="Python", identifier="__class__"),
+            AllowlistEntry(
+                pattern="__init__", language="Python", identifier="__init__"
+            ),
+            AllowlistEntry(
+                pattern="__class__", language="Python", identifier="__class__"
+            ),
         ]
 
         config = init.generate_config(entries, ["**/*.html"])

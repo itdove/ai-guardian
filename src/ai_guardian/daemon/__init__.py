@@ -27,6 +27,7 @@ def is_pid_alive(pid):
     """
     if sys.platform == "win32":
         import ctypes
+
         kernel32 = ctypes.windll.kernel32
         PROCESS_QUERY_LIMITED_INFORMATION = 0x1000
         handle = kernel32.OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, False, pid)
@@ -60,9 +61,12 @@ def is_pid_active(pid):
         pass
     try:
         import subprocess
+
         result = subprocess.run(
             ["ps", "-o", "state=", "-p", str(pid)],
-            capture_output=True, text=True, timeout=2,
+            capture_output=True,
+            text=True,
+            timeout=2,
         )
         if result.returncode == 0:
             state = result.stdout.strip()
@@ -145,6 +149,7 @@ def get_local_menu_tags():
     """Get menu_tags from the local daemon config for plugin filtering."""
     try:
         from ai_guardian.config_loaders import _load_config_file
+
         cfg, _ = _load_config_file()
         if cfg:
             tags = cfg.get("menu_tags")

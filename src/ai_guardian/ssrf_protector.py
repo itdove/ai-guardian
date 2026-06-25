@@ -69,9 +69,9 @@ import ipaddress
 import logging
 import re
 import urllib.parse
-from typing import Tuple, Optional, Dict, Any, List, Set
+from typing import Tuple, Optional, Dict, Any, List
 
-from ai_guardian.patterns import BUNDLED_FILES, load_bundled_rules
+from ai_guardian.patterns import load_bundled_rules
 
 logger = logging.getLogger(__name__)
 
@@ -93,38 +93,38 @@ class SSRFProtector:
     # IMMUTABLE: Core private IP ranges (RFC 1918 + loopback + link-local)
     # These CANNOT be disabled via configuration
     CORE_BLOCKED_IP_RANGES = [
-        "10.0.0.0/8",          # Private network (RFC 1918)
-        "172.16.0.0/12",       # Private network (RFC 1918)
-        "192.168.0.0/16",      # Private network (RFC 1918)
-        "127.0.0.0/8",         # Loopback
-        "169.254.0.0/16",      # Link-local (AWS metadata)
-        "::1/128",             # IPv6 loopback
-        "fc00::/7",            # IPv6 private network
-        "fe80::/10",           # IPv6 link-local
+        "10.0.0.0/8",  # Private network (RFC 1918)
+        "172.16.0.0/12",  # Private network (RFC 1918)
+        "192.168.0.0/16",  # Private network (RFC 1918)
+        "127.0.0.0/8",  # Loopback
+        "169.254.0.0/16",  # Link-local (AWS metadata)
+        "::1/128",  # IPv6 loopback
+        "fc00::/7",  # IPv6 private network
+        "fe80::/10",  # IPv6 link-local
     ]
 
     # IMMUTABLE: Core blocked domains (cloud metadata endpoints)
     # These CANNOT be disabled via configuration
     CORE_BLOCKED_DOMAINS = [
-        "metadata.google.internal",        # GCP metadata
-        "metadata.goog",                   # GCP metadata (alternative)
-        "169.254.169.254",                 # AWS/Azure metadata IP as domain
-        "fd00:ec2::254",                   # AWS IPv6 metadata
-        "instance-data",                   # AWS instance metadata
-        "localhost",                       # Localhost (unless allow_localhost is True)
+        "metadata.google.internal",  # GCP metadata
+        "metadata.goog",  # GCP metadata (alternative)
+        "169.254.169.254",  # AWS/Azure metadata IP as domain
+        "fd00:ec2::254",  # AWS IPv6 metadata
+        "instance-data",  # AWS instance metadata
+        "localhost",  # Localhost (unless allow_localhost is True)
     ]
 
     # IMMUTABLE: Dangerous URL schemes
     # These CANNOT be disabled via configuration
     DANGEROUS_SCHEMES = [
-        "file",      # Local file access
-        "gopher",    # Gopher protocol (legacy attack vector)
-        "ftp",       # FTP protocol
-        "ftps",      # Secure FTP
-        "data",      # Data URLs (can encode arbitrary content)
-        "dict",      # DICT protocol
-        "ldap",      # LDAP protocol
-        "ldaps",     # Secure LDAP
+        "file",  # Local file access
+        "gopher",  # Gopher protocol (legacy attack vector)
+        "ftp",  # FTP protocol
+        "ftps",  # Secure FTP
+        "data",  # Data URLs (can encode arbitrary content)
+        "dict",  # DICT protocol
+        "ldap",  # LDAP protocol
+        "ldaps",  # Secure LDAP
     ]
 
     # URL extraction patterns for Bash commands
@@ -133,24 +133,18 @@ class SSRFProtector:
         # IPv6 URLs with brackets: http://[::1]/ or http://[fd00:ec2::254]/ or http://[::ffff:169.254.169.254]/
         # Note: Includes dots to support IPv6-mapped IPv4 addresses (::ffff:x.x.x.x)
         r'(?:https?|ftp|ftps|file|gopher)://\[[0-9a-fA-F:.]+\][^\s\'"<>{}|\\^`]*',
-
         # Standard URLs (non-IPv6)
         r'(?:https?|ftp|ftps|file|gopher)://[^\s\'"<>{}|\\^`\[\]]+',
-
         # data: URLs (no //)
         r'data:[^\s\'"<>{}|\\^`]+',
-
         # dict, ldap, ldaps URLs
         r'(?:dict|ldap|ldaps)://[^\s\'"<>{}|\\^`\[\]]+',
-
         # curl/wget with URL argument
         r'(?:curl|wget)\s+(?:-[^\s]+\s+)*(["\']?)(?:https?|ftp)://[^\s\'"<>{}|\\^`\[\]]+\1',
-
         # URLs in quotes (including IPv6 and IPv6-mapped IPv4)
         r'["\'](?:https?|ftp|file|gopher|data|dict|ldap|ldaps)://?\[[0-9a-fA-F:.]+\][^"\']*["\']',
         r'["\'](?:https?|ftp|file|gopher|dict|ldap|ldaps)://[^"\']+["\']',
         r'["\']data:[^"\']+["\']',
-
         # -u/--url flag (common in curl)
         r'--?url\s*[=\s]\s*(["\']?)(?:https?|ftp)://[^\s\'"<>{}|\\^`\[\]]+\1',
     ]
@@ -180,47 +174,53 @@ class SSRFProtector:
         # regex patterns use re.fullmatch() against hostname and hostname:port
         self._allowed_domains_exact = set()
         self._allowed_domain_regexes = []
-        _regex_metachar_re = re.compile(r'[\\*+?\[\](){}|^$:]')
+        _regex_metachar_re = re.compile(r"[\\*+?\[\](){}|^$:]")
         for domain in self.config.get("allowed_domains", []):
             if not domain:
                 continue
             if _regex_metachar_re.search(domain):
                 try:
                     from ai_guardian.config_utils import validate_regex_pattern
+
                     if not validate_regex_pattern(domain):
-                        logger.warning(f"ReDoS-unsafe regex in allowed_domains, skipping: {domain}")
+                        logger.warning(
+                            f"ReDoS-unsafe regex in allowed_domains, skipping: {domain}"
+                        )
                         continue
                     compiled = re.compile(domain, re.IGNORECASE)
                     self._allowed_domain_regexes.append(compiled)
                 except re.error as e:
-                    logger.warning(f"Invalid regex in allowed_domains, skipping: {domain} — {e}")
+                    logger.warning(
+                        f"Invalid regex in allowed_domains, skipping: {domain} — {e}"
+                    )
             else:
                 self._allowed_domains_exact.add(domain.lower())
 
         # Compile URL extraction patterns
         self._compiled_url_patterns = [
-            re.compile(pattern, re.IGNORECASE)
-            for pattern in self.URL_PATTERNS
+            re.compile(pattern, re.IGNORECASE) for pattern in self.URL_PATTERNS
         ]
 
         # Load patterns using pattern loader if pattern_server configured
-        pattern_server_config = self.config.get('pattern_server')
+        pattern_server_config = self.config.get("pattern_server")
         if pattern_server_config:
             logger.info("SSRF Protection: Loading patterns via pattern server")
             merged_patterns = self._load_patterns_via_server(pattern_server_config)
-            ip_ranges_to_use = merged_patterns.get('blocked_ip_ranges', [])
-            domains_to_use = merged_patterns.get('blocked_domains', [])
+            ip_ranges_to_use = merged_patterns.get("blocked_ip_ranges", [])
+            domains_to_use = merged_patterns.get("blocked_domains", [])
         else:
             # Load from bundled TOML (primary source, fallback to hardcoded)
             toml_data = self._load_patterns_from_toml()
-            ip_ranges_to_use = toml_data.get("ip_ranges",
-                [{"cidr": cidr} for cidr in self.CORE_BLOCKED_IP_RANGES])
+            ip_ranges_to_use = toml_data.get(
+                "ip_ranges", [{"cidr": cidr} for cidr in self.CORE_BLOCKED_IP_RANGES]
+            )
             # Add additional IPs from local config
             for ip in self.config.get("additional_blocked_ips", []):
                 ip_ranges_to_use.append({"cidr": ip})
 
-            domains_to_use = toml_data.get("domains",
-                [{"domain": d} for d in self.CORE_BLOCKED_DOMAINS])
+            domains_to_use = toml_data.get(
+                "domains", [{"domain": d} for d in self.CORE_BLOCKED_DOMAINS]
+            )
             # Add additional domains from local config
             for domain in self.config.get("additional_blocked_domains", []):
                 domains_to_use.append({"domain": domain})
@@ -231,7 +231,7 @@ class SSRFProtector:
             try:
                 # Handle both dict format (pattern server) and string format (legacy)
                 if isinstance(ip_range, dict):
-                    cidr = ip_range.get('cidr')
+                    cidr = ip_range.get("cidr")
                 else:
                     cidr = ip_range
 
@@ -248,18 +248,20 @@ class SSRFProtector:
         for domain_entry in domains_to_use:
             # Handle both dict format (pattern server) and string format (legacy)
             if isinstance(domain_entry, dict):
-                domain = domain_entry.get('domain')
+                domain = domain_entry.get("domain")
             else:
                 domain = domain_entry
 
             if domain:
                 # Check if this is a wildcard pattern
-                if '*' in domain or '?' in domain:
+                if "*" in domain or "?" in domain:
                     # Validate pattern syntax
                     if self._is_valid_domain_pattern(domain):
                         self._blocked_domain_patterns.append(domain.lower())
                     else:
-                        logger.warning(f"Invalid domain pattern in SSRF config, skipping: {domain}")
+                        logger.warning(
+                            f"Invalid domain pattern in SSRF config, skipping: {domain}"
+                        )
                 else:
                     # Exact domain or subdomain match (lowercase for case-insensitive matching)
                     self._blocked_domains.add(domain.lower())
@@ -269,18 +271,21 @@ class SSRFProtector:
             self._blocked_domains.discard("localhost")
             # Also remove localhost IP range
             self._blocked_ip_networks = [
-                net for net in self._blocked_ip_networks
+                net
+                for net in self._blocked_ip_networks
                 if str(net) not in ["127.0.0.0/8", "::1/128"]
             ]
 
         # Load path-based rules (NEW in v1.6.0)
-        self._path_based_rules = {}  # Map domain -> {allowed_paths: [...], blocked_paths: [...]}
+        self._path_based_rules = (
+            {}
+        )  # Map domain -> {allowed_paths: [...], blocked_paths: [...]}
         for rule in self.config.get("path_based_rules", []):
             domain = rule.get("domain", "").lower()
             if domain:
                 self._path_based_rules[domain] = {
                     "allowed_paths": rule.get("allowed_paths", []),
-                    "blocked_paths": rule.get("blocked_paths", [])
+                    "blocked_paths": rule.get("blocked_paths", []),
                 }
 
         logger.info(
@@ -293,26 +298,33 @@ class SSRFProtector:
     @staticmethod
     def _load_patterns_from_toml() -> Dict[str, Any]:
         """Load SSRF patterns from bundled TOML. Falls back to empty dict."""
+
         def _transform(raw_rules):
             ip_ranges = []
             domains = []
             for raw in raw_rules:
                 match_type = raw.get("match_type", "")
                 if match_type == "cidr":
-                    ip_ranges.append({
-                        "cidr": raw.get("cidr", ""),
-                        "description": raw.get("description", ""),
-                        "immutable": raw.get("tier") == "immutable",
-                    })
-                elif match_type == "literal" and raw.get("group", "") == "blocked_domain":
-                    domains.append({
-                        "domain": raw.get("source", ""),
-                        "description": raw.get("description", ""),
-                        "immutable": raw.get("tier") == "immutable",
-                    })
+                    ip_ranges.append(
+                        {
+                            "cidr": raw.get("cidr", ""),
+                            "description": raw.get("description", ""),
+                            "immutable": raw.get("tier") == "immutable",
+                        }
+                    )
+                elif (
+                    match_type == "literal" and raw.get("group", "") == "blocked_domain"
+                ):
+                    domains.append(
+                        {
+                            "domain": raw.get("source", ""),
+                            "description": raw.get("description", ""),
+                            "immutable": raw.get("tier") == "immutable",
+                        }
+                    )
             return {"ip_ranges": ip_ranges, "domains": domains}
-        return load_bundled_rules("ssrf", _transform, {},
-                                 "SSRF Protection")
+
+        return load_bundled_rules("ssrf", _transform, {}, "SSRF Protection")
 
     def _load_patterns_via_server(self, pattern_server_config: Dict) -> Dict[str, Any]:
         """
@@ -332,21 +344,29 @@ class SSRFProtector:
                 pattern_server_config=pattern_server_config, local_config=self.config
             )
 
-            logger.info(f"SSRF Protection: Loaded patterns from pattern server/cache/defaults")
+            logger.info(
+                "SSRF Protection: Loaded patterns from pattern server/cache/defaults"
+            )
             return merged_patterns
 
         except ImportError:
-            logger.error("pattern_loader module not available, using hardcoded defaults")
+            logger.error(
+                "pattern_loader module not available, using hardcoded defaults"
+            )
             return {
-                'blocked_ip_ranges': [{"cidr": cidr} for cidr in self.CORE_BLOCKED_IP_RANGES],
-                'blocked_domains': [{"domain": d} for d in self.CORE_BLOCKED_DOMAINS]
+                "blocked_ip_ranges": [
+                    {"cidr": cidr} for cidr in self.CORE_BLOCKED_IP_RANGES
+                ],
+                "blocked_domains": [{"domain": d} for d in self.CORE_BLOCKED_DOMAINS],
             }
         except Exception as e:
             logger.error(f"Error loading patterns from pattern server: {e}")
             logger.info("Falling back to hardcoded default patterns")
             return {
-                'blocked_ip_ranges': [{"cidr": cidr} for cidr in self.CORE_BLOCKED_IP_RANGES],
-                'blocked_domains': [{"domain": d} for d in self.CORE_BLOCKED_DOMAINS]
+                "blocked_ip_ranges": [
+                    {"cidr": cidr} for cidr in self.CORE_BLOCKED_IP_RANGES
+                ],
+                "blocked_domains": [{"domain": d} for d in self.CORE_BLOCKED_DOMAINS],
             }
 
     def _extract_urls(self, command: str) -> List[str]:
@@ -375,16 +395,16 @@ class SSRFProtector:
                 if isinstance(match, tuple):
                     # Pattern had capture groups, find the URL
                     for part in match:
-                        if part and ('://' in part or part.startswith('http')):
-                            urls.append(part.strip('\'"'))
+                        if part and ("://" in part or part.startswith("http")):
+                            urls.append(part.strip("'\""))
                             break
                 else:
-                    urls.append(match.strip('\'"'))
+                    urls.append(match.strip("'\""))
 
         # Also extract any bare URLs (simpler fallback)
         simple_url_pattern = re.compile(
             r'(?:https?|ftp|ftps|file|gopher|data)://[^\s\'"<>{}|\\^`\[\]]+',
-            re.IGNORECASE
+            re.IGNORECASE,
         )
         simple_matches = simple_url_pattern.findall(command)
         urls.extend(simple_matches)
@@ -394,14 +414,18 @@ class SSRFProtector:
         unique_urls = []
         for url in urls:
             # Clean up URL
-            url = url.strip('\'"')
+            url = url.strip("'\"")
             if url and url not in seen:
                 seen.add(url)
                 unique_urls.append(url)
 
         return unique_urls
 
-    def _parse_url(self, url: str) -> Tuple[Optional[str], Optional[str], Optional[str], Optional[str], Optional[int]]:
+    def _parse_url(
+        self, url: str
+    ) -> Tuple[
+        Optional[str], Optional[str], Optional[str], Optional[str], Optional[int]
+    ]:
         """
         Parse a URL into scheme, hostname, path, full URL, and port.
 
@@ -449,8 +473,13 @@ class SSRFProtector:
             if isinstance(ip_addr, ipaddress.IPv6Address) and ip_addr.ipv4_mapped:
                 mapped_ipv4 = ip_addr.ipv4_mapped
                 for network in self._blocked_ip_networks:
-                    if isinstance(network, ipaddress.IPv4Network) and mapped_ipv4 in network:
-                        logger.debug(f"IPv6-mapped IPv4 {ip_str} (mapped to {mapped_ipv4}) is in blocked range {network}")
+                    if (
+                        isinstance(network, ipaddress.IPv4Network)
+                        and mapped_ipv4 in network
+                    ):
+                        logger.debug(
+                            f"IPv6-mapped IPv4 {ip_str} (mapped to {mapped_ipv4}) is in blocked range {network}"
+                        )
                         return True
 
             return False
@@ -476,15 +505,15 @@ class SSRFProtector:
         # Disallow: **, ***, empty parts, etc.
 
         # Replace wildcards with valid characters for validation
-        test_domain = pattern.replace('*', 'a').replace('?', 'b')
+        test_domain = pattern.replace("*", "a").replace("?", "b")
 
         # Basic domain format check (very lenient)
         # Domain should have at least one dot or be a valid TLD pattern
-        if '.' not in test_domain and pattern not in ['*', 'localhost']:
+        if "." not in test_domain and pattern not in ["*", "localhost"]:
             return False
 
         # Check for invalid consecutive wildcards (*** is invalid, but ** is valid)
-        if '***' in pattern:
+        if "***" in pattern:
             return False
 
         return True
@@ -519,7 +548,7 @@ class SSRFProtector:
 
         # Check subdomain matching (e.g., foo.metadata.google.internal)
         for blocked in self._blocked_domains:
-            if domain_lower.endswith('.' + blocked):
+            if domain_lower.endswith("." + blocked):
                 return True
 
         # Check wildcard patterns (e.g., *.internal.com, admin.*, *.corp.*)
@@ -562,7 +591,7 @@ class SSRFProtector:
 
         # 2. Subdomain match (backward compatible)
         for allowed in self._allowed_domains_exact:
-            if domain_lower.endswith('.' + allowed):
+            if domain_lower.endswith("." + allowed):
                 return True
 
         # 3. Regex match (new — supports port-aware patterns)
@@ -574,7 +603,9 @@ class SSRFProtector:
             for regex in self._allowed_domain_regexes:
                 for target in targets:
                     if regex.fullmatch(target):
-                        logger.debug(f"Domain '{target}' matches allowed regex '{regex.pattern}'")
+                        logger.debug(
+                            f"Domain '{target}' matches allowed regex '{regex.pattern}'"
+                        )
                         return True
 
         return False
@@ -603,8 +634,8 @@ class SSRFProtector:
 
         # Normalize trailing slashes for consistent matching
         # "/admin/" should match "/admin" pattern
-        path_normalized = path.rstrip('/') if path != '/' else '/'
-        pattern_normalized = pattern.rstrip('/') if pattern != '/' else '/'
+        path_normalized = path.rstrip("/") if path != "/" else "/"
+        pattern_normalized = pattern.rstrip("/") if pattern != "/" else "/"
 
         # Convert glob pattern to regex
         # Need to escape special regex chars, then handle our wildcards
@@ -615,13 +646,13 @@ class SSRFProtector:
 
         # Replace escaped wildcards with regex equivalents
         # ** matches any chars including /
-        pattern_escaped = pattern_escaped.replace(r'\*\*', '.*')
+        pattern_escaped = pattern_escaped.replace(r"\*\*", ".*")
         # * matches any chars except /
-        pattern_escaped = pattern_escaped.replace(r'\*', '[^/]*')
+        pattern_escaped = pattern_escaped.replace(r"\*", "[^/]*")
         # ? matches single char
-        pattern_escaped = pattern_escaped.replace(r'\?', '.')
+        pattern_escaped = pattern_escaped.replace(r"\?", ".")
 
-        regex_pattern = '^' + pattern_escaped + '$'
+        regex_pattern = "^" + pattern_escaped + "$"
 
         try:
             return bool(regex_module.match(regex_pattern, path_normalized))
@@ -663,11 +694,17 @@ class SSRFProtector:
         # IMMUTABLE: Check core metadata endpoints (cannot be overridden by allow-list)
         hostname_lower = hostname.lower()
 
-        if hostname_lower in ["metadata.google.internal", "metadata.goog", "169.254.169.254", "fd00:ec2::254", "instance-data"]:
+        if hostname_lower in [
+            "metadata.google.internal",
+            "metadata.goog",
+            "169.254.169.254",
+            "fd00:ec2::254",
+            "instance-data",
+        ]:
             return True, f"blocked domain '{hostname}'", True
 
         for core_metadata in ["metadata.google.internal", "metadata.goog"]:
-            if hostname_lower.endswith('.' + core_metadata):
+            if hostname_lower.endswith("." + core_metadata):
                 return True, f"blocked domain '{hostname}'", True
 
         # IMMUTABLE: Check if hostname is a private IP (cannot be overridden by allow-list)
@@ -686,12 +723,20 @@ class SSRFProtector:
             if path_rules and path_rules.get("allowed_paths"):
                 for allowed_pattern in path_rules["allowed_paths"]:
                     if self._match_path_pattern(path, allowed_pattern):
-                        logger.debug(f"Domain {hostname} blocked but path {path} allowed by path rule")
+                        logger.debug(
+                            f"Domain {hostname} blocked but path {path} allowed by path rule"
+                        )
                         if path_rules.get("blocked_paths"):
                             for blocked_pattern in path_rules["blocked_paths"]:
                                 if self._match_path_pattern(path, blocked_pattern):
-                                    logger.debug(f"Path {path} in both allowed and blocked lists - blocked wins")
-                                    return True, f"blocked path '{path}' on domain '{hostname}'", False
+                                    logger.debug(
+                                        f"Path {path} in both allowed and blocked lists - blocked wins"
+                                    )
+                                    return (
+                                        True,
+                                        f"blocked path '{path}' on domain '{hostname}'",
+                                        False,
+                                    )
                         return False, "", False
 
             return True, f"blocked domain '{hostname}'", False
@@ -699,13 +744,17 @@ class SSRFProtector:
         if path_rules and path_rules.get("blocked_paths"):
             for blocked_pattern in path_rules["blocked_paths"]:
                 if self._match_path_pattern(path, blocked_pattern):
-                    logger.debug(f"Path {path} blocked by path rule on domain {hostname}")
+                    logger.debug(
+                        f"Path {path} blocked by path rule on domain {hostname}"
+                    )
                     return True, f"blocked path '{path}' on domain '{hostname}'", False
 
         return False, "", False
 
     @staticmethod
-    def _format_ssrf_error(reason: str, url: str, command: str, immutable_note: str = "") -> str:
+    def _format_ssrf_error(
+        reason: str, url: str, command: str, immutable_note: str = ""
+    ) -> str:
         return (
             f"\n{'='*70}\n"
             f"🚨 BLOCKED BY POLICY\n"
@@ -737,7 +786,7 @@ class SSRFProtector:
             "If this is legitimate (e.g., local development):\n"
             "  1. Set action to 'warn' in ~/.config/ai-guardian/ai-guardian.json\n"
             "  2. Enable allow_localhost for local testing\n"
-            "  3. Temporarily disable: \"ssrf_protection\": {\"enabled\": false}\n\n"
+            '  3. Temporarily disable: "ssrf_protection": {"enabled": false}\n\n'
             "Public AWS services (s3.amazonaws.com, etc.) are NOT blocked.\n\n"
             "See: docs/SSRF_PROTECTION.md for details\n"
             f"{'='*70}\n"
@@ -747,11 +796,11 @@ class SSRFProtector:
         """Compute line/column of a URL within a command string."""
         url_pos = command.find(url)
         if url_pos < 0:
-            stripped = url.strip('\'"')
+            stripped = url.strip("'\"")
             url_pos = command.find(stripped)
         if url_pos >= 0:
-            self.last_line_number = command[:url_pos].count('\n') + 1
-            line_start = command.rfind('\n', 0, url_pos) + 1
+            self.last_line_number = command[:url_pos].count("\n") + 1
+            line_start = command.rfind("\n", 0, url_pos) + 1
             self.last_start_column = url_pos - line_start
             self.last_end_column = url_pos - line_start + len(url)
         else:
@@ -759,7 +808,9 @@ class SSRFProtector:
             self.last_start_column = None
             self.last_end_column = None
 
-    def check(self, tool_name: str, tool_input: Dict[str, Any]) -> Tuple[bool, Optional[str]]:
+    def check(
+        self, tool_name: str, tool_input: Dict[str, Any]
+    ) -> Tuple[bool, Optional[str]]:
         """
         Check if a tool call contains SSRF attempts.
 
@@ -802,20 +853,28 @@ class SSRFProtector:
 
                     effective_action = "block" if is_immutable else self.action
 
-                    immutable_note = " (immutable — cannot be downgraded to warn/log-only)" if is_immutable and self.action != "block" else ""
-                    error_msg = self._format_ssrf_error(reason, url, command, immutable_note)
+                    immutable_note = (
+                        " (immutable — cannot be downgraded to warn/log-only)"
+                        if is_immutable and self.action != "block"
+                        else ""
+                    )
+                    error_msg = self._format_ssrf_error(
+                        reason, url, command, immutable_note
+                    )
 
-                    self.findings.append({
-                        "matched_text": url,
-                        "matched_pattern": reason,
-                        "line_number": self.last_line_number,
-                        "start_column": self.last_start_column,
-                        "end_column": self.last_end_column,
-                        "is_immutable": is_immutable,
-                        "reason": reason,
-                        "error_message": error_msg,
-                        "effective_action": effective_action,
-                    })
+                    self.findings.append(
+                        {
+                            "matched_text": url,
+                            "matched_pattern": reason,
+                            "line_number": self.last_line_number,
+                            "start_column": self.last_start_column,
+                            "end_column": self.last_end_column,
+                            "is_immutable": is_immutable,
+                            "reason": reason,
+                            "error_message": error_msg,
+                            "effective_action": effective_action,
+                        }
+                    )
 
             if not self.findings:
                 return False, None
@@ -833,13 +892,20 @@ class SSRFProtector:
             if effective_action == "warn":
                 url = first["matched_text"]
                 reason = first["reason"]
-                logger.warning(f"SSRF detected (warn mode): {reason}, URL={url} - execution allowed")
-                return False, "⚠️  SSRF protection violation detected (warn mode) - execution allowed"
+                logger.warning(
+                    f"SSRF detected (warn mode): {reason}, URL={url} - execution allowed"
+                )
+                return (
+                    False,
+                    "⚠️  SSRF protection violation detected (warn mode) - execution allowed",
+                )
 
             elif effective_action == "log-only":
                 url = first["matched_text"]
                 reason = first["reason"]
-                logger.warning(f"SSRF detected (log-only mode): {reason}, URL={url} - execution allowed")
+                logger.warning(
+                    f"SSRF detected (log-only mode): {reason}, URL={url} - execution allowed"
+                )
                 return False, None
 
             else:
@@ -862,7 +928,9 @@ class SSRFProtector:
             return True, error_msg
 
 
-def check_ssrf(tool_name: str, tool_input: Dict[str, Any], config: Optional[Dict[str, Any]] = None) -> Tuple[bool, Optional[str]]:
+def check_ssrf(
+    tool_name: str, tool_input: Dict[str, Any], config: Optional[Dict[str, Any]] = None
+) -> Tuple[bool, Optional[str]]:
     """
     Convenience function to check for SSRF attacks.
 

@@ -3,12 +3,10 @@ Tests for scanner_manager module.
 """
 
 import json
-import shutil
 from unittest import mock
 
-import pytest
 
-from ai_guardian.scanner_manager import ScannerManager, InstalledScanner
+from ai_guardian.scanner_manager import ScannerManager
 
 
 class TestScannerManager:
@@ -35,9 +33,7 @@ class TestScannerManager:
         )
 
         # Mock version output
-        mock_run.return_value = mock.Mock(
-            returncode=0, stdout="8.30.1", stderr=""
-        )
+        mock_run.return_value = mock.Mock(returncode=0, stdout="8.30.1", stderr="")
 
         manager = ScannerManager()
         scanners = manager.list_installed()
@@ -51,6 +47,7 @@ class TestScannerManager:
     @mock.patch("subprocess.run")
     def test_list_installed_multiple(self, mock_run, mock_which):
         """Test listing when multiple scanners are installed."""
+
         # Mock all scanners found
         def which_mock(name):
             return f"/usr/local/bin/{name}"
@@ -91,9 +88,7 @@ class TestScannerManager:
     @mock.patch("subprocess.run")
     def test_get_version_with_v_prefix(self, mock_run):
         """Test version extraction with 'v' prefix."""
-        mock_run.return_value = mock.Mock(
-            returncode=0, stdout="v8.30.1", stderr=""
-        )
+        mock_run.return_value = mock.Mock(returncode=0, stdout="v8.30.1", stderr="")
 
         manager = ScannerManager()
         version = manager._get_version("gitleaks")
@@ -133,9 +128,7 @@ class TestScannerManager:
 
     def test_is_default_scanner_with_config(self):
         """Test default scanner with configured engines."""
-        config = {
-            "secret_scanning": {"engines": ["betterleaks", "gitleaks"]}
-        }
+        config = {"secret_scanning": {"engines": ["betterleaks", "gitleaks"]}}
         manager = ScannerManager(config=config)
 
         # First engine in list should be default
@@ -146,12 +139,7 @@ class TestScannerManager:
     def test_is_default_scanner_with_dict_config(self):
         """Test default scanner with dict-based engine config."""
         config = {
-            "secret_scanning": {
-                "engines": [
-                    {"type": "leaktk"},
-                    {"type": "gitleaks"}
-                ]
-            }
+            "secret_scanning": {"engines": [{"type": "leaktk"}, {"type": "gitleaks"}]}
         }
         manager = ScannerManager(config=config)
 
@@ -166,9 +154,7 @@ class TestScannerManager:
         mock_which.side_effect = lambda name: (
             "/usr/local/bin/gitleaks" if name == "gitleaks" else None
         )
-        mock_run.return_value = mock.Mock(
-            returncode=0, stdout="8.30.1", stderr=""
-        )
+        mock_run.return_value = mock.Mock(returncode=0, stdout="8.30.1", stderr="")
 
         manager = ScannerManager()
         scanner = manager.get_scanner_info("gitleaks")
@@ -212,9 +198,7 @@ class TestScannerManager:
         mock_which.side_effect = lambda name: (
             f"/usr/local/bin/{name}" if name == "gitleaks" else None
         )
-        mock_run.return_value = mock.Mock(
-            returncode=0, stdout="8.30.1", stderr=""
-        )
+        mock_run.return_value = mock.Mock(returncode=0, stdout="8.30.1", stderr="")
 
         manager = ScannerManager()
         manager.print_scanner_list(verbose=True)
@@ -234,9 +218,7 @@ class TestScannerManager:
         mock_which.side_effect = lambda name: (
             "/usr/local/bin/gitleaks" if name == "gitleaks" else None
         )
-        mock_run.return_value = mock.Mock(
-            returncode=0, stdout="8.30.1", stderr=""
-        )
+        mock_run.return_value = mock.Mock(returncode=0, stdout="8.30.1", stderr="")
 
         manager = ScannerManager()
         manager.print_scanner_info("gitleaks")
@@ -300,10 +282,14 @@ class TestScannerManagerConfigured:
 
     def test_get_configured_scanner_names_python_engines_excluded(self):
         """Python-type engines are excluded from the name list (handled separately)."""
-        config = {"secret_scanning": {"engines": [
-            {"type": "python", "module": "my_scanner", "class": "Scanner"},
-            {"type": "betterleaks"},
-        ]}}
+        config = {
+            "secret_scanning": {
+                "engines": [
+                    {"type": "python", "module": "my_scanner", "class": "Scanner"},
+                    {"type": "betterleaks"},
+                ]
+            }
+        }
         manager = ScannerManager(config=config)
         names = manager._get_configured_scanner_names()
         assert "python" not in names
@@ -381,9 +367,7 @@ class TestScannerManagerJson:
         mock_which.side_effect = lambda name: (
             "/usr/local/bin/gitleaks" if name == "gitleaks" else None
         )
-        mock_run.return_value = mock.Mock(
-            returncode=0, stdout="8.30.1", stderr=""
-        )
+        mock_run.return_value = mock.Mock(returncode=0, stdout="8.30.1", stderr="")
 
         manager = ScannerManager()
         result = json.loads(manager.get_scanner_list_json())
@@ -413,9 +397,7 @@ class TestScannerManagerJson:
         mock_which.side_effect = lambda name: (
             "/usr/local/bin/gitleaks" if name == "gitleaks" else None
         )
-        mock_run.return_value = mock.Mock(
-            returncode=0, stdout="8.30.1", stderr=""
-        )
+        mock_run.return_value = mock.Mock(returncode=0, stdout="8.30.1", stderr="")
 
         manager = ScannerManager()
         result = json.loads(manager.get_scanner_info_json("gitleaks"))

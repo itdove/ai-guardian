@@ -25,10 +25,12 @@ class TestFetchRemoteEngineConfig(unittest.TestCase):
         mock_fetcher.fetch_config.return_value = {"engines": ["gitleaks"]}
         mock_cls.return_value = mock_fetcher
 
-        result = fetch_remote_engine_config({
-            "url": "https://example.com/config.json",
-            "refresh_interval_hours": 6,
-        })
+        result = fetch_remote_engine_config(
+            {
+                "url": "https://example.com/config.json",
+                "refresh_interval_hours": 6,
+            }
+        )
         self.assertEqual(result, {"engines": ["gitleaks"]})
         mock_fetcher.fetch_config.assert_called_once()
 
@@ -39,10 +41,12 @@ class TestFetchRemoteEngineConfig(unittest.TestCase):
         mock_cls.return_value = mock_fetcher
 
         with patch.dict("os.environ", {"MY_TOKEN": "secret123"}):
-            fetch_remote_engine_config({
-                "url": "https://example.com/config.json",
-                "auth_token_env": "MY_TOKEN",
-            })
+            fetch_remote_engine_config(
+                {
+                    "url": "https://example.com/config.json",
+                    "auth_token_env": "MY_TOKEN",
+                }
+            )
 
         call_kwargs = mock_fetcher.fetch_config.call_args
         headers = call_kwargs.kwargs.get("headers") or call_kwargs[1].get("headers")

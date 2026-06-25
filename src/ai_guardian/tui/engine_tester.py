@@ -167,6 +167,7 @@ class EngineTesterContent(ScrollableContainer):
     def _get_engine_options():
         try:
             from ai_guardian.engine_tester import get_available_engines
+
             engines = get_available_engines()
         except Exception:
             engines = []
@@ -182,6 +183,7 @@ class EngineTesterContent(ScrollableContainer):
     def _populate_strategy(self):
         try:
             from ai_guardian.engine_tester import get_configured_strategy
+
             cfg_strategy = get_configured_strategy()
         except Exception:
             cfg_strategy = "first-match"
@@ -211,6 +213,7 @@ class EngineTesterContent(ScrollableContainer):
         if val == "__config__":
             try:
                 from ai_guardian.engine_tester import get_configured_strategy
+
                 return get_configured_strategy()
             except Exception:
                 return "first-match"
@@ -258,6 +261,7 @@ class EngineTesterContent(ScrollableContainer):
             prev = self._suppress_logging()
             try:
                 from ai_guardian.engine_tester import test_engine
+
                 result = test_engine(engine, text, use_pattern_server=use_ps)
                 self.app.call_from_thread(self._display_single, result)
             except Exception as exc:
@@ -281,11 +285,10 @@ class EngineTesterContent(ScrollableContainer):
             prev = self._suppress_logging()
             try:
                 from ai_guardian.engine_tester import test_all_engines, apply_strategy
+
                 results = test_all_engines(text, use_pattern_server=use_ps)
                 verdict = apply_strategy(strategy, results)
-                self.app.call_from_thread(
-                    self._display_comparison, results, verdict
-                )
+                self.app.call_from_thread(self._display_comparison, results, verdict)
             except Exception as exc:
                 self.app.call_from_thread(self._show_error, str(exc))
             finally:
@@ -299,8 +302,7 @@ class EngineTesterContent(ScrollableContainer):
 
         if result.error and not result.found:
             self.query_one("#et-summary", Static).update(
-                f"[bold]{result.engine}[/bold]: "
-                f"[red]ERROR[/red] — {result.error}"
+                f"[bold]{result.engine}[/bold]: " f"[red]ERROR[/red] — {result.error}"
             )
             self.query_one("#et-details", Static).update("")
             return
@@ -368,8 +370,7 @@ class EngineTesterContent(ScrollableContainer):
             lines.append("")
             lines.append("─" * 50)
             decision = (
-                "[red]BLOCKED[/red]" if verdict.blocked
-                else "[green]ALLOWED[/green]"
+                "[red]BLOCKED[/red]" if verdict.blocked else "[green]ALLOWED[/green]"
             )
             detail = (
                 f"{verdict.engines_with_secrets}/{verdict.total_engines} "

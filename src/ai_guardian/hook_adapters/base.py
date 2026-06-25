@@ -5,9 +5,7 @@ Defines the abstract HookAdapter interface and the NormalizedHookInput
 dataclass that all concrete adapters produce.
 """
 
-import json
 import logging
-import sys
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from typing import Any, ClassVar, Dict, List, Optional
@@ -119,7 +117,9 @@ class HookAdapter(ABC):
     # -- Helpers available to all adapters --
 
     @staticmethod
-    def _add_metadata(result: Dict, has_secrets: bool, violation_type: Optional[str] = None) -> Dict:
+    def _add_metadata(
+        result: Dict, has_secrets: bool, violation_type: Optional[str] = None
+    ) -> Dict:
         """Attach daemon tracking metadata to a response dict."""
         if has_secrets:
             result["_blocked"] = True
@@ -215,7 +215,12 @@ class HookAdapter(ABC):
     @staticmethod
     def _extract_transcript_path(hook_data: Dict) -> Optional[str]:
         """Extract transcript path from hook data."""
-        for key in ("transcript_path", "transcriptPath", "transcript", "conversation_path"):
+        for key in (
+            "transcript_path",
+            "transcriptPath",
+            "transcript",
+            "conversation_path",
+        ):
             val = hook_data.get(key)
             if isinstance(val, str):
                 return val
@@ -245,7 +250,9 @@ class HookAdapter(ABC):
         return f"Operation blocked by ai-guardian: {label}"
 
     @staticmethod
-    def _combine_error_messages(error_message: Optional[str], warning_message: Optional[str]) -> Optional[str]:
+    def _combine_error_messages(
+        error_message: Optional[str], warning_message: Optional[str]
+    ) -> Optional[str]:
         """Combine error and warning messages."""
         if not error_message:
             return None
@@ -268,10 +275,18 @@ class HookAdapter(ABC):
                 return HookEvent.PROMPT
             elif agent_action in ("pre_read_code",):
                 return HookEvent.BEFORE_READ_FILE
-            elif agent_action in ("pre_run_command", "pre_write_code", "pre_mcp_tool_use"):
+            elif agent_action in (
+                "pre_run_command",
+                "pre_write_code",
+                "pre_mcp_tool_use",
+            ):
                 return HookEvent.PRE_TOOL_USE
-            elif agent_action in ("post_run_command", "post_read_code", "post_write_code",
-                                  "post_mcp_tool_use"):
+            elif agent_action in (
+                "post_run_command",
+                "post_read_code",
+                "post_write_code",
+                "post_mcp_tool_use",
+            ):
                 return HookEvent.POST_TOOL_USE
 
         event_name = hook_data.get("hook_event_name", "").lower()
@@ -313,7 +328,11 @@ class HookAdapter(ABC):
             return HookEvent.POST_TOOL_USE
 
         # Claude Code / Copilot / Cursor / Cline
-        if event_name in ("userpromptsubmit", "beforesubmitprompt", "userpromptsubmitted"):
+        if event_name in (
+            "userpromptsubmit",
+            "beforesubmitprompt",
+            "userpromptsubmitted",
+        ):
             return HookEvent.PROMPT
         elif event_name in ("pretooluse",):
             return HookEvent.PRE_TOOL_USE
@@ -336,7 +355,11 @@ class HookAdapter(ABC):
             return HookEvent.POST_TOOL_USE
         if "tool_use" in hook_data or "tool" in hook_data or "tool_name" in hook_data:
             return HookEvent.PRE_TOOL_USE
-        if "prompt" in hook_data or "message" in hook_data or "userMessage" in hook_data:
+        if (
+            "prompt" in hook_data
+            or "message" in hook_data
+            or "userMessage" in hook_data
+        ):
             return HookEvent.PROMPT
 
         return HookEvent.PROMPT

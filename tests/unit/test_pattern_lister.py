@@ -3,7 +3,6 @@ Tests for pattern_lister module (Issue #337).
 """
 
 import json
-from io import StringIO
 from unittest import mock
 
 import pytest
@@ -11,7 +10,6 @@ import pytest
 from ai_guardian.pattern_lister import (
     CATEGORY_ALIASES,
     BuiltInGroup,
-    ConfigurableKey,
     DetectionRule,
     PatternCategory,
     PatternLister,
@@ -135,7 +133,9 @@ class TestPatternLister:
         assert "pii_types" in key_names
         assert "ignore_files" in key_names
 
-        pii_key = next(k for k in categories[0].configurable_keys if k.name == "pii_types")
+        pii_key = next(
+            k for k in categories[0].configurable_keys if k.name == "pii_types"
+        )
         assert pii_key.enum_values is not None
         assert "ssn" in pii_key.enum_values
         assert "email" in pii_key.enum_values
@@ -157,7 +157,9 @@ class TestPatternLister:
         key_names = {k.name for k in categories[0].configurable_keys}
 
         assert "log_types" in key_names
-        log_key = next(k for k in categories[0].configurable_keys if k.name == "log_types")
+        log_key = next(
+            k for k in categories[0].configurable_keys if k.name == "log_types"
+        )
         assert log_key.enum_values is not None
         assert "prompt_injection" in log_key.enum_values
 
@@ -390,7 +392,9 @@ class TestCategoryAliases:
                 all_keys.add(sub.config_key)
 
         for alias, target in CATEGORY_ALIASES.items():
-            assert target in all_keys, f"Alias '{alias}' -> '{target}' not in available categories"
+            assert (
+                target in all_keys
+            ), f"Alias '{alias}' -> '{target}' not in available categories"
 
 
 class TestGetAllRules:
@@ -408,8 +412,14 @@ class TestGetAllRules:
         rules = lister.get_all_rules()
         categories = {r.category for r in rules}
         for expected in [
-            "secrets", "pii", "prompt_injection", "unicode",
-            "config_exfil", "ssrf", "context_poisoning", "supply_chain",
+            "secrets",
+            "pii",
+            "prompt_injection",
+            "unicode",
+            "config_exfil",
+            "ssrf",
+            "context_poisoning",
+            "supply_chain",
         ]:
             assert expected in categories, f"Missing category: {expected}"
 
@@ -471,7 +481,9 @@ group = "test_group"
 """
         self._write_toml(tmp_path / "ssrf-patterns.toml", toml_content)
 
-        with mock.patch("ai_guardian.pattern_lister.get_cache_dir", return_value=tmp_path):
+        with mock.patch(
+            "ai_guardian.pattern_lister.get_cache_dir", return_value=tmp_path
+        ):
             lister = PatternLister()
             rules = lister.get_all_rules()
 
@@ -500,7 +512,9 @@ description = "Should be skipped"
 """
         self._write_toml(tmp_path / "secrets-patterns.toml", toml_content)
 
-        with mock.patch("ai_guardian.pattern_lister.get_cache_dir", return_value=tmp_path):
+        with mock.patch(
+            "ai_guardian.pattern_lister.get_cache_dir", return_value=tmp_path
+        ):
             lister = PatternLister()
             rules = lister.get_all_rules()
 
@@ -519,7 +533,9 @@ keywords = ["sk_live_"]
 """
         self._write_toml(tmp_path / "patterns.toml", toml_content)
 
-        with mock.patch("ai_guardian.pattern_lister.get_cache_dir", return_value=tmp_path):
+        with mock.patch(
+            "ai_guardian.pattern_lister.get_cache_dir", return_value=tmp_path
+        ):
             lister = PatternLister()
             rules = lister.get_all_rules()
 
@@ -535,7 +551,9 @@ keywords = ["sk_live_"]
     def test_no_cache_dir_no_error(self, tmp_path):
         """Empty or missing cache dir doesn't cause errors."""
         missing = tmp_path / "nonexistent"
-        with mock.patch("ai_guardian.pattern_lister.get_cache_dir", return_value=missing):
+        with mock.patch(
+            "ai_guardian.pattern_lister.get_cache_dir", return_value=missing
+        ):
             lister = PatternLister()
             rules = lister.get_all_rules()
 
@@ -554,7 +572,9 @@ description = "SSRF rule"
 """
         self._write_toml(tmp_path / "ssrf-patterns.toml", toml_content)
 
-        with mock.patch("ai_guardian.pattern_lister.get_cache_dir", return_value=tmp_path):
+        with mock.patch(
+            "ai_guardian.pattern_lister.get_cache_dir", return_value=tmp_path
+        ):
             lister = PatternLister()
             rules = lister.get_all_rules(category_filter="pii")
 

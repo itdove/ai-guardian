@@ -24,7 +24,7 @@ import time
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Dict, List, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -85,12 +85,14 @@ class Doctor:
         self._config_loaded = True
         try:
             from ai_guardian import _load_config_file
+
             self._config, self._config_error = _load_config_file()
         except Exception as e:
             self._config_error = str(e)
 
     def run_all(self) -> DoctorReport:
         from ai_guardian import __version__
+
         self._ensure_config()
         report = DoctorReport(version=__version__)
         checks = [
@@ -131,11 +133,13 @@ class Doctor:
                 report.checks.append(result)
             except Exception as e:
                 fn_name = getattr(check_fn, "__name__", str(check_fn))
-                report.checks.append(CheckResult(
-                    name=fn_name.replace("check_", ""),
-                    status=CheckStatus.FAIL,
-                    message=f"Check crashed: {e}",
-                ))
+                report.checks.append(
+                    CheckResult(
+                        name=fn_name.replace("check_", ""),
+                        status=CheckStatus.FAIL,
+                        message=f"Check crashed: {e}",
+                    )
+                )
         return report
 
     def check_python_version(self) -> CheckResult:
@@ -215,7 +219,9 @@ class Doctor:
         except ImportError:
             return []
 
-        schema_path = Path(__file__).parent / "schemas" / "ai-guardian-config.schema.json"
+        schema_path = (
+            Path(__file__).parent / "schemas" / "ai-guardian-config.schema.json"
+        )
         if not schema_path.exists():
             return []
 
@@ -231,6 +237,7 @@ class Doctor:
         """Check if a project-level ai-guardian.json is detected."""
         try:
             from ai_guardian.config_utils import get_project_config_path
+
             project_path = get_project_config_path()
             if project_path:
                 return CheckResult(
@@ -298,7 +305,9 @@ class Doctor:
                 message="No config loaded (nothing to check)",
             )
 
-        schema_path = Path(__file__).parent / "schemas" / "ai-guardian-config.schema.json"
+        schema_path = (
+            Path(__file__).parent / "schemas" / "ai-guardian-config.schema.json"
+        )
         deprecated_keys = []
         try:
             with open(schema_path) as f:
@@ -346,6 +355,7 @@ class Doctor:
                 if self.fix:
                     try:
                         from ai_guardian.setup import IDESetup
+
                         setup = IDESetup()
                         success, msg = setup.check_and_migrate_pattern_server(
                             dry_run=False, interactive=False
@@ -447,6 +457,7 @@ class Doctor:
         """Attempt to refresh pattern cache. Returns (success, error_msg)."""
         try:
             from ai_guardian.pattern_server import PatternServerClient
+
             client = PatternServerClient(ps_config)
             result = client.get_patterns_path()
             if result and result.exists():
@@ -466,7 +477,7 @@ class Doctor:
         return CheckResult(
             name="pattern_server",
             status=CheckStatus.PASS,
-            message=f"Configured",
+            message="Configured",
             detail=f"URL: {ps_config.get('url', 'unknown')}",
         )
 
@@ -484,6 +495,7 @@ class Doctor:
             cache_dir = Path(cache_config["path"]).expanduser().parent
         else:
             from ai_guardian.config_utils import get_cache_dir
+
             cache_dir = get_cache_dir()
 
         if not cache_dir.exists():
@@ -527,7 +539,9 @@ class Doctor:
             )
 
         token_env = auth_config.get("token_env", "AI_GUARDIAN_PATTERN_TOKEN")
-        token_file = Path(auth_config.get("token_file", "~/.config/ai-guardian/pattern-token")).expanduser()
+        token_file = Path(
+            auth_config.get("token_file", "~/.config/ai-guardian/pattern-token")
+        ).expanduser()
 
         if os.environ.get(token_env):
             return CheckResult(
@@ -597,7 +611,9 @@ class Doctor:
         token_env = auth_config.get("token_env", "AI_GUARDIAN_PATTERN_TOKEN")
         token = os.environ.get(token_env)
         if not token:
-            token_file = Path(auth_config.get("token_file", "~/.config/ai-guardian/pattern-token")).expanduser()
+            token_file = Path(
+                auth_config.get("token_file", "~/.config/ai-guardian/pattern-token")
+            ).expanduser()
             if token_file.exists():
                 try:
                     token = token_file.read_text().strip()
@@ -683,6 +699,7 @@ class Doctor:
             cache_file = Path(cache_config["path"]).expanduser()
         else:
             from ai_guardian.config_utils import get_cache_dir
+
             cache_file = get_cache_dir() / "patterns.toml"
 
         if not cache_file.exists():
@@ -700,7 +717,11 @@ class Doctor:
                     name="ps_cache_freshness",
                     status=CheckStatus.WARN,
                     message="No cached patterns",
-                    fix_hint=f"Fetch failed: {err}" if err else "Fetch failed — check URL and auth settings",
+                    fix_hint=(
+                        f"Fetch failed: {err}"
+                        if err
+                        else "Fetch failed — check URL and auth settings"
+                    ),
                     fixable=True,
                 )
             return CheckResult(
@@ -740,7 +761,11 @@ class Doctor:
                     name="ps_cache_freshness",
                     status=CheckStatus.FAIL,
                     message=f"Expired ({age_str}{rule_str})",
-                    fix_hint=f"Refresh failed: {err}" if err else "Refresh failed — check URL and auth settings",
+                    fix_hint=(
+                        f"Refresh failed: {err}"
+                        if err
+                        else "Refresh failed — check URL and auth settings"
+                    ),
                     fixable=True,
                 )
             return CheckResult(
@@ -769,7 +794,11 @@ class Doctor:
                     name="ps_cache_freshness",
                     status=CheckStatus.WARN,
                     message=f"Stale ({age_str}{rule_str})",
-                    fix_hint=f"Refresh failed: {err}" if err else "Refresh failed — check URL and auth settings",
+                    fix_hint=(
+                        f"Refresh failed: {err}"
+                        if err
+                        else "Refresh failed — check URL and auth settings"
+                    ),
                     fixable=True,
                 )
             return CheckResult(
@@ -860,6 +889,7 @@ class Doctor:
 
     def _count_claude_hooks(self, config_path: Path) -> int:
         from ai_guardian.setup import _is_ai_guardian_command
+
         try:
             with open(config_path) as f:
                 config = json.load(f)
@@ -872,7 +902,9 @@ class Doctor:
                         for entry in hook_list:
                             if isinstance(entry, dict) and "hooks" in entry:
                                 for h in entry["hooks"]:
-                                    if isinstance(h, dict) and _is_ai_guardian_command(h.get("command", "")):
+                                    if isinstance(h, dict) and _is_ai_guardian_command(
+                                        h.get("command", "")
+                                    ):
                                         count += 1
                                         break
             return count
@@ -920,11 +952,15 @@ class Doctor:
 
         # Check for old location files
         if config_dir != state_dir:
-            old_files = [f for f in ["violations.jsonl", "ai-guardian.log"]
-                         if (config_dir / f).exists()]
+            old_files = [
+                f
+                for f in ["violations.jsonl", "ai-guardian.log"]
+                if (config_dir / f).exists()
+            ]
             if old_files:
                 if self.fix:
                     from ai_guardian.config_utils import migrate_state_files
+
                     migrate_state_files()
                     # Remove old files after successful migration
                     removed = []
@@ -1153,7 +1189,9 @@ class Doctor:
         )
 
     def check_config_consistency(self) -> CheckResult:
-        schema_path = Path(__file__).parent / "schemas" / "ai-guardian-config.schema.json"
+        schema_path = (
+            Path(__file__).parent / "schemas" / "ai-guardian-config.schema.json"
+        )
         if not schema_path.exists():
             return CheckResult(
                 name="config_consistency",
@@ -1179,8 +1217,12 @@ class Doctor:
                 default_val = prop_schema["default"]
                 expected_type = prop_schema["type"]
                 type_map = {
-                    "boolean": bool, "string": str, "integer": int,
-                    "number": (int, float), "object": dict, "array": list,
+                    "boolean": bool,
+                    "string": str,
+                    "integer": int,
+                    "number": (int, float),
+                    "object": dict,
+                    "array": list,
                 }
                 py_type = type_map.get(expected_type)
                 if py_type and not isinstance(default_val, py_type):
@@ -1207,6 +1249,7 @@ class Doctor:
         if system in ("Windows", "Darwin"):
             try:
                 import pystray  # noqa: F401
+
                 label = "Windows" if system == "Windows" else "macOS"
                 return CheckResult(
                     name="tray_support",
@@ -1272,7 +1315,9 @@ class Doctor:
         try:
             result = subprocess.run(
                 ["gnome-extensions", "list", "--enabled"],
-                capture_output=True, text=True, timeout=5,
+                capture_output=True,
+                text=True,
+                timeout=5,
             )
             if "appindicatorsupport@rgcjonas.gmail.com" in result.stdout:
                 return CheckResult(
@@ -1312,6 +1357,7 @@ class Doctor:
         except ImportError:
             try:
                 import nicegui  # noqa: F401
+
                 return CheckResult(
                     name="tkinter_support",
                     status=CheckStatus.PASS,
@@ -1332,6 +1378,7 @@ class Doctor:
 
         try:
             import nicegui  # noqa: F401
+
             fallback = "NiceGUI"
         except ImportError:
             fallback = "Textual"
@@ -1354,8 +1401,12 @@ class Doctor:
 
         ask_sections = []
         for section in (
-            "secret_scanning", "scan_pii", "prompt_injection",
-            "context_poisoning", "supply_chain", "config_file_scanning",
+            "secret_scanning",
+            "scan_pii",
+            "prompt_injection",
+            "context_poisoning",
+            "supply_chain",
+            "config_file_scanning",
         ):
             action = (self._config.get(section) or {}).get("action", "")
             if isinstance(action, str) and action.startswith("ask"):
@@ -1383,6 +1434,7 @@ class Doctor:
         has_tkinter = False
         try:
             import tkinter  # noqa: F401
+
             has_tkinter = True
         except ImportError:
             pass  # intentionally silent — optional dependency
@@ -1397,6 +1449,7 @@ class Doctor:
         has_nicegui = False
         try:
             import nicegui  # noqa: F401
+
             has_nicegui = True
         except ImportError:
             pass  # intentionally silent — optional dependency
@@ -1434,8 +1487,11 @@ class Doctor:
             )
 
         supported = [
-            "gnome-terminal", "kgx", "konsole",
-            "xfce4-terminal", "xterm",
+            "gnome-terminal",
+            "kgx",
+            "konsole",
+            "xfce4-terminal",
+            "xterm",
         ]
         found = [t for t in supported if shutil.which(t)]
 
@@ -1544,8 +1600,10 @@ class Doctor:
             )
 
         import sys
+
         try:
             from rapidocr_onnxruntime import RapidOCR  # noqa: F401
+
             return CheckResult(
                 name="image_scanning",
                 status=CheckStatus.PASS,
@@ -1674,15 +1732,18 @@ class Doctor:
 
         try:
             from importlib.metadata import version as pkg_version
+
             version = pkg_version("tree-sitter")
         except Exception:
             version = getattr(tree_sitter, "__version__", "unknown")
 
         from ai_guardian.ast_scanner import _GRAMMAR_IMPORTS
+
         available = []
         for lang_name, module_name in sorted(_GRAMMAR_IMPORTS.items()):
             try:
                 import importlib
+
                 importlib.import_module(module_name)
                 available.append(lang_name.capitalize())
             except ImportError:
@@ -1852,15 +1913,17 @@ def format_human(report: DoctorReport) -> str:
 def format_json(report: DoctorReport) -> str:
     checks_data = []
     for check in report.checks:
-        checks_data.append({
-            "name": check.name,
-            "status": check.status.value,
-            "message": check.message,
-            "detail": check.detail,
-            "fix_hint": check.fix_hint,
-            "fixable": check.fixable,
-            "fixed": check.fixed,
-        })
+        checks_data.append(
+            {
+                "name": check.name,
+                "status": check.status.value,
+                "message": check.message,
+                "detail": check.detail,
+                "fix_hint": check.fix_hint,
+                "fixable": check.fixable,
+                "fixed": check.fixed,
+            }
+        )
 
     pass_count = sum(1 for c in report.checks if c.status == CheckStatus.PASS)
     warn_count = sum(1 for c in report.checks if c.status == CheckStatus.WARN)
@@ -1887,6 +1950,7 @@ def format_json(report: DoctorReport) -> str:
 
 # --- Helpers ---
 
+
 def _tilde(path: Path) -> str:
     """Replace home directory with ~ for display."""
     try:
@@ -1896,6 +1960,7 @@ def _tilde(path: Path) -> str:
 
 
 # --- CLI entry point ---
+
 
 def doctor_command(args) -> int:
     doctor = Doctor(

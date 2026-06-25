@@ -9,7 +9,6 @@ Used by detection (PreToolUse), redaction (PostToolUse), and prompt
 scanning (UserPromptSubmit) through a single shared cache.
 """
 
-import fnmatch
 import ipaddress
 import logging
 import re
@@ -22,7 +21,6 @@ from ai_guardian.patterns.toml_parser import (
     CompiledRule,
     compile_rule,
     load_and_compile,
-    load_toml_file,
 )
 from ai_guardian.patterns.validators import get_validator
 
@@ -32,6 +30,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class ScanFinding:
     """A single finding from scanning content against compiled patterns."""
+
     rule_id: str
     line_number: int
     matched_text: str
@@ -58,7 +57,7 @@ class PatternCache:
         result = cache.redact("text with sk-abc123xyz...", categories=["secret"])
     """
 
-    _IP_PATTERN = re.compile(r'\b(?:\d{1,3}\.){3}\d{1,3}\b')
+    _IP_PATTERN = re.compile(r"\b(?:\d{1,3}\.){3}\d{1,3}\b")
 
     def __init__(self):
         self._rules: List[CompiledRule] = []
@@ -70,8 +69,12 @@ class PatternCache:
     def rule_count(self) -> int:
         return len(self._rules)
 
-    def load(self, *toml_paths: Path, additional_rules: Optional[List[dict]] = None,
-             category_override: Optional[str] = None) -> None:
+    def load(
+        self,
+        *toml_paths: Path,
+        additional_rules: Optional[List[dict]] = None,
+        category_override: Optional[str] = None,
+    ) -> None:
         """Parse TOML files and compile all rules into memory.
 
         Args:
@@ -103,10 +106,14 @@ class PatternCache:
         self._rebuild_indices()
         self.loaded_at = time.time()
         if toml_paths and not self._rules:
-            logger.warning("PatternCache: loaded 0 rules from %d file(s) — scanning will find nothing",
-                           len(toml_paths))
-        logger.info(f"PatternCache loaded: {len(self._rules)} rules across "
-                     f"{len(self._rules_by_category)} categories")
+            logger.warning(
+                "PatternCache: loaded 0 rules from %d file(s) — scanning will find nothing",
+                len(toml_paths),
+            )
+        logger.info(
+            f"PatternCache loaded: {len(self._rules)} rules across "
+            f"{len(self._rules_by_category)} categories"
+        )
 
     def load_rules(self, rules: List[dict], category: str = "custom") -> None:
         """Add pre-parsed rule dicts to the cache without clearing existing rules.
@@ -158,7 +165,9 @@ class PatternCache:
         """Return list of loaded category names."""
         return list(self._rules_by_category.keys())
 
-    def scan(self, content: str, categories: Optional[List[str]] = None) -> List[ScanFinding]:
+    def scan(
+        self, content: str, categories: Optional[List[str]] = None
+    ) -> List[ScanFinding]:
         """Scan content against compiled patterns.
 
         Args:
@@ -186,7 +195,9 @@ class PatternCache:
 
         return findings
 
-    def redact(self, content: str, categories: Optional[List[str]] = None) -> Dict[str, Any]:
+    def redact(
+        self, content: str, categories: Optional[List[str]] = None
+    ) -> Dict[str, Any]:
         """Scan content and apply redaction based on rule strategies.
 
         Args:
@@ -220,13 +231,15 @@ class PatternCache:
             strategy = rule.metadata.get("redaction_strategy", "full_redact")
             redacted = self._apply_redaction(match.group(), strategy)
             result_parts.append(redacted)
-            redactions.append({
-                "position": start,
-                "original_length": end - start,
-                "type": rule.metadata.get("description", rule.id),
-                "rule_id": rule.id,
-                "strategy": strategy,
-            })
+            redactions.append(
+                {
+                    "position": start,
+                    "original_length": end - start,
+                    "type": rule.metadata.get("description", rule.id),
+                    "rule_id": rule.id,
+                    "strategy": strategy,
+                }
+            )
             last_end = end
 
         result_parts.append(content[last_end:])
@@ -236,7 +249,9 @@ class PatternCache:
             "redactions": redactions,
         }
 
-    def check_literal(self, text: str, categories: Optional[List[str]] = None) -> List[Tuple[str, str, str]]:
+    def check_literal(
+        self, text: str, categories: Optional[List[str]] = None
+    ) -> List[Tuple[str, str, str]]:
         """Check text for literal character matches (homoglyphs).
 
         Args:
@@ -248,7 +263,9 @@ class PatternCache:
         """
         results = []
         if categories:
-            maps_to_check = {c: m for c, m in self._literal_maps.items() if c in categories}
+            maps_to_check = {
+                c: m for c, m in self._literal_maps.items() if c in categories
+            }
         else:
             maps_to_check = self._literal_maps
 
@@ -265,7 +282,9 @@ class PatternCache:
 
         return results
 
-    def check_cidr(self, ip_str: str, categories: Optional[List[str]] = None) -> List[CompiledRule]:
+    def check_cidr(
+        self, ip_str: str, categories: Optional[List[str]] = None
+    ) -> List[CompiledRule]:
         """Check if an IP address matches any CIDR rules.
 
         Args:
@@ -287,7 +306,9 @@ class PatternCache:
                 matching.append(rule)
         return matching
 
-    def check_range(self, codepoint: int, categories: Optional[List[str]] = None) -> List[CompiledRule]:
+    def check_range(
+        self, codepoint: int, categories: Optional[List[str]] = None
+    ) -> List[CompiledRule]:
         """Check if a Unicode codepoint falls within any range rules.
 
         Args:
@@ -306,7 +327,9 @@ class PatternCache:
                     matching.append(rule)
         return matching
 
-    def _get_filtered_rules(self, categories: Optional[List[str]]) -> List[CompiledRule]:
+    def _get_filtered_rules(
+        self, categories: Optional[List[str]]
+    ) -> List[CompiledRule]:
         if categories is None:
             return self._rules
         result = []
@@ -329,19 +352,22 @@ class PatternCache:
                 continue
             if min_entropy is not None:
                 from ai_guardian.patterns.validators import shannon_entropy
+
                 if shannon_entropy(match.group()) < min_entropy:
                     continue
-            line_num = content[:match.start()].count('\n') + 1
-            findings.append(ScanFinding(
-                rule_id=rule.id,
-                line_number=line_num,
-                matched_text=match.group()[:100],
-                description=rule.metadata.get("description", ""),
-                category=rule.category,
-                match_start=match.start(),
-                match_end=match.end(),
-                metadata=rule.metadata,
-            ))
+            line_num = content[: match.start()].count("\n") + 1
+            findings.append(
+                ScanFinding(
+                    rule_id=rule.id,
+                    line_number=line_num,
+                    matched_text=match.group()[:100],
+                    description=rule.metadata.get("description", ""),
+                    category=rule.category,
+                    match_start=match.start(),
+                    match_end=match.end(),
+                    metadata=rule.metadata,
+                )
+            )
         return findings
 
     def _scan_literal(self, content: str, rule: CompiledRule) -> List[ScanFinding]:
@@ -349,17 +375,21 @@ class PatternCache:
         source, target = rule.compiled
         for i, char in enumerate(content):
             if char == source:
-                line_num = content[:i].count('\n') + 1
-                findings.append(ScanFinding(
-                    rule_id=rule.id,
-                    line_number=line_num,
-                    matched_text=char,
-                    description=rule.metadata.get("description", f"Literal match: {repr(source)}"),
-                    category=rule.category,
-                    match_start=i,
-                    match_end=i + 1,
-                    metadata=rule.metadata,
-                ))
+                line_num = content[:i].count("\n") + 1
+                findings.append(
+                    ScanFinding(
+                        rule_id=rule.id,
+                        line_number=line_num,
+                        matched_text=char,
+                        description=rule.metadata.get(
+                            "description", f"Literal match: {repr(source)}"
+                        ),
+                        category=rule.category,
+                        match_start=i,
+                        match_end=i + 1,
+                        metadata=rule.metadata,
+                    )
+                )
         return findings
 
     def _scan_cidr(self, content: str, rule: CompiledRule) -> List[ScanFinding]:
@@ -368,17 +398,19 @@ class PatternCache:
             try:
                 addr = ipaddress.ip_address(match.group())
                 if addr in rule.compiled:
-                    line_num = content[:match.start()].count('\n') + 1
-                    findings.append(ScanFinding(
-                        rule_id=rule.id,
-                        line_number=line_num,
-                        matched_text=match.group(),
-                        description=rule.metadata.get("description", ""),
-                        category=rule.category,
-                        match_start=match.start(),
-                        match_end=match.end(),
-                        metadata=rule.metadata,
-                    ))
+                    line_num = content[: match.start()].count("\n") + 1
+                    findings.append(
+                        ScanFinding(
+                            rule_id=rule.id,
+                            line_number=line_num,
+                            matched_text=match.group(),
+                            description=rule.metadata.get("description", ""),
+                            category=rule.category,
+                            match_start=match.start(),
+                            match_end=match.end(),
+                            metadata=rule.metadata,
+                        )
+                    )
             except ValueError:
                 continue
         return findings
@@ -389,17 +421,21 @@ class PatternCache:
         for i, char in enumerate(content):
             cp = ord(char)
             if start <= cp <= end:
-                line_num = content[:i].count('\n') + 1
-                findings.append(ScanFinding(
-                    rule_id=rule.id,
-                    line_number=line_num,
-                    matched_text=repr(char),
-                    description=rule.metadata.get("description", f"Codepoint U+{cp:04X} in range"),
-                    category=rule.category,
-                    match_start=i,
-                    match_end=i + 1,
-                    metadata=rule.metadata,
-                ))
+                line_num = content[:i].count("\n") + 1
+                findings.append(
+                    ScanFinding(
+                        rule_id=rule.id,
+                        line_number=line_num,
+                        matched_text=repr(char),
+                        description=rule.metadata.get(
+                            "description", f"Codepoint U+{cp:04X} in range"
+                        ),
+                        category=rule.category,
+                        match_start=i,
+                        match_end=i + 1,
+                        metadata=rule.metadata,
+                    )
+                )
         return findings
 
     def _passes_validation(self, matched_text: str, rule: CompiledRule) -> bool:

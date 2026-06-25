@@ -5,12 +5,10 @@ import os
 import tempfile
 from unittest import mock
 
-import pytest
 
 from ai_guardian.daemon.discovery import (
     DaemonDiscovery,
     DaemonTarget,
-    HAS_DOCKER_SDK,
     _detect_engine,
     _engine_from_source,
     _get_podman_socket,
@@ -36,8 +34,10 @@ class TestDaemonTarget:
 
     def test_container_name_field(self):
         t = DaemonTarget(
-            name="my-project", runtime="container",
-            container_id="abc123def456", container_engine="podman",
+            name="my-project",
+            runtime="container",
+            container_id="abc123def456",
+            container_engine="podman",
             container_name="sandbox-1",
         )
         assert t.container_name == "sandbox-1"
@@ -49,17 +49,22 @@ class TestDaemonTarget:
 
     def test_local_target(self):
         t = DaemonTarget(
-            name="local", runtime="local",
-            socket_path="/tmp/daemon.sock", status="running"
+            name="local",
+            runtime="local",
+            socket_path="/tmp/daemon.sock",
+            status="running",
         )
         assert t.runtime == "local"
         assert t.socket_path == "/tmp/daemon.sock"
 
     def test_container_target(self):
         t = DaemonTarget(
-            name="my-container", runtime="container",
-            container_id="abc123", container_engine="podman",
-            host="127.0.0.1", port=49152
+            name="my-container",
+            runtime="container",
+            container_id="abc123",
+            container_engine="podman",
+            host="127.0.0.1",
+            port=49152,
         )
         assert t.runtime == "container"
         assert t.container_id == "abc123"
@@ -68,8 +73,11 @@ class TestDaemonTarget:
 
     def test_kubernetes_target(self):
         t = DaemonTarget(
-            name="my-pod", runtime="kubernetes",
-            pod_name="guardian-abc", namespace="ai-sdlc", port=63152
+            name="my-pod",
+            runtime="kubernetes",
+            pod_name="guardian-abc",
+            namespace="ai-sdlc",
+            port=63152,
         )
         assert t.runtime == "kubernetes"
         assert t.pod_name == "guardian-abc"
@@ -77,9 +85,10 @@ class TestDaemonTarget:
 
     def test_manual_target(self):
         t = DaemonTarget(
-            name="remote", runtime="manual",
+            name="remote",
+            runtime="manual",
             url="https://guardian.company.com:63152",
-            auth_token="secret"
+            auth_token="secret",
         )
         assert t.runtime == "manual"
         assert t.url == "https://guardian.company.com:63152"
@@ -162,7 +171,9 @@ class TestDiscoverLocal:
 
     @mock.patch("ai_guardian.daemon.discovery.get_pid_path")
     @mock.patch("ai_guardian.daemon.client.is_daemon_running", return_value=True)
-    def test_pid_file_name_overrides_config_name(self, mock_running, mock_pid, tmp_path):
+    def test_pid_file_name_overrides_config_name(
+        self, mock_running, mock_pid, tmp_path
+    ):
         """PID file name takes precedence over config name."""
         config_dir = self._make_config_dir(
             tmp_path, {"daemon": {"name": "config-name"}}
@@ -171,6 +182,7 @@ class TestDiscoverLocal:
             json.dump({"pid": 12345, "rest_port": 54321, "name": "pid-name"}, f)
             f.flush()
             from pathlib import Path
+
             mock_pid.return_value = Path(f.name)
 
         try:
@@ -207,6 +219,7 @@ class TestDiscoverLocal:
             json.dump({"pid": 12345, "rest_port": 54321}, f)
             f.flush()
             from pathlib import Path
+
             mock_pid.return_value = Path(f.name)
 
         try:
@@ -330,7 +343,13 @@ class TestDiscoverContainers:
 
         d = DaemonDiscovery()
         p1, p2 = self._patch_probes(d, probe_return={"running": True})
-        with mock.patch.object(d, "_get_docker_clients", return_value=[(mock_client, "podman")]), p1, p2:
+        with (
+            mock.patch.object(
+                d, "_get_docker_clients", return_value=[(mock_client, "podman")]
+            ),
+            p1,
+            p2,
+        ):
             targets = d.discover_containers()
 
         assert len(targets) == 1
@@ -342,12 +361,14 @@ class TestDiscoverContainers:
     @mock.patch("ai_guardian.daemon.discovery.HAS_DOCKER_SDK", True)
     def test_label_discovery_multiple_containers(self):
         c1 = _make_mock_container(
-            container_id="aaa111bbb222ccc333", name="daemon-1",
-            ports={"63152/tcp": [{"HostIp": "0.0.0.0", "HostPort": "50001"}]}
+            container_id="aaa111bbb222ccc333",
+            name="daemon-1",
+            ports={"63152/tcp": [{"HostIp": "0.0.0.0", "HostPort": "50001"}]},
         )
         c2 = _make_mock_container(
-            container_id="bbb222ccc333ddd444", name="daemon-2",
-            ports={"63152/tcp": [{"HostIp": "0.0.0.0", "HostPort": "50002"}]}
+            container_id="bbb222ccc333ddd444",
+            name="daemon-2",
+            ports={"63152/tcp": [{"HostIp": "0.0.0.0", "HostPort": "50002"}]},
         )
         mock_client = mock.MagicMock()
         mock_client.containers.list.return_value = [c1, c2]
@@ -355,7 +376,13 @@ class TestDiscoverContainers:
 
         d = DaemonDiscovery()
         p1, p2 = self._patch_probes(d, probe_return={"running": True})
-        with mock.patch.object(d, "_get_docker_clients", return_value=[(mock_client, "docker")]), p1, p2:
+        with (
+            mock.patch.object(
+                d, "_get_docker_clients", return_value=[(mock_client, "docker")]
+            ),
+            p1,
+            p2,
+        ):
             targets = d.discover_containers()
 
         assert len(targets) == 2
@@ -363,9 +390,10 @@ class TestDiscoverContainers:
     @mock.patch("ai_guardian.daemon.discovery.HAS_DOCKER_SDK", True)
     def test_port_fallback_discovery(self):
         container = _make_mock_container(
-            container_id="abc789def012abc789", name="some-container",
+            container_id="abc789def012abc789",
+            name="some-container",
             labels={},
-            ports={"63152/tcp": [{"HostIp": "0.0.0.0", "HostPort": "49300"}]}
+            ports={"63152/tcp": [{"HostIp": "0.0.0.0", "HostPort": "49300"}]},
         )
         mock_client = mock.MagicMock()
         mock_client.containers.list.side_effect = [
@@ -376,7 +404,13 @@ class TestDiscoverContainers:
 
         d = DaemonDiscovery()
         p1, p2 = self._patch_probes(d, probe_return={"running": True})
-        with mock.patch.object(d, "_get_docker_clients", return_value=[(mock_client, "podman")]), p1, p2:
+        with (
+            mock.patch.object(
+                d, "_get_docker_clients", return_value=[(mock_client, "podman")]
+            ),
+            p1,
+            p2,
+        ):
             targets = d.discover_containers()
 
         assert len(targets) == 1
@@ -385,8 +419,9 @@ class TestDiscoverContainers:
     @mock.patch("ai_guardian.daemon.discovery.HAS_DOCKER_SDK", True)
     def test_deduplicates_by_container_id(self):
         container = _make_mock_container(
-            container_id="abc123def456abc123", name="guardian",
-            ports={"63152/tcp": [{"HostIp": "0.0.0.0", "HostPort": "49400"}]}
+            container_id="abc123def456abc123",
+            name="guardian",
+            ports={"63152/tcp": [{"HostIp": "0.0.0.0", "HostPort": "49400"}]},
         )
         mock_client = mock.MagicMock()
         mock_client.containers.list.return_value = [container]
@@ -394,7 +429,13 @@ class TestDiscoverContainers:
 
         d = DaemonDiscovery()
         p1, p2 = self._patch_probes(d, probe_return={"running": True})
-        with mock.patch.object(d, "_get_docker_clients", return_value=[(mock_client, "podman")]), p1, p2:
+        with (
+            mock.patch.object(
+                d, "_get_docker_clients", return_value=[(mock_client, "podman")]
+            ),
+            p1,
+            p2,
+        ):
             targets = d.discover_containers()
 
         assert len(targets) == 1
@@ -407,16 +448,23 @@ class TestDiscoverContainers:
 
         d = DaemonDiscovery()
         p1, p2 = self._patch_probes(d)
-        with mock.patch.object(d, "_get_docker_clients", return_value=[(mock_client, "podman")]), p1, p2:
+        with (
+            mock.patch.object(
+                d, "_get_docker_clients", return_value=[(mock_client, "podman")]
+            ),
+            p1,
+            p2,
+        ):
             targets = d.discover_containers()
         assert targets == []
 
     @mock.patch("ai_guardian.daemon.discovery.HAS_DOCKER_SDK", True)
     def test_custom_name_from_label(self):
         container = _make_mock_container(
-            container_id="abc123def456abc123", name="default-name",
+            container_id="abc123def456abc123",
+            name="default-name",
             labels={"ai-guardian.daemon": "true", "ai-guardian.name": "my-sandbox"},
-            ports={"63152/tcp": [{"HostIp": "0.0.0.0", "HostPort": "49500"}]}
+            ports={"63152/tcp": [{"HostIp": "0.0.0.0", "HostPort": "49500"}]},
         )
         mock_client = mock.MagicMock()
         mock_client.containers.list.return_value = [container]
@@ -424,16 +472,23 @@ class TestDiscoverContainers:
 
         d = DaemonDiscovery()
         p1, p2 = self._patch_probes(d, probe_return={"running": True})
-        with mock.patch.object(d, "_get_docker_clients", return_value=[(mock_client, "podman")]), p1, p2:
+        with (
+            mock.patch.object(
+                d, "_get_docker_clients", return_value=[(mock_client, "podman")]
+            ),
+            p1,
+            p2,
+        ):
             targets = d.discover_containers()
         assert targets[0].name == "my-sandbox"
 
     @mock.patch("ai_guardian.daemon.discovery.HAS_DOCKER_SDK", True)
     def test_custom_rest_port_from_label(self):
         container = _make_mock_container(
-            container_id="abc123def456abc123", name="guardian",
+            container_id="abc123def456abc123",
+            name="guardian",
             labels={"ai-guardian.daemon": "true", "ai-guardian.rest-port": "8080"},
-            ports={"8080/tcp": [{"HostIp": "0.0.0.0", "HostPort": "49600"}]}
+            ports={"8080/tcp": [{"HostIp": "0.0.0.0", "HostPort": "49600"}]},
         )
         mock_client = mock.MagicMock()
         mock_client.containers.list.return_value = [container]
@@ -441,19 +496,27 @@ class TestDiscoverContainers:
 
         d = DaemonDiscovery()
         p1, p2 = self._patch_probes(d, probe_return={"running": True})
-        with mock.patch.object(d, "_get_docker_clients", return_value=[(mock_client, "podman")]), p1, p2:
+        with (
+            mock.patch.object(
+                d, "_get_docker_clients", return_value=[(mock_client, "podman")]
+            ),
+            p1,
+            p2,
+        ):
             targets = d.discover_containers()
         assert targets[0].port == 49600
 
     @mock.patch("ai_guardian.daemon.discovery.HAS_DOCKER_SDK", True)
     def test_multi_engine_discovery(self):
         podman_container = _make_mock_container(
-            container_id="aaa111bbb222ccc333", name="carbonite",
-            ports={"63152/tcp": [{"HostIp": "0.0.0.0", "HostPort": "49700"}]}
+            container_id="aaa111bbb222ccc333",
+            name="carbonite",
+            ports={"63152/tcp": [{"HostIp": "0.0.0.0", "HostPort": "49700"}]},
         )
         docker_container = _make_mock_container(
-            container_id="ddd444eee555fff666", name="dev-api",
-            ports={"63152/tcp": [{"HostIp": "0.0.0.0", "HostPort": "49800"}]}
+            container_id="ddd444eee555fff666",
+            name="dev-api",
+            ports={"63152/tcp": [{"HostIp": "0.0.0.0", "HostPort": "49800"}]},
         )
         podman_client = mock.MagicMock()
         podman_client.containers.list.return_value = [podman_container]
@@ -465,9 +528,15 @@ class TestDiscoverContainers:
 
         d = DaemonDiscovery()
         p1, p2 = self._patch_probes(d, probe_return={"running": True})
-        with mock.patch.object(d, "_get_docker_clients", return_value=[
-            (podman_client, "podman"), (docker_client, "docker")
-        ]), p1, p2:
+        with (
+            mock.patch.object(
+                d,
+                "_get_docker_clients",
+                return_value=[(podman_client, "podman"), (docker_client, "docker")],
+            ),
+            p1,
+            p2,
+        ):
             targets = d.discover_containers()
 
         assert len(targets) == 2
@@ -479,8 +548,9 @@ class TestDiscoverContainers:
     @mock.patch("ai_guardian.daemon.discovery.HAS_DOCKER_SDK", True)
     def test_multi_engine_deduplication(self):
         container = _make_mock_container(
-            container_id="abc123def456abc123", name="guardian",
-            ports={"63152/tcp": [{"HostIp": "0.0.0.0", "HostPort": "49900"}]}
+            container_id="abc123def456abc123",
+            name="guardian",
+            ports={"63152/tcp": [{"HostIp": "0.0.0.0", "HostPort": "49900"}]},
         )
         podman_client = mock.MagicMock()
         podman_client.containers.list.return_value = [container]
@@ -492,9 +562,15 @@ class TestDiscoverContainers:
 
         d = DaemonDiscovery()
         p1, p2 = self._patch_probes(d, probe_return={"running": True})
-        with mock.patch.object(d, "_get_docker_clients", return_value=[
-            (podman_client, "podman"), (docker_client, "docker")
-        ]), p1, p2:
+        with (
+            mock.patch.object(
+                d,
+                "_get_docker_clients",
+                return_value=[(podman_client, "podman"), (docker_client, "docker")],
+            ),
+            p1,
+            p2,
+        ):
             targets = d.discover_containers()
 
         assert len(targets) == 1
@@ -507,7 +583,9 @@ class TestDiscoverContainers:
         mock_client.close = mock.MagicMock()
 
         d = DaemonDiscovery()
-        with mock.patch.object(d, "_get_docker_clients", return_value=[(mock_client, "docker")]):
+        with mock.patch.object(
+            d, "_get_docker_clients", return_value=[(mock_client, "docker")]
+        ):
             d.discover_containers()
 
         mock_client.close.assert_called_once()
@@ -519,7 +597,9 @@ class TestDiscoverContainers:
         mock_client.close = mock.MagicMock()
 
         d = DaemonDiscovery()
-        with mock.patch.object(d, "_get_docker_clients", return_value=[(mock_client, "docker")]):
+        with mock.patch.object(
+            d, "_get_docker_clients", return_value=[(mock_client, "docker")]
+        ):
             targets = d.discover_containers()
 
         assert targets == []
@@ -589,8 +669,10 @@ class TestGetDockerClients:
         def mock_exists(path):
             return path == podman_sock
 
-        with mock.patch("ai_guardian.daemon.discovery.docker_sdk") as mock_docker, \
-             mock.patch("os.path.exists", side_effect=mock_exists):
+        with (
+            mock.patch("ai_guardian.daemon.discovery.docker_sdk") as mock_docker,
+            mock.patch("os.path.exists", side_effect=mock_exists),
+        ):
             mock_docker.DockerClient.return_value = mock_client
             clients = d._get_docker_clients()
 
@@ -618,7 +700,13 @@ class TestDiscoverPausedState:
 
         d = DaemonDiscovery()
         p1, p2 = self._patch_probes(d, probe_return={"paused": True})
-        with mock.patch.object(d, "_get_docker_clients", return_value=[(mock_client, "podman")]), p1, p2:
+        with (
+            mock.patch.object(
+                d, "_get_docker_clients", return_value=[(mock_client, "podman")]
+            ),
+            p1,
+            p2,
+        ):
             targets = d.discover_containers()
 
         assert len(targets) == 1
@@ -634,7 +722,13 @@ class TestDiscoverPausedState:
 
         d = DaemonDiscovery()
         p1, p2 = self._patch_probes(d, probe_return={"paused": False})
-        with mock.patch.object(d, "_get_docker_clients", return_value=[(mock_client, "podman")]), p1, p2:
+        with (
+            mock.patch.object(
+                d, "_get_docker_clients", return_value=[(mock_client, "podman")]
+            ),
+            p1,
+            p2,
+        ):
             targets = d.discover_containers()
 
         assert len(targets) == 1
@@ -650,7 +744,13 @@ class TestDiscoverPausedState:
 
         d = DaemonDiscovery()
         p1, p2 = self._patch_probes(d, probe_return={"running": True})
-        with mock.patch.object(d, "_get_docker_clients", return_value=[(mock_client, "podman")]), p1, p2:
+        with (
+            mock.patch.object(
+                d, "_get_docker_clients", return_value=[(mock_client, "podman")]
+            ),
+            p1,
+            p2,
+        ):
             targets = d.discover_containers()
 
         assert len(targets) == 1
@@ -665,9 +765,15 @@ class TestDiscoverPausedState:
         mock_client.close = mock.MagicMock()
 
         d = DaemonDiscovery()
-        with mock.patch.object(d, "_probe_daemon", return_value={"paused": True}), \
-             mock.patch.object(d, "_sdk_exec_instance_name", return_value="exec-name") as mock_exec:
-            with mock.patch.object(d, "_get_docker_clients", return_value=[(mock_client, "podman")]):
+        with (
+            mock.patch.object(d, "_probe_daemon", return_value={"paused": True}),
+            mock.patch.object(
+                d, "_sdk_exec_instance_name", return_value="exec-name"
+            ) as mock_exec,
+        ):
+            with mock.patch.object(
+                d, "_get_docker_clients", return_value=[(mock_client, "podman")]
+            ):
                 targets = d.discover_containers()
 
         mock_exec.assert_not_called()
@@ -685,13 +791,17 @@ class TestDiscoverPausedState:
             json.dump({"pid": 12345, "rest_port": 54321}, f)
             f.flush()
             from pathlib import Path
+
             mock_pid.return_value = Path(f.name)
 
         try:
             d = DaemonDiscovery()
-            with mock.patch(
-                "ai_guardian.config_utils.get_config_dir", return_value=config_dir
-            ), mock.patch.object(d, "_probe_daemon", return_value={"paused": True}):
+            with (
+                mock.patch(
+                    "ai_guardian.config_utils.get_config_dir", return_value=config_dir
+                ),
+                mock.patch.object(d, "_probe_daemon", return_value={"paused": True}),
+            ):
                 target = d.discover_local()
             assert target.status == "paused"
         finally:
@@ -709,13 +819,17 @@ class TestDiscoverPausedState:
             json.dump({"pid": 12345, "rest_port": 54321}, f)
             f.flush()
             from pathlib import Path
+
             mock_pid.return_value = Path(f.name)
 
         try:
             d = DaemonDiscovery()
-            with mock.patch(
-                "ai_guardian.config_utils.get_config_dir", return_value=config_dir
-            ), mock.patch.object(d, "_probe_daemon", return_value={"paused": False}):
+            with (
+                mock.patch(
+                    "ai_guardian.config_utils.get_config_dir", return_value=config_dir
+                ),
+                mock.patch.object(d, "_probe_daemon", return_value={"paused": False}),
+            ):
                 target = d.discover_local()
             assert target.status == "running"
         finally:
@@ -801,9 +915,9 @@ class TestDiscoverKubernetes:
                 {
                     "metadata": {
                         "name": "guardian-abc12",
-                        "labels": {"app": "ai-guardian", "user": "testuser"}
+                        "labels": {"app": "ai-guardian", "user": "testuser"},
                     },
-                    "status": {"phase": "Running"}
+                    "status": {"phase": "Running"},
                 }
             ]
         }
@@ -840,7 +954,7 @@ class TestDiscoverManual:
                 {
                     "name": "central",
                     "url": "https://guardian.company.com:63152",
-                    "token": "secret123"
+                    "token": "secret123",
                 }
             ]
         }
@@ -850,7 +964,10 @@ class TestDiscoverManual:
             f.flush()
             from pathlib import Path
 
-            with mock.patch("ai_guardian.daemon.discovery.get_tray_targets_path", return_value=Path(f.name)):
+            with mock.patch(
+                "ai_guardian.daemon.discovery.get_tray_targets_path",
+                return_value=Path(f.name),
+            ):
                 targets = d.discover_manual()
 
         os.unlink(f.name)
@@ -868,7 +985,10 @@ class TestDiscoverManual:
             f.flush()
             from pathlib import Path
 
-            with mock.patch("ai_guardian.daemon.discovery.get_tray_targets_path", return_value=Path(f.name)):
+            with mock.patch(
+                "ai_guardian.daemon.discovery.get_tray_targets_path",
+                return_value=Path(f.name),
+            ):
                 targets = d.discover_manual()
 
         os.unlink(f.name)
@@ -886,6 +1006,7 @@ class TestBackgroundDiscovery:
         d.start_background_discovery(lambda t: received.append(t))
 
         import time
+
         time.sleep(0.3)
         d.stop()
 
@@ -909,6 +1030,7 @@ class TestBackgroundDiscovery:
         d.start_background_discovery(lambda t: received.append(t))
 
         import time
+
         time.sleep(0.3)
         d.stop()
 
@@ -922,6 +1044,7 @@ class TestProbeDaemonSocketPreCheck:
     def test_returns_none_on_socket_timeout(self):
         with mock.patch("socket.socket") as mock_socket_cls:
             import socket
+
             mock_sock = mock.MagicMock()
             mock_sock.connect.side_effect = socket.timeout("timed out")
             mock_socket_cls.return_value = mock_sock
@@ -968,9 +1091,11 @@ class TestDiscoverAllParallel:
         local_target = DaemonTarget(name="local", runtime="local")
         manual_targets = [DaemonTarget(name="m1", runtime="manual")]
 
-        with mock.patch.object(d, "discover_local", return_value=local_target) as ml, \
-             mock.patch.object(d, "discover_containers", return_value=[]) as mc, \
-             mock.patch.object(d, "discover_manual", return_value=manual_targets) as mm:
+        with (
+            mock.patch.object(d, "discover_local", return_value=local_target) as ml,
+            mock.patch.object(d, "discover_containers", return_value=[]) as mc,
+            mock.patch.object(d, "discover_manual", return_value=manual_targets) as mm,
+        ):
             results = d.discover_all()
             ml.assert_called_once()
             mc.assert_called_once()
@@ -986,9 +1111,11 @@ class TestDiscoverAllParallel:
         ]
         manual = [DaemonTarget(name="m1", runtime="manual")]
 
-        with mock.patch.object(d, "discover_local", return_value=local), \
-             mock.patch.object(d, "discover_containers", return_value=containers), \
-             mock.patch.object(d, "discover_manual", return_value=manual):
+        with (
+            mock.patch.object(d, "discover_local", return_value=local),
+            mock.patch.object(d, "discover_containers", return_value=containers),
+            mock.patch.object(d, "discover_manual", return_value=manual),
+        ):
             results = d.discover_all()
             names = [t.name for t in results]
             assert "local" in names
@@ -1006,9 +1133,11 @@ class TestDiscoverAllParallel:
             time.sleep(30)
             return []
 
-        with mock.patch.object(d, "discover_local", return_value=local), \
-             mock.patch.object(d, "discover_containers", side_effect=slow_containers), \
-             mock.patch.object(d, "discover_manual", return_value=[]):
+        with (
+            mock.patch.object(d, "discover_local", return_value=local),
+            mock.patch.object(d, "discover_containers", side_effect=slow_containers),
+            mock.patch.object(d, "discover_manual", return_value=[]),
+        ):
             start = time.monotonic()
             results = d.discover_all()
             elapsed = time.monotonic() - start
@@ -1019,29 +1148,35 @@ class TestDiscoverAllParallel:
         d = DaemonDiscovery()
         local = DaemonTarget(name="local", runtime="local")
 
-        with mock.patch.object(d, "discover_local", return_value=local), \
-             mock.patch.object(d, "discover_containers", side_effect=RuntimeError("boom")), \
-             mock.patch.object(d, "discover_manual", return_value=[]):
+        with (
+            mock.patch.object(d, "discover_local", return_value=local),
+            mock.patch.object(
+                d, "discover_containers", side_effect=RuntimeError("boom")
+            ),
+            mock.patch.object(d, "discover_manual", return_value=[]),
+        ):
             results = d.discover_all()
             assert any(t.name == "local" for t in results)
 
     def test_config_disables_containers(self):
-        d = DaemonDiscovery(config={
-            "daemon": {"tray": {"discover_containers": False}}
-        })
+        d = DaemonDiscovery(config={"daemon": {"tray": {"discover_containers": False}}})
         local = DaemonTarget(name="local", runtime="local")
 
-        with mock.patch.object(d, "discover_local", return_value=local), \
-             mock.patch.object(d, "discover_containers") as mc, \
-             mock.patch.object(d, "discover_manual", return_value=[]):
+        with (
+            mock.patch.object(d, "discover_local", return_value=local),
+            mock.patch.object(d, "discover_containers") as mc,
+            mock.patch.object(d, "discover_manual", return_value=[]),
+        ):
             d.discover_all()
             mc.assert_not_called()
 
     def test_local_none_not_appended(self):
         d = DaemonDiscovery()
-        with mock.patch.object(d, "discover_local", return_value=None), \
-             mock.patch.object(d, "discover_containers", return_value=[]), \
-             mock.patch.object(d, "discover_manual", return_value=[]):
+        with (
+            mock.patch.object(d, "discover_local", return_value=None),
+            mock.patch.object(d, "discover_containers", return_value=[]),
+            mock.patch.object(d, "discover_manual", return_value=[]),
+        ):
             results = d.discover_all()
             assert len(results) == 0
 
@@ -1049,9 +1184,11 @@ class TestDiscoverAllParallel:
         d = DaemonDiscovery()
         local = DaemonTarget(name="local", runtime="local")
 
-        with mock.patch.object(d, "discover_local", return_value=local), \
-             mock.patch.object(d, "discover_containers", return_value=[]), \
-             mock.patch.object(d, "discover_manual", return_value=[]):
+        with (
+            mock.patch.object(d, "discover_local", return_value=local),
+            mock.patch.object(d, "discover_containers", return_value=[]),
+            mock.patch.object(d, "discover_manual", return_value=[]),
+        ):
             d.discover_all()
             assert len(d.targets) == 1
             assert d.targets[0].name == "local"

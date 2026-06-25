@@ -1,7 +1,5 @@
 """Tests for pattern server response parsers."""
 
-import pytest
-
 from ai_guardian.patterns.server_parsers import (
     AIGuardianParser,
     GitleaksParser,

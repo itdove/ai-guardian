@@ -6,7 +6,6 @@ Tests the SecretRedactor class and its integration with PostToolUse hook.
 
 import re
 import pytest
-import json
 from ai_guardian.secret_redactor import SecretRedactor
 
 
@@ -28,8 +27,8 @@ class TestSecretRedactor:
         text = "sk-proj-abc123def456ghi789jkl012mno345pqr678stu901vwx"
         result = redactor.redact(text)
 
-        assert result['redacted_text'] == text
-        assert len(result['redactions']) == 0
+        assert result["redacted_text"] == text
+        assert len(result["redactions"]) == 0
 
     def test_openai_api_key_redaction(self):
         """Test redaction of OpenAI API keys."""
@@ -38,11 +37,14 @@ class TestSecretRedactor:
         result = redactor.redact(text)
 
         # Should preserve some prefix and suffix (6 chars + 4 chars)
-        assert "sk-pro..." in result['redacted_text'] or "sk-proj..." in result['redacted_text']
-        assert "abc123def456ghi789" not in result['redacted_text']
-        assert len(result['redactions']) == 1
-        assert result['redactions'][0]['type'] == 'OpenAI Project Key'
-        assert result['redactions'][0]['strategy'] == 'preserve_prefix_suffix'
+        assert (
+            "sk-pro..." in result["redacted_text"]
+            or "sk-proj..." in result["redacted_text"]
+        )
+        assert "abc123def456ghi789" not in result["redacted_text"]
+        assert len(result["redactions"]) == 1
+        assert result["redactions"][0]["type"] == "OpenAI Project Key"
+        assert result["redactions"][0]["strategy"] == "preserve_prefix_suffix"
 
     def test_github_token_redaction(self):
         """Test redaction of GitHub tokens."""
@@ -50,10 +52,10 @@ class TestSecretRedactor:
         text = "Token: ghp_1234567890abcdefghijklmnopqrstuvwxyz"  # notsecret
         result = redactor.redact(text)
 
-        assert "ghp_12...wxyz" in result['redacted_text']
-        assert "1234567890abcdefghijk" not in result['redacted_text']
-        assert len(result['redactions']) == 1
-        assert result['redactions'][0]['type'] == 'GitHub Personal Token'
+        assert "ghp_12...wxyz" in result["redacted_text"]
+        assert "1234567890abcdefghijk" not in result["redacted_text"]
+        assert len(result["redactions"]) == 1
+        assert result["redactions"][0]["type"] == "GitHub Personal Token"
 
     def test_aws_access_key_full_redaction(self):
         """Test that AWS access keys are fully redacted."""
@@ -62,11 +64,11 @@ class TestSecretRedactor:
         result = redactor.redact(text)
 
         # Secret should be completely gone
-        assert "AKIAIOSFODNN7EXAMPLE" not in result['redacted_text']
-        assert len(result['redactions']) == 1
-        assert result['redactions'][0]['strategy'] == 'full_redact'
+        assert "AKIAIOSFODNN7EXAMPLE" not in result["redacted_text"]
+        assert len(result["redactions"]) == 1
+        assert result["redactions"][0]["strategy"] == "full_redact"
         # Should have some replacement text
-        assert "AWS" in result['redacted_text']
+        assert "AWS" in result["redacted_text"]
 
     def test_env_var_redaction(self):
         """Test environment variable assignment redaction."""
@@ -75,9 +77,9 @@ class TestSecretRedactor:
         result = redactor.redact(text)
 
         # Secret value should be gone but variable name preserved
-        assert "wJalrXUtnFEMI" not in result['redacted_text']
-        assert "AWS_SECRET_KEY=" in result['redacted_text']
-        assert len(result['redactions']) >= 1  # May match multiple patterns
+        assert "wJalrXUtnFEMI" not in result["redacted_text"]
+        assert "AWS_SECRET_KEY=" in result["redacted_text"]
+        assert len(result["redactions"]) >= 1  # May match multiple patterns
 
     def test_json_field_redaction(self):
         """Test JSON field redaction preserves structure."""
@@ -86,10 +88,10 @@ class TestSecretRedactor:
         result = redactor.redact(text)
 
         # Secret should be redacted but structure preserved
-        assert '"api_key"' in result['redacted_text']
-        assert "abc123def456" not in result['redacted_text']
+        assert '"api_key"' in result["redacted_text"]
+        assert "abc123def456" not in result["redacted_text"]
         # Should still be valid-looking JSON
-        assert "{" in result['redacted_text'] and "}" in result['redacted_text']
+        assert "{" in result["redacted_text"] and "}" in result["redacted_text"]
 
     def test_connection_string_redaction(self):
         """Test database connection string redaction."""
@@ -98,10 +100,10 @@ class TestSecretRedactor:
         result = redactor.redact(text)
 
         # Password should be redacted but endpoint preserved
-        assert "MySecretPass123" not in result['redacted_text']
-        assert "mongodb://user:" in result['redacted_text']
-        assert "@db.example.com:27017/mydb" in result['redacted_text']
-        assert len(result['redactions']) >= 1
+        assert "MySecretPass123" not in result["redacted_text"]
+        assert "mongodb://user:" in result["redacted_text"]
+        assert "@db.example.com:27017/mydb" in result["redacted_text"]
+        assert len(result["redactions"]) >= 1
 
     def test_bearer_token_redaction(self):
         """Test HTTP Authorization header redaction."""
@@ -109,9 +111,9 @@ class TestSecretRedactor:
         text = "Authorization: Bearer sk-ant-api03-abc123def456ghi789jkl012"
         result = redactor.redact(text)
 
-        assert "Authorization: Bearer" in result['redacted_text']
-        assert "abc123def456" not in result['redacted_text']
-        assert len(result['redactions']) >= 1
+        assert "Authorization: Bearer" in result["redacted_text"]
+        assert "abc123def456" not in result["redacted_text"]
+        assert len(result["redactions"]) >= 1
 
     def test_multiple_secrets_in_output(self):
         """Test redaction of multiple different secrets."""
@@ -124,16 +126,16 @@ class TestSecretRedactor:
         result = redactor.redact(text)
 
         # All secret values should be completely gone
-        assert "1234567890abcdefghijk" not in result['redacted_text']
-        assert "abc123def456ghi789" not in result['redacted_text']
-        assert "AKIAIOSFODNN7EXAMPLE" not in result['redacted_text']
+        assert "1234567890abcdefghijk" not in result["redacted_text"]
+        assert "abc123def456ghi789" not in result["redacted_text"]
+        assert "AKIAIOSFODNN7EXAMPLE" not in result["redacted_text"]
 
         # Context labels should remain
-        assert "GitHub:" in result['redacted_text']
-        assert "OpenAI:" in result['redacted_text']
-        assert "AWS:" in result['redacted_text']
+        assert "GitHub:" in result["redacted_text"]
+        assert "OpenAI:" in result["redacted_text"]
+        assert "AWS:" in result["redacted_text"]
 
-        assert len(result['redactions']) >= 3
+        assert len(result["redactions"]) >= 3
 
     def test_short_secret_handling(self):
         """Test that very short secrets are handled properly."""
@@ -143,7 +145,7 @@ class TestSecretRedactor:
         result = redactor.redact(text)
 
         # Short secrets may not be detected or may be redacted as ***
-        assert len(result['redacted_text']) > 0
+        assert len(result["redacted_text"]) > 0
 
     def test_overlapping_patterns(self):
         """Test that overlapping patterns don't cause issues."""
@@ -152,9 +154,9 @@ class TestSecretRedactor:
         result = redactor.redact(text)
 
         # Should redact either as env var or as GitHub token, but not duplicate
-        assert "1234567890abcdefghijk" not in result['redacted_text']
+        assert "1234567890abcdefghijk" not in result["redacted_text"]
         # Should have at least one redaction
-        assert len(result['redactions']) >= 1
+        assert len(result["redactions"]) >= 1
 
     def test_custom_patterns(self):
         """Test adding custom redaction patterns."""
@@ -163,7 +165,7 @@ class TestSecretRedactor:
                 {
                     "pattern": r"(mycompany_token_[A-Za-z0-9]{20,})",
                     "strategy": "preserve_prefix_suffix",
-                    "type": "Company Token"
+                    "type": "Company Token",
                 }
             ]
         }
@@ -172,8 +174,8 @@ class TestSecretRedactor:
         result = redactor.redact(text)
 
         # Secret middle part should be redacted
-        assert "def456ghi789jkl012" not in result['redacted_text']
-        assert len(result['redactions']) > 0
+        assert "def456ghi789jkl012" not in result["redacted_text"]
+        assert len(result["redactions"]) > 0
 
     def test_private_key_redaction(self):
         """Test that private keys are fully redacted."""
@@ -184,8 +186,8 @@ MIIEpAIBAAKCAQEA1234567890abcdefghijklmno
         result = redactor.redact(text)
 
         # Private key content should be completely gone
-        assert "MIIEpAIBAAKCAQEA" not in result['redacted_text']
-        assert len(result['redactions']) == 1
+        assert "MIIEpAIBAAKCAQEA" not in result["redacted_text"]
+        assert len(result["redactions"]) == 1
 
     def test_anthropic_api_key(self):
         """Test Anthropic API key redaction."""
@@ -194,8 +196,8 @@ MIIEpAIBAAKCAQEA1234567890abcdefghijklmno
         result = redactor.redact(text)
 
         # Should redact the middle part
-        assert "abc123def456ghi789" not in result['redacted_text']
-        assert len(result['redactions']) >= 1
+        assert "abc123def456ghi789" not in result["redacted_text"]
+        assert len(result["redactions"]) >= 1
 
     def test_slack_token(self):
         """Test Slack token redaction."""
@@ -204,8 +206,8 @@ MIIEpAIBAAKCAQEA1234567890abcdefghijklmno
         text = "Slack: xoxb-TEST1234567-TEST1234567890-EXAMPLEEXAMPLEEX"  # notsecret
         result = redactor.redact(text)
 
-        assert "xoxb-" in result['redacted_text']
-        assert "EXAMPLEEXAMPLEEX" not in result['redacted_text']
+        assert "xoxb-" in result["redacted_text"]
+        assert "EXAMPLEEXAMPLEEX" not in result["redacted_text"]
 
     def test_stripe_keys(self):
         """Test Stripe API key redaction."""
@@ -215,27 +217,27 @@ MIIEpAIBAAKCAQEA1234567890abcdefghijklmno
         result = redactor.redact(text)
 
         # Should redact the secret part - middle X's should be gone
-        assert "XXXXXXXXXXXXXXXXXX" not in result['redacted_text']
-        assert len(result['redactions']) >= 1
+        assert "XXXXXXXXXXXXXXXXXX" not in result["redacted_text"]
+        assert len(result["redactions"]) >= 1
 
     def test_redaction_metadata(self):
         """Test that redaction metadata is complete."""
         redactor = SecretRedactor()
-        text = "Token: ghp_1234567890abcdefghijklmnopqrstuvwxyz" # notsecret
+        text = "Token: ghp_1234567890abcdefghijklmnopqrstuvwxyz"  # notsecret
         result = redactor.redact(text)
 
-        assert 'redacted_text' in result
-        assert 'redactions' in result
-        assert 'original_length' in result
-        assert 'redacted_length' in result
+        assert "redacted_text" in result
+        assert "redactions" in result
+        assert "original_length" in result
+        assert "redacted_length" in result
 
-        if len(result['redactions']) > 0:
-            r = result['redactions'][0]
-            assert 'type' in r
-            assert 'position' in r
-            assert 'original_length' in r
-            assert 'redacted_length' in r
-            assert 'strategy' in r
+        if len(result["redactions"]) > 0:
+            r = result["redactions"][0]
+            assert "type" in r
+            assert "position" in r
+            assert "original_length" in r
+            assert "redacted_length" in r
+            assert "strategy" in r
 
     def test_performance(self):
         """Test that redaction is fast enough (<5ms for 10KB)."""
@@ -243,9 +245,11 @@ MIIEpAIBAAKCAQEA1234567890abcdefghijklmno
 
         redactor = SecretRedactor()
         # Create 10KB of text with some secrets
-        text = ("Hello world. " * 100 +
-                "Token: ghp_1234567890abcdefghijklmnopqrstuvwxyz\n" + # notsecret
-                "Some more text. " * 100) * 10 
+        text = (
+            "Hello world. " * 100
+            + "Token: ghp_1234567890abcdefghijklmnopqrstuvwxyz\n"  # notsecret
+            + "Some more text. " * 100
+        ) * 10
 
         start = time.time()
         result = redactor.redact(text)
@@ -253,7 +257,7 @@ MIIEpAIBAAKCAQEA1234567890abcdefghijklmno
 
         # Should complete in under 50ms (relaxed from 5ms for safety)
         assert elapsed < 50, f"Redaction took {elapsed}ms, expected <50ms"
-        assert len(result['redactions']) > 0
+        assert len(result["redactions"]) > 0
 
     def test_action_modes(self):
         """Test different action modes."""
@@ -265,22 +269,21 @@ MIIEpAIBAAKCAQEA1234567890abcdefghijklmno
         redactor_warn = SecretRedactor({"action": "warn"})
         assert redactor_warn.action == "warn"
 
-
     def test_empty_text(self):
         """Test redaction of empty text."""
         redactor = SecretRedactor()
         result = redactor.redact("")
 
-        assert result['redacted_text'] == ""
-        assert len(result['redactions']) == 0
+        assert result["redacted_text"] == ""
+        assert len(result["redactions"]) == 0
 
     def test_none_text(self):
         """Test redaction of None."""
         redactor = SecretRedactor()
         result = redactor.redact(None)
 
-        assert result['redacted_text'] is None
-        assert len(result['redactions']) == 0
+        assert result["redacted_text"] is None
+        assert len(result["redactions"]) == 0
 
     def test_generic_password_assignment_redaction(self):
         """Test password = 'value' assignment detection and redaction."""
@@ -288,9 +291,9 @@ MIIEpAIBAAKCAQEA1234567890abcdefghijklmno
 
         text = 'password = "SuperSecret123!"'
         result = redactor.redact(text)
-        assert "SuperSecret123!" not in result['redacted_text']
-        assert 'password' in result['redacted_text']
-        assert len(result['redactions']) >= 1
+        assert "SuperSecret123!" not in result["redacted_text"]
+        assert "password" in result["redacted_text"]
+        assert len(result["redactions"]) >= 1
 
     def test_generic_password_assignment_case_insensitive(self):
         """Test case-insensitive detection of PASSWORD = 'value'."""
@@ -298,18 +301,24 @@ MIIEpAIBAAKCAQEA1234567890abcdefghijklmno
 
         text = 'PASSWORD = "MySecretValueHere"'
         result = redactor.redact(text)
-        assert "MySecretValueHere" not in result['redacted_text']
+        assert "MySecretValueHere" not in result["redacted_text"]
 
     def test_generic_password_assignment_variants(self):
         """Test db_password, secret_key, api_secret variants."""
         redactor = SecretRedactor()
 
-        for keyword in ['db_password', 'secret_key', 'api_secret', 'passwd', 'db_passwd']:
+        for keyword in [
+            "db_password",
+            "secret_key",
+            "api_secret",
+            "passwd",
+            "db_passwd",
+        ]:
             text = f'{keyword} = "some_long_value_here"'
             result = redactor.redact(text)
-            assert "some_long_value_here" not in result['redacted_text'], (
-                f"Failed to redact {keyword} assignment"
-            )
+            assert (
+                "some_long_value_here" not in result["redacted_text"]
+            ), f"Failed to redact {keyword} assignment"
 
     def test_generic_password_assignment_single_quotes(self):
         """Test single-quoted values: password = 'value'."""
@@ -317,7 +326,7 @@ MIIEpAIBAAKCAQEA1234567890abcdefghijklmno
 
         text = "password = 'SuperSecret123!'"
         result = redactor.redact(text)
-        assert "SuperSecret123!" not in result['redacted_text']
+        assert "SuperSecret123!" not in result["redacted_text"]
 
     def test_generic_password_assignment_no_fp_file_path(self):
         """File paths should NOT trigger generic password assignment."""
@@ -325,7 +334,11 @@ MIIEpAIBAAKCAQEA1234567890abcdefghijklmno
 
         text = 'secret = "/etc/secrets/production.key"'
         result = redactor.redact(text)
-        fp = [r for r in result['redactions'] if r.get('rule_id') == 'generic-password-assignment']
+        fp = [
+            r
+            for r in result["redactions"]
+            if r.get("rule_id") == "generic-password-assignment"
+        ]
         assert len(fp) == 0
 
     def test_generic_password_assignment_no_fp_short(self):
@@ -334,7 +347,11 @@ MIIEpAIBAAKCAQEA1234567890abcdefghijklmno
 
         text = 'password = "short"'
         result = redactor.redact(text)
-        fp = [r for r in result['redactions'] if r.get('rule_id') == 'generic-password-assignment']
+        fp = [
+            r
+            for r in result["redactions"]
+            if r.get("rule_id") == "generic-password-assignment"
+        ]
         assert len(fp) == 0
 
     def test_generic_password_assignment_no_fp_unrelated_key(self):
@@ -343,7 +360,11 @@ MIIEpAIBAAKCAQEA1234567890abcdefghijklmno
 
         text = 'username = "admin_user_here"'
         result = redactor.redact(text)
-        fp = [r for r in result['redactions'] if r.get('rule_id') == 'generic-password-assignment']
+        fp = [
+            r
+            for r in result["redactions"]
+            if r.get("rule_id") == "generic-password-assignment"
+        ]
         assert len(fp) == 0
 
     def test_hex_secret_redaction(self):
@@ -355,9 +376,9 @@ MIIEpAIBAAKCAQEA1234567890abcdefghijklmno
         result = redactor.redact(text)
 
         # Long hex strings with context should be redacted - middle part gone
-        assert "api_secret:" in result['redacted_text']
+        assert "api_secret:" in result["redacted_text"]
         # Should have some redaction
-        assert len(result['redacted_text']) < len(text)
+        assert len(result["redacted_text"]) < len(text)
 
     def test_base64_secret_redaction(self):
         """Test base64 encoded secret redaction with context."""
@@ -367,7 +388,10 @@ MIIEpAIBAAKCAQEA1234567890abcdefghijklmno
         result = redactor.redact(text)
 
         # Long base64 strings with context should be redacted
-        assert "dGhpc2...ZXQ=" in result['redacted_text'] or "token:" in result['redacted_text']
+        assert (
+            "dGhpc2...ZXQ=" in result["redacted_text"]
+            or "token:" in result["redacted_text"]
+        )
 
 
 class TestSecretRedactionIntegration:
@@ -396,30 +420,32 @@ class TestSecretRedactionIntegration:
         result = redactor.redact(text)
 
         # Non-secret values should be preserved
-        assert "AWS_REGION=us-east-1" in result['redacted_text']
-        assert "AWS_DEFAULT_OUTPUT=json" in result['redacted_text']
+        assert "AWS_REGION=us-east-1" in result["redacted_text"]
+        assert "AWS_DEFAULT_OUTPUT=json" in result["redacted_text"]
 
         # Secret values should be gone
-        assert "AKIAIOSFODNN7EXAMPLE" not in result['redacted_text']
-        assert "wJalrXUtnFEMI" not in result['redacted_text']
+        assert "AKIAIOSFODNN7EXAMPLE" not in result["redacted_text"]
+        assert "wJalrXUtnFEMI" not in result["redacted_text"]
 
     def test_log_file_with_buried_secret(self):
         """Test finding a secret buried in log output."""
         redactor = SecretRedactor()
         # Simulate a large log file with one secret
         log_lines = ["[INFO] Application started"] * 100
-        log_lines[50] = "[DEBUG] API_KEY=sk-proj-abc123def456ghi789jkl012mno345pqr678stu901vwx"  # notsecret
+        log_lines[50] = (
+            "[DEBUG] API_KEY=sk-proj-abc123def456ghi789jkl012mno345pqr678stu901vwx"  # notsecret
+        )
         log_lines += ["[INFO] Processing request"] * 100
 
         text = "\n".join(log_lines)
         result = redactor.redact(text)
 
         # Should find and redact the secret - check middle is gone
-        assert "abc123def456ghi789" not in result['redacted_text']
+        assert "abc123def456ghi789" not in result["redacted_text"]
 
         # Other log lines should be preserved
-        assert "[INFO] Application started" in result['redacted_text']
-        assert "[INFO] Processing request" in result['redacted_text']
+        assert "[INFO] Application started" in result["redacted_text"]
+        assert "[INFO] Processing request" in result["redacted_text"]
 
     def test_config_file_review(self):
         """Test reviewing a config file with secrets."""
@@ -438,14 +464,14 @@ class TestSecretRedactionIntegration:
         result = redactor.redact(text)
 
         # Can see structure
-        assert "database:" in result['redacted_text']
-        assert "host: prod-db.example.com" in result['redacted_text']
-        assert "port: 5432" in result['redacted_text']
-        assert "endpoint: https://api.example.com" in result['redacted_text']
+        assert "database:" in result["redacted_text"]
+        assert "host: prod-db.example.com" in result["redacted_text"]
+        assert "port: 5432" in result["redacted_text"]
+        assert "endpoint: https://api.example.com" in result["redacted_text"]
 
         # Secrets are hidden
-        assert "MySecretPass123" not in result['redacted_text']
-        assert "abc123def456" not in result['redacted_text']
+        assert "MySecretPass123" not in result["redacted_text"]
+        assert "abc123def456" not in result["redacted_text"]
 
 
 class TestGitHubStatelessJWTTokens:
@@ -461,70 +487,80 @@ class TestGitHubStatelessJWTTokens:
     def redactor(self):
         return SecretRedactor()
 
-    @pytest.mark.parametrize("prefix,token_type", [
-        ("ghp_", "GitHub Personal Token"),
-        ("gho_", "GitHub OAuth Token"),
-        ("ghr_", "GitHub Refresh Token"),
-        ("ghs_", "GitHub Secret Token"),
-    ])
+    @pytest.mark.parametrize(
+        "prefix,token_type",
+        [
+            ("ghp_", "GitHub Personal Token"),
+            ("gho_", "GitHub OAuth Token"),
+            ("ghr_", "GitHub Refresh Token"),
+            ("ghs_", "GitHub Secret Token"),
+        ],
+    )
     def test_old_stateful_format(self, redactor, prefix, token_type):
         """Old stateful tokens (alphanumeric only) still match."""
         token = prefix + "A" * 36  # notsecret
         result = redactor.redact(f"Token: {token}")
-        assert len(result['redactions']) >= 1
-        found = any(r['type'] == token_type for r in result['redactions'])
+        assert len(result["redactions"]) >= 1
+        found = any(r["type"] == token_type for r in result["redactions"])
         assert found, f"Expected {token_type} detection for old format"
-        assert "A" * 20 not in result['redacted_text']
+        assert "A" * 20 not in result["redacted_text"]
 
-    @pytest.mark.parametrize("prefix,token_type", [
-        ("ghp_", "GitHub Personal Token"),
-        ("gho_", "GitHub OAuth Token"),
-        ("ghr_", "GitHub Refresh Token"),
-        ("ghs_", "GitHub Secret Token"),
-    ])
+    @pytest.mark.parametrize(
+        "prefix,token_type",
+        [
+            ("ghp_", "GitHub Personal Token"),
+            ("gho_", "GitHub OAuth Token"),
+            ("ghr_", "GitHub Refresh Token"),
+            ("ghs_", "GitHub Secret Token"),
+        ],
+    )
     def test_new_stateless_jwt_format(self, redactor, prefix, token_type):
         """New stateless JWT tokens (with dots, hyphens, underscores) are detected."""
         # Simulates ghs_12345_eyJhbGciOi...base64url...  (~100 chars)
-        jwt_payload = "eyJhbGciOiJSUzI1NiJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.dGVzdHNpZ25hdHVyZQ"
+        jwt_payload = (
+            "eyJhbGciOiJSUzI1NiJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.dGVzdHNpZ25hdHVyZQ"
+        )
         token = prefix + "12345_" + jwt_payload  # notsecret
         result = redactor.redact(f"Token: {token}")
-        assert len(result['redactions']) >= 1
-        found = any(r['type'] == token_type for r in result['redactions'])
+        assert len(result["redactions"]) >= 1
+        found = any(r["type"] == token_type for r in result["redactions"])
         assert found, f"Expected {token_type} detection for JWT format"
-        assert jwt_payload not in result['redacted_text']
+        assert jwt_payload not in result["redacted_text"]
 
     def test_ghs_real_world_jwt_length(self, redactor):
         """New ghs_ tokens can be ~520 chars long with full JWT payload."""
         header = "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9"
-        payload = "eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiYWRtaW4iOnRydWV9." * 3
+        payload = (
+            "eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiYWRtaW4iOnRydWV9." * 3
+        )
         sig = "dGVzdHNpZ25hdHVyZWRhdGFmb3J0ZXN0aW5n"
         token = f"ghs_12345_{header}.{payload}{sig}"  # notsecret
         result = redactor.redact(f"Token: {token}")
-        assert len(result['redactions']) >= 1
-        found = any(r['type'] == "GitHub Secret Token" for r in result['redactions'])
+        assert len(result["redactions"]) >= 1
+        found = any(r["type"] == "GitHub Secret Token" for r in result["redactions"])
         assert found
-        assert header not in result['redacted_text']
+        assert header not in result["redacted_text"]
 
     def test_dots_and_hyphens_in_token(self, redactor):
         """Dots, hyphens, and underscores in the token body are matched."""
         token = "ghs_abc-def.ghi_jkl.mno-pqr.stu_vwx.yza-bcd"  # notsecret
         result = redactor.redact(f"Token: {token}")
-        assert len(result['redactions']) >= 1
-        found = any(r['type'] == "GitHub Secret Token" for r in result['redactions'])
+        assert len(result["redactions"]) >= 1
+        found = any(r["type"] == "GitHub Secret Token" for r in result["redactions"])
         assert found
 
     def test_short_token_no_match(self, redactor):
         """Tokens shorter than 36 chars after prefix should not match."""
         token = "ghs_short"  # notsecret - too short
         result = redactor.redact(f"Token: {token}")
-        github_hits = [r for r in result['redactions'] if "GitHub" in r['type']]
+        github_hits = [r for r in result["redactions"] if "GitHub" in r["type"]]
         assert len(github_hits) == 0
 
     def test_non_token_with_dots_no_false_positive(self, redactor):
         """Non-token strings containing dots should not be falsely detected."""
         text = "The file is at path/to/some.file.name.txt"
         result = redactor.redact(text)
-        github_hits = [r for r in result['redactions'] if "GitHub" in r['type']]
+        github_hits = [r for r in result["redactions"] if "GitHub" in r["type"]]
         assert len(github_hits) == 0
 
 
@@ -533,14 +569,17 @@ class TestTomlOnlyPatternLoading:
 
     def test_patterns_loaded_from_toml_not_hardcoded(self):
         """Patterns are loaded from TOML files, not hardcoded on the class."""
-        assert not hasattr(SecretRedactor, 'PATTERNS'), \
-            "Hardcoded PATTERNS class attribute should be removed (Issue #841)"
-        assert not hasattr(SecretRedactor, 'PII_PATTERNS'), \
-            "Hardcoded PII_PATTERNS class attribute should be removed (Issue #841)"
+        assert not hasattr(
+            SecretRedactor, "PATTERNS"
+        ), "Hardcoded PATTERNS class attribute should be removed (Issue #841)"
+        assert not hasattr(
+            SecretRedactor, "PII_PATTERNS"
+        ), "Hardcoded PII_PATTERNS class attribute should be removed (Issue #841)"
 
     def test_valid_cc_prefixes_still_present(self):
         """VALID_CC_PREFIXES is validation data and must remain."""
         from ai_guardian.patterns.validators import VALID_CC_PREFIXES
+
         assert isinstance(VALID_CC_PREFIXES, tuple)
         assert len(VALID_CC_PREFIXES) > 0
 
@@ -570,12 +609,11 @@ class TestTomlOnlyPatternLoading:
         missing_files = dict(patterns_mod.BUNDLED_FILES)
         missing_files["pii"] = Path("/nonexistent/pii.toml")
         with patch.dict(patterns_mod.BUNDLED_FILES, missing_files):
-            pii_config = {'enabled': True, 'pii_types': ['ssn'], 'action': 'redact'}
+            pii_config = {"enabled": True, "pii_types": ["ssn"], "action": "redact"}
             redactor = SecretRedactor(pii_config=pii_config)
             text = "SSN: 123-45-6789"
             result = redactor.redact(text)
-            assert "123-45-6789" in result['redacted_text']
-
+            assert "123-45-6789" in result["redacted_text"]
 
 
 class TestPositionDriftRegression:
@@ -621,10 +659,7 @@ class TestPositionDriftRegression:
     def test_shorter_replacement_no_drift(self):
         """When redacted text is shorter than original, later positions stay correct."""
         redactor = SecretRedactor(config={"enabled": True})
-        text = (
-            "KEY1=AKIAIOSFODNN7EXAMPLE1 "
-            "KEY2=AKIAIOSFODNN7EXAMPLE2"
-        )  # notsecret
+        text = "KEY1=AKIAIOSFODNN7EXAMPLE1 " "KEY2=AKIAIOSFODNN7EXAMPLE2"  # notsecret
         result = redactor.redact(text)
         out = result["redacted_text"]
 
@@ -684,7 +719,7 @@ class TestPositionFromOriginalText:
         for r in result["redactions"]:
             pos = r["position"]
             length = r["original_length"]
-            extracted = text[pos:pos + length]
+            extracted = text[pos : pos + length]
             assert len(extracted) == length
             assert "\n" not in extracted or r["type"] in ("private_key",)
 
@@ -700,7 +735,7 @@ class TestPositionFromOriginalText:
         for r in result["redactions"]:
             pos = r["position"]
             length = r["original_length"]
-            extracted = text[pos:pos + length]
+            extracted = text[pos : pos + length]
             if "ghp_" in extracted or extracted.startswith("AKIA"):
                 assert len(extracted) == length
 
@@ -716,7 +751,9 @@ class TestPositionFromOriginalText:
 
         line_numbers = {r["type"]: r["line_number"] for r in result["redactions"]}
         for secret_type, line_num in line_numbers.items():
-            pos = next(r["position"] for r in result["redactions"] if r["type"] == secret_type)
+            pos = next(
+                r["position"] for r in result["redactions"] if r["type"] == secret_type
+            )
             expected_line = text[:pos].count("\n") + 1
             assert line_num == expected_line
 
@@ -773,30 +810,42 @@ class TestPerRuleRegexFlags:
 
     def test_dict_pattern_case_sensitive_by_default(self):
         """Dict-format pattern without flags is case-sensitive (no IGNORECASE)."""
-        redactor = SecretRedactor(config={
-            "enabled": True,
-            "additional_patterns": [{
-                "pattern": r"EXACT_SECRET_[A-Z]{20}",
-                "strategy": "full_redact",
-                "type": "Test Case-Sensitive Secret",
-            }],
-        })
+        redactor = SecretRedactor(
+            config={
+                "enabled": True,
+                "additional_patterns": [
+                    {
+                        "pattern": r"EXACT_SECRET_[A-Z]{20}",
+                        "strategy": "full_redact",
+                        "type": "Test Case-Sensitive Secret",
+                    }
+                ],
+            }
+        )
         text = "exact_secret_abcdefghijklmnopqrst"
         result = redactor.redact(text)
-        test_hits = [r for r in result["redactions"] if r["type"] == "Test Case-Sensitive Secret"]
-        assert len(test_hits) == 0, "Case-sensitive pattern should NOT match lowercase input"
+        test_hits = [
+            r for r in result["redactions"] if r["type"] == "Test Case-Sensitive Secret"
+        ]
+        assert (
+            len(test_hits) == 0
+        ), "Case-sensitive pattern should NOT match lowercase input"
 
     def test_dict_pattern_case_insensitive_flag(self):
         """Dict-format pattern with case_insensitive: True matches lowercase."""
-        redactor = SecretRedactor(config={
-            "enabled": True,
-            "additional_patterns": [{
-                "pattern": r"EXACT_SECRET_[A-Z]{20}",
-                "strategy": "full_redact",
-                "type": "Test CI Secret",
-                "case_insensitive": True,
-            }],
-        })
+        redactor = SecretRedactor(
+            config={
+                "enabled": True,
+                "additional_patterns": [
+                    {
+                        "pattern": r"EXACT_SECRET_[A-Z]{20}",
+                        "strategy": "full_redact",
+                        "type": "Test CI Secret",
+                        "case_insensitive": True,
+                    }
+                ],
+            }
+        )
         text = "exact_secret_abcdefghijklmnopqrst"
         result = redactor.redact(text)
         test_hits = [r for r in result["redactions"] if r["type"] == "Test CI Secret"]
@@ -804,23 +853,28 @@ class TestPerRuleRegexFlags:
 
     def test_dict_pattern_flags_i_matches_lowercase(self):
         """Dict-format pattern with flags: 'i' matches lowercase."""
-        redactor = SecretRedactor(config={
-            "enabled": True,
-            "additional_patterns": [{
-                "pattern": r"EXACT_SECRET_[A-Z]{20}",
-                "strategy": "full_redact",
-                "type": "Test Flags-I Secret",
-                "flags": "i",
-            }],
-        })
+        redactor = SecretRedactor(
+            config={
+                "enabled": True,
+                "additional_patterns": [
+                    {
+                        "pattern": r"EXACT_SECRET_[A-Z]{20}",
+                        "strategy": "full_redact",
+                        "type": "Test Flags-I Secret",
+                        "flags": "i",
+                    }
+                ],
+            }
+        )
         text = "exact_secret_abcdefghijklmnopqrst"
         result = redactor.redact(text)
-        test_hits = [r for r in result["redactions"] if r["type"] == "Test Flags-I Secret"]
+        test_hits = [
+            r for r in result["redactions"] if r["type"] == "Test Flags-I Secret"
+        ]
         assert len(test_hits) == 1
 
     def test_tuple_format_keeps_ignorecase(self):
         """Tuple-format patterns still get IGNORECASE|MULTILINE (backward compat)."""
-        from unittest.mock import patch
 
         redactor = SecretRedactor.__new__(SecretRedactor)
         redactor.config = {"enabled": True}
@@ -834,11 +888,12 @@ class TestPerRuleRegexFlags:
 
         text = "tuple_secret_abcdefghijklmnopqrst"
         result = redactor.redact(text)
-        assert len(result["redactions"]) == 1, "Tuple pattern with IGNORECASE should match lowercase"
+        assert (
+            len(result["redactions"]) == 1
+        ), "Tuple pattern with IGNORECASE should match lowercase"
 
     def test_detection_redaction_flag_parity(self):
         """Detection (toml_parser) and redaction use same flag logic for dict patterns."""
-        from ai_guardian.patterns.toml_parser import load_and_compile
 
         pattern_info = {
             "regex": r"MY_SPECIAL_TOKEN_[A-Z]{20}",

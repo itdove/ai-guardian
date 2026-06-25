@@ -4,7 +4,6 @@ Tests the SecretValidator module which validates detected secrets against
 provider APIs to determine if they're still active.
 """
 
-import pytest
 from unittest.mock import patch, MagicMock
 
 from ai_guardian.scanners.secret_validator import (
@@ -127,6 +126,7 @@ class TestGitHubTokenValidator:
     @patch("ai_guardian.scanners.secret_validator.requests.get")
     def test_network_error(self, mock_get):
         import requests
+
         mock_get.side_effect = requests.ConnectionError("Connection refused")
         result = _validate_github_token("ghp_faketoken12345678901234567890123456", 3.0)
         assert result.status == ValidationStatus.UNVERIFIED
@@ -155,13 +155,17 @@ class TestAnthropicKeyValidator:
     @patch("ai_guardian.scanners.secret_validator.requests.get")
     def test_active_key(self, mock_get):
         mock_get.return_value = MagicMock(status_code=200)
-        result = _validate_anthropic_key("sk-ant-fakeanth12345678901234567890123456789", 3.0)
+        result = _validate_anthropic_key(
+            "sk-ant-fakeanth12345678901234567890123456789", 3.0
+        )
         assert result.status == ValidationStatus.VERIFIED
 
     @patch("ai_guardian.scanners.secret_validator.requests.get")
     def test_revoked_key(self, mock_get):
         mock_get.return_value = MagicMock(status_code=401)
-        result = _validate_anthropic_key("sk-ant-fakeanth12345678901234567890123456789", 3.0)
+        result = _validate_anthropic_key(
+            "sk-ant-fakeanth12345678901234567890123456789", 3.0
+        )
         assert result.status == ValidationStatus.INACTIVE
 
 
@@ -193,13 +197,17 @@ class TestGitLabTokenValidator:
     @patch("ai_guardian.scanners.secret_validator.requests.get")
     def test_active_token(self, mock_get):
         mock_get.return_value = MagicMock(status_code=200)
-        result = _validate_gitlab_token("glpat-fakegitlabtoken123456789", 3.0)  # notsecret
+        result = _validate_gitlab_token(
+            "glpat-fakegitlabtoken123456789", 3.0
+        )  # notsecret
         assert result.status == ValidationStatus.VERIFIED
 
     @patch("ai_guardian.scanners.secret_validator.requests.get")
     def test_revoked_token(self, mock_get):
         mock_get.return_value = MagicMock(status_code=401)
-        result = _validate_gitlab_token("glpat-fakegitlabtoken123456789", 3.0)  # notsecret
+        result = _validate_gitlab_token(
+            "glpat-fakegitlabtoken123456789", 3.0
+        )  # notsecret
         assert result.status == ValidationStatus.INACTIVE
 
 
@@ -349,7 +357,9 @@ class TestSecretValidator:
 
     def test_validate_secret_no_validator(self):
         validator = SecretValidator(config={"validate_secrets": True})
-        result = validator.validate_secret("aws-access-key", "AKIAIOSFODNN7EXAMPLE")  # notsecret
+        result = validator.validate_secret(
+            "aws-access-key", "AKIAIOSFODNN7EXAMPLE"
+        )  # notsecret
         assert result.status == ValidationStatus.UNVERIFIED
         assert "No validator" in result.message
 
@@ -404,10 +414,16 @@ class TestSecretValidatorBatch:
         mock_get.return_value = MagicMock(status_code=401)
         validator = SecretValidator(config={"validate_secrets": True})
         secrets = [
-            {"rule_id": "github-personal-token", "line_number": 1, "secret": "ghp_fake123"},  # notsecret
+            {
+                "rule_id": "github-personal-token",
+                "line_number": 1,
+                "secret": "ghp_fake123",
+            },  # notsecret
             {"rule_id": "aws-access-key", "line_number": 2},
         ]
-        results = validator.validate_secrets(secrets, "ghp_fake123\nAKIA1234")  # notsecret
+        results = validator.validate_secrets(
+            secrets, "ghp_fake123\nAKIA1234"
+        )  # notsecret
         assert len(results) == 2
         assert results[0].status == ValidationStatus.INACTIVE  # GitHub validated
         assert results[1].status == ValidationStatus.UNVERIFIED  # AWS no validator
@@ -423,8 +439,12 @@ class TestFilterInactive:
             {"rule_id": "openai-api-key", "line_number": 2},
         ]
         results = [
-            ValidationResult(status=ValidationStatus.VERIFIED, rule_id="github-personal-token"),
-            ValidationResult(status=ValidationStatus.VERIFIED, rule_id="openai-api-key"),
+            ValidationResult(
+                status=ValidationStatus.VERIFIED, rule_id="github-personal-token"
+            ),
+            ValidationResult(
+                status=ValidationStatus.VERIFIED, rule_id="openai-api-key"
+            ),
         ]
         active, inactive = validator.filter_inactive(secrets, results)
         assert len(active) == 2
@@ -437,8 +457,12 @@ class TestFilterInactive:
             {"rule_id": "openai-api-key", "line_number": 2},
         ]
         results = [
-            ValidationResult(status=ValidationStatus.INACTIVE, rule_id="github-personal-token"),
-            ValidationResult(status=ValidationStatus.INACTIVE, rule_id="openai-api-key"),
+            ValidationResult(
+                status=ValidationStatus.INACTIVE, rule_id="github-personal-token"
+            ),
+            ValidationResult(
+                status=ValidationStatus.INACTIVE, rule_id="openai-api-key"
+            ),
         ]
         active, inactive = validator.filter_inactive(secrets, results)
         assert len(active) == 0
@@ -451,8 +475,12 @@ class TestFilterInactive:
             {"rule_id": "openai-api-key", "line_number": 2},
         ]
         results = [
-            ValidationResult(status=ValidationStatus.VERIFIED, rule_id="github-personal-token"),
-            ValidationResult(status=ValidationStatus.INACTIVE, rule_id="openai-api-key"),
+            ValidationResult(
+                status=ValidationStatus.VERIFIED, rule_id="github-personal-token"
+            ),
+            ValidationResult(
+                status=ValidationStatus.INACTIVE, rule_id="openai-api-key"
+            ),
         ]
         active, inactive = validator.filter_inactive(secrets, results)
         assert len(active) == 1
@@ -476,6 +504,7 @@ class TestApplySecretValidation:
 
     def test_disabled_returns_none(self):
         from ai_guardian.hook_processing import _apply_secret_validation
+
         result = _apply_secret_validation(
             {"validate_secrets": False},
             [{"rule_id": "github-personal-token", "line_number": 1}],
@@ -485,11 +514,13 @@ class TestApplySecretValidation:
 
     def test_no_config_returns_none(self):
         from ai_guardian.hook_processing import _apply_secret_validation
+
         result = _apply_secret_validation(None, [], "")
         assert result is None
 
     def test_no_secrets_returns_none(self):
         from ai_guardian.hook_processing import _apply_secret_validation
+
         result = _apply_secret_validation(
             {"validate_secrets": True},
             [],
@@ -499,6 +530,7 @@ class TestApplySecretValidation:
 
     def test_no_validators_returns_unverified(self):
         from ai_guardian.hook_processing import _apply_secret_validation
+
         result = _apply_secret_validation(
             {"validate_secrets": True},
             [{"rule_id": "aws-access-key", "line_number": 1}],
@@ -511,10 +543,17 @@ class TestApplySecretValidation:
     @patch("ai_guardian.scanners.secret_validator.requests.get")
     def test_all_inactive_returns_skip_block(self, mock_get):
         from ai_guardian.hook_processing import _apply_secret_validation
+
         mock_get.return_value = MagicMock(status_code=401)
         result = _apply_secret_validation(
             {"validate_secrets": True, "on_inactive": "warn"},
-            [{"rule_id": "github-personal-token", "line_number": 1, "secret": "ghp_revoked"}],  # notsecret
+            [
+                {
+                    "rule_id": "github-personal-token",
+                    "line_number": 1,
+                    "secret": "ghp_revoked",
+                }
+            ],  # notsecret
             "ghp_revoked",
         )
         assert result is not None
@@ -524,10 +563,17 @@ class TestApplySecretValidation:
     @patch("ai_guardian.scanners.secret_validator.requests.get")
     def test_active_secret_returns_no_skip(self, mock_get):
         from ai_guardian.hook_processing import _apply_secret_validation
+
         mock_get.return_value = MagicMock(status_code=200)
         result = _apply_secret_validation(
             {"validate_secrets": True},
-            [{"rule_id": "github-personal-token", "line_number": 1, "secret": "ghp_active"}],  # notsecret
+            [
+                {
+                    "rule_id": "github-personal-token",
+                    "line_number": 1,
+                    "secret": "ghp_active",
+                }
+            ],  # notsecret
             "ghp_active",
         )
         assert result is not None
@@ -540,6 +586,7 @@ class TestSecretMatchValidationStatus:
 
     def test_default_is_unverified(self):
         from ai_guardian.scanners.strategies import SecretMatch
+
         match = SecretMatch(
             rule_id="test",
             description="test secret",
@@ -550,6 +597,7 @@ class TestSecretMatchValidationStatus:
 
     def test_can_set_verified(self):
         from ai_guardian.scanners.strategies import SecretMatch
+
         match = SecretMatch(
             rule_id="test",
             description="test secret",
@@ -561,6 +609,7 @@ class TestSecretMatchValidationStatus:
 
     def test_can_set_inactive(self):
         from ai_guardian.scanners.strategies import SecretMatch
+
         match = SecretMatch(
             rule_id="test",
             description="test secret",

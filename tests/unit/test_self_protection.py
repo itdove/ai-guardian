@@ -24,23 +24,28 @@ def policy_checker():
 
 WRITE_BLOCKED_PATHS = [
     pytest.param(
-        "/home/user/.config/ai-guardian/ai-guardian.json", None,
+        "/home/user/.config/ai-guardian/ai-guardian.json",
+        None,
         id="user-config-file",
     ),
     pytest.param(
-        "/home/user/my-project/.ai-guardian.json", None,
+        "/home/user/my-project/.ai-guardian.json",
+        None,
         id="project-config-file",
     ),
     pytest.param(
-        "/tmp/test-ai-guardian.json", None,
+        "/tmp/test-ai-guardian.json",
+        None,
         id="any-ai-guardian-json",
     ),
     pytest.param(
-        "/home/user/.cursor/hooks.json", None,
+        "/home/user/.cursor/hooks.json",
+        None,
         id="cursor-hooks",
     ),
     pytest.param(
-        "/usr/lib/python3.12/site-packages/ai_guardian/tool_policy.py", None,
+        "/usr/lib/python3.12/site-packages/ai_guardian/tool_policy.py",
+        None,
         id="package-source-site-packages",
     ),
 ]
@@ -71,18 +76,22 @@ def test_write_blocks_protected_path(policy_checker, file_path, content):
 WRITE_BLOCKED_WITH_HOOKS_CONTENT = [
     pytest.param(
         "/home/user/.claude/settings.json",
-        json.dumps({
-            "hooks": {"PreToolUse": [{"matcher": "*", "hooks": []}]},
-            "model": "claude-sonnet-4-5-20250514",
-        }),
+        json.dumps(
+            {
+                "hooks": {"PreToolUse": [{"matcher": "*", "hooks": []}]},
+                "model": "claude-sonnet-4-5-20250514",
+            }
+        ),
         id="claude-settings-with-hooks",
     ),
     pytest.param(
         "C:/Users/user/AppData/Roaming/Claude/settings.json",
-        json.dumps({
-            "hooks": {"PreToolUse": [{"matcher": "*"}]},
-            "model": "claude-sonnet-4-5-20250514",
-        }),
+        json.dumps(
+            {
+                "hooks": {"PreToolUse": [{"matcher": "*"}]},
+                "model": "claude-sonnet-4-5-20250514",
+            }
+        ),
         id="windows-claude-settings-with-hooks",
     ),
 ]
@@ -112,12 +121,14 @@ def test_write_blocks_settings_with_hooks(policy_checker, file_path, content):
 EDIT_BLOCKED_PATHS = [
     pytest.param(
         "/home/user/.config/ai-guardian/ai-guardian.json",
-        '"enabled": true', '"enabled": false',
+        '"enabled": true',
+        '"enabled": false',
         id="user-config-file",
     ),
     pytest.param(
         "/usr/lib/python3.12/site-packages/ai_guardian/tool_policy.py",
-        "IMMUTABLE_DENY_PATTERNS", "DISABLED",
+        "IMMUTABLE_DENY_PATTERNS",
+        "DISABLED",
         id="package-source",
     ),
 ]
@@ -153,9 +164,9 @@ def test_edit_blocks_claude_settings_hooks(policy_checker):
             "input": {
                 "file_path": "/home/user/.claude/settings.json",
                 "old_string": '"hooks": {"PreToolUse": []}',
-                "new_string": '"hooks": {}'
-            }
-        }
+                "new_string": '"hooks": {}',
+            },
+        },
     }
 
     is_allowed, error_msg, tool_name = policy_checker.check_tool_allowed(hook_data)
@@ -175,7 +186,7 @@ BASH_BLOCKED_COMMANDS = [
         id="sed-on-config",
     ),
     pytest.param(
-        "awk '{gsub(/enabled\":true/, \"enabled\":false\")}1' ai-guardian.json > tmp && mv tmp ai-guardian.json",
+        'awk \'{gsub(/enabled":true/, "enabled":false")}1\' ai-guardian.json > tmp && mv tmp ai-guardian.json',
         id="awk-on-config",
     ),
     # sed on Claude settings and package source
@@ -338,9 +349,9 @@ def test_edit_blocks_ai_read_deny_marker(policy_checker):
             "input": {
                 "file_path": "/home/user/secrets/.ai-read-deny",
                 "old_string": "",
-                "new_string": "test"
-            }
-        }
+                "new_string": "test",
+            },
+        },
     }
 
     is_allowed, error_msg, tool_name = policy_checker.check_tool_allowed(hook_data)
@@ -390,31 +401,38 @@ def test_bash_blocks_ai_read_deny(policy_checker, command):
 
 WRITE_ALLOWED_PATHS = [
     pytest.param(
-        "/home/user/my-project/src/main.py", None,
+        "/home/user/my-project/src/main.py",
+        None,
         id="normal-file",
     ),
     pytest.param(
-        "/home/user/my_ai_guardian_project/src/main.py", None,
+        "/home/user/my_ai_guardian_project/src/main.py",
+        None,
         id="user-project-ai-guardian-in-name",
     ),
     pytest.param(
-        "/home/user/backup_ai_guardian_configs/settings.json", None,
+        "/home/user/backup_ai_guardian_configs/settings.json",
+        None,
         id="backup-dir-ai-guardian",
     ),
     pytest.param(
-        "/home/user/projects/ai_guardian_tutorial/example.py", None,
+        "/home/user/projects/ai_guardian_tutorial/example.py",
+        None,
         id="tutorial-dir-ai-guardian",
     ),
     pytest.param(
-        "/home/user/my-project/docs/ai-guardian-setup.md", None,
+        "/home/user/my-project/docs/ai-guardian-setup.md",
+        None,
         id="doc-file-mentioning-ai-guardian-issue-188",
     ),
     pytest.param(
-        "/home/user/ai-guardian/src/ai_guardian/__main__.py", "# Modified source",
+        "/home/user/ai-guardian/src/ai_guardian/__main__.py",
+        "# Modified source",
         id="dev-source-main",
     ),
     pytest.param(
-        "/home/user/ai-guardian/src/ai_guardian/__init__.py", "# Modified source",
+        "/home/user/ai-guardian/src/ai_guardian/__init__.py",
+        "# Modified source",
         id="dev-source-init",
     ),
 ]
@@ -441,17 +459,20 @@ def test_write_allows_non_protected(policy_checker, file_path, content):
 EDIT_ALLOWED_CASES = [
     pytest.param(
         "/home/user/my-project/README.md",
-        "old", "new",
+        "old",
+        "new",
         id="normal-file",
     ),
     pytest.param(
         "/home/user/my_ai_guardian_project/config.py",
-        "DEBUG = False", "DEBUG = True",
+        "DEBUG = False",
+        "DEBUG = True",
         id="user-project-ai-guardian-in-name",
     ),
     pytest.param(
         "/home/user/my-project/docs/tools.md",
-        "ai-guardian v1.0", "ai-guardian v1.1",
+        "ai-guardian v1.0",
+        "ai-guardian v1.1",
         id="user-file-ai-guardian-content-issue-188",
     ),
 ]
@@ -535,10 +556,17 @@ def test_bash_allows_command(policy_checker, command):
 READ_BLOCKED_PATHS = [
     pytest.param("/home/user/.config/ai-guardian/ai-guardian.json", id="user-config"),
     pytest.param("/home/user/my-project/.ai-guardian.json", id="project-config"),
-    pytest.param("/home/user/.config/ai-guardian/profiles/default.json", id="config-directory"),
-    pytest.param("/home/user/.local/state/ai-guardian/violations.jsonl", id="state-directory"),
+    pytest.param(
+        "/home/user/.config/ai-guardian/profiles/default.json", id="config-directory"
+    ),
+    pytest.param(
+        "/home/user/.local/state/ai-guardian/violations.jsonl", id="state-directory"
+    ),
     pytest.param("/home/user/.local/state/ai-guardian/ai-guardian.log", id="state-log"),
-    pytest.param("/home/user/.local/state/ai-guardian/transcript_positions.json", id="state-transcript-positions"),
+    pytest.param(
+        "/home/user/.local/state/ai-guardian/transcript_positions.json",
+        id="state-transcript-positions",
+    ),
     pytest.param("/home/user/.cache/ai-guardian/patterns.toml", id="cache-directory"),
 ]
 
@@ -558,7 +586,9 @@ def test_read_blocks_protected_path(policy_checker, file_path):
 
 READ_ALLOWED_PATHS = [
     pytest.param("/home/user/my-project/src/main.py", id="normal-file"),
-    pytest.param("/home/user/ai-guardian/src/ai_guardian/__init__.py", id="development-source"),
+    pytest.param(
+        "/home/user/ai-guardian/src/ai_guardian/__init__.py", id="development-source"
+    ),
 ]
 
 
@@ -580,6 +610,7 @@ def test_read_allows_non_protected(policy_checker, file_path):
 # Test: Error messages are clear
 # ============================================================================
 
+
 def test_error_message_format(policy_checker):
     """Error messages should be clear and helpful"""
     hook_data = {
@@ -589,9 +620,9 @@ def test_error_message_format(policy_checker):
             "input": {
                 "file_path": "/home/user/.config/ai-guardian/ai-guardian.json",
                 "old_string": "test",
-                "new_string": "test2"
-            }
-        }
+                "new_string": "test2",
+            },
+        },
     }
 
     is_allowed, error_msg, tool_name = policy_checker.check_tool_allowed(hook_data)
@@ -616,9 +647,9 @@ def test_error_message_format_hook_protection(policy_checker):
             "input": {
                 "file_path": "/home/user/.claude/settings.json",
                 "old_string": '"hooks": {}',
-                "new_string": '"hooks": {"PreToolUse": []}'
-            }
-        }
+                "new_string": '"hooks": {"PreToolUse": []}',
+            },
+        },
     }
 
     is_allowed, error_msg, tool_name = policy_checker.check_tool_allowed(hook_data)
@@ -637,10 +668,8 @@ def test_error_message_marker_file_format(policy_checker):
         "hook_event_name": "PreToolUse",
         "tool_use": {
             "name": "Write",
-            "input": {
-                "file_path": "/home/user/secrets/.ai-read-deny"
-            }
-        }
+            "input": {"file_path": "/home/user/secrets/.ai-read-deny"},
+        },
     }
 
     is_allowed, error_msg, tool_name = policy_checker.check_tool_allowed(hook_data)
@@ -658,7 +687,10 @@ def test_error_message_marker_file_format(policy_checker):
 # Test: Workaround tip for documentation files (Issue #65)
 # ============================================================================
 
-def test_error_message_includes_workaround_tip_for_write_protected_md_file(policy_checker):
+
+def test_error_message_includes_workaround_tip_for_write_protected_md_file(
+    policy_checker,
+):
     """Error message includes tip when writing to protected .md file with ai-guardian in name"""
     hook_data = {
         "hook_event_name": "PreToolUse",
@@ -666,8 +698,8 @@ def test_error_message_includes_workaround_tip_for_write_protected_md_file(polic
             "name": "Write",
             "input": {
                 "file_path": "/home/user/project/.config/ai-guardian/docs/setup.md"
-            }
-        }
+            },
+        },
     }
 
     is_allowed, error_msg, tool_name = policy_checker.check_tool_allowed(hook_data)
@@ -688,9 +720,9 @@ def test_error_message_for_pip_installed_readme(policy_checker):
             "input": {
                 "file_path": "/usr/lib/python3.12/site-packages/ai_guardian/README.md",
                 "old_string": "old",
-                "new_string": "new"
-            }
-        }
+                "new_string": "new",
+            },
+        },
     }
 
     is_allowed, error_msg, tool_name = policy_checker.check_tool_allowed(hook_data)
@@ -702,16 +734,16 @@ def test_error_message_for_pip_installed_readme(policy_checker):
     assert "Development source files CAN be edited" in error_msg
 
 
-def test_error_message_includes_workaround_tip_for_protected_txt_in_docs(policy_checker):
+def test_error_message_includes_workaround_tip_for_protected_txt_in_docs(
+    policy_checker,
+):
     """Error message includes tip for protected .txt file with ai-guardian in path"""
     hook_data = {
         "hook_event_name": "PreToolUse",
         "tool_use": {
             "name": "Write",
-            "input": {
-                "file_path": "/home/user/.config/ai-guardian/README.txt"
-            }
-        }
+            "input": {"file_path": "/home/user/.config/ai-guardian/README.txt"},
+        },
     }
 
     is_allowed, error_msg, tool_name = policy_checker.check_tool_allowed(hook_data)
@@ -744,7 +776,9 @@ NO_TIP_CASES = [
 
 
 @pytest.mark.parametrize("tool_name_param,tool_input", NO_TIP_CASES)
-def test_error_message_no_tip_for_non_doc_protected(policy_checker, tool_name_param, tool_input):
+def test_error_message_no_tip_for_non_doc_protected(
+    policy_checker, tool_name_param, tool_input
+):
     """Error message should NOT include tip for actual protected config/source/IDE files"""
     hook_data = {
         "hook_event_name": "PreToolUse",
@@ -770,7 +804,9 @@ MISSING_FILE_PATH_CASES = [
 
 
 @pytest.mark.parametrize("tool_name_param,tool_use_extra", MISSING_FILE_PATH_CASES)
-def test_blocks_when_file_path_missing_issue_113(policy_checker, tool_name_param, tool_use_extra):
+def test_blocks_when_file_path_missing_issue_113(
+    policy_checker, tool_name_param, tool_use_extra
+):
     """
     Issue #113: AI cannot bypass IMMUTABLE checks by sending malformed tool_input.
     For file-path tools, fail-closed (block) if file_path is missing.
@@ -792,16 +828,15 @@ def test_blocks_when_file_path_missing_issue_113(policy_checker, tool_name_param
 # Test: Read error message mentions MCP alternative (Issue #512)
 # ============================================================================
 
+
 def test_read_error_message_mentions_mcp_alternative(policy_checker):
     """Read error message should suggest MCP tools as safe alternative"""
     hook_data = {
         "hook_event_name": "PreToolUse",
         "tool_use": {
             "name": "Read",
-            "input": {
-                "file_path": "/home/user/.config/ai-guardian/ai-guardian.json"
-            }
-        }
+            "input": {"file_path": "/home/user/.config/ai-guardian/ai-guardian.json"},
+        },
     }
 
     is_allowed, error_msg, tool_name = policy_checker.check_tool_allowed(hook_data)
@@ -821,8 +856,8 @@ def test_read_error_message_for_state_file(policy_checker):
             "name": "Read",
             "input": {
                 "file_path": "/home/user/.local/state/ai-guardian/violations.jsonl"
-            }
-        }
+            },
+        },
     }
 
     is_allowed, error_msg, tool_name = policy_checker.check_tool_allowed(hook_data)
@@ -838,10 +873,8 @@ def test_read_error_message_for_cache_file(policy_checker):
         "hook_event_name": "PreToolUse",
         "tool_use": {
             "name": "Read",
-            "input": {
-                "file_path": "/home/user/.cache/ai-guardian/patterns.toml"
-            }
-        }
+            "input": {"file_path": "/home/user/.cache/ai-guardian/patterns.toml"},
+        },
     }
 
     is_allowed, error_msg, tool_name = policy_checker.check_tool_allowed(hook_data)
@@ -1061,5 +1094,5 @@ def test_bash_blocks_ai_guardian_cli_self_protection(policy_checker, command):
     assert not is_allowed, f"Bash command should be blocked: {command}"
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     pytest.main([__file__])

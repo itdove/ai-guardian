@@ -12,7 +12,7 @@ from pathlib import Path
 
 from textual.app import ComposeResult
 from textual.containers import Container, Horizontal, VerticalScroll
-from textual.widgets import Static, Switch, Button
+from textual.widgets import Static, Switch
 
 from ai_guardian.config_utils import get_config_dir, get_project_config_path
 
@@ -151,6 +151,7 @@ class AutoDirectoryRulesContent(Container):
             if project_path:
                 return project_path
             from ai_guardian.config_utils import _find_git_root
+
             root = _find_git_root() or Path.cwd()
             return root / ".ai-guardian" / "ai-guardian.json"
         return get_config_dir() / "ai-guardian.json"
@@ -289,23 +290,16 @@ class AutoDirectoryRulesContent(Container):
             skill_dirs = gen._get_skill_directories(auto_config)
             skill_dir_strs = [str(d) for d in skill_dirs]
 
-            discovered = (
-                gen._discover_skills(skill_dirs) if skill_dirs else {}
-            )
+            discovered = gen._discover_skills(skill_dirs) if skill_dirs else {}
             discovered_strs = {
-                name: [str(p) for p in paths]
-                for name, paths in discovered.items()
+                name: [str(p) for p in paths] for name, paths in discovered.items()
             }
 
             matched = (
-                gen._match_skills(discovered, skill_patterns)
-                if discovered
-                else set()
+                gen._match_skills(discovered, skill_patterns) if discovered else set()
             )
 
-            generated = (
-                gen._create_directory_rules(matched) if matched else []
-            )
+            generated = gen._create_directory_rules(matched) if matched else []
 
             return {
                 "generated_rules": generated,

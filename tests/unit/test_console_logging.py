@@ -10,7 +10,6 @@ Issue #600
 import logging
 import sys
 
-import pytest
 
 import ai_guardian
 

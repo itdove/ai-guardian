@@ -8,6 +8,7 @@ and the main process_hook_data() entry point.
 
 try:
     import fcntl
+
     _HAS_FCNTL = True
 except ImportError:
     _HAS_FCNTL = False
@@ -42,6 +43,8 @@ def _resolve_pattern_path(pattern):
         remainder = expanded
     resolved_prefix = os.path.realpath(dir_prefix) if dir_prefix else ""
     return os.path.normpath(resolved_prefix + remainder)
+
+
 import hashlib
 import json
 import logging
@@ -55,13 +58,16 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Dict, Optional
 
-from ai_guardian.config_utils import get_config_dir, get_project_dir, get_state_dir, is_feature_enabled
+from ai_guardian.config_utils import (
+    get_config_dir,
+    get_project_dir,
+    get_state_dir,
+    is_feature_enabled,
+)
 from ai_guardian.constants import ActionMode, ViolationType, HookEvent, AUGMENT_TOOL_MAP
 from ai_guardian.utils.path_matching import match_leading_doublestar_pattern
 
 from ai_guardian.config_loaders import (
-    _merge_aiguardignore,
-    _load_config_file,
     _load_pattern_server_config,
     _load_prompt_injection_config,
     _load_config_scanner_config,
@@ -76,6 +82,7 @@ from ai_guardian.config_loaders import (
     _load_context_poisoning_config,
     _load_supply_chain_config,
     _get_on_scan_error_action,
+    _load_config_file,  # noqa: F401 — patched by tests via this namespace
 )
 from ai_guardian.constants import parse_ask_action
 
@@ -90,75 +97,103 @@ from ai_guardian.latency_logger import _CheckTimer
 # Conditional imports for optional features
 try:
     from ai_guardian import gitleaks_config as _gitleaks_cfg
+
     HAS_GITLEAKS_CONFIG = True
 except ImportError:
     HAS_GITLEAKS_CONFIG = False
 
 try:
     from ai_guardian.tool_policy import ToolPolicyChecker
+
     HAS_TOOL_POLICY = True
 except ImportError:
     HAS_TOOL_POLICY = False
 
 try:
     from ai_guardian.pattern_server import PatternServerClient
+
     HAS_PATTERN_SERVER = True
 except ImportError:
     HAS_PATTERN_SERVER = False
 
 try:
-    from ai_guardian.prompt_injection import check_prompt_injection, PromptInjectionDetector
+    from ai_guardian.prompt_injection import (
+        check_prompt_injection,
+        PromptInjectionDetector,
+    )
+
     HAS_PROMPT_INJECTION = True
 except ImportError:
     HAS_PROMPT_INJECTION = False
 
 try:
     from ai_guardian.context_poisoning import ContextPoisoningDetector
+
     HAS_CONTEXT_POISONING = True
 except ImportError:
     HAS_CONTEXT_POISONING = False
 
 try:
-    from ai_guardian.config_scanner import check_config_file_threats, check_bash_command_threats
+    from ai_guardian.config_scanner import (
+        check_config_file_threats,
+        check_bash_command_threats,
+    )
+
     HAS_CONFIG_SCANNER = True
 except ImportError:
     HAS_CONFIG_SCANNER = False
 
 try:
     from ai_guardian.supply_chain import SupplyChainScanner
+
     HAS_SUPPLY_CHAIN = True
 except ImportError:
     HAS_SUPPLY_CHAIN = False
 
 try:
     from ai_guardian.violation_logger import ViolationLogger
+
     HAS_VIOLATION_LOGGER = True
 except ImportError:
     HAS_VIOLATION_LOGGER = False
 
 try:
-    from ai_guardian.scanners.engine_builder import select_engine, select_all_engines, build_scanner_command, resolve_engine_config_path, PATTERN_SERVER_UNSET
+    from ai_guardian.scanners.engine_builder import (
+        select_engine,
+        select_all_engines,
+        build_scanner_command,
+        resolve_engine_config_path,
+        PATTERN_SERVER_UNSET,
+    )
     from ai_guardian.scanners.output_parsers import get_parser
-    from ai_guardian.scanners.strategies import get_strategy, ScanResult as StrategyScanResult, SecretMatch
+    from ai_guardian.scanners.strategies import (
+        get_strategy,
+        ScanResult as StrategyScanResult,
+        SecretMatch,
+    )
     from ai_guardian.scanners.executor import run_single_engine, run_engine
+
     HAS_SCANNER_ENGINE = True
 except ImportError:
     HAS_SCANNER_ENGINE = False
 
 try:
     from ai_guardian.annotations import process_annotations
+
     HAS_ANNOTATIONS = True
 except ImportError:
     HAS_ANNOTATIONS = False
 
 try:
     from ai_guardian.image_scanner import ImageDetector, scan_image, ImageRedactor
+
     HAS_IMAGE_SCANNER = True
 except ImportError:
     HAS_IMAGE_SCANNER = False
 
 try:
     from ai_guardian.ast_scanner import extract_scannable_content
+
     HAS_AST_SCANNER = True
 except ImportError:
     HAS_AST_SCANNER = False
@@ -169,6 +204,7 @@ logger = logging.getLogger(__name__)
 def _is_latency_enabled():
     try:
         from ai_guardian.latency_logger import LatencyLogger
+
         return LatencyLogger()._is_enabled()
     except Exception:
         return False
@@ -179,9 +215,14 @@ def _finalize_latency(timer, hook_event, tool_name):
         return
     try:
         from ai_guardian.latency_logger import LatencyLogger
+
         entry = {
-            "timestamp": datetime.now(timezone.utc).isoformat().replace('+00:00', 'Z'),
-            "hook_event": hook_event.value if hasattr(hook_event, 'value') else str(hook_event or ""),
+            "timestamp": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+            "hook_event": (
+                hook_event.value
+                if hasattr(hook_event, "value")
+                else str(hook_event or "")
+            ),
             "tool": tool_name or "",
             "total_ms": round(timer.total_ms(), 2),
             "processing_ms": round(timer.processing_ms(), 2),
@@ -197,32 +238,60 @@ def _finalize_latency(timer, hook_event, tool_name):
 DEFAULT_ENGINES = ["toml-patterns", "gitleaks"]
 
 # Keywords used to classify scanner error messages
-_AUTH_ERROR_KEYWORDS = frozenset({
-    '401', '403', 'unauthorized', 'authentication',
-    'forbidden', 'authentication failed', 'bad credentials',
-    'invalid token', 'access denied',
-})
-_NETWORK_ERROR_KEYWORDS = frozenset({
-    'connection', 'timeout', 'network', 'unreachable',
-    'refused', 'dial tcp', 'no route', 'no route to host',
-})
+_AUTH_ERROR_KEYWORDS = frozenset(
+    {
+        "401",
+        "403",
+        "unauthorized",
+        "authentication",
+        "forbidden",
+        "authentication failed",
+        "bad credentials",
+        "invalid token",
+        "access denied",
+    }
+)
+_NETWORK_ERROR_KEYWORDS = frozenset(
+    {
+        "connection",
+        "timeout",
+        "network",
+        "unreachable",
+        "refused",
+        "dial tcp",
+        "no route",
+        "no route to host",
+    }
+)
 
 # Tools that modify state - don't scan their responses.
 # These return metadata only; content was already scanned in PreToolUse.
-STATE_MODIFY_TOOLS = frozenset({
-    "Write", "Edit", "Delete", "Move", "Rename",
-    "NotebookEdit",
-})
+STATE_MODIFY_TOOLS = frozenset(
+    {
+        "Write",
+        "Edit",
+        "Delete",
+        "Move",
+        "Rename",
+        "NotebookEdit",
+    }
+)
 
 # Tools that read files - need content scanning in PreToolUse.
-FILE_READING_TOOLS = frozenset({
-    # Claude Code tool names
-    "Read", "Grep",
-    # GitHub Copilot tool names
-    "read_file", "read", "grep", "search",
-    # Cursor tool names (if different)
-    "ReadFile",
-})
+FILE_READING_TOOLS = frozenset(
+    {
+        # Claude Code tool names
+        "Read",
+        "Grep",
+        # GitHub Copilot tool names
+        "read_file",
+        "read",
+        "grep",
+        "search",
+        # Cursor tool names (if different)
+        "ReadFile",
+    }
+)
 
 # Augment Code tool name mapping imported from constants (single source of truth).
 _AUGMENT_TOOL_MAP = AUGMENT_TOOL_MAP
@@ -250,7 +319,11 @@ def _is_path_excluded(file_path, config):
         dir_exclusions = config.get("directory_exclusions", {})
 
         # Check enabled flag (supports boolean or object format)
-        if not is_feature_enabled(dir_exclusions.get("enabled", False), datetime.now(timezone.utc), default=False):
+        if not is_feature_enabled(
+            dir_exclusions.get("enabled", False),
+            datetime.now(timezone.utc),
+            default=False,
+        ):
             logging.debug("Directory exclusions disabled in config")
             return False
 
@@ -265,7 +338,9 @@ def _is_path_excluded(file_path, config):
         # Check each exclusion path
         for exclusion_path in exclusion_paths:
             if not isinstance(exclusion_path, str):
-                logging.warning(f"Invalid exclusion path (not a string): {exclusion_path}")
+                logging.warning(
+                    f"Invalid exclusion path (not a string): {exclusion_path}"
+                )
                 continue
 
             try:
@@ -276,9 +351,15 @@ def _is_path_excluded(file_path, config):
                 if "**" in expanded_path:
                     # Recursive wildcard: match directory and all subdirectories
                     # Remove /** or ** from end for directory comparison
-                    base_path = expanded_path.replace("\\**", "").replace("/**", "").replace("**", "")
+                    base_path = (
+                        expanded_path.replace("\\**", "")
+                        .replace("/**", "")
+                        .replace("**", "")
+                    )
                     if _startswith_path(abs_file_path, base_path):
-                        logging.debug(f"Path {abs_file_path} matches recursive exclusion: {exclusion_path}")
+                        logging.debug(
+                            f"Path {abs_file_path} matches recursive exclusion: {exclusion_path}"
+                        )
                         return True
                 elif "*" in expanded_path:
                     # Get parent directory of file for matching
@@ -286,18 +367,29 @@ def _is_path_excluded(file_path, config):
                     wildcard_parent = os.path.dirname(expanded_path)
 
                     # Check if file's parent matches the wildcard pattern
-                    if _fnmatch_path(file_parent, expanded_path) or _startswith_path(file_parent, expanded_path.replace("\\*", "").replace("/*", "")):
-                        logging.debug(f"Path {abs_file_path} matches wildcard exclusion: {exclusion_path}")
+                    if _fnmatch_path(file_parent, expanded_path) or _startswith_path(
+                        file_parent, expanded_path.replace("\\*", "").replace("/*", "")
+                    ):
+                        logging.debug(
+                            f"Path {abs_file_path} matches wildcard exclusion: {exclusion_path}"
+                        )
                         return True
                 else:
                     # Exact path match: check if file is within excluded directory
                     # Add trailing slash to ensure directory boundary matching
-                    if _startswith_path(abs_file_path, expanded_path + "/") or abs_file_path == expanded_path:
-                        logging.debug(f"Path {abs_file_path} matches exact exclusion: {exclusion_path}")
+                    if (
+                        _startswith_path(abs_file_path, expanded_path + "/")
+                        or abs_file_path == expanded_path
+                    ):
+                        logging.debug(
+                            f"Path {abs_file_path} matches exact exclusion: {exclusion_path}"
+                        )
                         return True
 
             except Exception as e:
-                logging.warning(f"Error processing exclusion path '{exclusion_path}': {e}")
+                logging.warning(
+                    f"Error processing exclusion path '{exclusion_path}': {e}"
+                )
                 # Fail-safe: skip this exclusion path, continue checking others
                 continue
 
@@ -323,7 +415,9 @@ def _matches_directory_pattern(abs_file_path, pattern):
     expanded_pattern = _resolve_pattern_path(pattern)
 
     if "**" in expanded_pattern:
-        base_path = expanded_pattern.replace("\\**", "").replace("/**", "").replace("**", "")
+        base_path = (
+            expanded_pattern.replace("\\**", "").replace("/**", "").replace("**", "")
+        )
         if "*" in base_path:
             current_path = abs_file_path
             while current_path and current_path != os.path.dirname(current_path):
@@ -335,9 +429,14 @@ def _matches_directory_pattern(abs_file_path, pattern):
             return _startswith_path(abs_file_path, base_path)
     elif "*" in expanded_pattern:
         file_parent = os.path.dirname(abs_file_path)
-        return _fnmatch_path(file_parent, expanded_pattern) or _startswith_path(file_parent, expanded_pattern.replace("\\*", "").replace("/*", ""))
+        return _fnmatch_path(file_parent, expanded_pattern) or _startswith_path(
+            file_parent, expanded_pattern.replace("\\*", "").replace("/*", "")
+        )
     else:
-        return abs_file_path.startswith(expanded_pattern + os.sep) or abs_file_path == expanded_pattern
+        return (
+            abs_file_path.startswith(expanded_pattern + os.sep)
+            or abs_file_path == expanded_pattern
+        )
 
 
 def _check_directory_rules(file_path, config):
@@ -379,17 +478,18 @@ def _check_directory_rules(file_path, config):
 
         # Backward compatibility: convert directory_exclusions to rules
         dir_exclusions = config.get("directory_exclusions", {})
-        if is_feature_enabled(dir_exclusions.get("enabled"), datetime.now(timezone.utc), default=False) and dir_exclusions.get("paths"):
+        if is_feature_enabled(
+            dir_exclusions.get("enabled"), datetime.now(timezone.utc), default=False
+        ) and dir_exclusions.get("paths"):
             # Log deprecation warning once
-            if not hasattr(_check_directory_rules, '_warned_deprecation'):
-                logging.warning("directory_exclusions is deprecated - use directory_rules instead")
+            if not hasattr(_check_directory_rules, "_warned_deprecation"):
+                logging.warning(
+                    "directory_exclusions is deprecated - use directory_rules instead"
+                )
                 _check_directory_rules._warned_deprecation = True
 
             # Prepend exclusions as allow rules (so they have lower priority than explicit rules)
-            backward_compat_rule = {
-                "mode": "allow",
-                "paths": dir_exclusions["paths"]
-            }
+            backward_compat_rule = {"mode": "allow", "paths": dir_exclusions["paths"]}
             directory_rules = [backward_compat_rule] + directory_rules
 
         # Load exclusions (glob patterns that are always allowed)
@@ -410,10 +510,14 @@ def _check_directory_rules(file_path, config):
         for excl_pattern in exclusions:
             try:
                 if _matches_directory_pattern(abs_file_path, excl_pattern):
-                    logging.debug(f"Path {abs_file_path} matched exclusion: {excl_pattern}")
+                    logging.debug(
+                        f"Path {abs_file_path} matched exclusion: {excl_pattern}"
+                    )
                     return "allow", global_action, excl_pattern
             except Exception as e:
-                logging.warning(f"Error processing exclusion pattern '{excl_pattern}': {e}")
+                logging.warning(
+                    f"Error processing exclusion pattern '{excl_pattern}': {e}"
+                )
                 continue
 
         # Evaluate rules in order, last match wins
@@ -427,7 +531,9 @@ def _check_directory_rules(file_path, config):
 
             mode = rule.get("mode")
             if mode not in ["allow", "deny"]:
-                logging.warning(f"Invalid rule mode: {mode} (must be 'allow' or 'deny')")
+                logging.warning(
+                    f"Invalid rule mode: {mode} (must be 'allow' or 'deny')"
+                )
                 continue
 
             paths = rule.get("paths", [])
@@ -441,7 +547,9 @@ def _check_directory_rules(file_path, config):
                     if _matches_directory_pattern(abs_file_path, pattern):
                         final_decision = mode
                         matched_pattern = pattern
-                        logging.debug(f"Path {abs_file_path} matched rule: {mode} {pattern} (action={global_action})")
+                        logging.debug(
+                            f"Path {abs_file_path} matched rule: {mode} {pattern} (action={global_action})"
+                        )
                         break
                 except Exception as e:
                     logging.warning(f"Error processing rule pattern '{pattern}': {e}")
@@ -499,7 +607,9 @@ def check_directory_denied(file_path, config=None):
         abs_path = os.path.realpath(file_path)
 
         # PRIORITY 1: Check directory_rules
-        rule_decision, rule_action, matched_pattern = _check_directory_rules(abs_path, config) if config else (None, None, None)
+        rule_decision, rule_action, matched_pattern = (
+            _check_directory_rules(abs_path, config) if config else (None, None, None)
+        )
 
         # PRIORITY 2: Check for .ai-read-deny marker files
         current_dir = os.path.dirname(abs_path)
@@ -528,24 +638,53 @@ def check_directory_denied(file_path, config=None):
         if deny_marker_found:
             # Marker found - check if rules override it
             if rule_decision == "allow":
-                logging.info(f"Found .ai-read-deny at {denied_directory}, but directory rules allow access - allowing")
-                return False, None, None, matched_pattern  # ALLOW - rule overrides marker
+                logging.info(
+                    f"Found .ai-read-deny at {denied_directory}, but directory rules allow access - allowing"
+                )
+                return (
+                    False,
+                    None,
+                    None,
+                    matched_pattern,
+                )  # ALLOW - rule overrides marker
             else:
                 # No allow rule to override - block, warn, or log-only
                 # Check action
                 if rule_action == ActionMode.WARN:
-                    logging.warning(f"Policy violation (warn mode): {file_path} - .ai-read-deny marker in {denied_directory} but allowed for audit")
-                    _log_directory_blocking_violation(file_path, denied_directory, is_excluded=False)
+                    logging.warning(
+                        f"Policy violation (warn mode): {file_path} - .ai-read-deny marker in {denied_directory} but allowed for audit"
+                    )
+                    _log_directory_blocking_violation(
+                        file_path, denied_directory, is_excluded=False
+                    )
                     warn_msg = "⚠️  Directory access policy violation (warn mode) - execution allowed"
-                    return False, None, warn_msg, matched_pattern  # ALLOW - logged for audit, with warning
+                    return (
+                        False,
+                        None,
+                        warn_msg,
+                        matched_pattern,
+                    )  # ALLOW - logged for audit, with warning
                 elif rule_action == ActionMode.LOG_ONLY:
-                    logging.warning(f"Policy violation (log-only mode): {file_path} - .ai-read-deny marker in {denied_directory} but allowed for audit (silent)")
-                    _log_directory_blocking_violation(file_path, denied_directory, is_excluded=False)
-                    return False, None, None, matched_pattern  # ALLOW - logged for audit, NO warning
+                    logging.warning(
+                        f"Policy violation (log-only mode): {file_path} - .ai-read-deny marker in {denied_directory} but allowed for audit (silent)"
+                    )
+                    _log_directory_blocking_violation(
+                        file_path, denied_directory, is_excluded=False
+                    )
+                    return (
+                        False,
+                        None,
+                        None,
+                        matched_pattern,
+                    )  # ALLOW - logged for audit, NO warning
                 else:
                     # Block access
-                    logging.error(f".ai-read-deny marker blocks access to {denied_directory}")
-                    _log_directory_blocking_violation(file_path, denied_directory, is_excluded=False)
+                    logging.error(
+                        f".ai-read-deny marker blocks access to {denied_directory}"
+                    )
+                    _log_directory_blocking_violation(
+                        file_path, denied_directory, is_excluded=False
+                    )
                     return True, denied_directory, None, matched_pattern  # BLOCK
 
         # No .ai-read-deny marker - check rule decision
@@ -555,24 +694,53 @@ def check_directory_denied(file_path, config=None):
             rule_suggestion = {
                 "action": "update_directory_rules",
                 "config_file": "ai-guardian.json",
-                "warning": f"Directory rules deny access (matched pattern: {matched_pattern})"
+                "warning": f"Directory rules deny access (matched pattern: {matched_pattern})",
             }
             if rule_action == ActionMode.WARN:
-                logging.warning(f"Policy violation (warn mode): {file_path} - denied by rules but allowed for audit")
-                _log_directory_blocking_violation(file_path, os.path.dirname(abs_path), is_excluded=False,
-                                                  reason=rule_reason, suggestion=rule_suggestion)
+                logging.warning(
+                    f"Policy violation (warn mode): {file_path} - denied by rules but allowed for audit"
+                )
+                _log_directory_blocking_violation(
+                    file_path,
+                    os.path.dirname(abs_path),
+                    is_excluded=False,
+                    reason=rule_reason,
+                    suggestion=rule_suggestion,
+                )
                 warn_msg = "⚠️  Directory access policy violation (warn mode) - execution allowed"
-                return False, None, warn_msg, matched_pattern  # ALLOW - logged for audit, with warning
+                return (
+                    False,
+                    None,
+                    warn_msg,
+                    matched_pattern,
+                )  # ALLOW - logged for audit, with warning
             elif rule_action == ActionMode.LOG_ONLY:
-                logging.warning(f"Policy violation (log-only mode): {file_path} - denied by rules but allowed for audit (silent)")
-                _log_directory_blocking_violation(file_path, os.path.dirname(abs_path), is_excluded=False,
-                                                  reason=rule_reason, suggestion=rule_suggestion)
-                return False, None, None, matched_pattern  # ALLOW - logged for audit, NO warning
+                logging.warning(
+                    f"Policy violation (log-only mode): {file_path} - denied by rules but allowed for audit (silent)"
+                )
+                _log_directory_blocking_violation(
+                    file_path,
+                    os.path.dirname(abs_path),
+                    is_excluded=False,
+                    reason=rule_reason,
+                    suggestion=rule_suggestion,
+                )
+                return (
+                    False,
+                    None,
+                    None,
+                    matched_pattern,
+                )  # ALLOW - logged for audit, NO warning
             else:
                 # Block access
                 logging.error(f"Directory rules deny access to {abs_path}")
-                _log_directory_blocking_violation(file_path, os.path.dirname(abs_path), is_excluded=False,
-                                                  reason=rule_reason, suggestion=rule_suggestion)
+                _log_directory_blocking_violation(
+                    file_path,
+                    os.path.dirname(abs_path),
+                    is_excluded=False,
+                    reason=rule_reason,
+                    suggestion=rule_suggestion,
+                )
                 return True, os.path.dirname(abs_path), None, matched_pattern  # BLOCK
 
         # Default: allow access
@@ -581,6 +749,7 @@ def check_directory_denied(file_path, config=None):
     except Exception as e:
         logging.error(f"Error checking directory access: {e}")
         import traceback
+
         logging.debug(traceback.format_exc())
         # Fail-closed: block access if check fails (security-critical path)
         return True, None, f"Directory access check error: {e}", None
@@ -604,12 +773,16 @@ def extract_tool_result(hook_data):
     try:
         # Get tool name from multiple possible locations
         tool_name = hook_data.get("tool_name")
-        logging.info(f"extract_tool_result: tool_name from hook_data.tool_name = {tool_name}")
+        logging.info(
+            f"extract_tool_result: tool_name from hook_data.tool_name = {tool_name}"
+        )
         if not tool_name and "tool_use" in hook_data:
             # Try tool_use.name format (Claude Code format)
             if isinstance(hook_data["tool_use"], dict):
                 tool_name = hook_data["tool_use"].get("name")
-                logging.info(f"extract_tool_result: tool_name from tool_use.name = {tool_name}")
+                logging.info(
+                    f"extract_tool_result: tool_name from tool_use.name = {tool_name}"
+                )
         if not tool_name:
             tool_name = "unknown"
             logging.info("extract_tool_result: tool_name defaulted to 'unknown'")
@@ -619,7 +792,9 @@ def extract_tool_result(hook_data):
             tool_name = _AUGMENT_TOOL_MAP[tool_name]
 
         if tool_name in STATE_MODIFY_TOOLS:
-            logging.debug(f"Skipping PostToolUse scan for state-modifying tool: {tool_name}")
+            logging.debug(
+                f"Skipping PostToolUse scan for state-modifying tool: {tool_name}"
+            )
             return None, tool_name
 
         output = None
@@ -629,9 +804,11 @@ def extract_tool_result(hook_data):
             tool_response = hook_data["tool_response"]
             if isinstance(tool_response, dict):
                 # Try common output field names
-                output = (tool_response.get("output") or
-                         tool_response.get("content") or
-                         tool_response.get("result"))
+                output = (
+                    tool_response.get("output")
+                    or tool_response.get("content")
+                    or tool_response.get("result")
+                )
 
                 # SECURITY FIX: Check stdout/stderr for Bash/command tools
                 # This prevents the Bash bypass vulnerability where secrets in
@@ -670,35 +847,41 @@ def _matches_ignore_files(file_path, ignore_files):
     if not ignore_files or not file_path:
         return False
     for pattern in ignore_files:
-        if fnmatch.fnmatch(file_path, pattern) or fnmatch.fnmatch(os.path.basename(file_path), pattern):
+        if fnmatch.fnmatch(file_path, pattern) or fnmatch.fnmatch(
+            os.path.basename(file_path), pattern
+        ):
             return True
     return False
 
 
 def _should_skip_pii_scan(pii_config, tool_identifier=None, file_path=None):
     """Check if PII scan should be skipped based on ignore_tools and ignore_files config."""
-    ignore_tools = pii_config.get('ignore_tools', [])
+    ignore_tools = pii_config.get("ignore_tools", [])
     if ignore_tools and tool_identifier:
         for pattern in ignore_tools:
             if fnmatch.fnmatch(tool_identifier, pattern):
-                logging.info(f"Skipping PII scan for ignored tool: {tool_identifier} (pattern: {pattern})")
+                logging.info(
+                    f"Skipping PII scan for ignored tool: {tool_identifier} (pattern: {pattern})"
+                )
                 return True
 
-    if _matches_ignore_files(file_path, pii_config.get('ignore_files', [])):
+    if _matches_ignore_files(file_path, pii_config.get("ignore_files", [])):
         logging.info(f"Skipping PII scan for ignored file: {file_path}")
         return True
 
 
 def _should_skip_context_poisoning(cp_config, tool_identifier=None, file_path=None):
     """Check if context poisoning scan should be skipped based on ignore_tools and ignore_files config."""
-    ignore_tools = cp_config.get('ignore_tools', [])
+    ignore_tools = cp_config.get("ignore_tools", [])
     if ignore_tools and tool_identifier:
         for pattern in ignore_tools:
             if fnmatch.fnmatch(tool_identifier, pattern):
-                logging.info(f"Skipping context poisoning scan for ignored tool: {tool_identifier} (pattern: {pattern})")
+                logging.info(
+                    f"Skipping context poisoning scan for ignored tool: {tool_identifier} (pattern: {pattern})"
+                )
                 return True
 
-    if _matches_ignore_files(file_path, cp_config.get('ignore_files', [])):
+    if _matches_ignore_files(file_path, cp_config.get("ignore_files", [])):
         logging.info(f"Skipping context poisoning scan for ignored file: {file_path}")
         return True
 
@@ -724,7 +907,11 @@ def _build_directory_denied_message(file_path, denied_dir, matched_pattern):
         error_msg += f"Protected Directory: {display_dir}\n"
 
     if matched_pattern:
-        display_pattern = matched_pattern if len(matched_pattern) <= 100 else matched_pattern[:97] + "..."
+        display_pattern = (
+            matched_pattern
+            if len(matched_pattern) <= 100
+            else matched_pattern[:97] + "..."
+        )
         error_msg += f"Pattern: {display_pattern}\n"
 
     error_msg += "\nWhy blocked: "
@@ -746,7 +933,9 @@ def _build_directory_denied_message(file_path, denied_dir, matched_pattern):
     else:
         error_msg += f"- Remove the .ai-read-deny file from {denied_dir} (manually)\n"
         error_msg += "- Move this file to an accessible location\n"
-        error_msg += "- Add an allow rule in directory_rules config to override marker\n"
+        error_msg += (
+            "- Add an allow rule in directory_rules config to override marker\n"
+        )
 
     error_msg += f"\nConfig: {get_config_dir() / 'ai-guardian.json'}\n"
     error_msg += "Section: directory_rules\n"
@@ -772,12 +961,30 @@ def extract_file_content_from_tool(hook_data):
             file_path = hook_data["file_path"]
 
             # Check if directory is denied
-            is_denied, denied_dir, dir_warning, matched_pattern = check_directory_denied(file_path)
+            is_denied, denied_dir, dir_warning, matched_pattern = (
+                check_directory_denied(file_path)
+            )
             if is_denied:
-                error_msg = _build_directory_denied_message(file_path, denied_dir, matched_pattern)
-                return None, os.path.basename(file_path), file_path, True, error_msg, None
+                error_msg = _build_directory_denied_message(
+                    file_path, denied_dir, matched_pattern
+                )
+                return (
+                    None,
+                    os.path.basename(file_path),
+                    file_path,
+                    True,
+                    error_msg,
+                    None,
+                )
 
-            return content, os.path.basename(file_path), file_path, False, None, dir_warning
+            return (
+                content,
+                os.path.basename(file_path),
+                file_path,
+                False,
+                None,
+                dir_warning,
+            )
 
         # Try to extract file path from different possible locations
         file_path = None
@@ -831,30 +1038,61 @@ def extract_file_content_from_tool(hook_data):
         file_path = os.path.expanduser(file_path)
 
         # Check if directory is denied BEFORE reading the file
-        is_denied, denied_dir, dir_warning, matched_pattern = check_directory_denied(file_path)
+        is_denied, denied_dir, dir_warning, matched_pattern = check_directory_denied(
+            file_path
+        )
         if is_denied:
-            error_msg = _build_directory_denied_message(file_path, denied_dir, matched_pattern)
+            error_msg = _build_directory_denied_message(
+                file_path, denied_dir, matched_pattern
+            )
             return None, os.path.basename(file_path), file_path, True, error_msg, None
 
         # Read the file content
         try:
-            with open(file_path, 'r', encoding='utf-8', errors='replace') as f:
+            with open(file_path, "r", encoding="utf-8", errors="replace") as f:
                 content = f.read()
-            return content, os.path.basename(file_path), file_path, False, None, dir_warning
+            return (
+                content,
+                os.path.basename(file_path),
+                file_path,
+                False,
+                None,
+                dir_warning,
+            )
         except FileNotFoundError:
             logging.warning(f"File not found: {file_path}")
-            return None, os.path.basename(file_path), file_path, False, None, dir_warning
+            return (
+                None,
+                os.path.basename(file_path),
+                file_path,
+                False,
+                None,
+                dir_warning,
+            )
         except PermissionError:
             logging.warning(f"Permission denied reading file: {file_path}")
-            return None, os.path.basename(file_path), file_path, False, None, dir_warning
+            return (
+                None,
+                os.path.basename(file_path),
+                file_path,
+                False,
+                None,
+                dir_warning,
+            )
         except Exception as e:
             logging.error(f"Error reading file {file_path}: {e}")
-            return None, os.path.basename(file_path), file_path, False, None, dir_warning
+            return (
+                None,
+                os.path.basename(file_path),
+                file_path,
+                False,
+                None,
+                dir_warning,
+            )
 
     except Exception as e:
         logging.error(f"Error extracting file from tool data: {e}")
         return None, "unknown_file", None, False, None, None
-
 
 
 def _get_transcript_path(hook_data: dict) -> Optional[str]:
@@ -871,7 +1109,12 @@ def _get_transcript_path(hook_data: dict) -> Optional[str]:
     Returns:
         Absolute path to transcript file, or None if not available
     """
-    for field in ("transcript_path", "transcriptPath", "transcript", "conversation_path"):
+    for field in (
+        "transcript_path",
+        "transcriptPath",
+        "transcript",
+        "conversation_path",
+    ):
         path = hook_data.get(field)
         if path and isinstance(path, str):
             return path
@@ -883,7 +1126,7 @@ def _load_transcript_positions() -> Dict[str, int]:
     state_dir = get_state_dir()
     pos_file = state_dir / "transcript_positions.json"
     try:
-        with open(pos_file, 'r', encoding='utf-8') as f:
+        with open(pos_file, "r", encoding="utf-8") as f:
             positions = json.load(f)
         if isinstance(positions, dict):
             return positions
@@ -903,9 +1146,12 @@ def _save_transcript_positions(positions: Dict[str, int]) -> None:
     state_dir.mkdir(parents=True, exist_ok=True)
     pos_file = state_dir / "transcript_positions.json"
     try:
-        pruned = {k: v for k, v in positions.items()
-                  if k.startswith("opencode:") or os.path.exists(k)}
-        with open(pos_file, 'w', encoding='utf-8') as f:
+        pruned = {
+            k: v
+            for k, v in positions.items()
+            if k.startswith("opencode:") or os.path.exists(k)
+        }
+        with open(pos_file, "w", encoding="utf-8") as f:
             json.dump(pruned, f)
     except Exception as e:
         logging.debug(f"Failed to save transcript positions: {e}")
@@ -925,7 +1171,11 @@ def _handle_session_end(hook_data, daemon_state, session_id, adapter):
     Returns:
         dict: Empty allow response (exit_code 0)
     """
-    session_label = (session_id[:16] + "...") if session_id and len(session_id) > 16 else (session_id or "unknown")
+    session_label = (
+        (session_id[:16] + "...")
+        if session_id and len(session_id) > 16
+        else (session_id or "unknown")
+    )
     adapter_name = adapter.name if adapter else "unknown"
     logging.info(f"Session ended for {session_label} (adapter: {adapter_name})")
 
@@ -934,17 +1184,23 @@ def _handle_session_end(hook_data, daemon_state, session_id, adapter):
     try:
         _advance_transcript_position(hook_data)
     except Exception as e:
-        logging.debug(f"Session end: transcript position advance failed (non-fatal): {e}")
+        logging.debug(
+            f"Session end: transcript position advance failed (non-fatal): {e}"
+        )
 
     try:
         from ai_guardian.hook_context import HookContextManager
-        context_mgr = HookContextManager(session_id=session_id, daemon_state=daemon_state)
+
+        context_mgr = HookContextManager(
+            session_id=session_id, daemon_state=daemon_state
+        )
         contexts_cleaned = context_mgr.cleanup_session()
     except Exception as e:
         logging.debug(f"Session end: hook context cleanup failed (non-fatal): {e}")
 
     try:
         from ai_guardian.session_state import SessionStateManager, derive_session_key
+
         session_key = derive_session_key(hook_data)
         state_mgr = SessionStateManager(daemon_state=daemon_state)
         state_mgr.cleanup_session(session_key)
@@ -984,13 +1240,13 @@ def _advance_transcript_position(hook_data: dict) -> None:
 
     try:
         state_dir.mkdir(parents=True, exist_ok=True)
-        with open(lock_file, 'w') as lf:
+        with open(lock_file, "w") as lf:
             if _HAS_FCNTL:
                 fcntl.flock(lf, fcntl.LOCK_EX)
             try:
                 positions = {}
                 try:
-                    with open(pos_file, 'r', encoding='utf-8') as f:
+                    with open(pos_file, "r", encoding="utf-8") as f:
                         data = json.load(f)
                     if isinstance(data, dict):
                         positions = data
@@ -1004,6 +1260,7 @@ def _advance_transcript_position(hook_data: dict) -> None:
                 if file_size > old_pos:
                     positions[transcript_path] = file_size
                     import tempfile as _tf
+
                     fd, tmp_path = _tf.mkstemp(
                         dir=str(state_dir), prefix=".transcript-pos-", suffix=".tmp"
                     )
@@ -1035,7 +1292,7 @@ def _load_seen_findings() -> Dict[str, Dict[str, str]]:
     state_dir = get_state_dir()
     sf_file = state_dir / "transcript_seen_findings.json"
     try:
-        with open(sf_file, 'r', encoding='utf-8') as f:
+        with open(sf_file, "r", encoding="utf-8") as f:
             data = json.load(f)
         if isinstance(data, dict):
             return data
@@ -1055,9 +1312,12 @@ def _save_seen_findings(seen: Dict[str, Dict[str, str]]) -> None:
     state_dir.mkdir(parents=True, exist_ok=True)
     sf_file = state_dir / "transcript_seen_findings.json"
     try:
-        pruned = {k: v for k, v in seen.items()
-                  if k.startswith("opencode:") or os.path.exists(k)}
-        with open(sf_file, 'w', encoding='utf-8') as f:
+        pruned = {
+            k: v
+            for k, v in seen.items()
+            if k.startswith("opencode:") or os.path.exists(k)
+        }
+        with open(sf_file, "w", encoding="utf-8") as f:
             json.dump(pruned, f)
     except Exception as e:
         logging.debug(f"Failed to save seen findings: {e}")
@@ -1144,7 +1404,7 @@ def scan_transcript_incremental(
     transcript_path: str,
     secret_config: Optional[Dict] = None,
     pii_config: Optional[Dict] = None,
-    hook_context: Optional[Dict] = None
+    hook_context: Optional[Dict] = None,
 ) -> list:
     """
     Incrementally scan transcript file for secrets and PII.
@@ -1203,7 +1463,7 @@ def scan_transcript_incremental(
         return warnings
 
     try:
-        with open(transcript_path, 'rb') as f:
+        with open(transcript_path, "rb") as f:
             f.seek(last_pos)
             new_bytes = f.read()
             new_pos = f.tell()
@@ -1211,7 +1471,7 @@ def scan_transcript_incremental(
         logging.debug(f"Cannot read transcript file: {e}")
         return warnings
 
-    new_content = new_bytes.decode('utf-8', errors='replace')
+    new_content = new_bytes.decode("utf-8", errors="replace")
 
     # Parse JSONL lines and extract text
     texts = []
@@ -1278,17 +1538,22 @@ def _scan_transcript_text(
     if secret_config is None or is_feature_enabled(
         secret_config.get("enabled") if secret_config else None,
         datetime.now(timezone.utc),
-        default=True
+        default=True,
     ):
         try:
-            secret_allowlist = secret_config.get("allowlist_patterns", []) if secret_config else []
+            secret_allowlist = (
+                secret_config.get("allowlist_patterns", []) if secret_config else []
+            )
             has_secrets, secret_error = check_secrets_with_gitleaks(
-                combined_text, "transcript",
+                combined_text,
+                "transcript",
                 context={"ide_type": "transcript_scan", "hook_event": HookEvent.PROMPT},
-                allowlist_patterns=secret_allowlist
+                allowlist_patterns=secret_allowlist,
             )
             if has_secrets and secret_error:
-                fp = _finding_fingerprint("secret", _extract_secret_type_from_error(secret_error))
+                fp = _finding_fingerprint(
+                    "secret", _extract_secret_type_from_error(secret_error)
+                )
                 if fp not in seen:
                     warning_msg = (
                         f"\n{'='*70}\n"
@@ -1305,9 +1570,10 @@ def _scan_transcript_text(
                     )
                     warnings.append(warning_msg)
                     _log_transcript_violation(
-                        ViolationType.SECRET_IN_TRANSCRIPT, transcript_key,
+                        ViolationType.SECRET_IN_TRANSCRIPT,
+                        transcript_key,
                         details={"reason": secret_error},
-                        hook_context=hook_context
+                        hook_context=hook_context,
                     )
                     seen[fp] = now_iso
         except Exception as e:
@@ -1315,25 +1581,27 @@ def _scan_transcript_text(
 
     # --- PII scanning ---
     if pii_config and is_feature_enabled(
-        pii_config.get("enabled"),
-        datetime.now(timezone.utc),
-        default=True
+        pii_config.get("enabled"), datetime.now(timezone.utc), default=True
     ):
         try:
             has_pii, _, pii_redactions, _ = _scan_for_pii(combined_text, pii_config)
             if has_pii:
                 new_redactions = []
                 for r in pii_redactions:
-                    pos = r.get('position', 0)
-                    length = r.get('original_length', 0)
-                    original_value = combined_text[pos:pos + length] if length else r.get('type', '')
+                    pos = r.get("position", 0)
+                    length = r.get("original_length", 0)
+                    original_value = (
+                        combined_text[pos : pos + length]
+                        if length
+                        else r.get("type", "")
+                    )
                     fp = _finding_fingerprint("pii", f"{r['type']}:{original_value}")
                     if fp not in seen:
                         new_redactions.append(r)
                         seen[fp] = now_iso
 
                 if new_redactions:
-                    pii_types = list(set(r['type'] for r in new_redactions))
+                    pii_types = list(set(r["type"] for r in new_redactions))
                     warning_msg = (
                         f"\n{'='*70}\n"
                         f"🔍 PII DETECTED IN CONVERSATION TRANSCRIPT\n"
@@ -1349,9 +1617,13 @@ def _scan_transcript_text(
                     )
                     warnings.append(warning_msg)
                     _log_transcript_violation(
-                        ViolationType.PII_IN_TRANSCRIPT, transcript_key,
-                        details={"pii_types": pii_types, "pii_count": len(new_redactions)},
-                        hook_context=hook_context
+                        ViolationType.PII_IN_TRANSCRIPT,
+                        transcript_key,
+                        details={
+                            "pii_types": pii_types,
+                            "pii_count": len(new_redactions),
+                        },
+                        hook_context=hook_context,
                     )
         except Exception as e:
             logging.debug(f"Transcript PII scan error (fail-open): {e}")
@@ -1401,7 +1673,9 @@ def scan_opencode_transcript_incremental(
         latest_ts = get_opencode_latest_timestamp(db_path, session_id)
         positions[pos_key] = latest_ts
         _save_transcript_positions(positions)
-        logging.debug(f"OpenCode transcript first seen, initialized position to {latest_ts}")
+        logging.debug(
+            f"OpenCode transcript first seen, initialized position to {latest_ts}"
+        )
         return warnings
 
     last_ts = positions[pos_key]
@@ -1425,7 +1699,7 @@ def _log_transcript_violation(
     violation_type: str,
     transcript_path: str,
     details: Optional[Dict] = None,
-    hook_context: Optional[Dict] = None
+    hook_context: Optional[Dict] = None,
 ):
     """Log a violation detected in the conversation transcript."""
     if not HAS_VIOLATION_LOGGER:
@@ -1442,7 +1716,7 @@ def _log_transcript_violation(
         violation_ctx = {
             "ide_type": "unknown",
             "hook_event": HookEvent.PROMPT,
-            "project_path": get_project_dir()
+            "project_path": get_project_dir(),
         }
         if hctx.get("session_id"):
             violation_ctx["session_id"] = hctx["session_id"]
@@ -1455,11 +1729,11 @@ def _log_transcript_violation(
             suggestion={
                 "action": "review_and_remediate",
                 "warning": "Sensitive content was detected in the conversation transcript. "
-                           "It may have been entered via a ! shell command. "
-                           "The content has already been sent to the AI model. "
-                           "Rotate any exposed credentials and start a new session."
+                "It may have been entered via a ! shell command. "
+                "The content has already been sent to the AI model. "
+                "Rotate any exposed credentials and start a new session.",
             },
-            severity="high"
+            severity="high",
         )
     except Exception as e:
         logging.error(f"Failed to log transcript violation: {e}")
@@ -1479,16 +1753,19 @@ def _scan_for_pii(text, pii_config, file_path=None):
     """
     try:
         from ai_guardian.secret_redactor import SecretRedactor
+
         # pii_only=True skips loading secret patterns, only loads PII patterns
-        redactor = SecretRedactor(config={'enabled': True}, pii_config=pii_config, pii_only=True)
+        redactor = SecretRedactor(
+            config={"enabled": True}, pii_config=pii_config, pii_only=True
+        )
         result = redactor.redact(text)
-        redactions = result.get('redactions', [])
+        redactions = result.get("redactions", [])
         if redactions:
             # Group redactions by type, collecting line numbers
             type_lines = {}
             for r in redactions:
-                rtype = r['type']
-                line_num = r.get('line_number')
+                rtype = r["type"]
+                line_num = r.get("line_number")
                 if rtype not in type_lines:
                     type_lines[rtype] = []
                 if line_num is not None:
@@ -1509,7 +1786,9 @@ def _scan_for_pii(text, pii_config, file_path=None):
 
             file_info = ""
             if file_path:
-                display_path = file_path if len(file_path) <= 100 else "..." + file_path[-97:]
+                display_path = (
+                    file_path if len(file_path) <= 100 else "..." + file_path[-97:]
+                )
                 file_info = f"File: {display_path}\n"
 
             warning = (
@@ -1523,14 +1802,19 @@ def _scan_for_pii(text, pii_config, file_path=None):
                 + f"\n\nAction: {pii_config.get('action', 'block')}\n"
                 + f"{'='*70}\n"
             )
-            return True, result['redacted_text'], redactions, warning
+            return True, result["redacted_text"], redactions, warning
         return False, text, [], None
     except Exception as e:
         logging.warning(f"PII scan error: {e}")
         on_error = _get_on_scan_error_action()
         if on_error == ActionMode.BLOCK:
             logging.error(f"PII scan failed (fail-closed, on_scan_error=block): {e}")
-            return True, text, [], f"PII scan failed (blocked by on_scan_error=block): {e}"
+            return (
+                True,
+                text,
+                [],
+                f"PII scan failed (blocked by on_scan_error=block): {e}",
+            )
         return False, text, [], None
 
 
@@ -1563,13 +1847,19 @@ def _extract_block_reason(error_message: str) -> str:
     # Phase 3 format - Tool Access Denied
     elif "🛡️ Tool Access Denied" in error_message:
         # Check for special patterns first
-        if "Pattern: no permission rule" in error_message or "no permission rule" in error_message.lower():
+        if (
+            "Pattern: no permission rule" in error_message
+            or "no permission rule" in error_message.lower()
+        ):
             return "No permission rule configured"
-        elif "Pattern: not in allow list" in error_message or "not in allow list" in error_message.lower():
+        elif (
+            "Pattern: not in allow list" in error_message
+            or "not in allow list" in error_message.lower()
+        ):
             return "Not in allow list"
 
         # Try to extract pattern from "Pattern: <value>" line
-        match = re.search(r'Pattern:\s*([^\n]+)', error_message)
+        match = re.search(r"Pattern:\s*([^\n]+)", error_message)
         if match:
             pattern = match.group(1).strip()
             return f"Matched deny pattern: {pattern}"
@@ -1588,7 +1878,7 @@ def _extract_block_reason(error_message: str) -> str:
 
     elif "matched deny pattern:" in error_message:
         # Extract the pattern
-        match = re.search(r'matched deny pattern: ([^\n]+)', error_message)
+        match = re.search(r"matched deny pattern: ([^\n]+)", error_message)
         if match:
             pattern = match.group(1).strip()
             return f"Matched deny pattern: {pattern}"
@@ -1631,7 +1921,7 @@ def _is_ai_guardian_test_file(file_path):
     # Find ai-guardian or ai_guardian directory in path
     ai_guardian_index = -1
     for i, part in enumerate(path_parts):
-        if part in ('ai-guardian', 'ai_guardian'):
+        if part in ("ai-guardian", "ai_guardian"):
             ai_guardian_index = i
             break
 
@@ -1640,23 +1930,34 @@ def _is_ai_guardian_test_file(file_path):
 
     # Check if 'tests' appears IMMEDIATELY after ai-guardian directory
     # This ensures it's the ai-guardian project's tests/, not some other tests/
-    if ai_guardian_index + 1 < len(path_parts) and path_parts[ai_guardian_index + 1] == 'tests':
+    if (
+        ai_guardian_index + 1 < len(path_parts)
+        and path_parts[ai_guardian_index + 1] == "tests"
+    ):
         return True
 
     return False
 
 
-def _annotation_hint(error_message: str, file_path: Optional[str] = None, annotations_config: Optional[Dict] = None) -> str:
+def _annotation_hint(
+    error_message: str,
+    file_path: Optional[str] = None,
+    annotations_config: Optional[Dict] = None,
+) -> str:
     """Append annotation suppression hint to error messages for file content scans."""
     if not error_message or not file_path:
         return error_message
 
     from ai_guardian.annotations import (
-        INLINE_MARKER, BLOCK_BEGIN_MARKER, BLOCK_END_MARKER,
-        DEFAULT_SECRET_ALIASES, _build_alias_lists,
+        INLINE_MARKER,
+        BLOCK_BEGIN_MARKER,
+        BLOCK_END_MARKER,
+        _build_alias_lists,
     )
 
-    inline_allow_aliases, secret_aliases, block_begin_aliases, block_end_aliases = _build_alias_lists(annotations_config)
+    inline_allow_aliases, secret_aliases, block_begin_aliases, block_end_aliases = (
+        _build_alias_lists(annotations_config)
+    )
 
     # Build inline all-violation examples
     all_markers = [INLINE_MARKER] + inline_allow_aliases
@@ -1681,7 +1982,9 @@ def _annotation_hint(error_message: str, file_path: Optional[str] = None, annota
     return error_message + "\n".join(lines)
 
 
-def _extract_context_snippet(text: str, line_number: int, max_chars: int = 200) -> Optional[str]:
+def _extract_context_snippet(
+    text: str, line_number: int, max_chars: int = 200
+) -> Optional[str]:
     """
     Extract a few lines of context around a detection position.
 
@@ -1698,7 +2001,7 @@ def _extract_context_snippet(text: str, line_number: int, max_chars: int = 200) 
     if not text or not line_number or line_number < 1:
         return None
 
-    lines = text.split('\n')
+    lines = text.split("\n")
     idx = line_number - 1
 
     if idx >= len(lines):
@@ -1708,20 +2011,25 @@ def _extract_context_snippet(text: str, line_number: int, max_chars: int = 200) 
     end = min(len(lines), idx + 2)
     snippet_lines = lines[start:end]
 
-    snippet = '...'.join(line.strip() for line in snippet_lines if line.strip())
+    snippet = "...".join(line.strip() for line in snippet_lines if line.strip())
     if not snippet:
         return None
 
     if len(snippet) > max_chars:
-        snippet = snippet[:max_chars - 3] + '...'
+        snippet = snippet[: max_chars - 3] + "..."
 
     return snippet
 
 
-def _log_directory_blocking_violation(file_path: str, denied_directory: str, is_excluded: bool = False,
-                                      reason: str = None, suggestion: dict = None,
-                                      hook_context: Optional[Dict] = None,
-                                      violation_logger=None):
+def _log_directory_blocking_violation(
+    file_path: str,
+    denied_directory: str,
+    is_excluded: bool = False,
+    reason: str = None,
+    suggestion: dict = None,
+    hook_context: Optional[Dict] = None,
+    violation_logger=None,
+):
     """
     Log a directory blocking violation.
 
@@ -1740,13 +2048,12 @@ def _log_directory_blocking_violation(file_path: str, denied_directory: str, is_
         hctx = hook_context or {}
         violation_logger = violation_logger or ViolationLogger()
 
-        context = {
-            "project_path": get_project_dir(),
-            "path_in_exclusion": is_excluded
-        }
+        context = {"project_path": get_project_dir(), "path_in_exclusion": is_excluded}
 
         if is_excluded:
-            context["note"] = "Directory exclusions can override .ai-read-deny markers (path was excluded but deny marker existed)"
+            context["note"] = (
+                "Directory exclusions can override .ai-read-deny markers (path was excluded but deny marker existed)"
+            )
 
         if hctx.get("tool_use_id"):
             context["tool_use_id"] = hctx["tool_use_id"]
@@ -1760,7 +2067,7 @@ def _log_directory_blocking_violation(file_path: str, denied_directory: str, is_
             suggestion = {
                 "action": "remove_deny_marker",
                 "file_path": os.path.join(denied_directory, ".ai-read-deny"),
-                "warning": "This directory contains sensitive files"
+                "warning": "This directory contains sensitive files",
             }
 
         violation_logger.log_violation(
@@ -1769,11 +2076,11 @@ def _log_directory_blocking_violation(file_path: str, denied_directory: str, is_
                 "file_path": file_path,
                 "denied_directory": denied_directory,
                 "reason": reason,
-                "exclusion_overridden": is_excluded
+                "exclusion_overridden": is_excluded,
             },
             context=context,
             suggestion=suggestion,
-            severity="warning"
+            severity="warning",
         )
     except Exception as e:
         logger.error(f"Failed to log directory blocking violation: {e}")
@@ -1786,7 +2093,7 @@ def _build_violation_context(context, hook_context):
     violation_ctx = {
         "ide_type": ctx.get("ide_type", "unknown"),
         "hook_event": ctx.get("hook_event", "unknown"),
-        "project_path": get_project_dir()
+        "project_path": get_project_dir(),
     }
     if hctx.get("tool_use_id"):
         violation_ctx["tool_use_id"] = hctx["tool_use_id"]
@@ -1813,8 +2120,13 @@ def _enrich_blocked_from_details(blocked_info, details):
         blocked_info["validation"] = details["validation"]
 
 
-def _log_secret_detection_violation(filename: str, context: Optional[Dict] = None, secret_details: Optional[Dict] = None,
-                                    hook_context: Optional[Dict] = None, violation_logger=None):
+def _log_secret_detection_violation(
+    filename: str,
+    context: Optional[Dict] = None,
+    secret_details: Optional[Dict] = None,
+    hook_context: Optional[Dict] = None,
+    violation_logger=None,
+):
     """
     Log a secret detection violation.
 
@@ -1834,12 +2146,14 @@ def _log_secret_detection_violation(filename: str, context: Optional[Dict] = Non
             "file_path": filename if filename != "user_prompt" else None,
             "source": "prompt" if filename == "user_prompt" else "file",
             "secret_type": details.get("rule_id", "Unknown"),
-            "reason": f"{engine_name} detected sensitive information"
+            "reason": f"{engine_name} detected sensitive information",
         }
         _enrich_blocked_from_details(blocked_info, details)
 
         violation_logger = violation_logger or ViolationLogger()
-        if details.get("end_line") and details["end_line"] != details.get("line_number"):
+        if details.get("end_line") and details["end_line"] != details.get(
+            "line_number"
+        ):
             line_num = details.get("line_number")
             end_line = details["end_line"]
             false_positive_msg = (
@@ -1848,7 +2162,9 @@ def _log_secret_detection_violation(filename: str, context: Optional[Dict] = Non
                 f"ai-guardian:begin-allow / ai-guardian:end-allow"
             )
         else:
-            false_positive_msg = "Add '# gitleaks:allow' or '# ai-guardian:allow' at the end of the line"
+            false_positive_msg = (
+                "Add '# gitleaks:allow' or '# ai-guardian:allow' at the end of the line"
+            )
 
         violation_logger.log_violation(
             violation_type=ViolationType.SECRET_DETECTED,
@@ -1859,7 +2175,7 @@ def _log_secret_detection_violation(filename: str, context: Optional[Dict] = Non
                 "warning": "Secrets should never be committed to code or shared with AI",
                 "false_positive": false_positive_msg,
             },
-            severity="critical"
+            severity="critical",
         )
     except Exception as e:
         logger.critical(f"Failed to log secret detection violation: {e}")
@@ -1868,16 +2184,28 @@ def _log_secret_detection_violation(filename: str, context: Optional[Dict] = Non
 # Category → (ViolationType, reason template, severity)
 _CATEGORY_VIOLATION_MAP = {
     "pii": (ViolationType.PII_DETECTED, "PII detected", "high"),
-    "prompt_injection": (ViolationType.PROMPT_INJECTION, "Prompt injection detected", "high"),
+    "prompt_injection": (
+        ViolationType.PROMPT_INJECTION,
+        "Prompt injection detected",
+        "high",
+    ),
     "unicode": (ViolationType.PROMPT_INJECTION, "Unicode attack detected", "high"),
-    "config_exfil": (ViolationType.CONFIG_FILE_EXFIL, "Config exfiltration pattern detected", "high"),
+    "config_exfil": (
+        ViolationType.CONFIG_FILE_EXFIL,
+        "Config exfiltration pattern detected",
+        "high",
+    ),
     "ssrf": (ViolationType.SSRF_BLOCKED, "SSRF pattern detected", "high"),
 }
 
 
-def _log_finding_violation(filename: str, context: Optional[Dict] = None,
-                           secret_details: Optional[Dict] = None,
-                           hook_context: Optional[Dict] = None, violation_logger=None):
+def _log_finding_violation(
+    filename: str,
+    context: Optional[Dict] = None,
+    secret_details: Optional[Dict] = None,
+    hook_context: Optional[Dict] = None,
+    violation_logger=None,
+):
     """Route a scanner finding to the correct violation type based on category.
 
     Checks the 'category' field in secret_details to determine the violation
@@ -1888,12 +2216,16 @@ def _log_finding_violation(filename: str, context: Optional[Dict] = None,
     category = details.get("category")
 
     if category is None or category == "secrets":
-        _log_secret_detection_violation(filename, context, secret_details, hook_context, violation_logger)
+        _log_secret_detection_violation(
+            filename, context, secret_details, hook_context, violation_logger
+        )
         return
 
     mapping = _CATEGORY_VIOLATION_MAP.get(category)
     if mapping is None:
-        _log_secret_detection_violation(filename, context, secret_details, hook_context, violation_logger)
+        _log_secret_detection_violation(
+            filename, context, secret_details, hook_context, violation_logger
+        )
         return
 
     if not HAS_VIOLATION_LOGGER:
@@ -1908,12 +2240,14 @@ def _log_finding_violation(filename: str, context: Optional[Dict] = None,
             "file_path": filename if filename != "user_prompt" else None,
             "source": "prompt" if filename == "user_prompt" else "file",
             "secret_type": rule_id,
-            "reason": f"{engine_name}: {reason_label} ({rule_id})"
+            "reason": f"{engine_name}: {reason_label} ({rule_id})",
         }
         _enrich_blocked_from_details(blocked_info, details)
 
         violation_logger = violation_logger or ViolationLogger()
-        if details.get("end_line") and details["end_line"] != details.get("line_number"):
+        if details.get("end_line") and details["end_line"] != details.get(
+            "line_number"
+        ):
             line_num = details.get("line_number")
             end_line = details["end_line"]
             false_positive_msg = (
@@ -1932,7 +2266,7 @@ def _log_finding_violation(filename: str, context: Optional[Dict] = None,
                 "action": "review_finding",
                 "false_positive": false_positive_msg,
             },
-            severity=severity
+            severity=severity,
         )
     except Exception as e:
         logger.error(f"Failed to log finding violation: {e}")
@@ -1973,10 +2307,21 @@ def _build_permission_matched_text(tool_name, tool_input, tool_identifier):
     return tool_identifier or tool_name or ""
 
 
-def _handle_ask_mode(action_str, violation_type, matched_text, config_section, error_msg,
-                     file_path=None, line_number=None, start_column=None,
-                     matched_pattern="", latency_timer=None, hook_context=None,
-                     finding_index=None, total_findings=None):
+def _handle_ask_mode(
+    action_str,
+    violation_type,
+    matched_text,
+    config_section,
+    error_msg,
+    file_path=None,
+    line_number=None,
+    start_column=None,
+    matched_pattern="",
+    latency_timer=None,
+    hook_context=None,
+    finding_index=None,
+    total_findings=None,
+):
     """Handle 'ask' action mode by showing an interactive dialog.
 
     Returns an AskResult if action is 'ask', or None if action is not 'ask'.
@@ -1988,7 +2333,12 @@ def _handle_ask_mode(action_str, violation_type, matched_text, config_section, e
         return None
 
     try:
-        from ai_guardian.tui.ask_dialog import show_ask_dialog, AskViolationInfo, AskDecision, format_hook_label
+        from ai_guardian.tui.ask_dialog import (
+            show_ask_dialog,
+            AskViolationInfo,
+            AskDecision,
+            format_hook_label,
+        )
 
         display_text = matched_text or ""
         display_line = line_number
@@ -1999,6 +2349,7 @@ def _handle_ask_mode(action_str, violation_type, matched_text, config_section, e
         if not display_text and file_path and error_msg:
             try:
                 import re as _re
+
                 loc_match = _re.search(r"Location:\s*[^:]+:(\d+)", error_msg)
                 if loc_match:
                     display_line = int(loc_match.group(1))
@@ -2018,6 +2369,7 @@ def _handle_ask_mode(action_str, violation_type, matched_text, config_section, e
         if not display_text:
             try:
                 import re as _re
+
                 type_match = _re.search(r"Secret Type:\s*(.+)", error_msg or "")
                 if type_match:
                     display_text = type_match.group(1).strip()
@@ -2028,10 +2380,15 @@ def _handle_ask_mode(action_str, violation_type, matched_text, config_section, e
         if error_msg:
             for prefix in ("Secret Type:", "Scanner:"):
                 import re as _re
+
                 m = _re.search(rf"{prefix}\s*(.+)", error_msg)
                 if m:
                     summary_lines.append(f"{prefix} {m.group(1).strip()}")
-        summary = " | ".join(summary_lines) if summary_lines else (error_msg[:200] if error_msg else str(violation_type))
+        summary = (
+            " | ".join(summary_lines)
+            if summary_lines
+            else (error_msg[:200] if error_msg else str(violation_type))
+        )
 
         hctx = hook_context or {}
         violation_info = AskViolationInfo(
@@ -2060,31 +2417,55 @@ def _handle_ask_mode(action_str, violation_type, matched_text, config_section, e
             latency_timer.add_ask_wait(_dialog_elapsed_ms)
 
         if result.decision == AskDecision.ALLOW_ALWAYS and result.allowlist_pattern:
-            if not getattr(result, 'config_saved', False):
+            if not getattr(result, "config_saved", False):
                 from pathlib import Path as _Path
                 from ai_guardian.config_writer import save_ask_pattern
-                cp = _Path(result.config_path) if getattr(result, 'config_path', None) else None
-                save_ask_pattern(config_section, result.allowlist_pattern, config_path=cp)
+
+                cp = (
+                    _Path(result.config_path)
+                    if getattr(result, "config_path", None)
+                    else None
+                )
+                save_ask_pattern(
+                    config_section, result.allowlist_pattern, config_path=cp
+                )
             from ai_guardian.config_loaders import _clear_config_cache
+
             _clear_config_cache(project_key=hctx.get("project_path") or os.getcwd())
 
         if result.decision == AskDecision.IGNORE_FILE and result.ignore_path:
-            if not getattr(result, 'config_saved', False):
+            if not getattr(result, "config_saved", False):
                 from ai_guardian.tui.ask_dialog import _save_ignore_path
+
                 _save_ignore_path(result.ignore_path, result.ignore_scanner_types)
             from ai_guardian.config_loaders import _clear_config_cache
+
             _clear_config_cache(project_key=hctx.get("project_path") or os.getcwd())
 
         return result
 
     except Exception as e:
         logging.warning(f"Ask dialog error, falling back to {fallback_action}: {e}")
-        from ai_guardian.tui.ask_dialog import AskResult, AskDecision, _map_fallback_to_decision
+        from ai_guardian.tui.ask_dialog import (
+            AskResult,
+            AskDecision,
+            _map_fallback_to_decision,
+        )
+
         return AskResult(decision=_map_fallback_to_decision(fallback_action))
 
 
-def _handle_ask_mode_multi(action_str, violation_type, findings, config_section, error_msg,
-                           file_path=None, matched_pattern="", latency_timer=None, hook_context=None):
+def _handle_ask_mode_multi(
+    action_str,
+    violation_type,
+    findings,
+    config_section,
+    error_msg,
+    file_path=None,
+    matched_pattern="",
+    latency_timer=None,
+    hook_context=None,
+):
     """Handle 'ask' action mode for multiple findings.
 
     Loops through findings sequentially, calling _handle_ask_mode for each.
@@ -2102,7 +2483,8 @@ def _handle_ask_mode_multi(action_str, violation_type, findings, config_section,
     if not findings or len(findings) <= 1:
         single_finding = findings[0] if findings else {}
         return _handle_ask_mode(
-            action_str, violation_type,
+            action_str,
+            violation_type,
             matched_text=single_finding.get("matched_text", ""),
             config_section=config_section,
             error_msg=single_finding.get("error_message", error_msg),
@@ -2120,7 +2502,8 @@ def _handle_ask_mode_multi(action_str, violation_type, findings, config_section,
 
     for idx, finding in enumerate(findings):
         result = _handle_ask_mode(
-            action_str, violation_type,
+            action_str,
+            violation_type,
             matched_text=finding.get("matched_text", ""),
             config_section=config_section,
             error_msg=finding.get("error_message", error_msg),
@@ -2152,21 +2535,38 @@ def _handle_ask_mode_multi(action_str, violation_type, findings, config_section,
     return aggregate
 
 
-def _handle_ask_mode_auto(action_str, violation_type, config_section, error_msg,
-                          file_path=None, matched_text=None, line_number=None,
-                          start_column=None, matched_pattern='',
-                          latency_timer=None, hook_context=None,
-                          findings=None):
+def _handle_ask_mode_auto(
+    action_str,
+    violation_type,
+    config_section,
+    error_msg,
+    file_path=None,
+    matched_text=None,
+    line_number=None,
+    start_column=None,
+    matched_pattern="",
+    latency_timer=None,
+    hook_context=None,
+    findings=None,
+):
     """Route to multi or single ask dialog based on findings count."""
     if findings and len(findings) > 1:
         return _handle_ask_mode_multi(
-            action_str, violation_type, findings, config_section, error_msg,
-            file_path=file_path, matched_pattern=matched_pattern,
-            latency_timer=latency_timer, hook_context=hook_context)
+            action_str,
+            violation_type,
+            findings,
+            config_section,
+            error_msg,
+            file_path=file_path,
+            matched_pattern=matched_pattern,
+            latency_timer=latency_timer,
+            hook_context=hook_context,
+        )
     if findings and len(findings) == 1:
         f = findings[0]
         return _handle_ask_mode(
-            action_str, violation_type,
+            action_str,
+            violation_type,
             matched_text=f.get("matched_text", ""),
             config_section=config_section,
             error_msg=f.get("error_message", error_msg),
@@ -2175,9 +2575,11 @@ def _handle_ask_mode_auto(action_str, violation_type, config_section, error_msg,
             start_column=f.get("start_column"),
             matched_pattern=f.get("matched_pattern", matched_pattern),
             latency_timer=latency_timer,
-            hook_context=hook_context)
+            hook_context=hook_context,
+        )
     return _handle_ask_mode(
-        action_str, violation_type,
+        action_str,
+        violation_type,
         matched_text=matched_text or "",
         config_section=config_section,
         error_msg=error_msg,
@@ -2186,7 +2588,8 @@ def _handle_ask_mode_auto(action_str, violation_type, config_section, error_msg,
         start_column=start_column,
         matched_pattern=matched_pattern,
         latency_timer=latency_timer,
-        hook_context=hook_context)
+        hook_context=hook_context,
+    )
 
 
 _ASK_VIOLATION_LABELS = {
@@ -2205,6 +2608,7 @@ _ASK_VIOLATION_LABELS = {
 def _format_ask_info_message(violation_type, decision, detail=""):
     """Format an informational message for an ask-mode allow decision."""
     from ai_guardian.tui.ask_dialog import AskDecision
+
     label = _ASK_VIOLATION_LABELS.get(violation_type, str(violation_type))
     if decision == AskDecision.ALLOW_ALWAYS:
         msg = f"ℹ️  {label}: pattern added to allowlist (always allowed)"
@@ -2219,13 +2623,21 @@ def _format_ask_info_message(violation_type, decision, detail=""):
     return msg
 
 
-def _log_ask_decision(violation_type, decision, matched_text="", error_msg="", file_path=None,
-                      line_number=None, dialog_wait_ms=0.0):
+def _log_ask_decision(
+    violation_type,
+    decision,
+    matched_text="",
+    error_msg="",
+    file_path=None,
+    line_number=None,
+    dialog_wait_ms=0.0,
+):
     """Log an ask-mode decision (allow or block) to violations.jsonl."""
     if not HAS_VIOLATION_LOGGER:
         return
     try:
         from ai_guardian.tui.ask_dialog import AskDecision
+
         vlogger = ViolationLogger()
         blocked_info = {
             "description": (error_msg[:200] if error_msg else str(violation_type)),
@@ -2266,15 +2678,19 @@ def _log_ask_decision(violation_type, decision, matched_text="", error_msg="", f
         logging.error(f"Failed to log ask decision: {e}")
 
 
-def _log_prompt_injection_violation(filename: str, context: Optional[Dict] = None, attack_type: str = "injection",
-                                    hook_context: Optional[Dict] = None,
-                                    matched_pattern: Optional[str] = None,
-                                    matched_text: Optional[str] = None,
-                                    confidence: Optional[float] = None,
-                                    line_number: Optional[int] = None,
-                                    start_column: Optional[int] = None,
-                                    end_column: Optional[int] = None,
-                                    violation_logger=None):
+def _log_prompt_injection_violation(
+    filename: str,
+    context: Optional[Dict] = None,
+    attack_type: str = "injection",
+    hook_context: Optional[Dict] = None,
+    matched_pattern: Optional[str] = None,
+    matched_text: Optional[str] = None,
+    confidence: Optional[float] = None,
+    line_number: Optional[int] = None,
+    start_column: Optional[int] = None,
+    end_column: Optional[int] = None,
+    violation_logger=None,
+):
     """
     Log a prompt injection or jailbreak violation.
 
@@ -2295,8 +2711,16 @@ def _log_prompt_injection_violation(filename: str, context: Optional[Dict] = Non
 
     try:
         ctx = context or {}
-        vtype = ViolationType.JAILBREAK_DETECTED if attack_type == "jailbreak" else ViolationType.PROMPT_INJECTION
-        reason = "Jailbreak attempt detected" if attack_type == "jailbreak" else "Prompt injection pattern detected"
+        vtype = (
+            ViolationType.JAILBREAK_DETECTED
+            if attack_type == "jailbreak"
+            else ViolationType.PROMPT_INJECTION
+        )
+        reason = (
+            "Jailbreak attempt detected"
+            if attack_type == "jailbreak"
+            else "Prompt injection pattern detected"
+        )
         full_path = ctx.get("file_path")
         if not full_path and filename != "user_prompt":
             full_path = filename
@@ -2307,7 +2731,7 @@ def _log_prompt_injection_violation(filename: str, context: Optional[Dict] = Non
             "pattern": matched_pattern or "Unknown",
             "confidence": confidence if confidence is not None else 0.0,
             "method": "heuristic",
-            "reason": reason
+            "reason": reason,
         }
         if start_column is not None:
             blocked_entry["start_column"] = start_column
@@ -2322,23 +2746,26 @@ def _log_prompt_injection_violation(filename: str, context: Optional[Dict] = Non
             context=_build_violation_context(context, hook_context),
             suggestion={
                 "action": "add_allowlist_pattern",
-                "note": "If this is legitimate (e.g., documentation), add to allowlist in ai-guardian.json"
+                "note": "If this is legitimate (e.g., documentation), add to allowlist in ai-guardian.json",
             },
-            severity="high"
+            severity="high",
         )
     except Exception as e:
         logger.error(f"Failed to log prompt injection violation: {e}")
 
 
-def _log_context_poisoning_violation(filename: str, context: Optional[Dict] = None,
-                                     hook_context: Optional[Dict] = None,
-                                     matched_pattern: Optional[str] = None,
-                                     matched_text: Optional[str] = None,
-                                     confidence: Optional[float] = None,
-                                     line_number: Optional[int] = None,
-                                     start_column: Optional[int] = None,
-                                     end_column: Optional[int] = None,
-                                     violation_logger=None):
+def _log_context_poisoning_violation(
+    filename: str,
+    context: Optional[Dict] = None,
+    hook_context: Optional[Dict] = None,
+    matched_pattern: Optional[str] = None,
+    matched_text: Optional[str] = None,
+    confidence: Optional[float] = None,
+    line_number: Optional[int] = None,
+    start_column: Optional[int] = None,
+    end_column: Optional[int] = None,
+    violation_logger=None,
+):
     """Log a context poisoning violation."""
     if not HAS_VIOLATION_LOGGER:
         return
@@ -2352,7 +2779,7 @@ def _log_context_poisoning_violation(filename: str, context: Optional[Dict] = No
             "pattern": matched_pattern or "Unknown",
             "confidence": confidence if confidence is not None else 0.0,
             "method": "heuristic",
-            "reason": "Context poisoning attempt detected"
+            "reason": "Context poisoning attempt detected",
         }
         if start_column is not None:
             blocked_entry["start_column"] = start_column
@@ -2367,23 +2794,26 @@ def _log_context_poisoning_violation(filename: str, context: Optional[Dict] = No
             context=_build_violation_context(context, hook_context),
             suggestion={
                 "action": "add_allowlist_pattern",
-                "note": "If this is a legitimate persistent instruction, add to context_poisoning.allowlist_patterns in ai-guardian.json"
+                "note": "If this is a legitimate persistent instruction, add to context_poisoning.allowlist_patterns in ai-guardian.json",
             },
-            severity="medium"
+            severity="medium",
         )
     except Exception as e:
         logger.error(f"Failed to log context poisoning violation: {e}")
 
 
-def _log_supply_chain_violation(filename: str, context: Optional[Dict] = None,
-                                hook_context: Optional[Dict] = None,
-                                matched_pattern: Optional[str] = None,
-                                matched_text: Optional[str] = None,
-                                category: Optional[str] = None,
-                                line_number: Optional[int] = None,
-                                start_column: Optional[int] = None,
-                                end_column: Optional[int] = None,
-                                violation_logger=None):
+def _log_supply_chain_violation(
+    filename: str,
+    context: Optional[Dict] = None,
+    hook_context: Optional[Dict] = None,
+    matched_pattern: Optional[str] = None,
+    matched_text: Optional[str] = None,
+    category: Optional[str] = None,
+    line_number: Optional[int] = None,
+    start_column: Optional[int] = None,
+    end_column: Optional[int] = None,
+    violation_logger=None,
+):
     """Log a supply chain threat violation."""
     if not HAS_VIOLATION_LOGGER:
         return
@@ -2396,7 +2826,7 @@ def _log_supply_chain_violation(filename: str, context: Optional[Dict] = None,
             "source": "agent_config",
             "pattern": matched_pattern or "Unknown",
             "category": category or "unknown",
-            "reason": "Supply chain threat detected in agent configuration"
+            "reason": "Supply chain threat detected in agent configuration",
         }
         if start_column is not None:
             blocked_entry["start_column"] = start_column
@@ -2411,9 +2841,9 @@ def _log_supply_chain_violation(filename: str, context: Optional[Dict] = None,
             context=_build_violation_context(context, hook_context),
             suggestion={
                 "action": "add_allowlist_path",
-                "note": "If this is a trusted config file, add to supply_chain.allowlist_paths in ai-guardian.json"
+                "note": "If this is a trusted config file, add to supply_chain.allowlist_paths in ai-guardian.json",
             },
-            severity="high"
+            severity="high",
         )
     except Exception as e:
         logger.error(f"Failed to log supply chain violation: {e}")
@@ -2433,11 +2863,11 @@ def _count_gitleaks_patterns(config_path):
         if not config_path or not Path(config_path).exists():
             return 0
 
-        with open(config_path, 'r', encoding='utf-8') as f:
+        with open(config_path, "r", encoding="utf-8") as f:
             content = f.read()
 
         # Count [[rules]] sections (each represents one detection rule)
-        rule_count = content.count('[[rules]]')
+        rule_count = content.count("[[rules]]")
         return rule_count
 
     except Exception as e:
@@ -2445,52 +2875,60 @@ def _count_gitleaks_patterns(config_path):
         return 0
 
 
-
-
-def _log_pii_violation(violation_logger, pii_config, pii_redactions,
-                      tool_identifier, hook_name, file_path, snippet_text,
-                      hook_event, hook_tool_use_id=None, hook_session_id=None,
-                      bash_command=None, pretool_ctx=None):
+def _log_pii_violation(
+    violation_logger,
+    pii_config,
+    pii_redactions,
+    tool_identifier,
+    hook_name,
+    file_path,
+    snippet_text,
+    hook_event,
+    hook_tool_use_id=None,
+    hook_session_id=None,
+    bash_command=None,
+    pretool_ctx=None,
+):
     """Log a PII violation and return (pii_action, pii_types)."""
-    pii_action = pii_config.get('action', 'block')
-    pii_types = list(set(r['type'] for r in pii_redactions))
-    pii_first_line = pii_redactions[0].get('line_number') if pii_redactions else None
+    pii_action = pii_config.get("action", "block")
+    pii_types = list(set(r["type"] for r in pii_redactions))
+    pii_first_line = pii_redactions[0].get("line_number") if pii_redactions else None
 
     first_redaction = pii_redactions[0] if pii_redactions else {}
-    pii_start_column = first_redaction.get('column')
+    pii_start_column = first_redaction.get("column")
     if pii_start_column is not None:
         pii_start_column = pii_start_column - 1
     pii_end_column = None
     if pii_start_column is not None:
-        orig_len = first_redaction.get('original_length', 0)
+        orig_len = first_redaction.get("original_length", 0)
         if orig_len:
             pii_end_column = pii_start_column + orig_len
 
     pii_blocked = {
-        'tool': tool_identifier,
-        'hook': hook_name,
-        'file_path': file_path,
-        'line_number': pii_first_line,
-        'pii_count': len(pii_redactions),
-        'pii_types': pii_types,
+        "tool": tool_identifier,
+        "hook": hook_name,
+        "file_path": file_path,
+        "line_number": pii_first_line,
+        "pii_count": len(pii_redactions),
+        "pii_types": pii_types,
     }
     if pii_start_column is not None:
-        pii_blocked['start_column'] = pii_start_column
+        pii_blocked["start_column"] = pii_start_column
     if pii_end_column is not None:
-        pii_blocked['end_column'] = pii_end_column
+        pii_blocked["end_column"] = pii_end_column
     if bash_command:
-        pii_blocked['command'] = bash_command
+        pii_blocked["command"] = bash_command
     snippet = _extract_context_snippet(snippet_text, pii_first_line)
     if snippet:
-        pii_blocked['context_snippet'] = snippet
+        pii_blocked["context_snippet"] = snippet
 
-    pii_ctx = {'action': pii_action, 'hook_event': hook_event}
+    pii_ctx = {"action": pii_action, "hook_event": hook_event}
     if hook_tool_use_id:
-        pii_ctx['tool_use_id'] = hook_tool_use_id
+        pii_ctx["tool_use_id"] = hook_tool_use_id
     if hook_session_id:
-        pii_ctx['session_id'] = hook_session_id
+        pii_ctx["session_id"] = hook_session_id
     if pretool_ctx:
-        pii_ctx['pretool_context'] = pretool_ctx
+        pii_ctx["pretool_context"] = pretool_ctx
 
     if violation_logger:
         violation_logger.log_violation(
@@ -2587,8 +3025,12 @@ _CATEGORY_BANNER = {
 }
 
 
-def _build_secret_detected_message(scanner_name, secret_details, pattern_description,
-                                   protection_label="Secret Scanning"):
+def _build_secret_detected_message(
+    scanner_name,
+    secret_details,
+    pattern_description,
+    protection_label="Secret Scanning",
+):
     """Build a category-aware detection error banner."""
     category = secret_details.get("category") if secret_details else None
     banner = _CATEGORY_BANNER.get(category) if category else None
@@ -2625,11 +3067,12 @@ def _build_secret_detected_message(scanner_name, secret_details, pattern_descrip
 
     if secret_details:
         from ai_guardian.secret_type_names import get_secret_type_display
-        display_name = get_secret_type_display(secret_details['rule_id'])
+
+        display_name = get_secret_type_display(secret_details["rule_id"])
         error_msg += f"{type_label}: {display_name}\n"
-        if secret_details.get('line_number'):
+        if secret_details.get("line_number"):
             _loc = f"{secret_details['file']}:{secret_details['line_number']}"
-            if secret_details.get('start_column') is not None:
+            if secret_details.get("start_column") is not None:
                 _loc += f":{secret_details['start_column'] + 1}"
             error_msg += f"Location: {_loc}\n"
         else:
@@ -2663,17 +3106,21 @@ def _build_secret_detected_message(scanner_name, secret_details, pattern_descrip
             "  • Cloud provider keys (AWS, GCP, Azure)\n\n"
         )
 
-    error_msg += (
-        f"{'='*70}\n"
-    )
+    error_msg += f"{'='*70}\n"
     return error_msg
 
 
-def _describe_patterns(engine_config, resolved_config_path, config_source, pattern_config):
+def _describe_patterns(
+    engine_config, resolved_config_path, config_source, pattern_config
+):
     """Return a user-facing description of which patterns a scanner engine uses."""
     engine_type = engine_config.type if engine_config else "gitleaks"
 
-    if HAS_SCANNER_ENGINE and engine_config and engine_config.pattern_server is not PATTERN_SERVER_UNSET:
+    if (
+        HAS_SCANNER_ENGINE
+        and engine_config
+        and engine_config.pattern_server is not PATTERN_SERVER_UNSET
+    ):
         if engine_config.pattern_server is None:
             return f"Built-in {engine_type} rules"
         ps = engine_config.pattern_server
@@ -2719,14 +3166,19 @@ def _apply_secret_validation(
         return None
 
     try:
-        from ai_guardian.scanners.secret_validator import SecretValidator, ValidationStatus
+        from ai_guardian.scanners.secret_validator import (
+            SecretValidator,
+            ValidationStatus,
+        )
 
         validator = SecretValidator(config=secret_config)
         if not validator.enabled:
             return None
 
         # Check if any secrets have validators
-        has_any_validator = any(validator.has_validator(s.get("rule_id", "")) for s in secrets_info)
+        has_any_validator = any(
+            validator.has_validator(s.get("rule_id", "")) for s in secrets_info
+        )
         if not has_any_validator:
             return {
                 "skip_block": False,
@@ -2738,7 +3190,9 @@ def _apply_secret_validation(
             }
 
         results = validator.validate_secrets(secrets_info, content)
-        active_secrets, inactive_secrets = validator.filter_inactive(secrets_info, results)
+        active_secrets, inactive_secrets = validator.filter_inactive(
+            secrets_info, results
+        )
 
         # Build validation_info from first result (matches primary secret in violation)
         primary_result = results[0] if results else None
@@ -2764,7 +3218,9 @@ def _apply_secret_validation(
             return {
                 "skip_block": True,
                 "validation_info": {
-                    "status": primary_result.status.value if primary_result else "inactive",
+                    "status": (
+                        primary_result.status.value if primary_result else "inactive"
+                    ),
                     "message": primary_result.message if primary_result else "",
                     "elapsed_ms": primary_result.elapsed_ms if primary_result else 0,
                 },
@@ -2785,7 +3241,8 @@ def _apply_secret_validation(
 
         # Use first active/verified result for validation_info, fall back to primary
         active_result = next(
-            (r for r in results if r.status == ValidationStatus.VERIFIED), primary_result
+            (r for r in results if r.status == ValidationStatus.VERIFIED),
+            primary_result,
         )
         return {
             "skip_block": False,
@@ -2818,11 +3275,14 @@ def _run_secret_validation(secret_config, secrets_list, content, context):
     perform secret validation after detection.
     """
     validation_result = _apply_secret_validation(
-        secret_config, secrets_list,
+        secret_config,
+        secrets_list,
         content if isinstance(content, str) else str(content),
         context=context,
     )
-    validation_info = validation_result.get("validation_info") if validation_result else None
+    validation_info = (
+        validation_result.get("validation_info") if validation_result else None
+    )
     should_skip = bool(validation_result and validation_result.get("skip_block"))
     return validation_info, should_skip
 
@@ -2853,10 +3313,10 @@ def _extract_pii_matched_text(pii_redactions, content):
     if not pii_redactions or not content:
         return ""
     r = pii_redactions[0]
-    pos = r.get('position', -1)
-    length = r.get('original_length', 0)
+    pos = r.get("position", -1)
+    length = r.get("original_length", 0)
     if pos >= 0 and length > 0 and pos + length <= len(content):
-        return content[pos:pos + length]
+        return content[pos : pos + length]
     return ""
 
 
@@ -2866,17 +3326,19 @@ def _pii_redactions_to_findings(pii_redactions, content, error_msg=""):
         return None
     findings = []
     for r in pii_redactions:
-        pos = r.get('position', -1)
-        length = r.get('original_length', 0)
+        pos = r.get("position", -1)
+        length = r.get("original_length", 0)
         matched = ""
         if pos >= 0 and length > 0 and pos + length <= len(content):
-            matched = content[pos:pos + length]
-        findings.append({
-            "matched_text": matched,
-            "line_number": r.get('line_number'),
-            "start_column": r.get('column'),
-            "error_message": f"PII: {r.get('type', 'unknown')}",
-        })
+            matched = content[pos : pos + length]
+        findings.append(
+            {
+                "matched_text": matched,
+                "line_number": r.get("line_number"),
+                "start_column": r.get("column"),
+                "error_message": f"PII: {r.get('type', 'unknown')}",
+            }
+        )
     return findings if findings else None
 
 
@@ -2888,11 +3350,17 @@ def _extract_file_path_from_pii_warning(pii_warning):
     return match.group(1) if match else None
 
 
-def check_secrets_with_gitleaks(content, filename="temp_file", context: Optional[Dict] = None,
-                                file_path: Optional[str] = None, tool_name: Optional[str] = None,
-                                ignore_files: Optional[list] = None, ignore_tools: Optional[list] = None,
-                                allowlist_patterns: Optional[list] = None,
-                                secret_config: Optional[Dict] = None):
+def check_secrets_with_gitleaks(
+    content,
+    filename="temp_file",
+    context: Optional[Dict] = None,
+    file_path: Optional[str] = None,
+    tool_name: Optional[str] = None,
+    ignore_files: Optional[list] = None,
+    ignore_tools: Optional[list] = None,
+    allowlist_patterns: Optional[list] = None,
+    secret_config: Optional[Dict] = None,
+):
     """
     Check content for secrets using Gitleaks binary.
 
@@ -2934,7 +3402,9 @@ def check_secrets_with_gitleaks(content, filename="temp_file", context: Optional
         if ignore_tools and tool_name:
             for pattern in ignore_tools:
                 if fnmatch.fnmatch(tool_name, pattern):
-                    logging.info(f"Skipping secret scanning for ignored tool: {tool_name}")
+                    logging.info(
+                        f"Skipping secret scanning for ignored tool: {tool_name}"
+                    )
                     return False, None
 
         # Check if file should be ignored
@@ -2955,20 +3425,22 @@ def check_secrets_with_gitleaks(content, filename="temp_file", context: Optional
                     matched = file_path_obj.match(expanded_pattern)
 
                 if matched:
-                    logging.info(f"Skipping secret scanning for ignored file: {file_path}")
+                    logging.info(
+                        f"Skipping secret scanning for ignored file: {file_path}"
+                    )
                     return False, None
 
         # Convert content to string if it's not already
         # Agent tool outputs can be lists, dicts, or other types
         if isinstance(content, list):
-            content = '\n'.join(str(item) for item in content)
+            content = "\n".join(str(item) for item in content)
         elif not isinstance(content, str):
             content = str(content)
 
         # Skip scanning if file is a gitleaks config file (path-based check)
         # This prevents false positives when viewing pattern files
         # Use path-based detection instead of content-based to prevent bypass
-        if file_path and file_path.endswith('.gitleaks.toml'):
+        if file_path and file_path.endswith(".gitleaks.toml"):
             logging.debug(f"Skipping scan - file is a gitleaks config: {file_path}")
             return False, None
 
@@ -2978,7 +3450,9 @@ def check_secrets_with_gitleaks(content, filename="temp_file", context: Optional
             _gitleaks_allowlist = _gitleaks_cfg.load_gitleaks_allowlist()
             if _gitleaks_allowlist and file_path:
                 if _gitleaks_cfg.should_skip_file(file_path, _gitleaks_allowlist):
-                    logging.info(f"Skipping secret scanning for .gitleaks.toml allowlisted path: {file_path}")
+                    logging.info(
+                        f"Skipping secret scanning for .gitleaks.toml allowlisted path: {file_path}"
+                    )
                     return False, None
 
         # AST-aware scanning: for code files, extract only comments and strings
@@ -2994,12 +3468,12 @@ def check_secrets_with_gitleaks(content, filename="temp_file", context: Optional
 
         # Create temporary file with content
         with tempfile.NamedTemporaryFile(
-            mode='w',
-            encoding='utf-8',
+            mode="w",
+            encoding="utf-8",
             suffix=f"_{filename}",
             prefix="aiguardian_",
             dir=tmp_base_dir,
-            delete=False
+            delete=False,
         ) as tmp_file:
             tmp_file.write(content)
             tmp_file.flush()
@@ -3011,6 +3485,7 @@ def check_secrets_with_gitleaks(content, filename="temp_file", context: Optional
             filter_findings_by_stopwords_entropy,
             filter_findings_dicts_by_stopwords_entropy,
         )
+
         _ext_stopwords = load_stopwords(secret_config)
         _ext_min_entropy = (
             float(secret_config.get("min_entropy", 3.0))
@@ -3037,7 +3512,7 @@ def check_secrets_with_gitleaks(content, filename="temp_file", context: Optional
                 pattern_config = _load_pattern_server_config()
                 if pattern_config:
                     pattern_server_attempted = True
-                    pattern_server_url = pattern_config.get('url')
+                    pattern_server_url = pattern_config.get("url")
                     try:
                         pattern_client = PatternServerClient(pattern_config)
                         server_patterns = pattern_client.get_patterns_path()
@@ -3045,7 +3520,9 @@ def check_secrets_with_gitleaks(content, filename="temp_file", context: Optional
                             # SUCCESS: Use pattern server
                             gitleaks_config_path = server_patterns
                             config_source = "pattern server"
-                            logging.info(f"Using pattern server config: {server_patterns}")
+                            logging.info(
+                                f"Using pattern server config: {server_patterns}"
+                            )
                         else:
                             # Pattern server failed - will try scanner engines below
                             logging.warning(
@@ -3053,7 +3530,9 @@ def check_secrets_with_gitleaks(content, filename="temp_file", context: Optional
                                 f"falling back to scanner engines"
                             )
                     except Exception as e:
-                        logging.warning(f"Pattern server error, trying scanner engines: {e}")
+                        logging.warning(
+                            f"Pattern server error, trying scanner engines: {e}"
+                        )
 
             # Priority 2: Scanner Engines (if pattern server not used)
             engine_config = None
@@ -3062,19 +3541,42 @@ def check_secrets_with_gitleaks(content, filename="temp_file", context: Optional
             _all_available_engines = None
             if not gitleaks_config_path and HAS_SCANNER_ENGINE:
                 try:
-                    scanner_config = secret_config if secret_config else (_load_secret_scanning_config()[0])
-                    engines_list = scanner_config.get("engines", DEFAULT_ENGINES) if scanner_config else DEFAULT_ENGINES
-                    execution_strategy_name = scanner_config.get("execution_strategy", "first-match") if scanner_config else "first-match"
-                    consensus_threshold = scanner_config.get("consensus_threshold", 2) if scanner_config else 2
+                    scanner_config = (
+                        secret_config
+                        if secret_config
+                        else (_load_secret_scanning_config()[0])
+                    )
+                    engines_list = (
+                        scanner_config.get("engines", DEFAULT_ENGINES)
+                        if scanner_config
+                        else DEFAULT_ENGINES
+                    )
+                    execution_strategy_name = (
+                        scanner_config.get("execution_strategy", "first-match")
+                        if scanner_config
+                        else "first-match"
+                    )
+                    consensus_threshold = (
+                        scanner_config.get("consensus_threshold", 2)
+                        if scanner_config
+                        else 2
+                    )
 
                     # Select first available engine (logs warnings for unavailable ones)
-                    engine_config = select_engine(engines_list, parent_config=scanner_config)
+                    engine_config = select_engine(
+                        engines_list, parent_config=scanner_config
+                    )
 
                     # For first-match strategy, get all available engines for fallthrough
                     _all_available_engines = None
-                    if execution_strategy_name == "first-match" and len(engines_list) > 1:
+                    if (
+                        execution_strategy_name == "first-match"
+                        and len(engines_list) > 1
+                    ):
                         try:
-                            _all_available_engines = select_all_engines(engines_list, parent_config=scanner_config)
+                            _all_available_engines = select_all_engines(
+                                engines_list, parent_config=scanner_config
+                            )
                         except RuntimeError:
                             pass  # Only primary engine available
 
@@ -3088,7 +3590,7 @@ def check_secrets_with_gitleaks(content, filename="temp_file", context: Optional
 
                     config_source = f"{engine_config.type} defaults"
 
-                except RuntimeError as e:
+                except RuntimeError:
                     # NO SCANNER AVAILABLE - WARN (allow operation to continue)
                     default_scanner = engines_list[0] if engines_list else "gitleaks"
                     if pattern_server_attempted:
@@ -3111,9 +3613,15 @@ def check_secrets_with_gitleaks(content, filename="temp_file", context: Optional
                         )
                     on_error = _get_on_scan_error_action()
                     if on_error == ActionMode.BLOCK:
-                        logging.error(f"No scanner available (fail-closed, on_scan_error=block)")
-                        return True, warning_msg + "\n\nOperation BLOCKED (on_scan_error=block)."
-                    logging.warning(f"No scanner available - warning user")
+                        logging.error(
+                            "No scanner available (fail-closed, on_scan_error=block)"
+                        )
+                        return (
+                            True,
+                            warning_msg
+                            + "\n\nOperation BLOCKED (on_scan_error=block).",
+                        )
+                    logging.warning("No scanner available - warning user")
                     return False, warning_msg
 
             # Validate pattern completeness if using pattern server
@@ -3129,21 +3637,26 @@ def check_secrets_with_gitleaks(content, filename="temp_file", context: Optional
 
             # Create temporary report file for JSON output
             with tempfile.NamedTemporaryFile(
-                mode='w',
-                suffix='.json',
-                prefix='scanner_report_',
+                mode="w",
+                suffix=".json",
+                prefix="scanner_report_",
                 dir=tmp_base_dir,
-                delete=False
+                delete=False,
             ) as rf:
                 report_file = rf.name
 
             # Multi-engine strategy execution path (any-match, consensus)
             # For these strategies, run all engines via the strategy framework
             # and return the combined result directly.
-            if (execution_strategy_name in ("first-match", "any-match", "consensus")
-                    and HAS_SCANNER_ENGINE and not gitleaks_config_path):
+            if (
+                execution_strategy_name in ("first-match", "any-match", "consensus")
+                and HAS_SCANNER_ENGINE
+                and not gitleaks_config_path
+            ):
                 try:
-                    all_engines = select_all_engines(engines_list, parent_config=scanner_config)
+                    all_engines = select_all_engines(
+                        engines_list, parent_config=scanner_config
+                    )
                     strategy_kwargs = {}
                     if execution_strategy_name == "consensus":
                         strategy_kwargs["threshold"] = consensus_threshold
@@ -3153,75 +3666,118 @@ def check_secrets_with_gitleaks(content, filename="temp_file", context: Optional
                         engine_configs=all_engines,
                         scanner_fn=run_engine,
                         source_file=tmp_file_path,
-                        report_file_prefix=report_file.replace('.json', ''),
+                        report_file_prefix=report_file.replace(".json", ""),
                         config_path=gitleaks_config_path,
-                        context={"filename": filename}
+                        context={"filename": filename},
                     )
 
                     if strategy_result.has_secrets and strategy_result.secrets:
                         # Apply allowlist filtering
                         if allowlist_patterns:
                             from ai_guardian import allowlist_utils
-                            compiled_allowlist = allowlist_utils.compile_allowlist(allowlist_patterns)
+
+                            compiled_allowlist = allowlist_utils.compile_allowlist(
+                                allowlist_patterns
+                            )
                             if compiled_allowlist:
-                                content_str = content if isinstance(content, str) else str(content)
+                                content_str = (
+                                    content
+                                    if isinstance(content, str)
+                                    else str(content)
+                                )
                                 content_lines = content_str.splitlines()
                                 all_allowlisted = True
                                 for secret in strategy_result.secrets:
                                     line_num = secret.line_number
                                     if line_num > 0 and line_num <= len(content_lines):
-                                        if not allowlist_utils.check_allowlist(content_lines[line_num - 1], compiled_allowlist):
+                                        if not allowlist_utils.check_allowlist(
+                                            content_lines[line_num - 1],
+                                            compiled_allowlist,
+                                        ):
                                             all_allowlisted = False
                                             break
                                     else:
                                         all_allowlisted = False
                                         break
                                 if all_allowlisted:
-                                    logging.info("All strategy findings matched allowlist — skipping")
+                                    logging.info(
+                                        "All strategy findings matched allowlist — skipping"
+                                    )
                                     return False, None
 
                         # Apply .gitleaks.toml allowlist filtering (Issue #488)
                         if _gitleaks_allowlist and strategy_result.secrets:
-                            content_str = content if isinstance(content, str) else str(content)
+                            content_str = (
+                                content if isinstance(content, str) else str(content)
+                            )
                             gl_lines = content_str.splitlines()
                             findings_dicts = [
-                                {"rule_id": s.rule_id, "line_number": s.line_number, "file": s.file}
+                                {
+                                    "rule_id": s.rule_id,
+                                    "line_number": s.line_number,
+                                    "file": s.file,
+                                }
                                 for s in strategy_result.secrets
                             ]
                             remaining = _gitleaks_cfg.filter_findings(
                                 findings_dicts, gl_lines, file_path, _gitleaks_allowlist
                             )
                             if not remaining:
-                                logging.info("All strategy findings matched .gitleaks.toml allowlist — skipping")
+                                logging.info(
+                                    "All strategy findings matched .gitleaks.toml allowlist — skipping"
+                                )
                                 return False, None
 
                         # Filter external scanner findings by stopwords/entropy (#1245)
                         if _ext_stopwords or _ext_min_entropy is not None:
-                            strategy_result.secrets, _sw_n, _ent_n = filter_findings_by_stopwords_entropy(
-                                strategy_result.secrets, _ext_stopwords, _ext_min_entropy)
+                            strategy_result.secrets, _sw_n, _ent_n = (
+                                filter_findings_by_stopwords_entropy(
+                                    strategy_result.secrets,
+                                    _ext_stopwords,
+                                    _ext_min_entropy,
+                                )
+                            )
                             if _sw_n or _ent_n:
                                 logging.info(
                                     f"External scanner: filtered {_sw_n} stopword + "
-                                    f"{_ent_n} low-entropy findings (strategy path)")
+                                    f"{_ent_n} low-entropy findings (strategy path)"
+                                )
                             if not strategy_result.secrets:
-                                logging.info("All external scanner findings filtered by stopwords/entropy — skipping")
+                                logging.info(
+                                    "All external scanner findings filtered by stopwords/entropy — skipping"
+                                )
                                 return False, None
 
                         # Secret liveness validation (Issue #971, #983)
                         secrets_for_validation = [
-                            {"rule_id": s.rule_id, "line_number": s.line_number, "secret": s.secret}
+                            {
+                                "rule_id": s.rule_id,
+                                "line_number": s.line_number,
+                                "secret": s.secret,
+                            }
                             for s in strategy_result.secrets
                         ]
                         validation_info, should_skip = _run_secret_validation(
-                            secret_config, secrets_for_validation, content, context,
+                            secret_config,
+                            secrets_for_validation,
+                            content,
+                            context,
                         )
 
                         first_secret = strategy_result.secrets[0]
                         secret_findings_list = [
                             {
-                                "matched_text": _extract_matched_text_for_ask(
-                                    {"matched_text": s.secret, "line_number": s.line_number}, content
-                                ) if content else s.secret,
+                                "matched_text": (
+                                    _extract_matched_text_for_ask(
+                                        {
+                                            "matched_text": s.secret,
+                                            "line_number": s.line_number,
+                                        },
+                                        content,
+                                    )
+                                    if content
+                                    else s.secret
+                                ),
                                 "matched_pattern": s.rule_id or "",
                                 "rule_id": s.rule_id,
                                 "line_number": s.line_number,
@@ -3249,22 +3805,37 @@ def check_secrets_with_gitleaks(content, filename="temp_file", context: Optional
                             secret_details["validation"] = validation_info
 
                         if should_skip:
-                            _log_finding_violation(file_path or filename, context, secret_details,
-                                                   hook_context=context)
-                            logging.info("All secrets validated as inactive (strategy path) — allowing")
+                            _log_finding_violation(
+                                file_path or filename,
+                                context,
+                                secret_details,
+                                hook_context=context,
+                            )
+                            logging.info(
+                                "All secrets validated as inactive (strategy path) — allowing"
+                            )
                             return False, None
 
                         scanner_name = strategy_result.engine
                         error_msg = _build_secret_detected_message(
-                            scanner_name, secret_details,
+                            scanner_name,
+                            secret_details,
                             f"Built-in {scanner_name} rules",
                             f"Secret Scanning ({execution_strategy_name} strategy)",
                         )
 
-                        _log_finding_violation(file_path or filename, context, secret_details,
-                                               hook_context=context)
-                        logging.error(f"Secret detected ({execution_strategy_name}): {first_secret.rule_id}")
-                        _last_secret_matched_text = _extract_matched_text_for_ask(secret_details, content)
+                        _log_finding_violation(
+                            file_path or filename,
+                            context,
+                            secret_details,
+                            hook_context=context,
+                        )
+                        logging.error(
+                            f"Secret detected ({execution_strategy_name}): {first_secret.rule_id}"
+                        )
+                        _last_secret_matched_text = _extract_matched_text_for_ask(
+                            secret_details, content
+                        )
                         _last_secret_line_number = secret_details.get("line_number")
                         _last_secret_start_column = secret_details.get("start_column")
                         _last_secret_findings = secret_findings_list
@@ -3275,7 +3846,9 @@ def check_secrets_with_gitleaks(content, filename="temp_file", context: Optional
                         error_lower = (strategy_result.error or "").lower()
 
                         # Auth errors → block (user can fix credentials)
-                        is_auth_error = any(kw in error_lower for kw in _AUTH_ERROR_KEYWORDS)
+                        is_auth_error = any(
+                            kw in error_lower for kw in _AUTH_ERROR_KEYWORDS
+                        )
                         if is_auth_error:
                             error_msg = (
                                 f"\n{'='*70}\n"
@@ -3298,7 +3871,9 @@ def check_secrets_with_gitleaks(content, filename="temp_file", context: Optional
                             return True, error_msg
 
                         # Network errors → warn but allow (fail-open)
-                        is_network_error = any(kw in error_lower for kw in _NETWORK_ERROR_KEYWORDS)
+                        is_network_error = any(
+                            kw in error_lower for kw in _NETWORK_ERROR_KEYWORDS
+                        )
                         if is_network_error:
                             warning_msg = (
                                 f"\n{'='*70}\n"
@@ -3314,12 +3889,18 @@ def check_secrets_with_gitleaks(content, filename="temp_file", context: Optional
                             print(warning_msg, file=sys.stderr)
                             on_error = _get_on_scan_error_action()
                             if on_error == ActionMode.BLOCK:
-                                return True, warning_msg + "\nOperation BLOCKED (on_scan_error=block)."
+                                return (
+                                    True,
+                                    warning_msg
+                                    + "\nOperation BLOCKED (on_scan_error=block).",
+                                )
                             return False, None
 
                         # Binary not found → warn but allow (fail-open)
                         if "not found" in error_lower or "no scanners" in error_lower:
-                            scanner_name = engines_list[0] if engines_list else "gitleaks"
+                            scanner_name = (
+                                engines_list[0] if engines_list else "gitleaks"
+                            )
                             warning_msg = (
                                 f"\n{'='*70}\n"
                                 f"⚠️  SECRET SCANNING DISABLED\n"
@@ -3347,15 +3928,34 @@ def check_secrets_with_gitleaks(content, filename="temp_file", context: Optional
             # (engine_config already set above if using scanner defaults)
             if gitleaks_config_path and not engine_config and HAS_SCANNER_ENGINE:
                 try:
-                    scanner_config = secret_config if secret_config else (_load_secret_scanning_config()[0])
-                    engines_list = scanner_config.get("engines", DEFAULT_ENGINES) if scanner_config else DEFAULT_ENGINES
-                    execution_strategy_name = scanner_config.get("execution_strategy", "first-match") if scanner_config else "first-match"
-                    engine_config = select_engine(engines_list, parent_config=scanner_config)
+                    scanner_config = (
+                        secret_config
+                        if secret_config
+                        else (_load_secret_scanning_config()[0])
+                    )
+                    engines_list = (
+                        scanner_config.get("engines", DEFAULT_ENGINES)
+                        if scanner_config
+                        else DEFAULT_ENGINES
+                    )
+                    execution_strategy_name = (
+                        scanner_config.get("execution_strategy", "first-match")
+                        if scanner_config
+                        else "first-match"
+                    )
+                    engine_config = select_engine(
+                        engines_list, parent_config=scanner_config
+                    )
 
                     # For first-match: get all engines for fallthrough (Issue #523)
-                    if execution_strategy_name == "first-match" and len(engines_list) > 1:
+                    if (
+                        execution_strategy_name == "first-match"
+                        and len(engines_list) > 1
+                    ):
                         try:
-                            _all_available_engines = select_all_engines(engines_list, parent_config=scanner_config)
+                            _all_available_engines = select_all_engines(
+                                engines_list, parent_config=scanner_config
+                            )
                         except RuntimeError:
                             pass  # intentionally silent — best-effort operation
                 except RuntimeError as e:
@@ -3380,58 +3980,67 @@ def check_secrets_with_gitleaks(content, filename="temp_file", context: Optional
             resolved_config_path = None
             if engine_config and HAS_SCANNER_ENGINE:
                 # Use flexible engine builder (Issue #154)
-                resolved_config_path = resolve_engine_config_path(engine_config, gitleaks_config_path)
+                resolved_config_path = resolve_engine_config_path(
+                    engine_config, gitleaks_config_path
+                )
                 cmd = build_scanner_command(
                     engine_config=engine_config,
                     source_file=tmp_file_path,
                     report_file=report_file,
-                    config_path=resolved_config_path
+                    config_path=resolved_config_path,
                 )
             else:
                 # Legacy fallback: hardcoded gitleaks command
-                logging.debug("Using legacy gitleaks command (scanner engine not available)")
+                logging.debug(
+                    "Using legacy gitleaks command (scanner engine not available)"
+                )
                 cmd = [
-                    'gitleaks',
-                    'detect',
-                    '--no-git',        # Don't use git history
-                    '--verbose',       # Detailed output
-                    '--redact',        # Defense-in-depth: redact Match/Secret fields in JSON
-                                       # (we don't extract these fields, but safeguard against future changes)
-                    '--report-format', 'json',  # JSON output for parsing
-                    '--report-path', report_file,  # Write JSON to file
-                    '--exit-code', '42',  # Custom exit code for found secrets
-                    '--source', tmp_file_path,
+                    "gitleaks",
+                    "detect",
+                    "--no-git",  # Don't use git history
+                    "--verbose",  # Detailed output
+                    "--redact",  # Defense-in-depth: redact Match/Secret fields in JSON
+                    # (we don't extract these fields, but safeguard against future changes)
+                    "--report-format",
+                    "json",  # JSON output for parsing
+                    "--report-path",
+                    report_file,  # Write JSON to file
+                    "--exit-code",
+                    "42",  # Custom exit code for found secrets
+                    "--source",
+                    tmp_file_path,
                 ]
                 # Add custom config if we have one
                 if gitleaks_config_path:
-                    cmd.extend(['--config', str(Path(gitleaks_config_path).absolute())])
+                    cmd.extend(["--config", str(Path(gitleaks_config_path).absolute())])
 
             # Run scanner
             logging.debug(f"Scanner command: {' '.join(cmd)}")
             result = subprocess.run(
-                cmd,
-                capture_output=True,
-                text=True,
-                timeout=30  # Prevent hanging
+                cmd, capture_output=True, text=True, timeout=30  # Prevent hanging
             )
 
             # Determine expected exit codes for secrets found/success
             # Use engine-specific codes if available, otherwise use gitleaks defaults
-            expected_secrets_code = engine_config.secrets_found_exit_code if engine_config else 42
-            expected_success_codes = [engine_config.success_exit_code] if engine_config else [0]
+            expected_secrets_code = (
+                engine_config.secrets_found_exit_code if engine_config else 42
+            )
+            expected_success_codes = (
+                [engine_config.success_exit_code] if engine_config else [0]
+            )
 
-            logging.debug(f"Scanner exit code: {result.returncode}, expected_secrets={expected_secrets_code}, expected_success={expected_success_codes}")
+            logging.debug(
+                f"Scanner exit code: {result.returncode}, expected_secrets={expected_secrets_code}, expected_success={expected_success_codes}"
+            )
 
             # Gitleaks/betterleaks use exit code 1 as default "secrets found" code
             # when --exit-code flag is not honored. Treat exit 1 as secrets found
             # for these engines to prevent bypass (Issue #411).
             _is_gitleaks_like = (
-                (engine_config and engine_config.type in ("gitleaks", "betterleaks"))
-                or not engine_config  # legacy path uses gitleaks
-            )
-            _is_secrets_found = (
-                result.returncode == expected_secrets_code
-                or (result.returncode == 1 and _is_gitleaks_like)
+                engine_config and engine_config.type in ("gitleaks", "betterleaks")
+            ) or not engine_config  # legacy path uses gitleaks
+            _is_secrets_found = result.returncode == expected_secrets_code or (
+                result.returncode == 1 and _is_gitleaks_like
             )
 
             # Check exit code
@@ -3447,7 +4056,11 @@ def check_secrets_with_gitleaks(content, filename="temp_file", context: Optional
                         scan_result = parser.parse(report_file)
                         if scan_result and scan_result.get("has_secrets"):
                             # Convert to legacy format for compatibility
-                            first_finding = scan_result["findings"][0] if scan_result["findings"] else {}
+                            first_finding = (
+                                scan_result["findings"][0]
+                                if scan_result["findings"]
+                                else {}
+                            )
                             secret_details = {
                                 "rule_id": first_finding.get("rule_id", "Unknown"),
                                 "file": file_path or filename,
@@ -3460,12 +4073,14 @@ def check_secrets_with_gitleaks(content, filename="temp_file", context: Optional
                                 "matched_text": first_finding.get("matched_text", ""),
                             }
                     except Exception as e:
-                        logging.error(f"Failed to parse scanner output with {engine_config.output_parser} parser: {e}")
+                        logging.error(
+                            f"Failed to parse scanner output with {engine_config.output_parser} parser: {e}"
+                        )
                 else:
                     # Legacy parser for gitleaks
                     try:
                         if os.path.exists(report_file):
-                            with open(report_file, 'r', encoding='utf-8') as f:
+                            with open(report_file, "r", encoding="utf-8") as f:
                                 findings = json.load(f)
                             if findings and len(findings) > 0:
                                 # Get first finding for details
@@ -3486,16 +4101,23 @@ def check_secrets_with_gitleaks(content, filename="temp_file", context: Optional
 
                 # Guard: exit code said secrets but report is empty/unparseable (Issue #532)
                 # Don't return immediately — fall through to first-match fallthrough (Issue #523)
-                if secret_details is None and (scan_result is None or not scan_result.get('has_secrets')):
+                if secret_details is None and (
+                    scan_result is None or not scan_result.get("has_secrets")
+                ):
                     logging.warning(
                         f"Scanner exited with secrets-found code ({result.returncode}) "
                         f"but produced no findings — treating as clean"
                     )
-                    if (execution_strategy_name == "first-match"
-                            and _all_available_engines
-                            and len(_all_available_engines) > 1):
-                        remaining = [e for e in _all_available_engines
-                                     if e.type != engine_config.type]
+                    if (
+                        execution_strategy_name == "first-match"
+                        and _all_available_engines
+                        and len(_all_available_engines) > 1
+                    ):
+                        remaining = [
+                            e
+                            for e in _all_available_engines
+                            if e.type != engine_config.type
+                        ]
                         if remaining:
                             logging.info(
                                 f"Engine {engine_config.type} found no secrets, "
@@ -3506,30 +4128,47 @@ def check_secrets_with_gitleaks(content, filename="temp_file", context: Optional
                                 engine_configs=remaining,
                                 scanner_fn=run_engine,
                                 source_file=tmp_file_path,
-                                report_file_prefix=report_file.replace('.json', ''),
+                                report_file_prefix=report_file.replace(".json", ""),
                                 config_path=None,
-                                context={"filename": filename}
+                                context={"filename": filename},
                             )
                             if fallback_result.has_secrets and fallback_result.secrets:
                                 # Filter by stopwords/entropy (#1245) — fallthrough path 1
                                 if _ext_stopwords or _ext_min_entropy is not None:
-                                    fallback_result.secrets, _sw_n, _ent_n = filter_findings_by_stopwords_entropy(
-                                        fallback_result.secrets, _ext_stopwords, _ext_min_entropy)
+                                    fallback_result.secrets, _sw_n, _ent_n = (
+                                        filter_findings_by_stopwords_entropy(
+                                            fallback_result.secrets,
+                                            _ext_stopwords,
+                                            _ext_min_entropy,
+                                        )
+                                    )
                                     if _sw_n or _ent_n:
                                         logging.info(
                                             f"External scanner: filtered {_sw_n} stopword + "
-                                            f"{_ent_n} low-entropy findings (fallthrough 1)")
+                                            f"{_ent_n} low-entropy findings (fallthrough 1)"
+                                        )
                                     if not fallback_result.secrets:
-                                        logging.info("All fallthrough-1 findings filtered by stopwords/entropy — skipping")
+                                        logging.info(
+                                            "All fallthrough-1 findings filtered by stopwords/entropy — skipping"
+                                        )
                                         return False, None
 
                                 # Secret liveness validation (Issue #971, #983) — fallthrough path 1
                                 fb_secrets = [
-                                    {"rule_id": s.rule_id, "line_number": s.line_number, "secret": s.secret}
+                                    {
+                                        "rule_id": s.rule_id,
+                                        "line_number": s.line_number,
+                                        "secret": s.secret,
+                                    }
                                     for s in fallback_result.secrets
                                 ]
-                                fb_validation_info, fb_should_skip = _run_secret_validation(
-                                    secret_config, fb_secrets, content, context,
+                                fb_validation_info, fb_should_skip = (
+                                    _run_secret_validation(
+                                        secret_config,
+                                        fb_secrets,
+                                        content,
+                                        context,
+                                    )
                                 )
 
                                 first_secret = fallback_result.secrets[0]
@@ -3550,32 +4189,58 @@ def check_secrets_with_gitleaks(content, filename="temp_file", context: Optional
                                     secret_details["validation"] = fb_validation_info
 
                                 if fb_should_skip:
-                                    _log_finding_violation(file_path or filename, context, secret_details,
-                                                           hook_context=context)
-                                    logging.info("All secrets validated as inactive (fallthrough 1) — allowing")
+                                    _log_finding_violation(
+                                        file_path or filename,
+                                        context,
+                                        secret_details,
+                                        hook_context=context,
+                                    )
+                                    logging.info(
+                                        "All secrets validated as inactive (fallthrough 1) — allowing"
+                                    )
                                     return False, None
 
                                 scanner_name = fallback_result.engine
                                 error_msg = _build_secret_detected_message(
-                                    scanner_name, secret_details,
+                                    scanner_name,
+                                    secret_details,
                                     "Built-in Defaults",
                                     "Secret Scanning (first-match fallthrough)",
                                 )
-                                _log_finding_violation(file_path or filename, context, secret_details,
-                                                       hook_context=context)
-                                logging.error(f"Secret detected (first-match fallthrough): {first_secret.rule_id}")
-                                _last_secret_matched_text = _extract_matched_text_for_ask(secret_details, content)
-                                _last_secret_line_number = secret_details.get("line_number")
-                                _last_secret_start_column = secret_details.get("start_column")
+                                _log_finding_violation(
+                                    file_path or filename,
+                                    context,
+                                    secret_details,
+                                    hook_context=context,
+                                )
+                                logging.error(
+                                    f"Secret detected (first-match fallthrough): {first_secret.rule_id}"
+                                )
+                                _last_secret_matched_text = (
+                                    _extract_matched_text_for_ask(
+                                        secret_details, content
+                                    )
+                                )
+                                _last_secret_line_number = secret_details.get(
+                                    "line_number"
+                                )
+                                _last_secret_start_column = secret_details.get(
+                                    "start_column"
+                                )
                                 return True, error_msg
                     return False, None
 
                 # Filter findings through allowlist patterns (Issue #357)
                 if allowlist_patterns and secret_details:
                     from ai_guardian import allowlist_utils
-                    compiled_allowlist = allowlist_utils.compile_allowlist(allowlist_patterns)
+
+                    compiled_allowlist = allowlist_utils.compile_allowlist(
+                        allowlist_patterns
+                    )
                     if compiled_allowlist:
-                        content_str = content if isinstance(content, str) else str(content)
+                        content_str = (
+                            content if isinstance(content, str) else str(content)
+                        )
                         content_lines = content_str.splitlines()
 
                         all_allowlisted = True
@@ -3585,7 +4250,9 @@ def check_secrets_with_gitleaks(content, filename="temp_file", context: Optional
                                 line_num = finding.get("line_number", 0)
                                 if line_num > 0 and line_num <= len(content_lines):
                                     line_text = content_lines[line_num - 1]
-                                    if not allowlist_utils.check_allowlist(line_text, compiled_allowlist):
+                                    if not allowlist_utils.check_allowlist(
+                                        line_text, compiled_allowlist
+                                    ):
                                         all_allowlisted = False
                                         break
                                 else:
@@ -3596,13 +4263,17 @@ def check_secrets_with_gitleaks(content, filename="temp_file", context: Optional
                             line_num = secret_details.get("line_number", 0)
                             if line_num > 0 and line_num <= len(content_lines):
                                 line_text = content_lines[line_num - 1]
-                                if not allowlist_utils.check_allowlist(line_text, compiled_allowlist):
+                                if not allowlist_utils.check_allowlist(
+                                    line_text, compiled_allowlist
+                                ):
                                     all_allowlisted = False
                             else:
                                 all_allowlisted = False
 
                         if all_allowlisted:
-                            logging.info("All secret findings matched allowlist patterns — skipping")
+                            logging.info(
+                                "All secret findings matched allowlist patterns — skipping"
+                            )
                             return False, None
 
                 # Apply .gitleaks.toml allowlist filtering (Issue #488)
@@ -3611,56 +4282,87 @@ def check_secrets_with_gitleaks(content, filename="temp_file", context: Optional
                     gl_lines = content_str.splitlines()
                     if scan_result and scan_result.get("findings"):
                         gl_remaining = _gitleaks_cfg.filter_findings(
-                            scan_result["findings"], gl_lines, file_path, _gitleaks_allowlist
+                            scan_result["findings"],
+                            gl_lines,
+                            file_path,
+                            _gitleaks_allowlist,
                         )
                     else:
                         gl_remaining = _gitleaks_cfg.filter_findings(
                             [secret_details], gl_lines, file_path, _gitleaks_allowlist
                         )
                     if not gl_remaining:
-                        logging.info("All secret findings matched .gitleaks.toml allowlist — skipping")
+                        logging.info(
+                            "All secret findings matched .gitleaks.toml allowlist — skipping"
+                        )
                         return False, None
 
                 # Filter external scanner findings by stopwords/entropy (#1245) — legacy path
                 if secret_details and (_ext_stopwords or _ext_min_entropy is not None):
                     if scan_result and scan_result.get("findings"):
-                        _filt, _sw_n, _ent_n = filter_findings_dicts_by_stopwords_entropy(
-                            scan_result["findings"], _ext_stopwords, _ext_min_entropy)
+                        _filt, _sw_n, _ent_n = (
+                            filter_findings_dicts_by_stopwords_entropy(
+                                scan_result["findings"],
+                                _ext_stopwords,
+                                _ext_min_entropy,
+                            )
+                        )
                         if _sw_n or _ent_n:
                             logging.info(
                                 f"External scanner: filtered {_sw_n} stopword + "
-                                f"{_ent_n} low-entropy findings (legacy path)")
+                                f"{_ent_n} low-entropy findings (legacy path)"
+                            )
                         if not _filt:
-                            logging.info("All external scanner findings filtered by stopwords/entropy — skipping")
+                            logging.info(
+                                "All external scanner findings filtered by stopwords/entropy — skipping"
+                            )
                             return False, None
                         scan_result["findings"] = _filt
                         scan_result["total_findings"] = len(_filt)
                         first_finding = _filt[0]
                         secret_details = {
-                            "rule_id": first_finding.get("rule_id", secret_details.get("rule_id")),
+                            "rule_id": first_finding.get(
+                                "rule_id", secret_details.get("rule_id")
+                            ),
                             "file": secret_details.get("file"),
-                            "line_number": first_finding.get("line_number", secret_details.get("line_number")),
-                            "end_line": first_finding.get("end_line", secret_details.get("end_line", 0)),
-                            "start_column": first_finding.get("start_column", secret_details.get("start_column")),
-                            "end_column": first_finding.get("end_column", secret_details.get("end_column")),
-                            "commit": first_finding.get("commit", secret_details.get("commit", "N/A")),
+                            "line_number": first_finding.get(
+                                "line_number", secret_details.get("line_number")
+                            ),
+                            "end_line": first_finding.get(
+                                "end_line", secret_details.get("end_line", 0)
+                            ),
+                            "start_column": first_finding.get(
+                                "start_column", secret_details.get("start_column")
+                            ),
+                            "end_column": first_finding.get(
+                                "end_column", secret_details.get("end_column")
+                            ),
+                            "commit": first_finding.get(
+                                "commit", secret_details.get("commit", "N/A")
+                            ),
                             "total_findings": len(_filt),
                             "matched_text": first_finding.get("matched_text", ""),
                         }
                     else:
-                        _filt, _sw_n, _ent_n = filter_findings_dicts_by_stopwords_entropy(
-                            [secret_details], _ext_stopwords, _ext_min_entropy)
+                        _filt, _sw_n, _ent_n = (
+                            filter_findings_dicts_by_stopwords_entropy(
+                                [secret_details], _ext_stopwords, _ext_min_entropy
+                            )
+                        )
                         if _sw_n or _ent_n:
                             logging.info(
                                 f"External scanner: filtered {_sw_n} stopword + "
-                                f"{_ent_n} low-entropy findings (legacy path)")
+                                f"{_ent_n} low-entropy findings (legacy path)"
+                            )
                         if not _filt:
-                            logging.info("All external scanner findings filtered by stopwords/entropy — skipping")
+                            logging.info(
+                                "All external scanner findings filtered by stopwords/entropy — skipping"
+                            )
                             return False, None
 
                 # Replace temp scan path with original file path (Issue #882)
                 if secret_details:
-                    secret_details['file'] = file_path or filename
+                    secret_details["file"] = file_path or filename
 
                 # Secret liveness validation (Issue #971, #983) — legacy subprocess path
                 if secret_details:
@@ -3668,53 +4370,84 @@ def check_secrets_with_gitleaks(content, filename="temp_file", context: Optional
                     if scan_result and scan_result.get("findings"):
                         secrets_for_validation = scan_result["findings"]
                     legacy_validation_info, legacy_should_skip = _run_secret_validation(
-                        secret_config, secrets_for_validation, content, context,
+                        secret_config,
+                        secrets_for_validation,
+                        content,
+                        context,
                     )
                     if legacy_validation_info:
                         secret_details["validation"] = legacy_validation_info
 
                     if legacy_should_skip:
-                        scanner_name = engine_config.type if engine_config else "Gitleaks"
+                        scanner_name = (
+                            engine_config.type if engine_config else "Gitleaks"
+                        )
                         if secret_details is not None:
                             secret_details.setdefault("engine", scanner_name)
-                        _log_finding_violation(file_path or filename, context, secret_details,
-                                               hook_context=context)
-                        logging.info("All secrets validated as inactive (legacy path) — allowing")
+                        _log_finding_violation(
+                            file_path or filename,
+                            context,
+                            secret_details,
+                            hook_context=context,
+                        )
+                        logging.info(
+                            "All secrets validated as inactive (legacy path) — allowing"
+                        )
                         return False, None
 
                 # Build error message with details if available
                 scanner_name = engine_config.type if engine_config else "Gitleaks"
                 pattern_config_for_msg = pattern_config if HAS_PATTERN_SERVER else None
                 error_msg = _build_secret_detected_message(
-                    scanner_name, secret_details,
-                    _describe_patterns(engine_config, resolved_config_path, config_source, pattern_config_for_msg),
+                    scanner_name,
+                    secret_details,
+                    _describe_patterns(
+                        engine_config,
+                        resolved_config_path,
+                        config_source,
+                        pattern_config_for_msg,
+                    ),
                 )
 
                 # Log violation with category-aware routing (Issue #984)
                 if secret_details is not None:
                     secret_details.setdefault("engine", scanner_name)
-                _log_finding_violation(file_path or filename, context, secret_details,
-                                       hook_context=context)
+                _log_finding_violation(
+                    file_path or filename, context, secret_details, hook_context=context
+                )
 
                 # Always block - secret scanning does not support "log" mode
                 # (unless validation confirmed all secrets are inactive - Issue #971)
                 # Rationale: Allowing secrets through (even in audit mode) creates security risk:
                 #   - UserPromptSubmit: secrets reach Claude's API
                 #   - PostToolUse: secrets in tool outputs go to Claude's session
-                logging.error(f"Secret detected: {secret_details.get('rule_id') if secret_details else 'unknown'}")
-                _last_secret_matched_text = _extract_matched_text_for_ask(secret_details, content)
-                _last_secret_line_number = secret_details.get("line_number") if secret_details else None
-                _last_secret_start_column = secret_details.get("start_column") if secret_details else None
+                logging.error(
+                    f"Secret detected: {secret_details.get('rule_id') if secret_details else 'unknown'}"
+                )
+                _last_secret_matched_text = _extract_matched_text_for_ask(
+                    secret_details, content
+                )
+                _last_secret_line_number = (
+                    secret_details.get("line_number") if secret_details else None
+                )
+                _last_secret_start_column = (
+                    secret_details.get("start_column") if secret_details else None
+                )
                 return True, error_msg
 
             elif result.returncode in expected_success_codes:
                 # No secrets found by primary engine.
                 # For first-match: try remaining engines (Issue #523)
-                if (execution_strategy_name == "first-match"
-                        and _all_available_engines
-                        and len(_all_available_engines) > 1):
-                    remaining = [e for e in _all_available_engines
-                                 if e.type != engine_config.type]
+                if (
+                    execution_strategy_name == "first-match"
+                    and _all_available_engines
+                    and len(_all_available_engines) > 1
+                ):
+                    remaining = [
+                        e
+                        for e in _all_available_engines
+                        if e.type != engine_config.type
+                    ]
                     if remaining:
                         logging.info(
                             f"Engine {engine_config.type} found no secrets, "
@@ -3725,30 +4458,47 @@ def check_secrets_with_gitleaks(content, filename="temp_file", context: Optional
                             engine_configs=remaining,
                             scanner_fn=run_engine,
                             source_file=tmp_file_path,
-                            report_file_prefix=report_file.replace('.json', ''),
+                            report_file_prefix=report_file.replace(".json", ""),
                             config_path=None,
-                            context={"filename": filename}
+                            context={"filename": filename},
                         )
                         if fallback_result.has_secrets and fallback_result.secrets:
                             # Filter by stopwords/entropy (#1245) — fallthrough path 2
                             if _ext_stopwords or _ext_min_entropy is not None:
-                                fallback_result.secrets, _sw_n, _ent_n = filter_findings_by_stopwords_entropy(
-                                    fallback_result.secrets, _ext_stopwords, _ext_min_entropy)
+                                fallback_result.secrets, _sw_n, _ent_n = (
+                                    filter_findings_by_stopwords_entropy(
+                                        fallback_result.secrets,
+                                        _ext_stopwords,
+                                        _ext_min_entropy,
+                                    )
+                                )
                                 if _sw_n or _ent_n:
                                     logging.info(
                                         f"External scanner: filtered {_sw_n} stopword + "
-                                        f"{_ent_n} low-entropy findings (fallthrough 2)")
+                                        f"{_ent_n} low-entropy findings (fallthrough 2)"
+                                    )
                                 if not fallback_result.secrets:
-                                    logging.info("All fallthrough-2 findings filtered by stopwords/entropy — skipping")
+                                    logging.info(
+                                        "All fallthrough-2 findings filtered by stopwords/entropy — skipping"
+                                    )
                                     return False, None
 
                             # Secret liveness validation (Issue #971, #983) — fallthrough path 2
                             fb2_secrets = [
-                                {"rule_id": s.rule_id, "line_number": s.line_number, "secret": s.secret}
+                                {
+                                    "rule_id": s.rule_id,
+                                    "line_number": s.line_number,
+                                    "secret": s.secret,
+                                }
                                 for s in fallback_result.secrets
                             ]
-                            fb2_validation_info, fb2_should_skip = _run_secret_validation(
-                                secret_config, fb2_secrets, content, context,
+                            fb2_validation_info, fb2_should_skip = (
+                                _run_secret_validation(
+                                    secret_config,
+                                    fb2_secrets,
+                                    content,
+                                    context,
+                                )
                             )
 
                             first_secret = fallback_result.secrets[0]
@@ -3769,47 +4519,78 @@ def check_secrets_with_gitleaks(content, filename="temp_file", context: Optional
                                 secret_details["validation"] = fb2_validation_info
 
                             if fb2_should_skip:
-                                _log_finding_violation(file_path or filename, context, secret_details,
-                                                        hook_context=context)
-                                logging.info("All secrets validated as inactive (fallthrough 2) — allowing")
+                                _log_finding_violation(
+                                    file_path or filename,
+                                    context,
+                                    secret_details,
+                                    hook_context=context,
+                                )
+                                logging.info(
+                                    "All secrets validated as inactive (fallthrough 2) — allowing"
+                                )
                                 return False, None
 
                             scanner_name = fallback_result.engine
                             fallback_engine_config = next(
                                 (e for e in remaining if e.type == scanner_name), None
                             )
-                            fallback_resolved = resolve_engine_config_path(
-                                fallback_engine_config, gitleaks_config_path
-                            ) if fallback_engine_config else None
+                            fallback_resolved = (
+                                resolve_engine_config_path(
+                                    fallback_engine_config, gitleaks_config_path
+                                )
+                                if fallback_engine_config
+                                else None
+                            )
                             fallback_pattern_desc = _describe_patterns(
-                                fallback_engine_config, fallback_resolved,
-                                config_source, pattern_config if HAS_PATTERN_SERVER else None
+                                fallback_engine_config,
+                                fallback_resolved,
+                                config_source,
+                                pattern_config if HAS_PATTERN_SERVER else None,
                             )
                             error_msg = _build_secret_detected_message(
-                                scanner_name, secret_details,
+                                scanner_name,
+                                secret_details,
                                 fallback_pattern_desc,
                                 "Secret Scanning (first-match fallthrough)",
                             )
-                            _log_finding_violation(file_path or filename, context, secret_details,
-                                                    hook_context=context)
-                            logging.error(f"Secret detected (first-match fallthrough): {first_secret.rule_id}")
-                            _last_secret_matched_text = _extract_matched_text_for_ask(secret_details, content)
+                            _log_finding_violation(
+                                file_path or filename,
+                                context,
+                                secret_details,
+                                hook_context=context,
+                            )
+                            logging.error(
+                                f"Secret detected (first-match fallthrough): {first_secret.rule_id}"
+                            )
+                            _last_secret_matched_text = _extract_matched_text_for_ask(
+                                secret_details, content
+                            )
                             _last_secret_line_number = secret_details.get("line_number")
-                            _last_secret_start_column = secret_details.get("start_column")
+                            _last_secret_start_column = secret_details.get(
+                                "start_column"
+                            )
                             return True, error_msg
 
                 return False, None
 
             else:
                 # Unexpected error - analyze and decide whether to block or warn
-                logging.warning(f"Gitleaks returned unexpected exit code: {result.returncode}")
+                logging.warning(
+                    f"Gitleaks returned unexpected exit code: {result.returncode}"
+                )
 
                 # Extract error details (sanitized - don't log full stderr to avoid leaking secrets)
                 stderr_preview = ""
                 if result.stderr:
                     # Only log sanitized error info, not full stderr
-                    logging.debug(f"Gitleaks stderr present (length: {len(result.stderr)} chars)")
-                    stderr_lines = [line.strip() for line in result.stderr.split('\n') if line.strip()]
+                    logging.debug(
+                        f"Gitleaks stderr present (length: {len(result.stderr)} chars)"
+                    )
+                    stderr_lines = [
+                        line.strip()
+                        for line in result.stderr.split("\n")
+                        if line.strip()
+                    ]
                     if stderr_lines:
                         # Only show first line (error summary), truncated
                         stderr_preview = stderr_lines[0][:200]
@@ -3818,13 +4599,17 @@ def check_secrets_with_gitleaks(content, filename="temp_file", context: Optional
                 is_auth_error = False
                 if result.stderr:
                     stderr_lower = result.stderr.lower()
-                    is_auth_error = any(keyword in stderr_lower for keyword in _AUTH_ERROR_KEYWORDS)
+                    is_auth_error = any(
+                        keyword in stderr_lower for keyword in _AUTH_ERROR_KEYWORDS
+                    )
 
                 # Check if this is a network error (user cannot fix)
                 is_network_error = False
                 if result.stderr:
                     stderr_lower = result.stderr.lower()
-                    is_network_error = any(keyword in stderr_lower for keyword in _NETWORK_ERROR_KEYWORDS)
+                    is_network_error = any(
+                        keyword in stderr_lower for keyword in _NETWORK_ERROR_KEYWORDS
+                    )
 
                 if is_auth_error:
                     # Authentication error - BLOCK (user can fix by updating credentials)
@@ -3883,8 +4668,13 @@ def check_secrets_with_gitleaks(content, filename="temp_file", context: Optional
 
                     on_error = _get_on_scan_error_action()
                     if on_error == ActionMode.BLOCK:
-                        logging.error(f"Secret scanning error (fail-closed, on_scan_error=block)")
-                        return True, warning_msg + "\nOperation BLOCKED (on_scan_error=block)."
+                        logging.error(
+                            "Secret scanning error (fail-closed, on_scan_error=block)"
+                        )
+                        return (
+                            True,
+                            warning_msg + "\nOperation BLOCKED (on_scan_error=block).",
+                        )
                     return False, None
 
         finally:
@@ -3896,8 +4686,8 @@ def check_secrets_with_gitleaks(content, filename="temp_file", context: Optional
 
                     # Overwrite with zeros to prevent recovery
                     file_size = os.path.getsize(tmp_file_path)
-                    with open(tmp_file_path, 'wb') as f:
-                        f.write(b'\x00' * file_size)
+                    with open(tmp_file_path, "wb") as f:
+                        f.write(b"\x00" * file_size)
                         f.flush()
                         os.fsync(f.fileno())
 
@@ -3905,7 +4695,9 @@ def check_secrets_with_gitleaks(content, filename="temp_file", context: Optional
                     os.unlink(tmp_file_path)
 
                 except Exception as cleanup_error:
-                    logging.warning(f"Failed to securely cleanup temp file: {cleanup_error}")
+                    logging.warning(
+                        f"Failed to securely cleanup temp file: {cleanup_error}"
+                    )
                     # Still try basic deletion
                     try:
                         if os.path.exists(tmp_file_path):
@@ -3919,23 +4711,23 @@ def check_secrets_with_gitleaks(content, filename="temp_file", context: Optional
             if report_file:
                 report_files_to_clean.append(report_file)
                 # Multi-engine strategies create per-engine report files
-                report_prefix = report_file.replace('.json', '')
-                report_files_to_clean.extend(
-                    glob.glob(f"{report_prefix}_*.json")
-                )
+                report_prefix = report_file.replace(".json", "")
+                report_files_to_clean.extend(glob.glob(f"{report_prefix}_*.json"))
 
             for rf_path in report_files_to_clean:
                 if os.path.exists(rf_path):
                     try:
                         os.chmod(rf_path, 0o600)
                         file_size = os.path.getsize(rf_path)
-                        with open(rf_path, 'wb') as f:
-                            f.write(b'\x00' * file_size)
+                        with open(rf_path, "wb") as f:
+                            f.write(b"\x00" * file_size)
                             f.flush()
                             os.fsync(f.fileno())
                         os.unlink(rf_path)
                     except Exception as cleanup_error:
-                        logging.debug(f"Failed to securely cleanup report file {rf_path}: {cleanup_error}")
+                        logging.debug(
+                            f"Failed to securely cleanup report file {rf_path}: {cleanup_error}"
+                        )
                         try:
                             if os.path.exists(rf_path):
                                 os.unlink(rf_path)
@@ -3979,9 +4771,12 @@ def check_secrets_with_gitleaks(content, filename="temp_file", context: Optional
     except Exception as e:
         logging.error(f"Unexpected error during secret scanning: {e}")
         import traceback
+
         logging.error(traceback.format_exc())
         # Fail open - don't block on errors
         return False, None
+
+
 def process_hook_data(hook_data, daemon_state=None):
     """
     Process parsed hook data and return response.
@@ -4016,7 +4811,9 @@ def process_hook_data(hook_data, daemon_state=None):
         if ide_type == IDEType.CURSOR:
             logging.disable(logging.CRITICAL)
         else:
-            logging.info(f"Detected IDE type: {ide_type.value} (adapter: {adapter.name})")
+            logging.info(
+                f"Detected IDE type: {ide_type.value} (adapter: {adapter.name})"
+            )
             logging.info(f"Detected hook event: {hook_event}")
 
         # Use correlation IDs from normalized input
@@ -4025,17 +4822,27 @@ def process_hook_data(hook_data, daemon_state=None):
 
         # Handle session lifecycle events — early return, no scanning
         if hook_event == HookEvent.SESSION_END:
-            return _handle_session_end(hook_data, daemon_state, hook_session_id, adapter)
+            return _handle_session_end(
+                hook_data, daemon_state, hook_session_id, adapter
+            )
 
         if hook_event == HookEvent.POST_COMPACT:
             try:
-                from ai_guardian.session_state import SessionStateManager, derive_session_key
+                from ai_guardian.session_state import (
+                    SessionStateManager,
+                    derive_session_key,
+                )
+
                 session_key = derive_session_key(hook_data)
                 state_mgr = SessionStateManager(daemon_state=daemon_state)
                 state_mgr.mark_security_reinject(session_key)
-                logging.info(f"PostCompact: flagged session {session_key[:16]}... for security re-injection")
+                logging.info(
+                    f"PostCompact: flagged session {session_key[:16]}... for security re-injection"
+                )
             except Exception as e:
-                logging.debug(f"PostCompact: security reinject flag failed (non-fatal): {e}")
+                logging.debug(
+                    f"PostCompact: security reinject flag failed (non-fatal): {e}"
+                )
             return {"output": None, "exit_code": 0}
 
         if hook_event == HookEvent.STOP:
@@ -4054,13 +4861,15 @@ def process_hook_data(hook_data, daemon_state=None):
                 hook_data["transcript_path"] = adapter_default_paths[0]
                 logging.debug(
                     "Resolved transcript path from %s adapter: %s",
-                    adapter.name, adapter_default_paths[0],
+                    adapter.name,
+                    adapter_default_paths[0],
                 )
 
         # Create cross-hook context manager for PreToolUse/PostToolUse correlation
         context_mgr = None
         try:
             from ai_guardian.hook_context import HookContextManager
+
             context_mgr = HookContextManager(
                 session_id=hook_session_id, daemon_state=daemon_state
             )
@@ -4078,26 +4887,36 @@ def process_hook_data(hook_data, daemon_state=None):
                 inject = True
                 if si_config is not None:
                     inject = is_feature_enabled(
-                        si_config.get("inject_on_prompt"),
-                        now,
-                        default=True
+                        si_config.get("inject_on_prompt"), now, default=True
                     )
                 if inject:
                     try:
-                        from ai_guardian.session_state import SessionStateManager, derive_session_key
+                        from ai_guardian.session_state import (
+                            SessionStateManager,
+                            derive_session_key,
+                        )
+
                         session_key = derive_session_key(hook_data)
                         state_mgr = SessionStateManager(daemon_state=daemon_state)
                         if state_mgr.should_inject_security(session_key):
                             security_message = _SECURITY_SYSTEM_MESSAGE
                             state_mgr.mark_security_injected(session_key)
-                            logging.info(f"Security rules injected for session {session_key[:16]}...")
+                            logging.info(
+                                f"Security rules injected for session {session_key[:16]}..."
+                            )
                         else:
-                            logging.info(f"Security rules already injected for session {session_key[:16]}..., skipping")
+                            logging.info(
+                                f"Security rules already injected for session {session_key[:16]}..., skipping"
+                            )
                     except Exception as e:
-                        logging.debug(f"Session state check failed, injecting as fallback: {e}")
+                        logging.debug(
+                            f"Session state check failed, injecting as fallback: {e}"
+                        )
                         security_message = _SECURITY_SYSTEM_MESSAGE
             except Exception as e:
-                logging.debug(f"Security instructions config load failed (non-fatal): {e}")
+                logging.debug(
+                    f"Security instructions config load failed (non-fatal): {e}"
+                )
 
         # Handle PostToolUse event - scan tool output before sending to AI
         # Note: PreToolUse does NOT need _advance_transcript_position because
@@ -4110,12 +4929,16 @@ def process_hook_data(hook_data, daemon_state=None):
             # Extract tool output
             tool_output, tool_name = extract_tool_result(hook_data)
             _latency_tool = tool_name or ""
-            logging.info(f"PostToolUse: tool_name={tool_name}, has_output={tool_output is not None}")
+            logging.info(
+                f"PostToolUse: tool_name={tool_name}, has_output={tool_output is not None}"
+            )
 
             if tool_output is None:
                 # No output to scan - allow
                 _advance_transcript_position(hook_data)
-                return format_response(ide_type, has_secrets=False, hook_event=hook_event)
+                return format_response(
+                    ide_type, has_secrets=False, hook_event=hook_event
+                )
 
             # Create composite tool identifier for more granular ignore patterns
             # This allows ignore_tools to match both PreToolUse (input) and PostToolUse (output)
@@ -4127,12 +4950,16 @@ def process_hook_data(hook_data, daemon_state=None):
             tool_input = {}
             if "tool_use" in hook_data and isinstance(hook_data["tool_use"], dict):
                 tool_input = hook_data["tool_use"].get("input", {})
-            elif "tool_input" in hook_data and isinstance(hook_data["tool_input"], dict):
+            elif "tool_input" in hook_data and isinstance(
+                hook_data["tool_input"], dict
+            ):
                 tool_input = hook_data["tool_input"]
 
             if tool_name == "Skill" and tool_input.get("skill"):
                 tool_identifier = f"Skill:{tool_input['skill']}"
-                logging.info(f"PostToolUse (with output): Created composite identifier {tool_identifier}")
+                logging.info(
+                    f"PostToolUse (with output): Created composite identifier {tool_identifier}"
+                )
 
             logging.info(f"PostToolUse tool_identifier: {tool_identifier}")
 
@@ -4148,12 +4975,16 @@ def process_hook_data(hook_data, daemon_state=None):
             if context_mgr and hook_tool_use_id:
                 pretool_ctx = context_mgr.get_pretool_context(hook_tool_use_id)
                 if pretool_ctx:
-                    logging.info(f"PostToolUse: loaded PreToolUse context for {hook_tool_use_id}")
+                    logging.info(
+                        f"PostToolUse: loaded PreToolUse context for {hook_tool_use_id}"
+                    )
                     # Inherit file_path from PreToolUse if not available in PostToolUse
                     if not tool_input.get("file_path") and not tool_input.get("path"):
                         pretool_file = pretool_ctx.get("file_path")
                         if pretool_file:
-                            logging.info(f"PostToolUse: inherited file_path={pretool_file}")
+                            logging.info(
+                                f"PostToolUse: inherited file_path={pretool_file}"
+                            )
 
             logging.info(f"Scanning {tool_identifier} output for secrets...")
 
@@ -4165,21 +4996,29 @@ def process_hook_data(hook_data, daemon_state=None):
             post_all_suppressed = set()
             post_secret_suppressed = set()
             original_tool_output = tool_output
-            if HAS_ANNOTATIONS and pretool_ctx and pretool_ctx.get("file_path") and tool_output:
+            if (
+                HAS_ANNOTATIONS
+                and pretool_ctx
+                and pretool_ctx.get("file_path")
+                and tool_output
+            ):
                 post_annotations_config, _ = _load_annotations_config()
                 if post_annotations_config and is_feature_enabled(
-                    post_annotations_config.get("enabled"),
-                    now,
-                    default=True
+                    post_annotations_config.get("enabled"), now, default=True
                 ):
-                    post_all_content, post_secret_content_sup, post_ann_info, _ = process_annotations(
-                        tool_output, file_path=pretool_ctx.get("file_path"),
-                        config=post_annotations_config
+                    post_all_content, post_secret_content_sup, post_ann_info, _ = (
+                        process_annotations(
+                            tool_output,
+                            file_path=pretool_ctx.get("file_path"),
+                            config=post_annotations_config,
+                        )
                     )
                     if post_ann_info:
                         tool_output = post_all_content
                         post_secret_content = post_secret_content_sup
-                        total_suppressed = sum(len(s.get("lines", [])) for s in post_ann_info)
+                        total_suppressed = sum(
+                            len(s.get("lines", [])) for s in post_ann_info
+                        )
                         logging.info(
                             f"PostToolUse: annotation suppression applied "
                             f"({total_suppressed} line(s) suppressed)"
@@ -4195,34 +5034,46 @@ def process_hook_data(hook_data, daemon_state=None):
 
             # Check if secret scanning is enabled (respect disabled_until)
             if secret_config and not is_feature_enabled(
-                secret_config.get("enabled", True),
-                now,
-                default=True
+                secret_config.get("enabled", True), now, default=True
             ):
                 logging.info("Secret scanning is disabled - skipping PostToolUse scan")
                 _advance_transcript_position(hook_data)
-                return format_response(ide_type, has_secrets=False, hook_event=hook_event)
+                return format_response(
+                    ide_type, has_secrets=False, hook_event=hook_event
+                )
 
-            ignore_files = secret_config.get("ignore_files", []) if secret_config else []
-            ignore_tools = secret_config.get("ignore_tools", []) if secret_config else []
-            secret_allowlist = secret_config.get("allowlist_patterns", []) if secret_config else []
+            ignore_files = (
+                secret_config.get("ignore_files", []) if secret_config else []
+            )
+            ignore_tools = (
+                secret_config.get("ignore_tools", []) if secret_config else []
+            )
+            secret_allowlist = (
+                secret_config.get("allowlist_patterns", []) if secret_config else []
+            )
 
             # Cross-hook optimization: skip secret scan if PreToolUse already scanned clean (#366)
             pretool_scan = pretool_ctx.get("scan_results", {}) if pretool_ctx else {}
-            skip_secret_scan = (
-                pretool_scan.get("secrets_scanned")
-                and not pretool_scan.get("secrets_found")
-            )
+            skip_secret_scan = pretool_scan.get(
+                "secrets_scanned"
+            ) and not pretool_scan.get("secrets_found")
             if skip_secret_scan:
-                logging.info("PostToolUse: skipping secret scan (PreToolUse already scanned clean)")
+                logging.info(
+                    "PostToolUse: skipping secret scan (PreToolUse already scanned clean)"
+                )
 
             # Cross-hook optimization: respect ignore_files from PreToolUse (#366)
             if pretool_ctx and pretool_ctx.get("ignore_files_matched"):
-                logging.info("PostToolUse: skipping scans (file matched ignore_files in PreToolUse)")
+                logging.info(
+                    "PostToolUse: skipping scans (file matched ignore_files in PreToolUse)"
+                )
                 skip_secret_scan = True
 
             # Check for secrets in the output (use composite identifier for ignore matching)
-            post_secret_ctx = {"ide_type": ide_type.value, "hook_event": HookEvent.POST_TOOL_USE}
+            post_secret_ctx = {
+                "ide_type": ide_type.value,
+                "hook_event": HookEvent.POST_TOOL_USE,
+            }
             if hook_tool_use_id:
                 post_secret_ctx["tool_use_id"] = hook_tool_use_id
             if hook_session_id:
@@ -4233,62 +5084,98 @@ def process_hook_data(hook_data, daemon_state=None):
                 error_message = None
             else:
                 # Use secret-suppressed content if annotations produced one
-                post_scan_content = post_secret_content if post_secret_content is not None else tool_output
+                post_scan_content = (
+                    post_secret_content
+                    if post_secret_content is not None
+                    else tool_output
+                )
                 with _latency_timer.check("secret_scanning"):
                     has_secrets, error_message = check_secrets_with_gitleaks(
-                        post_scan_content, f"{tool_identifier}_output",
+                        post_scan_content,
+                        f"{tool_identifier}_output",
                         context=post_secret_ctx,
                         tool_name=tool_identifier,
                         ignore_files=ignore_files,
                         ignore_tools=ignore_tools,
                         allowlist_patterns=secret_allowlist,
-                        secret_config=secret_config
+                        secret_config=secret_config,
                     )
 
             if not has_secrets and error_message:
                 # Scanner not available - display warning but allow operation
                 _advance_transcript_position(hook_data)
-                return format_response(ide_type, has_secrets=False, hook_event=hook_event,
-                                     warning_message=error_message)
+                return format_response(
+                    ide_type,
+                    has_secrets=False,
+                    hook_event=hook_event,
+                    warning_message=error_message,
+                )
 
             if has_secrets:
-                secret_action = secret_config.get("action", "block") if secret_config else "block"
+                secret_action = (
+                    secret_config.get("action", "block") if secret_config else "block"
+                )
                 ask_result = _handle_ask_mode_auto(
-                    secret_action, ViolationType.SECRET_DETECTED,
+                    secret_action,
+                    ViolationType.SECRET_DETECTED,
                     config_section="secret_scanning",
                     error_msg=error_message,
-                    file_path=file_path if 'file_path' in dir() else None,
+                    file_path=file_path if "file_path" in dir() else None,
                     matched_text=_last_secret_matched_text,
                     start_column=_last_secret_start_column,
                     latency_timer=_latency_timer,
-                    hook_context={"session_id": hook_session_id, "project_path": get_project_dir(), "hook_event": hook_event, "tool_name": tool_name},
+                    hook_context={
+                        "session_id": hook_session_id,
+                        "project_path": get_project_dir(),
+                        "hook_event": hook_event,
+                        "tool_name": tool_name,
+                    },
                     findings=_last_secret_findings if _last_secret_findings else None,
                 )
                 logging.debug(f"[ASK-DEBUG] ask_result={ask_result}")
                 if ask_result is not None:
                     from ai_guardian.tui.ask_dialog import AskDecision
-                    if ask_result.decision not in (AskDecision.BLOCK, AskDecision.BLOCK_ALL):
+
+                    if ask_result.decision not in (
+                        AskDecision.BLOCK,
+                        AskDecision.BLOCK_ALL,
+                    ):
                         _advance_transcript_position(hook_data)
-                        info_msg = _format_ask_info_message(ViolationType.SECRET_DETECTED, ask_result.decision)
-                        _log_ask_decision(ViolationType.SECRET_DETECTED, ask_result.decision,
-                                          matched_text=_last_secret_matched_text or "",
-                                          error_msg=error_message or "",
-                                          file_path=file_path if 'file_path' in dir() else None,
-                                          line_number=_last_secret_line_number,
-                                          dialog_wait_ms=ask_result.dialog_wait_ms)
-                        return format_response(ide_type, has_secrets=False, hook_event=hook_event,
-                                             warning_message=info_msg)
+                        info_msg = _format_ask_info_message(
+                            ViolationType.SECRET_DETECTED, ask_result.decision
+                        )
+                        _log_ask_decision(
+                            ViolationType.SECRET_DETECTED,
+                            ask_result.decision,
+                            matched_text=_last_secret_matched_text or "",
+                            error_msg=error_message or "",
+                            file_path=file_path if "file_path" in dir() else None,
+                            line_number=_last_secret_line_number,
+                            dialog_wait_ms=ask_result.dialog_wait_ms,
+                        )
+                        return format_response(
+                            ide_type,
+                            has_secrets=False,
+                            hook_event=hook_event,
+                            warning_message=info_msg,
+                        )
                     else:
-                        _log_ask_decision(ViolationType.SECRET_DETECTED, ask_result.decision,
-                                          matched_text=_last_secret_matched_text or "",
-                                          error_msg=error_message or "",
-                                          file_path=file_path if 'file_path' in dir() else None,
-                                          line_number=_last_secret_line_number,
-                                          dialog_wait_ms=ask_result.dialog_wait_ms)
-                        result = format_response(ide_type, has_secrets=True,
-                                                 error_message=error_message,
-                                                 hook_event=hook_event,
-                                                 violation_type=ViolationType.SECRET_DETECTED)
+                        _log_ask_decision(
+                            ViolationType.SECRET_DETECTED,
+                            ask_result.decision,
+                            matched_text=_last_secret_matched_text or "",
+                            error_msg=error_message or "",
+                            file_path=file_path if "file_path" in dir() else None,
+                            line_number=_last_secret_line_number,
+                            dialog_wait_ms=ask_result.dialog_wait_ms,
+                        )
+                        result = format_response(
+                            ide_type,
+                            has_secrets=True,
+                            error_message=error_message,
+                            hook_event=hook_event,
+                            violation_type=ViolationType.SECRET_DETECTED,
+                        )
                         _advance_transcript_position(hook_data)
                         return result
 
@@ -4296,13 +5183,20 @@ def process_hook_data(hook_data, daemon_state=None):
                 redaction_config, redaction_error = _load_secret_redaction_config()
 
                 if redaction_error:
-                    logging.warning(f"Config error loading secret_redaction: {redaction_error}")
+                    logging.warning(
+                        f"Config error loading secret_redaction: {redaction_error}"
+                    )
                     # Fall back to blocking
-                    logging.warning(f"Secrets detected in {tool_identifier} output - blocking")
-                    result = format_response(ide_type, has_secrets=True,
-                                         error_message=error_message,
-                                         hook_event=hook_event,
-                                         violation_type=ViolationType.SECRET_DETECTED)
+                    logging.warning(
+                        f"Secrets detected in {tool_identifier} output - blocking"
+                    )
+                    result = format_response(
+                        ide_type,
+                        has_secrets=True,
+                        error_message=error_message,
+                        hook_event=hook_event,
+                        violation_type=ViolationType.SECRET_DETECTED,
+                    )
                     _advance_transcript_position(hook_data)
                     return result
 
@@ -4322,63 +5216,80 @@ def process_hook_data(hook_data, daemon_state=None):
 
                         # Also load PII config so secrets+PII are handled in one pass
                         pii_config_for_redactor, _ = _load_pii_config()
-                        pii_cfg = pii_config_for_redactor if pii_config_for_redactor and pii_config_for_redactor.get('enabled', True) else None
+                        pii_cfg = (
+                            pii_config_for_redactor
+                            if pii_config_for_redactor
+                            and pii_config_for_redactor.get("enabled", True)
+                            else None
+                        )
                         redactor = SecretRedactor(redaction_config, pii_config=pii_cfg)
                         with _latency_timer.check("secret_redaction"):
                             result = redactor.redact(tool_output)
 
-                        redacted_text = result['redacted_text']
-                        redactions = result['redactions']
+                        redacted_text = result["redacted_text"]
+                        redactions = result["redactions"]
 
                         # Restore original content on annotation-suppressed lines
                         if post_all_suppressed or post_secret_suppressed:
-                            all_post_suppressed = post_all_suppressed | post_secret_suppressed
+                            all_post_suppressed = (
+                                post_all_suppressed | post_secret_suppressed
+                            )
                             redacted_lines = redacted_text.splitlines()
                             original_lines = original_tool_output.splitlines()
                             for idx in all_post_suppressed:
-                                if 0 <= idx < len(redacted_lines) and idx < len(original_lines):
+                                if 0 <= idx < len(redacted_lines) and idx < len(
+                                    original_lines
+                                ):
                                     redacted_lines[idx] = original_lines[idx]
                             redacted_text = "\n".join(redacted_lines)
 
                         # Log redaction event
-                        logging.warning(f"Redacted {len(redactions)} secret(s) from {tool_identifier} output")
+                        logging.warning(
+                            f"Redacted {len(redactions)} secret(s) from {tool_identifier} output"
+                        )
                         for r in redactions:
-                            logging.info(f"  - {r['type']} at position {r['position']} using {r['strategy']}")
+                            logging.info(
+                                f"  - {r['type']} at position {r['position']} using {r['strategy']}"
+                            )
 
                         # Log to violation logger
-                        redaction_file_path = tool_input.get("file_path") or tool_input.get("path")
+                        redaction_file_path = tool_input.get(
+                            "file_path"
+                        ) or tool_input.get("path")
                         # Inherit file_path from PreToolUse context (#366)
                         if not redaction_file_path and pretool_ctx:
                             redaction_file_path = pretool_ctx.get("file_path")
-                        first_line = redactions[0].get('line_number') if redactions else None
+                        first_line = (
+                            redactions[0].get("line_number") if redactions else None
+                        )
                         blocked_info = {
-                            'tool': tool_identifier,
-                            'file_path': redaction_file_path,
-                            'line_number': first_line,
-                            'redaction_count': len(redactions),
-                            'redacted_types': [r['type'] for r in redactions]
+                            "tool": tool_identifier,
+                            "file_path": redaction_file_path,
+                            "line_number": first_line,
+                            "redaction_count": len(redactions),
+                            "redacted_types": [r["type"] for r in redactions],
                         }
                         if bash_command:
-                            blocked_info['command'] = bash_command
+                            blocked_info["command"] = bash_command
                         snippet = _extract_context_snippet(redacted_text, first_line)
                         if snippet:
-                            blocked_info['context_snippet'] = snippet
+                            blocked_info["context_snippet"] = snippet
                         ctx = {
-                            'action': 'redacted',
-                            'mode': action,
-                            'hook_event': HookEvent.POST_TOOL_USE
+                            "action": "redacted",
+                            "mode": action,
+                            "hook_event": HookEvent.POST_TOOL_USE,
                         }
                         if hook_tool_use_id:
-                            ctx['tool_use_id'] = hook_tool_use_id
+                            ctx["tool_use_id"] = hook_tool_use_id
                         if hook_session_id:
-                            ctx['session_id'] = hook_session_id
+                            ctx["session_id"] = hook_session_id
                         if pretool_ctx:
-                            ctx['pretool_context'] = pretool_ctx
+                            ctx["pretool_context"] = pretool_ctx
                         if violation_logger:
                             violation_logger.log_violation(
                                 violation_type=ViolationType.SECRET_REDACTION,
                                 blocked=blocked_info,
-                                context=ctx
+                                context=ctx,
                             )
 
                         # Return redacted output (allow, with modifications)
@@ -4387,14 +5298,21 @@ def process_hook_data(hook_data, daemon_state=None):
                         if action == ActionMode.WARN:
                             warning_msg = (
                                 f"⚠️  Redacted {len(redactions)} secret(s) from output:\n"
-                                + "\n".join([f"  - {r['type']}" for r in redactions[:5]])
+                                + "\n".join(
+                                    [f"  - {r['type']}" for r in redactions[:5]]
+                                )
                                 + ("\n  - ..." if len(redactions) > 5 else "")
                             )
                             logging.warning(f"WARN mode: {warning_msg}")
 
-                        logging.info(f"✓ Secrets redacted, allowing output to continue")
-                        result = format_response(ide_type, has_secrets=False, hook_event=hook_event,
-                                             warning_message=warning_msg, modified_output=redacted_text)
+                        logging.info("✓ Secrets redacted, allowing output to continue")
+                        result = format_response(
+                            ide_type,
+                            has_secrets=False,
+                            hook_event=hook_event,
+                            warning_message=warning_msg,
+                            modified_output=redacted_text,
+                        )
                         result["_warning"] = True
                         result["_violation_type"] = ViolationType.SECRET_REDACTION
                         _advance_transcript_position(hook_data)
@@ -4403,24 +5321,31 @@ def process_hook_data(hook_data, daemon_state=None):
                     except Exception as redact_error:
                         logging.error(f"Error during secret redaction: {redact_error}")
                         import traceback
+
                         logging.error(traceback.format_exc())
                         # Fall back to blocking on redaction errors
-                        logging.warning(f"Redaction failed, falling back to blocking")
-                        result = format_response(ide_type, has_secrets=True,
-                                             error_message=error_message,
-                                             hook_event=hook_event,
-                                             violation_type=ViolationType.SECRET_REDACTION)
+                        logging.warning("Redaction failed, falling back to blocking")
+                        result = format_response(
+                            ide_type,
+                            has_secrets=True,
+                            error_message=error_message,
+                            hook_event=hook_event,
+                            violation_type=ViolationType.SECRET_REDACTION,
+                        )
                         _advance_transcript_position(hook_data)
                         return result
                 else:
                     # Redaction disabled - block to prevent secrets from reaching AI model
                     logging.warning(
-                        f"Secrets detected and redaction disabled - blocking output"
+                        "Secrets detected and redaction disabled - blocking output"
                     )
-                    result = format_response(ide_type, has_secrets=True,
-                                         error_message=error_message,
-                                         hook_event=hook_event,
-                                         violation_type=ViolationType.SECRET_DETECTED)
+                    result = format_response(
+                        ide_type,
+                        has_secrets=True,
+                        error_message=error_message,
+                        hook_event=hook_event,
+                        violation_type=ViolationType.SECRET_DETECTED,
+                    )
                     _advance_transcript_position(hook_data)
                     return result
 
@@ -4431,9 +5356,7 @@ def process_hook_data(hook_data, daemon_state=None):
             if pii_error:
                 logging.warning(f"PII config error: {pii_error}")
             if pii_config and is_feature_enabled(
-                pii_config.get('enabled'),
-                now,
-                default=True
+                pii_config.get("enabled"), now, default=True
             ):
                 pii_file_path = tool_input.get("file_path") or tool_input.get("path")
                 # Inherit file_path from PreToolUse context (#366)
@@ -4443,119 +5366,196 @@ def process_hook_data(hook_data, daemon_state=None):
                 # Cross-hook optimization: skip PII scan if PreToolUse skipped via ignore_files (#366)
                 pii_skip_from_pretool = (
                     pretool_ctx
-                    and pretool_ctx.get("scan_results", {}).get("pii_skipped_reason") == "ignore_files match"
+                    and pretool_ctx.get("scan_results", {}).get("pii_skipped_reason")
+                    == "ignore_files match"
                 )
-                pii_skip_scan = pii_skip_from_pretool or _should_skip_pii_scan(pii_config, tool_identifier, pii_file_path)
+                pii_skip_scan = pii_skip_from_pretool or _should_skip_pii_scan(
+                    pii_config, tool_identifier, pii_file_path
+                )
 
                 if not pii_skip_scan:
                     logging.info("Scanning tool output for PII...")
                     with _latency_timer.check("pii_detection"):
-                        has_pii, redacted_text, pii_redactions, pii_warning = _scan_for_pii(tool_output, pii_config, file_path=pii_file_path)
+                        has_pii, redacted_text, pii_redactions, pii_warning = (
+                            _scan_for_pii(
+                                tool_output, pii_config, file_path=pii_file_path
+                            )
+                        )
 
                     # Scan error with on_scan_error=block: block without logging a false violation (#507)
                     if has_pii and not pii_redactions:
-                        result = format_response(ide_type, has_secrets=True, hook_event=hook_event,
-                                             error_message=pii_warning,
-                                             violation_type=ViolationType.PII_DETECTED)
+                        result = format_response(
+                            ide_type,
+                            has_secrets=True,
+                            hook_event=hook_event,
+                            error_message=pii_warning,
+                            violation_type=ViolationType.PII_DETECTED,
+                        )
                         _advance_transcript_position(hook_data)
                         return result
 
                     if has_pii and pii_redactions:
-                        pii_file_path = tool_input.get("file_path") or tool_input.get("path")
+                        pii_file_path = tool_input.get("file_path") or tool_input.get(
+                            "path"
+                        )
                         if not pii_file_path and pretool_ctx:
                             pii_file_path = pretool_ctx.get("file_path")
                         if not pii_file_path:
-                            pii_file_path = _extract_file_path_from_pii_warning(pii_warning)
-                        pii_snippet_text = redacted_text if redacted_text else tool_output
+                            pii_file_path = _extract_file_path_from_pii_warning(
+                                pii_warning
+                            )
+                        pii_snippet_text = (
+                            redacted_text if redacted_text else tool_output
+                        )
                         pii_action, pii_types = _log_pii_violation(
-                            violation_logger, pii_config, pii_redactions,
-                            tool_identifier, 'PostToolUse', pii_file_path,
-                            pii_snippet_text, HookEvent.POST_TOOL_USE,
+                            violation_logger,
+                            pii_config,
+                            pii_redactions,
+                            tool_identifier,
+                            "PostToolUse",
+                            pii_file_path,
+                            pii_snippet_text,
+                            HookEvent.POST_TOOL_USE,
                             hook_tool_use_id=hook_tool_use_id,
                             hook_session_id=hook_session_id,
                             bash_command=bash_command,
                             pretool_ctx=pretool_ctx,
                         )
-                        logging.warning(f"PII detected in {tool_identifier} output: {pii_types}")
+                        logging.warning(
+                            f"PII detected in {tool_identifier} output: {pii_types}"
+                        )
 
                         # Build multi-finding list from PII redactions
-                        pii_matched_text = _extract_pii_matched_text(pii_redactions, tool_output)
-                        pii_findings = _pii_redactions_to_findings(pii_redactions, tool_output, pii_warning)
+                        pii_matched_text = _extract_pii_matched_text(
+                            pii_redactions, tool_output
+                        )
+                        pii_findings = _pii_redactions_to_findings(
+                            pii_redactions, tool_output, pii_warning
+                        )
 
                         # Check ask action mode before standard routing
-                        pii_line_number = pii_redactions[0].get('line_number') if pii_redactions else None
+                        pii_line_number = (
+                            pii_redactions[0].get("line_number")
+                            if pii_redactions
+                            else None
+                        )
                         pii_ask_result = _handle_ask_mode_auto(
-                            pii_action, ViolationType.PII_DETECTED,
+                            pii_action,
+                            ViolationType.PII_DETECTED,
                             config_section="scan_pii",
                             error_msg=pii_warning,
                             file_path=pii_file_path,
                             matched_text=pii_matched_text,
                             line_number=pii_line_number,
                             latency_timer=_latency_timer,
-                            hook_context={"session_id": hook_session_id, "project_path": get_project_dir(), "hook_event": hook_event, "tool_name": tool_name},
+                            hook_context={
+                                "session_id": hook_session_id,
+                                "project_path": get_project_dir(),
+                                "hook_event": hook_event,
+                                "tool_name": tool_name,
+                            },
                             findings=pii_findings,
                         )
                         if pii_ask_result is not None:
                             from ai_guardian.tui.ask_dialog import AskDecision
-                            if pii_ask_result.decision not in (AskDecision.BLOCK, AskDecision.BLOCK_ALL):
-                                pii_action = 'warn'
-                                pii_info_msg = _format_ask_info_message(ViolationType.PII_DETECTED, pii_ask_result.decision)
-                                warning_messages.append(pii_info_msg)
-                                _log_ask_decision(ViolationType.PII_DETECTED, pii_ask_result.decision,
-                                                  matched_text=pii_matched_text, error_msg=pii_warning or "",
-                                                  file_path=pii_file_path,
-                                                  line_number=pii_line_number,
-                                                  dialog_wait_ms=pii_ask_result.dialog_wait_ms)
-                            else:
-                                pii_action = 'block'
-                                _log_ask_decision(ViolationType.PII_DETECTED, pii_ask_result.decision,
-                                                  matched_text=pii_matched_text, error_msg=pii_warning or "",
-                                                  file_path=pii_file_path,
-                                                  line_number=pii_line_number,
-                                                  dialog_wait_ms=pii_ask_result.dialog_wait_ms)
 
-                        if pii_action == 'block':
-                            result = format_response(ide_type, has_secrets=True, hook_event=hook_event,
-                                                 error_message=pii_warning,
-                                                 violation_type=ViolationType.PII_DETECTED)
+                            if pii_ask_result.decision not in (
+                                AskDecision.BLOCK,
+                                AskDecision.BLOCK_ALL,
+                            ):
+                                pii_action = "warn"
+                                pii_info_msg = _format_ask_info_message(
+                                    ViolationType.PII_DETECTED, pii_ask_result.decision
+                                )
+                                warning_messages.append(pii_info_msg)
+                                _log_ask_decision(
+                                    ViolationType.PII_DETECTED,
+                                    pii_ask_result.decision,
+                                    matched_text=pii_matched_text,
+                                    error_msg=pii_warning or "",
+                                    file_path=pii_file_path,
+                                    line_number=pii_line_number,
+                                    dialog_wait_ms=pii_ask_result.dialog_wait_ms,
+                                )
+                            else:
+                                pii_action = "block"
+                                _log_ask_decision(
+                                    ViolationType.PII_DETECTED,
+                                    pii_ask_result.decision,
+                                    matched_text=pii_matched_text,
+                                    error_msg=pii_warning or "",
+                                    file_path=pii_file_path,
+                                    line_number=pii_line_number,
+                                    dialog_wait_ms=pii_ask_result.dialog_wait_ms,
+                                )
+
+                        if pii_action == "block":
+                            result = format_response(
+                                ide_type,
+                                has_secrets=True,
+                                hook_event=hook_event,
+                                error_message=pii_warning,
+                                violation_type=ViolationType.PII_DETECTED,
+                            )
                             _advance_transcript_position(hook_data)
                             return result
-                        elif pii_action == 'redact':
+                        elif pii_action == "redact":
                             # Restore original content on annotation-suppressed lines
                             if post_all_suppressed:
                                 pii_redacted_lines = redacted_text.splitlines()
                                 pii_original_lines = original_tool_output.splitlines()
                                 for idx in post_all_suppressed:
-                                    if 0 <= idx < len(pii_redacted_lines) and idx < len(pii_original_lines):
-                                        pii_redacted_lines[idx] = pii_original_lines[idx]
+                                    if 0 <= idx < len(pii_redacted_lines) and idx < len(
+                                        pii_original_lines
+                                    ):
+                                        pii_redacted_lines[idx] = pii_original_lines[
+                                            idx
+                                        ]
                                 redacted_text = "\n".join(pii_redacted_lines)
-                            result = format_response(ide_type, has_secrets=False, hook_event=hook_event,
-                                                 warning_message=pii_warning, modified_output=redacted_text)
+                            result = format_response(
+                                ide_type,
+                                has_secrets=False,
+                                hook_event=hook_event,
+                                warning_message=pii_warning,
+                                modified_output=redacted_text,
+                            )
                             result["_warning"] = True
                             result["_violation_type"] = ViolationType.PII_DETECTED
                             _advance_transcript_position(hook_data)
                             return result
-                        elif pii_action == 'warn':
-                            result = format_response(ide_type, has_secrets=False, hook_event=hook_event,
-                                                 warning_message=pii_warning)
+                        elif pii_action == "warn":
+                            result = format_response(
+                                ide_type,
+                                has_secrets=False,
+                                hook_event=hook_event,
+                                warning_message=pii_warning,
+                            )
                             result["_warning"] = True
                             result["_violation_type"] = ViolationType.PII_DETECTED
                             _advance_transcript_position(hook_data)
                             return result
-                        elif pii_action == 'log-only':
-                            result = format_response(ide_type, has_secrets=False, hook_event=hook_event)
+                        elif pii_action == "log-only":
+                            result = format_response(
+                                ide_type, has_secrets=False, hook_event=hook_event
+                            )
                             result["_log_only"] = 1
                             result["_violation_type"] = ViolationType.PII_DETECTED
                             _advance_transcript_position(hook_data)
                             return result
                         else:
-                            logging.warning(f"Unknown PII action '{pii_action}', allowing through")
+                            logging.warning(
+                                f"Unknown PII action '{pii_action}', allowing through"
+                            )
                             _advance_transcript_position(hook_data)
-                            return format_response(ide_type, has_secrets=False, hook_event=hook_event)
+                            return format_response(
+                                ide_type, has_secrets=False, hook_event=hook_event
+                            )
 
             # Prompt injection and context poisoning scanning on PostToolUse output (#1285)
             post_warning_messages = []
-            post_pi_cp_filename = f"{tool_identifier}_output" if tool_identifier else "tool_output"
+            post_pi_cp_filename = (
+                f"{tool_identifier}_output" if tool_identifier else "tool_output"
+            )
             if HAS_PROMPT_INJECTION and tool_output:
                 try:
                     post_pi_config, post_pi_error = _load_prompt_injection_config()
@@ -4563,44 +5563,58 @@ def process_hook_data(hook_data, daemon_state=None):
                         logging.warning(f"PostToolUse PI config error: {post_pi_error}")
 
                     if post_pi_config and is_feature_enabled(
-                        post_pi_config.get("enabled"),
-                        now,
-                        default=True
+                        post_pi_config.get("enabled"), now, default=True
                     ):
                         # Cross-hook optimization: skip if PreToolUse already scanned clean (#366)
-                        post_pi_skip = (
-                            pretool_scan.get("prompt_injection_scanned")
-                            and not pretool_scan.get("prompt_injection_found")
-                        )
+                        post_pi_skip = pretool_scan.get(
+                            "prompt_injection_scanned"
+                        ) and not pretool_scan.get("prompt_injection_found")
                         # Also skip if ignore_files matched in PreToolUse
                         if pretool_ctx and pretool_ctx.get("ignore_files_matched"):
                             post_pi_skip = True
 
                         if post_pi_skip:
-                            logging.info("PostToolUse: skipping PI scan (PreToolUse already scanned clean)")
+                            logging.info(
+                                "PostToolUse: skipping PI scan (PreToolUse already scanned clean)"
+                            )
                         else:
-                            post_pi_file = tool_input.get("file_path") or tool_input.get("path")
+                            post_pi_file = tool_input.get(
+                                "file_path"
+                            ) or tool_input.get("path")
                             if not post_pi_file and pretool_ctx:
                                 post_pi_file = pretool_ctx.get("file_path")
 
                             post_pi_detector = PromptInjectionDetector(post_pi_config)
                             with _latency_timer.check("prompt_injection"):
-                                post_pi_block, post_pi_error_msg, post_pi_detected = post_pi_detector.detect(
-                                    tool_output, file_path=post_pi_file,
-                                    tool_name=tool_identifier, source_type="file_content"
+                                post_pi_block, post_pi_error_msg, post_pi_detected = (
+                                    post_pi_detector.detect(
+                                        tool_output,
+                                        file_path=post_pi_file,
+                                        tool_name=tool_identifier,
+                                        source_type="file_content",
+                                    )
                                 )
 
                             if post_pi_detected:
-                                post_pi_hook_ctx = {"hook_event": hook_event, "tool_name": tool_name}
+                                post_pi_hook_ctx = {
+                                    "hook_event": hook_event,
+                                    "tool_name": tool_name,
+                                }
                                 if hook_tool_use_id:
                                     post_pi_hook_ctx["tool_use_id"] = hook_tool_use_id
                                 if hook_session_id:
                                     post_pi_hook_ctx["session_id"] = hook_session_id
                                 _log_prompt_injection_violation(
                                     post_pi_cp_filename,
-                                    context={"ide_type": ide_type.value, "hook_event": hook_event, "file_path": post_pi_file},
+                                    context={
+                                        "ide_type": ide_type.value,
+                                        "hook_event": hook_event,
+                                        "file_path": post_pi_file,
+                                    },
                                     attack_type=post_pi_detector.last_attack_type,
-                                    hook_context=post_pi_hook_ctx if post_pi_hook_ctx else None,
+                                    hook_context=(
+                                        post_pi_hook_ctx if post_pi_hook_ctx else None
+                                    ),
                                     matched_pattern=post_pi_detector.last_matched_pattern,
                                     matched_text=post_pi_detector.last_matched_text,
                                     confidence=post_pi_detector.last_confidence,
@@ -4612,48 +5626,84 @@ def process_hook_data(hook_data, daemon_state=None):
                             if post_pi_block:
                                 post_pi_action = post_pi_config.get("action", "block")
                                 post_pi_ask = _handle_ask_mode_auto(
-                                    post_pi_action, ViolationType.PROMPT_INJECTION,
+                                    post_pi_action,
+                                    ViolationType.PROMPT_INJECTION,
                                     config_section="prompt_injection",
                                     error_msg=post_pi_error_msg,
                                     file_path=post_pi_file,
-                                    matched_text=post_pi_detector.last_matched_text or "",
+                                    matched_text=post_pi_detector.last_matched_text
+                                    or "",
                                     line_number=post_pi_detector.last_line_number,
-                                    matched_pattern=post_pi_detector.last_matched_pattern or "",
+                                    matched_pattern=post_pi_detector.last_matched_pattern
+                                    or "",
                                     latency_timer=_latency_timer,
-                                    hook_context={"session_id": hook_session_id, "project_path": get_project_dir(), "hook_event": hook_event, "tool_name": tool_name},
-                                    findings=post_pi_detector.findings if post_pi_detector.findings else None,
+                                    hook_context={
+                                        "session_id": hook_session_id,
+                                        "project_path": get_project_dir(),
+                                        "hook_event": hook_event,
+                                        "tool_name": tool_name,
+                                    },
+                                    findings=(
+                                        post_pi_detector.findings
+                                        if post_pi_detector.findings
+                                        else None
+                                    ),
                                 )
                                 if post_pi_ask is not None:
                                     from ai_guardian.tui.ask_dialog import AskDecision
-                                    if post_pi_ask.decision not in (AskDecision.BLOCK, AskDecision.BLOCK_ALL):
-                                        pi_info = _format_ask_info_message(ViolationType.PROMPT_INJECTION, post_pi_ask.decision)
+
+                                    if post_pi_ask.decision not in (
+                                        AskDecision.BLOCK,
+                                        AskDecision.BLOCK_ALL,
+                                    ):
+                                        pi_info = _format_ask_info_message(
+                                            ViolationType.PROMPT_INJECTION,
+                                            post_pi_ask.decision,
+                                        )
                                         post_warning_messages.append(pi_info)
                                         post_pi_block = False
-                                        _log_ask_decision(ViolationType.PROMPT_INJECTION, post_pi_ask.decision,
-                                                          matched_text=post_pi_detector.last_matched_text or "",
-                                                          error_msg=post_pi_error_msg or "",
-                                                          file_path=post_pi_file,
-                                                          line_number=post_pi_detector.last_line_number,
-                                                          dialog_wait_ms=post_pi_ask.dialog_wait_ms)
+                                        _log_ask_decision(
+                                            ViolationType.PROMPT_INJECTION,
+                                            post_pi_ask.decision,
+                                            matched_text=post_pi_detector.last_matched_text
+                                            or "",
+                                            error_msg=post_pi_error_msg or "",
+                                            file_path=post_pi_file,
+                                            line_number=post_pi_detector.last_line_number,
+                                            dialog_wait_ms=post_pi_ask.dialog_wait_ms,
+                                        )
 
                                 if post_pi_block:
-                                    logging.info("PostToolUse: blocking due to prompt injection")
-                                    result = format_response(ide_type, has_secrets=True, error_message=post_pi_error_msg,
-                                                             hook_event=hook_event, violation_type=ViolationType.PROMPT_INJECTION)
+                                    logging.info(
+                                        "PostToolUse: blocking due to prompt injection"
+                                    )
+                                    result = format_response(
+                                        ide_type,
+                                        has_secrets=True,
+                                        error_message=post_pi_error_msg,
+                                        hook_event=hook_event,
+                                        violation_type=ViolationType.PROMPT_INJECTION,
+                                    )
                                     _advance_transcript_position(hook_data)
                                     return result
                             elif post_pi_detected and post_pi_error_msg:
                                 post_warning_messages.append(post_pi_error_msg)
 
                             if not post_pi_detected:
-                                logging.info("PostToolUse: no prompt injection detected in output")
+                                logging.info(
+                                    "PostToolUse: no prompt injection detected in output"
+                                )
                 except Exception as e:
                     on_error = _get_on_scan_error_action()
                     if on_error == ActionMode.BLOCK:
                         logging.error(f"PostToolUse PI check error (fail-closed): {e}")
-                        result = format_response(ide_type, has_secrets=True, hook_event=hook_event,
-                                                 error_message=f"PostToolUse prompt injection check failed (blocked): {e}",
-                                                 violation_type=ViolationType.PROMPT_INJECTION)
+                        result = format_response(
+                            ide_type,
+                            has_secrets=True,
+                            hook_event=hook_event,
+                            error_message=f"PostToolUse prompt injection check failed (blocked): {e}",
+                            violation_type=ViolationType.PROMPT_INJECTION,
+                        )
                         _advance_transcript_position(hook_data)
                         return result
                     logging.warning(f"PostToolUse PI check error (fail-open): {e}")
@@ -4666,22 +5716,23 @@ def process_hook_data(hook_data, daemon_state=None):
                         logging.warning(f"PostToolUse CP config error: {post_cp_error}")
 
                     if post_cp_config and is_feature_enabled(
-                        post_cp_config.get("enabled"),
-                        now,
-                        default=True
+                        post_cp_config.get("enabled"), now, default=True
                     ):
                         # Cross-hook optimization: skip if PreToolUse already scanned clean
-                        post_cp_skip = (
-                            pretool_scan.get("context_poisoning_scanned")
-                            and not pretool_scan.get("context_poisoning_found")
-                        )
+                        post_cp_skip = pretool_scan.get(
+                            "context_poisoning_scanned"
+                        ) and not pretool_scan.get("context_poisoning_found")
                         if pretool_ctx and pretool_ctx.get("ignore_files_matched"):
                             post_cp_skip = True
 
                         if post_cp_skip:
-                            logging.info("PostToolUse: skipping CP scan (PreToolUse already scanned clean)")
+                            logging.info(
+                                "PostToolUse: skipping CP scan (PreToolUse already scanned clean)"
+                            )
                         else:
-                            post_cp_file = tool_input.get("file_path") or tool_input.get("path")
+                            post_cp_file = tool_input.get(
+                                "file_path"
+                            ) or tool_input.get("path")
                             if not post_cp_file and pretool_ctx:
                                 post_cp_file = pretool_ctx.get("file_path")
 
@@ -4689,20 +5740,39 @@ def process_hook_data(hook_data, daemon_state=None):
                                 post_cp_config, tool_identifier, post_cp_file
                             )
                             if not post_cp_skip_local:
-                                post_cp_detector = ContextPoisoningDetector(post_cp_config)
+                                post_cp_detector = ContextPoisoningDetector(
+                                    post_cp_config
+                                )
                                 with _latency_timer.check("context_poisoning"):
-                                    post_cp_block, post_cp_error_msg, post_cp_detected = post_cp_detector.detect(tool_output)
+                                    (
+                                        post_cp_block,
+                                        post_cp_error_msg,
+                                        post_cp_detected,
+                                    ) = post_cp_detector.detect(tool_output)
 
                                 if post_cp_detected:
-                                    post_cp_hook_ctx = {"hook_event": hook_event, "tool_name": tool_name}
+                                    post_cp_hook_ctx = {
+                                        "hook_event": hook_event,
+                                        "tool_name": tool_name,
+                                    }
                                     if hook_tool_use_id:
-                                        post_cp_hook_ctx["tool_use_id"] = hook_tool_use_id
+                                        post_cp_hook_ctx["tool_use_id"] = (
+                                            hook_tool_use_id
+                                        )
                                     if hook_session_id:
                                         post_cp_hook_ctx["session_id"] = hook_session_id
                                     _log_context_poisoning_violation(
                                         post_pi_cp_filename,
-                                        context={"ide_type": ide_type.value, "hook_event": hook_event, "file_path": post_cp_file},
-                                        hook_context=post_cp_hook_ctx if post_cp_hook_ctx else None,
+                                        context={
+                                            "ide_type": ide_type.value,
+                                            "hook_event": hook_event,
+                                            "file_path": post_cp_file,
+                                        },
+                                        hook_context=(
+                                            post_cp_hook_ctx
+                                            if post_cp_hook_ctx
+                                            else None
+                                        ),
                                         matched_pattern=post_cp_detector.last_matched_pattern,
                                         matched_text=post_cp_detector.last_matched_text,
                                         confidence=post_cp_detector.last_confidence,
@@ -4714,33 +5784,61 @@ def process_hook_data(hook_data, daemon_state=None):
                                 if post_cp_block:
                                     cp_action = post_cp_config.get("action", "warn")
                                     post_cp_ask = _handle_ask_mode_auto(
-                                        cp_action, ViolationType.CONTEXT_POISONING,
+                                        cp_action,
+                                        ViolationType.CONTEXT_POISONING,
                                         config_section="context_poisoning",
                                         error_msg=post_cp_error_msg,
                                         file_path=post_cp_file,
-                                        matched_text=post_cp_detector.last_matched_text or "",
+                                        matched_text=post_cp_detector.last_matched_text
+                                        or "",
                                         line_number=post_cp_detector.last_line_number,
-                                        matched_pattern=post_cp_detector.last_matched_pattern or "",
+                                        matched_pattern=post_cp_detector.last_matched_pattern
+                                        or "",
                                         latency_timer=_latency_timer,
-                                        hook_context={"session_id": hook_session_id, "project_path": get_project_dir(), "hook_event": hook_event, "tool_name": tool_name},
+                                        hook_context={
+                                            "session_id": hook_session_id,
+                                            "project_path": get_project_dir(),
+                                            "hook_event": hook_event,
+                                            "tool_name": tool_name,
+                                        },
                                     )
                                     if post_cp_ask is not None:
-                                        from ai_guardian.tui.ask_dialog import AskDecision
-                                        if post_cp_ask.decision not in (AskDecision.BLOCK, AskDecision.BLOCK_ALL):
-                                            cp_info = _format_ask_info_message(ViolationType.CONTEXT_POISONING, post_cp_ask.decision)
+                                        from ai_guardian.tui.ask_dialog import (
+                                            AskDecision,
+                                        )
+
+                                        if post_cp_ask.decision not in (
+                                            AskDecision.BLOCK,
+                                            AskDecision.BLOCK_ALL,
+                                        ):
+                                            cp_info = _format_ask_info_message(
+                                                ViolationType.CONTEXT_POISONING,
+                                                post_cp_ask.decision,
+                                            )
                                             post_warning_messages.append(cp_info)
                                             post_cp_block = False
-                                            _log_ask_decision(ViolationType.CONTEXT_POISONING, post_cp_ask.decision,
-                                                              matched_text=post_cp_detector.last_matched_text or "",
-                                                              error_msg=post_cp_error_msg or "",
-                                                              file_path=post_cp_file,
-                                                              line_number=post_cp_detector.last_line_number,
-                                                              dialog_wait_ms=post_cp_ask.dialog_wait_ms)
+                                            _log_ask_decision(
+                                                ViolationType.CONTEXT_POISONING,
+                                                post_cp_ask.decision,
+                                                matched_text=post_cp_detector.last_matched_text
+                                                or "",
+                                                error_msg=post_cp_error_msg or "",
+                                                file_path=post_cp_file,
+                                                line_number=post_cp_detector.last_line_number,
+                                                dialog_wait_ms=post_cp_ask.dialog_wait_ms,
+                                            )
 
                                     if post_cp_block:
-                                        logging.info("PostToolUse: blocking due to context poisoning")
-                                        result = format_response(ide_type, has_secrets=True, error_message=post_cp_error_msg,
-                                                                 hook_event=hook_event, violation_type=ViolationType.CONTEXT_POISONING)
+                                        logging.info(
+                                            "PostToolUse: blocking due to context poisoning"
+                                        )
+                                        result = format_response(
+                                            ide_type,
+                                            has_secrets=True,
+                                            error_message=post_cp_error_msg,
+                                            hook_event=hook_event,
+                                            violation_type=ViolationType.CONTEXT_POISONING,
+                                        )
                                         _advance_transcript_position(hook_data)
                                         return result
                                 elif post_cp_detected and post_cp_error_msg:
@@ -4751,8 +5849,12 @@ def process_hook_data(hook_data, daemon_state=None):
             _advance_transcript_position(hook_data)
             if post_warning_messages:
                 combined = "\n\n".join(post_warning_messages)
-                result = format_response(ide_type, has_secrets=False, hook_event=hook_event,
-                                         warning_message=combined)
+                result = format_response(
+                    ide_type,
+                    has_secrets=False,
+                    hook_event=hook_event,
+                    warning_message=combined,
+                )
                 result["_warning"] = True
                 result["_violation_type"] = "mixed"
                 return result
@@ -4764,7 +5866,9 @@ def process_hook_data(hook_data, daemon_state=None):
 
         # Extract tool name for PreToolUse events (needed for permissions and prompt injection)
         tool_name = None
-        tool_identifier = None  # Composite identifier like "Skill:code-review" or "mcp__server__tool"
+        tool_identifier = (
+            None  # Composite identifier like "Skill:code-review" or "mcp__server__tool"
+        )
         if hook_event in (HookEvent.PRE_TOOL_USE, HookEvent.BEFORE_READ_FILE):
             tool_name = normalized.tool_name
             tool_input = normalized.tool_input
@@ -4784,7 +5888,10 @@ def process_hook_data(hook_data, daemon_state=None):
                 tool_identifier = tool_name
 
         # Check tool permissions for PreToolUse events (MCP servers and Skills)
-        if hook_event in (HookEvent.PRE_TOOL_USE, HookEvent.BEFORE_READ_FILE) and HAS_TOOL_POLICY:
+        if (
+            hook_event in (HookEvent.PRE_TOOL_USE, HookEvent.BEFORE_READ_FILE)
+            and HAS_TOOL_POLICY
+        ):
             try:
                 permissions_config, config_error = _load_permissions_config()
                 if config_error:
@@ -4794,70 +5901,129 @@ def process_hook_data(hook_data, daemon_state=None):
                 if is_feature_enabled(
                     permissions_config.get("enabled") if permissions_config else None,
                     now,
-                    default=True
+                    default=True,
                 ):
                     policy_checker = ToolPolicyChecker()
                     with _latency_timer.check("permissions"):
-                        is_allowed, error_message, checked_tool_name = policy_checker.check_tool_allowed(hook_data)
+                        is_allowed, error_message, checked_tool_name = (
+                            policy_checker.check_tool_allowed(hook_data)
+                        )
 
                     if not is_allowed:
-                        deny_action = getattr(policy_checker, 'last_deny_action', 'block') or 'block'
+                        deny_action = (
+                            getattr(policy_checker, "last_deny_action", "block")
+                            or "block"
+                        )
                         perm_ask_allowed = False
 
-                        if isinstance(deny_action, str) and deny_action.startswith('ask'):
+                        if isinstance(deny_action, str) and deny_action.startswith(
+                            "ask"
+                        ):
                             perm_matched_text = _build_permission_matched_text(
                                 tool_name, tool_input, tool_identifier
                             )
                             perm_ask_result = _handle_ask_mode_auto(
-                                deny_action, ViolationType.TOOL_PERMISSION,
+                                deny_action,
+                                ViolationType.TOOL_PERMISSION,
                                 config_section="permissions",
                                 error_msg=error_message,
                                 matched_text=perm_matched_text,
-                                matched_pattern=getattr(policy_checker, 'last_deny_matched_pattern', '') or '',
+                                matched_pattern=getattr(
+                                    policy_checker, "last_deny_matched_pattern", ""
+                                )
+                                or "",
                                 latency_timer=_latency_timer,
-                                hook_context={"session_id": hook_session_id, "project_path": get_project_dir(), "hook_event": hook_event, "tool_name": tool_name},
+                                hook_context={
+                                    "session_id": hook_session_id,
+                                    "project_path": get_project_dir(),
+                                    "hook_event": hook_event,
+                                    "tool_name": tool_name,
+                                },
                             )
                             if perm_ask_result is not None:
                                 from ai_guardian.tui.ask_dialog import AskDecision
-                                if perm_ask_result.decision not in (AskDecision.BLOCK, AskDecision.BLOCK_ALL):
+
+                                if perm_ask_result.decision not in (
+                                    AskDecision.BLOCK,
+                                    AskDecision.BLOCK_ALL,
+                                ):
                                     perm_ask_allowed = True
                                     warning_messages.append(
-                                        _format_ask_info_message(ViolationType.TOOL_PERMISSION, perm_ask_result.decision,
-                                                                 detail=checked_tool_name)
+                                        _format_ask_info_message(
+                                            ViolationType.TOOL_PERMISSION,
+                                            perm_ask_result.decision,
+                                            detail=checked_tool_name,
+                                        )
                                     )
-                                    _log_ask_decision(ViolationType.TOOL_PERMISSION, perm_ask_result.decision,
-                                                      matched_text=perm_matched_text or "",
-                                                      error_msg=error_message or "",
-                                                      dialog_wait_ms=perm_ask_result.dialog_wait_ms)
+                                    _log_ask_decision(
+                                        ViolationType.TOOL_PERMISSION,
+                                        perm_ask_result.decision,
+                                        matched_text=perm_matched_text or "",
+                                        error_msg=error_message or "",
+                                        dialog_wait_ms=perm_ask_result.dialog_wait_ms,
+                                    )
 
                         if not perm_ask_allowed:
                             # Extract reason summary for logging
-                            reason_summary = _extract_block_reason(error_message) if error_message else "policy violation"
+                            reason_summary = (
+                                _extract_block_reason(error_message)
+                                if error_message
+                                else "policy violation"
+                            )
 
                             # Extract tool-specific parameters for better logging
                             tool_details = ""
                             if tool_input:
-                                if checked_tool_name == "Skill" or (tool_name == "Skill" and checked_tool_name.startswith("Skill:")):
+                                if checked_tool_name == "Skill" or (
+                                    tool_name == "Skill"
+                                    and checked_tool_name.startswith("Skill:")
+                                ):
                                     skill_name = tool_input.get("skill", "unknown")
                                     skill_args = tool_input.get("args", "")
-                                    args_preview = skill_args[:50] + "..." if len(skill_args) > 50 else skill_args
+                                    args_preview = (
+                                        skill_args[:50] + "..."
+                                        if len(skill_args) > 50
+                                        else skill_args
+                                    )
                                     tool_details = f" (skill='{skill_name}', args='{args_preview}')"
                                 elif tool_name == "Bash":
                                     command = tool_input.get("command", "")
-                                    cmd_preview = command[:100] + "..." if len(command) > 100 else command
+                                    cmd_preview = (
+                                        command[:100] + "..."
+                                        if len(command) > 100
+                                        else command
+                                    )
                                     tool_details = f" (command='{cmd_preview}')"
                                 elif tool_name in ["Read", "Write", "Edit"]:
-                                    file_path = tool_input.get("file_path") or tool_input.get("path", "")
+                                    file_path = tool_input.get(
+                                        "file_path"
+                                    ) or tool_input.get("path", "")
                                     if file_path:
                                         tool_details = f" (file_path='{file_path}')"
 
-                            logging.warning(f"🚨 BLOCKED BY POLICY: Tool '{checked_tool_name}'{tool_details} - {reason_summary}")
-                            combined_warning = "\n\n".join(warning_messages) if warning_messages else None
-                            result = format_response(ide_type, has_secrets=True, error_message=error_message, hook_event=hook_event, warning_message=combined_warning, violation_type=ViolationType.TOOL_PERMISSION, security_message=security_message)
+                            logging.warning(
+                                f"🚨 BLOCKED BY POLICY: Tool '{checked_tool_name}'{tool_details} - {reason_summary}"
+                            )
+                            combined_warning = (
+                                "\n\n".join(warning_messages)
+                                if warning_messages
+                                else None
+                            )
+                            result = format_response(
+                                ide_type,
+                                has_secrets=True,
+                                error_message=error_message,
+                                hook_event=hook_event,
+                                warning_message=combined_warning,
+                                violation_type=ViolationType.TOOL_PERMISSION,
+                                security_message=security_message,
+                            )
                             return result
                     elif is_allowed and error_message:
                         # Log mode: allowed but violation logged - display warning to user
-                        logging.warning(f"⚠️  Policy violation (log mode): Tool '{checked_tool_name}' - execution allowed")
+                        logging.warning(
+                            f"⚠️  Policy violation (log mode): Tool '{checked_tool_name}' - execution allowed"
+                        )
                         # Accumulate warning message to display at the end
                         warning_messages.append(error_message)
 
@@ -4869,10 +6035,17 @@ def process_hook_data(hook_data, daemon_state=None):
             except Exception as e:
                 on_error = _get_on_scan_error_action()
                 if on_error == ActionMode.BLOCK:
-                    logging.error(f"Tool policy check error (fail-closed, on_scan_error=block): {e}")
-                    return format_response(ide_type, has_secrets=True, hook_event=hook_event,
-                                          error_message=f"Tool policy check failed (blocked by on_scan_error=block): {e}",
-                                          violation_type=ViolationType.TOOL_PERMISSION, security_message=security_message)
+                    logging.error(
+                        f"Tool policy check error (fail-closed, on_scan_error=block): {e}"
+                    )
+                    return format_response(
+                        ide_type,
+                        has_secrets=True,
+                        hook_event=hook_event,
+                        error_message=f"Tool policy check failed (blocked by on_scan_error=block): {e}",
+                        violation_type=ViolationType.TOOL_PERMISSION,
+                        security_message=security_message,
+                    )
                 logging.warning(f"Tool policy check error (fail-open): {e}")
 
         content_to_scan = None
@@ -4885,7 +6058,11 @@ def process_hook_data(hook_data, daemon_state=None):
 
             # Bash command exfiltration detection (Issue #1100)
             # Check Bash commands for credential exfiltration patterns before execution
-            if hook_event == HookEvent.PRE_TOOL_USE and tool_name == "Bash" and HAS_CONFIG_SCANNER:
+            if (
+                hook_event == HookEvent.PRE_TOOL_USE
+                and tool_name == "Bash"
+                and HAS_CONFIG_SCANNER
+            ):
                 bash_command = tool_input.get("command", "") if tool_input else ""
                 if bash_command:
                     scanner_config, config_error = _load_config_scanner_config()
@@ -4893,28 +6070,42 @@ def process_hook_data(hook_data, daemon_state=None):
                         logging.warning(f"Config scanner config error: {config_error}")
 
                     if scanner_config and is_feature_enabled(
-                        scanner_config.get("enabled"),
-                        now,
-                        default=True
+                        scanner_config.get("enabled"), now, default=True
                     ):
-                        logging.info("Checking Bash command for exfiltration patterns...")
+                        logging.info(
+                            "Checking Bash command for exfiltration patterns..."
+                        )
                         with _latency_timer.check("bash_command_exfil_check"):
-                            should_block, exfil_error, exfil_details = check_bash_command_threats(
-                                bash_command, scanner_config
+                            should_block, exfil_error, exfil_details = (
+                                check_bash_command_threats(bash_command, scanner_config)
                             )
 
                         if should_block:
                             # Credential exfiltration detected in Bash command - block operation
-                            logging.warning(f"🚨 BLOCKED: Credential exfiltration detected in Bash command")
+                            logging.warning(
+                                "🚨 BLOCKED: Credential exfiltration detected in Bash command"
+                            )
 
                             # Log config exfiltration violation
                             if violation_logger:
                                 try:
                                     exfil_ctx = {
-                                        "pattern_name": exfil_details.get("pattern_name", "unknown") if exfil_details else "unknown",
-                                        "pattern_description": exfil_details.get("pattern_description", "") if exfil_details else "",
+                                        "pattern_name": (
+                                            exfil_details.get("pattern_name", "unknown")
+                                            if exfil_details
+                                            else "unknown"
+                                        ),
+                                        "pattern_description": (
+                                            exfil_details.get("pattern_description", "")
+                                            if exfil_details
+                                            else ""
+                                        ),
                                         "command": bash_command[:500],
-                                        "matched_text": exfil_details.get("matched_text", "") if exfil_details else "",
+                                        "matched_text": (
+                                            exfil_details.get("matched_text", "")
+                                            if exfil_details
+                                            else ""
+                                        ),
                                     }
                                     violation_logger.log_violation(
                                         hook_name="PreToolUse",
@@ -4927,9 +6118,15 @@ def process_hook_data(hook_data, daemon_state=None):
                                         hook_tool_use_id=hook_tool_use_id,
                                     )
                                 except Exception as e:
-                                    logging.warning(f"Failed to log bash exfil violation: {e}")
+                                    logging.warning(
+                                        f"Failed to log bash exfil violation: {e}"
+                                    )
 
-                            combined_warning = "\n\n".join(warning_messages) if warning_messages else None
+                            combined_warning = (
+                                "\n\n".join(warning_messages)
+                                if warning_messages
+                                else None
+                            )
                             result = format_response(
                                 ide_type,
                                 has_secrets=True,
@@ -4937,7 +6134,7 @@ def process_hook_data(hook_data, daemon_state=None):
                                 hook_event=hook_event,
                                 warning_message=combined_warning,
                                 violation_type=ViolationType.CONFIG_FILE_EXFIL,
-                                security_message=security_message
+                                security_message=security_message,
                             )
                             return result
 
@@ -4945,40 +6142,77 @@ def process_hook_data(hook_data, daemon_state=None):
             # Bash, Write, Edit, etc. don't read files in PreToolUse - they have command/content parameters
             # Bug #94: Bash commands were incorrectly treated as file paths
             # Bug #174: Glob removed - uses 'pattern' parameter, not 'file_path', doesn't read content in PreToolUse
-            if tool_name in FILE_READING_TOOLS or hook_event == HookEvent.BEFORE_READ_FILE:
+            if (
+                tool_name in FILE_READING_TOOLS
+                or hook_event == HookEvent.BEFORE_READ_FILE
+            ):
                 # Extract file content for tools that read files
                 with _latency_timer.check("directory_rules"):
-                    content_to_scan, filename, file_path, is_denied, deny_reason, dir_warning = extract_file_content_from_tool(hook_data)
+                    (
+                        content_to_scan,
+                        filename,
+                        file_path,
+                        is_denied,
+                        deny_reason,
+                        dir_warning,
+                    ) = extract_file_content_from_tool(hook_data)
 
                 # Check if directory access is denied
                 if is_denied:
                     dir_action = _get_directory_action_from_config()
                     dir_ask_result = _handle_ask_mode_auto(
-                        dir_action, ViolationType.DIRECTORY_BLOCKING,
+                        dir_action,
+                        ViolationType.DIRECTORY_BLOCKING,
                         config_section="directory_rules",
                         error_msg=deny_reason,
                         file_path=file_path,
                         matched_text=file_path or "",
                         latency_timer=_latency_timer,
-                        hook_context={"session_id": hook_session_id, "project_path": get_project_dir(), "hook_event": hook_event, "tool_name": tool_name},
+                        hook_context={
+                            "session_id": hook_session_id,
+                            "project_path": get_project_dir(),
+                            "hook_event": hook_event,
+                            "tool_name": tool_name,
+                        },
                     )
                     if dir_ask_result is not None:
                         from ai_guardian.tui.ask_dialog import AskDecision
-                        if dir_ask_result.decision not in (AskDecision.BLOCK, AskDecision.BLOCK_ALL):
+
+                        if dir_ask_result.decision not in (
+                            AskDecision.BLOCK,
+                            AskDecision.BLOCK_ALL,
+                        ):
                             is_denied = False
                             warning_messages.append(
-                                _format_ask_info_message(ViolationType.DIRECTORY_BLOCKING, dir_ask_result.decision,
-                                                         detail=file_path)
+                                _format_ask_info_message(
+                                    ViolationType.DIRECTORY_BLOCKING,
+                                    dir_ask_result.decision,
+                                    detail=file_path,
+                                )
                             )
-                            _log_ask_decision(ViolationType.DIRECTORY_BLOCKING, dir_ask_result.decision,
-                                              matched_text=file_path or "", error_msg=deny_reason or "",
-                                              file_path=file_path,
-                                              dialog_wait_ms=dir_ask_result.dialog_wait_ms)
+                            _log_ask_decision(
+                                ViolationType.DIRECTORY_BLOCKING,
+                                dir_ask_result.decision,
+                                matched_text=file_path or "",
+                                error_msg=deny_reason or "",
+                                file_path=file_path,
+                                dialog_wait_ms=dir_ask_result.dialog_wait_ms,
+                            )
 
                 if is_denied:
                     logging.warning(f"Directory access denied for file '{file_path}'")
-                    combined_warning = "\n\n".join(warning_messages) if warning_messages else None
-                    result = format_response(ide_type, has_secrets=True, error_message=deny_reason, hook_event=hook_event, warning_message=combined_warning, violation_type=ViolationType.DIRECTORY_BLOCKING, security_message=security_message)
+                    combined_warning = (
+                        "\n\n".join(warning_messages) if warning_messages else None
+                    )
+                    result = format_response(
+                        ide_type,
+                        has_secrets=True,
+                        error_message=deny_reason,
+                        hook_event=hook_event,
+                        warning_message=combined_warning,
+                        violation_type=ViolationType.DIRECTORY_BLOCKING,
+                        security_message=security_message,
+                    )
                     return result
                 elif dir_warning:
                     # Log mode: directory violation detected but execution allowed
@@ -4988,22 +6222,46 @@ def process_hook_data(hook_data, daemon_state=None):
                 # Skip scanning ai-guardian's own test files (contain example secrets)
                 # IMPORTANT: Only skips ai-guardian tests, not user project tests
                 if file_path and _is_ai_guardian_test_file(file_path):
-                    logging.debug(f"Skipping scan for ai-guardian test file: {file_path}")
+                    logging.debug(
+                        f"Skipping scan for ai-guardian test file: {file_path}"
+                    )
 
-                    combined_warning = "\n\n".join(warning_messages) if warning_messages else None
-                    return format_response(ide_type, has_secrets=False, hook_event=hook_event, warning_message=combined_warning, security_message=security_message)
+                    combined_warning = (
+                        "\n\n".join(warning_messages) if warning_messages else None
+                    )
+                    return format_response(
+                        ide_type,
+                        has_secrets=False,
+                        hook_event=hook_event,
+                        warning_message=combined_warning,
+                        security_message=security_message,
+                    )
 
                 if content_to_scan is None:
                     # Could not extract file content - allow operation (fail-open)
-                    logging.warning("Could not extract file content, allowing operation")
+                    logging.warning(
+                        "Could not extract file content, allowing operation"
+                    )
 
-                    combined_warning = "\n\n".join(warning_messages) if warning_messages else None
-                    return format_response(ide_type, has_secrets=False, hook_event=hook_event, warning_message=combined_warning, security_message=security_message)
+                    combined_warning = (
+                        "\n\n".join(warning_messages) if warning_messages else None
+                    )
+                    return format_response(
+                        ide_type,
+                        has_secrets=False,
+                        hook_event=hook_event,
+                        warning_message=combined_warning,
+                        security_message=security_message,
+                    )
 
                 # Image scanning: if file is an image, extract text via OCR (Issue #720)
                 is_image_file = False
                 image_scan_result = None
-                if HAS_IMAGE_SCANNER and file_path and ImageDetector.is_image_file(file_path):
+                if (
+                    HAS_IMAGE_SCANNER
+                    and file_path
+                    and ImageDetector.is_image_file(file_path)
+                ):
                     is_image_file = True
                     content_to_scan = None
                     img_config, img_config_error = _load_image_scanning_config()
@@ -5026,13 +6284,17 @@ def process_hook_data(hook_data, daemon_state=None):
                                     break
 
                         if not skip_image:
-                            logging.info(f"Image file detected: {file_path}, running OCR scan...")
+                            logging.info(
+                                f"Image file detected: {file_path}, running OCR scan..."
+                            )
                             try:
-                                with open(file_path, 'rb') as f:
+                                with open(file_path, "rb") as f:
                                     image_data = f.read()
 
                                 with _latency_timer.check("image_scanning"):
-                                    image_scan_result = scan_image(image_data, img_config)
+                                    image_scan_result = scan_image(
+                                        image_data, img_config
+                                    )
                                 logging.info(
                                     f"OCR extracted {len(image_scan_result.extracted_text)} chars "
                                     f"in {image_scan_result.elapsed_ms:.0f}ms"
@@ -5044,31 +6306,70 @@ def process_hook_data(hook_data, daemon_state=None):
                                 # Append QR code text if found
                                 if image_scan_result.qr_texts:
                                     qr_text = "\n".join(image_scan_result.qr_texts)
-                                    content_to_scan = f"{content_to_scan}\n{qr_text}" if content_to_scan else qr_text
+                                    content_to_scan = (
+                                        f"{content_to_scan}\n{qr_text}"
+                                        if content_to_scan
+                                        else qr_text
+                                    )
 
                                 if not content_to_scan:
-                                    logging.info("No text extracted from image, allowing through")
-                                    combined_warning = "\n\n".join(warning_messages) if warning_messages else None
-                                    return format_response(ide_type, has_secrets=False, hook_event=hook_event, warning_message=combined_warning, security_message=security_message)
+                                    logging.info(
+                                        "No text extracted from image, allowing through"
+                                    )
+                                    combined_warning = (
+                                        "\n\n".join(warning_messages)
+                                        if warning_messages
+                                        else None
+                                    )
+                                    return format_response(
+                                        ide_type,
+                                        has_secrets=False,
+                                        hook_event=hook_event,
+                                        warning_message=combined_warning,
+                                        security_message=security_message,
+                                    )
 
                             except Exception as e:
                                 on_error = _get_on_scan_error_action()
                                 if on_error == ActionMode.BLOCK:
-                                    logging.error(f"Image scanning error (fail-closed): {e}")
-                                    return format_response(ide_type, has_secrets=True, hook_event=hook_event,
-                                                          error_message=f"Image scanning failed (blocked by on_scan_error=block): {e}",
-                                                          violation_type=ViolationType.IMAGE_SECRET_DETECTED, security_message=security_message)
-                                logging.warning(f"Image scanning error (fail-open): {e}")
-                                combined_warning = "\n\n".join(warning_messages) if warning_messages else None
-                                return format_response(ide_type, has_secrets=False, hook_event=hook_event, warning_message=combined_warning, security_message=security_message)
+                                    logging.error(
+                                        f"Image scanning error (fail-closed): {e}"
+                                    )
+                                    return format_response(
+                                        ide_type,
+                                        has_secrets=True,
+                                        hook_event=hook_event,
+                                        error_message=f"Image scanning failed (blocked by on_scan_error=block): {e}",
+                                        violation_type=ViolationType.IMAGE_SECRET_DETECTED,
+                                        security_message=security_message,
+                                    )
+                                logging.warning(
+                                    f"Image scanning error (fail-open): {e}"
+                                )
+                                combined_warning = (
+                                    "\n\n".join(warning_messages)
+                                    if warning_messages
+                                    else None
+                                )
+                                return format_response(
+                                    ide_type,
+                                    has_secrets=False,
+                                    hook_event=hook_event,
+                                    warning_message=combined_warning,
+                                    security_message=security_message,
+                                )
                         else:
-                            logging.info(f"Image scanning skipped for {file_path} (ignore pattern match)")
+                            logging.info(
+                                f"Image scanning skipped for {file_path} (ignore pattern match)"
+                            )
                     else:
                         logging.debug("Image scanning disabled, skipping OCR")
 
                 # Log with full path for debugging false positives
                 if file_path:
-                    logging.info(f"Scanning file '{filename}' ({file_path}) for secrets...")
+                    logging.info(
+                        f"Scanning file '{filename}' ({file_path}) for secrets..."
+                    )
                 else:
                     logging.info(f"Scanning file '{filename}' for secrets...")
 
@@ -5083,12 +6384,17 @@ def process_hook_data(hook_data, daemon_state=None):
                         warning_messages.append(ann_config_error)
 
                     if annotations_config and is_feature_enabled(
-                        annotations_config.get("enabled"),
-                        now,
-                        default=True
+                        annotations_config.get("enabled"), now, default=True
                     ):
-                        content_all_sup, content_secret_sup, ann_suppressions, ann_warnings = process_annotations(
-                            content_to_scan, file_path=file_path, config=annotations_config
+                        (
+                            content_all_sup,
+                            content_secret_sup,
+                            ann_suppressions,
+                            ann_warnings,
+                        ) = process_annotations(
+                            content_to_scan,
+                            file_path=file_path,
+                            config=annotations_config,
                         )
 
                         if ann_suppressions:
@@ -5115,14 +6421,17 @@ def process_hook_data(hook_data, daemon_state=None):
                                             "file_path": file_path,
                                             "suppressions": ann_suppressions,
                                             "total_lines_suppressed": sum(
-                                                len(s.get("lines", [])) for s in ann_suppressions
+                                                len(s.get("lines", []))
+                                                for s in ann_suppressions
                                             ),
                                         },
                                         context=ann_ctx,
                                         severity="info",
                                     )
                                 except Exception as e:
-                                    logging.error(f"Failed to log annotation suppression: {e}")
+                                    logging.error(
+                                        f"Failed to log annotation suppression: {e}"
+                                    )
 
                         for w in ann_warnings:
                             warning_messages.append(w)
@@ -5130,48 +6439,70 @@ def process_hook_data(hook_data, daemon_state=None):
                 # Non-file-reading tool (Bash, Write, Edit, etc.)
                 # These tools don't read files in PreToolUse, so no content to scan here
                 # They are checked by tool_policy.py for command patterns
-                logging.info(f"Tool '{tool_name}' does not read files - skipping file content scan")
+                logging.info(
+                    f"Tool '{tool_name}' does not read files - skipping file content scan"
+                )
 
                 # Save minimal PreToolUse context for correlation (#366)
                 if context_mgr and hook_tool_use_id:
                     try:
-                        context_mgr.save_pretool_context(hook_tool_use_id, {
-                            "file_path": None,
-                            "tool_name": tool_identifier or tool_name,
-                            "scan_results": {
-                                "secrets_scanned": False,
-                                "secrets_found": False,
-                                "pii_scanned": False,
-                                "pii_skipped_reason": None,
-                                "prompt_injection_scanned": False,
-                                "prompt_injection_found": False,
-                                "context_poisoning_scanned": False,
-                                "context_poisoning_found": False,
+                        context_mgr.save_pretool_context(
+                            hook_tool_use_id,
+                            {
+                                "file_path": None,
+                                "tool_name": tool_identifier or tool_name,
+                                "scan_results": {
+                                    "secrets_scanned": False,
+                                    "secrets_found": False,
+                                    "pii_scanned": False,
+                                    "pii_skipped_reason": None,
+                                    "prompt_injection_scanned": False,
+                                    "prompt_injection_found": False,
+                                    "context_poisoning_scanned": False,
+                                    "context_poisoning_found": False,
+                                },
+                                "ignore_files_matched": False,
                             },
-                            "ignore_files_matched": False,
-                        })
+                        )
                     except Exception:
                         pass  # intentionally silent — best-effort operation
 
                 # No content to scan for these tools in PreToolUse
                 # Allow operation (secret scanning happens for Bash in PostToolUse if enabled)
-                combined_warning = "\n\n".join(warning_messages) if warning_messages else None
-                return format_response(ide_type, has_secrets=False, hook_event=hook_event, warning_message=combined_warning, security_message=security_message)
+                combined_warning = (
+                    "\n\n".join(warning_messages) if warning_messages else None
+                )
+                return format_response(
+                    ide_type,
+                    has_secrets=False,
+                    hook_event=hook_event,
+                    warning_message=combined_warning,
+                    security_message=security_message,
+                )
 
         else:
             # Prompt hook - scan the user's prompt
             logging.info("Processing prompt submission hook...")
-            content_to_scan = hook_data.get("prompt", hook_data.get("userMessage", hook_data.get("message", "")))
+            content_to_scan = hook_data.get(
+                "prompt", hook_data.get("userMessage", hook_data.get("message", ""))
+            )
             filename = "user_prompt"
 
             if not content_to_scan:
                 # No content to check - allow operation
-                return format_response(ide_type, has_secrets=False, hook_event=hook_event, security_message=security_message)
+                return format_response(
+                    ide_type,
+                    has_secrets=False,
+                    hook_event=hook_event,
+                    security_message=security_message,
+                )
 
             # Image scanning: check for base64-encoded images in prompt (Issue #720)
             if HAS_IMAGE_SCANNER and content_to_scan:
                 try:
-                    image_bytes_list = ImageDetector.extract_base64_images(content_to_scan)
+                    image_bytes_list = ImageDetector.extract_base64_images(
+                        content_to_scan
+                    )
                 except Exception as e:
                     image_bytes_list = []
                     logging.warning(f"Prompt image extraction error (fail-open): {e}")
@@ -5180,7 +6511,9 @@ def process_hook_data(hook_data, daemon_state=None):
                     if img_config_error:
                         warning_messages.append(img_config_error)
                     if img_config and is_feature_enabled(
-                        img_config.get("enabled", True), now, default=True,
+                        img_config.get("enabled", True),
+                        now,
+                        default=True,
                     ):
                         try:
                             for img_bytes in image_bytes_list:
@@ -5188,11 +6521,18 @@ def process_hook_data(hook_data, daemon_state=None):
                                     img_result = scan_image(img_bytes, img_config)
                                 if img_result.extracted_text:
                                     content_to_scan = f"{content_to_scan}\n{img_result.extracted_text}"
-                                    logging.info(f"OCR extracted {len(img_result.extracted_text)} chars from prompt image")
+                                    logging.info(
+                                        f"OCR extracted {len(img_result.extracted_text)} chars from prompt image"
+                                    )
                                 if img_result.qr_texts:
-                                    content_to_scan = f"{content_to_scan}\n" + "\n".join(img_result.qr_texts)
+                                    content_to_scan = (
+                                        f"{content_to_scan}\n"
+                                        + "\n".join(img_result.qr_texts)
+                                    )
                         except Exception as e:
-                            logging.warning(f"Prompt image scanning error (fail-open): {e}")
+                            logging.warning(
+                                f"Prompt image scanning error (fail-open): {e}"
+                            )
 
                     # Strip base64 image data from content before unicode/injection scanning (Issue #1120)
                     content_to_scan = ImageDetector.strip_base64_images(content_to_scan)
@@ -5216,32 +6556,46 @@ def process_hook_data(hook_data, daemon_state=None):
 
                 # Check if prompt injection detection is enabled (supports time-based disabling)
                 if injection_config and is_feature_enabled(
-                    injection_config.get("enabled"),
-                    now,
-                    default=True
+                    injection_config.get("enabled"), now, default=True
                 ):
                     # Determine source type based on hook event
                     # UserPromptSubmit = user input (check all patterns, threshold 0.75)
                     # PreToolUse = file content (check critical patterns only, threshold 0.90)
-                    source_type = "user_prompt" if hook_event == HookEvent.PROMPT else "file_content"
+                    source_type = (
+                        "user_prompt"
+                        if hook_event == HookEvent.PROMPT
+                        else "file_content"
+                    )
 
                     detector = PromptInjectionDetector(injection_config)
                     with _latency_timer.check("prompt_injection"):
-                        should_block, injection_error, injection_detected = detector.detect(
-                            content_to_scan, file_path=file_path, tool_name=tool_identifier, source_type=source_type
+                        should_block, injection_error, injection_detected = (
+                            detector.detect(
+                                content_to_scan,
+                                file_path=file_path,
+                                tool_name=tool_identifier,
+                                source_type=source_type,
+                            )
                         )
 
                     # Log violation if injection was detected (in both log and block modes)
                     if injection_detected:
                         _pretool_pi_detected = True
-                        inj_hook_ctx = {"hook_event": hook_event, "tool_name": tool_name}
+                        inj_hook_ctx = {
+                            "hook_event": hook_event,
+                            "tool_name": tool_name,
+                        }
                         if hook_tool_use_id:
                             inj_hook_ctx["tool_use_id"] = hook_tool_use_id
                         if hook_session_id:
                             inj_hook_ctx["session_id"] = hook_session_id
                         _log_prompt_injection_violation(
                             filename,
-                            context={"ide_type": ide_type.value, "hook_event": hook_event, "file_path": file_path},
+                            context={
+                                "ide_type": ide_type.value,
+                                "hook_event": hook_event,
+                                "file_path": file_path,
+                            },
                             attack_type=detector.last_attack_type,
                             hook_context=inj_hook_ctx if inj_hook_ctx else None,
                             matched_pattern=detector.last_matched_pattern,
@@ -5254,9 +6608,14 @@ def process_hook_data(hook_data, daemon_state=None):
 
                     if should_block:
                         # Check ask action mode before blocking
-                        pi_action = injection_config.get("action", "block") if injection_config else "block"
+                        pi_action = (
+                            injection_config.get("action", "block")
+                            if injection_config
+                            else "block"
+                        )
                         pi_ask_result = _handle_ask_mode_auto(
-                            pi_action, ViolationType.PROMPT_INJECTION,
+                            pi_action,
+                            ViolationType.PROMPT_INJECTION,
                             config_section="prompt_injection",
                             error_msg=injection_error,
                             file_path=file_path,
@@ -5264,34 +6623,63 @@ def process_hook_data(hook_data, daemon_state=None):
                             line_number=detector.last_line_number,
                             matched_pattern=detector.last_matched_pattern or "",
                             latency_timer=_latency_timer,
-                            hook_context={"session_id": hook_session_id, "project_path": get_project_dir(), "hook_event": hook_event, "tool_name": tool_name},
+                            hook_context={
+                                "session_id": hook_session_id,
+                                "project_path": get_project_dir(),
+                                "hook_event": hook_event,
+                                "tool_name": tool_name,
+                            },
                             findings=detector.findings if detector.findings else None,
                         )
                         if pi_ask_result is not None:
                             from ai_guardian.tui.ask_dialog import AskDecision
-                            if pi_ask_result.decision not in (AskDecision.BLOCK, AskDecision.BLOCK_ALL):
-                                pi_info_msg = _format_ask_info_message(ViolationType.PROMPT_INJECTION, pi_ask_result.decision)
+
+                            if pi_ask_result.decision not in (
+                                AskDecision.BLOCK,
+                                AskDecision.BLOCK_ALL,
+                            ):
+                                pi_info_msg = _format_ask_info_message(
+                                    ViolationType.PROMPT_INJECTION,
+                                    pi_ask_result.decision,
+                                )
                                 warning_messages.append(pi_info_msg)
                                 should_block = False
                                 injection_error = pi_info_msg
-                                _log_ask_decision(ViolationType.PROMPT_INJECTION, pi_ask_result.decision,
-                                                  matched_text=detector.last_matched_text or "",
-                                                  error_msg=injection_error,
-                                                  file_path=file_path,
-                                                  line_number=detector.last_line_number,
-                                                  dialog_wait_ms=pi_ask_result.dialog_wait_ms)
+                                _log_ask_decision(
+                                    ViolationType.PROMPT_INJECTION,
+                                    pi_ask_result.decision,
+                                    matched_text=detector.last_matched_text or "",
+                                    error_msg=injection_error,
+                                    file_path=file_path,
+                                    line_number=detector.last_line_number,
+                                    dialog_wait_ms=pi_ask_result.dialog_wait_ms,
+                                )
 
                     if should_block:
                         # Prompt injection detected - block operation
                         # Note: detailed logging (confidence, pattern, text) already done in prompt_injection.py
                         if ide_type != IDEType.CURSOR:
                             if file_path:
-                                logging.info(f"Blocking operation for {file_path} due to prompt injection detection")
+                                logging.info(
+                                    f"Blocking operation for {file_path} due to prompt injection detection"
+                                )
                             else:
-                                logging.info("Blocking operation due to prompt injection detection")
+                                logging.info(
+                                    "Blocking operation due to prompt injection detection"
+                                )
 
-                        combined_warning = "\n\n".join(warning_messages) if warning_messages else None
-                        result = format_response(ide_type, has_secrets=True, error_message=injection_error, hook_event=hook_event, warning_message=combined_warning, violation_type=ViolationType.PROMPT_INJECTION, security_message=security_message)
+                        combined_warning = (
+                            "\n\n".join(warning_messages) if warning_messages else None
+                        )
+                        result = format_response(
+                            ide_type,
+                            has_secrets=True,
+                            error_message=injection_error,
+                            hook_event=hook_event,
+                            warning_message=combined_warning,
+                            violation_type=ViolationType.PROMPT_INJECTION,
+                            security_message=security_message,
+                        )
                         return result
                     elif injection_detected and injection_error:
                         # Log mode: injection detected but execution allowed - display warning
@@ -5307,10 +6695,17 @@ def process_hook_data(hook_data, daemon_state=None):
             except Exception as e:
                 on_error = _get_on_scan_error_action()
                 if on_error == ActionMode.BLOCK:
-                    logging.error(f"Prompt injection check error (fail-closed, on_scan_error=block): {e}")
-                    return format_response(ide_type, has_secrets=True, hook_event=hook_event,
-                                          error_message=f"Prompt injection check failed (blocked by on_scan_error=block): {e}",
-                                          violation_type=ViolationType.PROMPT_INJECTION, security_message=security_message)
+                    logging.error(
+                        f"Prompt injection check error (fail-closed, on_scan_error=block): {e}"
+                    )
+                    return format_response(
+                        ide_type,
+                        has_secrets=True,
+                        hook_event=hook_event,
+                        error_message=f"Prompt injection check failed (blocked by on_scan_error=block): {e}",
+                        violation_type=ViolationType.PROMPT_INJECTION,
+                        security_message=security_message,
+                    )
                 logging.warning(f"Prompt injection check error (fail-open): {e}")
 
         # Check for context poisoning (LLM03) — on both user prompts and file reads
@@ -5321,27 +6716,36 @@ def process_hook_data(hook_data, daemon_state=None):
                     warning_messages.append(cp_error)
 
                 if cp_config and is_feature_enabled(
-                    cp_config.get("enabled"),
-                    now,
-                    default=True
+                    cp_config.get("enabled"), now, default=True
                 ):
-                    cp_skip = _should_skip_context_poisoning(cp_config, tool_identifier, file_path)
+                    cp_skip = _should_skip_context_poisoning(
+                        cp_config, tool_identifier, file_path
+                    )
                     if not cp_skip:
                         _pretool_cp_scanned = True
                         cp_detector = ContextPoisoningDetector(cp_config)
                         with _latency_timer.check("context_poisoning"):
-                            cp_should_block, cp_error_msg, cp_detected = cp_detector.detect(content_to_scan)
+                            cp_should_block, cp_error_msg, cp_detected = (
+                                cp_detector.detect(content_to_scan)
+                            )
 
                         if cp_detected:
                             _pretool_cp_detected = True
-                            cp_hook_ctx = {"hook_event": hook_event, "tool_name": tool_name}
+                            cp_hook_ctx = {
+                                "hook_event": hook_event,
+                                "tool_name": tool_name,
+                            }
                             if hook_tool_use_id:
                                 cp_hook_ctx["tool_use_id"] = hook_tool_use_id
                             if hook_session_id:
                                 cp_hook_ctx["session_id"] = hook_session_id
                             _log_context_poisoning_violation(
                                 filename,
-                                context={"ide_type": ide_type.value, "hook_event": hook_event, "file_path": file_path},
+                                context={
+                                    "ide_type": ide_type.value,
+                                    "hook_event": hook_event,
+                                    "file_path": file_path,
+                                },
                                 hook_context=cp_hook_ctx if cp_hook_ctx else None,
                                 matched_pattern=cp_detector.last_matched_pattern,
                                 matched_text=cp_detector.last_matched_text,
@@ -5353,36 +6757,71 @@ def process_hook_data(hook_data, daemon_state=None):
 
                         if cp_should_block:
                             # Check ask action mode before blocking
-                            cp_action = cp_config.get("action", "warn") if cp_config else "warn"
+                            cp_action = (
+                                cp_config.get("action", "warn") if cp_config else "warn"
+                            )
                             cp_ask_result = _handle_ask_mode_auto(
-                                cp_action, ViolationType.CONTEXT_POISONING,
+                                cp_action,
+                                ViolationType.CONTEXT_POISONING,
                                 config_section="context_poisoning",
                                 error_msg=cp_error_msg,
-                                file_path=file_path if 'file_path' in dir() else None,
+                                file_path=file_path if "file_path" in dir() else None,
                                 matched_text=cp_detector.last_matched_text or "",
                                 line_number=cp_detector.last_line_number,
                                 matched_pattern=cp_detector.last_matched_pattern or "",
                                 latency_timer=_latency_timer,
-                                hook_context={"session_id": hook_session_id, "project_path": get_project_dir(), "hook_event": hook_event, "tool_name": tool_name},
+                                hook_context={
+                                    "session_id": hook_session_id,
+                                    "project_path": get_project_dir(),
+                                    "hook_event": hook_event,
+                                    "tool_name": tool_name,
+                                },
                             )
                             if cp_ask_result is not None:
                                 from ai_guardian.tui.ask_dialog import AskDecision
-                                if cp_ask_result.decision not in (AskDecision.BLOCK, AskDecision.BLOCK_ALL):
-                                    cp_info_msg = _format_ask_info_message(ViolationType.CONTEXT_POISONING, cp_ask_result.decision)
+
+                                if cp_ask_result.decision not in (
+                                    AskDecision.BLOCK,
+                                    AskDecision.BLOCK_ALL,
+                                ):
+                                    cp_info_msg = _format_ask_info_message(
+                                        ViolationType.CONTEXT_POISONING,
+                                        cp_ask_result.decision,
+                                    )
                                     warning_messages.append(cp_info_msg)
                                     cp_should_block = False
                                     cp_error_msg = cp_info_msg
-                                    _log_ask_decision(ViolationType.CONTEXT_POISONING, cp_ask_result.decision,
-                                                      matched_text=cp_detector.last_matched_text or "",
-                                                      error_msg=cp_error_msg,
-                                                      file_path=file_path if 'file_path' in dir() else None,
-                                                      line_number=cp_detector.last_line_number,
-                                                      dialog_wait_ms=cp_ask_result.dialog_wait_ms)
+                                    _log_ask_decision(
+                                        ViolationType.CONTEXT_POISONING,
+                                        cp_ask_result.decision,
+                                        matched_text=cp_detector.last_matched_text
+                                        or "",
+                                        error_msg=cp_error_msg,
+                                        file_path=(
+                                            file_path if "file_path" in dir() else None
+                                        ),
+                                        line_number=cp_detector.last_line_number,
+                                        dialog_wait_ms=cp_ask_result.dialog_wait_ms,
+                                    )
 
                         if cp_should_block:
-                            logging.info("Blocking operation due to context poisoning detection")
-                            combined_warning = "\n\n".join(warning_messages) if warning_messages else None
-                            result = format_response(ide_type, has_secrets=True, error_message=cp_error_msg, hook_event=hook_event, warning_message=combined_warning, violation_type=ViolationType.CONTEXT_POISONING, security_message=security_message)
+                            logging.info(
+                                "Blocking operation due to context poisoning detection"
+                            )
+                            combined_warning = (
+                                "\n\n".join(warning_messages)
+                                if warning_messages
+                                else None
+                            )
+                            result = format_response(
+                                ide_type,
+                                has_secrets=True,
+                                error_message=cp_error_msg,
+                                hook_event=hook_event,
+                                warning_message=combined_warning,
+                                violation_type=ViolationType.CONTEXT_POISONING,
+                                security_message=security_message,
+                            )
                             return result
                         elif cp_detected and cp_error_msg:
                             warning_messages.append(cp_error_msg)
@@ -5400,21 +6839,21 @@ def process_hook_data(hook_data, daemon_state=None):
                     warning_messages.append(sc_error)
 
                 if sc_config and is_feature_enabled(
-                    sc_config.get("enabled"),
-                    now,
-                    default=True
+                    sc_config.get("enabled"), now, default=True
                 ):
                     sc_scanner = SupplyChainScanner(sc_config)
                     sc_file_path = file_path or filename or "user_prompt"
 
                     with _latency_timer.check("supply_chain"):
                         if hook_event == HookEvent.PROMPT:
-                            sc_should_block, sc_error_msg, sc_detected = sc_scanner.scan_content(
-                                content_to_scan, label="user_prompt"
+                            sc_should_block, sc_error_msg, sc_detected = (
+                                sc_scanner.scan_content(
+                                    content_to_scan, label="user_prompt"
+                                )
                             )
                         else:
-                            sc_should_block, sc_error_msg, sc_detected = sc_scanner.scan(
-                                sc_file_path, content_to_scan
+                            sc_should_block, sc_error_msg, sc_detected = (
+                                sc_scanner.scan(sc_file_path, content_to_scan)
                             )
 
                     if sc_detected:
@@ -5425,7 +6864,11 @@ def process_hook_data(hook_data, daemon_state=None):
                             sc_hook_ctx["session_id"] = hook_session_id
                         _log_supply_chain_violation(
                             filename,
-                            context={"ide_type": ide_type.value, "hook_event": hook_event, "file_path": sc_file_path},
+                            context={
+                                "ide_type": ide_type.value,
+                                "hook_event": hook_event,
+                                "file_path": sc_file_path,
+                            },
                             hook_context=sc_hook_ctx if sc_hook_ctx else None,
                             matched_pattern=sc_scanner.last_matched_pattern,
                             matched_text=sc_scanner.last_matched_text,
@@ -5437,7 +6880,8 @@ def process_hook_data(hook_data, daemon_state=None):
 
                         sc_action = sc_config.get("action", "block")
                         sc_ask_result = _handle_ask_mode_auto(
-                            sc_action, ViolationType.SUPPLY_CHAIN,
+                            sc_action,
+                            ViolationType.SUPPLY_CHAIN,
                             config_section="supply_chain",
                             error_msg=sc_error_msg,
                             file_path=sc_file_path,
@@ -5445,27 +6889,54 @@ def process_hook_data(hook_data, daemon_state=None):
                             line_number=sc_scanner.last_line_number,
                             matched_pattern=sc_scanner.last_matched_pattern or "",
                             latency_timer=_latency_timer,
-                            hook_context={"session_id": hook_session_id, "project_path": get_project_dir(), "hook_event": hook_event, "tool_name": tool_name},
+                            hook_context={
+                                "session_id": hook_session_id,
+                                "project_path": get_project_dir(),
+                                "hook_event": hook_event,
+                                "tool_name": tool_name,
+                            },
                         )
                         if sc_ask_result is not None:
                             from ai_guardian.tui.ask_dialog import AskDecision
-                            if sc_ask_result.decision not in (AskDecision.BLOCK, AskDecision.BLOCK_ALL):
+
+                            if sc_ask_result.decision not in (
+                                AskDecision.BLOCK,
+                                AskDecision.BLOCK_ALL,
+                            ):
                                 sc_should_block = False
                                 warning_messages.append(
-                                    _format_ask_info_message(ViolationType.SUPPLY_CHAIN, sc_ask_result.decision,
-                                                             detail=sc_file_path)
+                                    _format_ask_info_message(
+                                        ViolationType.SUPPLY_CHAIN,
+                                        sc_ask_result.decision,
+                                        detail=sc_file_path,
+                                    )
                                 )
-                                _log_ask_decision(ViolationType.SUPPLY_CHAIN, sc_ask_result.decision,
-                                                  matched_text=sc_scanner.last_matched_text or "",
-                                                  error_msg=sc_error_msg or "",
-                                                  file_path=sc_file_path,
-                                                  line_number=sc_scanner.last_line_number,
-                                                  dialog_wait_ms=sc_ask_result.dialog_wait_ms)
+                                _log_ask_decision(
+                                    ViolationType.SUPPLY_CHAIN,
+                                    sc_ask_result.decision,
+                                    matched_text=sc_scanner.last_matched_text or "",
+                                    error_msg=sc_error_msg or "",
+                                    file_path=sc_file_path,
+                                    line_number=sc_scanner.last_line_number,
+                                    dialog_wait_ms=sc_ask_result.dialog_wait_ms,
+                                )
 
                     if sc_should_block:
-                        logging.info("Blocking operation due to supply chain threat detection")
-                        combined_warning = "\n\n".join(warning_messages) if warning_messages else None
-                        result = format_response(ide_type, has_secrets=True, error_message=sc_error_msg, hook_event=hook_event, warning_message=combined_warning, violation_type=ViolationType.SUPPLY_CHAIN, security_message=security_message)
+                        logging.info(
+                            "Blocking operation due to supply chain threat detection"
+                        )
+                        combined_warning = (
+                            "\n\n".join(warning_messages) if warning_messages else None
+                        )
+                        result = format_response(
+                            ide_type,
+                            has_secrets=True,
+                            error_message=sc_error_msg,
+                            hook_event=hook_event,
+                            warning_message=combined_warning,
+                            violation_type=ViolationType.SUPPLY_CHAIN,
+                            security_message=security_message,
+                        )
                         return result
                     elif sc_detected and sc_error_msg:
                         warning_messages.append(sc_error_msg)
@@ -5475,8 +6946,15 @@ def process_hook_data(hook_data, daemon_state=None):
 
         # Check for config file threats (credential exfiltration patterns in AI config files)
         # Only scan for PreToolUse/Read operations on actual files
-        logger.debug(f"Config scanner check: HAS_CONFIG_SCANNER={HAS_CONFIG_SCANNER}, hook_event={hook_event}, file_path={file_path}, has_content={content_to_scan is not None}")
-        if HAS_CONFIG_SCANNER and hook_event in (HookEvent.PRE_TOOL_USE, HookEvent.BEFORE_READ_FILE) and file_path and content_to_scan:
+        logger.debug(
+            f"Config scanner check: HAS_CONFIG_SCANNER={HAS_CONFIG_SCANNER}, hook_event={hook_event}, file_path={file_path}, has_content={content_to_scan is not None}"
+        )
+        if (
+            HAS_CONFIG_SCANNER
+            and hook_event in (HookEvent.PRE_TOOL_USE, HookEvent.BEFORE_READ_FILE)
+            and file_path
+            and content_to_scan
+        ):
             logger.debug("Config scanner conditions met, running scan...")
             try:
                 scanner_config, config_error = _load_config_scanner_config()
@@ -5488,18 +6966,28 @@ def process_hook_data(hook_data, daemon_state=None):
                 is_enabled = is_feature_enabled(
                     scanner_config.get("enabled") if scanner_config else None,
                     now,
-                    default=True
+                    default=True,
                 )
 
                 if is_enabled:
                     with _latency_timer.check("config_file_scanning"):
-                        should_block, config_error, config_details = check_config_file_threats(
-                            file_path, content_to_scan, scanner_config
+                        should_block, config_error, config_details = (
+                            check_config_file_threats(
+                                file_path, content_to_scan, scanner_config
+                            )
                         )
 
                     if should_block:
-                        cfs_action = scanner_config.get("action", "block") if scanner_config else "block"
-                        cfs_matched_pattern = config_details.get("pattern_name", "") if config_details else ""
+                        cfs_action = (
+                            scanner_config.get("action", "block")
+                            if scanner_config
+                            else "block"
+                        )
+                        cfs_matched_pattern = (
+                            config_details.get("pattern_name", "")
+                            if config_details
+                            else ""
+                        )
                         cfs_ask_result = _handle_ask_mode_auto(
                             cfs_action,
                             ViolationType.CONFIG_FILE_EXFIL,
@@ -5509,34 +6997,55 @@ def process_hook_data(hook_data, daemon_state=None):
                             matched_text=file_path,
                             matched_pattern=cfs_matched_pattern,
                             latency_timer=_latency_timer,
-                            hook_context={"session_id": hook_session_id, "project_path": get_project_dir(), "hook_event": hook_event, "tool_name": tool_name},
+                            hook_context={
+                                "session_id": hook_session_id,
+                                "project_path": get_project_dir(),
+                                "hook_event": hook_event,
+                                "tool_name": tool_name,
+                            },
                         )
                         if cfs_ask_result is not None:
                             from ai_guardian.tui.ask_dialog import AskDecision
-                            if cfs_ask_result.decision not in (AskDecision.BLOCK, AskDecision.BLOCK_ALL):
+
+                            if cfs_ask_result.decision not in (
+                                AskDecision.BLOCK,
+                                AskDecision.BLOCK_ALL,
+                            ):
                                 should_block = False
                                 warning_messages.append(
-                                    _format_ask_info_message(ViolationType.CONFIG_FILE_EXFIL, cfs_ask_result.decision,
-                                                             detail=file_path)
+                                    _format_ask_info_message(
+                                        ViolationType.CONFIG_FILE_EXFIL,
+                                        cfs_ask_result.decision,
+                                        detail=file_path,
+                                    )
                                 )
-                                _log_ask_decision(ViolationType.CONFIG_FILE_EXFIL, cfs_ask_result.decision,
-                                                  matched_text=file_path or "",
-                                                  error_msg=config_error or "",
-                                                  file_path=file_path,
-                                                  dialog_wait_ms=cfs_ask_result.dialog_wait_ms)
+                                _log_ask_decision(
+                                    ViolationType.CONFIG_FILE_EXFIL,
+                                    cfs_ask_result.decision,
+                                    matched_text=file_path or "",
+                                    error_msg=config_error or "",
+                                    file_path=file_path,
+                                    dialog_wait_ms=cfs_ask_result.dialog_wait_ms,
+                                )
 
                     if should_block:
                         # Config file threat detected - block operation
                         if ide_type != IDEType.CURSOR:
-                            logging.info(f"Blocking operation for {file_path} due to config file threat")
+                            logging.info(
+                                f"Blocking operation for {file_path} due to config file threat"
+                            )
 
                         # Log config file exfiltration violation
                         if violation_logger:
                             try:
                                 exfil_ctx = {
-                                    "ide_type": ide_type.value if hasattr(ide_type, 'value') else str(ide_type),
+                                    "ide_type": (
+                                        ide_type.value
+                                        if hasattr(ide_type, "value")
+                                        else str(ide_type)
+                                    ),
                                     "hook_event": hook_event,
-                                    "project_path": get_project_dir()
+                                    "project_path": get_project_dir(),
                                 }
                                 if hook_tool_use_id:
                                     exfil_ctx["tool_use_id"] = hook_tool_use_id
@@ -5544,14 +7053,28 @@ def process_hook_data(hook_data, daemon_state=None):
                                     exfil_ctx["session_id"] = hook_session_id
                                 exfil_blocked = {
                                     "file_path": file_path,
-                                    "line_number": config_details.get("line_number") if config_details else None,
+                                    "line_number": (
+                                        config_details.get("line_number")
+                                        if config_details
+                                        else None
+                                    ),
                                     "reason": config_error,
-                                    "details": config_details
+                                    "details": config_details,
                                 }
-                                if config_details and config_details.get("start_column") is not None:
-                                    exfil_blocked["start_column"] = config_details["start_column"]
-                                if config_details and config_details.get("end_column") is not None:
-                                    exfil_blocked["end_column"] = config_details["end_column"]
+                                if (
+                                    config_details
+                                    and config_details.get("start_column") is not None
+                                ):
+                                    exfil_blocked["start_column"] = config_details[
+                                        "start_column"
+                                    ]
+                                if (
+                                    config_details
+                                    and config_details.get("end_column") is not None
+                                ):
+                                    exfil_blocked["end_column"] = config_details[
+                                        "end_column"
+                                    ]
                                 violation_logger.log_violation(
                                     violation_type=ViolationType.CONFIG_FILE_EXFIL,
                                     blocked=exfil_blocked,
@@ -5563,13 +7086,25 @@ def process_hook_data(hook_data, daemon_state=None):
                                             "config_file_scanning.ignore_files"
                                         ),
                                     },
-                                    severity="critical"
+                                    severity="critical",
                                 )
                             except Exception as e:
-                                logging.error(f"Failed to log config file exfil violation: {e}")
+                                logging.error(
+                                    f"Failed to log config file exfil violation: {e}"
+                                )
 
-                        combined_warning = "\n\n".join(warning_messages) if warning_messages else None
-                        result = format_response(ide_type, has_secrets=True, error_message=config_error, hook_event=hook_event, warning_message=combined_warning, violation_type=ViolationType.CONFIG_FILE_EXFIL, security_message=security_message)
+                        combined_warning = (
+                            "\n\n".join(warning_messages) if warning_messages else None
+                        )
+                        result = format_response(
+                            ide_type,
+                            has_secrets=True,
+                            error_message=config_error,
+                            hook_event=hook_event,
+                            warning_message=combined_warning,
+                            violation_type=ViolationType.CONFIG_FILE_EXFIL,
+                            security_message=security_message,
+                        )
                         return result
                     elif config_details and config_error:
                         # Log/warn mode: threat detected but execution allowed - display warning
@@ -5584,10 +7119,17 @@ def process_hook_data(hook_data, daemon_state=None):
             except Exception as e:
                 on_error = _get_on_scan_error_action()
                 if on_error == ActionMode.BLOCK:
-                    logging.error(f"Config file scanning error (fail-closed, on_scan_error=block): {e}")
-                    return format_response(ide_type, has_secrets=True, hook_event=hook_event,
-                                          error_message=f"Config file scanning failed (blocked by on_scan_error=block): {e}",
-                                          violation_type=ViolationType.CONFIG_FILE_EXFIL, security_message=security_message)
+                    logging.error(
+                        f"Config file scanning error (fail-closed, on_scan_error=block): {e}"
+                    )
+                    return format_response(
+                        ide_type,
+                        has_secrets=True,
+                        hook_event=hook_event,
+                        error_message=f"Config file scanning failed (blocked by on_scan_error=block): {e}",
+                        violation_type=ViolationType.CONFIG_FILE_EXFIL,
+                        security_message=security_message,
+                    )
                 logging.warning(f"Config file scanning error (fail-open): {e}")
 
         # Check for secrets in the content
@@ -5597,14 +7139,18 @@ def process_hook_data(hook_data, daemon_state=None):
 
         # Check if secret scanning is enabled (supports time-based disabling)
         if is_feature_enabled(
-            secret_config.get("enabled") if secret_config else None,
-            now,
-            default=True
+            secret_config.get("enabled") if secret_config else None, now, default=True
         ):
             # Extract ignore lists and allowlist from config
-            ignore_files = secret_config.get("ignore_files", []) if secret_config else []
-            ignore_tools = secret_config.get("ignore_tools", []) if secret_config else []
-            secret_allowlist = secret_config.get("allowlist_patterns", []) if secret_config else []
+            ignore_files = (
+                secret_config.get("ignore_files", []) if secret_config else []
+            )
+            ignore_tools = (
+                secret_config.get("ignore_tools", []) if secret_config else []
+            )
+            secret_allowlist = (
+                secret_config.get("allowlist_patterns", []) if secret_config else []
+            )
 
             pre_secret_ctx = {"ide_type": ide_type.value, "hook_event": hook_event}
             if hook_tool_use_id:
@@ -5612,17 +7158,22 @@ def process_hook_data(hook_data, daemon_state=None):
             if hook_session_id:
                 pre_secret_ctx["session_id"] = hook_session_id
             # Use secret-suppressed content if annotation processing produced one
-            secret_scan_content = secret_content_to_scan if secret_content_to_scan is not None else content_to_scan
+            secret_scan_content = (
+                secret_content_to_scan
+                if secret_content_to_scan is not None
+                else content_to_scan
+            )
             with _latency_timer.check("secret_scanning"):
                 has_secrets, error_message = check_secrets_with_gitleaks(
-                    secret_scan_content, filename,
+                    secret_scan_content,
+                    filename,
                     context=pre_secret_ctx,
                     file_path=file_path,
                     tool_name=tool_identifier,
                     ignore_files=ignore_files,
                     ignore_tools=ignore_tools,
                     allowlist_patterns=secret_allowlist,
-                    secret_config=secret_config
+                    secret_config=secret_config,
                 )
 
             if not has_secrets and error_message:
@@ -5631,47 +7182,79 @@ def process_hook_data(hook_data, daemon_state=None):
 
             if has_secrets:
                 # Check ask action mode before blocking
-                secret_action_pre = secret_config.get("action", "block") if secret_config else "block"
+                secret_action_pre = (
+                    secret_config.get("action", "block") if secret_config else "block"
+                )
                 ask_result_pre = _handle_ask_mode_auto(
-                    secret_action_pre, ViolationType.SECRET_DETECTED,
+                    secret_action_pre,
+                    ViolationType.SECRET_DETECTED,
                     config_section="secret_scanning",
                     error_msg=error_message,
                     file_path=file_path,
                     matched_text=_last_secret_matched_text,
                     start_column=_last_secret_start_column,
                     latency_timer=_latency_timer,
-                    hook_context={"session_id": hook_session_id, "project_path": get_project_dir(), "hook_event": hook_event, "tool_name": tool_name},
+                    hook_context={
+                        "session_id": hook_session_id,
+                        "project_path": get_project_dir(),
+                        "hook_event": hook_event,
+                        "tool_name": tool_name,
+                    },
                     findings=_last_secret_findings if _last_secret_findings else None,
                 )
                 if ask_result_pre is not None:
                     from ai_guardian.tui.ask_dialog import AskDecision
-                    if ask_result_pre.decision not in (AskDecision.BLOCK, AskDecision.BLOCK_ALL):
-                        info_msg = _format_ask_info_message(ViolationType.SECRET_DETECTED, ask_result_pre.decision)
+
+                    if ask_result_pre.decision not in (
+                        AskDecision.BLOCK,
+                        AskDecision.BLOCK_ALL,
+                    ):
+                        info_msg = _format_ask_info_message(
+                            ViolationType.SECRET_DETECTED, ask_result_pre.decision
+                        )
                         warning_messages.append(info_msg)
                         has_secrets = False
-                        _log_ask_decision(ViolationType.SECRET_DETECTED, ask_result_pre.decision,
-                                          matched_text=_last_secret_matched_text or "",
-                                          error_msg=error_message or "",
-                                          file_path=file_path,
-                                          line_number=_last_secret_line_number,
-                                          dialog_wait_ms=ask_result_pre.dialog_wait_ms)
+                        _log_ask_decision(
+                            ViolationType.SECRET_DETECTED,
+                            ask_result_pre.decision,
+                            matched_text=_last_secret_matched_text or "",
+                            error_msg=error_message or "",
+                            file_path=file_path,
+                            line_number=_last_secret_line_number,
+                            dialog_wait_ms=ask_result_pre.dialog_wait_ms,
+                        )
                     else:
-                        _log_ask_decision(ViolationType.SECRET_DETECTED, ask_result_pre.decision,
-                                          matched_text=_last_secret_matched_text or "",
-                                          error_msg=error_message or "",
-                                          file_path=file_path,
-                                          line_number=_last_secret_line_number,
-                                          dialog_wait_ms=ask_result_pre.dialog_wait_ms)
+                        _log_ask_decision(
+                            ViolationType.SECRET_DETECTED,
+                            ask_result_pre.decision,
+                            matched_text=_last_secret_matched_text or "",
+                            error_msg=error_message or "",
+                            file_path=file_path,
+                            line_number=_last_secret_line_number,
+                            dialog_wait_ms=ask_result_pre.dialog_wait_ms,
+                        )
 
             if has_secrets:
-                combined_warning = "\n\n".join(warning_messages) if warning_messages else None
-                result = format_response(ide_type, has_secrets=True, error_message=error_message, hook_event=hook_event, warning_message=combined_warning, violation_type=ViolationType.SECRET_DETECTED, security_message=security_message)
+                combined_warning = (
+                    "\n\n".join(warning_messages) if warning_messages else None
+                )
+                result = format_response(
+                    ide_type,
+                    has_secrets=True,
+                    error_message=error_message,
+                    hook_event=hook_event,
+                    warning_message=combined_warning,
+                    violation_type=ViolationType.SECRET_DETECTED,
+                    security_message=security_message,
+                )
                 return result
 
             # No secrets found, allow operation
             if hook_event == HookEvent.PRE_TOOL_USE:
                 if file_path:
-                    logging.info(f"✓ No secrets detected in file '{filename}' ({file_path})")
+                    logging.info(
+                        f"✓ No secrets detected in file '{filename}' ({file_path})"
+                    )
                 else:
                     logging.info(f"✓ No secrets detected in file '{filename}'")
             else:
@@ -5687,89 +7270,150 @@ def process_hook_data(hook_data, daemon_state=None):
             if pii_error:
                 logging.warning(f"PII config error: {pii_error}")
             if pii_config and is_feature_enabled(
-                pii_config.get('enabled'),
-                now,
-                default=True
+                pii_config.get("enabled"), now, default=True
             ):
-                pii_was_skipped = _should_skip_pii_scan(pii_config, tool_identifier, file_path)
+                pii_was_skipped = _should_skip_pii_scan(
+                    pii_config, tool_identifier, file_path
+                )
                 should_scan_pii = not pii_was_skipped
 
                 if should_scan_pii:
-                    logging.info(f"Scanning {'prompt' if hook_event == HookEvent.PROMPT else filename} for PII...")
-                    pii_scan_content = pii_content_to_scan if pii_content_to_scan is not None else content_to_scan
+                    logging.info(
+                        f"Scanning {'prompt' if hook_event == HookEvent.PROMPT else filename} for PII..."
+                    )
+                    pii_scan_content = (
+                        pii_content_to_scan
+                        if pii_content_to_scan is not None
+                        else content_to_scan
+                    )
                     with _latency_timer.check("pii_detection"):
-                        has_pii, _, pii_redactions, pii_warning = _scan_for_pii(pii_scan_content, pii_config, file_path=file_path)
+                        has_pii, _, pii_redactions, pii_warning = _scan_for_pii(
+                            pii_scan_content, pii_config, file_path=file_path
+                        )
 
                     # Scan error with on_scan_error=block: block without logging a false violation (#507)
                     if has_pii and not pii_redactions:
-                        result = format_response(ide_type, has_secrets=True,
-                                             error_message=pii_warning, hook_event=hook_event,
-                                             violation_type=ViolationType.PII_DETECTED, security_message=security_message)
+                        result = format_response(
+                            ide_type,
+                            has_secrets=True,
+                            error_message=pii_warning,
+                            hook_event=hook_event,
+                            violation_type=ViolationType.PII_DETECTED,
+                            security_message=security_message,
+                        )
                         return result
 
                     if has_pii and pii_redactions:
-                        hook_name = 'UserPromptSubmit' if hook_event == HookEvent.PROMPT else 'PreToolUse'
+                        hook_name = (
+                            "UserPromptSubmit"
+                            if hook_event == HookEvent.PROMPT
+                            else "PreToolUse"
+                        )
                         pii_action, pii_types = _log_pii_violation(
-                            violation_logger, pii_config, pii_redactions,
-                            tool_identifier or filename, hook_name, file_path,
-                            content_to_scan, hook_event,
+                            violation_logger,
+                            pii_config,
+                            pii_redactions,
+                            tool_identifier or filename,
+                            hook_name,
+                            file_path,
+                            content_to_scan,
+                            hook_event,
                             hook_tool_use_id=hook_tool_use_id,
                             hook_session_id=hook_session_id,
                         )
                         logging.warning(f"PII detected: {pii_types}")
 
                         # Build multi-finding list from PII redactions
-                        pii_matched_text = _extract_pii_matched_text(pii_redactions, pii_scan_content)
-                        pii_findings = _pii_redactions_to_findings(pii_redactions, pii_scan_content, pii_warning)
+                        pii_matched_text = _extract_pii_matched_text(
+                            pii_redactions, pii_scan_content
+                        )
+                        pii_findings = _pii_redactions_to_findings(
+                            pii_redactions, pii_scan_content, pii_warning
+                        )
 
                         # Check ask action mode before blocking
-                        pii_line_number2 = pii_redactions[0].get('line_number') if pii_redactions else None
+                        pii_line_number2 = (
+                            pii_redactions[0].get("line_number")
+                            if pii_redactions
+                            else None
+                        )
                         pii_file_path2 = file_path
                         if not pii_file_path2:
-                            pii_file_path2 = _extract_file_path_from_pii_warning(pii_warning)
+                            pii_file_path2 = _extract_file_path_from_pii_warning(
+                                pii_warning
+                            )
                         pii_ask_result2 = _handle_ask_mode_auto(
-                            pii_action, ViolationType.PII_DETECTED,
+                            pii_action,
+                            ViolationType.PII_DETECTED,
                             config_section="scan_pii",
                             error_msg=pii_warning,
                             file_path=pii_file_path2,
                             matched_text=pii_matched_text,
                             line_number=pii_line_number2,
                             latency_timer=_latency_timer,
-                            hook_context={"session_id": hook_session_id, "project_path": get_project_dir(), "hook_event": hook_event, "tool_name": tool_name},
+                            hook_context={
+                                "session_id": hook_session_id,
+                                "project_path": get_project_dir(),
+                                "hook_event": hook_event,
+                                "tool_name": tool_name,
+                            },
                             findings=pii_findings,
                         )
                         if pii_ask_result2 is not None:
                             from ai_guardian.tui.ask_dialog import AskDecision
-                            if pii_ask_result2.decision not in (AskDecision.BLOCK, AskDecision.BLOCK_ALL):
-                                pii_action = 'warn'
-                                _log_ask_decision(ViolationType.PII_DETECTED, pii_ask_result2.decision,
-                                                  matched_text=pii_matched_text, error_msg=pii_warning or "",
-                                                  file_path=pii_file_path2,
-                                                  line_number=pii_line_number2,
-                                                  dialog_wait_ms=pii_ask_result2.dialog_wait_ms)
-                            else:
-                                pii_action = 'block'
-                                _log_ask_decision(ViolationType.PII_DETECTED, pii_ask_result2.decision,
-                                                  matched_text=pii_matched_text, error_msg=pii_warning or "",
-                                                  file_path=pii_file_path2,
-                                                  line_number=pii_line_number2,
-                                                  dialog_wait_ms=pii_ask_result2.dialog_wait_ms)
 
-                        if pii_action in ('block', 'redact'):
-                            combined_warning = "\n\n".join(warning_messages) if warning_messages else None
+                            if pii_ask_result2.decision not in (
+                                AskDecision.BLOCK,
+                                AskDecision.BLOCK_ALL,
+                            ):
+                                pii_action = "warn"
+                                _log_ask_decision(
+                                    ViolationType.PII_DETECTED,
+                                    pii_ask_result2.decision,
+                                    matched_text=pii_matched_text,
+                                    error_msg=pii_warning or "",
+                                    file_path=pii_file_path2,
+                                    line_number=pii_line_number2,
+                                    dialog_wait_ms=pii_ask_result2.dialog_wait_ms,
+                                )
+                            else:
+                                pii_action = "block"
+                                _log_ask_decision(
+                                    ViolationType.PII_DETECTED,
+                                    pii_ask_result2.decision,
+                                    matched_text=pii_matched_text,
+                                    error_msg=pii_warning or "",
+                                    file_path=pii_file_path2,
+                                    line_number=pii_line_number2,
+                                    dialog_wait_ms=pii_ask_result2.dialog_wait_ms,
+                                )
+
+                        if pii_action in ("block", "redact"):
+                            combined_warning = (
+                                "\n\n".join(warning_messages)
+                                if warning_messages
+                                else None
+                            )
                             final_error = pii_warning
                             if combined_warning:
                                 final_error = f"{combined_warning}\n\n{final_error}"
-                            result = format_response(ide_type, has_secrets=True,
-                                                 error_message=final_error, hook_event=hook_event,
-                                                 violation_type=ViolationType.PII_DETECTED, security_message=security_message)
+                            result = format_response(
+                                ide_type,
+                                has_secrets=True,
+                                error_message=final_error,
+                                hook_event=hook_event,
+                                violation_type=ViolationType.PII_DETECTED,
+                                security_message=security_message,
+                            )
                             return result
-                        elif pii_action == 'warn':
+                        elif pii_action == "warn":
                             warning_messages.append(pii_warning)
-                        elif pii_action == 'log-only':
+                        elif pii_action == "log-only":
                             log_only_count += 1
                         else:
-                            logging.warning(f"Unknown PII action '{pii_action}', allowing through")
+                            logging.warning(
+                                f"Unknown PII action '{pii_action}', allowing through"
+                            )
 
         # Transcript scanning for secrets and PII (Issue #430, #442, #935)
         # Detects threats that entered the transcript via ! shell commands (which bypass hooks)
@@ -5791,9 +7435,7 @@ def process_hook_data(hook_data, daemon_state=None):
                     logging.warning(f"Transcript scanning config error: {ts_error}")
 
                 if ts_config and is_feature_enabled(
-                    ts_config.get("enabled"),
-                    now,
-                    default=True
+                    ts_config.get("enabled"), now, default=True
                 ):
                     logging.info("Scanning transcript for secrets/PII...")
 
@@ -5813,28 +7455,48 @@ def process_hook_data(hook_data, daemon_state=None):
                                 ts_path,
                                 secret_config=ts_secret_config,
                                 pii_config=ts_pii_config,
-                                hook_context={"session_id": hook_session_id} if hook_session_id else None
+                                hook_context=(
+                                    {"session_id": hook_session_id}
+                                    if hook_session_id
+                                    else None
+                                ),
                             )
                         if transcript_warnings:
                             warning_messages.extend(transcript_warnings)
-                            logging.warning(f"Transcript scanning found {len(transcript_warnings)} issue(s) in {ts_path}")
+                            logging.warning(
+                                f"Transcript scanning found {len(transcript_warnings)} issue(s) in {ts_path}"
+                            )
                         else:
-                            logging.info(f"✓ No threats detected in transcript: {ts_path}")
+                            logging.info(
+                                f"✓ No threats detected in transcript: {ts_path}"
+                            )
                 elif ts_config and ide_type != IDEType.CURSOR:
                     logging.info("⚠️  Transcript scanning temporarily disabled")
             except Exception as e:
                 on_error = _get_on_scan_error_action()
                 if on_error == ActionMode.BLOCK:
-                    logging.error(f"Transcript scanning error (fail-closed, on_scan_error=block): {e}")
-                    return format_response(ide_type, has_secrets=True, hook_event=hook_event,
-                                          error_message=f"Transcript scanning failed (blocked by on_scan_error=block): {e}",
-                                          violation_type=ViolationType.SECRET_DETECTED, security_message=security_message)
+                    logging.error(
+                        f"Transcript scanning error (fail-closed, on_scan_error=block): {e}"
+                    )
+                    return format_response(
+                        ide_type,
+                        has_secrets=True,
+                        hook_event=hook_event,
+                        error_message=f"Transcript scanning failed (blocked by on_scan_error=block): {e}",
+                        violation_type=ViolationType.SECRET_DETECTED,
+                        security_message=security_message,
+                    )
                 logging.warning(f"Transcript scanning error (fail-open): {e}")
 
         # OpenCode transcript scanning via SQLite (Issue #934)
         # When no transcript_path is available and adapter is OpenCode,
         # read conversation text from OpenCode's SQLite session DB.
-        if not transcript_path and hook_event == HookEvent.PROMPT and adapter and adapter.name == "OpenCode":
+        if (
+            not transcript_path
+            and hook_event == HookEvent.PROMPT
+            and adapter
+            and adapter.name == "OpenCode"
+        ):
             try:
                 from ai_guardian.opencode_transcript import get_opencode_db_path
 
@@ -5843,14 +7505,14 @@ def process_hook_data(hook_data, daemon_state=None):
                     logging.warning(f"Transcript scanning config error: {ts_error}")
 
                 if ts_config and is_feature_enabled(
-                    ts_config.get("enabled"),
-                    now,
-                    default=True
+                    ts_config.get("enabled"), now, default=True
                 ):
                     oc_db_path = get_opencode_db_path()
                     oc_session_id = hook_data.get("session_id")
                     if oc_db_path and oc_session_id:
-                        logging.info("Scanning OpenCode transcript (SQLite) for secrets/PII...")
+                        logging.info(
+                            "Scanning OpenCode transcript (SQLite) for secrets/PII..."
+                        )
 
                         try:
                             ts_secret_config = secret_config
@@ -5866,28 +7528,49 @@ def process_hook_data(hook_data, daemon_state=None):
                             oc_session_id,
                             secret_config=ts_secret_config,
                             pii_config=ts_pii_config,
-                            hook_context={"session_id": hook_session_id} if hook_session_id else None
+                            hook_context=(
+                                {"session_id": hook_session_id}
+                                if hook_session_id
+                                else None
+                            ),
                         )
                         if transcript_warnings:
                             warning_messages.extend(transcript_warnings)
-                            logging.warning(f"OpenCode transcript scanning found {len(transcript_warnings)} issue(s)")
+                            logging.warning(
+                                f"OpenCode transcript scanning found {len(transcript_warnings)} issue(s)"
+                            )
                         else:
                             logging.info("✓ No threats detected in OpenCode transcript")
                     elif not oc_db_path:
-                        logging.debug("OpenCode DB not found, skipping transcript scanning")
+                        logging.debug(
+                            "OpenCode DB not found, skipping transcript scanning"
+                        )
                     elif not oc_session_id:
-                        logging.debug("No session_id in hook data, skipping OpenCode transcript scanning")
+                        logging.debug(
+                            "No session_id in hook data, skipping OpenCode transcript scanning"
+                        )
             except Exception as e:
                 on_error = _get_on_scan_error_action()
                 if on_error == ActionMode.BLOCK:
-                    logging.error(f"OpenCode transcript scanning error (fail-closed): {e}")
-                    return format_response(ide_type, has_secrets=True, hook_event=hook_event,
-                                          error_message=f"OpenCode transcript scanning failed (blocked): {e}",
-                                          violation_type=ViolationType.SECRET_DETECTED, security_message=security_message)
+                    logging.error(
+                        f"OpenCode transcript scanning error (fail-closed): {e}"
+                    )
+                    return format_response(
+                        ide_type,
+                        has_secrets=True,
+                        hook_event=hook_event,
+                        error_message=f"OpenCode transcript scanning failed (blocked): {e}",
+                        violation_type=ViolationType.SECRET_DETECTED,
+                        security_message=security_message,
+                    )
                 logging.warning(f"OpenCode transcript scanning error (fail-open): {e}")
 
         # Save PreToolUse context for PostToolUse correlation (#366)
-        if hook_event in (HookEvent.PRE_TOOL_USE, HookEvent.BEFORE_READ_FILE) and context_mgr and hook_tool_use_id:
+        if (
+            hook_event in (HookEvent.PRE_TOOL_USE, HookEvent.BEFORE_READ_FILE)
+            and context_mgr
+            and hook_tool_use_id
+        ):
             try:
                 # Determine if PII scan was skipped and why
                 pii_scanned = False
@@ -5900,8 +7583,11 @@ def process_hook_data(hook_data, daemon_state=None):
 
                 # Determine if file matched ignore_files
                 ignore_files_matched = bool(
-                    file_path and secret_config
-                    and _matches_ignore_files(file_path, secret_config.get("ignore_files", []))
+                    file_path
+                    and secret_config
+                    and _matches_ignore_files(
+                        file_path, secret_config.get("ignore_files", [])
+                    )
                 )
 
                 pretool_context = {
@@ -5920,14 +7606,22 @@ def process_hook_data(hook_data, daemon_state=None):
                     "ignore_files_matched": ignore_files_matched,
                 }
                 context_mgr.save_pretool_context(hook_tool_use_id, pretool_context)
-                logging.info(f"PreToolUse: saved context for tool_use_id={hook_tool_use_id}")
+                logging.info(
+                    f"PreToolUse: saved context for tool_use_id={hook_tool_use_id}"
+                )
             except Exception as e:
                 logging.debug(f"Failed to save PreToolUse context (non-fatal): {e}")
 
         # Combine all warning messages if any exist
         combined_warning = "\n\n".join(warning_messages) if warning_messages else None
 
-        result = format_response(ide_type, has_secrets=False, hook_event=hook_event, warning_message=combined_warning, security_message=security_message)
+        result = format_response(
+            ide_type,
+            has_secrets=False,
+            hook_event=hook_event,
+            warning_message=combined_warning,
+            security_message=security_message,
+        )
         if combined_warning:
             result["_warning"] = True
             result["_violation_type"] = "mixed"
@@ -5939,6 +7633,7 @@ def process_hook_data(hook_data, daemon_state=None):
     except Exception as e:
         logging.error(f"Unexpected error processing hook data: {e}")
         import traceback
+
         logging.error(traceback.format_exc())
         # Best-effort position advance so PostToolUse exceptions don't leave
         # the transcript position stale for the next session.
@@ -5952,8 +7647,11 @@ def process_hook_data(hook_data, daemon_state=None):
     finally:
         logging.disable(logging.NOTSET)
         _finalize_latency(_latency_timer, _latency_event, _latency_tool)
-        if (_latency_timer is not None and _latency_timer.ask_wait_total_ms > 0
-                and daemon_state is not None):
+        if (
+            _latency_timer is not None
+            and _latency_timer.ask_wait_total_ms > 0
+            and daemon_state is not None
+        ):
             try:
                 daemon_state.record_ask_dialog(_latency_timer.ask_wait_total_ms)
             except Exception:
@@ -5979,7 +7677,11 @@ def process_hook_input():
         # Mark session for security re-injection after blocks (#584)
         if result.get("_blocked"):
             try:
-                from ai_guardian.session_state import SessionStateManager, derive_session_key
+                from ai_guardian.session_state import (
+                    SessionStateManager,
+                    derive_session_key,
+                )
+
                 key = derive_session_key(hook_data)
                 SessionStateManager().mark_security_reinject(key)
             except Exception:
@@ -5992,9 +7694,6 @@ def process_hook_input():
     except Exception as e:
         logging.error(f"Unexpected error in hook: {e}")
         import traceback
+
         logging.error(traceback.format_exc())
         return {"output": None, "exit_code": 0}
-
-
-
-

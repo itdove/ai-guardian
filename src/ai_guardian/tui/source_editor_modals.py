@@ -41,7 +41,8 @@ class SourceAnnotationEditorModal(ModalScreen):
         annotation_type: str,
         preview_snippet: str,
         line_number: int = 0,
-        *args, **kwargs,
+        *args,
+        **kwargs,
     ):
         super().__init__(*args, **kwargs)
         self.file_path = file_path
@@ -53,7 +54,11 @@ class SourceAnnotationEditorModal(ModalScreen):
     def compose(self):
         from textual.widgets import TextArea
 
-        ann_label = "inline" if self.annotation_type == "inline" else "block (begin-allow/end-allow)"
+        ann_label = (
+            "inline"
+            if self.annotation_type == "inline"
+            else "block (begin-allow/end-allow)"
+        )
         line_info = f" — Line {self.line_number}" if self.line_number > 0 else ""
 
         with Container(id="source-editor-container"):
@@ -66,7 +71,11 @@ class SourceAnnotationEditorModal(ModalScreen):
             yield TextArea(
                 self.modified_content,
                 id="source-editor-area",
-                language="python" if self.file_path.endswith((".py", ".pyw", ".pyi")) else None,
+                language=(
+                    "python"
+                    if self.file_path.endswith((".py", ".pyw", ".pyi"))
+                    else None
+                ),
             )
 
             yield Static("", id="source-status")
@@ -88,9 +97,11 @@ class SourceAnnotationEditorModal(ModalScreen):
         text = editor.text
 
         from ai_guardian.tui.source_annotator import write_annotated_source
+
         if write_annotated_source(self.file_path, text):
             self.app.notify(
-                f"Annotation saved to {self.file_path}", severity="information",
+                f"Annotation saved to {self.file_path}",
+                severity="information",
             )
             self.dismiss()
         else:

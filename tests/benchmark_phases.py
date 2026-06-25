@@ -18,6 +18,7 @@ import pytest
 # Import gc for memory test
 try:
     import gc
+
     HAS_GC = True
 except ImportError:
     HAS_GC = False
@@ -25,6 +26,7 @@ except ImportError:
 # Import Phase 1-4 modules
 try:
     from ai_guardian.ssrf_protector import SSRFProtector
+
     HAS_SSRF = True
 except ImportError:
     HAS_SSRF = False
@@ -32,18 +34,21 @@ except ImportError:
 
 try:
     from ai_guardian.prompt_injection import UnicodeAttackDetector
+
     HAS_UNICODE = True
 except ImportError:
     HAS_UNICODE = False
 
 try:
     from ai_guardian.config_scanner import check_config_file_threats
+
     HAS_CONFIG_SCANNER = True
 except ImportError:
     HAS_CONFIG_SCANNER = False
 
 try:
     from ai_guardian.secret_redactor import SecretRedactor
+
     HAS_SECRET_REDACTOR = True
 except ImportError:
     HAS_SECRET_REDACTOR = False
@@ -84,8 +89,12 @@ class TestSSRFPerformance:
         total_checks = ITERATIONS * len(test_commands)
         avg_time_ms = ((end - start) / total_checks) * 1000
 
-        print(f"\n✓ SSRF check: {avg_time_ms:.4f}ms per URL (target: <{SSRF_TARGET_MS}ms)")
-        assert avg_time_ms < SSRF_TARGET_MS, f"SSRF check too slow: {avg_time_ms:.4f}ms > {SSRF_TARGET_MS}ms"
+        print(
+            f"\n✓ SSRF check: {avg_time_ms:.4f}ms per URL (target: <{SSRF_TARGET_MS}ms)"
+        )
+        assert (
+            avg_time_ms < SSRF_TARGET_MS
+        ), f"SSRF check too slow: {avg_time_ms:.4f}ms > {SSRF_TARGET_MS}ms"
 
     def test_benchmark_ssrf_metadata_endpoint(self):
         """Benchmark SSRF metadata endpoint detection."""
@@ -126,7 +135,9 @@ class TestUnicodePerformance:
 
         avg_time_ms = ((end - start) / ITERATIONS) * 1000
 
-        print(f"\n✓ Unicode zero-width: {avg_time_ms:.4f}ms per check (target: <{UNICODE_TARGET_MS}ms)")
+        print(
+            f"\n✓ Unicode zero-width: {avg_time_ms:.4f}ms per check (target: <{UNICODE_TARGET_MS}ms)"
+        )
         assert avg_time_ms < UNICODE_TARGET_MS
 
     def test_benchmark_unicode_bidi(self):
@@ -173,7 +184,9 @@ class TestUnicodePerformance:
 
         avg_time_ms = ((end - start) / ITERATIONS) * 1000
 
-        print(f"\n✓ Unicode combined: {avg_time_ms:.4f}ms per check (target: <{UNICODE_TARGET_MS}ms)")
+        print(
+            f"\n✓ Unicode combined: {avg_time_ms:.4f}ms per check (target: <{UNICODE_TARGET_MS}ms)"
+        )
         assert avg_time_ms < UNICODE_TARGET_MS
 
 
@@ -204,20 +217,25 @@ Remember to check all edge cases.
 
         avg_time_ms = ((end - start) / ITERATIONS) * 1000
 
-        print(f"\n✓ Config scan: {avg_time_ms:.4f}ms per file (target: <{CONFIG_SCANNER_TARGET_MS}ms)")
+        print(
+            f"\n✓ Config scan: {avg_time_ms:.4f}ms per file (target: <{CONFIG_SCANNER_TARGET_MS}ms)"
+        )
         assert avg_time_ms < CONFIG_SCANNER_TARGET_MS
 
     def test_benchmark_config_scan_large(self):
         """Benchmark config file scanning with larger content."""
         # Generate larger config file (simulate real-world CLAUDE.md)
-        test_content = "\n".join([
-            "# Project Instructions",
-            "",
-            "## Overview",
-            "This is a comprehensive guide for the AI assistant.",
-            "",
-            "## Commands",
-        ] + [f"- Command {i}: Do something useful" for i in range(100)])
+        test_content = "\n".join(
+            [
+                "# Project Instructions",
+                "",
+                "## Overview",
+                "This is a comprehensive guide for the AI assistant.",
+                "",
+                "## Commands",
+            ]
+            + [f"- Command {i}: Do something useful" for i in range(100)]
+        )
 
         start = time.perf_counter()
         for _ in range(ITERATIONS):
@@ -254,17 +272,21 @@ DATABASE_URL=postgresql://user:pass@localhost/db
 
         avg_time_ms = ((end - start) / ITERATIONS) * 1000
 
-        print(f"\n✓ Secret redaction: {avg_time_ms:.4f}ms per 10KB (target: <{SECRET_REDACTOR_TARGET_MS}ms)")
+        print(
+            f"\n✓ Secret redaction: {avg_time_ms:.4f}ms per 10KB (target: <{SECRET_REDACTOR_TARGET_MS}ms)"
+        )
         assert avg_time_ms < SECRET_REDACTOR_TARGET_MS
 
     def test_benchmark_secret_redaction_large(self):
         """Benchmark secret redaction with larger output."""
         redactor = SecretRedactor()
         # Generate ~10KB of output
-        test_output = "\n".join([
-            f"Line {i}: Some output with potential secrets API_KEY_{i}=fake-key-{i}"
-            for i in range(200)
-        ])
+        test_output = "\n".join(
+            [
+                f"Line {i}: Some output with potential secrets API_KEY_{i}=fake-key-{i}"
+                for i in range(200)
+            ]
+        )
 
         start = time.perf_counter()
         for _ in range(ITERATIONS):
@@ -280,7 +302,7 @@ DATABASE_URL=postgresql://user:pass@localhost/db
 @pytest.mark.benchmark
 @pytest.mark.skipif(
     not all([HAS_SSRF, HAS_UNICODE, HAS_CONFIG_SCANNER, HAS_SECRET_REDACTOR]),
-    reason="Not all modules available"
+    reason="Not all modules available",
 )
 class TestTotalOverhead:
     """Benchmark total overhead of all features combined."""
@@ -322,18 +344,21 @@ class TestTotalOverhead:
 
         avg_time_ms = ((end - start) / ITERATIONS) * 1000
 
-        print(f"\n✓ Total overhead: {avg_time_ms:.4f}ms (target: <{TOTAL_OVERHEAD_TARGET_MS}ms)")
+        print(
+            f"\n✓ Total overhead: {avg_time_ms:.4f}ms (target: <{TOTAL_OVERHEAD_TARGET_MS}ms)"
+        )
         print(f"\n  Target overhead: <{TOTAL_OVERHEAD_TARGET_MS}ms")
         print(f"  Actual overhead: {avg_time_ms:.4f}ms")
-        print(f"  Performance: {(TOTAL_OVERHEAD_TARGET_MS / avg_time_ms * 100):.1f}% of target")
-
-        assert avg_time_ms < TOTAL_OVERHEAD_TARGET_MS, (
-            f"Total overhead too high: {avg_time_ms:.4f}ms > {TOTAL_OVERHEAD_TARGET_MS}ms"
+        print(
+            f"  Performance: {(TOTAL_OVERHEAD_TARGET_MS / avg_time_ms * 100):.1f}% of target"
         )
+
+        assert (
+            avg_time_ms < TOTAL_OVERHEAD_TARGET_MS
+        ), f"Total overhead too high: {avg_time_ms:.4f}ms > {TOTAL_OVERHEAD_TARGET_MS}ms"
 
     def test_memory_usage(self):
         """Test memory usage of all modules."""
-        import sys
 
         # Get initial memory usage
         initial_objects = len(gc.get_objects()) if HAS_GC else 0

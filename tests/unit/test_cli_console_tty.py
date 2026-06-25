@@ -5,10 +5,7 @@ Verifies that `ai-guardian console` refuses to run when stdin is not
 an interactive terminal (i.e., inside an AI agent session).
 """
 
-import sys
 from unittest.mock import MagicMock, patch
-
-import pytest
 
 
 class TestConsoleTTYGuard:

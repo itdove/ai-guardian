@@ -47,43 +47,55 @@ class TestCheckResult:
 
 class TestDoctorReport:
     def test_exit_code_all_pass(self):
-        report = DoctorReport(checks=[
-            CheckResult(name="a", status=CheckStatus.PASS, message="ok"),
-            CheckResult(name="b", status=CheckStatus.PASS, message="ok"),
-        ])
+        report = DoctorReport(
+            checks=[
+                CheckResult(name="a", status=CheckStatus.PASS, message="ok"),
+                CheckResult(name="b", status=CheckStatus.PASS, message="ok"),
+            ]
+        )
         assert report.exit_code == 0
 
     def test_exit_code_with_warnings(self):
-        report = DoctorReport(checks=[
-            CheckResult(name="a", status=CheckStatus.PASS, message="ok"),
-            CheckResult(name="b", status=CheckStatus.WARN, message="warn"),
-        ])
+        report = DoctorReport(
+            checks=[
+                CheckResult(name="a", status=CheckStatus.PASS, message="ok"),
+                CheckResult(name="b", status=CheckStatus.WARN, message="warn"),
+            ]
+        )
         assert report.exit_code == 1
 
     def test_exit_code_with_errors(self):
-        report = DoctorReport(checks=[
-            CheckResult(name="a", status=CheckStatus.FAIL, message="fail"),
-        ])
+        report = DoctorReport(
+            checks=[
+                CheckResult(name="a", status=CheckStatus.FAIL, message="fail"),
+            ]
+        )
         assert report.exit_code == 2
 
     def test_exit_code_errors_trump_warnings(self):
-        report = DoctorReport(checks=[
-            CheckResult(name="a", status=CheckStatus.WARN, message="warn"),
-            CheckResult(name="b", status=CheckStatus.FAIL, message="fail"),
-        ])
+        report = DoctorReport(
+            checks=[
+                CheckResult(name="a", status=CheckStatus.WARN, message="warn"),
+                CheckResult(name="b", status=CheckStatus.FAIL, message="fail"),
+            ]
+        )
         assert report.exit_code == 2
 
     def test_has_errors(self):
-        report = DoctorReport(checks=[
-            CheckResult(name="a", status=CheckStatus.FAIL, message="fail"),
-        ])
+        report = DoctorReport(
+            checks=[
+                CheckResult(name="a", status=CheckStatus.FAIL, message="fail"),
+            ]
+        )
         assert report.has_errors is True
         assert report.has_warnings is False
 
     def test_has_warnings(self):
-        report = DoctorReport(checks=[
-            CheckResult(name="a", status=CheckStatus.WARN, message="warn"),
-        ])
+        report = DoctorReport(
+            checks=[
+                CheckResult(name="a", status=CheckStatus.WARN, message="warn"),
+            ]
+        )
         assert report.has_errors is False
         assert report.has_warnings is True
 
@@ -179,9 +191,9 @@ class TestCheckDeprecatedFields:
 
     def test_deprecated_pattern_server(self, _isolate_config_dir):
         config_path = _isolate_config_dir / "ai-guardian.json"
-        config_path.write_text(json.dumps({
-            "pattern_server": {"url": "https://example.com"}
-        }))
+        config_path.write_text(
+            json.dumps({"pattern_server": {"url": "https://example.com"}})
+        )
         doctor = Doctor()
         result = doctor.check_deprecated_fields()
         assert result.status == CheckStatus.WARN
@@ -230,11 +242,15 @@ class TestCheckPatternServer:
 
     def test_configured(self, _isolate_config_dir, tmp_path):
         config_path = _isolate_config_dir / "ai-guardian.json"
-        config_path.write_text(json.dumps({
-            "secret_scanning": {
-                "pattern_server": {"url": "https://example.com/patterns"}
-            }
-        }))
+        config_path.write_text(
+            json.dumps(
+                {
+                    "secret_scanning": {
+                        "pattern_server": {"url": "https://example.com/patterns"}
+                    }
+                }
+            )
+        )
 
         doctor = Doctor()
         result = doctor.check_pattern_server()
@@ -244,7 +260,9 @@ class TestCheckPatternServer:
 
 class TestCheckHooks:
     def test_no_ides_detected(self, _isolate_config_dir):
-        with mock.patch("ai_guardian.setup.IDESetup.list_detected_ides", return_value=[]):
+        with mock.patch(
+            "ai_guardian.setup.IDESetup.list_detected_ides", return_value=[]
+        ):
             doctor = Doctor()
             result = doctor.check_hooks()
             assert result.status == CheckStatus.WARN
@@ -254,16 +272,46 @@ class TestCheckHooks:
         claude_dir = tmp_path / ".claude"
         claude_dir.mkdir()
         settings_path = claude_dir / "settings.json"
-        settings_path.write_text(json.dumps({
-            "hooks": {
-                "UserPromptSubmit": [{"matcher": "*", "hooks": [{"type": "command", "command": "ai-guardian"}]}],
-                "PreToolUse": [{"matcher": "*", "hooks": [{"type": "command", "command": "ai-guardian"}]}],
-                "PostToolUse": [{"matcher": "*", "hooks": [{"type": "command", "command": "ai-guardian"}]}],
-            }
-        }))
+        settings_path.write_text(
+            json.dumps(
+                {
+                    "hooks": {
+                        "UserPromptSubmit": [
+                            {
+                                "matcher": "*",
+                                "hooks": [
+                                    {"type": "command", "command": "ai-guardian"}
+                                ],
+                            }
+                        ],
+                        "PreToolUse": [
+                            {
+                                "matcher": "*",
+                                "hooks": [
+                                    {"type": "command", "command": "ai-guardian"}
+                                ],
+                            }
+                        ],
+                        "PostToolUse": [
+                            {
+                                "matcher": "*",
+                                "hooks": [
+                                    {"type": "command", "command": "ai-guardian"}
+                                ],
+                            }
+                        ],
+                    }
+                }
+            )
+        )
 
-        with mock.patch("ai_guardian.setup.IDESetup.list_detected_ides", return_value=["claude"]):
-            with mock.patch("ai_guardian.setup.IDESetup.get_config_path", return_value=str(settings_path)):
+        with mock.patch(
+            "ai_guardian.setup.IDESetup.list_detected_ides", return_value=["claude"]
+        ):
+            with mock.patch(
+                "ai_guardian.setup.IDESetup.get_config_path",
+                return_value=str(settings_path),
+            ):
                 doctor = Doctor()
                 result = doctor.check_hooks()
                 assert result.status == CheckStatus.PASS
@@ -273,35 +321,89 @@ class TestCheckHooks:
         claude_dir = tmp_path / ".claude"
         claude_dir.mkdir()
         settings_path = claude_dir / "settings.json"
-        settings_path.write_text(json.dumps({
-            "hooks": {
-                "PreToolUse": [{"matcher": "*", "hooks": [{"type": "command", "command": "ai-guardian"}]}],
-            }
-        }))
+        settings_path.write_text(
+            json.dumps(
+                {
+                    "hooks": {
+                        "PreToolUse": [
+                            {
+                                "matcher": "*",
+                                "hooks": [
+                                    {"type": "command", "command": "ai-guardian"}
+                                ],
+                            }
+                        ],
+                    }
+                }
+            )
+        )
 
-        with mock.patch("ai_guardian.setup.IDESetup.list_detected_ides", return_value=["claude"]):
-            with mock.patch("ai_guardian.setup.IDESetup.get_config_path", return_value=str(settings_path)):
+        with mock.patch(
+            "ai_guardian.setup.IDESetup.list_detected_ides", return_value=["claude"]
+        ):
+            with mock.patch(
+                "ai_guardian.setup.IDESetup.get_config_path",
+                return_value=str(settings_path),
+            ):
                 doctor = Doctor()
                 result = doctor.check_hooks()
                 assert result.status == CheckStatus.WARN
                 assert "1/3" in result.message
-
 
     def test_hooks_configured_absolute_path(self, _isolate_config_dir, tmp_path):
         """Doctor recognizes hooks with absolute paths (issue #797)."""
         claude_dir = tmp_path / ".claude"
         claude_dir.mkdir()
         settings_path = claude_dir / "settings.json"
-        settings_path.write_text(json.dumps({
-            "hooks": {
-                "UserPromptSubmit": [{"matcher": "*", "hooks": [{"type": "command", "command": "/usr/bin/ai-guardian"}]}],
-                "PreToolUse": [{"matcher": "*", "hooks": [{"type": "command", "command": "/usr/bin/ai-guardian"}]}],
-                "PostToolUse": [{"matcher": "*", "hooks": [{"type": "command", "command": "/usr/bin/ai-guardian"}]}],
-            }
-        }))
+        settings_path.write_text(
+            json.dumps(
+                {
+                    "hooks": {
+                        "UserPromptSubmit": [
+                            {
+                                "matcher": "*",
+                                "hooks": [
+                                    {
+                                        "type": "command",
+                                        "command": "/usr/bin/ai-guardian",
+                                    }
+                                ],
+                            }
+                        ],
+                        "PreToolUse": [
+                            {
+                                "matcher": "*",
+                                "hooks": [
+                                    {
+                                        "type": "command",
+                                        "command": "/usr/bin/ai-guardian",
+                                    }
+                                ],
+                            }
+                        ],
+                        "PostToolUse": [
+                            {
+                                "matcher": "*",
+                                "hooks": [
+                                    {
+                                        "type": "command",
+                                        "command": "/usr/bin/ai-guardian",
+                                    }
+                                ],
+                            }
+                        ],
+                    }
+                }
+            )
+        )
 
-        with mock.patch("ai_guardian.setup.IDESetup.list_detected_ides", return_value=["claude"]):
-            with mock.patch("ai_guardian.setup.IDESetup.get_config_path", return_value=str(settings_path)):
+        with mock.patch(
+            "ai_guardian.setup.IDESetup.list_detected_ides", return_value=["claude"]
+        ):
+            with mock.patch(
+                "ai_guardian.setup.IDESetup.get_config_path",
+                return_value=str(settings_path),
+            ):
                 doctor = Doctor()
                 result = doctor.check_hooks()
                 assert result.status == CheckStatus.PASS
@@ -329,11 +431,14 @@ class TestCheckStateDir:
         cache_dir = tmp_path / "cache"
         cache_dir.mkdir()
 
-        with mock.patch.dict(os.environ, {
-            "AI_GUARDIAN_CONFIG_DIR": str(config_dir),
-            "AI_GUARDIAN_STATE_DIR": str(state_dir),
-            "AI_GUARDIAN_CACHE_DIR": str(cache_dir),
-        }):
+        with mock.patch.dict(
+            os.environ,
+            {
+                "AI_GUARDIAN_CONFIG_DIR": str(config_dir),
+                "AI_GUARDIAN_STATE_DIR": str(state_dir),
+                "AI_GUARDIAN_CACHE_DIR": str(cache_dir),
+            },
+        ):
             doctor = Doctor(fix=True)
             result = doctor.check_state_dir()
             assert result.status == CheckStatus.PASS
@@ -352,11 +457,14 @@ class TestCheckStateDir:
         (config_dir / "violations.jsonl").write_text("old")
         (state_dir / "violations.jsonl").write_text("new")
 
-        with mock.patch.dict(os.environ, {
-            "AI_GUARDIAN_CONFIG_DIR": str(config_dir),
-            "AI_GUARDIAN_STATE_DIR": str(state_dir),
-            "AI_GUARDIAN_CACHE_DIR": str(cache_dir),
-        }):
+        with mock.patch.dict(
+            os.environ,
+            {
+                "AI_GUARDIAN_CONFIG_DIR": str(config_dir),
+                "AI_GUARDIAN_STATE_DIR": str(state_dir),
+                "AI_GUARDIAN_CACHE_DIR": str(cache_dir),
+            },
+        ):
             doctor = Doctor(fix=True)
             result = doctor.check_state_dir()
             assert result.status == CheckStatus.PASS
@@ -397,11 +505,14 @@ class TestCheckCacheDir:
         state_dir = tmp_path / "state"
         state_dir.mkdir()
 
-        with mock.patch.dict(os.environ, {
-            "AI_GUARDIAN_CONFIG_DIR": str(config_dir),
-            "AI_GUARDIAN_STATE_DIR": str(state_dir),
-            "AI_GUARDIAN_CACHE_DIR": str(cache_dir),
-        }):
+        with mock.patch.dict(
+            os.environ,
+            {
+                "AI_GUARDIAN_CONFIG_DIR": str(config_dir),
+                "AI_GUARDIAN_STATE_DIR": str(state_dir),
+                "AI_GUARDIAN_CACHE_DIR": str(cache_dir),
+            },
+        ):
             doctor = Doctor()
             result = doctor.check_cache_dir()
             assert result.status == CheckStatus.PASS
@@ -411,15 +522,19 @@ class TestCheckCacheDir:
 class TestCheckPermissions:
     def test_valid_rules(self, _isolate_config_dir):
         config_path = _isolate_config_dir / "ai-guardian.json"
-        config_path.write_text(json.dumps({
-            "permissions": {
-                "enabled": True,
-                "rules": [
-                    {"matcher": "Bash", "allow": ["git *"]},
-                    {"matcher": "Skill", "allow": ["daf-*"]},
-                ]
-            }
-        }))
+        config_path.write_text(
+            json.dumps(
+                {
+                    "permissions": {
+                        "enabled": True,
+                        "rules": [
+                            {"matcher": "Bash", "allow": ["git *"]},
+                            {"matcher": "Skill", "allow": ["daf-*"]},
+                        ],
+                    }
+                }
+            )
+        )
         doctor = Doctor()
         result = doctor.check_permissions()
         assert result.status == CheckStatus.PASS
@@ -427,21 +542,18 @@ class TestCheckPermissions:
 
     def test_no_rules(self, _isolate_config_dir):
         config_path = _isolate_config_dir / "ai-guardian.json"
-        config_path.write_text(json.dumps({
-            "permissions": {"enabled": True, "rules": []}
-        }))
+        config_path.write_text(
+            json.dumps({"permissions": {"enabled": True, "rules": []}})
+        )
         doctor = Doctor()
         result = doctor.check_permissions()
         assert result.status == CheckStatus.WARN
 
     def test_invalid_rule(self, _isolate_config_dir):
         config_path = _isolate_config_dir / "ai-guardian.json"
-        config_path.write_text(json.dumps({
-            "permissions": {
-                "enabled": True,
-                "rules": [{"allow": ["*"]}]
-            }
-        }))
+        config_path.write_text(
+            json.dumps({"permissions": {"enabled": True, "rules": [{"allow": ["*"]}]}})
+        )
         doctor = Doctor()
         result = doctor.check_permissions()
         assert result.status == CheckStatus.FAIL
@@ -463,12 +575,16 @@ class TestCheckDirectoryRules:
 
     def test_valid_rules(self, _isolate_config_dir):
         config_path = _isolate_config_dir / "ai-guardian.json"
-        config_path.write_text(json.dumps({
-            "directory_rules": [
-                {"pattern": "/home/**", "mode": "deny"},
-                {"pattern": "/tmp/**", "mode": "allow", "_generated": True},
-            ]
-        }))
+        config_path.write_text(
+            json.dumps(
+                {
+                    "directory_rules": [
+                        {"pattern": "/home/**", "mode": "deny"},
+                        {"pattern": "/tmp/**", "mode": "allow", "_generated": True},
+                    ]
+                }
+            )
+        )
         doctor = Doctor()
         result = doctor.check_directory_rules()
         assert result.status == CheckStatus.PASS
@@ -477,20 +593,24 @@ class TestCheckDirectoryRules:
 
     def test_paths_format(self, _isolate_config_dir):
         config_path = _isolate_config_dir / "ai-guardian.json"
-        config_path.write_text(json.dumps({
-            "directory_rules": {"rules": [
-                {"paths": ["/home/**"], "mode": "deny"},
-            ]}
-        }))
+        config_path.write_text(
+            json.dumps(
+                {
+                    "directory_rules": {
+                        "rules": [
+                            {"paths": ["/home/**"], "mode": "deny"},
+                        ]
+                    }
+                }
+            )
+        )
         doctor = Doctor()
         result = doctor.check_directory_rules()
         assert result.status == CheckStatus.PASS
 
     def test_invalid_rule(self, _isolate_config_dir):
         config_path = _isolate_config_dir / "ai-guardian.json"
-        config_path.write_text(json.dumps({
-            "directory_rules": [{"mode": "deny"}]
-        }))
+        config_path.write_text(json.dumps({"directory_rules": [{"mode": "deny"}]}))
         doctor = Doctor()
         result = doctor.check_directory_rules()
         assert result.status == CheckStatus.FAIL
@@ -513,6 +633,7 @@ class TestCheckTraySupport:
     @mock.patch("ai_guardian.doctor.platform.system", return_value="Windows")
     def test_windows_pystray_missing(self, _mock_sys, _isolate_config_dir):
         import builtins
+
         real_import = builtins.__import__
 
         def fake_import(name, *args, **kwargs):
@@ -544,7 +665,9 @@ class TestCheckTraySupport:
         assert "KDE" in result.message
 
     @mock.patch("ai_guardian.doctor.platform.system", return_value="Linux")
-    @mock.patch("ai_guardian.doctor.shutil.which", return_value="/usr/bin/gnome-extensions")
+    @mock.patch(
+        "ai_guardian.doctor.shutil.which", return_value="/usr/bin/gnome-extensions"
+    )
     def test_pass_extension_enabled(self, _mock_which, _mock_sys, _isolate_config_dir):
         mock_result = mock.MagicMock()
         mock_result.stdout = (
@@ -553,20 +676,26 @@ class TestCheckTraySupport:
         )
         with mock.patch.dict("sys.modules", {"gi": mock.MagicMock()}):
             with mock.patch.dict(os.environ, {"XDG_CURRENT_DESKTOP": "GNOME"}):
-                with mock.patch("ai_guardian.doctor.subprocess.run", return_value=mock_result):
+                with mock.patch(
+                    "ai_guardian.doctor.subprocess.run", return_value=mock_result
+                ):
                     doctor = Doctor()
                     result = doctor.check_tray_support()
         assert result.status == CheckStatus.PASS
         assert "AppIndicator extension enabled" in result.message
 
     @mock.patch("ai_guardian.doctor.platform.system", return_value="Linux")
-    @mock.patch("ai_guardian.doctor.shutil.which", return_value="/usr/bin/gnome-extensions")
+    @mock.patch(
+        "ai_guardian.doctor.shutil.which", return_value="/usr/bin/gnome-extensions"
+    )
     def test_warn_extension_missing(self, _mock_which, _mock_sys, _isolate_config_dir):
         mock_result = mock.MagicMock()
         mock_result.stdout = "user-theme@gnome-shell-extensions.gcampax.github.com\n"
         with mock.patch.dict("sys.modules", {"gi": mock.MagicMock()}):
             with mock.patch.dict(os.environ, {"XDG_CURRENT_DESKTOP": "GNOME"}):
-                with mock.patch("ai_guardian.doctor.subprocess.run", return_value=mock_result):
+                with mock.patch(
+                    "ai_guardian.doctor.subprocess.run", return_value=mock_result
+                ):
                     doctor = Doctor()
                     result = doctor.check_tray_support()
         assert result.status == CheckStatus.WARN
@@ -576,7 +705,9 @@ class TestCheckTraySupport:
 
     @mock.patch("ai_guardian.doctor.platform.system", return_value="Linux")
     @mock.patch("ai_guardian.doctor.shutil.which", return_value=None)
-    def test_skip_no_gnome_extensions_cmd(self, _mock_which, _mock_sys, _isolate_config_dir):
+    def test_skip_no_gnome_extensions_cmd(
+        self, _mock_which, _mock_sys, _isolate_config_dir
+    ):
         with mock.patch.dict("sys.modules", {"gi": mock.MagicMock()}):
             with mock.patch.dict(os.environ, {"XDG_CURRENT_DESKTOP": "GNOME"}):
                 doctor = Doctor()
@@ -587,6 +718,7 @@ class TestCheckTraySupport:
     @mock.patch("ai_guardian.doctor.platform.system", return_value="Linux")
     def test_warn_gi_unavailable(self, _mock_sys, _isolate_config_dir):
         import builtins
+
         real_import = builtins.__import__
 
         def fake_import(name, *args, **kwargs):
@@ -603,13 +735,19 @@ class TestCheckTraySupport:
         assert "PyGObject" in result.fix_hint
 
     @mock.patch("ai_guardian.doctor.platform.system", return_value="Linux")
-    @mock.patch("ai_guardian.doctor.shutil.which", return_value="/usr/bin/gnome-extensions")
-    def test_pass_gi_available_and_extension_enabled(self, _mock_which, _mock_sys, _isolate_config_dir):
+    @mock.patch(
+        "ai_guardian.doctor.shutil.which", return_value="/usr/bin/gnome-extensions"
+    )
+    def test_pass_gi_available_and_extension_enabled(
+        self, _mock_which, _mock_sys, _isolate_config_dir
+    ):
         """gi available + AppIndicator enabled = PASS."""
         mock_result = mock.MagicMock()
         mock_result.stdout = "appindicatorsupport@rgcjonas.gmail.com\n"
         with mock.patch.dict(os.environ, {"XDG_CURRENT_DESKTOP": "GNOME"}):
-            with mock.patch("ai_guardian.doctor.subprocess.run", return_value=mock_result):
+            with mock.patch(
+                "ai_guardian.doctor.subprocess.run", return_value=mock_result
+            ):
                 with mock.patch.dict("sys.modules", {"gi": mock.MagicMock()}):
                     doctor = Doctor()
                     result = doctor.check_tray_support()
@@ -668,11 +806,7 @@ class TestCheckAskModeDeps:
 
     def test_detects_permission_rules_ask(self, _isolate_config_dir):
         doctor = Doctor()
-        doctor._config = {
-            "permissions": {
-                "rules": [{"tool": "Bash", "action": "ask"}]
-            }
-        }
+        doctor._config = {"permissions": {"rules": [{"tool": "Bash", "action": "ask"}]}}
         doctor._config_loaded = True
         with mock.patch.dict("sys.modules", {"tkinter": mock.MagicMock()}):
             result = doctor.check_ask_mode_deps()
@@ -682,9 +816,7 @@ class TestCheckAskModeDeps:
     def test_detects_directory_rules_ask(self, _isolate_config_dir):
         doctor = Doctor()
         doctor._config = {
-            "directory_rules": {
-                "rules": [{"path": "/tmp", "action": "ask"}]
-            }
+            "directory_rules": {"rules": [{"path": "/tmp", "action": "ask"}]}
         }
         doctor._config_loaded = True
         with mock.patch.dict("sys.modules", {"tkinter": mock.MagicMock()}):
@@ -715,7 +847,9 @@ class TestCheckTerminalEmulator:
         assert "Not Linux" in result.message
 
     @mock.patch("ai_guardian.doctor.platform.system", return_value="Linux")
-    @mock.patch("ai_guardian.doctor.shutil.which", return_value="/usr/bin/gnome-terminal")
+    @mock.patch(
+        "ai_guardian.doctor.shutil.which", return_value="/usr/bin/gnome-terminal"
+    )
     def test_pass_terminal_found(self, _mock_which, _mock_sys, _isolate_config_dir):
         doctor = Doctor()
         result = doctor.check_terminal_emulator()
@@ -723,7 +857,10 @@ class TestCheckTerminalEmulator:
         assert "gnome-terminal" in result.message
 
     @mock.patch("ai_guardian.doctor.platform.system", return_value="Linux")
-    @mock.patch("ai_guardian.doctor.shutil.which", side_effect=lambda x: "/usr/bin/kgx" if x == "kgx" else None)
+    @mock.patch(
+        "ai_guardian.doctor.shutil.which",
+        side_effect=lambda x: "/usr/bin/kgx" if x == "kgx" else None,
+    )
     def test_pass_kgx_found(self, _mock_which, _mock_sys, _isolate_config_dir):
         doctor = Doctor()
         result = doctor.check_terminal_emulator()
@@ -750,8 +887,16 @@ class TestCheckConsoleDeps:
 
     def test_missing_deps(self, _isolate_config_dir):
         import importlib
+
         with mock.patch.dict("sys.modules", {"tree_sitter_json": None}):
-            with mock.patch("builtins.__import__", side_effect=lambda name, *a, **kw: (_ for _ in ()).throw(ImportError()) if name == "tree_sitter_json" else importlib.__import__(name, *a, **kw)):
+            with mock.patch(
+                "builtins.__import__",
+                side_effect=lambda name, *a, **kw: (
+                    (_ for _ in ()).throw(ImportError())
+                    if name == "tree_sitter_json"
+                    else importlib.__import__(name, *a, **kw)
+                ),
+            ):
                 doctor = Doctor()
                 result = doctor.check_console_deps()
                 assert result.status == CheckStatus.WARN
@@ -774,11 +919,15 @@ class TestCheckConfigConsistency:
 class TestCheckPsCachePath:
     def _write_ps_config(self, config_dir):
         config_path = config_dir / "ai-guardian.json"
-        config_path.write_text(json.dumps({
-            "secret_scanning": {
-                "pattern_server": {"url": "https://example.com/patterns"}
-            }
-        }))
+        config_path.write_text(
+            json.dumps(
+                {
+                    "secret_scanning": {
+                        "pattern_server": {"url": "https://example.com/patterns"}
+                    }
+                }
+            )
+        )
 
     def test_skip_no_config(self, _isolate_config_dir):
         doctor = Doctor()
@@ -792,7 +941,9 @@ class TestCheckPsCachePath:
         assert result.status == CheckStatus.PASS
         assert "writable" in result.message
 
-    @pytest.mark.skipif(sys.platform == "win32", reason="chmod 0o444 not effective on Windows")
+    @pytest.mark.skipif(
+        sys.platform == "win32", reason="chmod 0o444 not effective on Windows"
+    )
     def test_not_writable(self, _isolate_config_dir, tmp_path):
         self._write_ps_config(_isolate_config_dir)
         ro_dir = tmp_path / "readonly_cache"
@@ -818,14 +969,18 @@ class TestCheckPsCachePath:
         cache_file = tmp_path / "custom" / "patterns.toml"
         cache_file.parent.mkdir(parents=True)
         config_path = _isolate_config_dir / "ai-guardian.json"
-        config_path.write_text(json.dumps({
-            "secret_scanning": {
-                "pattern_server": {
-                    "url": "https://example.com",
-                    "cache": {"path": str(cache_file)}
+        config_path.write_text(
+            json.dumps(
+                {
+                    "secret_scanning": {
+                        "pattern_server": {
+                            "url": "https://example.com",
+                            "cache": {"path": str(cache_file)},
+                        }
+                    }
                 }
-            }
-        }))
+            )
+        )
         doctor = Doctor()
         result = doctor.check_ps_cache_path()
         assert result.status == CheckStatus.PASS
@@ -837,9 +992,7 @@ class TestCheckPsAuth:
         if auth is not None:
             ps["auth"] = auth
         config_path = config_dir / "ai-guardian.json"
-        config_path.write_text(json.dumps({
-            "secret_scanning": {"pattern_server": ps}
-        }))
+        config_path.write_text(json.dumps({"secret_scanning": {"pattern_server": ps}}))
 
     def test_skip_no_config(self, _isolate_config_dir):
         doctor = Doctor()
@@ -848,20 +1001,23 @@ class TestCheckPsAuth:
 
     def test_skip_no_auth(self, _isolate_config_dir):
         config_path = _isolate_config_dir / "ai-guardian.json"
-        config_path.write_text(json.dumps({
-            "secret_scanning": {
-                "pattern_server": {"url": "https://example.com"}
-            }
-        }))
+        config_path.write_text(
+            json.dumps(
+                {"secret_scanning": {"pattern_server": {"url": "https://example.com"}}}
+            )
+        )
         doctor = Doctor()
         result = doctor.check_ps_auth()
         assert result.status == CheckStatus.SKIP
 
     def test_token_in_env(self, _isolate_config_dir):
-        self._write_ps_config(_isolate_config_dir, auth={
-            "method": "bearer",
-            "token_env": "AI_GUARDIAN_TEST_TOKEN_493",
-        })
+        self._write_ps_config(
+            _isolate_config_dir,
+            auth={
+                "method": "bearer",
+                "token_env": "AI_GUARDIAN_TEST_TOKEN_493",
+            },
+        )
         with mock.patch.dict(os.environ, {"AI_GUARDIAN_TEST_TOKEN_493": "secret"}):
             doctor = Doctor()
             result = doctor.check_ps_auth()
@@ -871,22 +1027,28 @@ class TestCheckPsAuth:
     def test_token_in_file(self, _isolate_config_dir, tmp_path):
         token_file = tmp_path / "token"
         token_file.write_text("my-token")
-        self._write_ps_config(_isolate_config_dir, auth={
-            "method": "bearer",
-            "token_env": "AI_GUARDIAN_NONEXIST_TOKEN",
-            "token_file": str(token_file),
-        })
+        self._write_ps_config(
+            _isolate_config_dir,
+            auth={
+                "method": "bearer",
+                "token_env": "AI_GUARDIAN_NONEXIST_TOKEN",
+                "token_file": str(token_file),
+            },
+        )
         doctor = Doctor()
         result = doctor.check_ps_auth()
         assert result.status == CheckStatus.PASS
         assert "Token found" in result.message
 
     def test_no_token(self, _isolate_config_dir, tmp_path):
-        self._write_ps_config(_isolate_config_dir, auth={
-            "method": "bearer",
-            "token_env": "AI_GUARDIAN_NONEXIST_TOKEN",
-            "token_file": str(tmp_path / "nonexistent"),
-        })
+        self._write_ps_config(
+            _isolate_config_dir,
+            auth={
+                "method": "bearer",
+                "token_env": "AI_GUARDIAN_NONEXIST_TOKEN",
+                "token_file": str(tmp_path / "nonexistent"),
+            },
+        )
         doctor = Doctor()
         result = doctor.check_ps_auth()
         assert result.status == CheckStatus.FAIL
@@ -896,14 +1058,18 @@ class TestCheckPsAuth:
 class TestCheckPsUrl:
     def _write_ps_config(self, config_dir, url="https://example.com"):
         config_path = config_dir / "ai-guardian.json"
-        config_path.write_text(json.dumps({
-            "secret_scanning": {
-                "pattern_server": {
-                    "url": url,
-                    "patterns_endpoint": "/patterns/gitleaks/8.18.1",
+        config_path.write_text(
+            json.dumps(
+                {
+                    "secret_scanning": {
+                        "pattern_server": {
+                            "url": url,
+                            "patterns_endpoint": "/patterns/gitleaks/8.18.1",
+                        }
+                    }
                 }
-            }
-        }))
+            )
+        )
 
     def test_skip_no_config(self, _isolate_config_dir):
         doctor = Doctor(check_connectivity=True)
@@ -931,6 +1097,7 @@ class TestCheckPsUrl:
     def test_timeout(self, _isolate_config_dir):
         self._write_ps_config(_isolate_config_dir)
         import requests
+
         with mock.patch("requests.get", side_effect=requests.exceptions.Timeout()):
             doctor = Doctor(check_connectivity=True)
             result = doctor.check_ps_url()
@@ -950,7 +1117,10 @@ class TestCheckPsUrl:
     def test_connection_error(self, _isolate_config_dir):
         self._write_ps_config(_isolate_config_dir)
         import requests
-        with mock.patch("requests.get", side_effect=requests.exceptions.ConnectionError()):
+
+        with mock.patch(
+            "requests.get", side_effect=requests.exceptions.ConnectionError()
+        ):
             doctor = Doctor(check_connectivity=True)
             result = doctor.check_ps_url()
         assert result.status == CheckStatus.FAIL
@@ -965,20 +1135,20 @@ class TestCheckPsUrl:
 
 
 class TestCheckPsCacheFreshness:
-    def _write_ps_config(self, config_dir, cache_path=None, refresh_hours=12, expire_hours=168):
+    def _write_ps_config(
+        self, config_dir, cache_path=None, refresh_hours=12, expire_hours=168
+    ):
         ps = {
             "url": "https://example.com",
             "cache": {
                 "refresh_interval_hours": refresh_hours,
                 "expire_after_hours": expire_hours,
-            }
+            },
         }
         if cache_path:
             ps["cache"]["path"] = cache_path
         config_path = config_dir / "ai-guardian.json"
-        config_path.write_text(json.dumps({
-            "secret_scanning": {"pattern_server": ps}
-        }))
+        config_path.write_text(json.dumps({"secret_scanning": {"pattern_server": ps}}))
 
     def test_skip_no_config(self, _isolate_config_dir):
         doctor = Doctor()
@@ -1047,7 +1217,9 @@ class TestCheckPsCacheFreshness:
         old_time = time.time() - (2 * 86400)
         os.utime(cache_file, (old_time, old_time))
         self._write_ps_config(_isolate_config_dir)
-        with mock.patch("ai_guardian.doctor.Doctor._refresh_ps_cache", return_value=(True, None)):
+        with mock.patch(
+            "ai_guardian.doctor.Doctor._refresh_ps_cache", return_value=(True, None)
+        ):
             doctor = Doctor(fix=True)
             result = doctor.check_ps_cache_freshness()
         assert result.status == CheckStatus.PASS
@@ -1061,7 +1233,9 @@ class TestCheckPsCacheFreshness:
         old_time = time.time() - (10 * 86400)
         os.utime(cache_file, (old_time, old_time))
         self._write_ps_config(_isolate_config_dir)
-        with mock.patch("ai_guardian.doctor.Doctor._refresh_ps_cache", return_value=(True, None)):
+        with mock.patch(
+            "ai_guardian.doctor.Doctor._refresh_ps_cache", return_value=(True, None)
+        ):
             doctor = Doctor(fix=True)
             result = doctor.check_ps_cache_freshness()
         assert result.status == CheckStatus.PASS
@@ -1070,7 +1244,9 @@ class TestCheckPsCacheFreshness:
 
     def test_fix_no_cache_file(self, _isolate_config_dir):
         self._write_ps_config(_isolate_config_dir)
-        with mock.patch("ai_guardian.doctor.Doctor._refresh_ps_cache", return_value=(True, None)):
+        with mock.patch(
+            "ai_guardian.doctor.Doctor._refresh_ps_cache", return_value=(True, None)
+        ):
             doctor = Doctor(fix=True)
             result = doctor.check_ps_cache_freshness()
         assert result.status == CheckStatus.PASS
@@ -1084,7 +1260,10 @@ class TestCheckPsCacheFreshness:
         old_time = time.time() - (2 * 86400)
         os.utime(cache_file, (old_time, old_time))
         self._write_ps_config(_isolate_config_dir)
-        with mock.patch("ai_guardian.doctor.Doctor._refresh_ps_cache", return_value=(False, "Connection refused")):
+        with mock.patch(
+            "ai_guardian.doctor.Doctor._refresh_ps_cache",
+            return_value=(False, "Connection refused"),
+        ):
             doctor = Doctor(fix=True)
             result = doctor.check_ps_cache_freshness()
         assert result.status == CheckStatus.WARN
@@ -1099,7 +1278,10 @@ class TestCheckPsCacheFreshness:
         old_time = time.time() - (10 * 86400)
         os.utime(cache_file, (old_time, old_time))
         self._write_ps_config(_isolate_config_dir)
-        with mock.patch("ai_guardian.doctor.Doctor._refresh_ps_cache", return_value=(False, "Timeout")):
+        with mock.patch(
+            "ai_guardian.doctor.Doctor._refresh_ps_cache",
+            return_value=(False, "Timeout"),
+        ):
             doctor = Doctor(fix=True)
             result = doctor.check_ps_cache_freshness()
         assert result.status == CheckStatus.FAIL
@@ -1117,8 +1299,10 @@ class TestFormatHuman:
             version="1.0.0",
             checks=[
                 CheckResult(name="config_file", status=CheckStatus.PASS, message="OK"),
-                CheckResult(name="scanners", status=CheckStatus.PASS, message="gitleaks 8.30.1"),
-            ]
+                CheckResult(
+                    name="scanners", status=CheckStatus.PASS, message="gitleaks 8.30.1"
+                ),
+            ],
         )
         output = format_human(report)
         assert "1.0.0" in output
@@ -1130,9 +1314,13 @@ class TestFormatHuman:
             version="1.0.0",
             checks=[
                 CheckResult(name="config_file", status=CheckStatus.PASS, message="OK"),
-                CheckResult(name="scanners", status=CheckStatus.WARN, message="outdated",
-                            fix_hint="Update scanners"),
-            ]
+                CheckResult(
+                    name="scanners",
+                    status=CheckStatus.WARN,
+                    message="outdated",
+                    fix_hint="Update scanners",
+                ),
+            ],
         )
         output = format_human(report)
         assert "WARN" in output
@@ -1143,8 +1331,10 @@ class TestFormatHuman:
         report = DoctorReport(
             version="1.0.0",
             checks=[
-                CheckResult(name="scanners", status=CheckStatus.FAIL, message="none found"),
-            ]
+                CheckResult(
+                    name="scanners", status=CheckStatus.FAIL, message="none found"
+                ),
+            ],
         )
         output = format_human(report)
         assert "FAIL" in output
@@ -1154,9 +1344,15 @@ class TestFormatHuman:
         report = DoctorReport(
             version="1.0.0",
             checks=[
-                CheckResult(name="state_dir", status=CheckStatus.PASS, message="Created",
-                            fixable=True, fixed=True, fix_hint="created dir"),
-            ]
+                CheckResult(
+                    name="state_dir",
+                    status=CheckStatus.PASS,
+                    message="Created",
+                    fixable=True,
+                    fixed=True,
+                    fix_hint="created dir",
+                ),
+            ],
         )
         output = format_human(report)
         assert "Fixed" in output
@@ -1169,7 +1365,7 @@ class TestFormatJson:
             version="1.0.0",
             checks=[
                 CheckResult(name="config_file", status=CheckStatus.PASS, message="OK"),
-            ]
+            ],
         )
         output = format_json(report)
         data = json.loads(output)
@@ -1183,10 +1379,15 @@ class TestFormatJson:
             version="2.0.0",
             checks=[
                 CheckResult(name="a", status=CheckStatus.PASS, message="ok"),
-                CheckResult(name="b", status=CheckStatus.WARN, message="warn",
-                            fix_hint="do X", fixable=True),
+                CheckResult(
+                    name="b",
+                    status=CheckStatus.WARN,
+                    message="warn",
+                    fix_hint="do X",
+                    fixable=True,
+                ),
                 CheckResult(name="c", status=CheckStatus.FAIL, message="fail"),
-            ]
+            ],
         )
         data = json.loads(format_json(report))
         assert data["summary"]["pass"] == 1
@@ -1201,15 +1402,22 @@ class TestFormatJson:
 
 class TestDoctorCommand:
     def _make_args(self, **kwargs):
-        defaults = {"json": False, "fix": False, "quiet": False, "check_connectivity": False}
+        defaults = {
+            "json": False,
+            "fix": False,
+            "quiet": False,
+            "check_connectivity": False,
+        }
         defaults.update(kwargs)
         return argparse.Namespace(**defaults)
 
     @mock.patch("ai_guardian.doctor.Doctor.run_all")
     def test_quiet_mode(self, mock_run, _isolate_config_dir):
-        mock_run.return_value = DoctorReport(checks=[
-            CheckResult(name="a", status=CheckStatus.WARN, message="warn"),
-        ])
+        mock_run.return_value = DoctorReport(
+            checks=[
+                CheckResult(name="a", status=CheckStatus.WARN, message="warn"),
+            ]
+        )
         result = doctor_command(self._make_args(quiet=True))
         assert result == 1
 
@@ -1219,7 +1427,7 @@ class TestDoctorCommand:
             version="1.0.0",
             checks=[
                 CheckResult(name="a", status=CheckStatus.PASS, message="ok"),
-            ]
+            ],
         )
         result = doctor_command(self._make_args(json=True))
         assert result == 0
@@ -1233,7 +1441,7 @@ class TestDoctorCommand:
             version="1.0.0",
             checks=[
                 CheckResult(name="config_file", status=CheckStatus.PASS, message="ok"),
-            ]
+            ],
         )
         result = doctor_command(self._make_args())
         assert result == 0
@@ -1276,20 +1484,29 @@ class TestCheckTrayPlugins:
     def test_skip_when_empty_dir(self, _isolate_config_dir, tmp_path):
         plugins_dir = tmp_path / "tray-plugins"
         plugins_dir.mkdir()
-        with mock.patch("ai_guardian.daemon.get_tray_plugins_dir", return_value=plugins_dir):
+        with mock.patch(
+            "ai_guardian.daemon.get_tray_plugins_dir", return_value=plugins_dir
+        ):
             doctor = Doctor()
             result = doctor.check_tray_plugins()
             assert result.status == CheckStatus.SKIP
 
     def test_pass_with_valid_plugins(self, _isolate_config_dir, tmp_path):
         import json
+
         plugins_dir = tmp_path / "tray-plugins"
         plugins_dir.mkdir()
-        (plugins_dir / "good.json").write_text(json.dumps({
-            "name": "Good",
-            "items": [{"label": "Ok", "command": "echo ok"}],
-        }))
-        with mock.patch("ai_guardian.daemon.get_tray_plugins_dir", return_value=plugins_dir):
+        (plugins_dir / "good.json").write_text(
+            json.dumps(
+                {
+                    "name": "Good",
+                    "items": [{"label": "Ok", "command": "echo ok"}],
+                }
+            )
+        )
+        with mock.patch(
+            "ai_guardian.daemon.get_tray_plugins_dir", return_value=plugins_dir
+        ):
             doctor = Doctor()
             result = doctor.check_tray_plugins()
             assert result.status == CheckStatus.PASS
@@ -1297,13 +1514,20 @@ class TestCheckTrayPlugins:
 
     def test_warn_on_circular_import(self, _isolate_config_dir, tmp_path):
         import json
+
         plugins_dir = tmp_path / "tray-plugins"
         plugins_dir.mkdir()
-        (plugins_dir / "loop.json").write_text(json.dumps({
-            "name": "Loop",
-            "items": [{"label": "Self", "import": "loop.json"}],
-        }))
-        with mock.patch("ai_guardian.daemon.get_tray_plugins_dir", return_value=plugins_dir):
+        (plugins_dir / "loop.json").write_text(
+            json.dumps(
+                {
+                    "name": "Loop",
+                    "items": [{"label": "Self", "import": "loop.json"}],
+                }
+            )
+        )
+        with mock.patch(
+            "ai_guardian.daemon.get_tray_plugins_dir", return_value=plugins_dir
+        ):
             doctor = Doctor()
             result = doctor.check_tray_plugins()
             assert result.status == CheckStatus.WARN
@@ -1320,9 +1544,13 @@ class TestCheckAstScanner:
             "javascript": "tree_sitter_javascript",
         }
         with mock.patch.dict("sys.modules", {"tree_sitter": mock_ts}):
-            with mock.patch("ai_guardian.doctor.pkg_version", return_value="0.25.0", create=True):
+            with mock.patch(
+                "ai_guardian.doctor.pkg_version", return_value="0.25.0", create=True
+            ):
                 with mock.patch("importlib.metadata.version", return_value="0.25.0"):
-                    with mock.patch("ai_guardian.ast_scanner._GRAMMAR_IMPORTS", grammar_imports):
+                    with mock.patch(
+                        "ai_guardian.ast_scanner._GRAMMAR_IMPORTS", grammar_imports
+                    ):
                         with mock.patch("importlib.import_module") as mock_import:
                             mock_import.return_value = mock.MagicMock()
                             doctor = Doctor()
@@ -1334,6 +1562,7 @@ class TestCheckAstScanner:
 
     def test_warn_not_installed(self, _isolate_config_dir):
         import builtins
+
         real_import = builtins.__import__
 
         def fake_import(name, *args, **kwargs):
@@ -1354,7 +1583,9 @@ class TestCheckAstScanner:
         grammar_imports = {"python": "tree_sitter_python"}
         with mock.patch.dict("sys.modules", {"tree_sitter": mock_ts}):
             with mock.patch("importlib.metadata.version", return_value="0.25.0"):
-                with mock.patch("ai_guardian.ast_scanner._GRAMMAR_IMPORTS", grammar_imports):
+                with mock.patch(
+                    "ai_guardian.ast_scanner._GRAMMAR_IMPORTS", grammar_imports
+                ):
                     with mock.patch("importlib.import_module", side_effect=ImportError):
                         doctor = Doctor()
                         result = doctor.check_ast_scanner()
@@ -1376,8 +1607,12 @@ class TestCheckAstScanner:
 
         with mock.patch.dict("sys.modules", {"tree_sitter": mock_ts}):
             with mock.patch("importlib.metadata.version", return_value="0.24.0"):
-                with mock.patch("ai_guardian.ast_scanner._GRAMMAR_IMPORTS", grammar_imports):
-                    with mock.patch("importlib.import_module", side_effect=selective_import):
+                with mock.patch(
+                    "ai_guardian.ast_scanner._GRAMMAR_IMPORTS", grammar_imports
+                ):
+                    with mock.patch(
+                        "importlib.import_module", side_effect=selective_import
+                    ):
                         doctor = Doctor()
                         result = doctor.check_ast_scanner()
         assert result.status == CheckStatus.PASS

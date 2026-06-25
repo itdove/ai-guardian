@@ -9,7 +9,6 @@ and GitLab MRs. Used by scan_command() when --diff, --pr, --mr, or
 import logging
 import re
 import subprocess
-import sys
 from typing import Any, Dict, List, Optional, Set
 
 logger = logging.getLogger(__name__)
@@ -65,7 +64,10 @@ def detect_platform(repo_path: str = ".") -> str:
     try:
         result = subprocess.run(
             ["git", "remote", "get-url", "origin"],
-            capture_output=True, text=True, timeout=10, cwd=repo_path,
+            capture_output=True,
+            text=True,
+            timeout=10,
+            cwd=repo_path,
         )
         if result.returncode != 0:
             return "unknown"
@@ -90,12 +92,13 @@ def get_merge_base(base_ref: Optional[str] = None, repo_path: str = ".") -> str:
     try:
         result = subprocess.run(
             ["git", "merge-base", base_ref, "HEAD"],
-            capture_output=True, text=True, timeout=10, cwd=repo_path,
+            capture_output=True,
+            text=True,
+            timeout=10,
+            cwd=repo_path,
         )
     except subprocess.TimeoutExpired:
-        raise DiffProviderError(
-            f"git merge-base timed out for '{base_ref}'"
-        )
+        raise DiffProviderError(f"git merge-base timed out for '{base_ref}'")
     if result.returncode != 0:
         raise DiffProviderError(
             f"Failed to find merge base for '{base_ref}': {result.stderr.strip()}"
@@ -108,7 +111,10 @@ def _detect_default_branch(repo_path: str = ".") -> str:
     try:
         result = subprocess.run(
             ["git", "rev-parse", "--abbrev-ref", "origin/HEAD"],
-            capture_output=True, text=True, timeout=10, cwd=repo_path,
+            capture_output=True,
+            text=True,
+            timeout=10,
+            cwd=repo_path,
         )
         if result.returncode == 0:
             ref = result.stdout.strip()
@@ -118,7 +124,10 @@ def _detect_default_branch(repo_path: str = ".") -> str:
         for candidate in ["origin/main", "origin/master"]:
             result = subprocess.run(
                 ["git", "rev-parse", "--verify", candidate],
-                capture_output=True, text=True, timeout=10, cwd=repo_path,
+                capture_output=True,
+                text=True,
+                timeout=10,
+                cwd=repo_path,
             )
             if result.returncode == 0:
                 return candidate
@@ -130,14 +139,15 @@ def _detect_default_branch(repo_path: str = ".") -> str:
     )
 
 
-def get_diff_unified(
-    base_ref: Optional[str] = None, repo_path: str = "."
-) -> str:
+def get_diff_unified(base_ref: Optional[str] = None, repo_path: str = ".") -> str:
     """Get unified diff between base and HEAD."""
     merge_base = get_merge_base(base_ref, repo_path)
     result = subprocess.run(
         ["git", "diff", f"{merge_base}...HEAD"],
-        capture_output=True, text=True, timeout=60, cwd=repo_path,
+        capture_output=True,
+        text=True,
+        timeout=60,
+        cwd=repo_path,
     )
     if result.returncode != 0:
         raise DiffProviderError(f"git diff failed: {result.stderr.strip()}")
@@ -148,12 +158,13 @@ def get_staged_diff(repo_path: str = ".") -> str:
     """Get unified diff of staged changes (git diff --cached)."""
     result = subprocess.run(
         ["git", "diff", "--cached"],
-        capture_output=True, text=True, timeout=60, cwd=repo_path,
+        capture_output=True,
+        text=True,
+        timeout=60,
+        cwd=repo_path,
     )
     if result.returncode != 0:
-        raise DiffProviderError(
-            f"git diff --cached failed: {result.stderr.strip()}"
-        )
+        raise DiffProviderError(f"git diff --cached failed: {result.stderr.strip()}")
     return result.stdout
 
 
@@ -166,20 +177,20 @@ def _run_cli_diff(
     """Run a CLI tool to fetch a diff, with common error handling."""
     try:
         result = subprocess.run(
-            cmd, capture_output=True, text=True, timeout=30, cwd=repo_path,
+            cmd,
+            capture_output=True,
+            text=True,
+            timeout=30,
+            cwd=repo_path,
         )
     except FileNotFoundError:
         raise DiffProviderError(
             f"{tool_name} CLI not found. Install from {install_url}"
         )
     except subprocess.TimeoutExpired:
-        raise DiffProviderError(
-            f"{' '.join(cmd[:3])} timed out after 30 seconds"
-        )
+        raise DiffProviderError(f"{' '.join(cmd[:3])} timed out after 30 seconds")
     if result.returncode != 0:
-        raise DiffProviderError(
-            f"{' '.join(cmd[:3])} failed: {result.stderr.strip()}"
-        )
+        raise DiffProviderError(f"{' '.join(cmd[:3])} failed: {result.stderr.strip()}")
     return result.stdout
 
 
@@ -191,7 +202,9 @@ def get_pr_diff(pr_ref: str, repo_path: str = ".") -> str:
     """
     return _run_cli_diff(
         ["gh", "pr", "diff", str(pr_ref)],
-        "gh", "https://cli.github.com/", repo_path,
+        "gh",
+        "https://cli.github.com/",
+        repo_path,
     )
 
 
@@ -207,7 +220,10 @@ def get_mr_diff(mr_ref: str, repo_path: str = ".") -> str:
     if repo_url:
         cmd.extend(["--repo", repo_url])
     return _run_cli_diff(
-        cmd, "glab", "https://gitlab.com/gitlab-org/cli", repo_path,
+        cmd,
+        "glab",
+        "https://gitlab.com/gitlab-org/cli",
+        repo_path,
     )
 
 

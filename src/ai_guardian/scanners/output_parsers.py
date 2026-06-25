@@ -76,36 +76,34 @@ class GitleaksOutputParser(ScannerOutputParser):
                 logging.error(f"Gitleaks output file not found: {output_file}")
                 return None
 
-            with open(output_file, 'r', encoding='utf-8') as f:
+            with open(output_file, "r", encoding="utf-8") as f:
                 findings = json.load(f)
 
             # Empty list means no secrets
             if not findings:
-                return {
-                    "has_secrets": False,
-                    "findings": [],
-                    "total_findings": 0
-                }
+                return {"has_secrets": False, "findings": [], "total_findings": 0}
 
             # Convert to standardized format
             standardized_findings = []
             for finding in findings:
-                standardized_findings.append({
-                    "rule_id": finding.get("RuleID", "unknown"),
-                    "file": finding.get("File", "unknown"),
-                    "line_number": finding.get("StartLine", 0),
-                    "end_line": finding.get("EndLine", 0),
-                    "description": finding.get("Description", "Secret detected"),
-                    "commit": finding.get("Commit", "N/A"),
-                    "matched_text": finding.get("Match", ""),
-                    "start_column": finding.get("StartColumn"),
-                    "end_column": finding.get("EndColumn"),
-                })
+                standardized_findings.append(
+                    {
+                        "rule_id": finding.get("RuleID", "unknown"),
+                        "file": finding.get("File", "unknown"),
+                        "line_number": finding.get("StartLine", 0),
+                        "end_line": finding.get("EndLine", 0),
+                        "description": finding.get("Description", "Secret detected"),
+                        "commit": finding.get("Commit", "N/A"),
+                        "matched_text": finding.get("Match", ""),
+                        "start_column": finding.get("StartColumn"),
+                        "end_column": finding.get("EndColumn"),
+                    }
+                )
 
             return {
                 "has_secrets": True,
                 "findings": standardized_findings,
-                "total_findings": len(standardized_findings)
+                "total_findings": len(standardized_findings),
             }
 
         except json.JSONDecodeError as e:
@@ -150,7 +148,7 @@ class LeakTKOutputParser(ScannerOutputParser):
                 logging.error(f"LeakTK output file not found: {output_file}")
                 return None
 
-            with open(output_file, 'r', encoding='utf-8') as f:
+            with open(output_file, "r", encoding="utf-8") as f:
                 data = json.load(f)
 
             # Check for errors
@@ -164,31 +162,29 @@ class LeakTKOutputParser(ScannerOutputParser):
 
             # Empty findings means no secrets
             if not findings:
-                return {
-                    "has_secrets": False,
-                    "findings": [],
-                    "total_findings": 0
-                }
+                return {"has_secrets": False, "findings": [], "total_findings": 0}
 
             # Convert to standardized format
             standardized_findings = []
             for finding in findings:
-                standardized_findings.append({
-                    "rule_id": finding.get("RuleID", "unknown"),
-                    "file": finding.get("File", "unknown"),
-                    "line_number": finding.get("StartLine", 0),
-                    "end_line": finding.get("EndLine", 0),
-                    "description": finding.get("Description", "Secret detected"),
-                    "commit": finding.get("Commit", "N/A"),
-                    "matched_text": finding.get("Match", ""),
-                    "start_column": finding.get("StartColumn"),
-                    "end_column": finding.get("EndColumn"),
-                })
+                standardized_findings.append(
+                    {
+                        "rule_id": finding.get("RuleID", "unknown"),
+                        "file": finding.get("File", "unknown"),
+                        "line_number": finding.get("StartLine", 0),
+                        "end_line": finding.get("EndLine", 0),
+                        "description": finding.get("Description", "Secret detected"),
+                        "commit": finding.get("Commit", "N/A"),
+                        "matched_text": finding.get("Match", ""),
+                        "start_column": finding.get("StartColumn"),
+                        "end_column": finding.get("EndColumn"),
+                    }
+                )
 
             return {
                 "has_secrets": True,
                 "findings": standardized_findings,
-                "total_findings": len(standardized_findings)
+                "total_findings": len(standardized_findings),
             }
 
         except json.JSONDecodeError as e:
@@ -226,7 +222,7 @@ class TruffleHogOutputParser(ScannerOutputParser):
 
             standardized_findings = []
 
-            with open(output_file, 'r', encoding='utf-8') as f:
+            with open(output_file, "r", encoding="utf-8") as f:
                 for line_num, line in enumerate(f, 1):
                     line = line.strip()
                     if not line:
@@ -236,7 +232,11 @@ class TruffleHogOutputParser(ScannerOutputParser):
                         finding = json.loads(line)
 
                         # Extract file and line information from SourceMetadata
-                        source_meta = finding.get("SourceMetadata", {}).get("Data", {}).get("Filesystem", {})
+                        source_meta = (
+                            finding.get("SourceMetadata", {})
+                            .get("Data", {})
+                            .get("Filesystem", {})
+                        )
                         file_path = source_meta.get("file", "unknown")
                         line_number = source_meta.get("line", 0)
 
@@ -249,32 +249,32 @@ class TruffleHogOutputParser(ScannerOutputParser):
                         if verified:
                             description += " (verified)"
 
-                        standardized_findings.append({
-                            "rule_id": detector_name.lower().replace(" ", "-"),
-                            "file": file_path,
-                            "line_number": line_number,
-                            "end_line": line_number,
-                            "description": description,
-                            "commit": "N/A",
-                            "verified": verified
-                        })
+                        standardized_findings.append(
+                            {
+                                "rule_id": detector_name.lower().replace(" ", "-"),
+                                "file": file_path,
+                                "line_number": line_number,
+                                "end_line": line_number,
+                                "description": description,
+                                "commit": "N/A",
+                                "verified": verified,
+                            }
+                        )
 
                     except json.JSONDecodeError as e:
-                        logging.warning(f"Failed to parse TruffleHog line {line_num}: {e}")
+                        logging.warning(
+                            f"Failed to parse TruffleHog line {line_num}: {e}"
+                        )
                         continue
 
             # No findings means no secrets
             if not standardized_findings:
-                return {
-                    "has_secrets": False,
-                    "findings": [],
-                    "total_findings": 0
-                }
+                return {"has_secrets": False, "findings": [], "total_findings": 0}
 
             return {
                 "has_secrets": True,
                 "findings": standardized_findings,
-                "total_findings": len(standardized_findings)
+                "total_findings": len(standardized_findings),
             }
 
         except Exception as e:
@@ -317,7 +317,7 @@ class DetectSecretsOutputParser(ScannerOutputParser):
                 logging.error(f"detect-secrets output file not found: {output_file}")
                 return None
 
-            with open(output_file, 'r', encoding='utf-8') as f:
+            with open(output_file, "r", encoding="utf-8") as f:
                 data = json.load(f)
 
             # Get results
@@ -325,11 +325,7 @@ class DetectSecretsOutputParser(ScannerOutputParser):
 
             # No results means no secrets
             if not results:
-                return {
-                    "has_secrets": False,
-                    "findings": [],
-                    "total_findings": 0
-                }
+                return {"has_secrets": False, "findings": [], "total_findings": 0}
 
             # Convert to standardized format
             standardized_findings = []
@@ -338,19 +334,21 @@ class DetectSecretsOutputParser(ScannerOutputParser):
                     secret_type = finding.get("type", "unknown")
                     line_number = finding.get("line_number", 0)
 
-                    standardized_findings.append({
-                        "rule_id": secret_type.lower().replace(" ", "-"),
-                        "file": file_path,
-                        "line_number": line_number,
-                        "end_line": line_number,
-                        "description": f"{secret_type} detected",
-                        "commit": "N/A"
-                    })
+                    standardized_findings.append(
+                        {
+                            "rule_id": secret_type.lower().replace(" ", "-"),
+                            "file": file_path,
+                            "line_number": line_number,
+                            "end_line": line_number,
+                            "description": f"{secret_type} detected",
+                            "commit": "N/A",
+                        }
+                    )
 
             return {
                 "has_secrets": True,
                 "findings": standardized_findings,
-                "total_findings": len(standardized_findings)
+                "total_findings": len(standardized_findings),
             }
 
         except json.JSONDecodeError as e:
@@ -407,16 +405,18 @@ class SecretlintOutputParser(ScannerOutputParser):
                     start = loc.get("start", {})
                     end = loc.get("end", {})
 
-                    standardized_findings.append({
-                        "rule_id": rule_id,
-                        "file": file_path,
-                        "line_number": start.get("line", 0),
-                        "end_line": end.get("line", start.get("line", 0)),
-                        "description": msg.get("message", "Secret detected"),
-                        "commit": "N/A",
-                        "start_column": start.get("column"),
-                        "end_column": end.get("column"),
-                    })
+                    standardized_findings.append(
+                        {
+                            "rule_id": rule_id,
+                            "file": file_path,
+                            "line_number": start.get("line", 0),
+                            "end_line": end.get("line", start.get("line", 0)),
+                            "description": msg.get("message", "Secret detected"),
+                            "commit": "N/A",
+                            "start_column": start.get("column"),
+                            "end_column": end.get("column"),
+                        }
+                    )
 
             if not standardized_findings:
                 return {"has_secrets": False, "findings": [], "total_findings": 0}
@@ -519,17 +519,19 @@ class GitGuardianOutputParser(ScannerOutputParser):
                     location = incident.get("location", {})
                     incident_type = incident.get("type", break_type)
 
-                    standardized_findings.append({
-                        "rule_id": incident_type.lower().replace(" ", "-"),
-                        "file": location.get("filename", "unknown"),
-                        "line_number": location.get("line_start", 0),
-                        "end_line": location.get("line_end", 0),
-                        "description": f"{break_type} detected",
-                        "commit": "N/A",
-                        "verified": verified,
-                        "start_column": location.get("column_start"),
-                        "end_column": location.get("column_end"),
-                    })
+                    standardized_findings.append(
+                        {
+                            "rule_id": incident_type.lower().replace(" ", "-"),
+                            "file": location.get("filename", "unknown"),
+                            "line_number": location.get("line_start", 0),
+                            "end_line": location.get("line_end", 0),
+                            "description": f"{break_type} detected",
+                            "commit": "N/A",
+                            "verified": verified,
+                            "start_column": location.get("column_start"),
+                            "end_column": location.get("column_end"),
+                        }
+                    )
 
             if not standardized_findings:
                 return {"has_secrets": False, "findings": [], "total_findings": 0}

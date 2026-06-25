@@ -1,9 +1,7 @@
 """Tests for violation_rescan module (Issue #1146)."""
 
-import json
 from unittest.mock import patch, MagicMock
 
-import pytest
 
 from ai_guardian.daemon.violation_rescan import (
     rescan_violation,
@@ -12,7 +10,6 @@ from ai_guardian.daemon.violation_rescan import (
 )
 from ai_guardian.tui.pattern_editor import (
     config_section_for_violation,
-    VIOLATION_TYPE_TO_CONFIG,
 )
 
 
@@ -38,7 +35,9 @@ class TestConfigSectionForViolation:
         assert config_section_for_violation("ssrf_blocked") == "ssrf_protection"
 
     def test_config_file_exfil(self):
-        assert config_section_for_violation("config_file_exfil") == "config_file_scanning"
+        assert (
+            config_section_for_violation("config_file_exfil") == "config_file_scanning"
+        )
 
     def test_context_poisoning(self):
         assert config_section_for_violation("context_poisoning") == "context_poisoning"
@@ -105,7 +104,12 @@ class TestFindNearestRedaction:
     def test_filters_by_sub_type(self):
         content = "abcdef"
         redactions = [
-            {"type": "pii-phone", "line_number": 1, "position": 0, "original_length": 3},
+            {
+                "type": "pii-phone",
+                "line_number": 1,
+                "position": 0,
+                "original_length": 3,
+            },
             {"type": "pii-ssn", "line_number": 2, "position": 3, "original_length": 3},
         ]
         result = _find_nearest_redaction(redactions, 1, "pii-ssn", content)
@@ -168,6 +172,7 @@ class TestRescanViolation:
         f.write_text("normal\nAPI_KEY=secret123\nnormal\n")
 
         import ai_guardian.hook_processing as hp
+
         hp._last_secret_matched_text = "API_KEY=secret123"
 
         result = rescan_violation(
@@ -202,7 +207,14 @@ class TestRescanViolation:
         mock_pii.return_value = (
             True,
             "***REDACTED***",
-            [{"type": "pii-ssn", "line_number": 2, "position": 4, "original_length": 11}],
+            [
+                {
+                    "type": "pii-ssn",
+                    "line_number": 2,
+                    "position": 4,
+                    "original_length": 11,
+                }
+            ],
             "PII found",
         )
 
@@ -225,55 +237,98 @@ class TestExtractMatchedFromViolation:
 
     def _extract(self, violation):
         from ai_guardian.tui.violations import _extract_matched_from_violation
+
         return _extract_matched_from_violation(violation)
 
     def test_matched_text_field(self):
-        v = {"blocked": {"matched_text": "injected payload"}, "violation_type": "prompt_injection"}
+        v = {
+            "blocked": {"matched_text": "injected payload"},
+            "violation_type": "prompt_injection",
+        }
         assert self._extract(v) == "injected payload"
 
     def test_context_snippet(self):
-        v = {"blocked": {"context_snippet": "+32 56 37 04 17"}, "violation_type": "pii_detected"}
+        v = {
+            "blocked": {"context_snippet": "+32 56 37 04 17"},
+            "violation_type": "pii_detected",
+        }
         assert self._extract(v) == "+32 56 37 04 17"
 
     def test_tool_permission_both_fields(self):
-        v = {"blocked": {"tool_name": "Bash", "tool_value": "rm -rf"}, "violation_type": "tool_permission"}
+        v = {
+            "blocked": {"tool_name": "Bash", "tool_value": "rm -rf"},
+            "violation_type": "tool_permission",
+        }
         assert self._extract(v) == "Bash:rm -rf"
 
     def test_tool_permission_only_tool(self):
-        v = {"blocked": {"tool_name": "mcp__server__tool"}, "violation_type": "tool_permission"}
+        v = {
+            "blocked": {"tool_name": "mcp__server__tool"},
+            "violation_type": "tool_permission",
+        }
         assert self._extract(v) == "mcp__server__tool"
 
     def test_ssrf_tool_value(self):
-        v = {"blocked": {"tool_value": "http://169.254.169.254"}, "violation_type": "ssrf_blocked"}
+        v = {
+            "blocked": {"tool_value": "http://169.254.169.254"},
+            "violation_type": "ssrf_blocked",
+        }
         assert self._extract(v) == "http://169.254.169.254"
 
     def test_ssrf_from_reason(self):
-        v = {"blocked": {"reason": "SSRF blocked: http://internal.corp/admin"}, "violation_type": "ssrf_blocked"}
+        v = {
+            "blocked": {"reason": "SSRF blocked: http://internal.corp/admin"},
+            "violation_type": "ssrf_blocked",
+        }
         assert "http://internal.corp/admin" in self._extract(v)
 
     def test_directory_blocking(self):
-        v = {"blocked": {"denied_directory": "/etc/secrets", "file_path": "/etc/secrets/key.pem"}, "violation_type": "directory_blocking"}
+        v = {
+            "blocked": {
+                "denied_directory": "/etc/secrets",
+                "file_path": "/etc/secrets/key.pem",
+            },
+            "violation_type": "directory_blocking",
+        }
         assert self._extract(v) == "/etc/secrets"
 
     def test_prompt_injection_pattern(self):
-        v = {"blocked": {"pattern": r"ignore.*instructions"}, "violation_type": "prompt_injection"}
+        v = {
+            "blocked": {"pattern": r"ignore.*instructions"},
+            "violation_type": "prompt_injection",
+        }
         assert self._extract(v) == r"ignore.*instructions"
 
     def test_context_poisoning_pattern(self):
-        v = {"blocked": {"pattern": r"system_prompt"}, "violation_type": "context_poisoning"}
+        v = {
+            "blocked": {"pattern": r"system_prompt"},
+            "violation_type": "context_poisoning",
+        }
         assert self._extract(v) == "system_prompt"
 
     def test_supply_chain_pattern(self):
-        v = {"blocked": {"pattern": "malicious-package"}, "violation_type": "supply_chain"}
+        v = {
+            "blocked": {"pattern": "malicious-package"},
+            "violation_type": "supply_chain",
+        }
         assert self._extract(v) == "malicious-package"
 
     def test_pii_types_fallback(self):
-        v = {"blocked": {"pii_types": ["SSN", "Phone Number"]}, "violation_type": "pii_detected"}
+        v = {
+            "blocked": {"pii_types": ["SSN", "Phone Number"]},
+            "violation_type": "pii_detected",
+        }
         assert self._extract(v) == "SSN, Phone Number"
 
     def test_secret_detected_returns_empty(self):
         """Secrets not stored in violation data — requires file rescan."""
-        v = {"blocked": {"secret_type": "aws-access-token", "file_path": "/app/config.py"}, "violation_type": "secret_detected"}
+        v = {
+            "blocked": {
+                "secret_type": "aws-access-token",
+                "file_path": "/app/config.py",
+            },
+            "violation_type": "secret_detected",
+        }
         assert self._extract(v) == ""
 
     def test_empty_blocked(self):
@@ -291,6 +346,7 @@ class TestRestEndpoint:
     def test_handler_requires_violation_type(self):
         """Handler returns 400 if violation_type missing."""
         from ai_guardian.daemon.rest_api import _RestHandler
+
         handler = MagicMock(spec=_RestHandler)
         handler.headers = {"Authorization": "Bearer test"}
         handler._read_body = MagicMock(return_value={"file_path": "/tmp/x"})

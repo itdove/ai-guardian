@@ -6,7 +6,6 @@ Covers all protection layers: permissions, secret scanning, prompt injection,
 SSRF, and config exfiltration.
 """
 
-import json
 from unittest import TestCase
 from unittest.mock import MagicMock, patch
 
@@ -33,13 +32,7 @@ class MCPToolPermissionTests(TestCase):
         config = {
             "permissions": {
                 "enabled": True,
-                "rules": [
-                    {
-                        "matcher": "mcp__*",
-                        "mode": "deny",
-                        "patterns": ["*"]
-                    }
-                ]
+                "rules": [{"matcher": "mcp__*", "mode": "deny", "patterns": ["*"]}],
             }
         }
 
@@ -48,7 +41,7 @@ class MCPToolPermissionTests(TestCase):
         # Action: Attempt to use mcp__notebooklm-mcp__notebook_create
         hook_data = create_hook_data(
             tool_name=attack_constants.MCP_TOOL_NOTEBOOKLM_CREATE,
-            tool_input={"title": "Test Notebook"}
+            tool_input={"title": "Test Notebook"},
         )
 
         allowed, error_msg, _ = policy_checker.check_tool_allowed(hook_data)
@@ -56,8 +49,9 @@ class MCPToolPermissionTests(TestCase):
         # Expected: BLOCKED with "TOOL ACCESS DENIED"
         assert not allowed, "Unlisted MCP tool should be blocked"
         assert error_msg is not None, "Should have error message"
-        assert "TOOL ACCESS DENIED" in error_msg or "denied" in error_msg.lower(), \
-            f"Error should mention denial: {error_msg}"
+        assert (
+            "TOOL ACCESS DENIED" in error_msg or "denied" in error_msg.lower()
+        ), f"Error should mention denial: {error_msg}"
 
     def test_allowed_mcp_tool_in_allowlist(self):
         """
@@ -77,10 +71,10 @@ class MCPToolPermissionTests(TestCase):
                         "mode": "allow",
                         "patterns": [
                             "mcp__notebooklm-mcp__notebook_list",
-                            "mcp__notebooklm-mcp__notebook_get"
-                        ]
+                            "mcp__notebooklm-mcp__notebook_get",
+                        ],
                     }
-                ]
+                ],
             }
         }
 
@@ -88,8 +82,7 @@ class MCPToolPermissionTests(TestCase):
 
         # Action: Use allowed tool
         hook_data = create_hook_data(
-            tool_name="mcp__notebooklm-mcp__notebook_list",
-            tool_input={}
+            tool_name="mcp__notebooklm-mcp__notebook_list", tool_input={}
         )
 
         allowed, error_msg, _ = policy_checker.check_tool_allowed(hook_data)
@@ -116,10 +109,10 @@ class MCPToolPermissionTests(TestCase):
                         "mode": "allow",
                         "patterns": [
                             "mcp__notebooklm-mcp__notebook_list",
-                            "mcp__notebooklm-mcp__notebook_get"
-                        ]
+                            "mcp__notebooklm-mcp__notebook_get",
+                        ],
                     }
-                ]
+                ],
             }
         }
 
@@ -128,7 +121,7 @@ class MCPToolPermissionTests(TestCase):
         # Action: Try to use tool NOT in allowlist
         hook_data = create_hook_data(
             tool_name=attack_constants.MCP_TOOL_NOTEBOOKLM_CREATE,
-            tool_input={"title": "Test"}
+            tool_input={"title": "Test"},
         )
 
         allowed, error_msg, _ = policy_checker.check_tool_allowed(hook_data)
@@ -136,8 +129,9 @@ class MCPToolPermissionTests(TestCase):
         # Expected: BLOCKED
         assert not allowed, "Tool not in allowlist should be blocked"
         assert error_msg is not None, "Should have error message"
-        assert "not in allow list" in error_msg.lower() or "denied" in error_msg.lower(), \
-            f"Error should mention allowlist: {error_msg}"
+        assert (
+            "not in allow list" in error_msg.lower() or "denied" in error_msg.lower()
+        ), f"Error should mention allowlist: {error_msg}"
 
     def test_wildcard_pattern_allows_all_notebooklm_tools(self):
         """
@@ -155,9 +149,9 @@ class MCPToolPermissionTests(TestCase):
                     {
                         "matcher": "mcp__notebooklm-mcp__*",
                         "mode": "allow",
-                        "patterns": ["mcp__notebooklm-mcp__*"]
+                        "patterns": ["mcp__notebooklm-mcp__*"],
                     }
-                ]
+                ],
             }
         }
 
@@ -173,10 +167,7 @@ class MCPToolPermissionTests(TestCase):
         ]
 
         for tool_name in tools:
-            hook_data = create_hook_data(
-                tool_name=tool_name,
-                tool_input={}
-            )
+            hook_data = create_hook_data(tool_name=tool_name, tool_input={})
 
             allowed, error_msg, _ = policy_checker.check_tool_allowed(hook_data)
 
@@ -198,9 +189,9 @@ class MCPToolPermissionTests(TestCase):
                     {
                         "matcher": "mcp__notebooklm-mcp__*",
                         "mode": "allow",
-                        "patterns": ["mcp__notebooklm-mcp__*"]
+                        "patterns": ["mcp__notebooklm-mcp__*"],
                     }
-                ]
+                ],
             }
         }
 
@@ -209,7 +200,7 @@ class MCPToolPermissionTests(TestCase):
         # Action: Try to use custom MCP server
         hook_data = create_hook_data(
             tool_name=attack_constants.MCP_TOOL_BLOCKED_CUSTOM,
-            tool_input={"action": "delete_all"}
+            tool_input={"action": "delete_all"},
         )
 
         allowed, error_msg, _ = policy_checker.check_tool_allowed(hook_data)
@@ -230,32 +221,28 @@ class MCPToolPermissionTests(TestCase):
         tests a regular tool instead.
         """
         # Configure: No permission rules
-        config = {
-            "permissions": {
-                "enabled": True,
-                "rules": []
-            }
-        }
+        config = {"permissions": {"enabled": True, "rules": []}}
 
         policy_checker = ToolPolicyChecker(config=config)
 
         # Action: Try to use a tool that doesn't require explicit allow (e.g., Read)
         hook_data = create_hook_data(
-            tool_name="Read",
-            tool_input={"file_path": "/tmp/test.txt"}
+            tool_name="Read", tool_input={"file_path": "/tmp/test.txt"}
         )
 
         allowed, error_msg, _ = policy_checker.check_tool_allowed(hook_data)
 
         # Expected: ALLOWED (Read tool allowed by default when no rules)
         assert allowed, f"Read tool should be allowed with no rules: {error_msg}"
-        assert error_msg is None, "No error when no rules and tool doesn't require explicit allow"
+        assert (
+            error_msg is None
+        ), "No error when no rules and tool doesn't require explicit allow"
 
 
 class MCPSecretScanningTests(TestCase):
     """Test secret scanning in MCP tool inputs (Scenario 2)"""
 
-    @patch('ai_guardian.hook_processing._load_pattern_server_config')
+    @patch("ai_guardian.hook_processing._load_pattern_server_config")
     def test_secret_in_notebook_title(self, mock_pattern_config):
         """
         Verify secrets in MCP tool parameters are blocked.
@@ -277,10 +264,11 @@ class MCPSecretScanningTests(TestCase):
         # Expected: BLOCKED with "Secret Detected"
         assert has_secrets, "Secret in notebook title should be detected"
         assert error_msg is not None, "Should have error message"
-        assert "Secret Detected" in error_msg, \
-            f"Error should mention secret detection: {error_msg}"
+        assert (
+            "Secret Detected" in error_msg
+        ), f"Error should mention secret detection: {error_msg}"
 
-    @patch('ai_guardian.hook_processing._load_pattern_server_config')
+    @patch("ai_guardian.hook_processing._load_pattern_server_config")
     def test_secret_in_source_text(self, mock_pattern_config):
         """
         Verify secrets in MCP source content are blocked.
@@ -306,10 +294,11 @@ class MCPSecretScanningTests(TestCase):
 
         # Expected: BLOCKED
         assert has_secrets, "Secret in source text should be detected"
-        assert "Secret Detected" in error_msg, \
-            f"Error should mention secret: {error_msg}"
+        assert (
+            "Secret Detected" in error_msg
+        ), f"Error should mention secret: {error_msg}"
 
-    @patch('ai_guardian.hook_processing._load_pattern_server_config')
+    @patch("ai_guardian.hook_processing._load_pattern_server_config")
     def test_multiple_secret_types_detected(self, mock_pattern_config):
         """
         Verify multiple secret types are detected in a single input.
@@ -337,7 +326,7 @@ class MCPSecretScanningTests(TestCase):
         assert has_secrets, "Multiple secrets should be detected"
         assert "Secret Detected" in error_msg, "Error should mention secrets"
 
-    @patch('ai_guardian.hook_processing._load_pattern_server_config')
+    @patch("ai_guardian.hook_processing._load_pattern_server_config")
     def test_legitimate_content_not_blocked(self, mock_pattern_config):
         """
         Verify legitimate content without secrets is allowed.
@@ -386,14 +375,17 @@ class MCPPromptInjectionTests(TestCase):
         config = {"enabled": True}
         # Returns: (is_attack, error_msg, log_mode)
         is_attack, error_msg, _ = check_prompt_injection(
-            malicious_title, config, tool_name=attack_constants.MCP_TOOL_NOTEBOOKLM_CREATE
+            malicious_title,
+            config,
+            tool_name=attack_constants.MCP_TOOL_NOTEBOOKLM_CREATE,
         )
 
         # Expected: BLOCKED
         assert is_attack, "Prompt injection should be detected"
         assert error_msg is not None, "Should have error message"
-        assert "PROMPT INJECTION" in error_msg.upper() or "injection" in error_msg.lower(), \
-            f"Error should mention prompt injection: {error_msg}"
+        assert (
+            "PROMPT INJECTION" in error_msg.upper() or "injection" in error_msg.lower()
+        ), f"Error should mention prompt injection: {error_msg}"
 
     def test_prompt_injection_role_switch_in_source(self):
         """
@@ -411,7 +403,9 @@ class MCPPromptInjectionTests(TestCase):
         config = {"enabled": True}
         # Returns: (is_attack, error_msg, log_mode)
         is_attack, error_msg, _ = check_prompt_injection(
-            malicious_source, config, tool_name=attack_constants.MCP_TOOL_NOTEBOOKLM_SOURCE
+            malicious_source,
+            config,
+            tool_name=attack_constants.MCP_TOOL_NOTEBOOKLM_SOURCE,
         )
 
         # Expected: BLOCKED
@@ -434,7 +428,9 @@ class MCPPromptInjectionTests(TestCase):
         config = {"enabled": True}
         # Returns: (is_attack, error_msg, log_mode)
         is_attack, error_msg, _ = check_prompt_injection(
-            malicious_content, config, tool_name=attack_constants.MCP_TOOL_NOTEBOOKLM_CREATE
+            malicious_content,
+            config,
+            tool_name=attack_constants.MCP_TOOL_NOTEBOOKLM_CREATE,
         )
 
         # Expected: BLOCKED
@@ -457,7 +453,9 @@ class MCPPromptInjectionTests(TestCase):
         config = {"enabled": True}
         # Returns: (is_attack, error_msg, log_mode)
         is_attack, error_msg, _ = check_prompt_injection(
-            legitimate_query, config, tool_name=attack_constants.MCP_TOOL_NOTEBOOKLM_QUERY
+            legitimate_query,
+            config,
+            tool_name=attack_constants.MCP_TOOL_NOTEBOOKLM_QUERY,
         )
 
         # Expected: ALLOWED
@@ -487,17 +485,16 @@ class MCPSSRFProtectionTests(TestCase):
         protector = SSRFProtector(config)
 
         # Action: Bash command with AWS metadata URL
-        tool_input = {
-            "command": f"curl {attack_constants.SSRF_AWS_METADATA}"
-        }
+        tool_input = {"command": f"curl {attack_constants.SSRF_AWS_METADATA}"}
 
         should_block, error_msg = protector.check("Bash", tool_input)
 
         # Expected: BLOCKED
         assert should_block, "AWS metadata endpoint should be blocked"
         assert error_msg is not None, "Should have error message"
-        assert "SSRF" in error_msg.upper() or "metadata" in error_msg.lower(), \
-            f"Error should mention SSRF: {error_msg}"
+        assert (
+            "SSRF" in error_msg.upper() or "metadata" in error_msg.lower()
+        ), f"Error should mention SSRF: {error_msg}"
 
     def test_ssrf_gcp_metadata_in_bash_blocked(self):
         """
@@ -513,9 +510,7 @@ class MCPSSRFProtectionTests(TestCase):
         protector = SSRFProtector(config)
 
         # Action: Bash with GCP metadata URL
-        tool_input = {
-            "command": f"wget {attack_constants.SSRF_GCP_METADATA}"
-        }
+        tool_input = {"command": f"wget {attack_constants.SSRF_GCP_METADATA}"}
 
         should_block, error_msg = protector.check("Bash", tool_input)
 
@@ -559,9 +554,7 @@ class MCPSSRFProtectionTests(TestCase):
         protector = SSRFProtector(config)
 
         # Action: Legitimate public URL in Bash
-        tool_input = {
-            "command": f"curl {attack_constants.LEGITIMATE_PUBLIC_URL}"
-        }
+        tool_input = {"command": f"curl {attack_constants.LEGITIMATE_PUBLIC_URL}"}
 
         should_block, error_msg = protector.check("Bash", tool_input)
 
@@ -624,8 +617,9 @@ class MCPConfigExfiltrationTests(TestCase):
         # Expected: BLOCKED
         assert is_threat, "Config exfiltration should be detected in CLAUDE.md"
         assert error_msg is not None, "Should have error message"
-        assert "exfiltration" in error_msg.lower() or "curl" in error_msg.lower(), \
-            f"Should detect config exfiltration: {error_msg}"
+        assert (
+            "exfiltration" in error_msg.lower() or "curl" in error_msg.lower()
+        ), f"Should detect config exfiltration: {error_msg}"
 
     def test_credential_exfiltration_in_agents_md_blocked(self):
         """
@@ -701,13 +695,11 @@ class MCPCombinedProtectionTests(TestCase):
                     {
                         "matcher": "mcp__notebooklm-mcp__*",
                         "mode": "allow",
-                        "patterns": ["mcp__notebooklm-mcp__*"]
+                        "patterns": ["mcp__notebooklm-mcp__*"],
                     }
-                ]
+                ],
             },
-            "ssrf_protection": {
-                "enabled": True
-            }
+            "ssrf_protection": {"enabled": True},
         }
 
         policy_checker = ToolPolicyChecker(config=config)
@@ -715,7 +707,7 @@ class MCPCombinedProtectionTests(TestCase):
         # Test 1: Permission check (should PASS for allowed tool)
         hook_data = create_hook_data(
             tool_name=attack_constants.MCP_TOOL_NOTEBOOKLM_SOURCE,
-            tool_input={"url": "https://example.com"}
+            tool_input={"url": "https://example.com"},
         )
 
         allowed, error_msg, _ = policy_checker.check_tool_allowed(hook_data)
@@ -724,16 +716,17 @@ class MCPCombinedProtectionTests(TestCase):
         # Test 2: SSRF check via Bash tool (should BLOCK)
         bash_hook_data = create_hook_data(
             tool_name="Bash",
-            tool_input={"command": f"curl {attack_constants.SSRF_AWS_METADATA}"}
+            tool_input={"command": f"curl {attack_constants.SSRF_AWS_METADATA}"},
         )
 
         allowed, error_msg, _ = policy_checker.check_tool_allowed(bash_hook_data)
         assert not allowed, "SSRF attempt in Bash should be blocked"
         assert error_msg is not None, "SSRF block should have error message"
-        assert "SSRF" in error_msg.upper() or "metadata" in error_msg.lower(), \
-            f"Error should mention SSRF: {error_msg}"
+        assert (
+            "SSRF" in error_msg.upper() or "metadata" in error_msg.lower()
+        ), f"Error should mention SSRF: {error_msg}"
 
-    @patch('ai_guardian.hook_processing._load_pattern_server_config')
+    @patch("ai_guardian.hook_processing._load_pattern_server_config")
     def test_defense_in_depth_multiple_triggers(self, mock_pattern_config):
         """
         Verify defense in depth - multiple violations trigger appropriate blocks.
@@ -764,7 +757,9 @@ class MCPCombinedProtectionTests(TestCase):
         config = {"enabled": True}
         # Returns: (is_attack, error_msg, log_mode)
         is_injection, injection_error, _ = check_prompt_injection(
-            malicious_content, config, tool_name=attack_constants.MCP_TOOL_NOTEBOOKLM_CREATE
+            malicious_content,
+            config,
+            tool_name=attack_constants.MCP_TOOL_NOTEBOOKLM_CREATE,
         )
 
         assert is_injection, "Prompt injection should be detected"
@@ -784,6 +779,7 @@ class MCPServerToolInputFormatTests(TestCase):
         """check_path returns allowed for paths not matched by directory rules."""
         import sys
         import tempfile
+
         if sys.version_info < (3, 10):
             pytest.skip("MCP SDK requires Python >= 3.10")
 
@@ -795,15 +791,16 @@ class MCPServerToolInputFormatTests(TestCase):
             server = create_server()
             tool = server._tool_manager._tools["check_path"]
             result = tool.fn(path=f.name)
-            assert result["status"] == "allowed", (
-                f"Non-protected path should be allowed, got: {result}"
-            )
+            assert (
+                result["status"] == "allowed"
+            ), f"Non-protected path should be allowed, got: {result}"
 
     def test_check_path_denied_for_protected_path(self):
         """check_path returns denied for paths matching directory deny rules."""
         import sys
         import tempfile
         import os
+
         if sys.version_info < (3, 10):
             pytest.skip("MCP SDK requires Python >= 3.10")
 
@@ -826,7 +823,11 @@ class MCPServerToolInputFormatTests(TestCase):
             }
             with patch("ai_guardian.tool_policy.ToolPolicyChecker") as mock_cls:
                 mock_checker = MagicMock()
-                mock_checker.check_tool_allowed.return_value = (False, "Denied", "Write")
+                mock_checker.check_tool_allowed.return_value = (
+                    False,
+                    "Denied",
+                    "Write",
+                )
                 mock_cls.return_value = mock_checker
 
                 server = create_server()
@@ -841,6 +842,7 @@ class MCPServerToolInputFormatTests(TestCase):
     def test_check_command_blocked_for_secret_pattern(self):
         """check_command returns blocked when command contains secret patterns."""
         import sys
+
         if sys.version_info < (3, 10):
             pytest.skip("MCP SDK requires Python >= 3.10")
 
@@ -853,23 +855,31 @@ class MCPServerToolInputFormatTests(TestCase):
         with patch("ai_guardian.tool_policy.ToolPolicyChecker") as mock_cls:
             mock_checker = MagicMock()
             mock_checker.check_tool_allowed.return_value = (
-                False, "Secret detected in command", "Bash"
+                False,
+                "Secret detected in command",
+                "Bash",
             )
             mock_cls.return_value = mock_checker
 
             server = create_server()
             tool = server._tool_manager._tools["check_command"]
-            result = tool.fn(command="curl -H 'Authorization: Bearer sk_live_abc123def456'")
+            result = tool.fn(
+                command="curl -H 'Authorization: Bearer sk_live_abc123def456'"
+            )
             assert result["status"] == "blocked"
             assert result["reason"] == "secret_detected"
 
             hook_data = mock_checker.check_tool_allowed.call_args[0][0]
             assert "tool_input" in hook_data
-            assert hook_data["tool_input"]["command"] == "curl -H 'Authorization: Bearer sk_live_abc123def456'"
+            assert (
+                hook_data["tool_input"]["command"]
+                == "curl -H 'Authorization: Bearer sk_live_abc123def456'"
+            )
 
     def test_check_command_allowed_for_safe_command(self):
         """check_command returns allowed for safe commands."""
         import sys
+
         if sys.version_info < (3, 10):
             pytest.skip("MCP SDK requires Python >= 3.10")
 
@@ -878,6 +888,6 @@ class MCPServerToolInputFormatTests(TestCase):
         server = create_server()
         tool = server._tool_manager._tools["check_command"]
         result = tool.fn(command="ls -la")
-        assert result["status"] == "allowed", (
-            f"Safe command should be allowed, got: {result}"
-        )
+        assert (
+            result["status"] == "allowed"
+        ), f"Safe command should be allowed, got: {result}"

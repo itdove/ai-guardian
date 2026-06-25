@@ -22,6 +22,7 @@ from ai_guardian.tui.console_settings import load_editor_theme
 
 try:
     from jsonschema import Draft7Validator, ValidationError as JsonSchemaValidationError
+
     HAS_JSONSCHEMA = True
 except ImportError:
     HAS_JSONSCHEMA = False
@@ -37,8 +38,12 @@ def _get_schema_validator():
         return None
     if _schema_validator is None:
         try:
-            schema_path = Path(__file__).parent.parent / "schemas" / "ai-guardian-config.schema.json"
-            with open(schema_path, 'r', encoding='utf-8') as f:
+            schema_path = (
+                Path(__file__).parent.parent
+                / "schemas"
+                / "ai-guardian-config.schema.json"
+            )
+            with open(schema_path, "r", encoding="utf-8") as f:
                 schema = json.load(f)
             _schema_validator = Draft7Validator(schema)
         except Exception:
@@ -64,7 +69,11 @@ def validate_against_schema(config: dict) -> List[str]:
         return []
     warnings = []
     for error in validator.iter_errors(config):
-        path = " -> ".join(str(p) for p in error.absolute_path) if error.absolute_path else "root"
+        path = (
+            " -> ".join(str(p) for p in error.absolute_path)
+            if error.absolute_path
+            else "root"
+        )
         warnings.append(f"{path}: {error.message}")
     return warnings
 
@@ -138,7 +147,9 @@ class ConfirmSaveModal(ModalScreen):
                 for w in self._warnings[:10]:
                     warning_text += f"  [yellow]- {w}[/yellow]\n"
                 if len(self._warnings) > 10:
-                    warning_text += f"  [dim]... and {len(self._warnings) - 10} more[/dim]\n"
+                    warning_text += (
+                        f"  [dim]... and {len(self._warnings) - 10} more[/dim]\n"
+                    )
                 warning_text += "\n[dim]These are non-blocking. The JSON is valid and can be saved.[/dim]"
                 yield Static(warning_text, id="save-modal-warnings")
             with Horizontal(id="save-modal-actions"):
@@ -248,13 +259,16 @@ class ConfigEditorContent(Container):
                 self._config_path = project_path
             else:
                 from ai_guardian.config_utils import _find_git_root
+
                 root = _find_git_root() or Path.cwd()
                 self._config_path = root / ".ai-guardian" / "ai-guardian.json"
         else:
             config_dir = get_config_dir()
             self._config_path = config_dir / "ai-guardian.json"
         try:
-            self.query_one("#editor-path", Static).update(f"[dim]{self._config_path}[/dim]")
+            self.query_one("#editor-path", Static).update(
+                f"[dim]{self._config_path}[/dim]"
+            )
         except Exception:
             pass
 
@@ -285,7 +299,7 @@ class ConfigEditorContent(Container):
         editor = self.query_one("#config-text-editor", TextArea)
         if self._config_path and self._config_path.exists():
             try:
-                content = self._config_path.read_text(encoding='utf-8')
+                content = self._config_path.read_text(encoding="utf-8")
                 editor.load_text(content)
                 self._update_status(content)
             except Exception as e:
@@ -293,7 +307,9 @@ class ConfigEditorContent(Container):
                 self._set_status(f"Error loading: {e}", "status-invalid")
         else:
             editor.load_text("{}")
-            self._set_status("No config file found — starting with empty config", "status-warning")
+            self._set_status(
+                "No config file found — starting with empty config", "status-warning"
+            )
 
     def on_text_area_changed(self, event: TextArea.Changed) -> None:
         if event.text_area.id == "config-text-editor":
@@ -357,7 +373,7 @@ class ConfigEditorContent(Container):
                 shutil.copy2(self._config_path, backup_path)
 
             self._config_path.parent.mkdir(parents=True, exist_ok=True)
-            self._config_path.write_text(text, encoding='utf-8')
+            self._config_path.write_text(text, encoding="utf-8")
             return True, None
         except Exception as e:
             return False, str(e)

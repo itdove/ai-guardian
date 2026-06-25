@@ -186,7 +186,9 @@ class UnicodeAttackDetectorTest(unittest.TestCase):
         detector_no_emoji = UnicodeAttackDetector({"allow_emoji": False})
         is_attack_no_emoji, _ = detector_no_emoji.detect_zero_width(text)
         # With allow_emoji=False, should detect
-        self.assertTrue(is_attack_no_emoji, "ZWJ should be detected when emoji not allowed")
+        self.assertTrue(
+            is_attack_no_emoji, "ZWJ should be detected when emoji not allowed"
+        )
 
     def test_rtl_text_allowed(self):
         """Test that RTL language text with bidi marks is allowed when allow_rtl_languages=True"""
@@ -198,7 +200,9 @@ class UnicodeAttackDetectorTest(unittest.TestCase):
         detector_no_rtl = UnicodeAttackDetector({"allow_rtl_languages": False})
         is_attack_no_rtl, _ = detector_no_rtl.detect_bidi_override(text)
         # With allow_rtl_languages=False, should detect
-        self.assertTrue(is_attack_no_rtl, "Bidi override should be detected when RTL not allowed")
+        self.assertTrue(
+            is_attack_no_rtl, "Bidi override should be detected when RTL not allowed"
+        )
 
     def test_accented_characters_allowed(self):
         """Test that normal accented characters are not flagged"""
@@ -230,7 +234,9 @@ class UnicodeAttackDetectorTest(unittest.TestCase):
 
     def test_mixed_script_text_allowed(self):
         """Test that mixed-script text is allowed"""
-        text = "Hello мир world"  # English + Cyrillic word "world" (not homoglyph attack)
+        text = (
+            "Hello мир world"  # English + Cyrillic word "world" (not homoglyph attack)
+        )
         # This should pass if not using homoglyphs in Latin positions
         detector = UnicodeAttackDetector()
         # Note: This will detect "м" and "и" as homoglyphs if they're in our map
@@ -248,7 +254,7 @@ class UnicodeAttackDetectorTest(unittest.TestCase):
 
     def test_unicode_in_bash_command(self):
         """Test detection of Unicode attacks in bash commands"""
-        command = 'rm -rf​ /tmp'  # Zero-width space before /tmp
+        command = "rm -rf​ /tmp"  # Zero-width space before /tmp
         detector = UnicodeAttackDetector()
         is_attack, details = detector.check(command)
         self.assertTrue(is_attack)
@@ -318,10 +324,7 @@ class PromptInjectionUnicodeIntegrationTest(unittest.TestCase):
 
     def test_unicode_attack_warn_mode(self):
         """Test that warn mode allows execution but logs"""
-        config = {
-            "action": "warn",
-            "unicode_detection": {"enabled": True}
-        }
+        config = {"action": "warn", "unicode_detection": {"enabled": True}}
         detector = PromptInjectionDetector(config)
         content = "mali​cious command"  # Zero-width space
         should_block, error_msg, detected = detector.detect(content)
@@ -331,10 +334,7 @@ class PromptInjectionUnicodeIntegrationTest(unittest.TestCase):
 
     def test_unicode_attack_log_only_mode(self):
         """Test that log-only mode allows execution silently"""
-        config = {
-            "action": "log-only",
-            "unicode_detection": {"enabled": True}
-        }
+        config = {"action": "log-only", "unicode_detection": {"enabled": True}}
         detector = PromptInjectionDetector(config)
         content = "mali​cious command"  # Zero-width space
         should_block, error_msg, detected = detector.detect(content)
@@ -344,9 +344,7 @@ class PromptInjectionUnicodeIntegrationTest(unittest.TestCase):
 
     def test_unicode_detection_disabled(self):
         """Test that Unicode detection can be disabled via config"""
-        config = {
-            "unicode_detection": {"enabled": False}
-        }
+        config = {"unicode_detection": {"enabled": False}}
         detector = PromptInjectionDetector(config)
         content = "mali​cious command"  # Zero-width space
         should_block, error_msg, detected = detector.detect(content)
@@ -403,7 +401,6 @@ class UnicodeDetectorIgnoreFilesTest(unittest.TestCase):
 
     def test_ignore_files_leading_double_star_patterns(self):
         """Test leading ** patterns work in unicode detection ignore_files"""
-        from pathlib import Path
 
         # Text with unicode attack
         text_with_unicode = "malicious​command"  # Contains zero-width space
@@ -416,28 +413,29 @@ class UnicodeDetectorIgnoreFilesTest(unittest.TestCase):
             ],
             "unicode_detection": {
                 "enabled": True,
-            }
+            },
         }
         detector = PromptInjectionDetector(config)
 
         # Should ignore file in development/documentations
         should_block, msg, detected = detector.detect(
             text_with_unicode,
-            file_path="/Users/username/development/documentations/ai-guardian/file.md"
+            file_path="/Users/username/development/documentations/ai-guardian/file.md",
         )
-        self.assertFalse(detected, "Should ignore files in **/development/documentations/**")
+        self.assertFalse(
+            detected, "Should ignore files in **/development/documentations/**"
+        )
 
         # Should ignore file in .claude/skills
         should_block, msg, detected = detector.detect(
             text_with_unicode,
-            file_path="/home/user/.claude/skills/code-review/SKILL.md"
+            file_path="/home/user/.claude/skills/code-review/SKILL.md",
         )
         self.assertFalse(detected, "Should ignore files in **/.claude/skills/**")
 
         # Should NOT ignore file in different location
         should_block, msg, detected = detector.detect(
-            text_with_unicode,
-            file_path="/home/user/project/src/main.py"
+            text_with_unicode, file_path="/home/user/project/src/main.py"
         )
         self.assertTrue(detected, "Should detect unicode in non-ignored files")
 
@@ -451,21 +449,19 @@ class UnicodeDetectorIgnoreFilesTest(unittest.TestCase):
             "ignore_files": ["**/docs/**"],
             "unicode_detection": {
                 "enabled": True,
-            }
+            },
         }
         detector = PromptInjectionDetector(config)
 
         # Should match docs anywhere in path
         should_block, msg, detected = detector.detect(
-            text_with_unicode,
-            file_path="/project/deep/nested/path/docs/guide.md"
+            text_with_unicode, file_path="/project/deep/nested/path/docs/guide.md"
         )
         self.assertFalse(detected, "**/docs/** should match deeply nested docs")
 
         # Should match docs in home directory
         should_block, msg, detected = detector.detect(
-            text_with_unicode,
-            file_path=f"{Path.home()}/projects/myapp/docs/README.md"
+            text_with_unicode, file_path=f"{Path.home()}/projects/myapp/docs/README.md"
         )
         self.assertFalse(detected, "**/docs/** should match docs in home")
 

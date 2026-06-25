@@ -5,7 +5,6 @@ and inline config editor.
 """
 
 import platform
-from typing import Optional
 
 from ai_guardian.theme import (
     ANNOTATION_FG,
@@ -65,6 +64,7 @@ def _apply_dark_root(root):
         icon_path = get_image_path("tray-icon-32.png")
         if icon_path:
             import tkinter as tk
+
             icon = tk.PhotoImage(file=str(icon_path))
             root.iconphoto(False, icon)
             root._theme_icon = icon  # prevent GC
@@ -95,6 +95,7 @@ def _setup_sub_dialog(editor, root):
     editor.configure(bg=SURFACE)
 
     from tkinter import ttk
+
     ttk.Style(editor).theme_use("clam")
 
 
@@ -117,13 +118,16 @@ class _TkinterAskDialog:
         if platform.system() == "Darwin":
             try:
                 from AppKit import NSApplication
+
                 NSApplication.sharedApplication().activateIgnoringOtherApps_(True)
             except Exception:
                 pass  # intentionally silent — optional dependency
 
         root.title(build_dialog_title(self._violation))
         root.resizable(False, False)
-        root.protocol("WM_DELETE_WINDOW", lambda: self._on_decision(root, AskDecision.BLOCK))
+        root.protocol(
+            "WM_DELETE_WINDOW", lambda: self._on_decision(root, AskDecision.BLOCK)
+        )
         root.bind("<Escape>", lambda e: self._on_decision(root, AskDecision.BLOCK))
 
         root.attributes("-topmost", True)
@@ -140,17 +144,24 @@ class _TkinterAskDialog:
         header_frame = ttk.Frame(main)
         header_frame.pack(fill="x")
         tk.Label(
-            header_frame, text=f"{icon} ", font=("", 16),
-            bg=SURFACE, fg=badge_color,
+            header_frame,
+            text=f"{icon} ",
+            font=("", 16),
+            bg=SURFACE,
+            fg=badge_color,
         ).pack(side="left")
-        ttk.Label(header_frame, text="Violation Detected", font=("", 14, "bold")).pack(side="left")
+        ttk.Label(header_frame, text="Violation Detected", font=("", 14, "bold")).pack(
+            side="left"
+        )
         if v.total_findings and v.total_findings > 1:
             remaining = v.total_findings - (v.finding_index or 0) - 1
             counter_text = f"  ({v.finding_index + 1} of {v.total_findings}"
             if remaining > 0:
                 counter_text += f", {remaining} more"
             counter_text += ")"
-            ttk.Label(header_frame, text=counter_text, font=("", 11)).pack(side="left", padx=(5, 0))
+            ttk.Label(header_frame, text=counter_text, font=("", 11)).pack(
+                side="left", padx=(5, 0)
+            )
         ttk.Separator(main, orient="horizontal").pack(fill="x", pady=(5, 10))
 
         info_frame = ttk.LabelFrame(main, text="Details", padding=10)
@@ -168,14 +179,23 @@ class _TkinterAskDialog:
         for label, value in details:
             row = ttk.Frame(info_frame)
             row.pack(fill="x", pady=1)
-            ttk.Label(row, text=f"{label}:", font=("", 0, "bold"), width=12, anchor="w").pack(side="left")
-            ttk.Label(row, text=value, wraplength=600).pack(side="left", fill="x", expand=True)
+            ttk.Label(
+                row, text=f"{label}:", font=("", 0, "bold"), width=12, anchor="w"
+            ).pack(side="left")
+            ttk.Label(row, text=value, wraplength=600).pack(
+                side="left", fill="x", expand=True
+            )
 
         text_frame = ttk.LabelFrame(main, text="Matched Text", padding=5)
         text_frame.pack(fill="x", pady=(0, 10))
         matched_display = tk.Text(
-            text_frame, height=3, width=60, wrap="word", state="normal",
-            background=CODE_BG, foreground=TEXT_MUTED,
+            text_frame,
+            height=3,
+            width=60,
+            wrap="word",
+            state="normal",
+            background=CODE_BG,
+            foreground=TEXT_MUTED,
         )
         matched_display.insert("1.0", v.matched_text[:500])
         matched_display.config(state="disabled")
@@ -185,45 +205,61 @@ class _TkinterAskDialog:
         btn_frame.pack(fill="x", pady=(5, 0))
 
         ttk.Button(
-            btn_frame, text="Allow Once", style="AllowOnce.TButton",
+            btn_frame,
+            text="Allow Once",
+            style="AllowOnce.TButton",
             command=lambda: self._on_decision(root, AskDecision.ALLOW_ONCE),
         ).pack(side="left", padx=(0, 5))
 
         ttk.Button(
-            btn_frame, text="Allow Always...", style="AllowAlways.TButton",
+            btn_frame,
+            text="Allow Always...",
+            style="AllowAlways.TButton",
             command=lambda: self._on_allow_always(root),
         ).pack(side="left", padx=5)
 
         if v.file_path:
             ttk.Button(
-                btn_frame, text="View File",
+                btn_frame,
+                text="View File",
                 command=lambda: self._on_view_file(),
             ).pack(side="left", padx=5)
 
             from ai_guardian.tui.source_annotator import get_comment_prefix
+
             if get_comment_prefix(v.file_path) is not None:
                 ttk.Button(
-                    btn_frame, text="Suppress in Source...", style="Suppress.TButton",
+                    btn_frame,
+                    text="Suppress in Source...",
+                    style="Suppress.TButton",
                     command=lambda: self._on_suppress_in_source(root),
                 ).pack(side="left", padx=5)
 
             ttk.Button(
-                btn_frame, text="Ignore File...", style="IgnoreFile.TButton",
+                btn_frame,
+                text="Ignore File...",
+                style="IgnoreFile.TButton",
                 command=lambda: self._on_ignore_file(root),
             ).pack(side="left", padx=5)
 
         if v.total_findings and v.total_findings > 1:
             ttk.Button(
-                btn_frame, text="Block All", style="Block.TButton",
+                btn_frame,
+                text="Block All",
+                style="Block.TButton",
                 command=lambda: self._on_decision(root, AskDecision.BLOCK_ALL),
             ).pack(side="right", padx=(5, 0))
         ttk.Button(
-            btn_frame, text="Block", style="Block.TButton",
+            btn_frame,
+            text="Block",
+            style="Block.TButton",
             command=lambda: self._on_decision(root, AskDecision.BLOCK),
         ).pack(side="right")
 
         if self._timeout > 0:
-            root.after(self._timeout * 1000, lambda: self._on_decision(root, AskDecision.BLOCK))
+            root.after(
+                self._timeout * 1000, lambda: self._on_decision(root, AskDecision.BLOCK)
+            )
 
         root.mainloop()
         return self._result
@@ -234,6 +270,7 @@ class _TkinterAskDialog:
 
     def _on_view_file(self):
         from ai_guardian.tui.file_opener import open_in_editor
+
         open_in_editor(self._violation.file_path, self._violation.line_number)
 
     def _show_config_editor(self, root, save_pat):
@@ -242,18 +279,23 @@ class _TkinterAskDialog:
         from tkinter import ttk
 
         from ai_guardian.tui.pattern_editor import (
-            prepare_config_with_pattern, get_config_scope_options,
+            prepare_config_with_pattern,
+            get_config_scope_options,
         )
 
         v = self._violation
         scope_options = get_config_scope_options()
         selected_path = scope_options[0][1]
         json_text, line_number = prepare_config_with_pattern(
-            save_pat, v.config_section, config_path=selected_path,
+            save_pat,
+            v.config_section,
+            config_path=selected_path,
         )
 
         editor = tk.Toplevel(root)
-        editor.title(build_sub_dialog_title("Config Editor — ai-guardian.json", self._violation))
+        editor.title(
+            build_sub_dialog_title("Config Editor — ai-guardian.json", self._violation)
+        )
         editor.resizable(True, True)
         editor.geometry("700x500")
         _setup_sub_dialog(editor, root)
@@ -263,7 +305,9 @@ class _TkinterAskDialog:
 
         ttk.Label(frame, text="Review Config", font=("", 14, "bold")).pack(anchor="w")
         if v.file_path:
-            ttk.Label(frame, text=f"Source: {_format_location(v)}", wraplength=650).pack(anchor="w", pady=(0, 5))
+            ttk.Label(
+                frame, text=f"Source: {_format_location(v)}", wraplength=650
+            ).pack(anchor="w", pady=(0, 5))
         ttk.Label(
             frame,
             text="The pattern has been inserted below. Review the full config, then Save or Cancel.",
@@ -277,20 +321,26 @@ class _TkinterAskDialog:
             scope_var = tk.StringVar(value=selected_path)
             for label, path_str in scope_options:
                 ttk.Radiobutton(
-                    scope_frame, text=f"{label} ({path_str})",
-                    variable=scope_var, value=path_str,
+                    scope_frame,
+                    text=f"{label} ({path_str})",
+                    variable=scope_var,
+                    value=path_str,
                 ).pack(anchor="w")
 
             def _on_scope_change(*_args):
                 nonlocal json_text, line_number, selected_path
                 selected_path = scope_var.get()
                 json_text, line_number = prepare_config_with_pattern(
-                    save_pat, v.config_section, config_path=selected_path,
+                    save_pat,
+                    v.config_section,
+                    config_path=selected_path,
                 )
                 config_text.config(state="normal")
                 config_text.delete("1.0", "end")
                 config_text.insert("1.0", json_text)
-                config_text.tag_add("highlight", f"{line_number}.0", f"{line_number}.end")
+                config_text.tag_add(
+                    "highlight", f"{line_number}.0", f"{line_number}.end"
+                )
                 config_text.tag_config("highlight", background=HIGHLIGHT_BG)
                 config_text.see(f"{line_number}.0")
                 config_text.update_idletasks()
@@ -301,7 +351,14 @@ class _TkinterAskDialog:
         btn_frame.pack(side="bottom", fill="x", pady=(5, 0))
 
         status_var = tk.StringVar(value="Valid JSON")
-        status_label = tk.Label(frame, textvariable=status_var, font=("", 11), anchor="w", fg=SUCCESS, bg=SURFACE)
+        status_label = tk.Label(
+            frame,
+            textvariable=status_var,
+            font=("", 11),
+            anchor="w",
+            fg=SUCCESS,
+            bg=SURFACE,
+        )
         status_label.pack(side="bottom", fill="x")
 
         text_frame = ttk.Frame(frame)
@@ -311,7 +368,9 @@ class _TkinterAskDialog:
         scrollbar.pack(side="right", fill="y")
 
         config_text = tk.Text(
-            text_frame, wrap="none", undo=True,
+            text_frame,
+            wrap="none",
+            undo=True,
             font=_CODE_FONT,
             yscrollcommand=scrollbar.set,
         )
@@ -327,6 +386,7 @@ class _TkinterAskDialog:
 
         def on_save():
             import json as json_mod
+
             text = config_text.get("1.0", "end-1c")
             try:
                 json_mod.loads(text)
@@ -352,7 +412,9 @@ class _TkinterAskDialog:
             root.deiconify()
 
         ttk.Button(btn_frame, text="Cancel", command=on_cancel).pack(side="right")
-        ttk.Button(btn_frame, text="Save", command=on_save, style="Save.TButton").pack(side="right", padx=(0, 5))
+        ttk.Button(btn_frame, text="Save", command=on_save, style="Save.TButton").pack(
+            side="right", padx=(0, 5)
+        )
 
     def _on_allow_always(self, root):
         """Open the pattern editor and process the result."""
@@ -360,8 +422,11 @@ class _TkinterAskDialog:
         from tkinter import ttk
 
         from ai_guardian.tui.pattern_editor import (
-            validate_pattern, generate_config_preview, suggest_pattern,
-            get_pattern_type_for_section, PATTERN_TYPES,
+            validate_pattern,
+            generate_config_preview,
+            suggest_pattern,
+            get_pattern_type_for_section,
+            PATTERN_TYPES,
         )
 
         v = self._violation
@@ -370,27 +435,51 @@ class _TkinterAskDialog:
 
         root.withdraw()
         editor = tk.Toplevel(root)
-        editor.title(build_sub_dialog_title("Allow Always — Edit Pattern", self._violation))
+        editor.title(
+            build_sub_dialog_title("Allow Always — Edit Pattern", self._violation)
+        )
         editor.resizable(False, False)
         _setup_sub_dialog(editor, root)
 
         frame = ttk.Frame(editor, padding=15)
         frame.pack(fill="both", expand=True)
 
-        ttk.Label(frame, text="Allow Always — Edit Pattern", font=("", 12, "bold")).pack(anchor="w")
+        ttk.Label(
+            frame, text="Allow Always — Edit Pattern", font=("", 12, "bold")
+        ).pack(anchor="w")
         if v.file_path:
-            ttk.Label(frame, text=f"File: {_format_location(v)}", wraplength=500).pack(anchor="w", pady=(0, 5))
-        ttk.Label(frame, text=f"Edit the {ptype_label.lower()} below to match this text. The pattern will be added to the allowlist.", wraplength=500).pack(anchor="w", pady=(0, 5))
+            ttk.Label(frame, text=f"File: {_format_location(v)}", wraplength=500).pack(
+                anchor="w", pady=(0, 5)
+            )
+        ttk.Label(
+            frame,
+            text=f"Edit the {ptype_label.lower()} below to match this text. The pattern will be added to the allowlist.",
+            wraplength=500,
+        ).pack(anchor="w", pady=(0, 5))
         ttk.Separator(frame, orient="horizontal").pack(fill="x", pady=(0, 10))
 
-        ttk.Label(frame, text="Matched text (reference):", font=("", 0, "bold")).pack(anchor="w")
-        matched_display = tk.Text(frame, height=2, width=60, wrap="word", state="normal")
+        ttk.Label(frame, text="Matched text (reference):", font=("", 0, "bold")).pack(
+            anchor="w"
+        )
+        matched_display = tk.Text(
+            frame, height=2, width=60, wrap="word", state="normal"
+        )
         matched_display.insert("1.0", v.matched_text[:500])
-        matched_display.config(state="disabled", background=CODE_BG, foreground=TEXT_MUTED)
+        matched_display.config(
+            state="disabled", background=CODE_BG, foreground=TEXT_MUTED
+        )
         matched_display.pack(fill="x", pady=(0, 10))
 
-        ttk.Label(frame, text=f"Pattern ({ptype_label}):", font=("", 0, "bold")).pack(anchor="w")
-        pattern_var = tk.StringVar(value=suggest_pattern(v.matched_text, v.config_section) if v.matched_text else "")
+        ttk.Label(frame, text=f"Pattern ({ptype_label}):", font=("", 0, "bold")).pack(
+            anchor="w"
+        )
+        pattern_var = tk.StringVar(
+            value=(
+                suggest_pattern(v.matched_text, v.config_section)
+                if v.matched_text
+                else ""
+            )
+        )
         pattern_entry = ttk.Entry(frame, textvariable=pattern_var, width=60)
         pattern_entry.pack(fill="x", pady=(0, 5))
 
@@ -398,7 +487,13 @@ class _TkinterAskDialog:
         test_frame.pack(fill="x", pady=(0, 10))
 
         status_var = tk.StringVar(value="")
-        status_label = tk.Label(test_frame, textvariable=status_var, font=("", 11, "bold"), anchor="w", bg=SURFACE)
+        status_label = tk.Label(
+            test_frame,
+            textvariable=status_var,
+            font=("", 11, "bold"),
+            anchor="w",
+            bg=SURFACE,
+        )
         status_label.pack(side="right", fill="x", expand=True, padx=(10, 0))
 
         def do_test():
@@ -409,7 +504,9 @@ class _TkinterAskDialog:
                 status_label.config(fg=SUCCESS)
                 preview_text.config(state="normal")
                 preview_text.delete("1.0", "end")
-                preview_text.insert("1.0", generate_config_preview(pat, v.config_section))
+                preview_text.insert(
+                    "1.0", generate_config_preview(pat, v.config_section)
+                )
                 preview_text.config(state="disabled")
             else:
                 status_var.set(f"❌ FAIL: {msg}")
@@ -424,10 +521,12 @@ class _TkinterAskDialog:
         do_test()
 
         _debounce_id = [None]
+
         def _on_pattern_change(*_args):
             if _debounce_id[0] is not None:
                 editor.after_cancel(_debounce_id[0])
             _debounce_id[0] = editor.after(300, do_test)
+
         pattern_var.trace_add("write", _on_pattern_change)
 
         btn_frame = ttk.Frame(frame)
@@ -447,7 +546,9 @@ class _TkinterAskDialog:
             editor.destroy()
             root.deiconify()
 
-        ttk.Button(btn_frame, text="Add to Allowlist", command=on_confirm, style="Save.TButton").pack(side="right", padx=(5, 0))
+        ttk.Button(
+            btn_frame, text="Add to Allowlist", command=on_confirm, style="Save.TButton"
+        ).pack(side="right", padx=(5, 0))
         ttk.Button(btn_frame, text="Cancel", command=on_cancel).pack(side="right")
 
     def _on_suppress_in_source(self, root):
@@ -455,7 +556,10 @@ class _TkinterAskDialog:
         import tkinter as tk
         from tkinter import ttk
 
-        from ai_guardian.tui.source_annotator import prepare_annotation, write_annotated_source
+        from ai_guardian.tui.source_annotator import (
+            prepare_annotation,
+            write_annotated_source,
+        )
 
         v = self._violation
         violation_line = v.line_number or 1
@@ -467,8 +571,12 @@ class _TkinterAskDialog:
 
         root.withdraw()
         editor = tk.Toplevel(root)
-        ann_label = "inline" if annotation_type == "inline" else "block (begin-allow/end-allow)"
-        editor.title(build_sub_dialog_title(f"Suppress in Source — {ann_label}", self._violation))
+        ann_label = (
+            "inline" if annotation_type == "inline" else "block (begin-allow/end-allow)"
+        )
+        editor.title(
+            build_sub_dialog_title(f"Suppress in Source — {ann_label}", self._violation)
+        )
         editor.resizable(True, True)
         editor.geometry("800x550")
         _setup_sub_dialog(editor, root)
@@ -476,8 +584,12 @@ class _TkinterAskDialog:
         frame = ttk.Frame(editor, padding=10)
         frame.pack(fill="both", expand=True)
 
-        ttk.Label(frame, text=f"Suppress in Source — {ann_label}", font=("", 14, "bold")).pack(anchor="w")
-        ttk.Label(frame, text=f"File: {_format_location(v)}", wraplength=700).pack(anchor="w", pady=(0, 5))
+        ttk.Label(
+            frame, text=f"Suppress in Source — {ann_label}", font=("", 14, "bold")
+        ).pack(anchor="w")
+        ttk.Label(frame, text=f"File: {_format_location(v)}", wraplength=700).pack(
+            anchor="w", pady=(0, 5)
+        )
         ttk.Label(
             frame,
             text="Review the annotated source below. Save to write the file.",
@@ -489,7 +601,9 @@ class _TkinterAskDialog:
         btn_frame.pack(side="bottom", fill="x", pady=(5, 0))
 
         status_var = tk.StringVar(value="")
-        status_label = tk.Label(frame, textvariable=status_var, font=("", 11), anchor="w", bg=SURFACE)
+        status_label = tk.Label(
+            frame, textvariable=status_var, font=("", 11), anchor="w", bg=SURFACE
+        )
         status_label.pack(side="bottom", fill="x")
 
         text_frame = ttk.Frame(frame)
@@ -502,14 +616,24 @@ class _TkinterAskDialog:
         xscrollbar.pack(side="bottom", fill="x")
 
         gutter = tk.Text(
-            text_frame, width=5, padx=4, takefocus=0,
-            border=0, state="disabled", wrap="none",
-            font=_CODE_FONT, background=CODE_BG, foreground=TEXT_DIM,
+            text_frame,
+            width=5,
+            padx=4,
+            takefocus=0,
+            border=0,
+            state="disabled",
+            wrap="none",
+            font=_CODE_FONT,
+            background=CODE_BG,
+            foreground=TEXT_DIM,
         )
         gutter.pack(side="left", fill="y")
 
         source_text = tk.Text(
-            text_frame, wrap="none", undo=True, font=_CODE_FONT,
+            text_frame,
+            wrap="none",
+            undo=True,
+            font=_CODE_FONT,
             yscrollcommand=yscrollbar.set,
             xscrollcommand=xscrollbar.set,
         )
@@ -539,7 +663,11 @@ class _TkinterAskDialog:
         source_text.tag_config("highlight", background=HIGHLIGHT_BG)
 
         source_text.tag_config("annotation", foreground=ANNOTATION_FG)
-        for marker in ["ai-guardian:allow", "ai-guardian:begin-allow", "ai-guardian:end-allow"]:
+        for marker in [
+            "ai-guardian:allow",
+            "ai-guardian:begin-allow",
+            "ai-guardian:end-allow",
+        ]:
             search_start = "1.0"
             while True:
                 pos = source_text.search(marker, search_start, stopindex="end")
@@ -573,7 +701,9 @@ class _TkinterAskDialog:
             root.deiconify()
 
         ttk.Button(btn_frame, text="Cancel", command=on_cancel).pack(side="right")
-        ttk.Button(btn_frame, text="Save", command=on_save, style="Save.TButton").pack(side="right", padx=(0, 5))
+        ttk.Button(btn_frame, text="Save", command=on_save, style="Save.TButton").pack(
+            side="right", padx=(0, 5)
+        )
 
     def _on_ignore_file(self, root):
         """Open ignore file path/scope editor."""
@@ -581,12 +711,17 @@ class _TkinterAskDialog:
         from tkinter import ttk
 
         from ai_guardian.tui.ignore_file_editor import (
-            SCOPE_THIS_SCANNER, SCOPE_ALL_SCANNERS, SCOPE_SELECT_SCANNERS,
-            SCANNER_LABELS, resolve_scanner_types, validate_ignore_path,
+            SCOPE_THIS_SCANNER,
+            SCOPE_ALL_SCANNERS,
+            SCOPE_SELECT_SCANNERS,
+            SCANNER_LABELS,
+            resolve_scanner_types,
+            validate_ignore_path,
             suggest_ignore_path,
         )
         from ai_guardian.aiguardignore import (
-            SCANNER_TYPES, generate_aiguardignore_preview,
+            SCANNER_TYPES,
+            generate_aiguardignore_preview,
         )
 
         v = self._violation
@@ -594,7 +729,9 @@ class _TkinterAskDialog:
 
         root.withdraw()
         editor = tk.Toplevel(root)
-        editor.title(build_sub_dialog_title("Ignore File — .aiguardignore.toml", self._violation))
+        editor.title(
+            build_sub_dialog_title("Ignore File — .aiguardignore.toml", self._violation)
+        )
         editor.resizable(True, True)
         editor.geometry("700x550")
         _setup_sub_dialog(editor, root)
@@ -602,17 +739,25 @@ class _TkinterAskDialog:
         frame = ttk.Frame(editor, padding=10)
         frame.pack(fill="both", expand=True)
 
-        ttk.Label(frame, text="Ignore File — .aiguardignore.toml", font=("", 14, "bold")).pack(anchor="w")
-        ttk.Label(frame, text=f"File: {_format_location(v)}", wraplength=650).pack(anchor="w", pady=(0, 5))
+        ttk.Label(
+            frame, text="Ignore File — .aiguardignore.toml", font=("", 14, "bold")
+        ).pack(anchor="w")
+        ttk.Label(frame, text=f"File: {_format_location(v)}", wraplength=650).pack(
+            anchor="w", pady=(0, 5)
+        )
         ttk.Separator(frame, orient="horizontal").pack(fill="x", pady=(0, 10))
 
-        ttk.Label(frame, text="Path pattern (editable):", font=("", 0, "bold")).pack(anchor="w")
+        ttk.Label(frame, text="Path pattern (editable):", font=("", 0, "bold")).pack(
+            anchor="w"
+        )
         path_var = tk.StringVar(value=rel_path)
         path_entry = ttk.Entry(frame, textvariable=path_var, width=60)
         path_entry.pack(fill="x", pady=(0, 5))
 
         path_status_var = tk.StringVar(value="")
-        path_status_label = tk.Label(frame, textvariable=path_status_var, font=("", 11), anchor="w", bg=SURFACE)
+        path_status_label = tk.Label(
+            frame, textvariable=path_status_var, font=("", 11), anchor="w", bg=SURFACE
+        )
         path_status_label.pack(fill="x", pady=(0, 5))
 
         ttk.Label(frame, text="Scope:", font=("", 0, "bold")).pack(anchor="w")
@@ -621,16 +766,33 @@ class _TkinterAskDialog:
 
         scope_frame = ttk.Frame(frame)
         scope_frame.pack(fill="x", pady=(0, 5))
-        ttk.Radiobutton(scope_frame, text=f"This scanner only ({scanner_label})", variable=scope_var, value=SCOPE_THIS_SCANNER).pack(anchor="w")
-        ttk.Radiobutton(scope_frame, text="All scanners", variable=scope_var, value=SCOPE_ALL_SCANNERS).pack(anchor="w")
-        ttk.Radiobutton(scope_frame, text="Select scanners...", variable=scope_var, value=SCOPE_SELECT_SCANNERS).pack(anchor="w")
+        ttk.Radiobutton(
+            scope_frame,
+            text=f"This scanner only ({scanner_label})",
+            variable=scope_var,
+            value=SCOPE_THIS_SCANNER,
+        ).pack(anchor="w")
+        ttk.Radiobutton(
+            scope_frame,
+            text="All scanners",
+            variable=scope_var,
+            value=SCOPE_ALL_SCANNERS,
+        ).pack(anchor="w")
+        ttk.Radiobutton(
+            scope_frame,
+            text="Select scanners...",
+            variable=scope_var,
+            value=SCOPE_SELECT_SCANNERS,
+        ).pack(anchor="w")
 
         scanner_vars = {}
         scanner_frame = ttk.LabelFrame(frame, text="Scanners", padding=5)
         for st in sorted(SCANNER_TYPES):
             var = tk.BooleanVar(value=(st == v.config_section))
             scanner_vars[st] = var
-            ttk.Checkbutton(scanner_frame, text=SCANNER_LABELS.get(st, st), variable=var).pack(anchor="w")
+            ttk.Checkbutton(
+                scanner_frame, text=SCANNER_LABELS.get(st, st), variable=var
+            ).pack(anchor="w")
 
         ttk.Label(frame, text="Preview:", font=("", 0, "bold")).pack(anchor="w")
         preview_text = tk.Text(frame, height=8, width=60, wrap="word", state="disabled")
@@ -646,14 +808,22 @@ class _TkinterAskDialog:
             path_status_var.set(f"✅ {msg}")
             path_status_label.config(fg=SUCCESS)
 
-            show_select = (scope_var.get() == SCOPE_SELECT_SCANNERS)
+            show_select = scope_var.get() == SCOPE_SELECT_SCANNERS
             if show_select:
-                scanner_frame.pack(fill="x", pady=(0, 5), before=preview_text.master if hasattr(preview_text, 'master') else None)
+                scanner_frame.pack(
+                    fill="x",
+                    pady=(0, 5),
+                    before=(
+                        preview_text.master if hasattr(preview_text, "master") else None
+                    ),
+                )
             else:
                 scanner_frame.pack_forget()
 
             selected = [st for st, var in scanner_vars.items() if var.get()]
-            scanner_types = resolve_scanner_types(scope_var.get(), v.config_section, selected)
+            scanner_types = resolve_scanner_types(
+                scope_var.get(), v.config_section, selected
+            )
 
             try:
                 toml_text, _ = generate_aiguardignore_preview(path, scanner_types)
@@ -681,7 +851,9 @@ class _TkinterAskDialog:
                 path_status_label.config(fg=ERROR)
                 return
             selected = [st for st, var in scanner_vars.items() if var.get()]
-            scanner_types = resolve_scanner_types(scope_var.get(), v.config_section, selected)
+            scanner_types = resolve_scanner_types(
+                scope_var.get(), v.config_section, selected
+            )
             editor.destroy()
             self._show_aiguardignore_editor(root, path, scanner_types)
 
@@ -689,7 +861,12 @@ class _TkinterAskDialog:
             editor.destroy()
             root.deiconify()
 
-        ttk.Button(btn_frame, text="Add to .aiguardignore.toml", command=on_confirm, style="Save.TButton").pack(side="right", padx=(5, 0))
+        ttk.Button(
+            btn_frame,
+            text="Add to .aiguardignore.toml",
+            command=on_confirm,
+            style="Save.TButton",
+        ).pack(side="right", padx=(5, 0))
         ttk.Button(btn_frame, text="Cancel", command=on_cancel).pack(side="right")
 
     def _show_aiguardignore_editor(self, root, path, scanner_types):
@@ -702,7 +879,11 @@ class _TkinterAskDialog:
         toml_text, line_number = generate_aiguardignore_preview(path, scanner_types)
 
         editor = tk.Toplevel(root)
-        editor.title(build_sub_dialog_title("Config Editor — .aiguardignore.toml", self._violation))
+        editor.title(
+            build_sub_dialog_title(
+                "Config Editor — .aiguardignore.toml", self._violation
+            )
+        )
         editor.resizable(True, True)
         editor.geometry("700x500")
         _setup_sub_dialog(editor, root)
@@ -710,7 +891,9 @@ class _TkinterAskDialog:
         frame = ttk.Frame(editor, padding=10)
         frame.pack(fill="both", expand=True)
 
-        ttk.Label(frame, text="Config Editor — .aiguardignore.toml", font=("", 14, "bold")).pack(anchor="w")
+        ttk.Label(
+            frame, text="Config Editor — .aiguardignore.toml", font=("", 14, "bold")
+        ).pack(anchor="w")
         ttk.Label(
             frame,
             text="Review the file. Save to persist the change.",
@@ -722,7 +905,9 @@ class _TkinterAskDialog:
         btn_frame.pack(side="bottom", fill="x", pady=(5, 0))
 
         status_var = tk.StringVar(value="")
-        status_label = tk.Label(frame, textvariable=status_var, font=("", 11), anchor="w", bg=SURFACE)
+        status_label = tk.Label(
+            frame, textvariable=status_var, font=("", 11), anchor="w", bg=SURFACE
+        )
         status_label.pack(side="bottom", fill="x")
 
         text_frame = ttk.Frame(frame)
@@ -732,7 +917,9 @@ class _TkinterAskDialog:
         scrollbar.pack(side="right", fill="y")
 
         config_text = tk.Text(
-            text_frame, wrap="none", undo=True,
+            text_frame,
+            wrap="none",
+            undo=True,
             font=_CODE_FONT,
             yscrollcommand=scrollbar.set,
         )
@@ -765,4 +952,6 @@ class _TkinterAskDialog:
             root.deiconify()
 
         ttk.Button(btn_frame, text="Cancel", command=on_cancel).pack(side="right")
-        ttk.Button(btn_frame, text="Save", command=on_save, style="Save.TButton").pack(side="right", padx=(0, 5))
+        ttk.Button(btn_frame, text="Save", command=on_save, style="Save.TButton").pack(
+            side="right", padx=(0, 5)
+        )

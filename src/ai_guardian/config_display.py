@@ -14,9 +14,8 @@ Usage:
 import json
 import logging
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional
 
-from ai_guardian.config_utils import get_config_dir
 
 logger = logging.getLogger(__name__)
 
@@ -35,6 +34,7 @@ class ConfigDisplay:
         if self.config is None:
             # Import here to avoid circular dependency
             from ai_guardian.tool_policy import ToolPolicyChecker
+
             checker = ToolPolicyChecker()
             self.config = checker.config
 
@@ -43,7 +43,7 @@ class ConfigDisplay:
         show_all: bool = False,
         section: Optional[str] = None,
         preview_auto_rules: bool = False,
-        output_json: bool = False
+        output_json: bool = False,
     ) -> str:
         """
         Generate formatted configuration display.
@@ -102,6 +102,7 @@ class ConfigDisplay:
         """
         # Deep copy config to avoid modifying original
         import copy
+
         output_config = copy.deepcopy(self.config)
 
         # Filter to specific section if requested
@@ -127,21 +128,20 @@ class ConfigDisplay:
             perms = config["permissions"]
             if isinstance(perms, dict) and "rules" in perms:
                 perms["rules"] = [
-                    rule for rule in perms["rules"]
-                    if not rule.get("_generated", False)
+                    rule for rule in perms["rules"] if not rule.get("_generated", False)
                 ]
 
         if "directory_rules" in config:
             dir_rules = config["directory_rules"]
             if isinstance(dir_rules, dict) and "rules" in dir_rules:
                 dir_rules["rules"] = [
-                    rule for rule in dir_rules["rules"]
+                    rule
+                    for rule in dir_rules["rules"]
                     if not rule.get("_generated", False)
                 ]
             elif isinstance(dir_rules, list):
                 config["directory_rules"] = [
-                    rule for rule in dir_rules
-                    if not rule.get("_generated", False)
+                    rule for rule in dir_rules if not rule.get("_generated", False)
                 ]
 
         return config
@@ -170,7 +170,7 @@ class ConfigDisplay:
         output: List[str],
         section_key: str,
         show_all: bool,
-        title: Optional[str] = None
+        title: Optional[str] = None,
     ):
         """
         Add a configuration section to output.
@@ -211,7 +211,7 @@ class ConfigDisplay:
         if "auto_directory_rules" in section:
             auto_config = section["auto_directory_rules"]
             auto_enabled = auto_config.get("enabled", False)
-            output.append(f"  auto_directory_rules:")
+            output.append("  auto_directory_rules:")
             output.append(f"    enabled: {auto_enabled}")
             if auto_enabled:
                 skill_dirs = auto_config.get("skill_directories", "auto")
@@ -227,11 +227,7 @@ class ConfigDisplay:
             output.append("  rules: []")
 
     def _format_permission_rule(
-        self,
-        output: List[str],
-        rule: Dict,
-        index: int,
-        show_all: bool
+        self, output: List[str], rule: Dict, index: int, show_all: bool
     ):
         """Format a single permission rule with source label."""
         # Determine source label
@@ -249,9 +245,13 @@ class ConfigDisplay:
 
         # Format patterns
         if patterns:
-            output.append(f"                patterns:")
+            output.append("                patterns:")
             for pattern in patterns[:5]:  # Limit to first 5
-                pattern_str = pattern if isinstance(pattern, str) else pattern.get("pattern", str(pattern))
+                pattern_str = (
+                    pattern
+                    if isinstance(pattern, str)
+                    else pattern.get("pattern", str(pattern))
+                )
                 output.append(f"                  - {pattern_str}")
             if len(patterns) > 5:
                 output.append(f"                  ... and {len(patterns) - 5} more")
@@ -270,7 +270,7 @@ class ConfigDisplay:
         else:
             # Old array format
             rules = section
-            output.append(f"  (using legacy array format)")
+            output.append("  (using legacy array format)")
 
         if rules:
             output.append(f"  rules: ({len(rules)} total)")
@@ -281,11 +281,7 @@ class ConfigDisplay:
             output.append("  rules: []")
 
     def _format_directory_rule(
-        self,
-        output: List[str],
-        rule: Dict,
-        index: int,
-        show_all: bool
+        self, output: List[str], rule: Dict, index: int, show_all: bool
     ):
         """Format a single directory rule with source label."""
         # Determine source label
@@ -329,7 +325,11 @@ class ConfigDisplay:
             section = self.config.get(section_key)
             if not section:
                 continue
-            rules = section.get("rules", []) if isinstance(section, dict) else section if isinstance(section, list) else []
+            rules = (
+                section.get("rules", [])
+                if isinstance(section, dict)
+                else section if isinstance(section, list) else []
+            )
             if any(isinstance(r, dict) and r.get("_generated") for r in rules):
                 return True
         return False
@@ -376,7 +376,7 @@ class ConfigDisplay:
             output.append("To enable, add to your config:")
             output.append('  "permissions": {')
             output.append('    "auto_directory_rules": {"enabled": true}')
-            output.append('  }')
+            output.append("  }")
             return "\n".join(output)
 
         # Get skill directories to scan
@@ -390,6 +390,7 @@ class ConfigDisplay:
 
         # Generate preview of rules
         from ai_guardian.directory_rule_generator import DirectoryRuleGenerator
+
         generator = DirectoryRuleGenerator(self.config)
         generated_rules = generator.generate_directory_rules()
 
@@ -447,7 +448,6 @@ class ConfigDisplay:
                 "./.cursor/skills",
                 "./.vscode/skills",
                 "./.windsurf/skills",
-
                 # User home directories
                 str(Path.home() / ".claude" / "skills"),
                 str(Path.home() / ".cursor" / "skills"),

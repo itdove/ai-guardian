@@ -1,4 +1,5 @@
 """Tests for configuration file error handling."""
+
 import json
 import sys
 import tempfile
@@ -10,7 +11,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 # Import from parent directory
-sys.path.insert(0, str(Path(__file__).parent.parent.parent / 'src'))
+sys.path.insert(0, str(Path(__file__).parent.parent.parent / "src"))
 
 from ai_guardian import _load_config_file
 
@@ -36,11 +37,14 @@ class TestConfigErrorHandling(unittest.TestCase):
 
             # Mock get_config_dir to return a non-existent path
             # This forces _load_config_file to use the project local config
-            with patch('ai_guardian.config_loaders.get_config_dir') as mock_get_config_dir:
+            with patch(
+                "ai_guardian.config_loaders.get_config_dir"
+            ) as mock_get_config_dir:
                 mock_get_config_dir.return_value = Path("/nonexistent/path")
 
                 # Change to tmpdir so project local config is found
                 import os
+
                 old_cwd = os.getcwd()
                 try:
                     os.chdir(tmpdir)
@@ -73,10 +77,13 @@ class TestConfigErrorHandling(unittest.TestCase):
             config_file = Path(tmpdir) / ".ai-guardian.json"
             config_file.write_text(valid_json)
 
-            with patch('ai_guardian.config_loaders.get_config_dir') as mock_get_config_dir:
+            with patch(
+                "ai_guardian.config_loaders.get_config_dir"
+            ) as mock_get_config_dir:
                 mock_get_config_dir.return_value = Path("/nonexistent/path")
 
                 import os
+
                 old_cwd = os.getcwd()
                 try:
                     os.chdir(tmpdir)
@@ -92,10 +99,13 @@ class TestConfigErrorHandling(unittest.TestCase):
     def test_no_config_file_returns_none(self):
         """Test that missing config file returns None without error."""
         with tempfile.TemporaryDirectory() as tmpdir:
-            with patch('ai_guardian.config_loaders.get_config_dir') as mock_get_config_dir:
+            with patch(
+                "ai_guardian.config_loaders.get_config_dir"
+            ) as mock_get_config_dir:
                 mock_get_config_dir.return_value = Path("/nonexistent/path")
 
                 import os
+
                 old_cwd = os.getcwd()
                 try:
                     os.chdir(tmpdir)
@@ -107,7 +117,9 @@ class TestConfigErrorHandling(unittest.TestCase):
                 finally:
                     os.chdir(old_cwd)
 
-    @pytest.mark.skipif(sys.platform == "win32", reason="chmod not effective on Windows")
+    @pytest.mark.skipif(
+        sys.platform == "win32", reason="chmod not effective on Windows"
+    )
     def test_unreadable_file_returns_error(self):
         """Test that unreadable config file returns error message."""
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -116,9 +128,12 @@ class TestConfigErrorHandling(unittest.TestCase):
 
             # Make file unreadable
             import os
+
             os.chmod(config_file, 0o000)
 
-            with patch('ai_guardian.config_loaders.get_config_dir') as mock_get_config_dir:
+            with patch(
+                "ai_guardian.config_loaders.get_config_dir"
+            ) as mock_get_config_dir:
                 mock_get_config_dir.return_value = Path("/nonexistent/path")
 
                 old_cwd = os.getcwd()
@@ -151,10 +166,13 @@ class TestConfigErrorHandling(unittest.TestCase):
             config_file = Path(tmpdir) / ".ai-guardian.json"
             config_file.write_text(malformed_json)
 
-            with patch('ai_guardian.config_loaders.get_config_dir') as mock_get_config_dir:
+            with patch(
+                "ai_guardian.config_loaders.get_config_dir"
+            ) as mock_get_config_dir:
                 mock_get_config_dir.return_value = Path("/nonexistent/path")
 
                 import os
+
                 old_cwd = os.getcwd()
                 old_stderr = sys.stderr
                 try:
@@ -183,12 +201,13 @@ class TestConfigErrorHandling(unittest.TestCase):
                     os.chdir(old_cwd)
                     sys.stderr = old_stderr
 
-
     def test_json_error_with_format_response_blocking(self):
         """Test that JSON errors are included when blocking operations."""
         from ai_guardian import format_response, IDEType
 
-        warning_msg = "⚠️  Configuration Error: Failed to parse config\nJSON Error: missing comma"
+        warning_msg = (
+            "⚠️  Configuration Error: Failed to parse config\nJSON Error: missing comma"
+        )
         error_msg = "🛡️ BLOCKED: Secret detected"
 
         # Test Claude Code with prompt hook (blocking)
@@ -197,7 +216,7 @@ class TestConfigErrorHandling(unittest.TestCase):
             has_secrets=True,
             error_message=error_msg,
             hook_event="prompt",
-            warning_message=warning_msg
+            warning_message=warning_msg,
         )
 
         # Should include both warning and error
@@ -205,20 +224,24 @@ class TestConfigErrorHandling(unittest.TestCase):
         self.assertIn(warning_msg, output["reason"])
         self.assertIn(error_msg, output["reason"])
         # Warning should appear before error
-        self.assertTrue(output["reason"].index(warning_msg) < output["reason"].index(error_msg))
+        self.assertTrue(
+            output["reason"].index(warning_msg) < output["reason"].index(error_msg)
+        )
 
     def test_json_error_with_format_response_log_mode(self):
         """Test that JSON errors are shown in log mode (no blocking)."""
         from ai_guardian import format_response, IDEType
 
-        warning_msg = "⚠️  Configuration Error: Failed to parse config\nJSON Error: missing comma"
+        warning_msg = (
+            "⚠️  Configuration Error: Failed to parse config\nJSON Error: missing comma"
+        )
 
         # Test Claude Code with prompt hook (log mode)
         result = format_response(
             IDEType.CLAUDE_CODE,
             has_secrets=False,
             hook_event="prompt",
-            warning_message=warning_msg
+            warning_message=warning_msg,
         )
 
         # Should include warning in systemMessage
@@ -227,5 +250,5 @@ class TestConfigErrorHandling(unittest.TestCase):
         self.assertIn(warning_msg, output["systemMessage"])
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()

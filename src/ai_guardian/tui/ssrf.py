@@ -15,7 +15,9 @@ from textual.widgets import Static, Button, Input, Label, Select, Checkbox
 
 from ai_guardian.config_utils import get_config_dir, get_project_config_path
 from ai_guardian.tui.schema_defaults import (
-    SchemaDefaultsMixin, default_indicator, select_options_with_default,
+    SchemaDefaultsMixin,
+    default_indicator,
+    select_options_with_default,
 )
 from ai_guardian.tui.widgets import TimeBasedToggle, sanitize_enabled_value
 
@@ -135,6 +137,7 @@ class SSRFContent(SchemaDefaultsMixin, Container):
             if project_path:
                 return project_path
             from ai_guardian.config_utils import _find_git_root
+
             root = _find_git_root() or Path.cwd()
             return root / ".ai-guardian" / "ai-guardian.json"
         return get_config_dir() / "ai-guardian.json"
@@ -155,7 +158,9 @@ class SSRFContent(SchemaDefaultsMixin, Container):
 
             # Core protections info section
             with Container(classes="section"):
-                yield Static("[bold]Core Protections (Immutable)[/bold]", classes="section-title")
+                yield Static(
+                    "[bold]Core Protections (Immutable)[/bold]", classes="section-title"
+                )
                 yield Static(
                     "[dim]The following protections CANNOT be disabled:\n\n"
                     "Private IP Ranges (RFC 1918):\n"
@@ -173,12 +178,14 @@ class SSRFContent(SchemaDefaultsMixin, Container):
                     "  • fd00:ec2::254 (AWS IPv6)\n\n"
                     "Dangerous URL Schemes:\n"
                     "  • file://, gopher://, ftp://, data://, dict://, ldap://[/dim]",
-                    id="core-protections"
+                    id="core-protections",
                 )
 
             # Action mode section
             with Container(classes="section"):
-                yield Static("[bold]Action on SSRF Detection[/bold]", classes="section-title")
+                yield Static(
+                    "[bold]Action on SSRF Detection[/bold]", classes="section-title"
+                )
 
                 with Horizontal(classes="setting-row"):
                     yield Label("Action Mode:")
@@ -205,12 +212,14 @@ class SSRFContent(SchemaDefaultsMixin, Container):
                     "  • Warn: Logs violation and shows warning, but allows execution\n"
                     "  • Log Only: Logs violation silently without user warning\n"
                     "  Note: Immutable protections (private IPs, dangerous schemes) always block[/dim]",
-                    classes="setting-row"
+                    classes="setting-row",
                 )
 
             # Local development section
             with Container(classes="section"):
-                yield Static("[bold]Local Development Options[/bold]", classes="section-title")
+                yield Static(
+                    "[bold]Local Development Options[/bold]", classes="section-title"
+                )
 
                 with Horizontal(classes="setting-row"):
                     yield Label("Allow Localhost:")
@@ -222,37 +231,62 @@ class SSRFContent(SchemaDefaultsMixin, Container):
 
             # Additional blocked IPs section
             with Container(classes="section"):
-                yield Static("[bold]Additional Blocked IPs[/bold]", classes="section-title")
-                yield Static("Additional IP addresses or CIDR ranges to block:", classes="setting-row")
+                yield Static(
+                    "[bold]Additional Blocked IPs[/bold]", classes="section-title"
+                )
+                yield Static(
+                    "Additional IP addresses or CIDR ranges to block:",
+                    classes="setting-row",
+                )
                 with VerticalScroll(classes="list-scroll"):
                     yield Static("", id="blocked-ips-list")
-                yield Input(placeholder="Enter IP/CIDR to block (e.g., 203.0.113.0/24)", id="new-blocked-ip-input")
-                yield Static("[dim]Press 'i' to add IP/CIDR[/dim]", classes="setting-row")
+                yield Input(
+                    placeholder="Enter IP/CIDR to block (e.g., 203.0.113.0/24)",
+                    id="new-blocked-ip-input",
+                )
+                yield Static(
+                    "[dim]Press 'i' to add IP/CIDR[/dim]", classes="setting-row"
+                )
 
             # Additional blocked domains section
             with Container(classes="section"):
-                yield Static("[bold]Additional Blocked Domains[/bold]", classes="section-title")
+                yield Static(
+                    "[bold]Additional Blocked Domains[/bold]", classes="section-title"
+                )
                 yield Static("Additional domain names to block:", classes="setting-row")
                 with VerticalScroll(classes="list-scroll"):
                     yield Static("", id="blocked-domains-list")
-                yield Input(placeholder="Enter domain to block (e.g., internal.example.com)", id="new-blocked-domain-input")
-                yield Static("[dim]Press 'd' to add domain[/dim]", classes="setting-row")
+                yield Input(
+                    placeholder="Enter domain to block (e.g., internal.example.com)",
+                    id="new-blocked-domain-input",
+                )
+                yield Static(
+                    "[dim]Press 'd' to add domain[/dim]", classes="setting-row"
+                )
 
             # Allowed domains section (NEW in v1.5.0 - Issue #252)
             with Container(classes="section"):
-                yield Static("[bold]Allowed Domains (Override Deny-List)[/bold]", classes="section-title")
+                yield Static(
+                    "[bold]Allowed Domains (Override Deny-List)[/bold]",
+                    classes="section-title",
+                )
                 yield Static(
                     "Domains that override additional_blocked_domains (deny-first approach):",
-                    classes="setting-row"
+                    classes="setting-row",
                 )
                 yield Static(
                     "[dim]⚠️  Cannot override immutable protections (metadata endpoints, private IPs, dangerous schemes)[/dim]",
-                    classes="setting-row"
+                    classes="setting-row",
                 )
                 with VerticalScroll(classes="list-scroll"):
                     yield Static("", id="allowed-domains-list")
-                yield Input(placeholder="Enter domain to allow (e.g., api.corp.internal)", id="new-allowed-domain-input")
-                yield Static("[dim]Press 'a' to add allowed domain[/dim]", classes="setting-row")
+                yield Input(
+                    placeholder="Enter domain to allow (e.g., api.corp.internal)",
+                    id="new-allowed-domain-input",
+                )
+                yield Static(
+                    "[dim]Press 'a' to add allowed domain[/dim]", classes="setting-row"
+                )
 
             # Ignore files section
             with Container(classes="section"):
@@ -284,7 +318,9 @@ class SSRFContent(SchemaDefaultsMixin, Container):
 
             # Statistics section
             with Container(classes="section"):
-                yield Static("[bold]Detection Statistics[/bold]", classes="section-title")
+                yield Static(
+                    "[bold]Detection Statistics[/bold]", classes="section-title"
+                )
                 yield Static("", id="ssrf-stats")
 
     def on_mount(self) -> None:
@@ -312,7 +348,7 @@ class SSRFContent(SchemaDefaultsMixin, Container):
         config = {}
         if config_path.exists():
             try:
-                with open(config_path, 'r', encoding='utf-8') as f:
+                with open(config_path, "r", encoding="utf-8") as f:
                     config = json.load(f)
             except Exception as e:
                 self.app.notify(f"Error loading config: {e}", severity="error")
@@ -332,7 +368,9 @@ class SSRFContent(SchemaDefaultsMixin, Container):
             toggle.load_value(enabled_value)
 
             self.query_one("#action-select", Select).value = action
-            self.query_one("#allow-localhost-checkbox", Checkbox).value = allow_localhost
+            self.query_one("#allow-localhost-checkbox", Checkbox).value = (
+                allow_localhost
+            )
         except Exception:
             pass  # Widgets may not be fully mounted yet
 
@@ -411,9 +449,13 @@ class SSRFContent(SchemaDefaultsMixin, Container):
             self.query_one("#ssrf-stats", Static).update(stats_text)
 
         except ImportError:
-            self.query_one("#ssrf-stats", Static).update("[dim]Violation logging not available[/dim]")
+            self.query_one("#ssrf-stats", Static).update(
+                "[dim]Violation logging not available[/dim]"
+            )
         except Exception as e:
-            self.query_one("#ssrf-stats", Static).update(f"[dim]Error loading stats: {e}[/dim]")
+            self.query_one("#ssrf-stats", Static).update(
+                f"[dim]Error loading stats: {e}[/dim]"
+            )
 
     def save_config(self, config_updates: Dict[str, Any]) -> bool:
         """
@@ -431,7 +473,7 @@ class SSRFContent(SchemaDefaultsMixin, Container):
             # Load existing config
             config = {}
             if config_path.exists():
-                with open(config_path, 'r', encoding='utf-8') as f:
+                with open(config_path, "r", encoding="utf-8") as f:
                     config = json.load(f)
 
             # Ensure ssrf_protection section exists
@@ -439,15 +481,19 @@ class SSRFContent(SchemaDefaultsMixin, Container):
                 config["ssrf_protection"] = {}
 
             if "enabled" in config_updates:
-                config_updates["enabled"] = sanitize_enabled_value(config_updates["enabled"])
+                config_updates["enabled"] = sanitize_enabled_value(
+                    config_updates["enabled"]
+                )
             config["ssrf_protection"].update(config_updates)
 
             # Save config
             config_path.parent.mkdir(parents=True, exist_ok=True)
-            with open(config_path, 'w', encoding='utf-8') as f:
+            with open(config_path, "w", encoding="utf-8") as f:
                 json.dump(config, f, indent=2)
 
-            self.app.notify("SSRF protection configuration saved", severity="information")
+            self.app.notify(
+                "SSRF protection configuration saved", severity="information"
+            )
             return True
 
         except Exception as e:
@@ -456,17 +502,19 @@ class SSRFContent(SchemaDefaultsMixin, Container):
 
     def on_checkbox_changed(self, event: Checkbox.Changed) -> None:
         """Handle checkbox changes - save immediately."""
-        if getattr(self, '_loading', False):
+        if getattr(self, "_loading", False):
             return
         checkbox_id = event.checkbox.id
 
         if checkbox_id == "allow-localhost-checkbox":
             self.save_config({"allow_localhost": event.value})
-            self._update_default_indicator("allow-localhost-checkbox", "allow_localhost", event.value)
+            self._update_default_indicator(
+                "allow-localhost-checkbox", "allow_localhost", event.value
+            )
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         """Handle button press - save toggle state immediately."""
-        if getattr(self, '_loading', False):
+        if getattr(self, "_loading", False):
             return
         bid = event.button.id
         if bid and "ssrf_protection_enabled" in bid:
@@ -477,7 +525,7 @@ class SSRFContent(SchemaDefaultsMixin, Container):
 
     def on_select_changed(self, event) -> None:
         """Handle select changes - save immediately."""
-        if getattr(self, '_loading', False):
+        if getattr(self, "_loading", False):
             return
         select_id = event.select.id
 
@@ -487,7 +535,7 @@ class SSRFContent(SchemaDefaultsMixin, Container):
 
     def on_input_submitted(self, event: Input.Submitted) -> None:
         """Handle Enter key in input fields."""
-        if getattr(self, '_loading', False):
+        if getattr(self, "_loading", False):
             return
         input_id = event.input.id
 
@@ -535,12 +583,15 @@ class SSRFContent(SchemaDefaultsMixin, Container):
         ip_value = ip_input.value.strip()
 
         if not ip_value:
-            self.app.notify("Please enter an IP address or CIDR range", severity="error")
+            self.app.notify(
+                "Please enter an IP address or CIDR range", severity="error"
+            )
             return
 
         # Basic validation - check if it looks like an IP or CIDR
         import re
-        ip_pattern = r'^(\d{1,3}\.){3}\d{1,3}(/\d{1,2})?$'
+
+        ip_pattern = r"^(\d{1,3}\.){3}\d{1,3}(/\d{1,2})?$"
         if not re.match(ip_pattern, ip_value):
             self.app.notify("Invalid IP address or CIDR format", severity="error")
             return
@@ -549,7 +600,7 @@ class SSRFContent(SchemaDefaultsMixin, Container):
 
         try:
             if config_path.exists():
-                with open(config_path, 'r', encoding='utf-8') as f:
+                with open(config_path, "r", encoding="utf-8") as f:
                     config = json.load(f)
             else:
                 config = {}
@@ -567,7 +618,7 @@ class SSRFContent(SchemaDefaultsMixin, Container):
 
             config["ssrf_protection"]["additional_blocked_ips"].append(ip_value)
 
-            with open(config_path, 'w', encoding='utf-8') as f:
+            with open(config_path, "w", encoding="utf-8") as f:
                 json.dump(config, f, indent=2)
 
             # Clear input
@@ -590,7 +641,8 @@ class SSRFContent(SchemaDefaultsMixin, Container):
 
         # Basic validation - check if it looks like a domain
         import re
-        domain_pattern = r'^[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(\.[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*$'
+
+        domain_pattern = r"^[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(\.[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*$"
         if not re.match(domain_pattern, domain_value):
             self.app.notify("Invalid domain format", severity="error")
             return
@@ -599,7 +651,7 @@ class SSRFContent(SchemaDefaultsMixin, Container):
 
         try:
             if config_path.exists():
-                with open(config_path, 'r', encoding='utf-8') as f:
+                with open(config_path, "r", encoding="utf-8") as f:
                     config = json.load(f)
             else:
                 config = {}
@@ -617,14 +669,16 @@ class SSRFContent(SchemaDefaultsMixin, Container):
 
             config["ssrf_protection"]["additional_blocked_domains"].append(domain_value)
 
-            with open(config_path, 'w', encoding='utf-8') as f:
+            with open(config_path, "w", encoding="utf-8") as f:
                 json.dump(config, f, indent=2)
 
             # Clear input
             domain_input.value = ""
 
             self.load_config()
-            self.app.notify(f"✓ Added {domain_value} to blocked domains", severity="success")
+            self.app.notify(
+                f"✓ Added {domain_value} to blocked domains", severity="success"
+            )
 
         except Exception as e:
             self.app.notify(f"Error adding domain: {e}", severity="error")
@@ -640,7 +694,8 @@ class SSRFContent(SchemaDefaultsMixin, Container):
 
         # Basic validation - check if it looks like a domain
         import re
-        domain_pattern = r'^[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(\.[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*$'
+
+        domain_pattern = r"^[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(\.[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*$"
         if not re.match(domain_pattern, domain_value):
             self.app.notify("Invalid domain format", severity="error")
             return
@@ -649,7 +704,7 @@ class SSRFContent(SchemaDefaultsMixin, Container):
 
         try:
             if config_path.exists():
-                with open(config_path, 'r', encoding='utf-8') as f:
+                with open(config_path, "r", encoding="utf-8") as f:
                     config = json.load(f)
             else:
                 config = {}
@@ -667,14 +722,17 @@ class SSRFContent(SchemaDefaultsMixin, Container):
 
             config["ssrf_protection"]["allowed_domains"].append(domain_value)
 
-            with open(config_path, 'w', encoding='utf-8') as f:
+            with open(config_path, "w", encoding="utf-8") as f:
                 json.dump(config, f, indent=2)
 
             # Clear input
             domain_input.value = ""
 
             self.load_config()
-            self.app.notify(f"✓ Added {domain_value} to allowed domains (overrides deny-list)", severity="success")
+            self.app.notify(
+                f"✓ Added {domain_value} to allowed domains (overrides deny-list)",
+                severity="success",
+            )
 
         except Exception as e:
             self.app.notify(f"Error adding allowed domain: {e}", severity="error")
@@ -690,7 +748,7 @@ class SSRFContent(SchemaDefaultsMixin, Container):
         try:
             config = {}
             if config_path.exists():
-                with open(config_path, 'r', encoding='utf-8') as f:
+                with open(config_path, "r", encoding="utf-8") as f:
                     config = json.load(f)
 
             if "ssrf_protection" not in config:
@@ -704,7 +762,7 @@ class SSRFContent(SchemaDefaultsMixin, Container):
 
             config["ssrf_protection"][field].append(value)
 
-            with open(config_path, 'w', encoding='utf-8') as f:
+            with open(config_path, "w", encoding="utf-8") as f:
                 json.dump(config, f, indent=2)
 
             input_widget.value = ""

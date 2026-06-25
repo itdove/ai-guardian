@@ -2,7 +2,6 @@
 Unit tests for skill_discovery module
 """
 
-import json
 import tempfile
 import unittest
 from pathlib import Path
@@ -61,6 +60,7 @@ description: "No name field"
         """Clean up test fixtures"""
         # Clean up temp directory
         import shutil
+
         shutil.rmtree(self.temp_dir, ignore_errors=True)
 
     def test_parse_github_url(self):
@@ -154,7 +154,7 @@ description: "Arc skill"
 
             return mock_response
 
-        with patch('requests.get', side_effect=mock_get_response) as mock_get:
+        with patch("requests.get", side_effect=mock_get_response) as mock_get:
             skills = self.discovery.discover_skills(url, cache_ttl_hours=0)
 
             # Verify skills were discovered with frontmatter name for 'arc'
@@ -173,7 +173,7 @@ description: "Arc skill"
             {"name": "daf-config", "type": "tree"},
         ]
 
-        with patch('requests.get', return_value=mock_response) as mock_get:
+        with patch("requests.get", return_value=mock_response) as mock_get:
             skills = self.discovery.discover_skills(url, cache_ttl_hours=0)
 
             # Verify API was called with self-hosted hostname
@@ -224,7 +224,7 @@ description: "Release skill"
 
             return mock_response
 
-        with patch('requests.get', side_effect=mock_get_response) as mock_get:
+        with patch("requests.get", side_effect=mock_get_response) as mock_get:
             skills = self.discovery.discover_skills(url, cache_ttl_hours=0)
 
             # Verify skills were discovered with frontmatter name for 'release'
@@ -239,21 +239,19 @@ description: "Release skill"
         mock_response.status_code = 200
         mock_response.json.return_value = [{"name": "test-skill", "type": "tree"}]
 
-        with patch('requests.get', return_value=mock_response) as mock_get:
-            with patch('os.environ.get', return_value="custom-token"):
+        with patch("requests.get", return_value=mock_response) as mock_get:
+            with patch("os.environ.get", return_value="custom-token"):
                 skills = self.discovery.discover_skills(
-                    url,
-                    cache_ttl_hours=0,
-                    token_env="CUSTOM_GITLAB_TOKEN"
+                    url, cache_ttl_hours=0, token_env="CUSTOM_GITLAB_TOKEN"
                 )
 
                 # Verify authentication header was set
                 self.assertTrue(mock_get.called)
                 call_kwargs = mock_get.call_args[1]
-                headers = call_kwargs.get('headers', {})
+                headers = call_kwargs.get("headers", {})
 
-                self.assertIn('PRIVATE-TOKEN', headers)
-                self.assertEqual(headers['PRIVATE-TOKEN'], 'custom-token')
+                self.assertIn("PRIVATE-TOKEN", headers)
+                self.assertEqual(headers["PRIVATE-TOKEN"], "custom-token")
 
     def test_gitlab_404_error(self):
         """Test handling of 404 error from GitLab API"""
@@ -262,7 +260,7 @@ description: "Release skill"
         mock_response = Mock()
         mock_response.status_code = 404
 
-        with patch('requests.get', return_value=mock_response):
+        with patch("requests.get", return_value=mock_response):
             skills = self.discovery.discover_skills(url, cache_ttl_hours=0)
 
             # Should return empty set on 404
@@ -275,7 +273,7 @@ description: "Release skill"
         mock_response = Mock()
         mock_response.status_code = 401
 
-        with patch('requests.get', return_value=mock_response):
+        with patch("requests.get", return_value=mock_response):
             skills = self.discovery.discover_skills(url, cache_ttl_hours=0)
 
             # Should return empty set on 401
@@ -307,22 +305,26 @@ description: "Release skill"
         # Create skill with frontmatter name matching directory
         skill1_dir = skills_dir / "my-skill-dir"
         skill1_dir.mkdir()
-        (skill1_dir / "SKILL.md").write_text("""---
+        (skill1_dir / "SKILL.md").write_text(
+            """---
 name: my-skill
 description: "Test skill"
 ---
 # Content
-""")
+"""
+        )
 
         # Create skill with frontmatter name different from directory
         skill2_dir = skills_dir / "different-dir-name"
         skill2_dir.mkdir()
-        (skill2_dir / "SKILL.md").write_text("""---
+        (skill2_dir / "SKILL.md").write_text(
+            """---
 name: actual-skill-name
 description: "Different name"
 ---
 # Content
-""")
+"""
+        )
 
         # Create skill without SKILL.md (fallback to directory name)
         skill3_dir = skills_dir / "no-frontmatter"
@@ -332,11 +334,14 @@ description: "Different name"
         skills = self.discovery.discover_skills(str(skills_dir))
 
         # Verify frontmatter names are used, with fallback for missing SKILL.md
-        self.assertEqual(skills, {
-            "Skill:my-skill",           # From frontmatter
-            "Skill:actual-skill-name",  # From frontmatter (different from dir)
-            "Skill:no-frontmatter"      # Fallback to directory name
-        })
+        self.assertEqual(
+            skills,
+            {
+                "Skill:my-skill",  # From frontmatter
+                "Skill:actual-skill-name",  # From frontmatter (different from dir)
+                "Skill:no-frontmatter",  # Fallback to directory name
+            },
+        )
 
     def test_cache_functionality(self):
         """Test that skill discovery results are cached"""
@@ -344,11 +349,9 @@ description: "Different name"
 
         mock_response = Mock()
         mock_response.status_code = 200
-        mock_response.json.return_value = [
-            {"name": "cached-skill", "type": "tree"}
-        ]
+        mock_response.json.return_value = [{"name": "cached-skill", "type": "tree"}]
 
-        with patch('requests.get', return_value=mock_response) as mock_get:
+        with patch("requests.get", return_value=mock_response) as mock_get:
             # First call - should hit API
             skills1 = self.discovery.discover_skills(url, cache_ttl_hours=24)
             first_call_count = mock_get.call_count
@@ -379,5 +382,5 @@ description: "Different name"
                 self.assertIsNone(result, f"Expected None for {invalid_url}")
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()

@@ -123,6 +123,30 @@ precision = 0
 show_missing = true
 skip_covered = false
 
+[tool.ruff]
+line-length = 120
+target-version = "py39"
+
+[tool.ruff.lint]
+select = ["E", "F", "W"]
+ignore = [
+  "E402",   # module-level import not at top — used extensively for conditional/lazy imports
+  "E501",   # line too long — handled by black; URLs and long strings can't be wrapped
+  "E731",   # lambda assignment — used in test fixtures and callbacks
+  "E741",   # ambiguous variable name (l, O, I) — too many false positives
+  "F401",   # unused import — many re-exports and conditional imports
+  "F811",   # redefined unused — test fixtures shadow intentionally
+  "F841",   # local variable assigned but never used — common in tests (result = func())
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["F821"]
+"src/ai_guardian/hook_processing.py" = ["F821"]
+"src/ai_guardian/cli_handlers.py" = ["F821"]
+"src/ai_guardian/setup.py" = ["F821"]
+"src/ai_guardian/tui/ask_dialog_textual.py" = ["F821"]
+"src/ai_guardian/tui/violation_logging.py" = ["F821"]
+
 [tool.ai-guardian.scanners]
 # Tested scanner versions (used as fallback when GitHub API unavailable)
 # Update these when releasing new ai-guardian versions

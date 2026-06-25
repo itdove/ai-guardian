@@ -11,7 +11,6 @@ from ai_guardian.ast_scanner import (
     SCANNABLE_NODE_TYPES,
     detect_language,
     extract_scannable_content,
-    _collect_scannable_text,
     _get_parser,
     _parser_cache,
 )
@@ -86,6 +85,7 @@ class TestExtractScannableContentPython(unittest.TestCase):
     def setUpClass(cls):
         try:
             import tree_sitter_python  # noqa: F401
+
             cls.has_grammar = True
         except ImportError:
             cls.has_grammar = False
@@ -207,24 +207,25 @@ class TestLanguageCoverage(unittest.TestCase):
     def test_all_languages_have_node_types(self):
         languages = set(EXTENSION_TO_LANGUAGE.values())
         for lang in languages:
-            assert lang in SCANNABLE_NODE_TYPES, (
-                f"Language '{lang}' is in EXTENSION_TO_LANGUAGE but missing from SCANNABLE_NODE_TYPES"
-            )
+            assert (
+                lang in SCANNABLE_NODE_TYPES
+            ), f"Language '{lang}' is in EXTENSION_TO_LANGUAGE but missing from SCANNABLE_NODE_TYPES"
 
     def test_all_node_type_languages_are_mapped(self):
         for lang in SCANNABLE_NODE_TYPES:
             extensions = [ext for ext, l in EXTENSION_TO_LANGUAGE.items() if l == lang]
-            assert len(extensions) > 0, (
-                f"Language '{lang}' is in SCANNABLE_NODE_TYPES but has no file extension mapping"
-            )
+            assert (
+                len(extensions) > 0
+            ), f"Language '{lang}' is in SCANNABLE_NODE_TYPES but has no file extension mapping"
 
     def test_all_languages_have_grammar_imports(self):
         from ai_guardian.ast_scanner import _GRAMMAR_IMPORTS
+
         languages = set(EXTENSION_TO_LANGUAGE.values())
         for lang in languages:
-            assert lang in _GRAMMAR_IMPORTS, (
-                f"Language '{lang}' is in EXTENSION_TO_LANGUAGE but missing from _GRAMMAR_IMPORTS"
-            )
+            assert (
+                lang in _GRAMMAR_IMPORTS
+            ), f"Language '{lang}' is in EXTENSION_TO_LANGUAGE but missing from _GRAMMAR_IMPORTS"
 
 
 @pytest.mark.skipif(

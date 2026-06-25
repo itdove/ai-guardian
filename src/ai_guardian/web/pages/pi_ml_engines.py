@@ -44,6 +44,7 @@ def _load_ml_status():
     """Check ML availability and model download status."""
     try:
         from ai_guardian.ml_detection import is_ml_available, list_registered_models
+
         available = is_ml_available()
         models = list_registered_models()
         return available, models
@@ -82,16 +83,22 @@ def create_pi_ml_engines_page(service, daemon_name: str):
                         with ui.row().classes("items-center gap-2"):
                             if available:
                                 ui.icon("check_circle").classes("text-green")
-                                ui.label("ML dependencies available (onnxruntime, tokenizers)").classes("text-sm")
+                                ui.label(
+                                    "ML dependencies available (onnxruntime, tokenizers)"
+                                ).classes("text-sm")
                             else:
                                 ui.icon("error").classes("text-red")
-                                ui.label("ML dependencies not available").classes("text-sm text-red")
+                                ui.label("ML dependencies not available").classes(
+                                    "text-sm text-red"
+                                )
                                 ui.label(
                                     "onnxruntime required (included on Python < 3.13 via rapidocr-onnxruntime)"
                                 ).classes("text-xs text-grey-6")
 
                         if models:
-                            ui.label("Registered Models:").classes("text-sm font-bold mt-2")
+                            ui.label("Registered Models:").classes(
+                                "text-sm font-bold mt-2"
+                            )
                             for m in models:
                                 with ui.row().classes("items-center gap-2"):
                                     if m.get("downloaded"):
@@ -102,9 +109,13 @@ def create_pi_ml_engines_page(service, daemon_name: str):
                                         "font-family: monospace"
                                     )
                                     if m.get("downloaded"):
-                                        ui.badge("Downloaded", color="green").classes("text-xs")
+                                        ui.badge("Downloaded", color="green").classes(
+                                            "text-xs"
+                                        )
                                     else:
-                                        ui.badge("Not downloaded", color="grey").classes("text-xs")
+                                        ui.badge(
+                                            "Not downloaded", color="grey"
+                                        ).classes("text-xs")
                             if not all(m.get("downloaded") for m in models):
                                 ui.label(
                                     "Download models with: ai-guardian ml download"
@@ -131,9 +142,13 @@ def create_pi_ml_engines_page(service, daemon_name: str):
                         ct = pi.get("consensus_threshold", 2)
                         with threshold_row:
                             ui.label("Consensus Threshold:").classes("text-sm")
-                            thresh_input = ui.input(
-                                value=str(ct),
-                            ).props("dense outlined type=number").classes("w-24")
+                            thresh_input = (
+                                ui.input(
+                                    value=str(ct),
+                                )
+                                .props("dense outlined type=number")
+                                .classes("w-24")
+                            )
                         threshold_row.set_visibility(strategy == "consensus")
 
                         async def save_strategy(e):
@@ -153,7 +168,9 @@ def create_pi_ml_engines_page(service, daemon_name: str):
                             try:
                                 val = int(thresh_input.value)
                                 if val < 1:
-                                    ui.notify("Threshold must be at least 1", type="negative")
+                                    ui.notify(
+                                        "Threshold must be at least 1", type="negative"
+                                    )
                                     return
                             except (ValueError, TypeError):
                                 ui.notify("Invalid threshold", type="negative")
@@ -213,12 +230,17 @@ def create_pi_ml_engines_page(service, daemon_name: str):
                         ).classes("text-xs text-grey-6")
 
                         engines = pi.get("ml_engines", [])
-                        engines_text = json.dumps(engines, indent=2) if engines else "[]"
+                        engines_text = (
+                            json.dumps(engines, indent=2) if engines else "[]"
+                        )
 
-                        editor = ui.textarea(
-                            value=engines_text,
-                        ).props("outlined autogrow").classes("w-full").style(
-                            "font-family: monospace; min-height: 150px"
+                        editor = (
+                            ui.textarea(
+                                value=engines_text,
+                            )
+                            .props("outlined autogrow")
+                            .classes("w-full")
+                            .style("font-family: monospace; min-height: 150px")
                         )
 
                         count = len(engines)
@@ -232,7 +254,9 @@ def create_pi_ml_engines_page(service, daemon_name: str):
                                 status_label.text = err
                                 status_label.classes(replace="text-xs text-red")
                             else:
-                                status_label.text = f"Valid JSON — {len(parsed)} engine(s)"
+                                status_label.text = (
+                                    f"Valid JSON — {len(parsed)} engine(s)"
+                                )
                                 status_label.classes(replace="text-xs text-green")
 
                         editor.on("update:model-value", on_edit)
@@ -259,9 +283,9 @@ def create_pi_ml_engines_page(service, daemon_name: str):
                                 await refresh()
                                 ui.notify("Engines reloaded", type="positive")
 
-                            ui.button(
-                                "Save", icon="save", on_click=save_engines
-                            ).props("dense")
+                            ui.button("Save", icon="save", on_click=save_engines).props(
+                                "dense"
+                            )
                             ui.button(
                                 "Reload", icon="refresh", on_click=reload_engines
                             ).props("dense flat")
@@ -272,17 +296,17 @@ def create_pi_ml_engines_page(service, daemon_name: str):
                         ui.label(
                             f"Valid engine types: {', '.join(sorted(VALID_ML_ENGINE_TYPES))}"
                         ).classes("text-xs text-grey-6")
-                        ui.label("Engine format (each entry requires type and model):").classes(
-                            "text-xs text-grey-6 mt-1"
-                        )
+                        ui.label(
+                            "Engine format (each entry requires type and model):"
+                        ).classes("text-xs text-grey-6 mt-1")
                         ui.code(
-                            '[\n'
-                            '  {\n'
+                            "[\n"
+                            "  {\n"
                             '    "type": "llm-guard",\n'
                             '    "model": "protectai/deberta-v3-base-prompt-injection-v2",\n'
                             '    "threshold": 0.85\n'
-                            '  }\n'
-                            ']',
+                            "  }\n"
+                            "]",
                             language="json",
                         ).classes("text-xs")
                         ui.label(

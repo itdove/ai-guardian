@@ -18,7 +18,12 @@ from typing import Any, Dict, List, Optional
 
 from textual.app import ComposeResult
 from textual.binding import Binding
-from textual.containers import Container, Horizontal, ScrollableContainer, VerticalScroll
+from textual.containers import (
+    Container,
+    Horizontal,
+    ScrollableContainer,
+    VerticalScroll,
+)
 from textual.screen import ModalScreen
 from textual.widgets import Static, Button, Input, Checkbox, Label, Select, TextArea
 
@@ -89,9 +94,7 @@ class ExportModal(ModalScreen):
 
     def compose(self) -> ComposeResult:
         with Container(id="export-container"):
-            yield Static(
-                "[bold]Export Scan Results[/bold]", id="export-header"
-            )
+            yield Static("[bold]Export Scan Results[/bold]", id="export-header")
 
             with Container(classes="export-field"):
                 yield Label("Format:")
@@ -104,9 +107,7 @@ class ExportModal(ModalScreen):
 
             with Container(classes="export-field"):
                 yield Label("Destination file:")
-                default_path = os.path.join(
-                    self._default_dir, "scan-results.json"
-                )
+                default_path = os.path.join(self._default_dir, "scan-results.json")
                 yield Input(
                     value=default_path,
                     placeholder="/path/to/output-file",
@@ -114,12 +115,8 @@ class ExportModal(ModalScreen):
                 )
 
             with Horizontal(id="export-actions"):
-                yield Button(
-                    "Export", id="do-export", variant="success"
-                )
-                yield Button(
-                    "Cancel", id="cancel-export", variant="error"
-                )
+                yield Button("Export", id="do-export", variant="success")
+                yield Button("Cancel", id="cancel-export", variant="error")
 
     def on_select_changed(self, event: Select.Changed) -> None:
         if event.select.id == "export-format":
@@ -180,6 +177,7 @@ class ScanPatternEditorModal(ModalScreen):
         from ai_guardian.tui.pattern_editor import (
             get_pattern_type_for_section,
         )
+
         self.ptype = get_pattern_type_for_section(config_section)
 
     def compose(self) -> ComposeResult:
@@ -190,40 +188,39 @@ class ScanPatternEditorModal(ModalScreen):
         )
 
         ptype_label = PATTERN_TYPES.get(self.ptype, self.ptype)
-        suggested = suggest_pattern(
-            self.matched_text, self.config_section
-        ) if self.matched_text else ""
+        suggested = (
+            suggest_pattern(self.matched_text, self.config_section)
+            if self.matched_text
+            else ""
+        )
 
         with Container(id="scan-pe-container"):
             yield Static(
                 "[bold]Allow Always — Edit Pattern[/bold]",
                 id="modal-header",
             )
-            yield Static(
-                f"\n[bold]Matched text:[/bold]\n{self.matched_text[:200]}\n"
-            )
+            yield Static(f"\n[bold]Matched text:[/bold]\n{self.matched_text[:200]}\n")
             yield Static(f"[bold]Pattern ({ptype_label}):[/bold]")
 
             yield Input(value=suggested, id="pattern-input")
             yield Static("", id="pattern-status")
             yield Static("[bold]Config preview:[/bold]")
 
-            preview = generate_config_preview(
-                suggested, self.config_section
-            ) if suggested else ""
+            preview = (
+                generate_config_preview(suggested, self.config_section)
+                if suggested
+                else ""
+            )
             yield TextArea(preview, id="pattern-preview", read_only=True)
 
             with Horizontal(id="modal-actions"):
+                yield Button("Test Pattern", id="test-pattern", variant="default")
                 yield Button(
-                    "Test Pattern", id="test-pattern", variant="default"
-                )
-                yield Button(
-                    "Add to Allowlist", id="confirm-pattern",
+                    "Add to Allowlist",
+                    id="confirm-pattern",
                     variant="success",
                 )
-                yield Button(
-                    "Cancel", id="cancel-pattern", variant="primary"
-                )
+                yield Button("Cancel", id="cancel-pattern", variant="primary")
 
     def on_mount(self) -> None:
         self._do_test()
@@ -265,9 +262,7 @@ class ScanPatternEditorModal(ModalScreen):
             status.update("[red]FAIL: Fix the pattern first[/red]")
             return
 
-        self.app.push_screen(
-            ScanConfigEditorModal(pat, self.config_section)
-        )
+        self.app.push_screen(ScanConfigEditorModal(pat, self.config_section))
 
 
 class ScanConfigEditorModal(ModalScreen):
@@ -303,7 +298,8 @@ class ScanConfigEditorModal(ModalScreen):
 
     def compose(self) -> ComposeResult:
         from ai_guardian.tui.pattern_editor import (
-            prepare_config_with_pattern, get_config_scope_options,
+            prepare_config_with_pattern,
+            get_config_scope_options,
         )
 
         scope_options = get_config_scope_options()
@@ -311,7 +307,8 @@ class ScanConfigEditorModal(ModalScreen):
         self._scope_options = scope_options
 
         json_text, line_number = prepare_config_with_pattern(
-            self.pattern, self.config_section,
+            self.pattern,
+            self.config_section,
             config_path=self._selected_config_path,
         )
 
@@ -322,17 +319,18 @@ class ScanConfigEditorModal(ModalScreen):
             )
             if len(scope_options) > 1:
                 from textual.widgets import RadioSet, RadioButton
+
                 yield Static("[bold]Save to:[/bold]")
                 with RadioSet(id="config-scope-select"):
                     for i, (label, path_str) in enumerate(scope_options):
                         yield RadioButton(f"{label} ({path_str})", value=i == 0)
             yield TextArea(
-                json_text, id="config-editor-area",
-                language="json", show_line_numbers=True,
+                json_text,
+                id="config-editor-area",
+                language="json",
+                show_line_numbers=True,
             )
-            yield Static(
-                "[green]Valid JSON[/green]", id="config-editor-status"
-            )
+            yield Static("[green]Valid JSON[/green]", id="config-editor-status")
             with Horizontal():
                 yield Button("Save", id="save-config", variant="success")
                 yield Button("Cancel", id="cancel-config", variant="primary")
@@ -340,12 +338,14 @@ class ScanConfigEditorModal(ModalScreen):
     def on_radio_set_changed(self, event) -> None:
         if event.radio_set.id == "config-scope-select":
             from ai_guardian.tui.pattern_editor import prepare_config_with_pattern
+
             idx = event.index
-            opts = getattr(self, '_scope_options', [])
+            opts = getattr(self, "_scope_options", [])
             if idx < len(opts):
                 self._selected_config_path = opts[idx][1]
                 json_text, line_number = prepare_config_with_pattern(
-                    self.pattern, self.config_section,
+                    self.pattern,
+                    self.config_section,
                     config_path=self._selected_config_path,
                 )
                 try:
@@ -528,7 +528,7 @@ class DirectoryScanContent(ScrollableContainer):
             idx = int(bid.split("-")[-1])
             self._allow_finding(idx)
         elif bid.startswith("allow-all-type-"):
-            rule_id = bid[len("allow-all-type-"):]
+            rule_id = bid[len("allow-all-type-") :]
             self._allow_all_of_type(rule_id)
         elif bid.startswith("suppress-source-"):
             idx = int(bid.split("-")[-1])
@@ -537,7 +537,7 @@ class DirectoryScanContent(ScrollableContainer):
             idx = int(bid.split("-")[-1])
             self._ignore_file_finding(idx)
         elif bid.startswith("ignore-all-files-type-"):
-            rule_id = bid[len("ignore-all-files-type-"):]
+            rule_id = bid[len("ignore-all-files-type-") :]
             self._ignore_all_files_of_type(rule_id)
 
     def refresh_content(self) -> None:
@@ -555,9 +555,7 @@ class DirectoryScanContent(ScrollableContainer):
     def _show_running(self):
         section = self.query_one("#ds-results-section")
         section.display = True
-        self.query_one("#ds-summary", Static).update(
-            "[yellow]Scanning...[/yellow]"
-        )
+        self.query_one("#ds-summary", Static).update("[yellow]Scanning...[/yellow]")
         self.query_one("#ds-details", Static).update("")
 
     def _update_progress(self, file_path: str, index: int, total: int):
@@ -566,8 +564,7 @@ class DirectoryScanContent(ScrollableContainer):
             if len(short) > 60:
                 short = "..." + short[-57:]
             self.query_one("#ds-summary", Static).update(
-                f"[yellow]Scanning {index}/{total}[/yellow]  "
-                f"[dim]{short}[/dim]"
+                f"[yellow]Scanning {index}/{total}[/yellow]  " f"[dim]{short}[/dim]"
             )
         except Exception:
             pass
@@ -586,6 +583,7 @@ class DirectoryScanContent(ScrollableContainer):
     def _load_config(self) -> Dict[str, Any]:
         try:
             from ai_guardian.config_utils import get_config_dir
+
             config_path = get_config_dir() / "ai-guardian.json"
             if not config_path.exists():
                 config_path = Path.cwd() / ".ai-guardian.json"
@@ -643,13 +641,18 @@ class DirectoryScanContent(ScrollableContainer):
                         f.get("rule_id", "")
                     )
 
-                file_count = len(scanner._discover_files(
-                    resolved, None, None, False
-                )) if resolved.is_dir() else 1
+                file_count = (
+                    len(scanner._discover_files(resolved, None, None, False))
+                    if resolved.is_dir()
+                    else 1
+                )
 
                 self.app.call_from_thread(
-                    self._display_results, findings, file_count,
-                    elapsed_ms, cancelled,
+                    self._display_results,
+                    findings,
+                    file_count,
+                    elapsed_ms,
+                    cancelled,
                 )
             except Exception as exc:
                 self.app.call_from_thread(self._show_error, str(exc))
@@ -680,7 +683,9 @@ class DirectoryScanContent(ScrollableContainer):
         section.display = True
 
         violation_count = len(findings)
-        incomplete = "  [yellow]SCAN INCOMPLETE — stopped by user[/yellow]" if cancelled else ""
+        incomplete = (
+            "  [yellow]SCAN INCOMPLETE — stopped by user[/yellow]" if cancelled else ""
+        )
 
         if violation_count == 0:
             self.query_one("#ds-summary", Static).update(
@@ -729,9 +734,7 @@ class DirectoryScanContent(ScrollableContainer):
                 msg = f.get("message", "")
                 snippet = f.get("snippet", "")
 
-                parts = [
-                    f"  {icon} [{severity_color}]{location}[/{severity_color}]"
-                ]
+                parts = [f"  {icon} [{severity_color}]{location}[/{severity_color}]"]
                 parts.append(f"    [bold]{rule_id}[/bold] — {msg}")
                 if snippet:
                     parts.append(f"    [dim]{snippet[:200]}[/dim]")
@@ -783,6 +786,7 @@ class DirectoryScanContent(ScrollableContainer):
                         )
                     if f.get("file_path"):
                         from ai_guardian.tui.source_annotator import get_comment_prefix
+
                         if get_comment_prefix(f["file_path"]) is not None:
                             finding_buttons.append(
                                 Button(
@@ -799,7 +803,9 @@ class DirectoryScanContent(ScrollableContainer):
                             )
                         )
                     if finding_buttons:
-                        scroll.mount(Horizontal(*finding_buttons, classes="ds-finding-row"))
+                        scroll.mount(
+                            Horizontal(*finding_buttons, classes="ds-finding-row")
+                        )
 
     def _allow_finding(self, index: int):
         """Open pattern editor for a single finding."""
@@ -822,16 +828,11 @@ class DirectoryScanContent(ScrollableContainer):
             )
             return
 
-        self.app.push_screen(
-            ScanPatternEditorModal(snippet, config_section)
-        )
+        self.app.push_screen(ScanPatternEditorModal(snippet, config_section))
 
     def _allow_all_of_type(self, rule_id: str):
         """Open pattern editor for all findings of a type."""
-        matching = [
-            f for f in self._findings
-            if f.get("rule_id") == rule_id
-        ]
+        matching = [f for f in self._findings if f.get("rule_id") == rule_id]
         if not matching:
             return
 
@@ -843,17 +844,13 @@ class DirectoryScanContent(ScrollableContainer):
             )
             return
 
-        snippets = [
-            f.get("snippet", "") for f in matching if f.get("snippet")
-        ]
+        snippets = [f.get("snippet", "") for f in matching if f.get("snippet")]
         first_snippet = snippets[0] if snippets else ""
         if not first_snippet:
             self.app.notify("No matched text available", severity="warning")
             return
 
-        self.app.push_screen(
-            ScanPatternEditorModal(first_snippet, config_section)
-        )
+        self.app.push_screen(ScanPatternEditorModal(first_snippet, config_section))
 
     def _suppress_source_finding(self, index: int):
         """Insert annotation in source for a single finding."""
@@ -864,6 +861,7 @@ class DirectoryScanContent(ScrollableContainer):
         line_number = finding.get("line_number", 1) or 1
 
         from ai_guardian.tui.source_annotator import prepare_annotation
+
         result = prepare_annotation(file_path, line_number)
         if result is None:
             self.app.notify("Cannot annotate this file type", severity="warning")
@@ -871,9 +869,13 @@ class DirectoryScanContent(ScrollableContainer):
 
         modified_content, _hl, annotation_type = result
         from ai_guardian.tui.source_editor_modals import SourceAnnotationEditorModal
+
         self.app.push_screen(
             SourceAnnotationEditorModal(
-                file_path, modified_content, annotation_type, "",
+                file_path,
+                modified_content,
+                annotation_type,
+                "",
                 line_number=line_number,
             )
         )
@@ -890,12 +892,14 @@ class DirectoryScanContent(ScrollableContainer):
             return
 
         from ai_guardian.tui.ignore_file_modals import IgnoreFileEditorModal
+
         self.app.push_screen(IgnoreFileEditorModal(file_path, config_section))
 
     def _ignore_all_files_of_type(self, rule_id: str):
         """Add all files of a rule type to .aiguardignore.toml."""
         matching = [
-            f for f in self._findings
+            f
+            for f in self._findings
             if f.get("rule_id") == rule_id and f.get("file_path")
         ]
         if not matching:
@@ -908,6 +912,7 @@ class DirectoryScanContent(ScrollableContainer):
 
         file_path = matching[0]["file_path"]
         from ai_guardian.tui.ignore_file_modals import IgnoreFileEditorModal
+
         self.app.push_screen(IgnoreFileEditorModal(file_path, config_section))
 
     def _open_export_modal(self):
@@ -916,9 +921,7 @@ class DirectoryScanContent(ScrollableContainer):
             return
 
         default_dir = str(Path.cwd())
-        self.app.push_screen(
-            ExportModal(default_dir=default_dir), self._do_export
-        )
+        self.app.push_screen(ExportModal(default_dir=default_dir), self._do_export)
 
     def _do_export(self, result: Optional[Dict]) -> None:
         if result is None:

@@ -12,7 +12,6 @@ Supports violation types:
 
 import json
 import logging
-import os
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Dict, List, Optional
@@ -52,7 +51,7 @@ class ViolationLogger:
         blocked: Dict,
         context: Dict,
         suggestion: Optional[Dict] = None,
-        severity: str = "warning"
+        severity: str = "warning",
     ):
         """
         Log a violation to JSONL file.
@@ -71,12 +70,16 @@ class ViolationLogger:
 
         # Check if this violation type should be logged
         if not self._should_log_type(violation_type):
-            logger.debug(f"Violation type {violation_type} is not configured to be logged")
+            logger.debug(
+                f"Violation type {violation_type} is not configured to be logged"
+            )
             return
 
         try:
             entry = {
-                "timestamp": datetime.now(timezone.utc).isoformat().replace('+00:00', 'Z'),
+                "timestamp": datetime.now(timezone.utc)
+                .isoformat()
+                .replace("+00:00", "Z"),
                 "violation_type": violation_type,
                 "severity": severity,
                 "blocked": blocked,
@@ -84,18 +87,19 @@ class ViolationLogger:
                 "suggestion": suggestion or {},
                 "resolved": False,
                 "resolved_at": None,
-                "resolved_action": None
+                "resolved_action": None,
             }
 
             # Append to JSONL file
-            with open(self.log_path, 'a', encoding='utf-8') as f:
-                f.write(json.dumps(entry) + '\n')
+            with open(self.log_path, "a", encoding="utf-8") as f:
+                f.write(json.dumps(entry) + "\n")
 
             logger.debug(f"Logged {violation_type} violation to {self.log_path}")
 
             # Increment running counter (independent of log rotation)
             try:
                 from ai_guardian.violation_counter import ViolationCounter
+
                 ViolationCounter().increment(violation_type)
             except Exception as counter_err:
                 logger.warning(f"Failed to increment violation counter: {counter_err}")
@@ -111,7 +115,7 @@ class ViolationLogger:
         self,
         limit: int = 50,
         violation_type: Optional[str] = None,
-        resolved: Optional[bool] = None
+        resolved: Optional[bool] = None,
     ) -> List[Dict]:
         """
         Get recent violations from log.
@@ -129,16 +133,22 @@ class ViolationLogger:
 
         violations = []
         try:
-            with open(self.log_path, 'r', encoding='utf-8') as f:
+            with open(self.log_path, "r", encoding="utf-8") as f:
                 for line in f:
                     try:
                         entry = json.loads(line)
 
                         # Apply filters
-                        if violation_type is not None and entry.get("violation_type") != violation_type:
+                        if (
+                            violation_type is not None
+                            and entry.get("violation_type") != violation_type
+                        ):
                             continue
 
-                        if resolved is not None and entry.get("resolved", False) != resolved:
+                        if (
+                            resolved is not None
+                            and entry.get("resolved", False) != resolved
+                        ):
                             continue
 
                         violations.append(entry)
@@ -156,10 +166,7 @@ class ViolationLogger:
             return []
 
     def mark_resolved(
-        self,
-        timestamp: str,
-        action: str = "approved",
-        note: Optional[str] = None
+        self, timestamp: str, action: str = "approved", note: Optional[str] = None
     ) -> bool:
         """
         Mark a violation as resolved.
@@ -178,7 +185,7 @@ class ViolationLogger:
         try:
             # Read all violations
             violations = []
-            with open(self.log_path, 'r', encoding='utf-8') as f:
+            with open(self.log_path, "r", encoding="utf-8") as f:
                 for line in f:
                     try:
                         entry = json.loads(line)
@@ -191,7 +198,9 @@ class ViolationLogger:
             for entry in violations:
                 if entry.get("timestamp") == timestamp:
                     entry["resolved"] = True
-                    entry["resolved_at"] = datetime.now(timezone.utc).isoformat().replace('+00:00', 'Z')
+                    entry["resolved_at"] = (
+                        datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+                    )
                     entry["resolved_action"] = action
                     if note:
                         entry["resolved_note"] = note
@@ -202,9 +211,9 @@ class ViolationLogger:
                 return False
 
             # Write back all violations
-            with open(self.log_path, 'w', encoding='utf-8') as f:
+            with open(self.log_path, "w", encoding="utf-8") as f:
                 for entry in violations:
-                    f.write(json.dumps(entry) + '\n')
+                    f.write(json.dumps(entry) + "\n")
 
             return True
 
@@ -228,7 +237,7 @@ class ViolationLogger:
         try:
             # Read all violations
             violations = []
-            with open(self.log_path, 'r', encoding='utf-8') as f:
+            with open(self.log_path, "r", encoding="utf-8") as f:
                 for line in f:
                     try:
                         entry = json.loads(line)
@@ -252,9 +261,9 @@ class ViolationLogger:
                 return False
 
             # Write back all violations
-            with open(self.log_path, 'w', encoding='utf-8') as f:
+            with open(self.log_path, "w", encoding="utf-8") as f:
                 for entry in violations:
-                    f.write(json.dumps(entry) + '\n')
+                    f.write(json.dumps(entry) + "\n")
 
             return True
 
@@ -278,7 +287,9 @@ class ViolationLogger:
             logger.error(f"Error clearing violations log: {e}")
             return False
 
-    def export_violations(self, export_path: Path, violation_type: Optional[str] = None) -> bool:
+    def export_violations(
+        self, export_path: Path, violation_type: Optional[str] = None
+    ) -> bool:
         """
         Export violations to a JSON file.
 
@@ -291,11 +302,10 @@ class ViolationLogger:
         """
         try:
             violations = self.get_recent_violations(
-                limit=10000,  # Export all violations
-                violation_type=violation_type
+                limit=10000, violation_type=violation_type  # Export all violations
             )
 
-            with open(export_path, 'w', encoding='utf-8') as f:
+            with open(export_path, "w", encoding="utf-8") as f:
                 json.dump(violations, f, indent=2)
 
             logger.info(f"Exported {len(violations)} violations to {export_path}")
@@ -323,7 +333,7 @@ class ViolationLogger:
             if not config_path.exists():
                 return self._get_default_config()
 
-            with open(config_path, 'r', encoding='utf-8') as f:
+            with open(config_path, "r", encoding="utf-8") as f:
                 config = json.load(f)
 
             return config.get("violation_logging", self._get_default_config())
@@ -338,7 +348,24 @@ class ViolationLogger:
             "enabled": True,
             "max_entries": 1000,
             "retention_days": 30,
-            "log_types": ["tool_permission", "directory_blocking", "secret_detected", "secret_redaction", "prompt_injection", "jailbreak_detected", "ssrf_blocked", "config_file_exfil", "pii_detected", "secret_in_transcript", "pii_in_transcript", "prompt_injection_in_transcript", "annotation_suppressed", "image_secret_detected", "image_pii_detected", "context_poisoning"]
+            "log_types": [
+                "tool_permission",
+                "directory_blocking",
+                "secret_detected",
+                "secret_redaction",
+                "prompt_injection",
+                "jailbreak_detected",
+                "ssrf_blocked",
+                "config_file_exfil",
+                "pii_detected",
+                "secret_in_transcript",
+                "pii_in_transcript",
+                "prompt_injection_in_transcript",
+                "annotation_suppressed",
+                "image_secret_detected",
+                "image_pii_detected",
+                "context_poisoning",
+            ],
         }
 
     def _is_logging_enabled(self) -> bool:
@@ -379,7 +406,7 @@ class ViolationLogger:
 
             # Read all violations
             violations = []
-            with open(self.log_path, 'r', encoding='utf-8') as f:
+            with open(self.log_path, "r", encoding="utf-8") as f:
                 for line in f:
                     try:
                         entry = json.loads(line)
@@ -390,7 +417,8 @@ class ViolationLogger:
             # Filter by retention days
             cutoff_date = datetime.now(timezone.utc) - timedelta(days=retention_days)
             violations = [
-                v for v in violations
+                v
+                for v in violations
                 if self._parse_timestamp(v.get("timestamp")) > cutoff_date
             ]
 
@@ -399,9 +427,9 @@ class ViolationLogger:
                 violations = violations[-max_entries:]
 
             # Write back filtered violations
-            with open(self.log_path, 'w', encoding='utf-8') as f:
+            with open(self.log_path, "w", encoding="utf-8") as f:
                 for entry in violations:
-                    f.write(json.dumps(entry) + '\n')
+                    f.write(json.dumps(entry) + "\n")
 
             logger.debug(f"Log rotation: kept {len(violations)} violations")
 
@@ -423,8 +451,8 @@ class ViolationLogger:
 
         try:
             # Remove 'Z' suffix and parse as UTC
-            if timestamp_str.endswith('Z'):
-                timestamp_str = timestamp_str[:-1] + '+00:00'
+            if timestamp_str.endswith("Z"):
+                timestamp_str = timestamp_str[:-1] + "+00:00"
             dt = datetime.fromisoformat(timestamp_str)
             # Ensure timezone-aware
             if dt.tzinfo is None:

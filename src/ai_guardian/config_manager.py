@@ -5,8 +5,6 @@ Configuration Manager for ai-guardian
 Manages installation config, user config, and project config files.
 """
 
-import os
-import sys
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
@@ -56,7 +54,7 @@ class ConfigManager:
             # Ensure config directory exists
             self.config_dir.mkdir(parents=True, exist_ok=True)
 
-            if url.lower() == 'none':
+            if url.lower() == "none":
                 # Remove installation config
                 if self.installation_config_path.exists():
                     self.installation_config_path.unlink()
@@ -65,13 +63,14 @@ class ConfigManager:
             # Create or update installation config
             config = {"url": url}
 
-            with open(self.installation_config_path, 'wb') as f:
+            with open(self.installation_config_path, "wb") as f:
                 tomli_w.dump(config, f)
 
             return True
 
         except Exception as e:
             import sys
+
             print(f"Error setting installation URL: {e}", file=sys.stderr)
             return False
 
@@ -86,9 +85,9 @@ class ConfigManager:
             return None
 
         try:
-            with open(self.installation_config_path, 'rb') as f:
+            with open(self.installation_config_path, "rb") as f:
                 config = tomllib.load(f)
-            return config.get('url')
+            return config.get("url")
         except Exception:
             return None
 
@@ -109,31 +108,31 @@ class ConfigManager:
         user_remote_urls = []
         if self.user_config_path.exists():
             user_config = self._load_toml(self.user_config_path)
-            if user_config and 'remote_configs' in user_config:
-                user_remote_urls = user_config['remote_configs']
+            if user_config and "remote_configs" in user_config:
+                user_remote_urls = user_config["remote_configs"]
 
         # Load project config
         project_config = None
         project_remote_urls = []
         if self.project_config_path.exists():
             project_config = self._load_toml(self.project_config_path)
-            if project_config and 'remote_configs' in project_config:
-                project_remote_urls = project_config['remote_configs']
+            if project_config and "remote_configs" in project_config:
+                project_remote_urls = project_config["remote_configs"]
 
         # Load merged policy
         policy_checker = ToolPolicyChecker()
         merged_policy = policy_checker.config
 
         return {
-            'installation_config_path': str(self.installation_config_path),
-            'installation_url': installation_url,
-            'user_config_path': str(self.user_config_path),
-            'user_config_exists': self.user_config_path.exists(),
-            'user_remote_urls': user_remote_urls,
-            'project_config_path': str(self.project_config_path),
-            'project_config_exists': self.project_config_path.exists(),
-            'project_remote_urls': project_remote_urls,
-            'merged_policy': merged_policy,
+            "installation_config_path": str(self.installation_config_path),
+            "installation_url": installation_url,
+            "user_config_path": str(self.user_config_path),
+            "user_config_exists": self.user_config_path.exists(),
+            "user_remote_urls": user_remote_urls,
+            "project_config_path": str(self.project_config_path),
+            "project_config_exists": self.project_config_path.exists(),
+            "project_remote_urls": project_remote_urls,
+            "merged_policy": merged_policy,
         }
 
     def validate_configuration(self) -> Tuple[bool, List[str]]:
@@ -184,12 +183,12 @@ class ConfigManager:
 
         # Check for valid keys
         valid_keys = {
-            'remote_configs',
-            'builtin_deny_patterns',
-            'skill_allowed_patterns',
-            'skill_deny_patterns',
-            'mcp_allowed_patterns',
-            'mcp_deny_patterns',
+            "remote_configs",
+            "builtin_deny_patterns",
+            "skill_allowed_patterns",
+            "skill_deny_patterns",
+            "mcp_allowed_patterns",
+            "mcp_deny_patterns",
         }
 
         for key in config.keys():
@@ -198,11 +197,11 @@ class ConfigManager:
 
         # Check pattern types
         pattern_keys = [
-            'builtin_deny_patterns',
-            'skill_allowed_patterns',
-            'skill_deny_patterns',
-            'mcp_allowed_patterns',
-            'mcp_deny_patterns',
+            "builtin_deny_patterns",
+            "skill_allowed_patterns",
+            "skill_deny_patterns",
+            "mcp_allowed_patterns",
+            "mcp_deny_patterns",
         ]
 
         for key in pattern_keys:
@@ -212,16 +211,20 @@ class ConfigManager:
                 else:
                     for pattern in config[key]:
                         if not isinstance(pattern, str):
-                            errors.append(f"{source} config: '{key}' must contain strings")
+                            errors.append(
+                                f"{source} config: '{key}' must contain strings"
+                            )
 
         # Check remote_configs type
-        if 'remote_configs' in config:
-            if not isinstance(config['remote_configs'], list):
+        if "remote_configs" in config:
+            if not isinstance(config["remote_configs"], list):
                 errors.append(f"{source} config: 'remote_configs' must be a list")
             else:
-                for url in config['remote_configs']:
+                for url in config["remote_configs"]:
                     if not isinstance(url, str):
-                        errors.append(f"{source} config: 'remote_configs' must contain strings")
+                        errors.append(
+                            f"{source} config: 'remote_configs' must contain strings"
+                        )
 
         return errors
 
@@ -236,7 +239,7 @@ class ConfigManager:
             dict or None: Parsed config or None if error
         """
         try:
-            with open(path, 'rb') as f:
+            with open(path, "rb") as f:
                 return tomllib.load(f)
         except Exception:
             return None

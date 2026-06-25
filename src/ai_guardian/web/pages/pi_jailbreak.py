@@ -65,10 +65,10 @@ def _parse_enabled(raw):
     return False, None, "", bool(raw)
 
 
-
 def _load_jailbreak_stats():
     try:
         from ai_guardian.violation_logger import ViolationLogger
+
         vl = ViolationLogger()
         violations = vl.get_recent_violations(
             limit=1000, violation_type="jailbreak_detected"
@@ -86,15 +86,18 @@ def _load_jailbreak_stats():
         return None, None
 
 
-def _render_toggle(label, desc, is_temp, until_dt, reason, is_enabled,
-                   save_fn, refresh_fn):
+def _render_toggle(
+    label, desc, is_temp, until_dt, reason, is_enabled, save_fn, refresh_fn
+):
     with ui.card().classes("w-full"):
         if is_temp and until_dt:
             remaining = _format_remaining(until_dt)
             with ui.row().classes("items-center gap-2 w-full"):
                 ui.icon("timer").classes("text-amber")
                 ui.label(label).classes("font-bold text-sm flex-grow")
-                ui.badge(f"TEMP DISABLED — {remaining}", color="amber").classes("text-xs")
+                ui.badge(f"TEMP DISABLED — {remaining}", color="amber").classes(
+                    "text-xs"
+                )
             ui.label(desc).classes("text-xs text-grey-6 ml-8")
             if reason:
                 ui.label(f"Reason: {reason}").classes("text-xs text-grey-7 ml-8")
@@ -104,8 +107,9 @@ def _render_toggle(label, desc, is_temp, until_dt, reason, is_enabled,
                 ui.notify(f"{label} re-enabled", type="positive")
                 await refresh_fn()
 
-            ui.button("Re-enable Now", icon="play_arrow", color="green",
-                      on_click=do_reenable).props("dense size=sm").classes("ml-8")
+            ui.button(
+                "Re-enable Now", icon="play_arrow", color="green", on_click=do_reenable
+            ).props("dense size=sm").classes("ml-8")
         else:
             with ui.row().classes("items-center gap-2 w-full"):
                 sw = ui.switch(label, value=bool(is_enabled)).classes("flex-grow")
@@ -121,24 +125,40 @@ def _render_toggle(label, desc, is_temp, until_dt, reason, is_enabled,
                 sw.on_value_change(on_toggle)
 
             with ui.row().classes("items-center gap-2 ml-8"):
-                dur = ui.input(placeholder="e.g. 30m, 2h, 1d").props("dense outlined").classes("w-32")
-                rsn = ui.input(placeholder="Reason").props("dense outlined").classes("w-40")
+                dur = (
+                    ui.input(placeholder="e.g. 30m, 2h, 1d")
+                    .props("dense outlined")
+                    .classes("w-32")
+                )
+                rsn = (
+                    ui.input(placeholder="Reason")
+                    .props("dense outlined")
+                    .classes("w-40")
+                )
 
                 async def do_temp(d=dur, r=rsn):
                     delta = _parse_duration(d.value or "30m")
                     if not delta:
-                        ui.notify("Invalid duration (e.g. 30m, 2h, 1d)", type="negative")
+                        ui.notify(
+                            "Invalid duration (e.g. 30m, 2h, 1d)", type="negative"
+                        )
                         return
-                    until_ts = (datetime.now(timezone.utc) + delta).strftime("%Y-%m-%dT%H:%M:%SZ")
+                    until_ts = (datetime.now(timezone.utc) + delta).strftime(
+                        "%Y-%m-%dT%H:%M:%SZ"
+                    )
                     entry = {"value": False, "disabled_until": until_ts}
                     rv = r.value.strip()
                     if rv:
                         entry["reason"] = rv
                     await run.io_bound(save_fn, entry)
-                    ui.notify(f"{label} temp disabled for {d.value or '30m'}", type="warning")
+                    ui.notify(
+                        f"{label} temp disabled for {d.value or '30m'}", type="warning"
+                    )
                     await refresh_fn()
 
-                ui.button("Temp Disable", icon="timer", on_click=do_temp).props("dense size=sm")
+                ui.button("Temp Disable", icon="timer", on_click=do_temp).props(
+                    "dense size=sm"
+                )
 
 
 def create_pi_jailbreak_page(service, daemon_name: str):
@@ -172,16 +192,23 @@ def create_pi_jailbreak_page(service, daemon_name: str):
                         ui.label(
                             "These categories are always active and cannot be modified."
                         ).classes("text-xs text-grey-6")
-                        for category, description in BUILTIN_JAILBREAK_CATEGORIES.items():
+                        for (
+                            category,
+                            description,
+                        ) in BUILTIN_JAILBREAK_CATEGORIES.items():
                             with ui.row().classes("items-center gap-2 ml-4"):
-                                ui.icon("shield").classes(
-                                    "text-blue-4"
-                                ).style("font-size: 14px")
+                                ui.icon("shield").classes("text-blue-4").style(
+                                    "font-size: 14px"
+                                )
                                 ui.label(category).classes("font-bold text-sm")
-                                ui.label(f"— {description}").classes("text-xs text-grey-6")
+                                ui.label(f"— {description}").classes(
+                                    "text-xs text-grey-6"
+                                )
 
                     with ui.card().classes("w-full"):
-                        ui.label("Custom Jailbreak Patterns").classes("text-lg font-bold")
+                        ui.label("Custom Jailbreak Patterns").classes(
+                            "text-lg font-bold"
+                        )
                         ui.label(
                             "Custom regex patterns to detect additional jailbreak attempts."
                         ).classes("text-xs text-grey-6")
@@ -206,19 +233,25 @@ def create_pi_jailbreak_page(service, daemon_name: str):
                                             sect["jailbreak_patterns"] = pats
                                             cfg["prompt_injection"] = sect
                                             await run.io_bound(save_web_config, cfg)
-                                            ui.notify("Pattern removed", type="positive")
+                                            ui.notify(
+                                                "Pattern removed", type="positive"
+                                            )
                                             await refresh()
 
                                     ui.button(
                                         icon="delete", on_click=remove_pat, color="red"
                                     ).props("flat dense size=sm")
                         else:
-                            ui.label("No custom jailbreak patterns.").classes("text-grey-6 text-sm")
+                            ui.label("No custom jailbreak patterns.").classes(
+                                "text-grey-6 text-sm"
+                            )
 
                         with ui.row().classes("items-center gap-2 mt-2"):
-                            pat_input = ui.input(
-                                placeholder="Enter custom regex pattern"
-                            ).props("dense outlined").classes("flex-grow")
+                            pat_input = (
+                                ui.input(placeholder="Enter custom regex pattern")
+                                .props("dense outlined")
+                                .classes("flex-grow")
+                            )
 
                             async def add_pattern():
                                 pattern = pat_input.value.strip()
@@ -246,7 +279,9 @@ def create_pi_jailbreak_page(service, daemon_name: str):
                                 ui.notify(f"Added: {pattern}", type="positive")
                                 await refresh()
 
-                            ui.button("Add", icon="add", on_click=add_pattern).props("dense")
+                            ui.button("Add", icon="add", on_click=add_pattern).props(
+                                "dense"
+                            )
 
                     with ui.card().classes("w-full"):
                         ui.label("Jailbreak Statistics").classes("text-lg font-bold")
@@ -260,19 +295,25 @@ def create_pi_jailbreak_page(service, daemon_name: str):
                                 "text-grey-6 text-sm"
                             )
                         else:
-                            ui.label(f"Total jailbreak attempts: {total}").classes("text-sm")
+                            ui.label(f"Total jailbreak attempts: {total}").classes(
+                                "text-sm"
+                            )
                             if by_category:
                                 ui.label("By category:").classes(
                                     "text-sm font-bold mt-2"
                                 )
                                 sorted_cats = sorted(
-                                    by_category.items(), key=lambda x: x[1], reverse=True
+                                    by_category.items(),
+                                    key=lambda x: x[1],
+                                    reverse=True,
                                 )[:5]
                                 for cat, count in sorted_cats:
                                     with ui.row().classes("items-center gap-2"):
                                         ui.label(f"{cat}:").classes(
                                             "text-sm text-grey-6 w-48"
                                         )
-                                        ui.label(str(count)).classes("text-sm font-bold")
+                                        ui.label(str(count)).classes(
+                                            "text-sm font-bold"
+                                        )
 
             ui.timer(0.1, refresh, once=True)

@@ -15,7 +15,8 @@ import logging
 import shutil
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import List, Dict, Any, Optional
+from typing import List, Any, Optional
+
 
 class _PatternServerUnset:
     _instance = None
@@ -57,6 +58,7 @@ class EngineConfig:
         file_patterns: File extensions this engine should handle for file type routing
         python_scanner: Instantiated Python Scanner object (for type="python" engines)
     """
+
     type: str
     binary: str
     command_template: List[str]
@@ -79,97 +81,118 @@ ENGINE_PRESETS = {
         type="gitleaks",
         binary="gitleaks",
         command_template=[
-            "{binary}", "detect", "--no-git", "--verbose", "--redact=100",
-            "--report-format", "json", "--report-path", "{report_file}",
-            "--exit-code", "42", "--source", "{source_file}"
+            "{binary}",
+            "detect",
+            "--no-git",
+            "--verbose",
+            "--redact=100",
+            "--report-format",
+            "json",
+            "--report-path",
+            "{report_file}",
+            "--exit-code",
+            "42",
+            "--source",
+            "{source_file}",
         ],
         config_flag=["--config", "{config_path}"],
         output_parser="gitleaks",
         success_exit_code=0,
-        secrets_found_exit_code=42
+        secrets_found_exit_code=42,
     ),
-
     "betterleaks": EngineConfig(
         type="betterleaks",
         binary="betterleaks",
         command_template=[
-            "{binary}", "dir", "--verbose", "--redact=100",
-            "--report-format", "json", "--report-path", "{report_file}",
-            "--exit-code", "42", "--validation=false", "{source_file}"
+            "{binary}",
+            "dir",
+            "--verbose",
+            "--redact=100",
+            "--report-format",
+            "json",
+            "--report-path",
+            "{report_file}",
+            "--exit-code",
+            "42",
+            "--validation=false",
+            "{source_file}",
         ],
         config_flag=["--config", "{config_path}"],
         output_parser="gitleaks",  # Same format as gitleaks
         success_exit_code=0,
-        secrets_found_exit_code=42
+        secrets_found_exit_code=42,
     ),
-
     "leaktk": EngineConfig(
         type="leaktk",
         binary="leaktk",
         command_template=[
-            "{binary}", "scan", "--kind", "File",
-            "--format", "json", "--output", "{report_file}",
-            "{source_file}"
+            "{binary}",
+            "scan",
+            "--kind",
+            "File",
+            "--format",
+            "json",
+            "--output",
+            "{report_file}",
+            "{source_file}",
         ],
         config_flag=None,  # LeakTK auto-manages patterns
         output_parser="leaktk",  # Different output format
         success_exit_code=0,
-        secrets_found_exit_code=1
+        secrets_found_exit_code=1,
     ),
-
     "trufflehog": EngineConfig(
         type="trufflehog",
         binary="trufflehog",
         command_template=[
-            "{binary}", "filesystem", "{source_file}",
-            "--json", "--no-verification",
-            "--no-update"
+            "{binary}",
+            "filesystem",
+            "{source_file}",
+            "--json",
+            "--no-verification",
+            "--no-update",
         ],
         config_flag=None,  # TruffleHog uses built-in detectors
         output_parser="trufflehog",
         success_exit_code=0,
-        secrets_found_exit_code=183  # TruffleHog exits with 183 when secrets found
+        secrets_found_exit_code=183,  # TruffleHog exits with 183 when secrets found
     ),
-
     "detect-secrets": EngineConfig(
         type="detect-secrets",
         binary="detect-secrets",
-        command_template=[
-            "{binary}", "scan", "{source_file}"
-        ],
+        command_template=["{binary}", "scan", "{source_file}"],
         config_flag=None,
         output_parser="detect-secrets",
         success_exit_code=0,
-        secrets_found_exit_code=1
+        secrets_found_exit_code=1,
     ),
-
     "secretlint": EngineConfig(
         type="secretlint",
         binary="secretlint",
-        command_template=[
-            "{binary}", "{source_file}",
-            "--format", "json"
-        ],
+        command_template=["{binary}", "{source_file}", "--format", "json"],
         config_flag=["--secretlintrc", "{config_path}"],
         output_parser="secretlint",
         success_exit_code=0,
-        secrets_found_exit_code=1
+        secrets_found_exit_code=1,
     ),
-
     "gitguardian": EngineConfig(
         type="gitguardian",
         binary="ggshield",
         command_template=[
-            "{binary}", "secret", "scan", "path",
+            "{binary}",
+            "secret",
+            "scan",
+            "path",
             "{source_file}",
-            "--json", "--exit-zero"
+            "--json",
+            "--exit-zero",
         ],
         config_flag=None,
         output_parser="gitguardian",
         success_exit_code=0,
         secrets_found_exit_code=1,
         requires_consent=True,
-        api_key_env="GITGUARDIAN_API_KEY"
+        api_key_env="GITGUARDIAN_API_KEY",
     ),
 }
 
@@ -194,6 +217,7 @@ def _build_python_preset(
     if preset_name == "toml-patterns":
         try:
             from ai_guardian.scanners.toml_patterns import TomlPatternsScanner
+
             scanner = TomlPatternsScanner()
             effective_config = dict(scanner_config) if scanner_config else {}
             if parent_config:
@@ -242,7 +266,11 @@ def _build_engine_config(
     # Dictionary: preset with overrides or custom engine
     engine_type = engine_spec.get("type")
     if engine_type in _PYTHON_SCANNER_PRESETS:
-        return _build_python_preset(engine_type, scanner_config=engine_spec.get("scanner_config"), parent_config=parent_config)
+        return _build_python_preset(
+            engine_type,
+            scanner_config=engine_spec.get("scanner_config"),
+            parent_config=parent_config,
+        )
     if engine_type in ENGINE_PRESETS:
         engine_config = copy.deepcopy(ENGINE_PRESETS[engine_type])
         if "binary" in engine_spec:
@@ -254,6 +282,7 @@ def _build_engine_config(
     elif engine_type == "python":
         try:
             from ai_guardian.scanners.python_loader import load_python_scanner
+
             scanner = load_python_scanner(engine_spec)
             engine_config = EngineConfig(
                 type="python",
@@ -273,7 +302,7 @@ def _build_engine_config(
             extra_flags=engine_spec.get("extra_flags"),
             success_exit_code=engine_spec.get("success_exit_code", 0),
             secrets_found_exit_code=engine_spec.get("secrets_found_exit_code", 1),
-            output_parser=engine_spec.get("output_format", "gitleaks")
+            output_parser=engine_spec.get("output_format", "gitleaks"),
         )
     else:
         logging.warning(f"Unknown engine type: {engine_type}")
@@ -300,6 +329,7 @@ def check_engine_consent(engine_config: EngineConfig) -> bool:
     if not engine_config.requires_consent:
         return True
     from ai_guardian.config_utils import get_config_dir
+
     consent_file = get_config_dir() / "consent" / f"{engine_config.type}.consent"
     return consent_file.exists()
 
@@ -308,6 +338,7 @@ def grant_engine_consent(engine_type: str) -> None:
     """Record user consent for a cloud engine."""
     from datetime import datetime, timezone
     from ai_guardian.config_utils import get_config_dir
+
     consent_dir = get_config_dir() / "consent"
     consent_dir.mkdir(parents=True, exist_ok=True)
     consent_file = consent_dir / f"{engine_type}.consent"
@@ -321,6 +352,7 @@ def grant_engine_consent(engine_type: str) -> None:
 def revoke_engine_consent(engine_type: str) -> bool:
     """Revoke user consent for a cloud engine. Returns True if file existed."""
     from ai_guardian.config_utils import get_config_dir
+
     consent_file = get_config_dir() / "consent" / f"{engine_type}.consent"
     if consent_file.exists():
         consent_file.unlink()
@@ -369,7 +401,9 @@ def select_engine(
             continue
 
         if engine_config.python_scanner is not None:
-            logging.info(f"Selected Python scanner: {engine_config.python_scanner.name}")
+            logging.info(
+                f"Selected Python scanner: {engine_config.python_scanner.name}"
+            )
             return engine_config
         elif shutil.which(engine_config.binary):
             logging.info(f"Selected scanner engine: {engine_config.type}")
@@ -423,7 +457,9 @@ def select_all_engines(
             continue
 
         if engine_config.python_scanner is not None:
-            logging.info(f"Found available Python scanner: {engine_config.python_scanner.name}")
+            logging.info(
+                f"Found available Python scanner: {engine_config.python_scanner.name}"
+            )
             available.append(engine_config)
         elif shutil.which(engine_config.binary):
             logging.info(f"Found available scanner engine: {engine_config.type}")
@@ -449,7 +485,7 @@ def build_scanner_command(
     engine_config: EngineConfig,
     source_file: str,
     report_file: str,
-    config_path: Optional[str] = None
+    config_path: Optional[str] = None,
 ) -> List[str]:
     """
     Build scanner command from engine configuration.
@@ -503,8 +539,7 @@ _CONFIG_COMPATIBLE_ENGINES = frozenset(("gitleaks",))
 
 
 def resolve_engine_config_path(
-    engine_config: EngineConfig,
-    global_config_path: Optional[str] = None
+    engine_config: EngineConfig, global_config_path: Optional[str] = None
 ) -> Optional[str]:
     """
     Resolve the effective config_path for an engine, considering per-engine
@@ -530,6 +565,7 @@ def resolve_engine_config_path(
         if isinstance(ps_config, dict) and ps_config.get("url"):
             try:
                 from ai_guardian.pattern_server import PatternServerClient
+
                 client = PatternServerClient(ps_config)
                 path = client.get_patterns_path()
                 if path:

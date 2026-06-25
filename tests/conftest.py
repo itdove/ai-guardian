@@ -6,8 +6,6 @@ Provides test isolation for configuration directories and common test utilities.
 
 import json
 import os
-import tempfile
-from pathlib import Path
 from unittest import mock
 
 import pytest
@@ -46,6 +44,7 @@ def _isolate_config_dir(tmp_path):
     with mock.patch.dict(os.environ, env_overrides):
         # Clear SDK overlay and caches so tests don't see stale state
         import ai_guardian.config_loaders as _cl
+
         _cl._sdk_overlay = None
         _cl._clear_config_cache()
         yield config_dir
@@ -70,7 +69,7 @@ def isolated_config_dir(tmp_path):
     config_dir.mkdir(parents=True, exist_ok=True)
 
     # Set environment variable for AI Guardian
-    with mock.patch.dict(os.environ, {'AI_GUARDIAN_CONFIG_DIR': str(config_dir)}):
+    with mock.patch.dict(os.environ, {"AI_GUARDIAN_CONFIG_DIR": str(config_dir)}):
         yield config_dir
 
 
@@ -91,20 +90,12 @@ def isolated_config_with_file(isolated_config_dir):
 
     # Create a minimal default config
     default_config = {
-        "secret_scanning": {
-            "enabled": True,
-            "scanner": "gitleaks"
-        },
-        "prompt_injection": {
-            "enabled": True
-        },
-        "permissions": {
-            "enabled": True,
-            "rules": []
-        }
+        "secret_scanning": {"enabled": True, "scanner": "gitleaks"},
+        "prompt_injection": {"enabled": True},
+        "permissions": {"enabled": True, "rules": []},
     }
 
-    with open(config_file, 'w') as f:
+    with open(config_file, "w") as f:
         json.dump(default_config, f, indent=2)
 
     return isolated_config_dir, config_file
@@ -141,4 +132,5 @@ def attack_patterns():
             assert "169.254.169.254" in attack_patterns.SSRF_AWS_METADATA
     """
     from tests.fixtures import attack_constants
+
     return attack_constants

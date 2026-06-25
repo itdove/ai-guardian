@@ -17,6 +17,7 @@ from pathlib import Path
 try:
     import jsonschema
     from jsonschema import validate, ValidationError
+
     HAS_JSONSCHEMA = True
 except ImportError:
     HAS_JSONSCHEMA = False
@@ -24,13 +25,15 @@ except ImportError:
 
 # Get project root directory
 PROJECT_ROOT = Path(__file__).parent.parent.parent
-SCHEMA_PATH = PROJECT_ROOT / "src" / "ai_guardian" / "schemas" / "ai-guardian-config.schema.json"
+SCHEMA_PATH = (
+    PROJECT_ROOT / "src" / "ai_guardian" / "schemas" / "ai-guardian-config.schema.json"
+)
 
 
 @pytest.fixture
 def schema():
     """Load the JSON Schema."""
-    with open(SCHEMA_PATH, 'r') as f:
+    with open(SCHEMA_PATH, "r") as f:
         return json.load(f)
 
 
@@ -43,16 +46,13 @@ def test_secret_redaction_pattern_server(schema):
             "pattern_server": {
                 "url": "https://patterns.example.com",
                 "patterns_endpoint": "/patterns/secrets/v1",
-                "auth": {
-                    "method": "bearer",
-                    "token_env": "PATTERN_TOKEN"
-                },
+                "auth": {"method": "bearer", "token_env": "PATTERN_TOKEN"},
                 "cache": {
                     "path": "~/.cache/ai-guardian/secrets.toml",
                     "refresh_interval_hours": 12,
-                    "expire_after_hours": 168
-                }
-            }
+                    "expire_after_hours": 168,
+                },
+            },
         }
     }
 
@@ -75,15 +75,15 @@ def test_unicode_detection_pattern_server(schema):
                     "patterns_endpoint": "/patterns/unicode/v1",
                     "auth": {
                         "method": "token",
-                        "token_file": "~/.config/pattern-token"
+                        "token_file": "~/.config/pattern-token",
                     },
                     "cache": {
                         "path": "~/.cache/ai-guardian/unicode.toml",
                         "refresh_interval_hours": 24,
-                        "expire_after_hours": 336
-                    }
-                }
-            }
+                        "expire_after_hours": 336,
+                    },
+                },
+            },
         }
     }
 
@@ -104,16 +104,13 @@ def test_ssrf_protection_pattern_server(schema):
                 "patterns_endpoint": "/patterns/ssrf/v1",
                 "allow_override": True,
                 "validate_critical": True,
-                "auth": {
-                    "method": "bearer",
-                    "token_env": "SSRF_TOKEN"
-                },
+                "auth": {"method": "bearer", "token_env": "SSRF_TOKEN"},
                 "cache": {
                     "path": "~/.cache/ai-guardian/ssrf.toml",
                     "refresh_interval_hours": 6,
-                    "expire_after_hours": 72
-                }
-            }
+                    "expire_after_hours": 72,
+                },
+            },
         }
     }
 
@@ -135,21 +132,23 @@ def test_config_file_scanning_pattern_server(schema):
                 "auth": {
                     "method": "bearer",
                     "token_env": "CONFIG_TOKEN",
-                    "token_file": "~/.config/backup-token"
+                    "token_file": "~/.config/backup-token",
                 },
                 "cache": {
                     "path": "~/.cache/ai-guardian/config-exfil.toml",
                     "refresh_interval_hours": 48,
-                    "expire_after_hours": 720
-                }
-            }
+                    "expire_after_hours": 720,
+                },
+            },
         }
     }
 
     try:
         validate(instance=config, schema=schema)
     except ValidationError as e:
-        pytest.fail(f"config_file_scanning.pattern_server failed validation: {e.message}")
+        pytest.fail(
+            f"config_file_scanning.pattern_server failed validation: {e.message}"
+        )
 
 
 @pytest.mark.skipif(not HAS_JSONSCHEMA, reason="jsonschema not installed")
@@ -160,7 +159,7 @@ def test_all_pattern_servers_together(schema):
             "pattern_server": {
                 "url": "https://patterns.example.com",
                 "auth": {"method": "bearer", "token_env": "TOKEN1"},
-                "cache": {"path": "~/.cache/secrets.toml"}
+                "cache": {"path": "~/.cache/secrets.toml"},
             }
         },
         "prompt_injection": {
@@ -168,7 +167,7 @@ def test_all_pattern_servers_together(schema):
                 "pattern_server": {
                     "url": "https://patterns.example.com",
                     "auth": {"method": "bearer", "token_env": "TOKEN2"},
-                    "cache": {"path": "~/.cache/unicode.toml"}
+                    "cache": {"path": "~/.cache/unicode.toml"},
                 }
             }
         },
@@ -176,16 +175,16 @@ def test_all_pattern_servers_together(schema):
             "pattern_server": {
                 "url": "https://patterns.example.com",
                 "auth": {"method": "bearer", "token_env": "TOKEN3"},
-                "cache": {"path": "~/.cache/ssrf.toml"}
+                "cache": {"path": "~/.cache/ssrf.toml"},
             }
         },
         "config_file_scanning": {
             "pattern_server": {
                 "url": "https://patterns.example.com",
                 "auth": {"method": "bearer", "token_env": "TOKEN4"},
-                "cache": {"path": "~/.cache/config.toml"}
+                "cache": {"path": "~/.cache/config.toml"},
             }
-        }
+        },
     }
 
     try:
@@ -204,8 +203,8 @@ def test_auth_with_both_env_and_file(schema):
                 "auth": {
                     "method": "bearer",
                     "token_env": "PRIMARY_TOKEN",
-                    "token_file": "~/.config/backup-token"
-                }
+                    "token_file": "~/.config/backup-token",
+                },
             }
         }
     }
@@ -220,11 +219,7 @@ def test_auth_with_both_env_and_file(schema):
 def test_minimal_pattern_server(schema):
     """Test that pattern_server with only URL validates correctly."""
     config = {
-        "secret_redaction": {
-            "pattern_server": {
-                "url": "https://patterns.example.com"
-            }
-        }
+        "secret_redaction": {"pattern_server": {"url": "https://patterns.example.com"}}
     }
 
     try:
@@ -240,10 +235,7 @@ def test_invalid_auth_method_rejected(schema):
         "secret_redaction": {
             "pattern_server": {
                 "url": "https://patterns.example.com",
-                "auth": {
-                    "method": "invalid_method",
-                    "token_env": "TOKEN"
-                }
+                "auth": {"method": "invalid_method", "token_env": "TOKEN"},
             }
         }
     }
@@ -259,9 +251,7 @@ def test_invalid_cache_refresh_interval_rejected(schema):
         "secret_redaction": {
             "pattern_server": {
                 "url": "https://patterns.example.com",
-                "cache": {
-                    "refresh_interval_hours": 0  # Must be >= 1
-                }
+                "cache": {"refresh_interval_hours": 0},  # Must be >= 1
             }
         }
     }

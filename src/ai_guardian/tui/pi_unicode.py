@@ -10,25 +10,39 @@ import json
 
 from textual.app import ComposeResult
 from textual.containers import Container, Horizontal, VerticalScroll
-from textual.widgets import Static, Label, Checkbox
+from textual.widgets import Static, Checkbox
 
 from ai_guardian.config_utils import get_config_dir
 from ai_guardian.tui.schema_defaults import SchemaDefaultsMixin, default_indicator
 
 
 UNICODE_SETTINGS = [
-    ("detect_zero_width", "Detect Zero-Width Characters",
-     "Invisible characters that break pattern matching (ZWSP, ZWNJ, ZWJ)"),
-    ("detect_bidi_override", "Detect BiDi Override",
-     "Text display reversal for visual deception (RLO, LRO, PDF)"),
-    ("detect_tag_chars", "Detect Tag Characters",
-     "Hidden data encoding in deprecated Unicode tags (U+E0001-U+E007F)"),
-    ("detect_homoglyphs", "Detect Homoglyphs",
-     "Look-alike character substitution (Cyrillic/Greek letters)"),
-    ("allow_rtl_languages", "Allow RTL Languages",
-     "Allow legitimate right-to-left text (Arabic, Hebrew, etc.)"),
-    ("allow_emoji", "Allow Emoji",
-     "Allow emoji characters in prompts"),
+    (
+        "detect_zero_width",
+        "Detect Zero-Width Characters",
+        "Invisible characters that break pattern matching (ZWSP, ZWNJ, ZWJ)",
+    ),
+    (
+        "detect_bidi_override",
+        "Detect BiDi Override",
+        "Text display reversal for visual deception (RLO, LRO, PDF)",
+    ),
+    (
+        "detect_tag_chars",
+        "Detect Tag Characters",
+        "Hidden data encoding in deprecated Unicode tags (U+E0001-U+E007F)",
+    ),
+    (
+        "detect_homoglyphs",
+        "Detect Homoglyphs",
+        "Look-alike character substitution (Cyrillic/Greek letters)",
+    ),
+    (
+        "allow_rtl_languages",
+        "Allow RTL Languages",
+        "Allow legitimate right-to-left text (Arabic, Hebrew, etc.)",
+    ),
+    ("allow_emoji", "Allow Emoji", "Allow emoji characters in prompts"),
 ]
 
 
@@ -37,8 +51,7 @@ class PIUnicodeContent(SchemaDefaultsMixin, Container):
 
     SCHEMA_SECTION = "prompt_injection.unicode_detection"
     SCHEMA_FIELDS = [
-        (f"unicode-{key}", key, "checkbox")
-        for key, _, _ in UNICODE_SETTINGS
+        (f"unicode-{key}", key, "checkbox") for key, _, _ in UNICODE_SETTINGS
     ]
 
     CSS = """
@@ -82,11 +95,15 @@ class PIUnicodeContent(SchemaDefaultsMixin, Container):
     """
 
     def compose(self) -> ComposeResult:
-        yield Static("[bold]Prompt Injection — Unicode Detection[/bold]", id="pi-unicode-header")
+        yield Static(
+            "[bold]Prompt Injection — Unicode Detection[/bold]", id="pi-unicode-header"
+        )
 
         with VerticalScroll():
             with Container(classes="section"):
-                yield Static("[bold]Unicode Attack Detection[/bold]", classes="section-title")
+                yield Static(
+                    "[bold]Unicode Attack Detection[/bold]", classes="section-title"
+                )
                 yield Static(
                     "[dim]Detect Unicode-based attacks that bypass text pattern matching. "
                     "These attacks use invisible or look-alike characters to hide "
@@ -108,7 +125,9 @@ class PIUnicodeContent(SchemaDefaultsMixin, Container):
                     )
 
             with Container(classes="section"):
-                yield Static("[bold]How Unicode Attacks Work[/bold]", classes="section-title")
+                yield Static(
+                    "[bold]How Unicode Attacks Work[/bold]", classes="section-title"
+                )
                 yield Static(
                     "[dim]Zero-width characters:\n"
                     '  "ignore\\u200Binstructions" looks like "ignoreinstructions"\n'
@@ -138,7 +157,7 @@ class PIUnicodeContent(SchemaDefaultsMixin, Container):
         config = {}
         if config_path.exists():
             try:
-                with open(config_path, 'r', encoding='utf-8') as f:
+                with open(config_path, "r", encoding="utf-8") as f:
                     config = json.load(f)
             except Exception as e:
                 self.app.notify(f"Error loading config: {e}", severity="error")
@@ -168,7 +187,7 @@ class PIUnicodeContent(SchemaDefaultsMixin, Container):
         try:
             config = {}
             if config_path.exists():
-                with open(config_path, 'r', encoding='utf-8') as f:
+                with open(config_path, "r", encoding="utf-8") as f:
                     config = json.load(f)
 
             if "prompt_injection" not in config:
@@ -178,7 +197,7 @@ class PIUnicodeContent(SchemaDefaultsMixin, Container):
 
             config["prompt_injection"]["unicode_detection"][config_key] = event.value
 
-            with open(config_path, 'w', encoding='utf-8') as f:
+            with open(config_path, "w", encoding="utf-8") as f:
                 json.dump(config, f, indent=2)
 
             label = config_key.replace("_", " ").title()

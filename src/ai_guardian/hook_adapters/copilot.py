@@ -27,6 +27,7 @@ class CopilotAdapter(HookAdapter):
     @property
     def ide_type(self):
         from ai_guardian.response_format import IDEType
+
         return IDEType.GITHUB_COPILOT
 
     @property
@@ -110,10 +111,14 @@ class CopilotAdapter(HookAdapter):
             response = {}
             if has_secrets:
                 response["permissionDecision"] = "deny"
-                final_error = self._combine_error_messages(error_message, warning_message)
+                final_error = self._combine_error_messages(
+                    error_message, warning_message
+                )
                 if final_error:
                     response["permissionDecisionReason"] = final_error
-                response["additionalContext"] = self._sanitize_block_reason(violation_type)
+                response["additionalContext"] = self._sanitize_block_reason(
+                    violation_type
+                )
             else:
                 agent_parts = []
                 if security_message:
@@ -129,7 +134,9 @@ class CopilotAdapter(HookAdapter):
             )
         else:
             if has_secrets and error_message:
-                final_error = self._combine_error_messages(error_message, warning_message)
+                final_error = self._combine_error_messages(
+                    error_message, warning_message
+                )
                 print(final_error, file=sys.stderr)
                 return self._add_metadata(
                     {"output": None, "exit_code": 2},

@@ -1,12 +1,10 @@
 """Integration tests for scan_command() with diff flags."""
 
-import sys
 import tempfile
 from argparse import Namespace
 from pathlib import Path
 from unittest import mock
 
-import pytest
 
 from ai_guardian.scanner import scan_command
 
@@ -170,8 +168,18 @@ class TestScanCommandDiffMode:
     def test_changed_lines_only_filters(self, mock_scan, mock_diff):
         mock_diff.return_value = SAMPLE_DIFF
         mock_scan.return_value = [
-            {"file_path": "src/foo.py", "line_number": 2, "rule_id": "X", "message": "hit"},
-            {"file_path": "src/foo.py", "line_number": 99, "rule_id": "Y", "message": "miss"},
+            {
+                "file_path": "src/foo.py",
+                "line_number": 2,
+                "rule_id": "X",
+                "message": "hit",
+            },
+            {
+                "file_path": "src/foo.py",
+                "line_number": 99,
+                "rule_id": "Y",
+                "message": "miss",
+            },
         ]
 
         args = _make_args(diff=True, changed_lines_only=True)
@@ -182,6 +190,7 @@ class TestScanCommandDiffMode:
     @mock.patch("ai_guardian.diff_provider.get_pr_diff")
     def test_diff_provider_error(self, mock_pr, capsys):
         from ai_guardian.diff_provider import DiffProviderError
+
         mock_pr.side_effect = DiffProviderError("gh CLI not found")
 
         args = _make_args(pr="123")
@@ -195,8 +204,13 @@ class TestScanCommandDiffMode:
     def test_exit_code_with_findings(self, mock_scan, mock_diff):
         mock_diff.return_value = SAMPLE_DIFF
         mock_scan.return_value = [
-            {"file_path": "src/foo.py", "line_number": 2, "rule_id": "X",
-             "level": "error", "message": "bad"},
+            {
+                "file_path": "src/foo.py",
+                "line_number": 2,
+                "rule_id": "X",
+                "level": "error",
+                "message": "bad",
+            },
         ]
 
         args = _make_args(diff=True, exit_code=True)
@@ -220,7 +234,8 @@ class TestScanCommandLoggingSuppression:
 
         root = self.logging.getLogger()
         stream_handlers = [
-            h for h in root.handlers
+            h
+            for h in root.handlers
             if isinstance(h, self.logging.StreamHandler)
             and not isinstance(h, self.logging.FileHandler)
         ]
@@ -234,7 +249,8 @@ class TestScanCommandLoggingSuppression:
 
         root = self.logging.getLogger()
         stream_handlers = [
-            h for h in root.handlers
+            h
+            for h in root.handlers
             if isinstance(h, self.logging.StreamHandler)
             and not isinstance(h, self.logging.FileHandler)
         ]

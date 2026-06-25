@@ -15,24 +15,17 @@ Shared types and dispatch live here. Tier-specific implementations:
 import json
 import logging
 import os
-import platform
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from enum import Enum
 from typing import List, Optional
 
-from ai_guardian.tui.display import (
-    _tkinter_available,
-    _nicegui_available,
-    _textual_available,
-    is_interactive_available,
-    _ensure_tcl_library,
-)
 
 logger = logging.getLogger(__name__)
 
 
 class AskDecision(str, Enum):
     """User's decision from the ask dialog."""
+
     ALLOW_ONCE = "allow_once"
     ALLOW_ALWAYS = "allow_always"
     SUPPRESS_IN_SOURCE = "suppress_in_source"
@@ -44,6 +37,7 @@ class AskDecision(str, Enum):
 @dataclass
 class AskViolationInfo:
     """Violation details presented in the ask dialog."""
+
     violation_type: str
     summary: str
     matched_text: str
@@ -64,6 +58,7 @@ class AskViolationInfo:
 @dataclass
 class AskResult:
     """Result from the ask dialog."""
+
     decision: AskDecision
     allowlist_pattern: Optional[str] = None
     config_saved: bool = False
@@ -78,6 +73,7 @@ class AskResult:
 def build_dialog_title(violation_info: AskViolationInfo) -> str:
     """Build dialog title with project/tool/file context for multi-session identification."""
     from pathlib import Path
+
     parts = ["ai-guardian: Violation Detected"]
     if violation_info.project_path:
         parts.append(f"— {Path(violation_info.project_path).name}")
@@ -96,6 +92,7 @@ def build_dialog_title(violation_info: AskViolationInfo) -> str:
 def build_sub_dialog_title(base_title: str, violation_info: AskViolationInfo) -> str:
     """Build sub-dialog title with project/tool/session context prefix."""
     from pathlib import Path
+
     prefix_parts = []
     if violation_info.project_path:
         prefix_parts.append(Path(violation_info.project_path).name)
@@ -121,11 +118,13 @@ _TOOL_TO_LABEL = {
 }
 
 
-def format_hook_label(hook_event: Optional[str], tool_name: Optional[str] = None) -> Optional[str]:
+def format_hook_label(
+    hook_event: Optional[str], tool_name: Optional[str] = None
+) -> Optional[str]:
     """Map hook event + optional tool name to a human-readable label."""
     if not hook_event:
         return None
-    raw = hook_event.value if hasattr(hook_event, 'value') else str(hook_event)
+    raw = hook_event.value if hasattr(hook_event, "value") else str(hook_event)
     ev = raw.lower().replace("_", "").replace("-", "")
     if ev in ("pretooluse", "beforereadfile"):
         ctx = _TOOL_TO_LABEL.get(tool_name or "", "before tool use")
@@ -145,12 +144,15 @@ def _map_fallback_to_decision(fallback_action: str) -> AskDecision:
 
 
 def _save_pattern_to_config(
-    pattern: str, config_section: str, config_path: Optional[str] = None,
+    pattern: str,
+    config_section: str,
+    config_path: Optional[str] = None,
 ) -> bool:
     """Save a pattern to the config file. Returns True on success."""
     try:
         from pathlib import Path
         from ai_guardian.config_writer import save_ask_pattern
+
         cp = Path(config_path) if config_path else None
         return save_ask_pattern(config_section, pattern, config_path=cp)
     except Exception as e:
@@ -161,6 +163,7 @@ def _save_pattern_to_config(
 def _write_config_text(json_text: str, config_path_str: Optional[str] = None) -> bool:
     """Write JSON text directly to ai-guardian.json with backup. Returns True on success."""
     from pathlib import Path
+
     try:
         new_config = json.loads(json_text)
     except json.JSONDecodeError as e:
@@ -171,6 +174,7 @@ def _write_config_text(json_text: str, config_path_str: Optional[str] = None) ->
             config_path = Path(config_path_str)
         else:
             from ai_guardian.config_utils import get_config_dir
+
             config_path = get_config_dir() / "ai-guardian.json"
 
         from ai_guardian.config_writer import _atomic_config_update
@@ -186,12 +190,11 @@ def _write_config_text(json_text: str, config_path_str: Optional[str] = None) ->
         return False
 
 
-def _save_ignore_path(
-    path: str, scanner_types: Optional[List[str]] = None
-) -> bool:
+def _save_ignore_path(path: str, scanner_types: Optional[List[str]] = None) -> bool:
     """Save a path to .aiguardignore.toml. Returns True on success."""
     try:
         from ai_guardian.aiguardignore import add_ignore_path
+
         return add_ignore_path(path, scanner_types=scanner_types)
     except Exception as e:
         logger.warning("Failed to save ignore path: %s", e)
@@ -199,11 +202,13 @@ def _save_ignore_path(
 
 
 def _write_aiguardignore_text(
-    toml_text: str, project_root=None,
+    toml_text: str,
+    project_root=None,
 ) -> bool:
     """Write TOML text directly to .aiguardignore.toml. Returns True on success."""
     try:
         from ai_guardian.aiguardignore import write_aiguardignore_text
+
         return write_aiguardignore_text(toml_text, project_root=project_root)
     except Exception as e:
         logger.warning("Failed to write .aiguardignore.toml: %s", e)
@@ -247,28 +252,30 @@ def _show_via_daemon(
     except (json.JSONDecodeError, OSError, ValueError):
         return None
 
-    body = json.dumps({
-        "mode": "ask",
-        "violation": {
-            "violation_type": violation.violation_type,
-            "summary": violation.summary,
-            "matched_text": violation.matched_text,
-            "config_section": violation.config_section,
-            "error_message": violation.error_message,
-            "matched_pattern": violation.matched_pattern,
-            "file_path": violation.file_path,
-            "line_number": violation.line_number,
-            "start_column": violation.start_column,
-            "project_path": violation.project_path,
-            "session_id": violation.session_id,
-            "tool_name": violation.tool_name,
-            "hook_event": violation.hook_event,
-            "finding_index": violation.finding_index,
-            "total_findings": violation.total_findings,
-        },
-        "fallback": fallback_action,
-        "timeout": timeout_seconds,
-    }).encode("utf-8")
+    body = json.dumps(
+        {
+            "mode": "ask",
+            "violation": {
+                "violation_type": violation.violation_type,
+                "summary": violation.summary,
+                "matched_text": violation.matched_text,
+                "config_section": violation.config_section,
+                "error_message": violation.error_message,
+                "matched_pattern": violation.matched_pattern,
+                "file_path": violation.file_path,
+                "line_number": violation.line_number,
+                "start_column": violation.start_column,
+                "project_path": violation.project_path,
+                "session_id": violation.session_id,
+                "tool_name": violation.tool_name,
+                "hook_event": violation.hook_event,
+                "finding_index": violation.finding_index,
+                "total_findings": violation.total_findings,
+            },
+            "fallback": fallback_action,
+            "timeout": timeout_seconds,
+        }
+    ).encode("utf-8")
 
     url = f"http://127.0.0.1:{rest_port}/api/prompt"
     req = Request(url, data=body, method="POST")
@@ -316,25 +323,26 @@ def _show_via_subprocess(
     import subprocess
     import sys
     import tempfile
-    import time
 
-    violation_json = json.dumps({
-        "violation_type": violation.violation_type,
-        "summary": violation.summary,
-        "matched_text": violation.matched_text,
-        "config_section": violation.config_section,
-        "error_message": violation.error_message,
-        "matched_pattern": violation.matched_pattern,
-        "file_path": violation.file_path,
-        "line_number": violation.line_number,
-        "start_column": violation.start_column,
-        "project_path": violation.project_path,
-        "session_id": violation.session_id,
-        "tool_name": violation.tool_name,
-        "hook_event": violation.hook_event,
-        "finding_index": violation.finding_index,
-        "total_findings": violation.total_findings,
-    })
+    violation_json = json.dumps(
+        {
+            "violation_type": violation.violation_type,
+            "summary": violation.summary,
+            "matched_text": violation.matched_text,
+            "config_section": violation.config_section,
+            "error_message": violation.error_message,
+            "matched_pattern": violation.matched_pattern,
+            "file_path": violation.file_path,
+            "line_number": violation.line_number,
+            "start_column": violation.start_column,
+            "project_path": violation.project_path,
+            "session_id": violation.session_id,
+            "tool_name": violation.tool_name,
+            "hook_event": violation.hook_event,
+            "finding_index": violation.finding_index,
+            "total_findings": violation.total_findings,
+        }
+    )
 
     tmpdir = tempfile.mkdtemp(prefix="ai-guardian-ask-")
     output_path = os.path.join(tmpdir, "result.json")
@@ -346,10 +354,14 @@ def _show_via_subprocess(
         cmd = [sys.executable, "-m", "ai_guardian", "prompt", "--mode", "ask"]
     logger.debug(f"prompt --mode ask cmd: {cmd[0]}")
     cmd += [
-        "--violation", violation_json,
-        "--output-file", output_path,
-        "--fallback", fallback_action,
-        "--timeout", str(timeout_seconds),
+        "--violation",
+        violation_json,
+        "--output-file",
+        output_path,
+        "--fallback",
+        fallback_action,
+        "--timeout",
+        str(timeout_seconds),
     ]
 
     try:
@@ -360,7 +372,9 @@ def _show_via_subprocess(
         )
         _, stderr_out = proc.communicate(timeout=timeout_seconds + 10)
         if proc.returncode != 0 and stderr_out:
-            logger.warning(f"prompt ask stderr: {stderr_out.decode('utf-8', errors='replace')[:500]}")
+            logger.warning(
+                f"prompt ask stderr: {stderr_out.decode('utf-8', errors='replace')[:500]}"
+            )
     except subprocess.TimeoutExpired:
         proc.kill()
         proc.communicate()
@@ -392,6 +406,7 @@ def _show_via_subprocess(
         logger.warning(f"Failed to read prompt ask result: {e}")
     finally:
         import shutil
+
         shutil.rmtree(tmpdir, ignore_errors=True)
 
     return None
@@ -419,8 +434,9 @@ def show_ask_dialog(
 
     if get_preferred_ui() == "headless":
         decision = _map_fallback_to_decision(fallback_action)
-        logger.info("preferred_ui=headless, using fallback: %s -> %s",
-                     fallback_action, decision)
+        logger.info(
+            "preferred_ui=headless, using fallback: %s -> %s", fallback_action, decision
+        )
         return AskResult(decision=decision)
 
     result = _show_via_daemon(violation, fallback_action, timeout_seconds)

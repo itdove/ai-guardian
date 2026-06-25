@@ -3,7 +3,6 @@
 import os
 import subprocess
 import sys
-from pathlib import Path
 from unittest import mock
 
 import pytest
@@ -60,7 +59,9 @@ class TestWellKnownDirsWithScanners:
 
 class TestReadShellPath:
     def _mock_non_windows(self):
-        return mock.patch("ai_guardian.daemon.path_env.platform.system", return_value="Linux")
+        return mock.patch(
+            "ai_guardian.daemon.path_env.platform.system", return_value="Linux"
+        )
 
     @pytest.mark.skipif(sys.platform == "win32", reason="Tests Unix shell PATH reading")
     def test_returns_path_dirs_from_shell(self, monkeypatch):
@@ -68,25 +69,27 @@ class TestReadShellPath:
         monkeypatch.setenv("SHELL", "/bin/bash")
         with self._mock_non_windows():
             with mock.patch("ai_guardian.daemon.path_env.subprocess.run") as mock_run:
-                mock_run.return_value = mock.Mock(
-                    returncode=0, stdout=fake_path + "\n"
-                )
+                mock_run.return_value = mock.Mock(returncode=0, stdout=fake_path + "\n")
                 result = _read_shell_path()
 
         assert result == ["/opt/homebrew/bin", "/usr/local/bin", "/usr/bin"]
 
     def test_returns_empty_on_timeout(self):
         with self._mock_non_windows():
-            with mock.patch("ai_guardian.daemon.path_env.subprocess.run",
-                            side_effect=subprocess.TimeoutExpired("cmd", 5)):
+            with mock.patch(
+                "ai_guardian.daemon.path_env.subprocess.run",
+                side_effect=subprocess.TimeoutExpired("cmd", 5),
+            ):
                 result = _read_shell_path()
 
         assert result == []
 
     def test_returns_empty_on_oserror(self):
         with self._mock_non_windows():
-            with mock.patch("ai_guardian.daemon.path_env.subprocess.run",
-                            side_effect=OSError("no shell")):
+            with mock.patch(
+                "ai_guardian.daemon.path_env.subprocess.run",
+                side_effect=OSError("no shell"),
+            ):
                 result = _read_shell_path()
 
         assert result == []
@@ -106,7 +109,9 @@ class TestReadShellPath:
         assert result == []
 
     def test_returns_empty_on_windows(self):
-        with mock.patch("ai_guardian.daemon.path_env.platform.system", return_value="Windows"):
+        with mock.patch(
+            "ai_guardian.daemon.path_env.platform.system", return_value="Windows"
+        ):
             result = _read_shell_path()
         assert result == []
 
@@ -128,8 +133,9 @@ class TestEnsureScannerPath:
         monkeypatch.setenv("PATH", "/usr/bin:/bin")
         with _mock_well_known([str(bin_dir)]):
             with mock.patch.object(path_env_mod, "_SCANNER_BINARIES", []):
-                with mock.patch("ai_guardian.daemon.path_env._read_shell_path",
-                                return_value=[]):
+                with mock.patch(
+                    "ai_guardian.daemon.path_env._read_shell_path", return_value=[]
+                ):
                     ensure_scanner_path()
 
         assert str(bin_dir) in os.environ["PATH"]
@@ -138,8 +144,9 @@ class TestEnsureScannerPath:
         monkeypatch.setenv("PATH", "/usr/bin:/bin")
 
         with _mock_well_known(["/definitely/does/not/exist"]):
-            with mock.patch("ai_guardian.daemon.path_env._read_shell_path",
-                            return_value=[]):
+            with mock.patch(
+                "ai_guardian.daemon.path_env._read_shell_path", return_value=[]
+            ):
                 ensure_scanner_path()
 
         assert "/definitely/does/not/exist" not in os.environ["PATH"]
@@ -149,8 +156,9 @@ class TestEnsureScannerPath:
         monkeypatch.setenv("PATH", f"/usr/bin{sep}/bin{sep}/usr/local/bin")
 
         with _mock_well_known(["/usr/local/bin"]):
-            with mock.patch("ai_guardian.daemon.path_env._read_shell_path",
-                            return_value=[]):
+            with mock.patch(
+                "ai_guardian.daemon.path_env._read_shell_path", return_value=[]
+            ):
                 ensure_scanner_path()
 
         count = os.environ["PATH"].split(sep).count("/usr/local/bin")
@@ -162,8 +170,9 @@ class TestEnsureScannerPath:
 
         monkeypatch.setenv("PATH", "/usr/bin:/bin")
         with _mock_well_known([str(bin_dir)]):
-            with mock.patch("ai_guardian.daemon.path_env._read_shell_path",
-                            return_value=[]):
+            with mock.patch(
+                "ai_guardian.daemon.path_env._read_shell_path", return_value=[]
+            ):
                 ensure_scanner_path()
                 first_path = os.environ["PATH"]
                 ensure_scanner_path()
@@ -177,8 +186,10 @@ class TestEnsureScannerPath:
 
         monkeypatch.setenv("PATH", "/usr/bin:/bin")
         with _mock_well_known([]):
-            with mock.patch("ai_guardian.daemon.path_env._read_shell_path",
-                            return_value=[str(shell_dir)]):
+            with mock.patch(
+                "ai_guardian.daemon.path_env._read_shell_path",
+                return_value=[str(shell_dir)],
+            ):
                 ensure_scanner_path()
 
         assert str(shell_dir) in os.environ["PATH"]
@@ -195,8 +206,9 @@ class TestEnsureScannerPath:
 
         monkeypatch.setenv("PATH", "/usr/bin:/bin")
         with _mock_well_known([str(scanner_dir), str(generic_dir)]):
-            with mock.patch("ai_guardian.daemon.path_env._read_shell_path",
-                            return_value=[]):
+            with mock.patch(
+                "ai_guardian.daemon.path_env._read_shell_path", return_value=[]
+            ):
                 ensure_scanner_path()
 
         path_dirs = os.environ["PATH"].split(os.pathsep)
@@ -210,8 +222,10 @@ class TestEnsureScannerPath:
 
         monkeypatch.setenv("PATH", "/usr/bin:/bin")
         with _mock_well_known([str(bin_dir)]):
-            with mock.patch("ai_guardian.daemon.path_env._read_shell_path",
-                            side_effect=Exception("unexpected")):
+            with mock.patch(
+                "ai_guardian.daemon.path_env._read_shell_path",
+                side_effect=Exception("unexpected"),
+            ):
                 ensure_scanner_path()
 
         assert str(bin_dir) in os.environ["PATH"]

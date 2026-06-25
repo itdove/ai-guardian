@@ -6,7 +6,6 @@ Tests integration with the TUI app (NAV_GROUPS, HELP_DOCS) and verifies
 the panel can be imported without errors.
 """
 
-import pytest
 
 from ai_guardian.tui.engine_tester import EngineTesterContent
 from ai_guardian.tui.app import NAV_GROUPS, HELP_DOCS

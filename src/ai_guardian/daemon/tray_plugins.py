@@ -19,15 +19,24 @@ from typing import Dict, List, Optional, Set, Tuple, Union
 logger = logging.getLogger(__name__)
 
 
-_PARAM_TYPES = frozenset({
-    "string", "int", "number", "boolean", "choice", "combobox",
-    "path-file", "path-dir",
-})
+_PARAM_TYPES = frozenset(
+    {
+        "string",
+        "int",
+        "number",
+        "boolean",
+        "choice",
+        "combobox",
+        "path-file",
+        "path-dir",
+    }
+)
 
 
 @dataclass
 class PluginParam:
     """Parameter definition for a plugin menu item."""
+
     name: str
     hint: str = ""
     default: str = ""
@@ -49,6 +58,7 @@ class PluginItem:
     An item is either a **command item** (has ``command``) or a
     **submenu item** (has ``items`` children or ``import_file``).
     """
+
     label: str
     command: Union[str, Dict[str, str], None] = None
     type: str = "terminal"
@@ -62,6 +72,7 @@ class PluginItem:
 @dataclass
 class Plugin:
     """Plugin definition with name and menu items."""
+
     name: str
     items: List[PluginItem] = field(default_factory=list)
     tags: List[str] = field(default_factory=list)
@@ -86,6 +97,7 @@ def load_plugins(
     """
     if plugins_dir is None:
         from ai_guardian.daemon import get_tray_plugins_dir
+
         plugins_dir = get_tray_plugins_dir()
 
     if not plugins_dir.is_dir():
@@ -103,7 +115,10 @@ def load_plugins(
         if plugin is not None:
             visited = {str(path.resolve())}
             plugin.items = _resolve_imports(
-                plugin.items, plugins_dir, daemon_tags, visited,
+                plugin.items,
+                plugins_dir,
+                daemon_tags,
+                visited,
             )
             if plugin.items:
                 plugins.append(plugin)
@@ -144,6 +159,7 @@ def _get_bundled_plugins_dir() -> Optional[Path]:
     """Return the path to bundled default plugin templates in the package."""
     try:
         from importlib.resources import files
+
         d = Path(str(files("ai_guardian") / "templates" / "tray-plugins"))
         return d if d.is_dir() else None
     except Exception:
@@ -294,13 +310,15 @@ def _parse_item(raw: dict, filename: str, index: int) -> Optional[PluginItem]:
     if kind_count == 0:
         logger.warning(
             "Skipping item %d in %s: must have 'command', 'items', or 'import'",
-            index, filename,
+            index,
+            filename,
         )
         return None
     if kind_count > 1:
         logger.warning(
             "Skipping item %d in %s: 'command', 'items', and 'import' are mutually exclusive",
-            index, filename,
+            index,
+            filename,
         )
         return None
 
@@ -311,7 +329,9 @@ def _parse_item(raw: dict, filename: str, index: int) -> Optional[PluginItem]:
             if child is not None:
                 children.append(child)
         if not children:
-            logger.warning("Skipping item %d in %s: no valid child items", index, filename)
+            logger.warning(
+                "Skipping item %d in %s: no valid child items", index, filename
+            )
             return None
         return PluginItem(label=label, items=children)
 
@@ -319,11 +339,21 @@ def _parse_item(raw: dict, filename: str, index: int) -> Optional[PluginItem]:
         return PluginItem(label=label, import_file=import_ref)
 
     if not isinstance(command, (str, dict)):
-        logger.warning("Skipping item %d in %s: 'command' must be string or object", index, filename)
+        logger.warning(
+            "Skipping item %d in %s: 'command' must be string or object",
+            index,
+            filename,
+        )
         return None
 
     item_type = raw.get("type", "terminal")
-    if item_type not in ("terminal", "background", "notification", "clipboard", "modal"):
+    if item_type not in (
+        "terminal",
+        "background",
+        "notification",
+        "clipboard",
+        "modal",
+    ):
         item_type = "terminal"
 
     params = []
@@ -338,13 +368,19 @@ def _parse_item(raw: dict, filename: str, index: int) -> Optional[PluginItem]:
     if target_mode is not None and target_mode not in _TARGET_MODES:
         logger.warning(
             "Ignoring invalid target '%s' in item %d of %s",
-            target_mode, index, filename,
+            target_mode,
+            index,
+            filename,
         )
         target_mode = None
 
     return PluginItem(
-        label=label, command=command, type=item_type,
-        run_on_target=run_on_target, target=target_mode, params=params,
+        label=label,
+        command=command,
+        type=item_type,
+        run_on_target=run_on_target,
+        target=target_mode,
+        params=params,
     )
 
 
@@ -435,13 +471,15 @@ def _resolve_imports(
 
             if path_key in visited:
                 logger.warning(
-                    "Circular import detected: %s", item.import_file,
+                    "Circular import detected: %s",
+                    item.import_file,
                 )
                 continue
 
             if not import_path.is_file():
                 logger.warning(
-                    "Import file not found: %s", item.import_file,
+                    "Import file not found: %s",
+                    item.import_file,
                 )
                 continue
 
@@ -449,7 +487,9 @@ def _resolve_imports(
                 data = json.loads(import_path.read_text(encoding="utf-8"))
             except (json.JSONDecodeError, OSError) as e:
                 logger.warning(
-                    "Skipping import %s: %s", item.import_file, e,
+                    "Skipping import %s: %s",
+                    item.import_file,
+                    e,
                 )
                 continue
 
@@ -493,7 +533,10 @@ def _resolve_imports(
 
         elif item.items:
             item.items = _resolve_imports(
-                item.items, plugins_dir, daemon_tags, visited,
+                item.items,
+                plugins_dir,
+                daemon_tags,
+                visited,
             )
             if item.items:
                 resolved.append(item)
@@ -528,8 +571,11 @@ def check_circular_imports(
             continue
 
         _check_import_chain(
-            raw_items, plugins_dir, {str(path.resolve())},
-            path.name, warnings,
+            raw_items,
+            plugins_dir,
+            {str(path.resolve())},
+            path.name,
+            warnings,
         )
 
     return warnings
@@ -693,10 +739,19 @@ def validate_param_value(param: PluginParam, value: str) -> Tuple[bool, str]:
     return True, ""
 
 
-_TARGET_VARS = frozenset({
-    "container_id", "container_engine", "container_name", "host", "port",
-    "name", "pod_name", "namespace", "working_dir",
-})
+_TARGET_VARS = frozenset(
+    {
+        "container_id",
+        "container_engine",
+        "container_name",
+        "host",
+        "port",
+        "name",
+        "pod_name",
+        "namespace",
+        "working_dir",
+    }
+)
 
 
 def substitute_target_vars(template: str, target) -> str:
@@ -747,6 +802,7 @@ def wrap_for_target(cmd_parts: list, target, interactive: bool = True) -> list:
         unchanged.
     """
     import shutil
+
     runtime = target.runtime if target else "local"
 
     if runtime == "container":
@@ -810,10 +866,7 @@ def _item_to_dict(item: PluginItem) -> dict:
     if item.target:
         d["target"] = item.target
     if item.params:
-        d["params"] = [
-            _param_to_dict(p)
-            for p in item.params
-        ]
+        d["params"] = [_param_to_dict(p) for p in item.params]
     return d
 
 
@@ -859,12 +912,14 @@ def dict_to_plugins(data: dict) -> List[Plugin]:
 def _find_icon(filename: str) -> str:
     """Find an icon file in the images directory."""
     from pathlib import Path
+
     candidates = [
         Path(__file__).resolve().parent.parent / "images" / filename,
         Path(__file__).resolve().parent.parent.parent.parent / "images" / filename,
     ]
     try:
         from importlib.resources import files
+
         candidates.insert(0, Path(str(files("ai_guardian") / "images" / filename)))
     except Exception:
         pass  # intentionally silent — optional dependency
@@ -881,11 +936,22 @@ def show_dialog(title: str, message: str) -> bool:
     on Linux, PowerShell on Windows.
     """
     import subprocess
+
     system = platform.system()
     try:
         if system == "Darwin":
-            msg = message.replace("\\", "\\\\").replace('"', '\\"').replace("\r", "").replace("\n", '" & return & "')
-            ttl = title.replace("\\", "\\\\").replace('"', '\\"').replace("\r", "").replace("\n", " ")
+            msg = (
+                message.replace("\\", "\\\\")
+                .replace('"', '\\"')
+                .replace("\r", "")
+                .replace("\n", '" & return & "')
+            )
+            ttl = (
+                title.replace("\\", "\\\\")
+                .replace('"', '\\"')
+                .replace("\r", "")
+                .replace("\n", " ")
+            )
             icon_clause = ""
             icns_path = _find_icon("ai-guardian.icns")
             if icns_path:
@@ -932,14 +998,28 @@ def send_notification(title: str, message: str) -> bool:
     Returns True on success.
     """
     import subprocess
+
     system = platform.system()
     try:
         if system == "Darwin":
             from datetime import datetime
+
             ts = datetime.now().strftime("%H:%M:%S")
-            msg = message.replace("\\", "\\\\").replace('"', '\\"').replace("\r", "").replace("\n", '" & return & "')
-            ttl = title.replace("\\", "\\\\").replace('"', '\\"').replace("\r", "").replace("\n", " ")
-            script = f'display notification ("{msg}") with title "{ttl}" subtitle "{ts}"'
+            msg = (
+                message.replace("\\", "\\\\")
+                .replace('"', '\\"')
+                .replace("\r", "")
+                .replace("\n", '" & return & "')
+            )
+            ttl = (
+                title.replace("\\", "\\\\")
+                .replace('"', '\\"')
+                .replace("\r", "")
+                .replace("\n", " ")
+            )
+            script = (
+                f'display notification ("{msg}") with title "{ttl}" subtitle "{ts}"'
+            )
             subprocess.run(["osascript", "-e", script], timeout=5)
         elif system == "Linux":
             icon_args: list[str] = []
@@ -947,7 +1027,8 @@ def send_notification(title: str, message: str) -> bool:
             if png_path:
                 icon_args = ["--icon", png_path]
             subprocess.run(
-                ["notify-send"] + icon_args + [title, message], timeout=5,
+                ["notify-send"] + icon_args + [title, message],
+                timeout=5,
             )
         elif system == "Windows":
             ttl = title.replace("'", "''")
@@ -985,13 +1066,16 @@ def copy_to_clipboard(text: str) -> bool:
     """Copy text to the system clipboard. Returns True on success."""
     import shutil
     import subprocess
+
     system = platform.system()
     try:
         if system == "Darwin":
             subprocess.run(["pbcopy"], input=text.encode(), timeout=5)
         elif system == "Linux":
-            for cmd in (["xclip", "-selection", "clipboard"],
-                        ["xsel", "--clipboard", "--input"]):
+            for cmd in (
+                ["xclip", "-selection", "clipboard"],
+                ["xsel", "--clipboard", "--input"],
+            ):
                 if shutil.which(cmd[0]):
                     subprocess.run(cmd, input=text.encode(), timeout=5)
                     break

@@ -1,6 +1,5 @@
 """Tests for scan result caching."""
 
-import json
 import time
 import unittest
 from pathlib import Path
@@ -23,15 +22,17 @@ class TestScanResultCache(unittest.TestCase):
     def _sample_result(self, has_secrets=True):
         secrets = []
         if has_secrets:
-            secrets.append(SecretMatch(
-                rule_id="aws-access-key",
-                description="AWS Access Key detected",
-                file="test.py",
-                line_number=5,
-                engine="gitleaks",
-                confidence=1.0,
-                verified=False,
-            ))
+            secrets.append(
+                SecretMatch(
+                    rule_id="aws-access-key",
+                    description="AWS Access Key detected",
+                    file="test.py",
+                    line_number=5,
+                    engine="gitleaks",
+                    confidence=1.0,
+                    verified=False,
+                )
+            )
         return ScanResult(
             has_secrets=has_secrets,
             secrets=secrets,

@@ -6,7 +6,6 @@ import threading
 from datetime import datetime, timezone
 from pathlib import Path
 
-import pytest
 
 from ai_guardian.violation_counter import ViolationCounter
 

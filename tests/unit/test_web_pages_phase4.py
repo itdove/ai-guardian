@@ -12,6 +12,7 @@ pytest.importorskip("nicegui", reason="NiceGUI requires Python >= 3.10")
 # Import / existence tests
 # ---------------------------------------------------------------------------
 
+
 class TestPageImports:
     """Verify each Phase 4 page module imports and exposes its create function."""
 
@@ -19,64 +20,75 @@ class TestPageImports:
         from ai_guardian.web.pages.remote_configs import (
             create_remote_configs_page,
         )
+
         assert callable(create_remote_configs_page)
 
     def test_config_file_page_exists(self):
         from ai_guardian.web.pages.config_file import create_config_file_page
+
         assert callable(create_config_file_page)
 
     def test_config_editor_page_exists(self):
         from ai_guardian.web.pages.config_editor import (
             create_config_editor_page,
         )
+
         assert callable(create_config_editor_page)
 
     def test_console_settings_page_exists(self):
         from ai_guardian.web.pages.console_settings import (
             create_console_settings_page,
         )
+
         assert callable(create_console_settings_page)
 
     def test_config_effective_page_exists(self):
         from ai_guardian.web.pages.config_effective import (
             create_config_effective_page,
         )
+
         assert callable(create_config_effective_page)
 
     def test_regex_tester_page_exists(self):
         from ai_guardian.web.pages.regex_tester import (
             create_regex_tester_page,
         )
+
         assert callable(create_regex_tester_page)
 
     def test_hook_simulator_page_exists(self):
         from ai_guardian.web.pages.hook_simulator import (
             create_hook_simulator_page,
         )
+
         assert callable(create_hook_simulator_page)
 
     def test_engine_tester_page_exists(self):
         from ai_guardian.web.pages.engine_tester import (
             create_engine_tester_page,
         )
+
         assert callable(create_engine_tester_page)
 
     def test_directory_scan_page_exists(self):
         from ai_guardian.web.pages.directory_scan import (
             create_directory_scan_page,
         )
+
         assert callable(create_directory_scan_page)
 
     def test_health_check_page_exists(self):
         from ai_guardian.web.pages.health_check import (
             create_health_check_page,
         )
+
         assert callable(create_health_check_page)
 
 
 # ---------------------------------------------------------------------------
 # Route / sidebar consistency
 # ---------------------------------------------------------------------------
+
 
 class TestRouteSidebarConsistency:
     """Verify every Phase 4 route path appears in app.py and sidebar."""
@@ -105,20 +117,17 @@ class TestRouteSidebarConsistency:
     def test_all_routes_in_sidebar(self):
         from ai_guardian.web.components.header import NAV_GROUPS
 
-        all_suffixes = [
-            suffix
-            for _, items in NAV_GROUPS
-            for _, suffix in items
-        ]
+        all_suffixes = [suffix for _, items in NAV_GROUPS for _, suffix in items]
         for route in self.PHASE4_ROUTES:
-            assert route in all_suffixes, (
-                f"Route {route} not found in sidebar navigation"
-            )
+            assert (
+                route in all_suffixes
+            ), f"Route {route} not found in sidebar navigation"
 
 
 # ---------------------------------------------------------------------------
 # Remote Configs helpers
 # ---------------------------------------------------------------------------
+
 
 class TestRemoteConfigsHelpers:
 
@@ -161,6 +170,7 @@ class TestRemoteConfigsHelpers:
 # ---------------------------------------------------------------------------
 # Config Editor helpers
 # ---------------------------------------------------------------------------
+
 
 class TestConfigEditorHelpers:
 
@@ -205,6 +215,7 @@ class TestConfigEditorHelpers:
 # Console Settings data
 # ---------------------------------------------------------------------------
 
+
 class TestConsoleSettingsData:
 
     def test_editor_themes_exist(self):
@@ -221,20 +232,20 @@ class TestConsoleSettingsData:
 
     def test_theme_descriptions_exist(self):
         from ai_guardian.web.pages.console_settings import (
-            EDITOR_THEMES, THEME_DESCRIPTIONS,
+            EDITOR_THEMES,
+            THEME_DESCRIPTIONS,
         )
 
         assert isinstance(THEME_DESCRIPTIONS, dict)
         for key in EDITOR_THEMES:
-            assert key in THEME_DESCRIPTIONS, (
-                f"Missing description for theme {key}"
-            )
+            assert key in THEME_DESCRIPTIONS, f"Missing description for theme {key}"
             assert len(THEME_DESCRIPTIONS[key]) > 10
 
 
 # ---------------------------------------------------------------------------
 # Regex Tester helpers
 # ---------------------------------------------------------------------------
+
 
 class TestRegexTesterHelpers:
 
@@ -258,7 +269,8 @@ class TestRegexTesterHelpers:
         from ai_guardian.web.pages.regex_tester import _test_regex
 
         matches, _ = _test_regex(
-            "hello", "Hello HELLO hello",
+            "hello",
+            "Hello HELLO hello",
             case_insensitive=True,
         )
         assert len(matches) == 3
@@ -267,7 +279,8 @@ class TestRegexTesterHelpers:
         from ai_guardian.web.pages.regex_tester import _test_regex
 
         matches, _ = _test_regex(
-            "hello", "Hello HELLO hello",
+            "hello",
+            "Hello HELLO hello",
             case_insensitive=False,
         )
         assert len(matches) == 1
@@ -277,7 +290,9 @@ class TestRegexTesterHelpers:
 
         text = "line1\nline2\nline3"
         matches, _ = _test_regex(
-            r"^line\d", text, multiline=True,
+            r"^line\d",
+            text,
+            multiline=True,
         )
         assert len(matches) == 3
 
@@ -324,6 +339,7 @@ class TestRegexTesterHelpers:
 # Engine Tester data
 # ---------------------------------------------------------------------------
 
+
 class TestHookSimulatorData:
 
     def test_ide_options_exist(self):
@@ -362,6 +378,7 @@ class TestEngineTesterData:
 # ---------------------------------------------------------------------------
 # Directory Scan helpers
 # ---------------------------------------------------------------------------
+
 
 class TestDirectoryScanHelpers:
 
@@ -411,6 +428,7 @@ class TestDirectoryScanHelpers:
 # Health Check data
 # ---------------------------------------------------------------------------
 
+
 class TestHealthCheckData:
 
     def test_get_status_icons_covers_all(self):
@@ -437,13 +455,17 @@ class TestHealthCheckData:
 # Config load/save
 # ---------------------------------------------------------------------------
 
+
 class TestConfigLoadSavePhase4:
 
     def test_load_config_missing_file(self, tmp_path):
-        with mock.patch(
-            "ai_guardian.config_utils.get_config_dir", return_value=tmp_path
-        ), mock.patch(
-            "ai_guardian.config_writer.get_config_dir", return_value=tmp_path
+        with (
+            mock.patch(
+                "ai_guardian.config_utils.get_config_dir", return_value=tmp_path
+            ),
+            mock.patch(
+                "ai_guardian.config_writer.get_config_dir", return_value=tmp_path
+            ),
         ):
             from ai_guardian.web.config_helpers import load_web_config
 
@@ -453,10 +475,13 @@ class TestConfigLoadSavePhase4:
         config_file = tmp_path / "ai-guardian.json"
         config_file.write_text('{"remote_configs": {"urls": []}}')
 
-        with mock.patch(
-            "ai_guardian.config_utils.get_config_dir", return_value=tmp_path
-        ), mock.patch(
-            "ai_guardian.config_writer.get_config_dir", return_value=tmp_path
+        with (
+            mock.patch(
+                "ai_guardian.config_utils.get_config_dir", return_value=tmp_path
+            ),
+            mock.patch(
+                "ai_guardian.config_writer.get_config_dir", return_value=tmp_path
+            ),
         ):
             from ai_guardian.web.config_helpers import load_web_config
 
@@ -464,10 +489,13 @@ class TestConfigLoadSavePhase4:
             assert result["remote_configs"]["urls"] == []
 
     def test_save_config_creates_file(self, tmp_path):
-        with mock.patch(
-            "ai_guardian.config_utils.get_config_dir", return_value=tmp_path
-        ), mock.patch(
-            "ai_guardian.config_writer.get_config_dir", return_value=tmp_path
+        with (
+            mock.patch(
+                "ai_guardian.config_utils.get_config_dir", return_value=tmp_path
+            ),
+            mock.patch(
+                "ai_guardian.config_writer.get_config_dir", return_value=tmp_path
+            ),
         ):
             from ai_guardian.web.config_helpers import save_web_config
 
@@ -478,10 +506,13 @@ class TestConfigLoadSavePhase4:
             assert data["test"] is True
 
     def test_save_config_pretty_prints(self, tmp_path):
-        with mock.patch(
-            "ai_guardian.config_utils.get_config_dir", return_value=tmp_path
-        ), mock.patch(
-            "ai_guardian.config_writer.get_config_dir", return_value=tmp_path
+        with (
+            mock.patch(
+                "ai_guardian.config_utils.get_config_dir", return_value=tmp_path
+            ),
+            mock.patch(
+                "ai_guardian.config_writer.get_config_dir", return_value=tmp_path
+            ),
         ):
             from ai_guardian.web.config_helpers import save_web_config
 
@@ -495,6 +526,7 @@ class TestConfigLoadSavePhase4:
 # Config Editor save with backup
 # ---------------------------------------------------------------------------
 
+
 class TestConfigEditorSaveBackup:
 
     def test_save_creates_backup(self, tmp_path):
@@ -505,9 +537,7 @@ class TestConfigEditorSaveBackup:
             _save_config_with_backup,
         )
 
-        err = _save_config_with_backup(
-            '{"new": true}', str(config_file)
-        )
+        err = _save_config_with_backup('{"new": true}', str(config_file))
         assert err is None
         assert config_file.exists()
         backup = tmp_path / "ai-guardian.json.bak"
@@ -520,9 +550,7 @@ class TestConfigEditorSaveBackup:
             _save_config_with_backup,
         )
 
-        err = _save_config_with_backup(
-            "{bad", str(tmp_path / "test.json")
-        )
+        err = _save_config_with_backup("{bad", str(tmp_path / "test.json"))
         assert err is not None
         assert "Invalid JSON" in err
 

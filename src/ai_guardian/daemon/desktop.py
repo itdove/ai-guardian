@@ -3,11 +3,9 @@
 import logging
 import os
 import platform
-import shlex
 import shutil
 import stat
 import subprocess
-import sys
 from abc import ABC, abstractmethod
 from pathlib import Path
 
@@ -29,6 +27,7 @@ def get_desktop_integration():
 def _get_executable_command():
     """Resolve the command to launch ai-guardian tray."""
     from ai_guardian.daemon import get_executable_command
+
     return get_executable_command()
 
 
@@ -106,7 +105,11 @@ def _prepare_ico():
 
         img = Image.open(str(png_path))
         state_dir.mkdir(parents=True, exist_ok=True)
-        img.save(str(ico_path), format="ICO", sizes=[(256, 256), (48, 48), (32, 32), (16, 16)])
+        img.save(
+            str(ico_path),
+            format="ICO",
+            sizes=[(256, 256), (48, 48), (32, 32), (16, 16)],
+        )
         return ico_path
     except Exception:
         logger.debug("Failed to prepare .ico", exc_info=True)
@@ -257,6 +260,7 @@ class MacOSDesktop(DesktopIntegration):
     def _find_icns():
         """Find the ai-guardian.icns file for the .app bundle."""
         from ai_guardian.daemon.tray_plugins import _find_icon
+
         path = _find_icon("ai-guardian.icns")
         return path if path else None
 
@@ -282,7 +286,9 @@ class MacOSDesktop(DesktopIntegration):
                 "from ai_guardian.__main__ import main\n"
                 "raise SystemExit(main())\n"
             )
-            script_path.chmod(script_path.stat().st_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
+            script_path.chmod(
+                script_path.stat().st_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH
+            )
 
             icns_path = self._find_icns()
             icon_file = None
@@ -296,6 +302,7 @@ class MacOSDesktop(DesktopIntegration):
                     icon_file = "icon.png"
 
             import plistlib
+
             info_plist = {
                 "CFBundleName": "AI Guardian Tray",
                 "CFBundleDisplayName": "AI Guardian Tray",
@@ -324,15 +331,19 @@ class MacOSDesktop(DesktopIntegration):
             cmd = _get_executable_command() + ["tray", "start"]
 
             import plistlib
+
             augmented_path = os.pathsep.join(
-                filter(None, [
-                    "/opt/homebrew/bin",
-                    "/opt/homebrew/sbin",
-                    "/usr/local/bin",
-                    "/usr/local/sbin",
-                    str(Path.home() / ".local" / "bin"),
-                    os.environ.get("PATH", "/usr/bin:/bin:/usr/sbin:/sbin"),
-                ])
+                filter(
+                    None,
+                    [
+                        "/opt/homebrew/bin",
+                        "/opt/homebrew/sbin",
+                        "/usr/local/bin",
+                        "/usr/local/sbin",
+                        str(Path.home() / ".local" / "bin"),
+                        os.environ.get("PATH", "/usr/bin:/bin:/usr/sbin:/sbin"),
+                    ],
+                )
             )
             plist_data = {
                 "Label": "com.itdove.ai-guardian.tray",
@@ -394,7 +405,14 @@ class WindowsDesktop(DesktopIntegration):
     @property
     def _startup_dir(self):
         appdata = os.environ.get("APPDATA", "")
-        return Path(appdata) / "Microsoft" / "Windows" / "Start Menu" / "Programs" / "Startup"
+        return (
+            Path(appdata)
+            / "Microsoft"
+            / "Windows"
+            / "Start Menu"
+            / "Programs"
+            / "Startup"
+        )
 
     @property
     def shortcut_path(self):

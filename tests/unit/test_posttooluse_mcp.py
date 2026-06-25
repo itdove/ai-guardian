@@ -21,9 +21,11 @@ from tests.fixtures import attack_constants
 class PostToolUseSecretScanningTests(TestCase):
     """Test secret scanning in tool outputs"""
 
-    @patch('ai_guardian.hook_processing._load_secret_redaction_config')
-    @patch('ai_guardian.hook_processing._load_pattern_server_config')
-    def test_bash_output_with_secret_blocked(self, mock_pattern_config, mock_redaction_config):
+    @patch("ai_guardian.hook_processing._load_secret_redaction_config")
+    @patch("ai_guardian.hook_processing._load_pattern_server_config")
+    def test_bash_output_with_secret_blocked(
+        self, mock_pattern_config, mock_redaction_config
+    ):
         """
         Verify secrets in Bash output are blocked.
 
@@ -38,25 +40,34 @@ class PostToolUseSecretScanningTests(TestCase):
         # Create PostToolUse hook data with secret in Bash output
         hook_data = create_tool_response(
             tool_name="Bash",
-            output=f"Environment variables:\nSLACK_TOKEN={attack_constants.SECRET_SLACK_TOKEN}\n"
+            output=f"Environment variables:\nSLACK_TOKEN={attack_constants.SECRET_SLACK_TOKEN}\n",
         )
 
         hook_json = json.dumps(hook_data)
 
-        with patch('sys.stdin', StringIO(hook_json)):
+        with patch("sys.stdin", StringIO(hook_json)):
             result = ai_guardian.process_hook_input()
 
         # Expected: Exit 0 with warning message (redacted, not blocked)
         assert result["exit_code"] == 0, "PostToolUse always returns exit 0"
         response = json.loads(result["output"])
-        assert response.get("systemMessage") is not None, "Should have warning about redacted secrets"
-        assert "Redacted" in response.get("systemMessage", ""), "Warning should mention redaction"
+        assert (
+            response.get("systemMessage") is not None
+        ), "Should have warning about redacted secrets"
+        assert "Redacted" in response.get(
+            "systemMessage", ""
+        ), "Warning should mention redaction"
         # Verify secret was redacted from output
         output_text = response.get("modified_output", response.get("output", ""))
-        assert attack_constants.SECRET_SLACK_TOKEN not in output_text, "Secret should be redacted"
-    @patch('ai_guardian.hook_processing._load_secret_redaction_config')
-    @patch('ai_guardian.hook_processing._load_pattern_server_config')
-    def test_read_output_with_secret_blocked(self, mock_pattern_config, mock_redaction_config):
+        assert (
+            attack_constants.SECRET_SLACK_TOKEN not in output_text
+        ), "Secret should be redacted"
+
+    @patch("ai_guardian.hook_processing._load_secret_redaction_config")
+    @patch("ai_guardian.hook_processing._load_pattern_server_config")
+    def test_read_output_with_secret_blocked(
+        self, mock_pattern_config, mock_redaction_config
+    ):
         """
         Verify secrets in Read tool output are redacted.
 
@@ -74,26 +85,34 @@ class PostToolUseSecretScanningTests(TestCase):
             "tool_name": "Read",
             "tool_response": {
                 "content": f"Config file:\napi_token: {attack_constants.SECRET_SLACK_TOKEN}\n"
-            }
+            },
         }
 
         hook_json = json.dumps(hook_data)
 
-        with patch('sys.stdin', StringIO(hook_json)):
+        with patch("sys.stdin", StringIO(hook_json)):
             result = ai_guardian.process_hook_input()
 
         # Expected: warning message (redacted, not blocked)
         assert result["exit_code"] == 0, "PostToolUse always returns exit 0"
         response = json.loads(result["output"])
-        assert response.get("systemMessage") is not None, "Should have warning about redacted secrets"
-        assert "Redacted" in response.get("systemMessage", ""), "Warning should mention redaction"
+        assert (
+            response.get("systemMessage") is not None
+        ), "Should have warning about redacted secrets"
+        assert "Redacted" in response.get(
+            "systemMessage", ""
+        ), "Warning should mention redaction"
         # Verify secret was redacted from output
         output_text = response.get("modified_output", response.get("content", ""))
-        assert attack_constants.SECRET_SLACK_TOKEN not in output_text, "Secret should be redacted"
+        assert (
+            attack_constants.SECRET_SLACK_TOKEN not in output_text
+        ), "Secret should be redacted"
 
-    @patch('ai_guardian.hook_processing._load_secret_redaction_config')
-    @patch('ai_guardian.hook_processing._load_pattern_server_config')
-    def test_bash_clean_output_allowed(self, mock_pattern_config, mock_redaction_config):
+    @patch("ai_guardian.hook_processing._load_secret_redaction_config")
+    @patch("ai_guardian.hook_processing._load_pattern_server_config")
+    def test_bash_clean_output_allowed(
+        self, mock_pattern_config, mock_redaction_config
+    ):
         """
         Verify clean Bash output is allowed.
 
@@ -108,19 +127,20 @@ class PostToolUseSecretScanningTests(TestCase):
         # Create PostToolUse hook data with clean output
         hook_data = create_tool_response(
             tool_name="Bash",
-            output="Hello, World!\nOperation completed successfully.\n"
+            output="Hello, World!\nOperation completed successfully.\n",
         )
 
         hook_json = json.dumps(hook_data)
 
-        with patch('sys.stdin', StringIO(hook_json)):
+        with patch("sys.stdin", StringIO(hook_json)):
             result = ai_guardian.process_hook_input()
 
         # Expected: ALLOWED (exit 0, no 'decision' field)
-        assert result['exit_code'] == 0, "Clean Bash output should be allowed"
-        response = json.loads(result['output'])
-        assert 'decision' not in response or response.get('decision') != 'block', \
-            "Clean output should not have decision='block'"
+        assert result["exit_code"] == 0, "Clean Bash output should be allowed"
+        response = json.loads(result["output"])
+        assert (
+            "decision" not in response or response.get("decision") != "block"
+        ), "Clean output should not have decision='block'"
 
     def test_write_tool_output_skipped(self):
         """
@@ -134,19 +154,16 @@ class PostToolUseSecretScanningTests(TestCase):
         hook_data = {
             "hook_event_name": "PostToolUse",
             "tool_name": "Write",
-            "tool_response": {
-                "filePath": "/tmp/test.py",
-                "success": True
-            }
+            "tool_response": {"filePath": "/tmp/test.py", "success": True},
         }
 
         hook_json = json.dumps(hook_data)
 
-        with patch('sys.stdin', StringIO(hook_json)):
+        with patch("sys.stdin", StringIO(hook_json)):
             result = ai_guardian.process_hook_input()
 
         # Expected: ALLOWED (Write output not scanned)
-        assert result['exit_code'] == 0, "Write tool PostToolUse should be allowed"
+        assert result["exit_code"] == 0, "Write tool PostToolUse should be allowed"
 
     def test_edit_tool_output_skipped(self):
         """
@@ -159,16 +176,16 @@ class PostToolUseSecretScanningTests(TestCase):
         hook_data = {
             "hook_event_name": "PostToolUse",
             "tool_name": "Edit",
-            "tool_response": {"success": True}
+            "tool_response": {"success": True},
         }
 
         hook_json = json.dumps(hook_data)
 
-        with patch('sys.stdin', StringIO(hook_json)):
+        with patch("sys.stdin", StringIO(hook_json)):
             result = ai_guardian.process_hook_input()
 
         # Expected: ALLOWED
-        assert result['exit_code'] == 0, "Edit tool PostToolUse should be allowed"
+        assert result["exit_code"] == 0, "Edit tool PostToolUse should be allowed"
 
 
 class PostToolUseContentScanningTests(TestCase):
@@ -179,9 +196,11 @@ class PostToolUseContentScanningTests(TestCase):
     not a PostToolUse concern (tool output to AI).
     """
 
-    @patch('ai_guardian.hook_processing._load_secret_redaction_config')
-    @patch('ai_guardian.hook_processing._load_pattern_server_config')
-    def test_bash_output_with_potential_injection_allowed(self, mock_pattern_config, mock_redaction_config):
+    @patch("ai_guardian.hook_processing._load_secret_redaction_config")
+    @patch("ai_guardian.hook_processing._load_pattern_server_config")
+    def test_bash_output_with_potential_injection_allowed(
+        self, mock_pattern_config, mock_redaction_config
+    ):
         """
         Verify tool output with injection-like patterns is allowed.
 
@@ -199,23 +218,26 @@ class PostToolUseContentScanningTests(TestCase):
         # Output that looks like prompt injection but is just tool data
         hook_data = create_tool_response(
             tool_name="Bash",
-            output=f"Found in logs:\n{attack_constants.PROMPT_INJECTION_IGNORE_PREVIOUS}\n"
+            output=f"Found in logs:\n{attack_constants.PROMPT_INJECTION_IGNORE_PREVIOUS}\n",
         )
 
         hook_json = json.dumps(hook_data)
 
-        with patch('sys.stdin', StringIO(hook_json)):
+        with patch("sys.stdin", StringIO(hook_json)):
             result = ai_guardian.process_hook_input()
 
         # Expected: ALLOWED (PostToolUse only scans for secrets)
-        assert result['exit_code'] == 0, "PostToolUse always returns exit 0"
-        response = json.loads(result['output'])
-        assert response.get('decision') != 'block', \
-            "Tool output with injection-like text should be allowed (not user input)"
+        assert result["exit_code"] == 0, "PostToolUse always returns exit 0"
+        response = json.loads(result["output"])
+        assert (
+            response.get("decision") != "block"
+        ), "Tool output with injection-like text should be allowed (not user input)"
 
-    @patch('ai_guardian.hook_processing._load_secret_redaction_config')
-    @patch('ai_guardian.hook_processing._load_pattern_server_config')
-    def test_read_file_with_commands_allowed(self, mock_pattern_config, mock_redaction_config):
+    @patch("ai_guardian.hook_processing._load_secret_redaction_config")
+    @patch("ai_guardian.hook_processing._load_pattern_server_config")
+    def test_read_file_with_commands_allowed(
+        self, mock_pattern_config, mock_redaction_config
+    ):
         """
         Verify file content with commands is allowed.
 
@@ -232,22 +254,23 @@ class PostToolUseContentScanningTests(TestCase):
             "tool_name": "Read",
             "tool_response": {
                 "content": f"#!/bin/bash\n{attack_constants.PROMPT_INJECTION_ROLE_SWITCH}\necho 'done'\n"
-            }
+            },
         }
 
         hook_json = json.dumps(hook_data)
 
-        with patch('sys.stdin', StringIO(hook_json)):
+        with patch("sys.stdin", StringIO(hook_json)):
             result = ai_guardian.process_hook_input()
 
         # Expected: ALLOWED
-        assert result['exit_code'] == 0, "PostToolUse always returns exit 0"
-        response = json.loads(result['output'])
-        assert response.get('decision') != 'block', \
-            "File content with commands should be allowed"
+        assert result["exit_code"] == 0, "PostToolUse always returns exit 0"
+        response = json.loads(result["output"])
+        assert (
+            response.get("decision") != "block"
+        ), "File content with commands should be allowed"
 
-    @patch('ai_guardian.hook_processing._load_secret_redaction_config')
-    @patch('ai_guardian.hook_processing._load_pattern_server_config')
+    @patch("ai_guardian.hook_processing._load_secret_redaction_config")
+    @patch("ai_guardian.hook_processing._load_pattern_server_config")
     def test_normal_code_file_allowed(self, mock_pattern_config, mock_redaction_config):
         """
         Verify normal code files are allowed.
@@ -272,26 +295,28 @@ def hello_world():
 if __name__ == "__main__":
     hello_world()
 """
-            }
+            },
         }
 
         hook_json = json.dumps(hook_data)
 
-        with patch('sys.stdin', StringIO(hook_json)):
+        with patch("sys.stdin", StringIO(hook_json)):
             result = ai_guardian.process_hook_input()
 
         # Expected: ALLOWED
-        assert result['exit_code'] == 0, "Normal code file should be allowed"
-        response = json.loads(result['output'])
-        assert response.get('decision') != 'block', "Clean code should be allowed"
+        assert result["exit_code"] == 0, "Normal code file should be allowed"
+        response = json.loads(result["output"])
+        assert response.get("decision") != "block", "Clean code should be allowed"
 
 
 class PostToolUseMCPToolTests(TestCase):
     """Test PostToolUse with MCP tool responses"""
 
-    @patch('ai_guardian.hook_processing._load_secret_redaction_config')
-    @patch('ai_guardian.hook_processing._load_pattern_server_config')
-    def test_mcp_response_with_secret_allowed_by_default(self, mock_pattern_config, mock_redaction_config):
+    @patch("ai_guardian.hook_processing._load_secret_redaction_config")
+    @patch("ai_guardian.hook_processing._load_pattern_server_config")
+    def test_mcp_response_with_secret_allowed_by_default(
+        self, mock_pattern_config, mock_redaction_config
+    ):
         """
         Verify MCP tool responses are scanned if output is extracted.
 
@@ -313,18 +338,18 @@ class PostToolUseMCPToolTests(TestCase):
             "tool_response": {
                 "answer": f"The API token is {attack_constants.SECRET_SLACK_TOKEN}",
                 "sources": [],
-                "status": "success"
-            }
+                "status": "success",
+            },
         }
 
         hook_json = json.dumps(hook_data)
 
-        with patch('sys.stdin', StringIO(hook_json)):
+        with patch("sys.stdin", StringIO(hook_json)):
             result = ai_guardian.process_hook_input()
 
         # Expected: PostToolUse returns exit 0
         # MCP tool responses might not be scanned the same as Bash/Read
-        assert result['exit_code'] == 0, "PostToolUse always returns exit 0"
+        assert result["exit_code"] == 0, "PostToolUse always returns exit 0"
 
         # This test documents current behavior - MCP responses may not be scanned
         # If extract_tool_result() doesn't handle this MCP tool specifically,
@@ -344,17 +369,17 @@ class PostToolUseMCPToolTests(TestCase):
             "tool_response": {
                 "answer": "The research shows that AI security is important.",
                 "sources": ["source_1", "source_2"],
-                "status": "success"
-            }
+                "status": "success",
+            },
         }
 
         hook_json = json.dumps(hook_data)
 
-        with patch('sys.stdin', StringIO(hook_json)):
+        with patch("sys.stdin", StringIO(hook_json)):
             result = ai_guardian.process_hook_input()
 
         # Expected: ALLOWED
-        assert result['exit_code'] == 0, "Clean MCP response should be allowed"
+        assert result["exit_code"] == 0, "Clean MCP response should be allowed"
 
     def test_mcp_notebook_list_allowed(self):
         """
@@ -369,29 +394,39 @@ class PostToolUseMCPToolTests(TestCase):
             "tool_name": "mcp__notebooklm-mcp__notebook_list",
             "tool_response": {
                 "notebooks": [
-                    {"notebook_id": "nb_1", "title": "Research Notes", "source_count": 5},
-                    {"notebook_id": "nb_2", "title": "Project Planning", "source_count": 3}
+                    {
+                        "notebook_id": "nb_1",
+                        "title": "Research Notes",
+                        "source_count": 5,
+                    },
+                    {
+                        "notebook_id": "nb_2",
+                        "title": "Project Planning",
+                        "source_count": 3,
+                    },
                 ],
                 "count": 2,
-                "status": "success"
-            }
+                "status": "success",
+            },
         }
 
         hook_json = json.dumps(hook_data)
 
-        with patch('sys.stdin', StringIO(hook_json)):
+        with patch("sys.stdin", StringIO(hook_json)):
             result = ai_guardian.process_hook_input()
 
         # Expected: ALLOWED
-        assert result['exit_code'] == 0, "Notebook list should be allowed"
+        assert result["exit_code"] == 0, "Notebook list should be allowed"
 
 
 class PostToolUseRedactionTests(TestCase):
     """Test secret redaction in tool outputs"""
 
-    @patch('ai_guardian.hook_processing._load_secret_redaction_config')
-    @patch('ai_guardian.hook_processing._load_pattern_server_config')
-    def test_redaction_mode_replaces_secrets(self, mock_pattern_config, mock_redaction_config):
+    @patch("ai_guardian.hook_processing._load_secret_redaction_config")
+    @patch("ai_guardian.hook_processing._load_pattern_server_config")
+    def test_redaction_mode_replaces_secrets(
+        self, mock_pattern_config, mock_redaction_config
+    ):
         """
         Verify redaction mode replaces secrets in output.
 
@@ -404,29 +439,28 @@ class PostToolUseRedactionTests(TestCase):
         """
         # Disable pattern server, enable redaction
         mock_pattern_config.return_value = None
-        mock_redaction_config.return_value = ({
-            "enabled": True,
-            "mode": "redact",
-            "redaction_string": "[REDACTED]"
-        }, None)
+        mock_redaction_config.return_value = (
+            {"enabled": True, "mode": "redact", "redaction_string": "[REDACTED]"},
+            None,
+        )
 
         # Create PostToolUse with secret
         hook_data = create_tool_response(
             tool_name="Bash",
-            output=f"Token: {attack_constants.SECRET_SLACK_TOKEN}\nOther output"
+            output=f"Token: {attack_constants.SECRET_SLACK_TOKEN}\nOther output",
         )
 
         hook_json = json.dumps(hook_data)
 
-        with patch('sys.stdin', StringIO(hook_json)):
+        with patch("sys.stdin", StringIO(hook_json)):
             result = ai_guardian.process_hook_input()
 
         # Expected: PostToolUse returns exit 0
-        assert result['exit_code'] == 0, "PostToolUse always returns exit 0"
+        assert result["exit_code"] == 0, "PostToolUse always returns exit 0"
 
         # Response behavior depends on redaction config
-        if result['output'] is not None:
-            response = json.loads(result['output'])
+        if result["output"] is not None:
+            response = json.loads(result["output"])
             # Either decision='block' or has modifiedOutput with redacted content
             # This is configuration-dependent
 
@@ -434,9 +468,11 @@ class PostToolUseRedactionTests(TestCase):
 class PostToolUseCombinedTests(TestCase):
     """Test combined scenarios in PostToolUse"""
 
-    @patch('ai_guardian.hook_processing._load_secret_redaction_config')
-    @patch('ai_guardian.hook_processing._load_pattern_server_config')
-    def test_multiple_threats_in_output(self, mock_pattern_config, mock_redaction_config):
+    @patch("ai_guardian.hook_processing._load_secret_redaction_config")
+    @patch("ai_guardian.hook_processing._load_pattern_server_config")
+    def test_multiple_threats_in_output(
+        self, mock_pattern_config, mock_redaction_config
+    ):
         """
         Verify output with multiple threats is blocked.
 
@@ -454,24 +490,27 @@ class PostToolUseCombinedTests(TestCase):
         Token: {attack_constants.SECRET_SLACK_TOKEN}
         """
 
-        hook_data = create_tool_response(
-            tool_name="Bash",
-            output=malicious_output
-        )
+        hook_data = create_tool_response(tool_name="Bash", output=malicious_output)
 
         hook_json = json.dumps(hook_data)
 
-        with patch('sys.stdin', StringIO(hook_json)):
+        with patch("sys.stdin", StringIO(hook_json)):
             result = ai_guardian.process_hook_input()
 
         # Expected: warning message (redacted, not blocked)
         assert result["exit_code"] == 0, "PostToolUse always returns exit 0"
         response = json.loads(result["output"])
-        assert response.get("systemMessage") is not None, "Should have warning about redacted secrets"
-        assert "Redacted" in response.get("systemMessage", ""), "Warning should mention redaction"
+        assert (
+            response.get("systemMessage") is not None
+        ), "Should have warning about redacted secrets"
+        assert "Redacted" in response.get(
+            "systemMessage", ""
+        ), "Warning should mention redaction"
         # Verify secrets were redacted from output
         output_text = response.get("modified_output", response.get("output", ""))
-        assert attack_constants.SECRET_SLACK_TOKEN not in output_text, "Secret should be redacted"
+        assert (
+            attack_constants.SECRET_SLACK_TOKEN not in output_text
+        ), "Secret should be redacted"
 
     def test_json_output_with_nested_secret(self):
         """

@@ -60,17 +60,25 @@ class ComplianceReporter:
         scan_entries = [e for e in filtered if e.get("event") == "scan_completed"]
         failure_entries = [e for e in filtered if e.get("event") == "engine_failure"]
 
-        engines_used = list(set(e.get("engine", "") for e in scan_entries if e.get("engine")))
-        strategies_used = list(set(e.get("strategy", "") for e in scan_entries if e.get("strategy")))
+        engines_used = list(
+            set(e.get("engine", "") for e in scan_entries if e.get("engine"))
+        )
+        strategies_used = list(
+            set(e.get("strategy", "") for e in scan_entries if e.get("strategy"))
+        )
 
         report = {
             "framework": framework,
-            "framework_name": COMPLIANCE_FRAMEWORKS.get(framework, {}).get("name", framework),
+            "framework_name": COMPLIANCE_FRAMEWORKS.get(framework, {}).get(
+                "name", framework
+            ),
             "generated_at": datetime.now(timezone.utc).isoformat(),
             "period_days": days,
             "summary": {
                 "total_scans": len(scan_entries),
-                "secrets_detected": sum(1 for e in scan_entries if e.get("has_secrets")),
+                "secrets_detected": sum(
+                    1 for e in scan_entries if e.get("has_secrets")
+                ),
                 "engine_failures": len(failure_entries),
                 "engines_used": engines_used,
                 "strategies_used": strategies_used,
@@ -80,36 +88,40 @@ class ComplianceReporter:
 
         return report
 
-    def _check_compliance(
-        self, framework: str, entries: List[Dict]
-    ) -> List[Dict]:
+    def _check_compliance(self, framework: str, entries: List[Dict]) -> List[Dict]:
         checks = []
 
         fw = COMPLIANCE_FRAMEWORKS.get(framework, {})
         requirements = fw.get("requires", [])
 
         if "secret_scanning" in requirements:
-            checks.append({
-                "check": "Secret scanning active",
-                "status": "pass" if entries else "fail",
-                "details": f"{len(entries)} scans performed",
-            })
+            checks.append(
+                {
+                    "check": "Secret scanning active",
+                    "status": "pass" if entries else "fail",
+                    "details": f"{len(entries)} scans performed",
+                }
+            )
 
         if "multi_engine" in requirements:
             engines = set(e.get("engine", "") for e in entries)
             multi = len(engines) > 1
-            checks.append({
-                "check": "Multi-engine scanning",
-                "status": "pass" if multi else "warn",
-                "details": f"{len(engines)} engine(s): {', '.join(sorted(engines))}",
-            })
+            checks.append(
+                {
+                    "check": "Multi-engine scanning",
+                    "status": "pass" if multi else "warn",
+                    "details": f"{len(engines)} engine(s): {', '.join(sorted(engines))}",
+                }
+            )
 
         if "audit_logging" in requirements:
-            checks.append({
-                "check": "Audit logging enabled",
-                "status": "pass" if entries else "fail",
-                "details": f"{len(entries)} audit entries",
-            })
+            checks.append(
+                {
+                    "check": "Audit logging enabled",
+                    "status": "pass" if entries else "fail",
+                    "details": f"{len(entries)} audit entries",
+                }
+            )
 
         return checks
 

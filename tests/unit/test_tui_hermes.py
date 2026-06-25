@@ -39,17 +39,12 @@ class TestSSRFContent:
             config_path = Path(tmpdir) / "ai-guardian.json"
 
             # Create initial config
-            config = {
-                "ssrf_protection": {
-                    "enabled": True,
-                    "action": "block"
-                }
-            }
-            with open(config_path, 'w') as f:
+            config = {"ssrf_protection": {"enabled": True, "action": "block"}}
+            with open(config_path, "w") as f:
                 json.dump(config, f)
 
             # Verify config was created
-            with open(config_path, 'r') as f:
+            with open(config_path, "r") as f:
                 saved_config = json.load(f)
 
             assert saved_config["ssrf_protection"]["enabled"] is True
@@ -83,14 +78,14 @@ class TestConfigScannerContent:
                     "action": "block",
                     "additional_files": [".myconfig"],
                     "ignore_files": ["*.example.md"],
-                    "additional_patterns": ["custom_pattern_.*"]
+                    "additional_patterns": ["custom_pattern_.*"],
                 }
             }
-            with open(config_path, 'w') as f:
+            with open(config_path, "w") as f:
                 json.dump(config, f)
 
             # Verify config structure
-            with open(config_path, 'r') as f:
+            with open(config_path, "r") as f:
                 saved_config = json.load(f)
 
             scanner_config = saved_config["config_file_scanning"]
@@ -128,14 +123,14 @@ class TestSecretRedactionContent:
                     "action": "log-only",
                     "preserve_format": True,
                     "log_redactions": True,
-                    "additional_patterns": ["MY_SECRET_[A-Z0-9]+"]
+                    "additional_patterns": ["MY_SECRET_[A-Z0-9]+"],
                 }
             }
-            with open(config_path, 'w') as f:
+            with open(config_path, "w") as f:
                 json.dump(config, f)
 
             # Verify config structure
-            with open(config_path, 'r') as f:
+            with open(config_path, "r") as f:
                 saved_config = json.load(f)
 
             redaction_config = saved_config["secret_redaction"]
@@ -171,16 +166,16 @@ class TestSecurityDashboardContent:
                 "ssrf_protection": {"enabled": True},
                 "prompt_injection": {
                     "enabled": True,
-                    "unicode_detection": {"enabled": True}
+                    "unicode_detection": {"enabled": True},
                 },
                 "config_file_scanning": {"enabled": False},
-                "secret_redaction": {"enabled": True}
+                "secret_redaction": {"enabled": True},
             }
-            with open(config_path, 'w') as f:
+            with open(config_path, "w") as f:
                 json.dump(config, f)
 
             # Verify config was created
-            with open(config_path, 'r') as f:
+            with open(config_path, "r") as f:
                 saved_config = json.load(f)
 
             # Count enabled features (should be 4 out of 5)
@@ -208,19 +203,36 @@ class TestSecurityDashboardContent:
         dashboard = SecurityDashboardContent()
 
         # Test SSRF categorization
-        assert dashboard._categorize_violation("SSRF Protection: Blocked private IP") == "SSRF Protection"
+        assert (
+            dashboard._categorize_violation("SSRF Protection: Blocked private IP")
+            == "SSRF Protection"
+        )
 
         # Test prompt injection categorization
-        assert dashboard._categorize_violation("Prompt injection detected") == "Prompt Injection"
+        assert (
+            dashboard._categorize_violation("Prompt injection detected")
+            == "Prompt Injection"
+        )
 
         # Test unicode attack categorization
-        assert dashboard._categorize_violation("Unicode attack: zero-width character") == "Unicode Attack"
+        assert (
+            dashboard._categorize_violation("Unicode attack: zero-width character")
+            == "Unicode Attack"
+        )
 
         # Test config scanner categorization
-        assert dashboard._categorize_violation("Config file: CLAUDE.md contains dangerous pattern") == "Config File Scanner"
+        assert (
+            dashboard._categorize_violation(
+                "Config file: CLAUDE.md contains dangerous pattern"
+            )
+            == "Config File Scanner"
+        )
 
         # Test secret redaction categorization
-        assert dashboard._categorize_violation("Secret redacted: GitHub Token") == "Secret Redaction"
+        assert (
+            dashboard._categorize_violation("Secret redacted: GitHub Token")
+            == "Secret Redaction"
+        )
 
         # Test uncategorized
         assert dashboard._categorize_violation("Unknown violation") == "Other"
@@ -245,15 +257,15 @@ class TestPromptInjectionUnicodeDetection:
                         "detect_tag_chars": True,
                         "detect_homoglyphs": True,
                         "allow_rtl_languages": True,
-                        "allow_emoji": True
-                    }
+                        "allow_emoji": True,
+                    },
                 }
             }
-            with open(config_path, 'w') as f:
+            with open(config_path, "w") as f:
                 json.dump(config, f)
 
             # Verify config structure
-            with open(config_path, 'r') as f:
+            with open(config_path, "r") as f:
                 saved_config = json.load(f)
 
             unicode_config = saved_config["prompt_injection"]["unicode_detection"]
@@ -271,16 +283,12 @@ class TestPromptInjectionUnicodeDetection:
             config_path = Path(tmpdir) / "ai-guardian.json"
 
             # Create minimal config
-            config = {
-                "prompt_injection": {
-                    "unicode_detection": {}
-                }
-            }
-            with open(config_path, 'w') as f:
+            config = {"prompt_injection": {"unicode_detection": {}}}
+            with open(config_path, "w") as f:
                 json.dump(config, f)
 
             # Config should accept empty unicode_detection
-            with open(config_path, 'r') as f:
+            with open(config_path, "r") as f:
                 saved_config = json.load(f)
 
             assert "unicode_detection" in saved_config["prompt_injection"]

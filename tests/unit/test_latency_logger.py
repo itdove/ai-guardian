@@ -1,10 +1,8 @@
 """Tests for the latency_logger module — timer, logger, computer, formatters."""
 
 import json
-import math
 import time
 from datetime import datetime, timedelta, timezone
-from pathlib import Path
 from unittest.mock import patch
 
 import pytest
@@ -119,14 +117,19 @@ class TestCheckTimerAskWait:
 class TestLatencyLogger:
     def test_log_timing_creates_file(self, tmp_path):
         log_path = tmp_path / "latency.jsonl"
-        ll = LatencyLogger(log_path=log_path, config={"enabled": True, "max_entries": 100, "retention_days": 30})
-        ll.log_timing({
-            "timestamp": "2026-06-10T12:00:00Z",
-            "hook_event": "PreToolUse",
-            "tool": "Bash",
-            "total_ms": 10.5,
-            "checks": {"secret_scanning": 5.2},
-        })
+        ll = LatencyLogger(
+            log_path=log_path,
+            config={"enabled": True, "max_entries": 100, "retention_days": 30},
+        )
+        ll.log_timing(
+            {
+                "timestamp": "2026-06-10T12:00:00Z",
+                "hook_event": "PreToolUse",
+                "tool": "Bash",
+                "total_ms": 10.5,
+                "checks": {"secret_scanning": 5.2},
+            }
+        )
         assert log_path.exists()
         lines = log_path.read_text().strip().split("\n")
         assert len(lines) == 1
@@ -137,16 +140,44 @@ class TestLatencyLogger:
     def test_disabled_skips_write(self, tmp_path):
         log_path = tmp_path / "latency.jsonl"
         ll = LatencyLogger(log_path=log_path, config={"enabled": False})
-        ll.log_timing({"timestamp": "2026-06-10T12:00:00Z", "hook_event": "PreToolUse", "total_ms": 10.0, "checks": {}})
+        ll.log_timing(
+            {
+                "timestamp": "2026-06-10T12:00:00Z",
+                "hook_event": "PreToolUse",
+                "total_ms": 10.0,
+                "checks": {},
+            }
+        )
         assert not log_path.exists()
 
     def test_read_entries_with_since(self, tmp_path):
         log_path = tmp_path / "latency.jsonl"
-        ll = LatencyLogger(log_path=log_path, config={"enabled": True, "max_entries": 100, "retention_days": 30})
-        old_ts = (datetime.now(timezone.utc) - timedelta(days=10)).isoformat().replace("+00:00", "Z")
+        ll = LatencyLogger(
+            log_path=log_path,
+            config={"enabled": True, "max_entries": 100, "retention_days": 30},
+        )
+        old_ts = (
+            (datetime.now(timezone.utc) - timedelta(days=10))
+            .isoformat()
+            .replace("+00:00", "Z")
+        )
         new_ts = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
-        ll.log_timing({"timestamp": old_ts, "hook_event": "PreToolUse", "total_ms": 1.0, "checks": {}})
-        ll.log_timing({"timestamp": new_ts, "hook_event": "PostToolUse", "total_ms": 2.0, "checks": {}})
+        ll.log_timing(
+            {
+                "timestamp": old_ts,
+                "hook_event": "PreToolUse",
+                "total_ms": 1.0,
+                "checks": {},
+            }
+        )
+        ll.log_timing(
+            {
+                "timestamp": new_ts,
+                "hook_event": "PostToolUse",
+                "total_ms": 2.0,
+                "checks": {},
+            }
+        )
 
         since = datetime.now(timezone.utc) - timedelta(days=5)
         entries = ll.read_entries(since=since)
@@ -155,26 +186,63 @@ class TestLatencyLogger:
 
     def test_read_entries_no_filter(self, tmp_path):
         log_path = tmp_path / "latency.jsonl"
-        ll = LatencyLogger(log_path=log_path, config={"enabled": True, "max_entries": 100, "retention_days": 30})
-        ll.log_timing({"timestamp": "2026-06-10T12:00:00Z", "hook_event": "A", "total_ms": 1.0, "checks": {}})
-        ll.log_timing({"timestamp": "2026-06-10T12:00:01Z", "hook_event": "B", "total_ms": 2.0, "checks": {}})
+        ll = LatencyLogger(
+            log_path=log_path,
+            config={"enabled": True, "max_entries": 100, "retention_days": 30},
+        )
+        ll.log_timing(
+            {
+                "timestamp": "2026-06-10T12:00:00Z",
+                "hook_event": "A",
+                "total_ms": 1.0,
+                "checks": {},
+            }
+        )
+        ll.log_timing(
+            {
+                "timestamp": "2026-06-10T12:00:01Z",
+                "hook_event": "B",
+                "total_ms": 2.0,
+                "checks": {},
+            }
+        )
         entries = ll.read_entries()
         assert len(entries) == 2
 
     def test_rotation_max_entries(self, tmp_path):
         log_path = tmp_path / "latency.jsonl"
-        ll = LatencyLogger(log_path=log_path, config={"enabled": True, "max_entries": 5, "retention_days": 30})
+        ll = LatencyLogger(
+            log_path=log_path,
+            config={"enabled": True, "max_entries": 5, "retention_days": 30},
+        )
         now = datetime.now(timezone.utc)
         for i in range(10):
             ts = (now - timedelta(seconds=10 - i)).isoformat().replace("+00:00", "Z")
-            ll.log_timing({"timestamp": ts, "hook_event": f"E{i}", "total_ms": float(i), "checks": {}})
+            ll.log_timing(
+                {
+                    "timestamp": ts,
+                    "hook_event": f"E{i}",
+                    "total_ms": float(i),
+                    "checks": {},
+                }
+            )
         entries = ll.read_entries()
         assert len(entries) <= 5
 
     def test_clear_log(self, tmp_path):
         log_path = tmp_path / "latency.jsonl"
-        ll = LatencyLogger(log_path=log_path, config={"enabled": True, "max_entries": 100, "retention_days": 30})
-        ll.log_timing({"timestamp": "2026-06-10T12:00:00Z", "hook_event": "A", "total_ms": 1.0, "checks": {}})
+        ll = LatencyLogger(
+            log_path=log_path,
+            config={"enabled": True, "max_entries": 100, "retention_days": 30},
+        )
+        ll.log_timing(
+            {
+                "timestamp": "2026-06-10T12:00:00Z",
+                "hook_event": "A",
+                "total_ms": 1.0,
+                "checks": {},
+            }
+        )
         assert log_path.exists()
         ll.clear_log()
         assert not log_path.exists()
@@ -230,12 +298,24 @@ class TestLatencyComputer:
 
     def test_computes_hook_stats(self):
         entries = [
-            {"timestamp": "2026-06-10T12:00:00Z", "hook_event": "PreToolUse", "total_ms": 10.0,
-             "checks": {"secret_scanning": 5.0, "permissions": 1.0}},
-            {"timestamp": "2026-06-10T12:00:01Z", "hook_event": "PreToolUse", "total_ms": 20.0,
-             "checks": {"secret_scanning": 15.0, "permissions": 2.0}},
-            {"timestamp": "2026-06-10T12:00:02Z", "hook_event": "PostToolUse", "total_ms": 8.0,
-             "checks": {"pii_detection": 4.0}},
+            {
+                "timestamp": "2026-06-10T12:00:00Z",
+                "hook_event": "PreToolUse",
+                "total_ms": 10.0,
+                "checks": {"secret_scanning": 5.0, "permissions": 1.0},
+            },
+            {
+                "timestamp": "2026-06-10T12:00:01Z",
+                "hook_event": "PreToolUse",
+                "total_ms": 20.0,
+                "checks": {"secret_scanning": 15.0, "permissions": 2.0},
+            },
+            {
+                "timestamp": "2026-06-10T12:00:02Z",
+                "hook_event": "PostToolUse",
+                "total_ms": 8.0,
+                "checks": {"pii_detection": 4.0},
+            },
         ]
         with patch.object(LatencyLogger, "read_entries", return_value=entries):
             computer = LatencyComputer(since_days=1)
@@ -243,25 +323,39 @@ class TestLatencyComputer:
             assert report.invocation_count == 3
             assert len(report.hook_stats) == 2
 
-            pre_stat = next(s for s in report.hook_stats if s["hook_event"] == "PreToolUse")
+            pre_stat = next(
+                s for s in report.hook_stats if s["hook_event"] == "PreToolUse"
+            )
             assert pre_stat["count"] == 2
             assert pre_stat["avg"] == 15.0
 
-            post_stat = next(s for s in report.hook_stats if s["hook_event"] == "PostToolUse")
+            post_stat = next(
+                s for s in report.hook_stats if s["hook_event"] == "PostToolUse"
+            )
             assert post_stat["count"] == 1
             assert post_stat["avg"] == 8.0
 
     def test_computes_check_stats(self):
         entries = [
-            {"timestamp": "2026-06-10T12:00:00Z", "hook_event": "PreToolUse", "total_ms": 10.0,
-             "checks": {"secret_scanning": 5.0}},
-            {"timestamp": "2026-06-10T12:00:01Z", "hook_event": "UserPromptSubmit", "total_ms": 30.0,
-             "checks": {"secret_scanning": 20.0, "prompt_injection": 8.0}},
+            {
+                "timestamp": "2026-06-10T12:00:00Z",
+                "hook_event": "PreToolUse",
+                "total_ms": 10.0,
+                "checks": {"secret_scanning": 5.0},
+            },
+            {
+                "timestamp": "2026-06-10T12:00:01Z",
+                "hook_event": "UserPromptSubmit",
+                "total_ms": 30.0,
+                "checks": {"secret_scanning": 20.0, "prompt_injection": 8.0},
+            },
         ]
         with patch.object(LatencyLogger, "read_entries", return_value=entries):
             computer = LatencyComputer(since_days=1)
             report = computer.compute()
-            ss = next(s for s in report.check_stats if s["check_name"] == "secret_scanning")
+            ss = next(
+                s for s in report.check_stats if s["check_name"] == "secret_scanning"
+            )
             assert ss["count"] == 2
             assert ss["avg"] == 12.5
             assert "PreToolUse" in ss["hooks"]
@@ -269,8 +363,12 @@ class TestLatencyComputer:
 
     def test_zero_ms_checks_excluded(self):
         entries = [
-            {"timestamp": "2026-06-10T12:00:00Z", "hook_event": "PreToolUse", "total_ms": 5.0,
-             "checks": {"secret_scanning": 3.0, "prompt_injection": 0.0}},
+            {
+                "timestamp": "2026-06-10T12:00:00Z",
+                "hook_event": "PreToolUse",
+                "total_ms": 5.0,
+                "checks": {"secret_scanning": 3.0, "prompt_injection": 0.0},
+            },
         ]
         with patch.object(LatencyLogger, "read_entries", return_value=entries):
             computer = LatencyComputer(since_days=1)
@@ -282,9 +380,14 @@ class TestLatencyComputer:
     def test_uses_processing_ms_over_total_ms(self):
         """Hook stats should use processing_ms (excludes ask wait) when available."""
         entries = [
-            {"timestamp": "2026-06-10T12:00:00Z", "hook_event": "PreToolUse",
-             "total_ms": 45050.0, "processing_ms": 50.0, "ask_dialog_ms": 45000.0,
-             "checks": {"secret_scanning": 30.0}},
+            {
+                "timestamp": "2026-06-10T12:00:00Z",
+                "hook_event": "PreToolUse",
+                "total_ms": 45050.0,
+                "processing_ms": 50.0,
+                "ask_dialog_ms": 45000.0,
+                "checks": {"secret_scanning": 30.0},
+            },
         ]
         with patch.object(LatencyLogger, "read_entries", return_value=entries):
             computer = LatencyComputer(since_days=1)
@@ -297,8 +400,12 @@ class TestLatencyComputer:
     def test_backward_compat_no_processing_ms(self):
         """Old entries without processing_ms fall back to total_ms."""
         entries = [
-            {"timestamp": "2026-06-10T12:00:00Z", "hook_event": "PreToolUse",
-             "total_ms": 25.0, "checks": {}},
+            {
+                "timestamp": "2026-06-10T12:00:00Z",
+                "hook_event": "PreToolUse",
+                "total_ms": 25.0,
+                "checks": {},
+            },
         ]
         with patch.object(LatencyLogger, "read_entries", return_value=entries):
             computer = LatencyComputer(since_days=1)
@@ -310,12 +417,29 @@ class TestLatencyComputer:
     def test_ask_dialog_stats_aggregation(self):
         """Multiple ask dialog entries should produce valid aggregate stats."""
         entries = [
-            {"timestamp": "2026-06-10T12:00:00Z", "hook_event": "PreToolUse",
-             "total_ms": 3050.0, "processing_ms": 50.0, "ask_dialog_ms": 3000.0, "checks": {}},
-            {"timestamp": "2026-06-10T12:00:01Z", "hook_event": "PreToolUse",
-             "total_ms": 5040.0, "processing_ms": 40.0, "ask_dialog_ms": 5000.0, "checks": {}},
-            {"timestamp": "2026-06-10T12:00:02Z", "hook_event": "PreToolUse",
-             "total_ms": 30.0, "processing_ms": 30.0, "checks": {}},
+            {
+                "timestamp": "2026-06-10T12:00:00Z",
+                "hook_event": "PreToolUse",
+                "total_ms": 3050.0,
+                "processing_ms": 50.0,
+                "ask_dialog_ms": 3000.0,
+                "checks": {},
+            },
+            {
+                "timestamp": "2026-06-10T12:00:01Z",
+                "hook_event": "PreToolUse",
+                "total_ms": 5040.0,
+                "processing_ms": 40.0,
+                "ask_dialog_ms": 5000.0,
+                "checks": {},
+            },
+            {
+                "timestamp": "2026-06-10T12:00:02Z",
+                "hook_event": "PreToolUse",
+                "total_ms": 30.0,
+                "processing_ms": 30.0,
+                "checks": {},
+            },
         ]
         with patch.object(LatencyLogger, "read_entries", return_value=entries):
             computer = LatencyComputer(since_days=1)
@@ -335,10 +459,29 @@ class TestFormatLatencyHuman:
 
     def test_with_data(self):
         report = LatencyReport(
-            hook_stats=[{"hook_event": "PreToolUse", "avg": 12.5, "stddev": 3.0,
-                         "p95": 18.0, "min": 5.0, "max": 25.0, "count": 100}],
-            check_stats=[{"check_name": "secret_scanning", "avg": 8.0, "stddev": 2.0,
-                          "p95": 12.0, "min": 1.0, "max": 20.0, "count": 100, "hooks": "PreToolUse"}],
+            hook_stats=[
+                {
+                    "hook_event": "PreToolUse",
+                    "avg": 12.5,
+                    "stddev": 3.0,
+                    "p95": 18.0,
+                    "min": 5.0,
+                    "max": 25.0,
+                    "count": 100,
+                }
+            ],
+            check_stats=[
+                {
+                    "check_name": "secret_scanning",
+                    "avg": 8.0,
+                    "stddev": 2.0,
+                    "p95": 12.0,
+                    "min": 1.0,
+                    "max": 20.0,
+                    "count": 100,
+                    "hooks": "PreToolUse",
+                }
+            ],
             invocation_count=100,
         )
         output = format_latency_human(report)
@@ -349,13 +492,28 @@ class TestFormatLatencyHuman:
 
     def test_with_ask_dialog_data(self):
         report = LatencyReport(
-            hook_stats=[{"hook_event": "PreToolUse", "avg": 50.0, "stddev": 5.0,
-                         "p95": 60.0, "min": 40.0, "max": 70.0, "count": 10}],
+            hook_stats=[
+                {
+                    "hook_event": "PreToolUse",
+                    "avg": 50.0,
+                    "stddev": 5.0,
+                    "p95": 60.0,
+                    "min": 40.0,
+                    "max": 70.0,
+                    "count": 10,
+                }
+            ],
             check_stats=[],
             invocation_count=10,
             ask_dialog_count=3,
-            ask_dialog_stats={"avg": 5000.0, "stddev": 1000.0, "p95": 6500.0,
-                              "min": 3000.0, "max": 7000.0, "count": 3},
+            ask_dialog_stats={
+                "avg": 5000.0,
+                "stddev": 1000.0,
+                "p95": 6500.0,
+                "min": 3000.0,
+                "max": 7000.0,
+                "count": 3,
+            },
         )
         output = format_latency_human(report)
         assert "Ask Dialog Wait Time" in output
@@ -364,8 +522,17 @@ class TestFormatLatencyHuman:
 
     def test_no_ask_dialog_section_when_zero(self):
         report = LatencyReport(
-            hook_stats=[{"hook_event": "PreToolUse", "avg": 50.0, "stddev": 5.0,
-                         "p95": 60.0, "min": 40.0, "max": 70.0, "count": 10}],
+            hook_stats=[
+                {
+                    "hook_event": "PreToolUse",
+                    "avg": 50.0,
+                    "stddev": 5.0,
+                    "p95": 60.0,
+                    "min": 40.0,
+                    "max": 70.0,
+                    "count": 10,
+                }
+            ],
             invocation_count=10,
         )
         output = format_latency_human(report)
@@ -433,8 +600,13 @@ class TestCliLatencyRouting:
         from ai_guardian.metrics import metrics_command
 
         args = SimpleNamespace(
-            latency=True, since="30d", json=False,
-            reset=False, html=False, until=None, severity=None,
+            latency=True,
+            since="30d",
+            json=False,
+            reset=False,
+            html=False,
+            until=None,
+            severity=None,
         )
         with patch.object(LatencyLogger, "read_entries", return_value=[]):
             result = metrics_command(args)
@@ -445,8 +617,13 @@ class TestCliLatencyRouting:
         from ai_guardian.metrics import metrics_command
 
         args = SimpleNamespace(
-            latency=True, since="7d", json=True,
-            reset=False, html=False, until=None, severity=None,
+            latency=True,
+            since="7d",
+            json=True,
+            reset=False,
+            html=False,
+            until=None,
+            severity=None,
         )
         with patch.object(LatencyLogger, "read_entries", return_value=[]):
             result = metrics_command(args)
@@ -459,10 +636,22 @@ class TestCliLatencyRouting:
 class TestFailOpen:
     def test_log_timing_survives_write_error(self, tmp_path):
         log_path = tmp_path / "nonexistent_dir" / "sub" / "latency.jsonl"
-        ll = LatencyLogger(log_path=log_path, config={"enabled": True, "max_entries": 100, "retention_days": 30})
-        ll.log_timing({"timestamp": "2026-06-10T12:00:00Z", "hook_event": "A", "total_ms": 1.0, "checks": {}})
+        ll = LatencyLogger(
+            log_path=log_path,
+            config={"enabled": True, "max_entries": 100, "retention_days": 30},
+        )
+        ll.log_timing(
+            {
+                "timestamp": "2026-06-10T12:00:00Z",
+                "hook_event": "A",
+                "total_ms": 1.0,
+                "checks": {},
+            }
+        )
 
     def test_read_entries_survives_missing_file(self, tmp_path):
-        ll = LatencyLogger(log_path=tmp_path / "missing.jsonl", config={"enabled": True})
+        ll = LatencyLogger(
+            log_path=tmp_path / "missing.jsonl", config={"enabled": True}
+        )
         entries = ll.read_entries()
         assert entries == []

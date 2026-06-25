@@ -10,12 +10,19 @@ from nicegui import run, ui
 from ai_guardian.web.components.header import create_header, create_sidebar
 
 LEVEL_PRIORITY = {
-    "DEBUG": 10, "INFO": 20, "WARNING": 30, "ERROR": 40, "CRITICAL": 50,
+    "DEBUG": 10,
+    "INFO": 20,
+    "WARNING": 30,
+    "ERROR": 40,
+    "CRITICAL": 50,
 }
 
 LEVEL_COLORS = {
-    "DEBUG": "#888", "INFO": "#4caf50", "WARNING": "#ff9800",
-    "ERROR": "#f44336", "CRITICAL": "#f44336",
+    "DEBUG": "#888",
+    "INFO": "#4caf50",
+    "WARNING": "#ff9800",
+    "ERROR": "#f44336",
+    "CRITICAL": "#f44336",
 }
 
 
@@ -51,6 +58,7 @@ def _read_last_n_lines(file_path: Path, n: int) -> List[str]:
 
 def _get_log_path() -> Path:
     from ai_guardian.config_utils import get_state_dir
+
     return get_state_dir() / "ai-guardian.log"
 
 
@@ -101,47 +109,52 @@ def create_logs_page(service, daemon_name: str):
                         "ERROR": "ERROR+",
                         "CRITICAL": "CRITICAL only",
                     },
-                    value="INFO", label="Log Level",
+                    value="INFO",
+                    label="Log Level",
                 ).classes("w-48")
                 ui.button(
-                    "Refresh", icon="refresh",
+                    "Refresh",
+                    icon="refresh",
                     on_click=lambda: load_logs(),
                 )
                 ui.button(
-                    "Open File", icon="open_in_new",
+                    "Open File",
+                    icon="open_in_new",
                     on_click=lambda: _handle_open(),
                 ).props("flat")
 
                 async def _handle_clear():
                     with ui.dialog() as dialog, ui.card():
-                        ui.label("Clear Log File?").classes(
-                            "text-lg font-bold"
-                        )
+                        ui.label("Clear Log File?").classes("text-lg font-bold")
                         ui.label(
                             "This will permanently delete all log entries. "
                             "This action cannot be undone."
                         ).classes("text-sm text-red")
 
                         with ui.row().classes("gap-2 mt-4"):
+
                             async def confirm():
                                 await run.io_bound(_clear_log_file)
                                 dialog.close()
-                                ui.notify(
-                                    "Log file cleared", type="positive"
-                                )
+                                ui.notify("Log file cleared", type="positive")
                                 await load_logs()
 
                             ui.button(
-                                "Clear Log", icon="delete",
-                                color="red", on_click=confirm,
+                                "Clear Log",
+                                icon="delete",
+                                color="red",
+                                on_click=confirm,
                             )
                             ui.button(
-                                "Cancel", on_click=dialog.close,
+                                "Cancel",
+                                on_click=dialog.close,
                             )
                     dialog.open()
 
                 ui.button(
-                    "Clear", icon="delete", color="red",
+                    "Clear",
+                    icon="delete",
+                    color="red",
                     on_click=_handle_clear,
                 ).props("flat")
 
@@ -149,9 +162,7 @@ def create_logs_page(service, daemon_name: str):
                 ok = _open_log_file()
                 if not ok:
                     log_path = _get_log_path()
-                    ui.notify(
-                        f"Log file: {log_path}", type="info"
-                    )
+                    ui.notify(f"Log file: {log_path}", type="info")
 
             log_path_label = ui.label("").classes("text-xs text-grey-7")
             content = ui.column().classes("w-full gap-0")
@@ -163,14 +174,12 @@ def create_logs_page(service, daemon_name: str):
 
                 if not log_path.exists():
                     with content:
-                        ui.label(
-                            f"Log file not found: {log_path}"
-                        ).classes("text-grey-6")
+                        ui.label(f"Log file not found: {log_path}").classes(
+                            "text-grey-6"
+                        )
                     return
 
-                lines = await run.io_bound(
-                    _read_last_n_lines, log_path, 500
-                )
+                lines = await run.io_bound(_read_last_n_lines, log_path, 500)
                 min_level = level_select.value
 
                 filtered = []
@@ -184,49 +193,42 @@ def create_logs_page(service, daemon_name: str):
                         filtered.append(("", "", "DEBUG", line.rstrip()))
 
                 with content:
-                    ui.label(
-                        f"{len(filtered)} entries (showing {min_level}+)"
-                    ).classes("text-xs text-grey-6 mb-2")
+                    ui.label(f"{len(filtered)} entries (showing {min_level}+)").classes(
+                        "text-xs text-grey-6 mb-2"
+                    )
 
                     if not filtered:
-                        ui.label(
-                            "No log entries match the filter."
-                        ).classes("text-grey-6")
+                        ui.label("No log entries match the filter.").classes(
+                            "text-grey-6"
+                        )
                         return
 
                     parts = []
                     for ts, mod, lvl, msg in reversed(filtered):
                         color = LEVEL_COLORS.get(lvl, "#888")
-                        ts_html = (
-                            f'<span style="color:#666">{ts}</span> '
-                            if ts else ""
-                        )
+                        ts_html = f'<span style="color:#666">{ts}</span> ' if ts else ""
                         mod_html = (
-                            f'<span style="color:#4fc3f7">{mod}</span> '
-                            if mod else ""
+                            f'<span style="color:#4fc3f7">{mod}</span> ' if mod else ""
                         )
-                        lvl_short = {
-                            "WARNING": "WARN", "CRITICAL": "CRIT"
-                        }.get(lvl, lvl)
-                        bold = ' font-weight:bold;' if lvl == "CRITICAL" else ""
+                        lvl_short = {"WARNING": "WARN", "CRITICAL": "CRIT"}.get(
+                            lvl, lvl
+                        )
+                        bold = " font-weight:bold;" if lvl == "CRITICAL" else ""
                         lvl_html = (
-                            f'<span style="color:{color};{bold}">'
-                            f'{lvl_short}</span>'
+                            f'<span style="color:{color};{bold}">' f"{lvl_short}</span>"
                         )
                         safe_msg = (
                             msg.replace("&", "&amp;")
                             .replace("<", "&lt;")
                             .replace(">", "&gt;")
                         )
-                        parts.append(
-                            f"{ts_html}{mod_html}{lvl_html} {safe_msg}"
-                        )
+                        parts.append(f"{ts_html}{mod_html}{lvl_html} {safe_msg}")
 
                     html = "<br>".join(parts)
                     ui.html(
                         f'<pre style="font-family:monospace;font-size:12px;'
-                        f'line-height:1.4;max-height:600px;overflow:auto;'
-                        f'background:#1a1a2e;padding:12px;border-radius:8px;'
+                        f"line-height:1.4;max-height:600px;overflow:auto;"
+                        f"background:#1a1a2e;padding:12px;border-radius:8px;"
                         f'color:#e0e0e0">{html}</pre>'
                     )
 

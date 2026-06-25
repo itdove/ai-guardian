@@ -55,7 +55,11 @@ keywords = ["FIXTURE_TOKEN_"]
 class TestFetchPatternData:
 
     def test_fetch_from_fixture_file(self):
-        fixture = Path(__file__).parent.parent / "fixtures" / "ai_guardian_native_patterns.toml"
+        fixture = (
+            Path(__file__).parent.parent
+            / "fixtures"
+            / "ai_guardian_native_patterns.toml"
+        )
         with patch.object(cpc, "FIXTURE_PATH", fixture):
             result = cpc.fetch_pattern_data("ai-guardian")
 
@@ -195,7 +199,12 @@ class TestRunCompatCheck:
         mock_fetch.side_effect = lambda fmt: {
             "gitleaks": {
                 "rules": [
-                    {"id": "r1", "description": "Test", "regex": r"test_[A-Z]{10}", "keywords": ["test_"]},
+                    {
+                        "id": "r1",
+                        "description": "Test",
+                        "regex": r"test_[A-Z]{10}",
+                        "keywords": ["test_"],
+                    },
                 ]
             },
             "ai-guardian": {
@@ -253,8 +262,18 @@ class TestRunCompatCheck:
         mock_fetch.side_effect = lambda fmt: {
             "gitleaks": {
                 "rules": [
-                    {"id": "r1", "description": "Test", "regex": r"valid_[A-Z]+", "keywords": []},
-                    {"id": "r2", "description": "Bad", "regex": r"[invalid(", "keywords": []},
+                    {
+                        "id": "r1",
+                        "description": "Test",
+                        "regex": r"valid_[A-Z]+",
+                        "keywords": [],
+                    },
+                    {
+                        "id": "r2",
+                        "description": "Bad",
+                        "regex": r"[invalid(",
+                        "keywords": [],
+                    },
                 ]
             },
             "ai-guardian": {
@@ -283,16 +302,23 @@ class TestRunFormatVersionCheck:
             "gitleaks": {
                 "rules": [
                     {
-                        "id": "r1", "description": "Test", "regex": r"test",
-                        "keywords": [], "secretGroup": 0, "entropy": 3.0,
+                        "id": "r1",
+                        "description": "Test",
+                        "regex": r"test",
+                        "keywords": [],
+                        "secretGroup": 0,
+                        "entropy": 3.0,
                     },
                 ]
             },
             "ai-guardian": {
                 "rules": [
                     {
-                        "id": "r1", "match_type": "regex", "regex": r"test",
-                        "description": "Test", "redaction_strategy": "full_redact",
+                        "id": "r1",
+                        "match_type": "regex",
+                        "regex": r"test",
+                        "description": "Test",
+                        "redaction_strategy": "full_redact",
                         "keywords": [],
                     },
                 ]
@@ -311,8 +337,12 @@ class TestRunFormatVersionCheck:
             "gitleaks": {
                 "rules": [
                     {
-                        "id": "r1", "description": "Test", "regex": r"test",
-                        "keywords": [], "secretGroup": 0, "entropy": 3.0,
+                        "id": "r1",
+                        "description": "Test",
+                        "regex": r"test",
+                        "keywords": [],
+                        "secretGroup": 0,
+                        "entropy": 3.0,
                         "brand_new_field": "surprise",
                     },
                 ]
@@ -320,8 +350,11 @@ class TestRunFormatVersionCheck:
             "ai-guardian": {
                 "rules": [
                     {
-                        "id": "r1", "match_type": "regex", "regex": r"test",
-                        "description": "Test", "redaction_strategy": "full_redact",
+                        "id": "r1",
+                        "match_type": "regex",
+                        "regex": r"test",
+                        "description": "Test",
+                        "redaction_strategy": "full_redact",
                         "keywords": [],
                     },
                 ]

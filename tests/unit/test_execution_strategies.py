@@ -9,7 +9,7 @@ from ai_guardian.scanners.strategies import (
     SecretMatch,
     ScanResult,
     get_strategy,
-    EXECUTION_STRATEGIES
+    EXECUTION_STRATEGIES,
 )
 
 
@@ -22,7 +22,7 @@ class TestSecretMatch(unittest.TestCase):
             rule_id="aws-key",
             description="AWS Access Key",
             file="test.txt",
-            line_number=5
+            line_number=5,
         )
 
         self.assertEqual(match.rule_id, "aws-key")
@@ -47,7 +47,7 @@ class TestSecretMatch(unittest.TestCase):
             secret="ghp_redacted",
             engine="trufflehog",
             confidence=0.9,
-            verified=True
+            verified=True,
         )
 
         self.assertEqual(match.end_line, 12)
@@ -63,11 +63,7 @@ class TestScanResult(unittest.TestCase):
 
     def test_create_clean_result(self):
         """Test creating a scan result with no secrets."""
-        result = ScanResult(
-            has_secrets=False,
-            secrets=[],
-            engine="gitleaks"
-        )
+        result = ScanResult(has_secrets=False, secrets=[], engine="gitleaks")
 
         self.assertFalse(result.has_secrets)
         self.assertEqual(len(result.secrets), 0)
@@ -78,17 +74,11 @@ class TestScanResult(unittest.TestCase):
     def test_create_result_with_secrets(self):
         """Test creating a scan result with secrets found."""
         match = SecretMatch(
-            rule_id="aws-key",
-            description="AWS Key",
-            file="test.txt",
-            line_number=5
+            rule_id="aws-key", description="AWS Key", file="test.txt", line_number=5
         )
 
         result = ScanResult(
-            has_secrets=True,
-            secrets=[match],
-            engine="trufflehog",
-            scan_time_ms=125.5
+            has_secrets=True, secrets=[match], engine="trufflehog", scan_time_ms=125.5
         )
 
         self.assertTrue(result.has_secrets)
@@ -117,7 +107,7 @@ class TestAnyMatchStrategyDeduplication(unittest.TestCase):
                 description="AWS Key",
                 file="test.txt",
                 line_number=5,
-                engine="gitleaks"
+                engine="gitleaks",
             )
         ]
 
@@ -134,7 +124,7 @@ class TestAnyMatchStrategyDeduplication(unittest.TestCase):
                 file="test.txt",
                 line_number=5,
                 engine="gitleaks",
-                confidence=1.0
+                confidence=1.0,
             ),
             SecretMatch(
                 rule_id="aws-key",
@@ -142,8 +132,8 @@ class TestAnyMatchStrategyDeduplication(unittest.TestCase):
                 file="test.txt",
                 line_number=5,
                 engine="trufflehog",
-                confidence=0.9
-            )
+                confidence=0.9,
+            ),
         ]
 
         result = self.strategy._deduplicate(secrets)
@@ -165,7 +155,7 @@ class TestAnyMatchStrategyDeduplication(unittest.TestCase):
                 line_number=5,
                 engine="gitleaks",
                 confidence=1.0,
-                verified=False
+                verified=False,
             ),
             SecretMatch(
                 rule_id="aws-key",
@@ -174,8 +164,8 @@ class TestAnyMatchStrategyDeduplication(unittest.TestCase):
                 line_number=5,
                 engine="trufflehog",
                 confidence=0.8,
-                verified=True
-            )
+                verified=True,
+            ),
         ]
 
         result = self.strategy._deduplicate(secrets)
@@ -193,15 +183,15 @@ class TestAnyMatchStrategyDeduplication(unittest.TestCase):
                 description="AWS Key",
                 file="test.txt",
                 line_number=5,
-                engine="gitleaks"
+                engine="gitleaks",
             ),
             SecretMatch(
                 rule_id="aws-key",
                 description="AWS Key",
                 file="test.txt",
                 line_number=10,  # Different line
-                engine="gitleaks"
-            )
+                engine="gitleaks",
+            ),
         ]
 
         result = self.strategy._deduplicate(secrets)
@@ -217,15 +207,15 @@ class TestAnyMatchStrategyDeduplication(unittest.TestCase):
                 description="AWS Key",
                 file="test1.txt",
                 line_number=5,
-                engine="gitleaks"
+                engine="gitleaks",
             ),
             SecretMatch(
                 rule_id="aws-key",
                 description="AWS Key",
                 file="test2.txt",  # Different file
                 line_number=5,
-                engine="gitleaks"
-            )
+                engine="gitleaks",
+            ),
         ]
 
         result = self.strategy._deduplicate(secrets)
@@ -253,7 +243,7 @@ class TestConsensusStrategyFindConsensus(unittest.TestCase):
                 description="AWS Key",
                 file="test.txt",
                 line_number=5,
-                engine="gitleaks"
+                engine="gitleaks",
             )
             # Only one engine, threshold is 2
         ]
@@ -272,7 +262,7 @@ class TestConsensusStrategyFindConsensus(unittest.TestCase):
                 file="test.txt",
                 line_number=5,
                 engine="gitleaks",
-                confidence=1.0
+                confidence=1.0,
             ),
             SecretMatch(
                 rule_id="aws-key",
@@ -280,8 +270,8 @@ class TestConsensusStrategyFindConsensus(unittest.TestCase):
                 file="test.txt",
                 line_number=5,
                 engine="trufflehog",
-                confidence=0.9
-            )
+                confidence=0.9,
+            ),
         ]
 
         result = strategy._find_consensus(secrets)
@@ -300,22 +290,22 @@ class TestConsensusStrategyFindConsensus(unittest.TestCase):
                 description="AWS Key",
                 file="test.txt",
                 line_number=5,
-                engine="gitleaks"
+                engine="gitleaks",
             ),
             SecretMatch(
                 rule_id="aws-key",
                 description="AWS Key",
                 file="test.txt",
                 line_number=5,
-                engine="trufflehog"
+                engine="trufflehog",
             ),
             SecretMatch(
                 rule_id="aws-key",
                 description="AWS Key",
                 file="test.txt",
                 line_number=5,
-                engine="detect-secrets"
-            )
+                engine="detect-secrets",
+            ),
         ]
 
         result = strategy._find_consensus(secrets)
@@ -335,14 +325,14 @@ class TestConsensusStrategyFindConsensus(unittest.TestCase):
                 description="AWS Key",
                 file="test.txt",
                 line_number=5,
-                engine="gitleaks"
+                engine="gitleaks",
             ),
             SecretMatch(
                 rule_id="aws-key",
                 description="AWS Key",
                 file="test.txt",
                 line_number=5,
-                engine="trufflehog"
+                engine="trufflehog",
             ),
             # Secret 2: only 1 engine (should exclude)
             SecretMatch(
@@ -350,8 +340,8 @@ class TestConsensusStrategyFindConsensus(unittest.TestCase):
                 description="GitHub Token",
                 file="test.txt",
                 line_number=10,
-                engine="gitleaks"
-            )
+                engine="gitleaks",
+            ),
         ]
 
         result = strategy._find_consensus(secrets)
@@ -367,6 +357,7 @@ class TestFirstMatchStrategyExecute(unittest.TestCase):
     def _make_engine(self, engine_type):
         """Create a minimal engine config for testing."""
         from unittest.mock import MagicMock
+
         engine = MagicMock()
         engine.type = engine_type
         engine.file_patterns = None
@@ -379,10 +370,23 @@ class TestFirstMatchStrategyExecute(unittest.TestCase):
 
         def scanner_fn(engine_config, source_file, report_file, config_path=None):
             if engine_config.type == "betterleaks":
-                return ScanResult(has_secrets=False, secrets=[], engine="betterleaks", scan_time_ms=10.0)
+                return ScanResult(
+                    has_secrets=False,
+                    secrets=[],
+                    engine="betterleaks",
+                    scan_time_ms=10.0,
+                )
             return ScanResult(
                 has_secrets=True,
-                secrets=[SecretMatch(rule_id="aws-access-token", description="AWS Key", file="t.txt", line_number=1, engine="gitleaks")],
+                secrets=[
+                    SecretMatch(
+                        rule_id="aws-access-token",
+                        description="AWS Key",
+                        file="t.txt",
+                        line_number=1,
+                        engine="gitleaks",
+                    )
+                ],
                 engine="gitleaks",
                 scan_time_ms=20.0,
             )
@@ -399,7 +403,12 @@ class TestFirstMatchStrategyExecute(unittest.TestCase):
         engines = [self._make_engine("betterleaks"), self._make_engine("gitleaks")]
 
         def scanner_fn(engine_config, source_file, report_file, config_path=None):
-            return ScanResult(has_secrets=False, secrets=[], engine=engine_config.type, scan_time_ms=10.0)
+            return ScanResult(
+                has_secrets=False,
+                secrets=[],
+                engine=engine_config.type,
+                scan_time_ms=10.0,
+            )
 
         strategy = FirstMatchStrategy()
         result = strategy.execute(engines, scanner_fn, "/tmp/src", "/tmp/report")
@@ -418,7 +427,15 @@ class TestFirstMatchStrategyExecute(unittest.TestCase):
             if engine_config.type == "gitleaks":
                 return ScanResult(
                     has_secrets=True,
-                    secrets=[SecretMatch(rule_id="aws-key", description="AWS Key", file="t.txt", line_number=1, engine="gitleaks")],
+                    secrets=[
+                        SecretMatch(
+                            rule_id="aws-key",
+                            description="AWS Key",
+                            file="t.txt",
+                            line_number=1,
+                            engine="gitleaks",
+                        )
+                    ],
                     engine="gitleaks",
                     scan_time_ms=10.0,
                 )
@@ -433,16 +450,38 @@ class TestFirstMatchStrategyExecute(unittest.TestCase):
 
     def test_skips_unavailable_then_tries_remaining(self):
         """First engine unavailable, second clean, third finds secrets."""
-        engines = [self._make_engine("missing"), self._make_engine("betterleaks"), self._make_engine("gitleaks")]
+        engines = [
+            self._make_engine("missing"),
+            self._make_engine("betterleaks"),
+            self._make_engine("gitleaks"),
+        ]
 
         def scanner_fn(engine_config, source_file, report_file, config_path=None):
             if engine_config.type == "missing":
-                return ScanResult(has_secrets=False, secrets=[], engine="missing", error="Binary not found: missing")
+                return ScanResult(
+                    has_secrets=False,
+                    secrets=[],
+                    engine="missing",
+                    error="Binary not found: missing",
+                )
             if engine_config.type == "betterleaks":
-                return ScanResult(has_secrets=False, secrets=[], engine="betterleaks", scan_time_ms=10.0)
+                return ScanResult(
+                    has_secrets=False,
+                    secrets=[],
+                    engine="betterleaks",
+                    scan_time_ms=10.0,
+                )
             return ScanResult(
                 has_secrets=True,
-                secrets=[SecretMatch(rule_id="aws-key", description="AWS Key", file="t.txt", line_number=1, engine="gitleaks")],
+                secrets=[
+                    SecretMatch(
+                        rule_id="aws-key",
+                        description="AWS Key",
+                        file="t.txt",
+                        line_number=1,
+                        engine="gitleaks",
+                    )
+                ],
                 engine="gitleaks",
                 scan_time_ms=20.0,
             )
@@ -503,13 +542,18 @@ class TestPerEngineConfigPathResolution(unittest.TestCase):
         def tracking_fn(engine_config, source_file, report_file, config_path):
             received.append({"engine": engine_config.type, "config_path": config_path})
             return ScanResult(
-                has_secrets=False, secrets=[], engine=engine_config.type,
+                has_secrets=False,
+                secrets=[],
+                engine=engine_config.type,
             )
 
         gitleaks = _build_engine_config("gitleaks")
-        betterleaks_null = _build_engine_config({
-            "type": "betterleaks", "pattern_server": None,
-        })
+        betterleaks_null = _build_engine_config(
+            {
+                "type": "betterleaks",
+                "pattern_server": None,
+            }
+        )
 
         strategy = FirstMatchStrategy()
         strategy.execute(
@@ -532,7 +576,9 @@ class TestPerEngineConfigPathResolution(unittest.TestCase):
         def tracking_fn(engine_config, source_file, report_file, config_path):
             received.append({"engine": engine_config.type, "config_path": config_path})
             return ScanResult(
-                has_secrets=False, secrets=[], engine=engine_config.type,
+                has_secrets=False,
+                secrets=[],
+                engine=engine_config.type,
             )
 
         gitleaks = _build_engine_config("gitleaks")
@@ -554,5 +600,5 @@ class TestPerEngineConfigPathResolution(unittest.TestCase):
         self.assertIsNone(by_engine["trufflehog"])
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()

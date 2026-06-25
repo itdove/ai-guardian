@@ -22,23 +22,49 @@ class LanguageDefinition:
     identifiers: List[str] = field(default_factory=list)
 
 
-SKIP_DIRS = frozenset({
-    ".git", ".hg", ".svn",
-    "node_modules", "__pycache__", ".pytest_cache",
-    ".venv", "venv", ".env", "env", ".tox", ".nox",
-    "dist", "build", ".build", "target", "out",
-    ".ai-guardian", ".claude", ".cursor",
-    "vendor", "bower_components",
-    ".mypy_cache", ".ruff_cache",
-    ".eggs", "*.egg-info",
-})
+SKIP_DIRS = frozenset(
+    {
+        ".git",
+        ".hg",
+        ".svn",
+        "node_modules",
+        "__pycache__",
+        ".pytest_cache",
+        ".venv",
+        "venv",
+        ".env",
+        "env",
+        ".tox",
+        ".nox",
+        "dist",
+        "build",
+        ".build",
+        "target",
+        "out",
+        ".ai-guardian",
+        ".claude",
+        ".cursor",
+        "vendor",
+        "bower_components",
+        ".mypy_cache",
+        ".ruff_cache",
+        ".eggs",
+        "*.egg-info",
+    }
+)
 
 
 LANGUAGE_REGISTRY: List[LanguageDefinition] = [
     LanguageDefinition(
         name="Python",
         file_extensions=[".py", ".pyw", ".pyi"],
-        config_files=["pyproject.toml", "setup.py", "setup.cfg", "Pipfile", "requirements.txt"],
+        config_files=[
+            "pyproject.toml",
+            "setup.py",
+            "setup.cfg",
+            "Pipfile",
+            "requirements.txt",
+        ],
         identifiers=[
             "__init__",
             "__import__",
@@ -55,7 +81,7 @@ LANGUAGE_REGISTRY: List[LanguageDefinition] = [
         config_files=["package.json"],
         identifiers=[
             "<script>",
-            "<script src=\"app.js\">",
+            '<script src="app.js">',
         ],
     ),
     LanguageDefinition(

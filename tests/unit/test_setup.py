@@ -6,7 +6,6 @@ Tests for setup command functionality.
 import json
 import os
 import sys
-import tempfile
 from pathlib import Path
 from unittest import mock
 
@@ -35,11 +34,19 @@ class TestIDESetup:
         # Mock config paths to non-existent directories
         with mock.patch.object(
             setup,
-            'IDE_CONFIGS',
+            "IDE_CONFIGS",
             {
-                'claude': {'config_path': str(tmp_path / 'nonexistent' / '.claude' / 'settings.json')},
-                'cursor': {'config_path': str(tmp_path / 'nonexistent' / '.cursor' / 'hooks.json')},
-            }
+                "claude": {
+                    "config_path": str(
+                        tmp_path / "nonexistent" / ".claude" / "settings.json"
+                    )
+                },
+                "cursor": {
+                    "config_path": str(
+                        tmp_path / "nonexistent" / ".cursor" / "hooks.json"
+                    )
+                },
+            },
         ):
             detected = setup.detect_ide()
             assert detected is None
@@ -49,37 +56,41 @@ class TestIDESetup:
         setup = IDESetup()
 
         # Create Claude Code directory
-        claude_dir = tmp_path / '.claude'
+        claude_dir = tmp_path / ".claude"
         claude_dir.mkdir(parents=True)
 
         with mock.patch.object(
             setup,
-            'IDE_CONFIGS',
+            "IDE_CONFIGS",
             {
-                'claude': {'config_path': str(claude_dir / 'settings.json')},
-                'cursor': {'config_path': str(tmp_path / 'nonexistent' / '.cursor' / 'hooks.json')},
-            }
+                "claude": {"config_path": str(claude_dir / "settings.json")},
+                "cursor": {
+                    "config_path": str(
+                        tmp_path / "nonexistent" / ".cursor" / "hooks.json"
+                    )
+                },
+            },
         ):
             detected = setup.detect_ide()
-            assert detected == 'claude'
+            assert detected == "claude"
 
     def test_detect_ide_multiple(self, tmp_path):
         """Test IDE detection when multiple IDEs are installed."""
         setup = IDESetup()
 
         # Create both IDE directories
-        claude_dir = tmp_path / '.claude'
+        claude_dir = tmp_path / ".claude"
         claude_dir.mkdir(parents=True)
-        cursor_dir = tmp_path / '.cursor'
+        cursor_dir = tmp_path / ".cursor"
         cursor_dir.mkdir(parents=True)
 
         with mock.patch.object(
             setup,
-            'IDE_CONFIGS',
+            "IDE_CONFIGS",
             {
-                'claude': {'config_path': str(claude_dir / 'settings.json')},
-                'cursor': {'config_path': str(cursor_dir / 'hooks.json')},
-            }
+                "claude": {"config_path": str(claude_dir / "settings.json")},
+                "cursor": {"config_path": str(cursor_dir / "hooks.json")},
+            },
         ):
             detected = setup.detect_ide()
             assert detected is None  # Returns None when multiple detected
@@ -89,28 +100,28 @@ class TestIDESetup:
         setup = IDESetup()
 
         # Create both IDE directories
-        claude_dir = tmp_path / '.claude'
+        claude_dir = tmp_path / ".claude"
         claude_dir.mkdir(parents=True)
-        cursor_dir = tmp_path / '.cursor'
+        cursor_dir = tmp_path / ".cursor"
         cursor_dir.mkdir(parents=True)
 
         with mock.patch.object(
             setup,
-            'IDE_CONFIGS',
+            "IDE_CONFIGS",
             {
-                'claude': {'config_path': str(claude_dir / 'settings.json')},
-                'cursor': {'config_path': str(cursor_dir / 'hooks.json')},
-            }
+                "claude": {"config_path": str(claude_dir / "settings.json")},
+                "cursor": {"config_path": str(cursor_dir / "hooks.json")},
+            },
         ):
             detected = setup.list_detected_ides()
-            assert set(detected) == {'claude', 'cursor'}
+            assert set(detected) == {"claude", "cursor"}
 
     def test_backup_config(self, tmp_path):
         """Test creating backup of config file."""
         setup = IDESetup()
 
         # Create test config file
-        config_file = tmp_path / 'test.json'
+        config_file = tmp_path / "test.json"
         config_file.write_text('{"test": "data"}')
 
         # Create backup
@@ -118,14 +129,14 @@ class TestIDESetup:
 
         assert backup_path is not None
         assert backup_path.exists()
-        assert backup_path.name == 'test.json.backup'
+        assert backup_path.name == "test.json.backup"
         assert backup_path.read_text() == '{"test": "data"}'
 
     def test_backup_config_nonexistent(self, tmp_path):
         """Test backup creation when file doesn't exist."""
         setup = IDESetup()
 
-        config_file = tmp_path / 'nonexistent.json'
+        config_file = tmp_path / "nonexistent.json"
         backup_path = setup.backup_config(config_file)
 
         assert backup_path is None
@@ -135,34 +146,29 @@ class TestIDESetup:
         setup = IDESetup()
 
         existing_config = {
-            'hooks': {
-                'OtherHook': [{'existing': 'hook'}]
-            },
-            'other_setting': 'value'
+            "hooks": {"OtherHook": [{"existing": "hook"}]},
+            "other_setting": "value",
         }
-        ai_guardian_hooks = {
-            'UserPromptSubmit': [{'test': 'hook'}]
-        }
+        ai_guardian_hooks = {"UserPromptSubmit": [{"test": "hook"}]}
 
-        merged, warnings = setup.merge_hooks(existing_config, ai_guardian_hooks, 'claude')
+        merged, warnings = setup.merge_hooks(
+            existing_config, ai_guardian_hooks, "claude"
+        )
 
-        assert 'hooks' in merged
-        assert 'OtherHook' in merged['hooks']  # Preserved
-        assert 'UserPromptSubmit' in merged['hooks']  # Added
-        assert merged['other_setting'] == 'value'  # Preserved
+        assert "hooks" in merged
+        assert "OtherHook" in merged["hooks"]  # Preserved
+        assert "UserPromptSubmit" in merged["hooks"]  # Added
+        assert merged["other_setting"] == "value"  # Preserved
 
     def test_setup_ide_hooks_already_configured(self, tmp_path):
         """Test setup when hooks already configured without force."""
         setup = IDESetup()
 
-        config_file = tmp_path / 'settings.json'
+        config_file = tmp_path / "settings.json"
         config = {
-            'hooks': {
-                'UserPromptSubmit': [
-                    {
-                        'matcher': '*',
-                        'hooks': [{'command': 'ai-guardian'}]
-                    }
+            "hooks": {
+                "UserPromptSubmit": [
+                    {"matcher": "*", "hooks": [{"command": "ai-guardian"}]}
                 ]
             }
         }
@@ -170,44 +176,48 @@ class TestIDESetup:
 
         with mock.patch.object(
             setup,
-            'IDE_CONFIGS',
+            "IDE_CONFIGS",
             {
-                'claude': {
-                    'name': 'Claude Code',
-                    'config_path': str(config_file),
-                    'config_dir_env_var': None,  # Disable env var for test
-                    'hooks': {}
+                "claude": {
+                    "name": "Claude Code",
+                    "config_path": str(config_file),
+                    "config_dir_env_var": None,  # Disable env var for test
+                    "hooks": {},
                 }
-            }
+            },
         ):
-            success, message = setup.setup_ide_hooks('claude', dry_run=False, force=False)
+            success, message = setup.setup_ide_hooks(
+                "claude", dry_run=False, force=False
+            )
 
             assert success is False
-            assert 'already configured' in message
+            assert "already configured" in message
 
     def test_setup_ide_hooks_invalid_json(self, tmp_path):
         """Test setup with invalid JSON in existing config."""
         setup = IDESetup()
 
-        config_file = tmp_path / 'settings.json'
-        config_file.write_text('invalid json {')
+        config_file = tmp_path / "settings.json"
+        config_file.write_text("invalid json {")
 
         with mock.patch.object(
             setup,
-            'IDE_CONFIGS',
+            "IDE_CONFIGS",
             {
-                'claude': {
-                    'name': 'Claude Code',
-                    'config_path': str(config_file),
-                    'config_dir_env_var': None,  # Disable env var for test
-                    'hooks': {}
+                "claude": {
+                    "name": "Claude Code",
+                    "config_path": str(config_file),
+                    "config_dir_env_var": None,  # Disable env var for test
+                    "hooks": {},
                 }
-            }
+            },
         ):
-            success, message = setup.setup_ide_hooks('claude', dry_run=False, force=False)
+            success, message = setup.setup_ide_hooks(
+                "claude", dry_run=False, force=False
+            )
 
             assert success is False
-            assert 'Invalid JSON' in message
+            assert "Invalid JSON" in message
 
     def test_merge_hooks_windsurf_new(self):
         """Test merging Windsurf hooks into new config."""
@@ -222,7 +232,9 @@ class TestIDESetup:
             }
         }
 
-        merged, warnings = setup.merge_hooks(existing_config, ai_guardian_hooks, "windsurf")
+        merged, warnings = setup.merge_hooks(
+            existing_config, ai_guardian_hooks, "windsurf"
+        )
 
         assert "hooks" in merged
         assert "pre_user_prompt" in merged["hooks"]
@@ -246,7 +258,9 @@ class TestIDESetup:
             }
         }
 
-        merged, warnings = setup.merge_hooks(existing_config, ai_guardian_hooks, "windsurf")
+        merged, warnings = setup.merge_hooks(
+            existing_config, ai_guardian_hooks, "windsurf"
+        )
 
         assert "post_cascade_response" in merged["hooks"]
         assert "pre_user_prompt" in merged["hooks"]
@@ -258,29 +272,36 @@ class TestIDESetup:
 
         config_file = tmp_path / "hooks.json"
 
-        with mock.patch.object(
-            setup,
-            "IDE_CONFIGS",
-            {
-                "windsurf": {
-                    "name": "Windsurf",
-                    "config_path": str(config_file),
-                    "config_dir_env_var": None,
-                    "config_filename": "hooks.json",
-                    "hooks": {
+        with (
+            mock.patch.object(
+                setup,
+                "IDE_CONFIGS",
+                {
+                    "windsurf": {
+                        "name": "Windsurf",
+                        "config_path": str(config_file),
+                        "config_dir_env_var": None,
+                        "config_filename": "hooks.json",
                         "hooks": {
-                            "pre_user_prompt": [{"command": "ai-guardian"}],
-                            "pre_run_command": [{"command": "ai-guardian"}],
-                            "post_run_command": [{"command": "ai-guardian"}],
-                            "pre_read_code": [{"command": "ai-guardian"}],
-                            "pre_write_code": [{"command": "ai-guardian"}],
-                            "pre_mcp_tool_use": [{"command": "ai-guardian"}],
-                        }
-                    },
-                }
-            },
-        ), mock.patch.object(setup, "verify_gitleaks_installed", return_value=(True, "ok")):
-            success, message = setup.setup_ide_hooks("windsurf", dry_run=False, force=False)
+                            "hooks": {
+                                "pre_user_prompt": [{"command": "ai-guardian"}],
+                                "pre_run_command": [{"command": "ai-guardian"}],
+                                "post_run_command": [{"command": "ai-guardian"}],
+                                "pre_read_code": [{"command": "ai-guardian"}],
+                                "pre_write_code": [{"command": "ai-guardian"}],
+                                "pre_mcp_tool_use": [{"command": "ai-guardian"}],
+                            }
+                        },
+                    }
+                },
+            ),
+            mock.patch.object(
+                setup, "verify_gitleaks_installed", return_value=(True, "ok")
+            ),
+        ):
+            success, message = setup.setup_ide_hooks(
+                "windsurf", dry_run=False, force=False
+            )
 
             assert success is True
             assert "Windsurf" in message
@@ -298,10 +319,14 @@ class TestIDESetup:
         """Test setting up remote config in new file."""
         setup = IDESetup()
 
-        config_file = tmp_path / 'ai-guardian' / 'ai-guardian.json'
+        config_file = tmp_path / "ai-guardian" / "ai-guardian.json"
 
-        with mock.patch.dict(os.environ, {'XDG_CONFIG_HOME': str(tmp_path), 'AI_GUARDIAN_CONFIG_DIR': ''}):
-            success, message = setup.setup_remote_config('https://example.com/policy.json', dry_run=False)
+        with mock.patch.dict(
+            os.environ, {"XDG_CONFIG_HOME": str(tmp_path), "AI_GUARDIAN_CONFIG_DIR": ""}
+        ):
+            success, message = setup.setup_remote_config(
+                "https://example.com/policy.json", dry_run=False
+            )
 
             assert success is True
             assert config_file.exists()
@@ -310,25 +335,32 @@ class TestIDESetup:
             with open(config_file) as f:
                 config = json.load(f)
 
-            assert 'remote_configs' in config
-            assert 'urls' in config['remote_configs']
-            assert len(config['remote_configs']['urls']) == 1
-            assert config['remote_configs']['urls'][0]['url'] == 'https://example.com/policy.json'
-            assert config['remote_configs']['urls'][0]['enabled'] is True
+            assert "remote_configs" in config
+            assert "urls" in config["remote_configs"]
+            assert len(config["remote_configs"]["urls"]) == 1
+            assert (
+                config["remote_configs"]["urls"][0]["url"]
+                == "https://example.com/policy.json"
+            )
+            assert config["remote_configs"]["urls"][0]["enabled"] is True
 
     def test_setup_remote_config_existing_file_no_section(self, tmp_path):
         """Test adding remote config section to existing file."""
         setup = IDESetup()
 
-        config_file = tmp_path / 'ai-guardian' / 'ai-guardian.json'
+        config_file = tmp_path / "ai-guardian" / "ai-guardian.json"
         config_file.parent.mkdir(parents=True, exist_ok=True)
 
         # Create existing config without remote_configs
-        existing_config = {'permissions': []}
+        existing_config = {"permissions": []}
         config_file.write_text(json.dumps(existing_config))
 
-        with mock.patch.dict(os.environ, {'XDG_CONFIG_HOME': str(tmp_path), 'AI_GUARDIAN_CONFIG_DIR': ''}):
-            success, message = setup.setup_remote_config('https://example.com/policy.json', dry_run=False)
+        with mock.patch.dict(
+            os.environ, {"XDG_CONFIG_HOME": str(tmp_path), "AI_GUARDIAN_CONFIG_DIR": ""}
+        ):
+            success, message = setup.setup_remote_config(
+                "https://example.com/policy.json", dry_run=False
+            )
 
             assert success is True
 
@@ -336,29 +368,31 @@ class TestIDESetup:
             with open(config_file) as f:
                 config = json.load(f)
 
-            assert 'permissions' in config  # Preserved
-            assert 'remote_configs' in config
-            assert len(config['remote_configs']['urls']) == 1
+            assert "permissions" in config  # Preserved
+            assert "remote_configs" in config
+            assert len(config["remote_configs"]["urls"]) == 1
 
     def test_setup_remote_config_append_to_existing(self, tmp_path):
         """Test appending URL to existing remote_configs."""
         setup = IDESetup()
 
-        config_file = tmp_path / 'ai-guardian' / 'ai-guardian.json'
+        config_file = tmp_path / "ai-guardian" / "ai-guardian.json"
         config_file.parent.mkdir(parents=True, exist_ok=True)
 
         # Create config with existing remote_configs
         existing_config = {
-            'remote_configs': {
-                'urls': [
-                    {'url': 'https://example.com/policy1.json', 'enabled': True}
-                ]
+            "remote_configs": {
+                "urls": [{"url": "https://example.com/policy1.json", "enabled": True}]
             }
         }
         config_file.write_text(json.dumps(existing_config))
 
-        with mock.patch.dict(os.environ, {'XDG_CONFIG_HOME': str(tmp_path), 'AI_GUARDIAN_CONFIG_DIR': ''}):
-            success, message = setup.setup_remote_config('https://example.com/policy2.json', dry_run=False)
+        with mock.patch.dict(
+            os.environ, {"XDG_CONFIG_HOME": str(tmp_path), "AI_GUARDIAN_CONFIG_DIR": ""}
+        ):
+            success, message = setup.setup_remote_config(
+                "https://example.com/policy2.json", dry_run=False
+            )
 
             assert success is True
 
@@ -366,51 +400,61 @@ class TestIDESetup:
             with open(config_file) as f:
                 config = json.load(f)
 
-            assert len(config['remote_configs']['urls']) == 2
-            assert config['remote_configs']['urls'][0]['url'] == 'https://example.com/policy1.json'
-            assert config['remote_configs']['urls'][1]['url'] == 'https://example.com/policy2.json'
+            assert len(config["remote_configs"]["urls"]) == 2
+            assert (
+                config["remote_configs"]["urls"][0]["url"]
+                == "https://example.com/policy1.json"
+            )
+            assert (
+                config["remote_configs"]["urls"][1]["url"]
+                == "https://example.com/policy2.json"
+            )
 
     def test_setup_remote_config_duplicate_url(self, tmp_path):
         """Test adding duplicate URL fails."""
         setup = IDESetup()
 
-        config_file = tmp_path / 'ai-guardian' / 'ai-guardian.json'
+        config_file = tmp_path / "ai-guardian" / "ai-guardian.json"
         config_file.parent.mkdir(parents=True, exist_ok=True)
 
         # Create config with existing URL
         existing_config = {
-            'remote_configs': {
-                'urls': [
-                    {'url': 'https://example.com/policy.json', 'enabled': True}
-                ]
+            "remote_configs": {
+                "urls": [{"url": "https://example.com/policy.json", "enabled": True}]
             }
         }
         config_file.write_text(json.dumps(existing_config))
 
-        with mock.patch.dict(os.environ, {'XDG_CONFIG_HOME': str(tmp_path), 'AI_GUARDIAN_CONFIG_DIR': ''}):
-            success, message = setup.setup_remote_config('https://example.com/policy.json', dry_run=False)
+        with mock.patch.dict(
+            os.environ, {"XDG_CONFIG_HOME": str(tmp_path), "AI_GUARDIAN_CONFIG_DIR": ""}
+        ):
+            success, message = setup.setup_remote_config(
+                "https://example.com/policy.json", dry_run=False
+            )
 
             assert success is False
-            assert 'already exists' in message
+            assert "already exists" in message
 
     def test_setup_remote_config_dry_run(self, tmp_path):
         """Test dry-run mode for remote config."""
         setup = IDESetup()
 
-        config_file = tmp_path / 'ai-guardian' / 'ai-guardian.json'
+        config_file = tmp_path / "ai-guardian" / "ai-guardian.json"
 
-        with mock.patch.dict(os.environ, {'XDG_CONFIG_HOME': str(tmp_path)}):
-            success, message = setup.setup_remote_config('https://example.com/policy.json', dry_run=True)
+        with mock.patch.dict(os.environ, {"XDG_CONFIG_HOME": str(tmp_path)}):
+            success, message = setup.setup_remote_config(
+                "https://example.com/policy.json", dry_run=True
+            )
 
             assert success is True
-            assert '[DRY RUN]' in message
+            assert "[DRY RUN]" in message
             assert not config_file.exists()
 
     def test_verify_gitleaks_installed_success(self):
         """Test Gitleaks verification when installed."""
         setup = IDESetup()
 
-        with mock.patch('subprocess.run') as mock_run:
+        with mock.patch("subprocess.run") as mock_run:
             # Mock successful gitleaks version check
             mock_result = mock.MagicMock()
             mock_result.returncode = 0
@@ -420,49 +464,47 @@ class TestIDESetup:
             success, message = setup.verify_gitleaks_installed()
 
             assert success is True
-            assert '✓ Gitleaks is installed' in message
-            assert 'gitleaks version' in message
+            assert "✓ Gitleaks is installed" in message
+            assert "gitleaks version" in message
             mock_run.assert_called_once_with(
-                ['gitleaks', 'version'],
-                capture_output=True,
-                text=True,
-                timeout=5
+                ["gitleaks", "version"], capture_output=True, text=True, timeout=5
             )
 
     def test_verify_gitleaks_not_found(self):
         """Test Gitleaks verification when not installed."""
         setup = IDESetup()
 
-        with mock.patch('subprocess.run') as mock_run:
+        with mock.patch("subprocess.run") as mock_run:
             # Mock FileNotFoundError (gitleaks not installed)
             mock_run.side_effect = FileNotFoundError("gitleaks command not found")
 
             success, message = setup.verify_gitleaks_installed()
 
             assert success is False
-            assert '❌ Gitleaks not found' in message
-            assert 'https://github.com/gitleaks/gitleaks#installing' in message
-            assert 'brew install gitleaks' in message
+            assert "❌ Gitleaks not found" in message
+            assert "https://github.com/gitleaks/gitleaks#installing" in message
+            assert "brew install gitleaks" in message
 
     def test_verify_gitleaks_timeout(self):
         """Test Gitleaks verification when command times out."""
         import subprocess
+
         setup = IDESetup()
 
-        with mock.patch('subprocess.run') as mock_run:
+        with mock.patch("subprocess.run") as mock_run:
             # Mock timeout
-            mock_run.side_effect = subprocess.TimeoutExpired('gitleaks', 5)
+            mock_run.side_effect = subprocess.TimeoutExpired("gitleaks", 5)
 
             success, message = setup.verify_gitleaks_installed()
 
             assert success is False
-            assert '❌ Gitleaks check timed out' in message
+            assert "❌ Gitleaks check timed out" in message
 
     def test_verify_gitleaks_command_failed(self):
         """Test Gitleaks verification when command returns non-zero."""
         setup = IDESetup()
 
-        with mock.patch('subprocess.run') as mock_run:
+        with mock.patch("subprocess.run") as mock_run:
             # Mock failed command
             mock_result = mock.MagicMock()
             mock_result.returncode = 1
@@ -471,37 +513,37 @@ class TestIDESetup:
             success, message = setup.verify_gitleaks_installed()
 
             assert success is False
-            assert '❌ Gitleaks command failed' in message
+            assert "❌ Gitleaks command failed" in message
 
     def test_setup_ide_hooks_shows_gitleaks_warning(self, tmp_path):
         """Test that setup shows warning when Gitleaks is not installed."""
         setup = IDESetup()
 
-        config_file = tmp_path / 'settings.json'
+        config_file = tmp_path / "settings.json"
 
         with mock.patch.object(
             setup,
-            'IDE_CONFIGS',
+            "IDE_CONFIGS",
             {
-                'claude': {
-                    'name': 'Claude Code',
-                    'config_path': str(config_file),
-                    'hooks': {
-                        'UserPromptSubmit': [{'test': 'hook'}]
-                    }
+                "claude": {
+                    "name": "Claude Code",
+                    "config_path": str(config_file),
+                    "hooks": {"UserPromptSubmit": [{"test": "hook"}]},
                 }
-            }
+            },
         ):
             # Mock Gitleaks as not installed
-            with mock.patch.object(setup, 'verify_gitleaks_installed') as mock_verify:
+            with mock.patch.object(setup, "verify_gitleaks_installed") as mock_verify:
                 mock_verify.return_value = (False, "❌ Gitleaks not found")
 
-                success, message = setup.setup_ide_hooks('claude', dry_run=False, force=False)
+                success, message = setup.setup_ide_hooks(
+                    "claude", dry_run=False, force=False
+                )
 
                 assert success is True
-                assert '❌ Gitleaks not found' in message
-                assert 'WARNING: Secret scanning will be disabled' in message
-                assert 'install gitleaks' in message.lower()
+                assert "❌ Gitleaks not found" in message
+                assert "WARNING: Secret scanning will be disabled" in message
+                assert "install gitleaks" in message.lower()
 
 
 class TestIDESetupParametrized:
@@ -518,14 +560,8 @@ class TestIDESetupParametrized:
                 ]
             }
         },
-        "cursor": {
-            "hooks": {
-                "beforeSubmitPrompt": [{"command": "ai-guardian"}]
-            }
-        },
-        "windsurf": {
-            "hooks": {"pre_user_prompt": [{"command": "ai-guardian"}]}
-        },
+        "cursor": {"hooks": {"beforeSubmitPrompt": [{"command": "ai-guardian"}]}},
+        "windsurf": {"hooks": {"pre_user_prompt": [{"command": "ai-guardian"}]}},
         "codex": {
             "hooks": {
                 "PreToolUse": [
@@ -557,9 +593,7 @@ class TestIDESetupParametrized:
     _NOT_CONFIGURED_CONFIGS = {
         "claude": {"hooks": {}},
         "cursor": {"hooks": {}},
-        "windsurf": {
-            "hooks": {"pre_user_prompt": [{"command": "other-tool"}]}
-        },
+        "windsurf": {"hooks": {"pre_user_prompt": [{"command": "other-tool"}]}},
         "codex": {
             "hooks": {
                 "PreToolUse": [
@@ -571,9 +605,7 @@ class TestIDESetupParametrized:
             }
         },
         "gemini": {
-            "hooks": [
-                {"event": "BeforeTool", "matcher": ".*", "command": "other-tool"}
-            ]
+            "hooks": [{"event": "BeforeTool", "matcher": ".*", "command": "other-tool"}]
         },
         "augment": {
             "hooks": {
@@ -652,9 +684,7 @@ class TestIDESetupParametrized:
 
     # ── check_hooks_configured (script-based IDEs) ───────────────────────
 
-    @pytest.mark.parametrize(
-        "ide_name", ["cline", "kiro"], ids=["cline", "kiro"]
-    )
+    @pytest.mark.parametrize("ide_name", ["cline", "kiro"], ids=["cline", "kiro"])
     def test_check_hooks_configured_script(self, tmp_path, ide_name):
         """Verify check_hooks_configured returns True when script contains ai-guardian."""
         setup = IDESetup()
@@ -664,9 +694,7 @@ class TestIDESetupParametrized:
         script.write_text("#!/bin/sh\nai-guardian\n")
         assert setup.check_hooks_configured(hooks_dir, ide_name) is True
 
-    @pytest.mark.parametrize(
-        "ide_name", ["cline", "kiro"], ids=["cline", "kiro"]
-    )
+    @pytest.mark.parametrize("ide_name", ["cline", "kiro"], ids=["cline", "kiro"])
     def test_check_hooks_not_configured_script(self, tmp_path, ide_name):
         """Verify check_hooks_configured returns False when script has other-tool."""
         setup = IDESetup()
@@ -676,9 +704,7 @@ class TestIDESetupParametrized:
         script.write_text("#!/bin/sh\nother-tool\n")
         assert setup.check_hooks_configured(hooks_dir, ide_name) is False
 
-    @pytest.mark.parametrize(
-        "ide_name", ["cline", "kiro"], ids=["cline", "kiro"]
-    )
+    @pytest.mark.parametrize("ide_name", ["cline", "kiro"], ids=["cline", "kiro"])
     def test_check_hooks_not_configured_script_empty(self, tmp_path, ide_name):
         """Verify check_hooks_configured returns False when hooks dir is absent."""
         setup = IDESetup()
@@ -699,7 +725,9 @@ class TestIDESetupParametrized:
         ide_override = self._make_ide_config_override(setup, ide_name, config_file)
 
         with mock.patch.object(setup, "IDE_CONFIGS", ide_override):
-            success, message = setup.setup_ide_hooks(ide_name, dry_run=False, force=False)
+            success, message = setup.setup_ide_hooks(
+                ide_name, dry_run=False, force=False
+            )
 
         assert success is True
         assert config_file.exists()
@@ -710,9 +738,7 @@ class TestIDESetupParametrized:
     # ── setup_ide_hooks new (script-based) ───────────────────────────────
 
     @pytest.mark.skipif(sys.platform == "win32", reason="Unix script hooks test")
-    @pytest.mark.parametrize(
-        "ide_name", ["cline", "kiro"], ids=["cline", "kiro"]
-    )
+    @pytest.mark.parametrize("ide_name", ["cline", "kiro"], ids=["cline", "kiro"])
     def test_setup_ide_hooks_script_new(self, tmp_path, ide_name):
         """Setting up script-based hooks creates executable scripts."""
         import stat
@@ -722,7 +748,9 @@ class TestIDESetupParametrized:
         ide_override = self._make_ide_config_override(setup, ide_name, hooks_dir)
 
         with mock.patch.object(setup, "IDE_CONFIGS", ide_override):
-            success, message = setup.setup_ide_hooks(ide_name, dry_run=False, force=False)
+            success, message = setup.setup_ide_hooks(
+                ide_name, dry_run=False, force=False
+            )
 
         assert success is True
         assert hooks_dir.exists()
@@ -748,7 +776,9 @@ class TestIDESetupParametrized:
         ide_override = self._make_ide_config_override(setup, ide_name, config_path)
 
         with mock.patch.object(setup, "IDE_CONFIGS", ide_override):
-            success, message = setup.setup_ide_hooks(ide_name, dry_run=True, force=False)
+            success, message = setup.setup_ide_hooks(
+                ide_name, dry_run=True, force=False
+            )
 
         assert success is True
         assert "[DRY RUN]" in message
@@ -766,14 +796,24 @@ class TestIDESetupParametrized:
         setup = IDESetup()
         config_file = tmp_path / "config.json"
         # Write existing config with ai-guardian present
-        config_file.write_text(json.dumps(self._CONFIGURED_CONFIGS.get(
-            ide_name,
-            {"hooks": {"PreToolUse": [{"hooks": [{"command": "ai-guardian"}]}]}}
-        )))
+        config_file.write_text(
+            json.dumps(
+                self._CONFIGURED_CONFIGS.get(
+                    ide_name,
+                    {
+                        "hooks": {
+                            "PreToolUse": [{"hooks": [{"command": "ai-guardian"}]}]
+                        }
+                    },
+                )
+            )
+        )
         ide_override = self._make_ide_config_override(setup, ide_name, config_file)
 
         with mock.patch.object(setup, "IDE_CONFIGS", ide_override):
-            success, message = setup.setup_ide_hooks(ide_name, dry_run=False, force=True)
+            success, message = setup.setup_ide_hooks(
+                ide_name, dry_run=False, force=True
+            )
 
         assert success is True
         backup_file = config_file.with_suffix(".json.backup")
@@ -794,7 +834,9 @@ class TestIDESetupParametrized:
         ide_override = self._make_ide_config_override(setup, ide_name, config_file)
 
         with mock.patch.object(setup, "IDE_CONFIGS", ide_override):
-            success, message = setup.setup_ide_hooks(ide_name, dry_run=False, force=False)
+            success, message = setup.setup_ide_hooks(
+                ide_name, dry_run=False, force=False
+            )
 
         assert success is False
         assert "already configured" in message
@@ -824,7 +866,7 @@ class TestConfigDirEnvironmentVariable:
         custom_dir = tmp_path / "custom-config"
         custom_dir.mkdir()
 
-        with mock.patch.dict(os.environ, {'AI_GUARDIAN_CONFIG_DIR': str(custom_dir)}):
+        with mock.patch.dict(os.environ, {"AI_GUARDIAN_CONFIG_DIR": str(custom_dir)}):
             config_mgr = ConfigManager()
             assert config_mgr.config_dir == custom_dir
 
@@ -838,8 +880,8 @@ class TestConfigDirEnvironmentVariable:
         xdg_dir.mkdir()
 
         env = {
-            'AI_GUARDIAN_CONFIG_DIR': str(ai_guardian_dir),
-            'XDG_CONFIG_HOME': str(xdg_dir)
+            "AI_GUARDIAN_CONFIG_DIR": str(ai_guardian_dir),
+            "XDG_CONFIG_HOME": str(xdg_dir),
         }
 
         with mock.patch.dict(os.environ, env, clear=True):
@@ -856,7 +898,7 @@ class TestConfigDirEnvironmentVariable:
         xdg_dir.mkdir()
 
         # Only set XDG_CONFIG_HOME, not AI_GUARDIAN_CONFIG_DIR
-        with mock.patch.dict(os.environ, {'XDG_CONFIG_HOME': str(xdg_dir)}, clear=True):
+        with mock.patch.dict(os.environ, {"XDG_CONFIG_HOME": str(xdg_dir)}, clear=True):
             config_mgr = ConfigManager()
             assert config_mgr.config_dir == xdg_dir / "ai-guardian"
 
@@ -868,10 +910,10 @@ class TestConfigDirEnvironmentVariable:
         # Clear both environment variables
         env_backup = os.environ.copy()
         try:
-            if 'AI_GUARDIAN_CONFIG_DIR' in os.environ:
-                del os.environ['AI_GUARDIAN_CONFIG_DIR']
-            if 'XDG_CONFIG_HOME' in os.environ:
-                del os.environ['XDG_CONFIG_HOME']
+            if "AI_GUARDIAN_CONFIG_DIR" in os.environ:
+                del os.environ["AI_GUARDIAN_CONFIG_DIR"]
+            if "XDG_CONFIG_HOME" in os.environ:
+                del os.environ["XDG_CONFIG_HOME"]
 
             config_mgr = ConfigManager()
             expected = Path("~/.config/ai-guardian").expanduser()
@@ -885,11 +927,13 @@ class TestConfigDirEnvironmentVariable:
         from ai_guardian.config_manager import ConfigManager
 
         # Use a path with tilde (will be expanded)
-        with mock.patch.dict(os.environ, {'AI_GUARDIAN_CONFIG_DIR': '~/my-ai-guardian'}):
+        with mock.patch.dict(
+            os.environ, {"AI_GUARDIAN_CONFIG_DIR": "~/my-ai-guardian"}
+        ):
             config_mgr = ConfigManager()
             # Should be expanded, not contain literal ~
-            assert '~' not in str(config_mgr.config_dir)
-            assert config_mgr.config_dir == Path('~/my-ai-guardian').expanduser()
+            assert "~" not in str(config_mgr.config_dir)
+            assert config_mgr.config_dir == Path("~/my-ai-guardian").expanduser()
 
     @pytest.mark.skipif(sys.platform == "win32", reason="Windows uses APPDATA")
     def test_get_config_dir_utility_function(self, tmp_path):
@@ -898,14 +942,14 @@ class TestConfigDirEnvironmentVariable:
         custom_dir.mkdir()
 
         # Test with AI_GUARDIAN_CONFIG_DIR
-        with mock.patch.dict(os.environ, {'AI_GUARDIAN_CONFIG_DIR': str(custom_dir)}):
+        with mock.patch.dict(os.environ, {"AI_GUARDIAN_CONFIG_DIR": str(custom_dir)}):
             result = get_config_dir()
             assert result == custom_dir
 
         # Test with XDG_CONFIG_HOME only
         xdg_dir = tmp_path / "xdg"
         xdg_dir.mkdir()
-        with mock.patch.dict(os.environ, {'XDG_CONFIG_HOME': str(xdg_dir)}, clear=True):
+        with mock.patch.dict(os.environ, {"XDG_CONFIG_HOME": str(xdg_dir)}, clear=True):
             result = get_config_dir()
             assert result == xdg_dir / "ai-guardian"
 
@@ -922,8 +966,10 @@ class TestConfigDirEnvironmentVariable:
         custom_dir.mkdir()
         config_file = custom_dir / "ai-guardian.json"
 
-        with mock.patch.dict(os.environ, {'AI_GUARDIAN_CONFIG_DIR': str(custom_dir)}):
-            success, message = setup.setup_remote_config('https://example.com/policy.json', dry_run=False)
+        with mock.patch.dict(os.environ, {"AI_GUARDIAN_CONFIG_DIR": str(custom_dir)}):
+            success, message = setup.setup_remote_config(
+                "https://example.com/policy.json", dry_run=False
+            )
 
             assert success is True
             assert config_file.exists()
@@ -931,8 +977,11 @@ class TestConfigDirEnvironmentVariable:
             # Verify the URL was added to config
             with open(config_file) as f:
                 config = json.load(f)
-            assert 'remote_configs' in config
-            assert any('example.com' in str(entry) for entry in config['remote_configs']['urls'])
+            assert "remote_configs" in config
+            assert any(
+                "example.com" in str(entry)
+                for entry in config["remote_configs"]["urls"]
+            )
 
     def test_tool_policy_uses_custom_config_dir(self, tmp_path):
         """Test that ToolPolicyChecker respects AI_GUARDIAN_CONFIG_DIR."""
@@ -943,15 +992,10 @@ class TestConfigDirEnvironmentVariable:
 
         # Create a test config file
         config_file = custom_dir / "ai-guardian.json"
-        test_config = {
-            "builtin_tools": {
-                "deny": ["Bash"],
-                "allow": ["Read"]
-            }
-        }
+        test_config = {"builtin_tools": {"deny": ["Bash"], "allow": ["Read"]}}
         config_file.write_text(json.dumps(test_config))
 
-        with mock.patch.dict(os.environ, {'AI_GUARDIAN_CONFIG_DIR': str(custom_dir)}):
+        with mock.patch.dict(os.environ, {"AI_GUARDIAN_CONFIG_DIR": str(custom_dir)}):
             checker = ToolPolicyChecker()
             # Verify it loaded from the custom directory
             assert checker.config is not None
@@ -978,22 +1022,24 @@ class TestCodexSetup:
         """Test that merging Codex hooks preserves existing non-ai-guardian hooks."""
         setup = IDESetup()
         existing_config = {
-            'hooks': {
-                'PreToolUse': [
+            "hooks": {
+                "PreToolUse": [
                     {
-                        'matcher': '.*',
-                        'hooks': [{'type': 'command', 'command': 'other-tool'}]
+                        "matcher": ".*",
+                        "hooks": [{"type": "command", "command": "other-tool"}],
                     }
                 ]
             }
         }
-        ai_guardian_hooks = IDESetup.IDE_CONFIGS['codex']['hooks']
+        ai_guardian_hooks = IDESetup.IDE_CONFIGS["codex"]["hooks"]
 
-        merged, warnings = setup.merge_hooks(existing_config, ai_guardian_hooks, 'codex')
+        merged, warnings = setup.merge_hooks(
+            existing_config, ai_guardian_hooks, "codex"
+        )
 
-        pre_tool_hooks = merged['hooks']['PreToolUse'][0]['hooks']
-        assert pre_tool_hooks[0]['command'] == 'ai-guardian'
-        assert pre_tool_hooks[1]['command'] == 'other-tool'
+        pre_tool_hooks = merged["hooks"]["PreToolUse"][0]["hooks"]
+        assert pre_tool_hooks[0]["command"] == "ai-guardian"
+        assert pre_tool_hooks[1]["command"] == "other-tool"
         assert len(warnings) > 0
 
 
@@ -1026,47 +1072,51 @@ class TestGeminiSetup:
         """Test merging Gemini hooks into empty config."""
         setup = IDESetup()
         existing_config = {}
-        ai_guardian_hooks = IDESetup.IDE_CONFIGS['gemini']['hooks']
+        ai_guardian_hooks = IDESetup.IDE_CONFIGS["gemini"]["hooks"]
 
-        merged, warnings = setup.merge_hooks(existing_config, ai_guardian_hooks, 'gemini')
+        merged, warnings = setup.merge_hooks(
+            existing_config, ai_guardian_hooks, "gemini"
+        )
 
-        assert 'hooks' in merged
-        assert isinstance(merged['hooks'], list)
-        assert len(merged['hooks']) == 3
+        assert "hooks" in merged
+        assert isinstance(merged["hooks"], list)
+        assert len(merged["hooks"]) == 3
         assert len(warnings) == 0
 
     def test_merge_hooks_gemini_existing(self):
         """Test merging Gemini hooks preserves other hooks."""
         setup = IDESetup()
         existing_config = {
-            'hooks': [
-                {'event': 'BeforeTool', 'matcher': '.*', 'command': 'other-tool'}
-            ]
+            "hooks": [{"event": "BeforeTool", "matcher": ".*", "command": "other-tool"}]
         }
-        ai_guardian_hooks = IDESetup.IDE_CONFIGS['gemini']['hooks']
+        ai_guardian_hooks = IDESetup.IDE_CONFIGS["gemini"]["hooks"]
 
-        merged, warnings = setup.merge_hooks(existing_config, ai_guardian_hooks, 'gemini')
+        merged, warnings = setup.merge_hooks(
+            existing_config, ai_guardian_hooks, "gemini"
+        )
 
-        assert len(merged['hooks']) == 4
-        assert merged['hooks'][0]['command'] == 'ai-guardian'
-        assert merged['hooks'][3]['command'] == 'other-tool'
+        assert len(merged["hooks"]) == 4
+        assert merged["hooks"][0]["command"] == "ai-guardian"
+        assert merged["hooks"][3]["command"] == "other-tool"
         assert len(warnings) > 0
 
     def test_merge_hooks_gemini_replaces_existing_ai_guardian(self):
         """Test that merging replaces existing ai-guardian hooks."""
         setup = IDESetup()
         existing_config = {
-            'hooks': [
-                {'event': 'BeforeTool', 'matcher': '.*', 'command': 'ai-guardian'},
-                {'event': 'BeforeTool', 'matcher': '.*', 'command': 'other-tool'}
+            "hooks": [
+                {"event": "BeforeTool", "matcher": ".*", "command": "ai-guardian"},
+                {"event": "BeforeTool", "matcher": ".*", "command": "other-tool"},
             ]
         }
-        ai_guardian_hooks = IDESetup.IDE_CONFIGS['gemini']['hooks']
+        ai_guardian_hooks = IDESetup.IDE_CONFIGS["gemini"]["hooks"]
 
-        merged, warnings = setup.merge_hooks(existing_config, ai_guardian_hooks, 'gemini')
+        merged, warnings = setup.merge_hooks(
+            existing_config, ai_guardian_hooks, "gemini"
+        )
 
-        ag_hooks = [h for h in merged['hooks'] if h.get('command') == 'ai-guardian']
-        other_hooks = [h for h in merged['hooks'] if h.get('command') != 'ai-guardian']
+        ag_hooks = [h for h in merged["hooks"] if h.get("command") == "ai-guardian"]
+        other_hooks = [h for h in merged["hooks"] if h.get("command") != "ai-guardian"]
         assert len(ag_hooks) == 3
         assert len(other_hooks) == 1
 
@@ -1094,29 +1144,30 @@ class TestClineSetup:
     def test_setup_ide_hooks_cline_force(self, tmp_path):
         """Test force flag overwrites existing Cline scripts."""
         setup = IDESetup()
-        hooks_dir = tmp_path / '.clinerules' / 'hooks'
+        hooks_dir = tmp_path / ".clinerules" / "hooks"
         hooks_dir.mkdir(parents=True)
-        old_script = hooks_dir / 'PreToolUse'
+        old_script = hooks_dir / "PreToolUse"
         old_script.write_text("#!/bin/sh\nai-guardian\n")
 
         with mock.patch.object(
-            setup, 'IDE_CONFIGS',
+            setup,
+            "IDE_CONFIGS",
             {
-                'cline': {
-                    'name': 'Cline',
-                    'config_path': str(hooks_dir),
-                    'config_dir_env_var': None,
-                    'config_filename': None,
-                    'script_based': True,
-                    'hook_scripts': IDESetup.IDE_CONFIGS['cline']['hook_scripts'],
-                    'script_content': IDESetup.IDE_CONFIGS['cline']['script_content'],
+                "cline": {
+                    "name": "Cline",
+                    "config_path": str(hooks_dir),
+                    "config_dir_env_var": None,
+                    "config_filename": None,
+                    "script_based": True,
+                    "hook_scripts": IDESetup.IDE_CONFIGS["cline"]["hook_scripts"],
+                    "script_content": IDESetup.IDE_CONFIGS["cline"]["script_content"],
                 }
-            }
+            },
         ):
-            success, message = setup.setup_ide_hooks('cline', dry_run=False, force=True)
+            success, message = setup.setup_ide_hooks("cline", dry_run=False, force=True)
             assert success is True
 
-            for script_name in ['PreToolUse', 'PostToolUse', 'UserPromptSubmit']:
+            for script_name in ["PreToolUse", "PostToolUse", "UserPromptSubmit"]:
                 assert (hooks_dir / script_name).exists()
 
 
@@ -1151,22 +1202,24 @@ class TestAugmentSetup:
         """Test that merging Augment hooks preserves existing non-ai-guardian hooks."""
         setup = IDESetup()
         existing_config = {
-            'hooks': {
-                'PreToolUse': [
+            "hooks": {
+                "PreToolUse": [
                     {
-                        'matcher': 'launch-process|str-replace-editor|save-file|view|remove-files',
-                        'hooks': [{'type': 'command', 'command': 'other-tool'}]
+                        "matcher": "launch-process|str-replace-editor|save-file|view|remove-files",
+                        "hooks": [{"type": "command", "command": "other-tool"}],
                     }
                 ]
             }
         }
-        ai_guardian_hooks = IDESetup.IDE_CONFIGS['augment']['hooks']
+        ai_guardian_hooks = IDESetup.IDE_CONFIGS["augment"]["hooks"]
 
-        merged, warnings = setup.merge_hooks(existing_config, ai_guardian_hooks, 'augment')
+        merged, warnings = setup.merge_hooks(
+            existing_config, ai_guardian_hooks, "augment"
+        )
 
-        pre_tool_hooks = merged['hooks']['PreToolUse'][0]['hooks']
-        assert pre_tool_hooks[0]['command'] == 'ai-guardian'
-        assert pre_tool_hooks[1]['command'] == 'other-tool'
+        pre_tool_hooks = merged["hooks"]["PreToolUse"][0]["hooks"]
+        assert pre_tool_hooks[0]["command"] == "ai-guardian"
+        assert pre_tool_hooks[1]["command"] == "other-tool"
         assert len(warnings) > 0
 
 
@@ -1175,7 +1228,7 @@ class TestSetupHooks:
 
     def test_setup_hooks_no_ide_detected(self, tmp_path):
         """Test setup when no IDE is detected."""
-        with mock.patch('ai_guardian.setup.IDESetup') as MockSetup:
+        with mock.patch("ai_guardian.setup.IDESetup") as MockSetup:
             mock_instance = MockSetup.return_value
             mock_instance.list_detected_ides.return_value = []
 
@@ -1185,13 +1238,11 @@ class TestSetupHooks:
 
     def test_setup_hooks_auto_detect_single(self, tmp_path):
         """Test auto-detection with single IDE."""
-        with mock.patch('ai_guardian.setup.IDESetup') as MockSetup:
+        with mock.patch("ai_guardian.setup.IDESetup") as MockSetup:
             mock_instance = MockSetup.return_value
-            mock_instance.list_detected_ides.return_value = ['claude']
-            mock_instance.IDE_CONFIGS = {
-                'claude': {'name': 'Claude Code'}
-            }
-            mock_instance.setup_ide_hooks.return_value = (True, 'Success')
+            mock_instance.list_detected_ides.return_value = ["claude"]
+            mock_instance.IDE_CONFIGS = {"claude": {"name": "Claude Code"}}
+            mock_instance.setup_ide_hooks.return_value = (True, "Success")
 
             success = setup_hooks(interactive=False)
 
@@ -1200,33 +1251,34 @@ class TestSetupHooks:
 
     def test_setup_hooks_explicit_ide(self, tmp_path):
         """Test explicit IDE specification."""
-        with mock.patch('ai_guardian.setup.IDESetup') as MockSetup:
+        with mock.patch("ai_guardian.setup.IDESetup") as MockSetup:
             mock_instance = MockSetup.return_value
-            mock_instance.IDE_CONFIGS = {
-                'cursor': {'name': 'Cursor IDE'}
-            }
-            mock_instance.setup_ide_hooks.return_value = (True, 'Success')
+            mock_instance.IDE_CONFIGS = {"cursor": {"name": "Cursor IDE"}}
+            mock_instance.setup_ide_hooks.return_value = (True, "Success")
 
-            success = setup_hooks(ide_type='cursor', interactive=False)
+            success = setup_hooks(ide_type="cursor", interactive=False)
 
             assert success is True
-            mock_instance.setup_ide_hooks.assert_called_once_with('cursor', dry_run=False, force=False)
+            mock_instance.setup_ide_hooks.assert_called_once_with(
+                "cursor", dry_run=False, force=False
+            )
 
     def test_setup_hooks_with_remote_config(self, tmp_path):
         """Test setup with remote config URL."""
-        with mock.patch('ai_guardian.setup.IDESetup') as MockSetup:
+        with mock.patch("ai_guardian.setup.IDESetup") as MockSetup:
             mock_instance = MockSetup.return_value
-            mock_instance.list_detected_ides.return_value = ['claude']
-            mock_instance.IDE_CONFIGS = {
-                'claude': {'name': 'Claude Code'}
-            }
-            mock_instance.setup_remote_config.return_value = (True, 'Remote config added')
-            mock_instance.setup_ide_hooks.return_value = (True, 'Hooks configured')
+            mock_instance.list_detected_ides.return_value = ["claude"]
+            mock_instance.IDE_CONFIGS = {"claude": {"name": "Claude Code"}}
+            mock_instance.setup_remote_config.return_value = (
+                True,
+                "Remote config added",
+            )
+            mock_instance.setup_ide_hooks.return_value = (True, "Hooks configured")
 
             success = setup_hooks(
-                ide_type='claude',
-                remote_config_url='https://example.com/policy.json',
-                interactive=False
+                ide_type="claude",
+                remote_config_url="https://example.com/policy.json",
+                interactive=False,
             )
 
             assert success is True
@@ -1235,13 +1287,15 @@ class TestSetupHooks:
 
     def test_setup_hooks_remote_config_only(self, tmp_path):
         """Test setup with only remote config, no IDE."""
-        with mock.patch('ai_guardian.setup.IDESetup') as MockSetup:
+        with mock.patch("ai_guardian.setup.IDESetup") as MockSetup:
             mock_instance = MockSetup.return_value
-            mock_instance.setup_remote_config.return_value = (True, 'Remote config added')
+            mock_instance.setup_remote_config.return_value = (
+                True,
+                "Remote config added",
+            )
 
             success = setup_hooks(
-                remote_config_url='https://example.com/policy.json',
-                interactive=False
+                remote_config_url="https://example.com/policy.json", interactive=False
             )
 
             # Should fail because no IDE detected after remote config
@@ -1249,98 +1303,106 @@ class TestSetupHooks:
 
     def test_setup_hooks_invalid_ide_type(self):
         """Test setup with invalid IDE type."""
-        with mock.patch('ai_guardian.setup.IDESetup') as MockSetup:
+        with mock.patch("ai_guardian.setup.IDESetup") as MockSetup:
             mock_instance = MockSetup.return_value
-            mock_instance.IDE_CONFIGS = {'claude': {}, 'cursor': {}}
+            mock_instance.IDE_CONFIGS = {"claude": {}, "cursor": {}}
 
-            success = setup_hooks(ide_type='invalid', interactive=False)
+            success = setup_hooks(ide_type="invalid", interactive=False)
 
             assert success is False
 
     def test_setup_hooks_dry_run(self):
         """Test setup in dry-run mode."""
-        with mock.patch('ai_guardian.setup.IDESetup') as MockSetup:
+        with mock.patch("ai_guardian.setup.IDESetup") as MockSetup:
             mock_instance = MockSetup.return_value
-            mock_instance.list_detected_ides.return_value = ['claude']
-            mock_instance.IDE_CONFIGS = {
-                'claude': {'name': 'Claude Code'}
-            }
-            mock_instance.setup_ide_hooks.return_value = (True, '[DRY RUN] Success')
+            mock_instance.list_detected_ides.return_value = ["claude"]
+            mock_instance.IDE_CONFIGS = {"claude": {"name": "Claude Code"}}
+            mock_instance.setup_ide_hooks.return_value = (True, "[DRY RUN] Success")
 
-            success = setup_hooks(ide_type='claude', dry_run=True, interactive=False)
+            success = setup_hooks(ide_type="claude", dry_run=True, interactive=False)
 
             assert success is True
-            mock_instance.setup_ide_hooks.assert_called_once_with('claude', dry_run=True, force=False)
+            mock_instance.setup_ide_hooks.assert_called_once_with(
+                "claude", dry_run=True, force=False
+            )
 
     def test_setup_hooks_force_mode(self):
         """Test setup with force flag."""
-        with mock.patch('ai_guardian.setup.IDESetup') as MockSetup:
+        with mock.patch("ai_guardian.setup.IDESetup") as MockSetup:
             mock_instance = MockSetup.return_value
-            mock_instance.list_detected_ides.return_value = ['claude']
-            mock_instance.IDE_CONFIGS = {
-                'claude': {'name': 'Claude Code'}
-            }
-            mock_instance.setup_ide_hooks.return_value = (True, 'Success')
+            mock_instance.list_detected_ides.return_value = ["claude"]
+            mock_instance.IDE_CONFIGS = {"claude": {"name": "Claude Code"}}
+            mock_instance.setup_ide_hooks.return_value = (True, "Success")
 
-            success = setup_hooks(ide_type='claude', force=True, interactive=False)
+            success = setup_hooks(ide_type="claude", force=True, interactive=False)
 
             assert success is True
-            mock_instance.setup_ide_hooks.assert_called_once_with('claude', dry_run=False, force=True)
+            mock_instance.setup_ide_hooks.assert_called_once_with(
+                "claude", dry_run=False, force=True
+            )
 
     def test_setup_remote_config_invalid_json(self, tmp_path):
         """Test setup with invalid JSON in existing config."""
         setup = IDESetup()
 
-        config_file = tmp_path / 'ai-guardian' / 'ai-guardian.json'
+        config_file = tmp_path / "ai-guardian" / "ai-guardian.json"
         config_file.parent.mkdir(parents=True, exist_ok=True)
-        config_file.write_text('invalid json {')
+        config_file.write_text("invalid json {")
 
-        with mock.patch.dict(os.environ, {'XDG_CONFIG_HOME': str(tmp_path), 'AI_GUARDIAN_CONFIG_DIR': ''}):
-            success, message = setup.setup_remote_config('https://example.com/policy.json', dry_run=False)
+        with mock.patch.dict(
+            os.environ, {"XDG_CONFIG_HOME": str(tmp_path), "AI_GUARDIAN_CONFIG_DIR": ""}
+        ):
+            success, message = setup.setup_remote_config(
+                "https://example.com/policy.json", dry_run=False
+            )
 
             assert success is False
-            assert 'Invalid JSON' in message
+            assert "Invalid JSON" in message
 
     def test_setup_ide_hooks_unknown_ide(self):
         """Test setup with unknown IDE type."""
         setup = IDESetup()
 
-        success, message = setup.setup_ide_hooks('unknown_ide', dry_run=False, force=False)
+        success, message = setup.setup_ide_hooks(
+            "unknown_ide", dry_run=False, force=False
+        )
 
         assert success is False
-        assert 'Unknown IDE type' in message
+        assert "Unknown IDE type" in message
 
     def test_claude_config_dir_env_var(self, tmp_path):
         """Test that CLAUDE_CONFIG_DIR environment variable is respected."""
         setup = IDESetup()
 
-        custom_dir = tmp_path / 'custom-claude'
+        custom_dir = tmp_path / "custom-claude"
         custom_dir.mkdir(parents=True)
 
-        with mock.patch.dict(os.environ, {'CLAUDE_CONFIG_DIR': str(custom_dir)}):
+        with mock.patch.dict(os.environ, {"CLAUDE_CONFIG_DIR": str(custom_dir)}):
             config_path = setup.get_claude_config_path()
-            assert config_path == str(custom_dir / 'settings.json')
+            assert config_path == str(custom_dir / "settings.json")
 
     def test_claude_config_dir_default(self):
         """Test default Claude config path when env var not set."""
         setup = IDESetup()
 
         with mock.patch.dict(os.environ, {}, clear=True):
-            if 'CLAUDE_CONFIG_DIR' in os.environ:
-                del os.environ['CLAUDE_CONFIG_DIR']
+            if "CLAUDE_CONFIG_DIR" in os.environ:
+                del os.environ["CLAUDE_CONFIG_DIR"]
             config_path = setup.get_claude_config_path()
-            assert config_path == '~/.claude/settings.json'
+            assert config_path == "~/.claude/settings.json"
 
     def test_setup_claude_with_custom_config_dir(self, tmp_path):
         """Test setup with custom CLAUDE_CONFIG_DIR."""
         setup = IDESetup()
 
-        custom_dir = tmp_path / 'custom-claude'
+        custom_dir = tmp_path / "custom-claude"
         custom_dir.mkdir(parents=True)
-        config_file = custom_dir / 'settings.json'
+        config_file = custom_dir / "settings.json"
 
-        with mock.patch.dict(os.environ, {'CLAUDE_CONFIG_DIR': str(custom_dir)}):
-            success, message = setup.setup_ide_hooks('claude', dry_run=False, force=False)
+        with mock.patch.dict(os.environ, {"CLAUDE_CONFIG_DIR": str(custom_dir)}):
+            success, message = setup.setup_ide_hooks(
+                "claude", dry_run=False, force=False
+            )
 
             assert success is True
             assert config_file.exists()
@@ -1349,34 +1411,43 @@ class TestSetupHooks:
             with open(config_file) as f:
                 config = json.load(f)
 
-            assert 'hooks' in config
-            assert 'UserPromptSubmit' in config['hooks']
+            assert "hooks" in config
+            assert "UserPromptSubmit" in config["hooks"]
 
     def test_setup_hooks_interactive_shows_correct_path(self, tmp_path, capsys):
         """Test that interactive confirmation shows correct path with CLAUDE_CONFIG_DIR."""
-        custom_dir = tmp_path / 'custom-claude'
+        custom_dir = tmp_path / "custom-claude"
         custom_dir.mkdir(parents=True)
 
-        with mock.patch('ai_guardian.setup.IDESetup') as MockSetup:
+        with mock.patch("ai_guardian.setup.IDESetup") as MockSetup:
             mock_instance = MockSetup.return_value
-            mock_instance.list_detected_ides.return_value = ['claude']
+            mock_instance.list_detected_ides.return_value = ["claude"]
             mock_instance.IDE_CONFIGS = {
-                'claude': {'name': 'Claude Code', 'config_path': '~/.claude/settings.json'}
+                "claude": {
+                    "name": "Claude Code",
+                    "config_path": "~/.claude/settings.json",
+                }
             }
-            mock_instance.get_config_path.return_value = str(custom_dir / 'settings.json')
-            mock_instance.setup_ide_hooks.return_value = (True, 'Success')
+            mock_instance.get_config_path.return_value = str(
+                custom_dir / "settings.json"
+            )
+            mock_instance.setup_ide_hooks.return_value = (True, "Success")
 
             # Mock user saying "no" to abort
-            with mock.patch('builtins.input', return_value='n'):
-                with mock.patch.dict(os.environ, {'CLAUDE_CONFIG_DIR': str(custom_dir)}):
-                    success = setup_hooks(ide_type='claude', interactive=True, dry_run=False)
+            with mock.patch("builtins.input", return_value="n"):
+                with mock.patch.dict(
+                    os.environ, {"CLAUDE_CONFIG_DIR": str(custom_dir)}
+                ):
+                    success = setup_hooks(
+                        ide_type="claude", interactive=True, dry_run=False
+                    )
 
             # Should have aborted
             assert success is False
 
             # Check that the correct path was shown in output
             captured = capsys.readouterr()
-            assert str(custom_dir / 'settings.json') in captured.out
+            assert str(custom_dir / "settings.json") in captured.out
 
 
 class TestInstallScannerMultiple:
@@ -1384,78 +1455,83 @@ class TestInstallScannerMultiple:
 
     def test_install_single_scanner(self):
         """Single scanner installs successfully."""
-        with mock.patch('ai_guardian.setup.IDESetup') as MockSetup:
+        with mock.patch("ai_guardian.setup.IDESetup") as MockSetup:
             mock_instance = MockSetup.return_value
-            mock_instance.list_detected_ides.return_value = ['claude']
-            mock_instance.IDE_CONFIGS = {'claude': {'name': 'Claude Code'}}
-            mock_instance.setup_ide_hooks.return_value = (True, 'Success')
+            mock_instance.list_detected_ides.return_value = ["claude"]
+            mock_instance.IDE_CONFIGS = {"claude": {"name": "Claude Code"}}
+            mock_instance.setup_ide_hooks.return_value = (True, "Success")
 
-            with mock.patch('ai_guardian.scanner_installer.ScannerInstaller') as MockInstaller:
+            with mock.patch(
+                "ai_guardian.scanner_installer.ScannerInstaller"
+            ) as MockInstaller:
                 mock_inst = MockInstaller.return_value
                 mock_inst.install.return_value = True
                 mock_inst.verify_installation.return_value = True
 
-                success = setup_hooks(
-                    install_scanner=["gitleaks"],
-                    interactive=False
-                )
+                success = setup_hooks(install_scanner=["gitleaks"], interactive=False)
 
                 assert success is True
-                mock_inst.install.assert_called_once_with("gitleaks", use_pinned=False, ensure_only=True)
+                mock_inst.install.assert_called_once_with(
+                    "gitleaks", use_pinned=False, ensure_only=True
+                )
                 mock_inst.verify_installation.assert_called_once_with("gitleaks")
 
     def test_install_multiple_scanners(self):
         """Multiple scanners install in sequence."""
-        with mock.patch('ai_guardian.setup.IDESetup') as MockSetup:
+        with mock.patch("ai_guardian.setup.IDESetup") as MockSetup:
             mock_instance = MockSetup.return_value
-            mock_instance.list_detected_ides.return_value = ['claude']
-            mock_instance.IDE_CONFIGS = {'claude': {'name': 'Claude Code'}}
-            mock_instance.setup_ide_hooks.return_value = (True, 'Success')
+            mock_instance.list_detected_ides.return_value = ["claude"]
+            mock_instance.IDE_CONFIGS = {"claude": {"name": "Claude Code"}}
+            mock_instance.setup_ide_hooks.return_value = (True, "Success")
 
-            with mock.patch('ai_guardian.scanner_installer.ScannerInstaller') as MockInstaller:
+            with mock.patch(
+                "ai_guardian.scanner_installer.ScannerInstaller"
+            ) as MockInstaller:
                 mock_inst = MockInstaller.return_value
                 mock_inst.install.return_value = True
                 mock_inst.verify_installation.return_value = True
 
                 success = setup_hooks(
-                    install_scanner=["gitleaks", "betterleaks"],
-                    interactive=False
+                    install_scanner=["gitleaks", "betterleaks"], interactive=False
                 )
 
                 assert success is True
                 assert mock_inst.install.call_count == 2
-                mock_inst.install.assert_any_call("gitleaks", use_pinned=False, ensure_only=True)
-                mock_inst.install.assert_any_call("betterleaks", use_pinned=False, ensure_only=True)
+                mock_inst.install.assert_any_call(
+                    "gitleaks", use_pinned=False, ensure_only=True
+                )
+                mock_inst.install.assert_any_call(
+                    "betterleaks", use_pinned=False, ensure_only=True
+                )
 
     def test_install_no_scanner_when_none(self):
         """No scanner installation when install_scanner is None."""
-        with mock.patch('ai_guardian.setup.IDESetup') as MockSetup:
+        with mock.patch("ai_guardian.setup.IDESetup") as MockSetup:
             mock_instance = MockSetup.return_value
-            mock_instance.list_detected_ides.return_value = ['claude']
-            mock_instance.IDE_CONFIGS = {'claude': {'name': 'Claude Code'}}
-            mock_instance.setup_ide_hooks.return_value = (True, 'Success')
+            mock_instance.list_detected_ides.return_value = ["claude"]
+            mock_instance.IDE_CONFIGS = {"claude": {"name": "Claude Code"}}
+            mock_instance.setup_ide_hooks.return_value = (True, "Success")
 
-            with mock.patch('ai_guardian.scanner_installer.ScannerInstaller') as MockInstaller:
-                success = setup_hooks(
-                    install_scanner=None,
-                    interactive=False
-                )
+            with mock.patch(
+                "ai_guardian.scanner_installer.ScannerInstaller"
+            ) as MockInstaller:
+                success = setup_hooks(install_scanner=None, interactive=False)
 
                 assert success is True
                 MockInstaller.assert_not_called()
 
     def test_install_scanner_dry_run(self, capsys):
         """Dry run prints scanner names without installing."""
-        with mock.patch('ai_guardian.setup.IDESetup') as MockSetup:
+        with mock.patch("ai_guardian.setup.IDESetup") as MockSetup:
             mock_instance = MockSetup.return_value
-            mock_instance.list_detected_ides.return_value = ['claude']
-            mock_instance.IDE_CONFIGS = {'claude': {'name': 'Claude Code'}}
-            mock_instance.setup_ide_hooks.return_value = (True, 'Success')
+            mock_instance.list_detected_ides.return_value = ["claude"]
+            mock_instance.IDE_CONFIGS = {"claude": {"name": "Claude Code"}}
+            mock_instance.setup_ide_hooks.return_value = (True, "Success")
 
             success = setup_hooks(
                 install_scanner=["gitleaks", "betterleaks"],
                 dry_run=True,
-                interactive=False
+                interactive=False,
             )
 
             assert success is True
@@ -1465,20 +1541,21 @@ class TestInstallScannerMultiple:
 
     def test_install_scanner_failure_continues_with_yes(self):
         """When a scanner fails and not interactive, setup continues."""
-        with mock.patch('ai_guardian.setup.IDESetup') as MockSetup:
+        with mock.patch("ai_guardian.setup.IDESetup") as MockSetup:
             mock_instance = MockSetup.return_value
-            mock_instance.list_detected_ides.return_value = ['claude']
-            mock_instance.IDE_CONFIGS = {'claude': {'name': 'Claude Code'}}
-            mock_instance.setup_ide_hooks.return_value = (True, 'Success')
+            mock_instance.list_detected_ides.return_value = ["claude"]
+            mock_instance.IDE_CONFIGS = {"claude": {"name": "Claude Code"}}
+            mock_instance.setup_ide_hooks.return_value = (True, "Success")
 
-            with mock.patch('ai_guardian.scanner_installer.ScannerInstaller') as MockInstaller:
+            with mock.patch(
+                "ai_guardian.scanner_installer.ScannerInstaller"
+            ) as MockInstaller:
                 mock_inst = MockInstaller.return_value
                 mock_inst.install.side_effect = [False, True]
                 mock_inst.verify_installation.return_value = True
 
                 success = setup_hooks(
-                    install_scanner=["gitleaks", "betterleaks"],
-                    interactive=False
+                    install_scanner=["gitleaks", "betterleaks"], interactive=False
                 )
 
                 assert success is True
@@ -1486,21 +1563,20 @@ class TestInstallScannerMultiple:
 
     def test_install_scanner_verification_failure(self, capsys):
         """Verification failure prints warning."""
-        with mock.patch('ai_guardian.setup.IDESetup') as MockSetup:
+        with mock.patch("ai_guardian.setup.IDESetup") as MockSetup:
             mock_instance = MockSetup.return_value
-            mock_instance.list_detected_ides.return_value = ['claude']
-            mock_instance.IDE_CONFIGS = {'claude': {'name': 'Claude Code'}}
-            mock_instance.setup_ide_hooks.return_value = (True, 'Success')
+            mock_instance.list_detected_ides.return_value = ["claude"]
+            mock_instance.IDE_CONFIGS = {"claude": {"name": "Claude Code"}}
+            mock_instance.setup_ide_hooks.return_value = (True, "Success")
 
-            with mock.patch('ai_guardian.scanner_installer.ScannerInstaller') as MockInstaller:
+            with mock.patch(
+                "ai_guardian.scanner_installer.ScannerInstaller"
+            ) as MockInstaller:
                 mock_inst = MockInstaller.return_value
                 mock_inst.install.return_value = True
                 mock_inst.verify_installation.return_value = False
 
-                success = setup_hooks(
-                    install_scanner=["gitleaks"],
-                    interactive=False
-                )
+                success = setup_hooks(install_scanner=["gitleaks"], interactive=False)
 
                 assert success is True
                 captured = capsys.readouterr()
@@ -1508,43 +1584,47 @@ class TestInstallScannerMultiple:
 
     def test_install_all_three_scanners(self):
         """All three scanners install in sequence."""
-        with mock.patch('ai_guardian.setup.IDESetup') as MockSetup:
+        with mock.patch("ai_guardian.setup.IDESetup") as MockSetup:
             mock_instance = MockSetup.return_value
-            mock_instance.list_detected_ides.return_value = ['claude']
-            mock_instance.IDE_CONFIGS = {'claude': {'name': 'Claude Code'}}
-            mock_instance.setup_ide_hooks.return_value = (True, 'Success')
+            mock_instance.list_detected_ides.return_value = ["claude"]
+            mock_instance.IDE_CONFIGS = {"claude": {"name": "Claude Code"}}
+            mock_instance.setup_ide_hooks.return_value = (True, "Success")
 
-            with mock.patch('ai_guardian.scanner_installer.ScannerInstaller') as MockInstaller:
+            with mock.patch(
+                "ai_guardian.scanner_installer.ScannerInstaller"
+            ) as MockInstaller:
                 mock_inst = MockInstaller.return_value
                 mock_inst.install.return_value = True
                 mock_inst.verify_installation.return_value = True
 
                 success = setup_hooks(
                     install_scanner=["gitleaks", "betterleaks", "leaktk"],
-                    interactive=False
+                    interactive=False,
                 )
 
                 assert success is True
                 assert mock_inst.install.call_count == 3
-                mock_inst.install.assert_any_call("leaktk", use_pinned=False, ensure_only=True)
+                mock_inst.install.assert_any_call(
+                    "leaktk", use_pinned=False, ensure_only=True
+                )
 
     def test_install_scanner_with_use_pinned(self):
         """--use-pinned passes use_pinned=True and ensure_only=False to installer."""
-        with mock.patch('ai_guardian.setup.IDESetup') as MockSetup:
+        with mock.patch("ai_guardian.setup.IDESetup") as MockSetup:
             mock_instance = MockSetup.return_value
-            mock_instance.list_detected_ides.return_value = ['claude']
-            mock_instance.IDE_CONFIGS = {'claude': {'name': 'Claude Code'}}
-            mock_instance.setup_ide_hooks.return_value = (True, 'Success')
+            mock_instance.list_detected_ides.return_value = ["claude"]
+            mock_instance.IDE_CONFIGS = {"claude": {"name": "Claude Code"}}
+            mock_instance.setup_ide_hooks.return_value = (True, "Success")
 
-            with mock.patch('ai_guardian.scanner_installer.ScannerInstaller') as MockInstaller:
+            with mock.patch(
+                "ai_guardian.scanner_installer.ScannerInstaller"
+            ) as MockInstaller:
                 mock_inst = MockInstaller.return_value
                 mock_inst.install.return_value = True
                 mock_inst.verify_installation.return_value = True
 
                 success = setup_hooks(
-                    install_scanner=["gitleaks"],
-                    use_pinned=True,
-                    interactive=False
+                    install_scanner=["gitleaks"], use_pinned=True, interactive=False
                 )
 
                 assert success is True
@@ -1554,21 +1634,20 @@ class TestInstallScannerMultiple:
 
     def test_install_scanner_without_use_pinned_default(self):
         """Without --use-pinned, ensure_only=True and use_pinned=False (default)."""
-        with mock.patch('ai_guardian.setup.IDESetup') as MockSetup:
+        with mock.patch("ai_guardian.setup.IDESetup") as MockSetup:
             mock_instance = MockSetup.return_value
-            mock_instance.list_detected_ides.return_value = ['claude']
-            mock_instance.IDE_CONFIGS = {'claude': {'name': 'Claude Code'}}
-            mock_instance.setup_ide_hooks.return_value = (True, 'Success')
+            mock_instance.list_detected_ides.return_value = ["claude"]
+            mock_instance.IDE_CONFIGS = {"claude": {"name": "Claude Code"}}
+            mock_instance.setup_ide_hooks.return_value = (True, "Success")
 
-            with mock.patch('ai_guardian.scanner_installer.ScannerInstaller') as MockInstaller:
+            with mock.patch(
+                "ai_guardian.scanner_installer.ScannerInstaller"
+            ) as MockInstaller:
                 mock_inst = MockInstaller.return_value
                 mock_inst.install.return_value = True
                 mock_inst.verify_installation.return_value = True
 
-                success = setup_hooks(
-                    install_scanner=["gitleaks"],
-                    interactive=False
-                )
+                success = setup_hooks(install_scanner=["gitleaks"], interactive=False)
 
                 assert success is True
                 mock_inst.install.assert_called_once_with(
@@ -1577,17 +1656,17 @@ class TestInstallScannerMultiple:
 
     def test_install_scanner_use_pinned_dry_run(self, capsys):
         """Dry run with --use-pinned prints 'pinned' in output."""
-        with mock.patch('ai_guardian.setup.IDESetup') as MockSetup:
+        with mock.patch("ai_guardian.setup.IDESetup") as MockSetup:
             mock_instance = MockSetup.return_value
-            mock_instance.list_detected_ides.return_value = ['claude']
-            mock_instance.IDE_CONFIGS = {'claude': {'name': 'Claude Code'}}
-            mock_instance.setup_ide_hooks.return_value = (True, 'Success')
+            mock_instance.list_detected_ides.return_value = ["claude"]
+            mock_instance.IDE_CONFIGS = {"claude": {"name": "Claude Code"}}
+            mock_instance.setup_ide_hooks.return_value = (True, "Success")
 
             success = setup_hooks(
                 install_scanner=["gitleaks"],
                 use_pinned=True,
                 dry_run=True,
-                interactive=False
+                interactive=False,
             )
 
             assert success is True
@@ -1603,63 +1682,67 @@ class TestCreateDefaultConfig:
         """Test creating default config successfully."""
         from ai_guardian.setup import create_default_config
 
-        config_file = tmp_path / 'ai-guardian.json'
+        config_file = tmp_path / "ai-guardian.json"
 
-        with mock.patch.dict(os.environ, {'AI_GUARDIAN_CONFIG_DIR': str(tmp_path)}):
+        with mock.patch.dict(os.environ, {"AI_GUARDIAN_CONFIG_DIR": str(tmp_path)}):
             success, message = create_default_config(permissive=False, dry_run=False)
 
             assert success is True
-            assert '✓ Created default config' in message
-            assert 'Secret scanning: Enabled' in message
-            assert 'Prompt injection: Enabled' in message
-            assert 'Permissions: Enabled' in message
+            assert "✓ Created default config" in message
+            assert "Secret scanning: Enabled" in message
+            assert "Prompt injection: Enabled" in message
+            assert "Permissions: Enabled" in message
             assert config_file.exists()
 
             # Verify config content
             with open(config_file) as f:
                 config = json.load(f)
 
-            assert 'secret_scanning' in config
-            assert config['secret_scanning']['enabled'] is True
-            assert 'prompt_injection' in config
-            assert config['prompt_injection']['enabled'] is True
-            assert 'permissions' in config
-            assert config['permissions']['enabled'] is True
-            assert len(config['permissions']['rules']) == 4  # catch-all allow + MCP deny(warn) + ai-guardian allow + Skill deny(warn)
+            assert "secret_scanning" in config
+            assert config["secret_scanning"]["enabled"] is True
+            assert "prompt_injection" in config
+            assert config["prompt_injection"]["enabled"] is True
+            assert "permissions" in config
+            assert config["permissions"]["enabled"] is True
+            assert (
+                len(config["permissions"]["rules"]) == 4
+            )  # catch-all allow + MCP deny(warn) + ai-guardian allow + Skill deny(warn)
 
     def test_create_default_config_permissive(self, tmp_path):
         """Test creating permissive config."""
         from ai_guardian.setup import create_default_config
 
-        config_file = tmp_path / 'ai-guardian.json'
+        config_file = tmp_path / "ai-guardian.json"
 
-        with mock.patch.dict(os.environ, {'AI_GUARDIAN_CONFIG_DIR': str(tmp_path)}):
+        with mock.patch.dict(os.environ, {"AI_GUARDIAN_CONFIG_DIR": str(tmp_path)}):
             success, message = create_default_config(permissive=True, dry_run=False)
 
             assert success is True
-            assert '✓ Created default config' in message
-            assert 'Permissions: Disabled' in message
+            assert "✓ Created default config" in message
+            assert "Permissions: Disabled" in message
             assert config_file.exists()
 
             # Verify config content
             with open(config_file) as f:
                 config = json.load(f)
 
-            assert config['permissions']['enabled'] is False
-            assert len(config['permissions']['rules']) == 1  # catch-all allow rule in permissive mode
+            assert config["permissions"]["enabled"] is False
+            assert (
+                len(config["permissions"]["rules"]) == 1
+            )  # catch-all allow rule in permissive mode
 
     def test_create_default_config_already_exists_preserves(self, tmp_path):
         """Test creating config when file already exists preserves it."""
         from ai_guardian.setup import create_default_config
 
-        config_file = tmp_path / 'ai-guardian.json'
+        config_file = tmp_path / "ai-guardian.json"
         config_file.write_text('{"existing": "config"}')
 
-        with mock.patch.dict(os.environ, {'AI_GUARDIAN_CONFIG_DIR': str(tmp_path)}):
+        with mock.patch.dict(os.environ, {"AI_GUARDIAN_CONFIG_DIR": str(tmp_path)}):
             success, message = create_default_config(permissive=False, dry_run=False)
 
             assert success is True
-            assert 'preserving' in message
+            assert "preserving" in message
 
             with open(config_file) as f:
                 config = json.load(f)
@@ -1669,25 +1752,27 @@ class TestCreateDefaultConfig:
         """Test --force overwrites existing config."""
         from ai_guardian.setup import create_default_config
 
-        config_file = tmp_path / 'ai-guardian.json'
+        config_file = tmp_path / "ai-guardian.json"
         config_file.write_text('{"existing": "config"}')
 
-        with mock.patch.dict(os.environ, {'AI_GUARDIAN_CONFIG_DIR': str(tmp_path)}):
-            success, message = create_default_config(permissive=False, dry_run=False, force=True)
+        with mock.patch.dict(os.environ, {"AI_GUARDIAN_CONFIG_DIR": str(tmp_path)}):
+            success, message = create_default_config(
+                permissive=False, dry_run=False, force=True
+            )
 
             assert success is True
-            assert '✓ Created default config' in message
+            assert "✓ Created default config" in message
 
             with open(config_file) as f:
                 config = json.load(f)
-            assert 'secret_scanning' in config
-            assert 'existing' not in config
+            assert "secret_scanning" in config
+            assert "existing" not in config
 
     def test_force_strips_deprecated_pattern_server(self, tmp_path):
         """Issue #914: --force must not preserve deprecated secret_scanning.pattern_server."""
         from ai_guardian.setup import create_default_config
 
-        config_file = tmp_path / 'ai-guardian.json'
+        config_file = tmp_path / "ai-guardian.json"
         old_config = {
             "secret_scanning": {
                 "enabled": True,
@@ -1701,7 +1786,7 @@ class TestCreateDefaultConfig:
         }
         config_file.write_text(json.dumps(old_config))
 
-        with mock.patch.dict(os.environ, {'AI_GUARDIAN_CONFIG_DIR': str(tmp_path)}):
+        with mock.patch.dict(os.environ, {"AI_GUARDIAN_CONFIG_DIR": str(tmp_path)}):
             success, message = create_default_config(force=True)
 
             assert success is True
@@ -1714,7 +1799,7 @@ class TestCreateDefaultConfig:
         """Issue #914: --force --profile @standard must produce clean config."""
         from ai_guardian.setup import create_default_config
 
-        config_file = tmp_path / 'ai-guardian.json'
+        config_file = tmp_path / "ai-guardian.json"
         old_config = {
             "secret_scanning": {
                 "pattern_server": {"url": "https://old.example.com"},
@@ -1722,7 +1807,7 @@ class TestCreateDefaultConfig:
         }
         config_file.write_text(json.dumps(old_config))
 
-        with mock.patch.dict(os.environ, {'AI_GUARDIAN_CONFIG_DIR': str(tmp_path)}):
+        with mock.patch.dict(os.environ, {"AI_GUARDIAN_CONFIG_DIR": str(tmp_path)}):
             success, message = create_default_config(profile="@standard", force=True)
 
             assert success is True
@@ -1737,7 +1822,7 @@ class TestCreateDefaultConfig:
         from ai_guardian.setup import create_default_config
         from ai_guardian.doctor import Doctor, CheckStatus
 
-        config_file = tmp_path / 'ai-guardian.json'
+        config_file = tmp_path / "ai-guardian.json"
         old_config = {
             "secret_scanning": {
                 "pattern_server": {"url": "https://stale.example.com"},
@@ -1745,7 +1830,7 @@ class TestCreateDefaultConfig:
         }
         config_file.write_text(json.dumps(old_config))
 
-        with mock.patch.dict(os.environ, {'AI_GUARDIAN_CONFIG_DIR': str(tmp_path)}):
+        with mock.patch.dict(os.environ, {"AI_GUARDIAN_CONFIG_DIR": str(tmp_path)}):
             success, _ = create_default_config(force=True)
             assert success is True
 
@@ -1776,11 +1861,11 @@ class TestCreateDefaultConfig:
         config_dir = tmp_path / "config"
         config_dir.mkdir()
 
-        with mock.patch.dict(os.environ, {'AI_GUARDIAN_CONFIG_DIR': str(config_dir)}):
+        with mock.patch.dict(os.environ, {"AI_GUARDIAN_CONFIG_DIR": str(config_dir)}):
             success, message = create_default_config(profile=str(profile_file))
 
             assert success is True
-            config_file = config_dir / 'ai-guardian.json'
+            config_file = config_dir / "ai-guardian.json"
             with open(config_file) as f:
                 config = json.load(f)
             assert "pattern_server" not in config.get("secret_scanning", {})
@@ -1789,14 +1874,14 @@ class TestCreateDefaultConfig:
         """Test dry-run mode for config creation."""
         from ai_guardian.setup import create_default_config
 
-        config_file = tmp_path / 'ai-guardian.json'
+        config_file = tmp_path / "ai-guardian.json"
 
-        with mock.patch.dict(os.environ, {'AI_GUARDIAN_CONFIG_DIR': str(tmp_path)}):
+        with mock.patch.dict(os.environ, {"AI_GUARDIAN_CONFIG_DIR": str(tmp_path)}):
             success, message = create_default_config(permissive=False, dry_run=True)
 
             assert success is True
-            assert '[DRY RUN]' in message
-            assert 'Would create' in message
+            assert "[DRY RUN]" in message
+            assert "Would create" in message
             assert not config_file.exists()  # File should not be created
 
             # Verify JSON is in the message
@@ -1808,31 +1893,33 @@ class TestCreateDefaultConfig:
         """Test dry-run mode with permissive config."""
         from ai_guardian.setup import create_default_config
 
-        config_file = tmp_path / 'ai-guardian.json'
+        config_file = tmp_path / "ai-guardian.json"
 
-        with mock.patch.dict(os.environ, {'AI_GUARDIAN_CONFIG_DIR': str(tmp_path)}):
+        with mock.patch.dict(os.environ, {"AI_GUARDIAN_CONFIG_DIR": str(tmp_path)}):
             success, message = create_default_config(permissive=True, dry_run=True)
 
             assert success is True
-            assert '[DRY RUN]' in message
+            assert "[DRY RUN]" in message
             assert not config_file.exists()
 
             # Verify permissive settings in dry-run output
-            assert '"enabled": false' in message or '"enabled":false' in message  # permissions disabled
+            assert (
+                '"enabled": false' in message or '"enabled":false' in message
+            )  # permissions disabled
 
     def test_setup_hooks_with_create_config(self, tmp_path):
         """Test setup with --create-config flag."""
         from ai_guardian.setup import setup_hooks
 
-        config_file = tmp_path / 'ai-guardian.json'
+        config_file = tmp_path / "ai-guardian.json"
 
-        with mock.patch.dict(os.environ, {'AI_GUARDIAN_CONFIG_DIR': str(tmp_path)}):
+        with mock.patch.dict(os.environ, {"AI_GUARDIAN_CONFIG_DIR": str(tmp_path)}):
             success = setup_hooks(
                 ide_type=None,
                 create_config=True,
                 permissive=False,
                 dry_run=False,
-                interactive=False
+                interactive=False,
             )
 
             assert success is True
@@ -1842,24 +1929,24 @@ class TestCreateDefaultConfig:
         """Test setup with both --create-config and IDE setup."""
         from ai_guardian.setup import setup_hooks
 
-        config_file = tmp_path / 'ai-guardian.json'
-        ide_config_file = tmp_path / 'settings.json'
+        config_file = tmp_path / "ai-guardian.json"
+        ide_config_file = tmp_path / "settings.json"
 
-        with mock.patch('ai_guardian.setup.IDESetup') as MockSetup:
+        with mock.patch("ai_guardian.setup.IDESetup") as MockSetup:
             mock_instance = MockSetup.return_value
-            mock_instance.list_detected_ides.return_value = ['claude']
+            mock_instance.list_detected_ides.return_value = ["claude"]
             mock_instance.IDE_CONFIGS = {
-                'claude': {'name': 'Claude Code', 'config_path': str(ide_config_file)}
+                "claude": {"name": "Claude Code", "config_path": str(ide_config_file)}
             }
-            mock_instance.setup_ide_hooks.return_value = (True, 'Success')
+            mock_instance.setup_ide_hooks.return_value = (True, "Success")
 
-            with mock.patch.dict(os.environ, {'AI_GUARDIAN_CONFIG_DIR': str(tmp_path)}):
+            with mock.patch.dict(os.environ, {"AI_GUARDIAN_CONFIG_DIR": str(tmp_path)}):
                 success = setup_hooks(
-                    ide_type='claude',
+                    ide_type="claude",
                     create_config=True,
                     permissive=False,
                     dry_run=False,
-                    interactive=False
+                    interactive=False,
                 )
 
                 assert success is True
@@ -1870,21 +1957,24 @@ class TestCreateDefaultConfig:
         """Test setting up multiple IDEs sequentially preserves config (Issue #668)."""
         from ai_guardian.setup import setup_hooks
 
-        config_file = tmp_path / 'ai-guardian.json'
-        ide_config_file = tmp_path / 'settings.json'
+        config_file = tmp_path / "ai-guardian.json"
+        ide_config_file = tmp_path / "settings.json"
 
-        with mock.patch('ai_guardian.setup.IDESetup') as MockSetup:
+        with mock.patch("ai_guardian.setup.IDESetup") as MockSetup:
             mock_instance = MockSetup.return_value
             mock_instance.IDE_CONFIGS = {
-                'claude': {'name': 'Claude Code', 'config_path': str(ide_config_file)},
-                'cursor': {'name': 'Cursor', 'config_path': str(tmp_path / 'hooks.json')},
+                "claude": {"name": "Claude Code", "config_path": str(ide_config_file)},
+                "cursor": {
+                    "name": "Cursor",
+                    "config_path": str(tmp_path / "hooks.json"),
+                },
             }
-            mock_instance.setup_ide_hooks.return_value = (True, 'Success')
+            mock_instance.setup_ide_hooks.return_value = (True, "Success")
 
-            with mock.patch.dict(os.environ, {'AI_GUARDIAN_CONFIG_DIR': str(tmp_path)}):
+            with mock.patch.dict(os.environ, {"AI_GUARDIAN_CONFIG_DIR": str(tmp_path)}):
                 # First IDE: creates config
                 success1 = setup_hooks(
-                    ide_type='claude',
+                    ide_type="claude",
                     create_config=True,
                     dry_run=False,
                     interactive=False,
@@ -1897,7 +1987,7 @@ class TestCreateDefaultConfig:
 
                 # Second IDE: should preserve config
                 success2 = setup_hooks(
-                    ide_type='cursor',
+                    ide_type="cursor",
                     create_config=True,
                     dry_run=False,
                     interactive=False,
@@ -1912,16 +2002,16 @@ class TestCreateDefaultConfig:
         """Test setup with only --create-config (no IDE or remote config)."""
         from ai_guardian.setup import setup_hooks
 
-        config_file = tmp_path / 'ai-guardian.json'
+        config_file = tmp_path / "ai-guardian.json"
 
-        with mock.patch.dict(os.environ, {'AI_GUARDIAN_CONFIG_DIR': str(tmp_path)}):
+        with mock.patch.dict(os.environ, {"AI_GUARDIAN_CONFIG_DIR": str(tmp_path)}):
             success = setup_hooks(
                 ide_type=None,
                 remote_config_url=None,
                 create_config=True,
                 permissive=False,
                 dry_run=False,
-                interactive=False
+                interactive=False,
             )
 
             assert success is True
@@ -1931,25 +2021,25 @@ class TestCreateDefaultConfig:
         """Test --create-config failure (config exists) does not block --ide hook setup (Issue #561)."""
         from ai_guardian.setup import setup_hooks
 
-        config_file = tmp_path / 'ai-guardian.json'
-        config_file.write_text('{}')
-        ide_config_file = tmp_path / 'settings.json'
+        config_file = tmp_path / "ai-guardian.json"
+        config_file.write_text("{}")
+        ide_config_file = tmp_path / "settings.json"
 
-        with mock.patch('ai_guardian.setup.IDESetup') as MockSetup:
+        with mock.patch("ai_guardian.setup.IDESetup") as MockSetup:
             mock_instance = MockSetup.return_value
-            mock_instance.list_detected_ides.return_value = ['claude']
+            mock_instance.list_detected_ides.return_value = ["claude"]
             mock_instance.IDE_CONFIGS = {
-                'claude': {'name': 'Claude Code', 'config_path': str(ide_config_file)}
+                "claude": {"name": "Claude Code", "config_path": str(ide_config_file)}
             }
-            mock_instance.setup_ide_hooks.return_value = (True, 'Success')
+            mock_instance.setup_ide_hooks.return_value = (True, "Success")
 
-            with mock.patch.dict(os.environ, {'AI_GUARDIAN_CONFIG_DIR': str(tmp_path)}):
+            with mock.patch.dict(os.environ, {"AI_GUARDIAN_CONFIG_DIR": str(tmp_path)}):
                 success = setup_hooks(
-                    ide_type='claude',
+                    ide_type="claude",
                     create_config=True,
                     permissive=False,
                     dry_run=False,
-                    interactive=False
+                    interactive=False,
                 )
 
                 assert success is True
@@ -1959,23 +2049,25 @@ class TestCreateDefaultConfig:
         """Test --create-config failure (config exists) does not block --mcp installation (Issue #561)."""
         from ai_guardian.setup import setup_hooks
 
-        config_file = tmp_path / 'ai-guardian.json'
-        config_file.write_text('{}')
-        ide_config_file = tmp_path / 'settings.json'
+        config_file = tmp_path / "ai-guardian.json"
+        config_file.write_text("{}")
+        ide_config_file = tmp_path / "settings.json"
 
-        with mock.patch('ai_guardian.setup.IDESetup') as MockSetup:
+        with mock.patch("ai_guardian.setup.IDESetup") as MockSetup:
             mock_instance = MockSetup.return_value
-            mock_instance.list_detected_ides.return_value = ['claude']
+            mock_instance.list_detected_ides.return_value = ["claude"]
             mock_instance.IDE_CONFIGS = {
-                'claude': {'name': 'Claude Code', 'config_path': str(ide_config_file)}
+                "claude": {"name": "Claude Code", "config_path": str(ide_config_file)}
             }
-            mock_instance.setup_ide_hooks.return_value = (True, 'Success')
+            mock_instance.setup_ide_hooks.return_value = (True, "Success")
             mock_instance.get_config_path.return_value = str(ide_config_file)
 
-            with mock.patch('ai_guardian.setup._handle_mcp_setup') as mock_mcp:
-                with mock.patch.dict(os.environ, {'AI_GUARDIAN_CONFIG_DIR': str(tmp_path)}):
+            with mock.patch("ai_guardian.setup._handle_mcp_setup") as mock_mcp:
+                with mock.patch.dict(
+                    os.environ, {"AI_GUARDIAN_CONFIG_DIR": str(tmp_path)}
+                ):
                     success = setup_hooks(
-                        ide_type='claude',
+                        ide_type="claude",
                         create_config=True,
                         permissive=False,
                         dry_run=False,
@@ -1991,10 +2083,10 @@ class TestCreateDefaultConfig:
         """Test --create-config alone succeeds with preserving message when config exists (Issue #668)."""
         from ai_guardian.setup import setup_hooks
 
-        config_file = tmp_path / 'ai-guardian.json'
+        config_file = tmp_path / "ai-guardian.json"
         config_file.write_text('{"custom": "value"}')
 
-        with mock.patch.dict(os.environ, {'AI_GUARDIAN_CONFIG_DIR': str(tmp_path)}):
+        with mock.patch.dict(os.environ, {"AI_GUARDIAN_CONFIG_DIR": str(tmp_path)}):
             success = setup_hooks(
                 ide_type=None,
                 remote_config_url=None,
@@ -2013,10 +2105,10 @@ class TestCreateDefaultConfig:
         """Test --create-config --force overwrites existing config (Issue #668)."""
         from ai_guardian.setup import setup_hooks
 
-        config_file = tmp_path / 'ai-guardian.json'
+        config_file = tmp_path / "ai-guardian.json"
         config_file.write_text('{"custom": "value"}')
 
-        with mock.patch.dict(os.environ, {'AI_GUARDIAN_CONFIG_DIR': str(tmp_path)}):
+        with mock.patch.dict(os.environ, {"AI_GUARDIAN_CONFIG_DIR": str(tmp_path)}):
             success = setup_hooks(
                 ide_type=None,
                 remote_config_url=None,
@@ -2030,8 +2122,8 @@ class TestCreateDefaultConfig:
             assert success is True
             with open(config_file) as f:
                 config = json.load(f)
-            assert 'secret_scanning' in config
-            assert 'custom' not in config
+            assert "secret_scanning" in config
+            assert "custom" not in config
 
     def test_get_default_config_template_secure(self):
         """Test _get_default_config_template returns secure config by default."""
@@ -2039,18 +2131,18 @@ class TestCreateDefaultConfig:
 
         config = _get_default_config_template(permissive=False)
 
-        assert config['secret_scanning']['enabled'] is True
-        assert config['prompt_injection']['enabled'] is True
-        assert config['permissions']['enabled'] is True
-        assert len(config['permissions']['rules']) == 4
-        assert config['permissions']['rules'][0]['matcher'] == '*'
-        assert config['permissions']['rules'][0]['mode'] == 'allow'
-        assert config['permissions']['rules'][1]['matcher'] == 'mcp__*'
-        assert config['permissions']['rules'][1]['mode'] == 'deny'
-        assert config['permissions']['rules'][2]['matcher'] == 'mcp__ai-guardian__*'
-        assert config['permissions']['rules'][2]['mode'] == 'allow'
-        assert config['permissions']['rules'][3]['matcher'] == 'Skill'
-        assert config['permissions']['rules'][3]['mode'] == 'deny'
+        assert config["secret_scanning"]["enabled"] is True
+        assert config["prompt_injection"]["enabled"] is True
+        assert config["permissions"]["enabled"] is True
+        assert len(config["permissions"]["rules"]) == 4
+        assert config["permissions"]["rules"][0]["matcher"] == "*"
+        assert config["permissions"]["rules"][0]["mode"] == "allow"
+        assert config["permissions"]["rules"][1]["matcher"] == "mcp__*"
+        assert config["permissions"]["rules"][1]["mode"] == "deny"
+        assert config["permissions"]["rules"][2]["matcher"] == "mcp__ai-guardian__*"
+        assert config["permissions"]["rules"][2]["mode"] == "allow"
+        assert config["permissions"]["rules"][3]["matcher"] == "Skill"
+        assert config["permissions"]["rules"][3]["mode"] == "deny"
 
     def test_get_default_config_template_permissive(self):
         """Test _get_default_config_template returns permissive config."""
@@ -2058,20 +2150,20 @@ class TestCreateDefaultConfig:
 
         config = _get_default_config_template(permissive=True)
 
-        assert config['secret_scanning']['enabled'] is True
-        assert config['prompt_injection']['enabled'] is True
-        assert config['permissions']['enabled'] is False
-        assert len(config['permissions']['rules']) == 1
-        assert config['permissions']['rules'][0]['matcher'] == '*'
-        assert config['permissions']['rules'][0]['mode'] == 'allow'
+        assert config["secret_scanning"]["enabled"] is True
+        assert config["prompt_injection"]["enabled"] is True
+        assert config["permissions"]["enabled"] is False
+        assert len(config["permissions"]["rules"]) == 1
+        assert config["permissions"]["rules"][0]["matcher"] == "*"
+        assert config["permissions"]["rules"][0]["mode"] == "allow"
 
     def test_default_config_omits_absolute_cache_path(self, tmp_path):
         """Test that generated config does not contain absolute cache paths (issue #492)."""
         from ai_guardian.setup import create_default_config
 
-        config_file = tmp_path / 'ai-guardian.json'
+        config_file = tmp_path / "ai-guardian.json"
 
-        with mock.patch.dict(os.environ, {'AI_GUARDIAN_CONFIG_DIR': str(tmp_path)}):
+        with mock.patch.dict(os.environ, {"AI_GUARDIAN_CONFIG_DIR": str(tmp_path)}):
             success, message = create_default_config(permissive=False, dry_run=False)
 
             assert success is True
@@ -2079,52 +2171,60 @@ class TestCreateDefaultConfig:
             with open(config_file) as f:
                 config = json.load(f)
 
-            engines = config['secret_scanning']['engines']
-            gitleaks = next(e for e in engines if isinstance(e, dict) and e.get('type') == 'gitleaks')
-            cache = gitleaks['pattern_server']['cache']
-            assert 'path' not in cache, (
+            engines = config["secret_scanning"]["engines"]
+            gitleaks = next(
+                e
+                for e in engines
+                if isinstance(e, dict) and e.get("type") == "gitleaks"
+            )
+            cache = gitleaks["pattern_server"]["cache"]
+            assert "path" not in cache, (
                 "cache.path should not be in default config; "
                 "let get_cache_dir() resolve it at runtime"
             )
-            assert 'pattern_server' not in config['secret_scanning'], (
-                "Top-level pattern_server is deprecated; must use per-engine format"
-            )
+            assert (
+                "pattern_server" not in config["secret_scanning"]
+            ), "Top-level pattern_server is deprecated; must use per-engine format"
 
     def test_default_config_template_no_absolute_paths(self):
         """Test that _get_default_config_template has no absolute paths in cache."""
         from ai_guardian.setup import _get_default_config_template
 
         config = _get_default_config_template(permissive=False)
-        engines = config['secret_scanning']['engines']
-        gitleaks = next(e for e in engines if isinstance(e, dict) and e.get('type') == 'gitleaks')
-        cache = gitleaks['pattern_server']['cache']
-        assert 'path' not in cache
+        engines = config["secret_scanning"]["engines"]
+        gitleaks = next(
+            e for e in engines if isinstance(e, dict) and e.get("type") == "gitleaks"
+        )
+        cache = gitleaks["pattern_server"]["cache"]
+        assert "path" not in cache
 
     def test_default_config_uses_per_engine_pattern_server(self):
         """Test that default config uses per-engine pattern_server, not legacy format (issue #558)."""
         from ai_guardian.setup import _get_default_config_template
 
         config = _get_default_config_template(permissive=False)
-        ss = config['secret_scanning']
+        ss = config["secret_scanning"]
 
-        assert 'pattern_server' not in ss, (
+        assert "pattern_server" not in ss, (
             "Top-level secret_scanning.pattern_server is deprecated; "
             "use per-engine format instead"
         )
 
-        engines = ss['engines']
+        engines = ss["engines"]
         assert len(engines) == 2
-        assert engines[0]['type'] == 'toml-patterns'
+        assert engines[0]["type"] == "toml-patterns"
         engine = engines[1]
         assert isinstance(engine, dict)
-        assert engine['type'] == 'gitleaks'
-        assert 'pattern_server' in engine
-        ps = engine['pattern_server']
-        assert ps['url'] == 'https://raw.githubusercontent.com/leaktk/patterns/main/target'
-        assert ps['patterns_endpoint'] == '/patterns/gitleaks/8.27.0'
-        assert ps['warn_on_failure'] is True
-        assert ps['cache']['refresh_interval_hours'] == 12
-        assert ps['cache']['expire_after_hours'] == 168
+        assert engine["type"] == "gitleaks"
+        assert "pattern_server" in engine
+        ps = engine["pattern_server"]
+        assert (
+            ps["url"] == "https://raw.githubusercontent.com/leaktk/patterns/main/target"
+        )
+        assert ps["patterns_endpoint"] == "/patterns/gitleaks/8.27.0"
+        assert ps["warn_on_failure"] is True
+        assert ps["cache"]["refresh_interval_hours"] == 12
+        assert ps["cache"]["expire_after_hours"] == 168
 
     def test_existing_config_with_absolute_cache_path_still_works(self, tmp_path):
         """Test backward compat: existing configs with absolute cache.path still load."""
@@ -2133,16 +2233,19 @@ class TestCreateDefaultConfig:
         abs_path = str(get_cache_dir() / "patterns.toml")
         cache_config = {"path": abs_path, "refresh_interval_hours": 12}
         from pathlib import Path
-        resolved = Path(cache_config.get("path", str(get_cache_dir() / "patterns.toml"))).expanduser()
+
+        resolved = Path(
+            cache_config.get("path", str(get_cache_dir() / "patterns.toml"))
+        ).expanduser()
         assert resolved == Path(abs_path).expanduser()
 
     def test_create_default_config_with_schema(self, tmp_path):
         """Test that default config includes schema reference."""
         from ai_guardian.setup import create_default_config
 
-        config_file = tmp_path / 'ai-guardian.json'
+        config_file = tmp_path / "ai-guardian.json"
 
-        with mock.patch.dict(os.environ, {'AI_GUARDIAN_CONFIG_DIR': str(tmp_path)}):
+        with mock.patch.dict(os.environ, {"AI_GUARDIAN_CONFIG_DIR": str(tmp_path)}):
             success, message = create_default_config(permissive=False, dry_run=False)
 
             assert success is True
@@ -2151,21 +2254,24 @@ class TestCreateDefaultConfig:
             with open(config_file) as f:
                 config = json.load(f)
 
-            assert '$schema' in config
-            assert 'ai-guardian-config.schema.json' in config['$schema']
+            assert "$schema" in config
+            assert "ai-guardian-config.schema.json" in config["$schema"]
 
-    @pytest.mark.skipif(sys.platform == "win32", reason="Windows file:// URI format differs")
+    @pytest.mark.skipif(
+        sys.platform == "win32", reason="Windows file:// URI format differs"
+    )
     def test_schema_uses_bundled_file_uri(self):
         """Test that $schema uses a file:// URI pointing to the bundled schema."""
         from ai_guardian.setup import _get_default_config_template
 
         config = _get_default_config_template(permissive=False)
 
-        assert config['$schema'].startswith('file://')
-        assert config['$schema'].endswith('ai-guardian-config.schema.json')
+        assert config["$schema"].startswith("file://")
+        assert config["$schema"].endswith("ai-guardian-config.schema.json")
         # Verify the file actually exists at the resolved path
         from urllib.parse import urlparse, unquote
-        parsed = urlparse(config['$schema'])
+
+        parsed = urlparse(config["$schema"])
         schema_file = Path(unquote(parsed.path))
         assert schema_file.is_file(), f"Schema file does not exist: {schema_file}"
 
@@ -2173,7 +2279,7 @@ class TestCreateDefaultConfig:
         """Test that --json flag outputs only valid JSON."""
         from ai_guardian.setup import create_default_config
 
-        with mock.patch.dict(os.environ, {'AI_GUARDIAN_CONFIG_DIR': str(tmp_path)}):
+        with mock.patch.dict(os.environ, {"AI_GUARDIAN_CONFIG_DIR": str(tmp_path)}):
             success, message = create_default_config(
                 permissive=False, dry_run=False, json_output=True
             )
@@ -2181,11 +2287,11 @@ class TestCreateDefaultConfig:
             assert success is True
             # Message should be parseable as valid JSON
             config = json.loads(message)
-            assert '$schema' in config
-            assert 'secret_scanning' in config
+            assert "$schema" in config
+            assert "secret_scanning" in config
             # Should not contain non-JSON text
-            assert '[DRY RUN]' not in message
-            assert '✓' not in message
+            assert "[DRY RUN]" not in message
+            assert "✓" not in message
 
     def test_json_output_with_permissive(self):
         """Test that --json with --permissive outputs permissive config."""
@@ -2197,16 +2303,16 @@ class TestCreateDefaultConfig:
 
         assert success is True
         config = json.loads(message)
-        assert config['permissions']['enabled'] is False
+        assert config["permissions"]["enabled"] is False
 
     def test_json_output_skips_exists_check(self, tmp_path):
         """Test that --json doesn't fail when config already exists."""
         from ai_guardian.setup import create_default_config
 
-        config_file = tmp_path / 'ai-guardian.json'
-        config_file.write_text('{}')
+        config_file = tmp_path / "ai-guardian.json"
+        config_file.write_text("{}")
 
-        with mock.patch.dict(os.environ, {'AI_GUARDIAN_CONFIG_DIR': str(tmp_path)}):
+        with mock.patch.dict(os.environ, {"AI_GUARDIAN_CONFIG_DIR": str(tmp_path)}):
             success, message = create_default_config(
                 permissive=False, dry_run=False, json_output=True
             )
@@ -2221,48 +2327,48 @@ class TestCreateConfigWithProfile:
     def test_create_config_with_profile_minimal(self, tmp_path):
         from ai_guardian.setup import create_default_config
 
-        with mock.patch.dict(os.environ, {'AI_GUARDIAN_CONFIG_DIR': str(tmp_path)}):
+        with mock.patch.dict(os.environ, {"AI_GUARDIAN_CONFIG_DIR": str(tmp_path)}):
             success, message = create_default_config(profile="@minimal")
             assert success is True
             assert "profile" in message.lower()
 
-            config_file = tmp_path / 'ai-guardian.json'
+            config_file = tmp_path / "ai-guardian.json"
             with open(config_file) as f:
                 config = json.load(f)
-            assert config['permissions']['enabled'] is False
-            assert config['prompt_injection']['sensitivity'] == 'low'
+            assert config["permissions"]["enabled"] is False
+            assert config["prompt_injection"]["sensitivity"] == "low"
 
     def test_create_config_with_profile_standard(self, tmp_path):
         from ai_guardian.setup import create_default_config
 
-        with mock.patch.dict(os.environ, {'AI_GUARDIAN_CONFIG_DIR': str(tmp_path)}):
+        with mock.patch.dict(os.environ, {"AI_GUARDIAN_CONFIG_DIR": str(tmp_path)}):
             success, message = create_default_config(profile="@standard")
             assert success is True
 
-            config_file = tmp_path / 'ai-guardian.json'
+            config_file = tmp_path / "ai-guardian.json"
             with open(config_file) as f:
                 config = json.load(f)
-            assert config['permissions']['enabled'] is True
-            assert config['prompt_injection']['sensitivity'] == 'medium'
+            assert config["permissions"]["enabled"] is True
+            assert config["prompt_injection"]["sensitivity"] == "medium"
 
     def test_create_config_with_profile_strict(self, tmp_path):
         from ai_guardian.setup import create_default_config
 
-        with mock.patch.dict(os.environ, {'AI_GUARDIAN_CONFIG_DIR': str(tmp_path)}):
+        with mock.patch.dict(os.environ, {"AI_GUARDIAN_CONFIG_DIR": str(tmp_path)}):
             success, message = create_default_config(profile="@strict")
             assert success is True
 
-            config_file = tmp_path / 'ai-guardian.json'
+            config_file = tmp_path / "ai-guardian.json"
             with open(config_file) as f:
                 config = json.load(f)
-            assert config['on_scan_error'] == 'block'
-            assert config['prompt_injection']['sensitivity'] == 'high'
-            assert config['annotations']['enabled'] is False
+            assert config["on_scan_error"] == "block"
+            assert config["prompt_injection"]["sensitivity"] == "high"
+            assert config["annotations"]["enabled"] is False
 
     def test_create_config_profile_not_found(self, tmp_path):
         from ai_guardian.setup import create_default_config
 
-        with mock.patch.dict(os.environ, {'AI_GUARDIAN_CONFIG_DIR': str(tmp_path)}):
+        with mock.patch.dict(os.environ, {"AI_GUARDIAN_CONFIG_DIR": str(tmp_path)}):
             success, message = create_default_config(profile="@nonexistent")
             assert success is False
             assert "Unknown built-in profile" in message
@@ -2270,31 +2376,33 @@ class TestCreateConfigWithProfile:
     def test_create_config_profile_dry_run(self, tmp_path):
         from ai_guardian.setup import create_default_config
 
-        with mock.patch.dict(os.environ, {'AI_GUARDIAN_CONFIG_DIR': str(tmp_path)}):
+        with mock.patch.dict(os.environ, {"AI_GUARDIAN_CONFIG_DIR": str(tmp_path)}):
             success, message = create_default_config(profile="@strict", dry_run=True)
             assert success is True
             assert "[DRY RUN]" in message
-            assert not (tmp_path / 'ai-guardian.json').exists()
+            assert not (tmp_path / "ai-guardian.json").exists()
 
     def test_create_config_profile_json_output(self, tmp_path):
         from ai_guardian.setup import create_default_config
 
-        with mock.patch.dict(os.environ, {'AI_GUARDIAN_CONFIG_DIR': str(tmp_path)}):
-            success, message = create_default_config(profile="@minimal", json_output=True)
+        with mock.patch.dict(os.environ, {"AI_GUARDIAN_CONFIG_DIR": str(tmp_path)}):
+            success, message = create_default_config(
+                profile="@minimal", json_output=True
+            )
             assert success is True
             config = json.loads(message)
-            assert config['permissions']['enabled'] is False
+            assert config["permissions"]["enabled"] is False
 
     def test_profile_does_not_break_permissive(self, tmp_path):
         from ai_guardian.setup import create_default_config
 
-        with mock.patch.dict(os.environ, {'AI_GUARDIAN_CONFIG_DIR': str(tmp_path)}):
+        with mock.patch.dict(os.environ, {"AI_GUARDIAN_CONFIG_DIR": str(tmp_path)}):
             success, message = create_default_config(permissive=True)
             assert success is True
-            config_file = tmp_path / 'ai-guardian.json'
+            config_file = tmp_path / "ai-guardian.json"
             with open(config_file) as f:
                 config = json.load(f)
-            assert config['permissions']['enabled'] is False
+            assert config["permissions"]["enabled"] is False
 
 
 class TestSetupHooksProfiles:
@@ -2356,7 +2464,9 @@ class TestSetupJsonOutput:
             mock_instance._last_merged_config = {"hooks": {"PreToolUse": []}}
 
             success = setup_hooks(
-                ide_type="claude", json_output=True, interactive=False,
+                ide_type="claude",
+                json_output=True,
+                interactive=False,
             )
 
         assert success is True
@@ -2381,14 +2491,17 @@ class TestSetupJsonOutput:
             }
             mock_instance.get_config_path.return_value = str(ide_config_file)
             mock_instance.setup_ide_hooks.return_value = (
-                True, "[DRY RUN] Would configure..."
+                True,
+                "[DRY RUN] Would configure...",
             )
             mock_instance._last_merged_config = {
                 "hooks": {"PreToolUse": [{"type": "command", "command": "ai-guardian"}]}
             }
 
             success = setup_hooks(
-                ide_type="claude", json_output=True, dry_run=True,
+                ide_type="claude",
+                json_output=True,
+                dry_run=True,
             )
 
         assert success is True
@@ -2414,7 +2527,9 @@ class TestSetupJsonOutput:
             mock_instance._last_merged_config = {"hooks": {}}
 
             setup_hooks(
-                ide_type="claude", json_output=True, interactive=False,
+                ide_type="claude",
+                json_output=True,
+                interactive=False,
             )
 
         captured = capsys.readouterr()
@@ -2439,7 +2554,9 @@ class TestSetupJsonOutput:
             mock_instance._last_merged_config = {"hooks": {}}
 
             setup_hooks(
-                ide_type="claude", json_output=True, interactive=False,
+                ide_type="claude",
+                json_output=True,
+                interactive=False,
             )
 
         captured = capsys.readouterr()
@@ -2464,7 +2581,9 @@ class TestSetupJsonOutput:
 
             with mock.patch("ai_guardian.setup._handle_mcp_setup"):
                 setup_hooks(
-                    ide_type="claude", json_output=True, interactive=False,
+                    ide_type="claude",
+                    json_output=True,
+                    interactive=False,
                     no_mcp=True,
                 )
 
@@ -2487,7 +2606,9 @@ class TestSetupJsonOutput:
 
             with mock.patch.dict(os.environ, {"AI_GUARDIAN_CONFIG_DIR": str(tmp_path)}):
                 setup_hooks(
-                    ide_type="claude", json_output=True, interactive=False,
+                    ide_type="claude",
+                    json_output=True,
+                    interactive=False,
                     create_config=True,
                 )
 
@@ -2504,7 +2625,9 @@ class TestSetupJsonOutput:
             mock_instance.IDE_CONFIGS = {"claude": {"name": "Claude Code"}}
 
             success = setup_hooks(
-                ide_type="invalid", json_output=True, interactive=False,
+                ide_type="invalid",
+                json_output=True,
+                interactive=False,
             )
 
         assert success is False
@@ -2535,7 +2658,9 @@ class TestSetupJsonOutput:
 
             with mock.patch.dict(os.environ, {"AI_GUARDIAN_CONFIG_DIR": str(tmp_path)}):
                 success = setup_hooks(
-                    create_config=True, json_output=True, interactive=False,
+                    create_config=True,
+                    json_output=True,
+                    interactive=False,
                 )
 
         assert success is True
@@ -2550,8 +2675,12 @@ class TestSetupDaemonReload:
     """Test daemon reload notification after setup operations (Issue #680)."""
 
     def test_create_config_calls_daemon_reload(self, tmp_path, capsys):
-        with mock.patch.dict(os.environ, {"AI_GUARDIAN_CONFIG_DIR": str(tmp_path)}), \
-             mock.patch("ai_guardian.daemon.client.send_reload_config", return_value=True) as mock_reload:
+        with (
+            mock.patch.dict(os.environ, {"AI_GUARDIAN_CONFIG_DIR": str(tmp_path)}),
+            mock.patch(
+                "ai_guardian.daemon.client.send_reload_config", return_value=True
+            ) as mock_reload,
+        ):
             success = setup_hooks(create_config=True, interactive=False)
 
         assert success is True
@@ -2559,8 +2688,12 @@ class TestSetupDaemonReload:
         assert "Daemon reloaded" in capsys.readouterr().out
 
     def test_create_config_no_reload_when_daemon_not_running(self, tmp_path, capsys):
-        with mock.patch.dict(os.environ, {"AI_GUARDIAN_CONFIG_DIR": str(tmp_path)}), \
-             mock.patch("ai_guardian.daemon.client.send_reload_config", return_value=False) as mock_reload:
+        with (
+            mock.patch.dict(os.environ, {"AI_GUARDIAN_CONFIG_DIR": str(tmp_path)}),
+            mock.patch(
+                "ai_guardian.daemon.client.send_reload_config", return_value=False
+            ) as mock_reload,
+        ):
             success = setup_hooks(create_config=True, interactive=False)
 
         assert success is True
@@ -2568,8 +2701,13 @@ class TestSetupDaemonReload:
         assert "Daemon reloaded" not in capsys.readouterr().out
 
     def test_reload_silences_exceptions(self, tmp_path, capsys):
-        with mock.patch.dict(os.environ, {"AI_GUARDIAN_CONFIG_DIR": str(tmp_path)}), \
-             mock.patch("ai_guardian.daemon.client.send_reload_config", side_effect=Exception("fail")):
+        with (
+            mock.patch.dict(os.environ, {"AI_GUARDIAN_CONFIG_DIR": str(tmp_path)}),
+            mock.patch(
+                "ai_guardian.daemon.client.send_reload_config",
+                side_effect=Exception("fail"),
+            ),
+        ):
             success = setup_hooks(create_config=True, interactive=False)
 
         assert success is True
@@ -2597,6 +2735,7 @@ class TestKiroSetup:
     def test_kiro_in_mcp_ide_configs(self):
         """Verify Kiro MCP config entry."""
         from ai_guardian.setup import _MCP_IDE_CONFIGS
+
         assert "kiro" in _MCP_IDE_CONFIGS
         kiro_mcp = _MCP_IDE_CONFIGS["kiro"]
         assert kiro_mcp["config_file"] == "~/.kiro/settings.json"
@@ -2615,11 +2754,18 @@ class TestMcpMigrationWarning:
         settings_dir = tmp_path / ".claude"
         settings_dir.mkdir()
         settings_json = settings_dir / "settings.json"
-        settings_json.write_text(json.dumps({
-            "mcpServers": {
-                "ai-guardian": {"command": "ai-guardian", "args": ["mcp-server"]}
-            }
-        }))
+        settings_json.write_text(
+            json.dumps(
+                {
+                    "mcpServers": {
+                        "ai-guardian": {
+                            "command": "ai-guardian",
+                            "args": ["mcp-server"],
+                        }
+                    }
+                }
+            )
+        )
 
         with mock.patch.dict(
             _MCP_IDE_CONFIGS,
@@ -2627,7 +2773,9 @@ class TestMcpMigrationWarning:
         ):
             with mock.patch(
                 "ai_guardian.setup.Path",
-                side_effect=lambda p: Path(str(p).replace("~/.claude/settings.json", str(settings_json))),
+                side_effect=lambda p: Path(
+                    str(p).replace("~/.claude/settings.json", str(settings_json))
+                ),
             ):
                 setup = IDESetup()
                 _install_mcp_config(setup, "claude", dry_run=False)
@@ -2652,7 +2800,9 @@ class TestMcpMigrationWarning:
         ):
             with mock.patch(
                 "ai_guardian.setup.Path",
-                side_effect=lambda p: Path(str(p).replace("~/.claude/settings.json", str(settings_json))),
+                side_effect=lambda p: Path(
+                    str(p).replace("~/.claude/settings.json", str(settings_json))
+                ),
             ):
                 setup = IDESetup()
                 _install_mcp_config(setup, "claude", dry_run=False)
@@ -2701,7 +2851,11 @@ class TestMcpDefaultOn:
 
                 assert success is True
                 mock_mcp.assert_called_once_with(
-                    mock_instance, "claude", mcp=True, no_mcp=False, dry_run=False,
+                    mock_instance,
+                    "claude",
+                    mcp=True,
+                    no_mcp=False,
+                    dry_run=False,
                 )
 
     def test_no_mcp_skips_installation(self, tmp_path):
@@ -2726,7 +2880,11 @@ class TestMcpDefaultOn:
 
                 assert success is True
                 mock_mcp.assert_called_once_with(
-                    mock_instance, "claude", mcp=False, no_mcp=True, dry_run=False,
+                    mock_instance,
+                    "claude",
+                    mcp=False,
+                    no_mcp=True,
+                    dry_run=False,
                 )
 
     def test_explicit_mcp_flag_accepted(self, tmp_path):
@@ -2751,7 +2909,11 @@ class TestMcpDefaultOn:
 
                 assert success is True
                 mock_mcp.assert_called_once_with(
-                    mock_instance, "claude", mcp=True, no_mcp=False, dry_run=False,
+                    mock_instance,
+                    "claude",
+                    mcp=True,
+                    no_mcp=False,
+                    dry_run=False,
                 )
 
     @pytest.mark.parametrize("ide_type", ["claude", "cursor", "windsurf", "gemini"])
@@ -2763,7 +2925,10 @@ class TestMcpDefaultOn:
             mock_instance = MockSetup.return_value
             mock_instance.list_detected_ides.return_value = [ide_type]
             mock_instance.IDE_CONFIGS = {
-                ide_type: {"name": ide_type.title(), "config_path": str(ide_config_file)}
+                ide_type: {
+                    "name": ide_type.title(),
+                    "config_path": str(ide_config_file),
+                }
             }
             mock_instance.setup_ide_hooks.return_value = (True, "Success")
             mock_instance.get_config_path.return_value = str(ide_config_file)
@@ -2807,7 +2972,9 @@ class TestResolveBinaryPath:
 
     @pytest.mark.skipif(sys.platform == "win32", reason="Windows prefers pythonw path")
     def test_returns_shutil_which_result(self):
-        with mock.patch("ai_guardian.setup.shutil.which", return_value="/usr/local/bin/ai-guardian"):
+        with mock.patch(
+            "ai_guardian.setup.shutil.which", return_value="/usr/local/bin/ai-guardian"
+        ):
             assert _resolve_binary_path() == "/usr/local/bin/ai-guardian"
 
     def test_falls_back_to_bare_ai_guardian(self, tmp_path):
@@ -2847,10 +3014,15 @@ class TestIsAiGuardianCommand:
         assert _is_ai_guardian_command("ai-guardian --ide cursor") is True
 
     def test_absolute_path_with_ide_flag(self):
-        assert _is_ai_guardian_command("/usr/local/bin/ai-guardian --ide claude") is True
+        assert (
+            _is_ai_guardian_command("/usr/local/bin/ai-guardian --ide claude") is True
+        )
 
     def test_venv_path_with_ide_flag(self):
-        assert _is_ai_guardian_command("/home/user/.venv/bin/ai-guardian --ide gemini") is True
+        assert (
+            _is_ai_guardian_command("/home/user/.venv/bin/ai-guardian --ide gemini")
+            is True
+        )
 
 
 class TestWalkCommands:
@@ -2858,7 +3030,9 @@ class TestWalkCommands:
 
     def test_copy_preserves_original(self):
         original = {"command": "ai-guardian"}
-        result = _walk_commands(original, lambda v: v == "ai-guardian", lambda _: "/new", copy=True)
+        result = _walk_commands(
+            original, lambda v: v == "ai-guardian", lambda _: "/new", copy=True
+        )
         assert result == {"command": "/new"}
         assert original == {"command": "ai-guardian"}
 
@@ -2869,12 +3043,16 @@ class TestWalkCommands:
 
     def test_predicate_filters(self):
         obj = {"command": "other-tool"}
-        result = _walk_commands(obj, lambda v: v == "ai-guardian", lambda _: "/new", copy=True)
+        result = _walk_commands(
+            obj, lambda v: v == "ai-guardian", lambda _: "/new", copy=True
+        )
         assert result == {"command": "other-tool"}
 
     def test_nested_dict_and_list(self):
         obj = {"hooks": [{"command": "ai-guardian"}, {"command": "other"}]}
-        result = _walk_commands(obj, lambda v: v == "ai-guardian", lambda _: "/new", copy=True)
+        result = _walk_commands(
+            obj, lambda v: v == "ai-guardian", lambda _: "/new", copy=True
+        )
         assert result == {"hooks": [{"command": "/new"}, {"command": "other"}]}
 
     def test_scalar_passthrough(self):
@@ -2883,7 +3061,9 @@ class TestWalkCommands:
 
     def test_mutate_nested(self):
         obj = {"hooks": {"pre": [{"command": "ai-guardian"}]}}
-        _walk_commands(obj, lambda v: v == "ai-guardian", lambda v: f"{v} --ide test", copy=False)
+        _walk_commands(
+            obj, lambda v: v == "ai-guardian", lambda v: f"{v} --ide test", copy=False
+        )
         assert obj["hooks"]["pre"][0]["command"] == "ai-guardian --ide test"
 
 
@@ -2918,7 +3098,9 @@ class TestSubstituteCommand:
         assert original["command"] == "ai-guardian"
 
     def test_ide_type_appended(self):
-        result = _substitute_command({"command": "ai-guardian"}, "/abs/ai-guardian", ide_type="cursor")
+        result = _substitute_command(
+            {"command": "ai-guardian"}, "/abs/ai-guardian", ide_type="cursor"
+        )
         assert result == {"command": "/abs/ai-guardian --ide cursor"}
 
     def test_ide_type_nested(self):
@@ -2930,7 +3112,9 @@ class TestSubstituteCommand:
         assert result == {"hooks": [{"command": "/abs/ai-guardian --ide gemini"}]}
 
     def test_ide_type_none_omitted(self):
-        result = _substitute_command({"command": "ai-guardian"}, "/abs/ai-guardian", ide_type=None)
+        result = _substitute_command(
+            {"command": "ai-guardian"}, "/abs/ai-guardian", ide_type=None
+        )
         assert result == {"command": "/abs/ai-guardian"}
 
 
@@ -2955,7 +3139,10 @@ class TestUpgradeIdeFlag:
     def test_nested_in_hooks(self):
         config = {"hooks": {"preToolUse": [{"command": "/usr/bin/ai-guardian"}]}}
         _upgrade_ide_flag(config, "cursor")
-        assert config["hooks"]["preToolUse"][0]["command"] == "/usr/bin/ai-guardian --ide cursor"
+        assert (
+            config["hooks"]["preToolUse"][0]["command"]
+            == "/usr/bin/ai-guardian --ide cursor"
+        )
 
     def test_leaves_non_ai_guardian_command(self):
         config = {"command": "other-tool"}
@@ -2971,10 +3158,19 @@ class TestAbsolutePathWritten:
         config_file = tmp_path / "settings.json"
 
         with mock.patch.object(
-            setup, "IDE_CONFIGS",
-            {"claude": {**IDESetup.IDE_CONFIGS["claude"], "config_path": str(config_file)}},
+            setup,
+            "IDE_CONFIGS",
+            {
+                "claude": {
+                    **IDESetup.IDE_CONFIGS["claude"],
+                    "config_path": str(config_file),
+                }
+            },
         ):
-            with mock.patch("ai_guardian.setup._resolve_binary_path", return_value="/mock/bin/ai-guardian"):
+            with mock.patch(
+                "ai_guardian.setup._resolve_binary_path",
+                return_value="/mock/bin/ai-guardian",
+            ):
                 success, _ = setup.setup_ide_hooks("claude", dry_run=False, force=False)
 
         assert success
@@ -2988,10 +3184,19 @@ class TestAbsolutePathWritten:
         config_file = tmp_path / "hooks.json"
 
         with mock.patch.object(
-            setup, "IDE_CONFIGS",
-            {"cursor": {**IDESetup.IDE_CONFIGS["cursor"], "config_path": str(config_file)}},
+            setup,
+            "IDE_CONFIGS",
+            {
+                "cursor": {
+                    **IDESetup.IDE_CONFIGS["cursor"],
+                    "config_path": str(config_file),
+                }
+            },
         ):
-            with mock.patch("ai_guardian.setup._resolve_binary_path", return_value="/mock/bin/ai-guardian"):
+            with mock.patch(
+                "ai_guardian.setup._resolve_binary_path",
+                return_value="/mock/bin/ai-guardian",
+            ):
                 success, _ = setup.setup_ide_hooks("cursor", dry_run=False, force=False)
 
         assert success
@@ -3005,10 +3210,14 @@ class TestAbsolutePathWritten:
         hooks_dir = tmp_path / "hooks"
 
         with mock.patch.object(
-            setup, "IDE_CONFIGS",
+            setup,
+            "IDE_CONFIGS",
             {"cline": {**IDESetup.IDE_CONFIGS["cline"], "config_path": str(hooks_dir)}},
         ):
-            with mock.patch("ai_guardian.setup._resolve_binary_path", return_value="/mock/bin/ai-guardian"):
+            with mock.patch(
+                "ai_guardian.setup._resolve_binary_path",
+                return_value="/mock/bin/ai-guardian",
+            ):
                 success, _ = setup.setup_ide_hooks("cline", dry_run=False, force=False)
 
         assert success
@@ -3019,18 +3228,35 @@ class TestAbsolutePathWritten:
     def test_check_hooks_configured_recognizes_absolute_path(self, tmp_path):
         setup = IDESetup()
         config_file = tmp_path / "settings.json"
-        config_file.write_text(json.dumps({
-            "hooks": {
-                "PreToolUse": [{
-                    "matcher": "*",
-                    "hooks": [{"type": "command", "command": "/usr/bin/ai-guardian"}]
-                }]
-            }
-        }))
+        config_file.write_text(
+            json.dumps(
+                {
+                    "hooks": {
+                        "PreToolUse": [
+                            {
+                                "matcher": "*",
+                                "hooks": [
+                                    {
+                                        "type": "command",
+                                        "command": "/usr/bin/ai-guardian",
+                                    }
+                                ],
+                            }
+                        ]
+                    }
+                }
+            )
+        )
 
         with mock.patch.object(
-            setup, "IDE_CONFIGS",
-            {"claude": {**IDESetup.IDE_CONFIGS["claude"], "config_path": str(config_file)}},
+            setup,
+            "IDE_CONFIGS",
+            {
+                "claude": {
+                    **IDESetup.IDE_CONFIGS["claude"],
+                    "config_path": str(config_file),
+                }
+            },
         ):
             assert setup.check_hooks_configured(config_file, "claude") is True
 
@@ -3044,7 +3270,10 @@ class TestAbsolutePathWritten:
             _MCP_IDE_CONFIGS,
             {"claude": {**_MCP_IDE_CONFIGS["claude"], "config_file": str(mcp_file)}},
         ):
-            with mock.patch("ai_guardian.setup._resolve_binary_path", return_value="/mock/bin/ai-guardian"):
+            with mock.patch(
+                "ai_guardian.setup._resolve_binary_path",
+                return_value="/mock/bin/ai-guardian",
+            ):
                 _install_mcp_config(setup, "claude", dry_run=False)
 
         config = json.loads(mcp_file.read_text())
@@ -3073,6 +3302,7 @@ class TestWindowsSetup:
 
     def test_resolve_binary_path_fallback_when_no_pythonw(self, tmp_path):
         """On Windows without pythonw.exe, fall back to standard resolution."""
+
         def mock_which(cmd):
             if cmd == "pythonw":
                 return None
@@ -3089,13 +3319,18 @@ class TestWindowsSetup:
     def test_resolve_binary_path_unchanged_on_macos(self):
         """macOS behavior is unchanged."""
         with mock.patch("ai_guardian.setup.platform.system", return_value="Darwin"):
-            with mock.patch("ai_guardian.setup.shutil.which", return_value="/usr/local/bin/ai-guardian"):
+            with mock.patch(
+                "ai_guardian.setup.shutil.which",
+                return_value="/usr/local/bin/ai-guardian",
+            ):
                 assert _resolve_binary_path() == "/usr/local/bin/ai-guardian"
 
     def test_resolve_binary_path_unchanged_on_linux(self):
         """Linux behavior is unchanged."""
         with mock.patch("ai_guardian.setup.platform.system", return_value="Linux"):
-            with mock.patch("ai_guardian.setup.shutil.which", return_value="/usr/bin/ai-guardian"):
+            with mock.patch(
+                "ai_guardian.setup.shutil.which", return_value="/usr/bin/ai-guardian"
+            ):
                 assert _resolve_binary_path() == "/usr/bin/ai-guardian"
 
     # -- _is_ai_guardian_command with Windows paths --
@@ -3104,13 +3339,23 @@ class TestWindowsSetup:
         assert _is_ai_guardian_command("C:\\Python312\\Scripts\\ai-guardian") is True
 
     def test_windows_exe_suffix(self):
-        assert _is_ai_guardian_command("C:\\Python312\\Scripts\\ai-guardian.exe") is True
+        assert (
+            _is_ai_guardian_command("C:\\Python312\\Scripts\\ai-guardian.exe") is True
+        )
 
     def test_windows_backslash_with_ide_flag(self):
-        assert _is_ai_guardian_command("C:\\Python312\\Scripts\\ai-guardian --ide claude") is True
+        assert (
+            _is_ai_guardian_command("C:\\Python312\\Scripts\\ai-guardian --ide claude")
+            is True
+        )
 
     def test_pythonw_module_invocation(self):
-        assert _is_ai_guardian_command("C:\\Python312\\pythonw.exe -m ai_guardian --ide claude") is True
+        assert (
+            _is_ai_guardian_command(
+                "C:\\Python312\\pythonw.exe -m ai_guardian --ide claude"
+            )
+            is True
+        )
 
     def test_pythonw_module_bare(self):
         assert _is_ai_guardian_command("pythonw.exe -m ai_guardian") is True
@@ -3129,7 +3374,9 @@ class TestWindowsSetup:
             "C:\\Python312\\pythonw.exe -m ai_guardian",
             ide_type="cursor",
         )
-        assert result == {"command": "C:\\Python312\\pythonw.exe -m ai_guardian --ide cursor"}
+        assert result == {
+            "command": "C:\\Python312\\pythonw.exe -m ai_guardian --ide cursor"
+        }
 
     # -- VBS wrapper --
 
@@ -3142,9 +3389,9 @@ class TestWindowsSetup:
         assert vbs_path is not None
         assert vbs_path.exists()
         content = vbs_path.read_text()
-        assert 'WScript.Shell' in content
-        assert 'pythonw.exe -m ai_guardian --ide claude' in content
-        assert ', 0, True' in content
+        assert "WScript.Shell" in content
+        assert "pythonw.exe -m ai_guardian --ide claude" in content
+        assert ", 0, True" in content
 
     def test_vbs_wrapper_not_created_on_macos(self, tmp_path):
         with mock.patch("ai_guardian.setup.platform.system", return_value="Darwin"):
@@ -3163,31 +3410,49 @@ class TestWindowsSetup:
     def test_upgrade_ide_flag_windows_exe_path(self):
         config = {"command": "C:\\Python312\\Scripts\\ai-guardian.exe"}
         _upgrade_ide_flag(config, "claude")
-        assert config["command"] == "C:\\Python312\\Scripts\\ai-guardian.exe --ide claude"
+        assert (
+            config["command"] == "C:\\Python312\\Scripts\\ai-guardian.exe --ide claude"
+        )
 
     def test_upgrade_ide_flag_pythonw_command(self):
         config = {"command": "C:\\Python312\\pythonw.exe -m ai_guardian"}
         _upgrade_ide_flag(config, "cursor")
-        assert config["command"] == "C:\\Python312\\pythonw.exe -m ai_guardian --ide cursor"
+        assert (
+            config["command"]
+            == "C:\\Python312\\pythonw.exe -m ai_guardian --ide cursor"
+        )
 
     # -- End-to-end: setup_ide_hooks uses pythonw on Windows --
 
-    @pytest.mark.parametrize("ide_type", ["claude", "cursor", "copilot", "codex", "windsurf", "gemini", "augment"])
+    @pytest.mark.parametrize(
+        "ide_type",
+        ["claude", "cursor", "copilot", "codex", "windsurf", "gemini", "augment"],
+    )
     def test_hooks_use_pythonw_on_windows(self, tmp_path, ide_type):
         """All agent adapters use pythonw.exe on Windows."""
         setup = IDESetup()
         config_file = tmp_path / "settings.json"
 
         with mock.patch.object(
-            setup, "IDE_CONFIGS",
-            {ide_type: {**IDESetup.IDE_CONFIGS[ide_type], "config_path": str(config_file)}},
+            setup,
+            "IDE_CONFIGS",
+            {
+                ide_type: {
+                    **IDESetup.IDE_CONFIGS[ide_type],
+                    "config_path": str(config_file),
+                }
+            },
         ):
             with mock.patch(
                 "ai_guardian.setup._resolve_binary_path",
                 return_value="C:\\Python312\\pythonw.exe -m ai_guardian",
             ):
-                with mock.patch("ai_guardian.setup.platform.system", return_value="Windows"):
-                    with mock.patch.object(setup, "verify_gitleaks_installed", return_value=(True, "ok")):
+                with mock.patch(
+                    "ai_guardian.setup.platform.system", return_value="Windows"
+                ):
+                    with mock.patch.object(
+                        setup, "verify_gitleaks_installed", return_value=(True, "ok")
+                    ):
                         success, msg = setup.setup_ide_hooks(ide_type)
 
         assert success, msg
@@ -3204,13 +3469,28 @@ class TestWindowsSetup:
         hooks_dir = tmp_path / "hooks"
 
         with mock.patch.object(
-            setup, "IDE_CONFIGS",
-            {ide_type: {**IDESetup.IDE_CONFIGS[ide_type], "config_path": str(hooks_dir)}},
+            setup,
+            "IDE_CONFIGS",
+            {
+                ide_type: {
+                    **IDESetup.IDE_CONFIGS[ide_type],
+                    "config_path": str(hooks_dir),
+                }
+            },
         ):
-            with mock.patch("ai_guardian.setup._resolve_binary_path", return_value=r"C:\Python312\pythonw.exe -m ai_guardian"):
-                with mock.patch("ai_guardian.setup.platform.system", return_value="Windows"):
-                    with mock.patch.object(setup, "verify_gitleaks_installed", return_value=(True, "ok")):
-                        success, msg = setup.setup_ide_hooks(ide_type, dry_run=False, force=False)
+            with mock.patch(
+                "ai_guardian.setup._resolve_binary_path",
+                return_value=r"C:\Python312\pythonw.exe -m ai_guardian",
+            ):
+                with mock.patch(
+                    "ai_guardian.setup.platform.system", return_value="Windows"
+                ):
+                    with mock.patch.object(
+                        setup, "verify_gitleaks_installed", return_value=(True, "ok")
+                    ):
+                        success, msg = setup.setup_ide_hooks(
+                            ide_type, dry_run=False, force=False
+                        )
 
         assert success, msg
         for script_name in IDESetup.IDE_CONFIGS[ide_type]["hook_scripts"]:
@@ -3226,13 +3506,23 @@ class TestWindowsSetup:
         hooks_dir = tmp_path / "hooks"
 
         with mock.patch.object(
-            setup, "IDE_CONFIGS",
+            setup,
+            "IDE_CONFIGS",
             {"cline": {**IDESetup.IDE_CONFIGS["cline"], "config_path": str(hooks_dir)}},
         ):
-            with mock.patch("ai_guardian.setup._resolve_binary_path", return_value="/mock/bin/ai-guardian"):
-                with mock.patch("ai_guardian.setup.platform.system", return_value="Linux"):
-                    with mock.patch.object(setup, "verify_gitleaks_installed", return_value=(True, "ok")):
-                        success, _ = setup.setup_ide_hooks("cline", dry_run=False, force=False)
+            with mock.patch(
+                "ai_guardian.setup._resolve_binary_path",
+                return_value="/mock/bin/ai-guardian",
+            ):
+                with mock.patch(
+                    "ai_guardian.setup.platform.system", return_value="Linux"
+                ):
+                    with mock.patch.object(
+                        setup, "verify_gitleaks_installed", return_value=(True, "ok")
+                    ):
+                        success, _ = setup.setup_ide_hooks(
+                            "cline", dry_run=False, force=False
+                        )
 
         assert success
         script = (hooks_dir / "PreToolUse").read_text()
@@ -3243,13 +3533,18 @@ class TestWindowsSetup:
         setup = IDESetup()
         hooks_dir = tmp_path / "hooks"
         hooks_dir.mkdir()
-        (hooks_dir / "PreToolUse.bat").write_text("@echo off\r\nai-guardian --ide cline\r\n")
+        (hooks_dir / "PreToolUse.bat").write_text(
+            "@echo off\r\nai-guardian --ide cline\r\n"
+        )
 
         with mock.patch.object(
-            setup, "IDE_CONFIGS",
+            setup,
+            "IDE_CONFIGS",
             {"cline": {**IDESetup.IDE_CONFIGS["cline"], "config_path": str(hooks_dir)}},
         ):
-            with mock.patch("ai_guardian.setup.platform.system", return_value="Windows"):
+            with mock.patch(
+                "ai_guardian.setup.platform.system", return_value="Windows"
+            ):
                 result = setup.check_hooks_configured(hooks_dir, "cline")
 
         assert result is True

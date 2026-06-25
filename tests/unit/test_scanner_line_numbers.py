@@ -9,12 +9,6 @@ from ai_guardian.scanner import (
     _parse_position_from_details,
     _find_in_original,
 )
-from ai_guardian.sarif_formatter import (
-    create_unicode_finding,
-    create_pii_finding,
-    create_secret_finding,
-    create_prompt_injection_finding,
-)
 
 
 class TestGetLineSnippet(unittest.TestCase):
@@ -58,7 +52,9 @@ class TestGetLineSnippet(unittest.TestCase):
 class TestParsePositionFromDetails(unittest.TestCase):
 
     def test_zero_width_format(self):
-        details = "Zero-width character 'ZERO WIDTH SPACE' at position 42: ...context..."
+        details = (
+            "Zero-width character 'ZERO WIDTH SPACE' at position 42: ...context..."
+        )
         assert _parse_position_from_details(details) == 42
 
     def test_bidi_format(self):
@@ -102,6 +98,7 @@ class TestUnicodeLineNumbers(unittest.TestCase):
         scanner.findings = []
         scanner.verbose = False
         from ai_guardian.prompt_injection import UnicodeAttackDetector
+
         scanner.unicode_detector = UnicodeAttackDetector(
             scanner.config.get("prompt_injection", {}).get("unicode_detection", {})
         )
@@ -221,7 +218,11 @@ class TestPromptInjectionLineNumbers(unittest.TestCase):
     @patch("ai_guardian.scanner.PromptInjectionDetector")
     def test_prompt_injection_has_line_number(self, mock_detector_cls):
         mock_detector = MagicMock()
-        mock_detector.detect.return_value = (True, "Prompt injection detected: ignore instructions", True)
+        mock_detector.detect.return_value = (
+            True,
+            "Prompt injection detected: ignore instructions",
+            True,
+        )
         mock_detector.last_line_number = 99
         mock_detector.last_matched_text = "ignore previous instructions"
         mock_detector_cls.return_value = mock_detector

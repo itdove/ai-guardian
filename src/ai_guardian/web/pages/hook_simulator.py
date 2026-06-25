@@ -51,9 +51,11 @@ def _execute_simulation(hook_data, ide_type="claude"):
         devnull = StringIO()
 
         with mock_patch.patch.dict(os.environ, env_overrides):
-            with mock_patch.patch("sys.stdin", StringIO(stdin_data)), \
-                 mock_patch.patch("sys.stderr", devnull), \
-                 mock_patch.patch("sys.stdout", devnull):
+            with (
+                mock_patch.patch("sys.stdin", StringIO(stdin_data)),
+                mock_patch.patch("sys.stderr", devnull),
+                mock_patch.patch("sys.stdout", devnull),
+            ):
                 logging.disable(logging.CRITICAL)
                 try:
                     result = ai_guardian.process_hook_input()
@@ -71,15 +73,13 @@ def create_hook_simulator_page(service, daemon_name: str):
     create_header(daemon_name)
 
     with ui.row().classes("w-full min-h-screen no-wrap"):
-        create_sidebar(
-            daemon_name, current=f"/{daemon_name}/hook-simulator"
-        )
+        create_sidebar(daemon_name, current=f"/{daemon_name}/hook-simulator")
 
         with ui.column().classes("flex-grow p-6 gap-4"):
             ui.label("Hook Simulator").classes("text-2xl font-bold")
-            ui.label(
-                "Simulate hook events to test detection rules."
-            ).classes("text-xs text-grey-6")
+            ui.label("Simulate hook events to test detection rules.").classes(
+                "text-xs text-grey-6"
+            )
 
             hook_options = {v: label for label, v in HOOK_EVENTS}
             tool_options = {v: label for label, v in TOOL_OPTIONS}
@@ -107,16 +107,23 @@ def create_hook_simulator_page(service, daemon_name: str):
                         value="claude",
                     ).classes("w-40")
 
-                file_input = ui.input(
-                    label="File Path (optional)",
-                    placeholder="/path/to/file",
-                ).props("dense outlined").classes("w-full")
+                file_input = (
+                    ui.input(
+                        label="File Path (optional)",
+                        placeholder="/path/to/file",
+                    )
+                    .props("dense outlined")
+                    .classes("w-full")
+                )
 
-                content_input = ui.textarea(
-                    label="Content / Prompt",
-                    placeholder="Enter text to scan...",
-                ).props("outlined").classes("w-full").style(
-                    "min-height: 150px"
+                content_input = (
+                    ui.textarea(
+                        label="Content / Prompt",
+                        placeholder="Enter text to scan...",
+                    )
+                    .props("outlined")
+                    .classes("w-full")
+                    .style("min-height: 150px")
                 )
 
                 def update_visibility(e=None):
@@ -133,9 +140,7 @@ def create_hook_simulator_page(service, daemon_name: str):
                 hook_data = build_hook_data(
                     hook_event=hook_sel.value,
                     tool_name=(
-                        tool_sel.value
-                        if hook_sel.value != "UserPromptSubmit"
-                        else None
+                        tool_sel.value if hook_sel.value != "UserPromptSubmit" else None
                     ),
                     file_path=(
                         file_input.value
@@ -155,11 +160,10 @@ def create_hook_simulator_page(service, daemon_name: str):
                         if result is None or "error" in result:
                             err = (
                                 result.get("error", "Unknown error")
-                                if result else "No result"
+                                if result
+                                else "No result"
                             )
-                            ui.label("Error").classes(
-                                "text-lg font-bold text-red"
-                            )
+                            ui.label("Error").classes("text-lg font-bold text-red")
                             ui.label(err).classes("text-sm text-red")
                             return
 
@@ -169,43 +173,33 @@ def create_hook_simulator_page(service, daemon_name: str):
 
                         decision = parsed["decision"]
                         if decision == "BLOCKED":
-                            ui.badge(
-                                "BLOCKED", color="red"
-                            ).classes("text-lg")
+                            ui.badge("BLOCKED", color="red").classes("text-lg")
                         elif decision == "ALLOWED WITH WARNING":
-                            ui.badge(
-                                "ALLOWED WITH WARNING", color="amber"
-                            ).classes("text-lg")
+                            ui.badge("ALLOWED WITH WARNING", color="amber").classes(
+                                "text-lg"
+                            )
                         else:
-                            ui.badge(
-                                "ALLOWED", color="green"
-                            ).classes("text-lg")
+                            ui.badge("ALLOWED", color="green").classes("text-lg")
 
                         if parsed["reason"]:
-                            ui.label("Reason:").classes(
-                                "font-bold text-sm mt-2"
-                            )
-                            ui.label(parsed["reason"]).classes(
-                                "text-sm text-grey-4"
-                            )
+                            ui.label("Reason:").classes("font-bold text-sm mt-2")
+                            ui.label(parsed["reason"]).classes("text-sm text-grey-4")
 
                         if parsed["redacted_output"]:
                             ui.label("Redacted Output:").classes(
                                 "font-bold text-sm mt-2"
                             )
-                            ui.code(
-                                parsed["redacted_output"]
-                            ).classes("w-full")
+                            ui.code(parsed["redacted_output"]).classes("w-full")
 
-                        ui.label("Raw JSON:").classes(
-                            "font-bold text-sm mt-2"
-                        )
-                        with ui.scroll_area().classes("w-full").style(
-                            "max-height: 300px"
+                        ui.label("Raw JSON:").classes("font-bold text-sm mt-2")
+                        with (
+                            ui.scroll_area()
+                            .classes("w-full")
+                            .style("max-height: 300px")
                         ):
-                            ui.code(
-                                parsed["raw_json"], language="json"
-                            ).classes("w-full")
+                            ui.code(parsed["raw_json"], language="json").classes(
+                                "w-full"
+                            )
 
             ui.button(
                 "Run Simulation",

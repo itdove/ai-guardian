@@ -15,7 +15,9 @@ from textual.widgets import Static, Button, Input, Label, Checkbox
 
 from ai_guardian.config_utils import get_config_dir, get_project_config_path
 from ai_guardian.tui.schema_defaults import (
-    SchemaDefaultsMixin, default_indicator, default_placeholder,
+    SchemaDefaultsMixin,
+    default_indicator,
+    default_placeholder,
 )
 from ai_guardian.tui.widgets import TimeBasedToggle, sanitize_enabled_value
 
@@ -32,7 +34,10 @@ ALL_LOG_TYPES = [
     ("pii_detected", "PII Detected — personal identifiable information"),
     ("secret_in_transcript", "Secret in Transcript — secrets from ! shell commands"),
     ("pii_in_transcript", "PII in Transcript — PII from ! shell commands"),
-    ("prompt_injection_in_transcript", "Injection in Transcript — prompt injection from ! shell commands"),
+    (
+        "prompt_injection_in_transcript",
+        "Injection in Transcript — prompt injection from ! shell commands",
+    ),
     ("annotation_suppressed", "Annotation Suppressed — inline suppression applied"),
     ("image_secret_detected", "Image Secret — secrets found in images via OCR"),
     ("image_pii_detected", "Image PII — PII found in images via OCR"),
@@ -138,7 +143,9 @@ class ViolationLoggingContent(SchemaDefaultsMixin, Container):
                     yield Label("Max Entries:")
                     yield Input(
                         value="1000",
-                        placeholder=default_placeholder("violation_logging.max_entries"),
+                        placeholder=default_placeholder(
+                            "violation_logging.max_entries"
+                        ),
                         id="vlog-max-entries",
                     )
                     yield Static(
@@ -150,7 +157,9 @@ class ViolationLoggingContent(SchemaDefaultsMixin, Container):
                     yield Label("Retention Days:")
                     yield Input(
                         value="30",
-                        placeholder=default_placeholder("violation_logging.retention_days"),
+                        placeholder=default_placeholder(
+                            "violation_logging.retention_days"
+                        ),
                         id="vlog-retention-days",
                     )
                     yield Static(
@@ -159,7 +168,9 @@ class ViolationLoggingContent(SchemaDefaultsMixin, Container):
                     )
 
             with Container(classes="section"):
-                yield Static("[bold]Violation Types to Log[/bold]", classes="section-title")
+                yield Static(
+                    "[bold]Violation Types to Log[/bold]", classes="section-title"
+                )
                 yield Static(
                     "[dim]Uncheck types to stop logging specific violation categories. "
                     "Empty selection logs all types.[/dim]",
@@ -187,11 +198,13 @@ class ViolationLoggingContent(SchemaDefaultsMixin, Container):
 
     def _get_config_path(self):
         from pathlib import Path
+
         if self._is_project_scope:
             project_path = get_project_config_path()
             if project_path:
                 return project_path
             from ai_guardian.config_utils import _find_git_root
+
             root = _find_git_root() or Path.cwd()
             return root / ".ai-guardian" / "ai-guardian.json"
         return get_config_dir() / "ai-guardian.json"
@@ -204,7 +217,9 @@ class ViolationLoggingContent(SchemaDefaultsMixin, Container):
 
     def action_refresh(self) -> None:
         self.load_config()
-        self.app.notify("Violation logging configuration refreshed", severity="information")
+        self.app.notify(
+            "Violation logging configuration refreshed", severity="information"
+        )
 
     def load_config(self) -> None:
         config_path = self._get_config_path()
@@ -212,7 +227,7 @@ class ViolationLoggingContent(SchemaDefaultsMixin, Container):
         config = {}
         if config_path.exists():
             try:
-                with open(config_path, 'r', encoding='utf-8') as f:
+                with open(config_path, "r", encoding="utf-8") as f:
                     config = json.load(f)
             except Exception as e:
                 self.app.notify(f"Error loading config: {e}", severity="error")
@@ -224,7 +239,9 @@ class ViolationLoggingContent(SchemaDefaultsMixin, Container):
         log_types = vlog_config.get("log_types", [t for t, _ in ALL_LOG_TYPES])
 
         try:
-            toggle = self.query_one("#violation_logging_enabled_toggle", TimeBasedToggle)
+            toggle = self.query_one(
+                "#violation_logging_enabled_toggle", TimeBasedToggle
+            )
             toggle.load_value(enabled_value)
         except Exception:
             pass
@@ -261,15 +278,21 @@ class ViolationLoggingContent(SchemaDefaultsMixin, Container):
             stats_text = f"Total logged violations: {total}\n"
             if type_counts:
                 stats_text += "\nBy type:\n"
-                for vtype, count in sorted(type_counts.items(), key=lambda x: x[1], reverse=True):
+                for vtype, count in sorted(
+                    type_counts.items(), key=lambda x: x[1], reverse=True
+                ):
                     stats_text += f"  {vtype}: {count}\n"
 
             self.query_one("#log-stats", Static).update(stats_text.strip())
 
         except ImportError:
-            self.query_one("#log-stats", Static).update("[dim]Violation logger not available[/dim]")
+            self.query_one("#log-stats", Static).update(
+                "[dim]Violation logger not available[/dim]"
+            )
         except Exception as e:
-            self.query_one("#log-stats", Static).update(f"[dim]Error loading stats: {e}[/dim]")
+            self.query_one("#log-stats", Static).update(
+                f"[dim]Error loading stats: {e}[/dim]"
+            )
 
     def _save_config(self, updates: Dict[str, Any]) -> bool:
         config_path = self._get_config_path()
@@ -277,7 +300,7 @@ class ViolationLoggingContent(SchemaDefaultsMixin, Container):
         try:
             config = {}
             if config_path.exists():
-                with open(config_path, 'r', encoding='utf-8') as f:
+                with open(config_path, "r", encoding="utf-8") as f:
                     config = json.load(f)
 
             if "violation_logging" not in config:
@@ -288,7 +311,7 @@ class ViolationLoggingContent(SchemaDefaultsMixin, Container):
             config["violation_logging"].update(updates)
 
             config_dir.mkdir(parents=True, exist_ok=True)
-            with open(config_path, 'w', encoding='utf-8') as f:
+            with open(config_path, "w", encoding="utf-8") as f:
                 json.dump(config, f, indent=2)
 
             return True
@@ -299,7 +322,9 @@ class ViolationLoggingContent(SchemaDefaultsMixin, Container):
     def on_button_pressed(self, event: Button.Pressed) -> None:
         bid = event.button.id
         if bid and "violation_logging_enabled" in bid:
-            toggle = self.query_one("#violation_logging_enabled_toggle", TimeBasedToggle)
+            toggle = self.query_one(
+                "#violation_logging_enabled_toggle", TimeBasedToggle
+            )
             if toggle.current_mode == "temp_disabled":
                 return
             self._save_config({"enabled": toggle.get_value()})
@@ -319,7 +344,10 @@ class ViolationLoggingContent(SchemaDefaultsMixin, Container):
                 except Exception:
                     pass
             self._save_config({"log_types": enabled_types})
-            self.app.notify(f"Log types updated ({len(enabled_types)} enabled)", severity="information")
+            self.app.notify(
+                f"Log types updated ({len(enabled_types)} enabled)",
+                severity="information",
+            )
 
     def on_input_submitted(self, event: Input.Submitted) -> None:
         input_id = event.input.id
@@ -332,7 +360,9 @@ class ViolationLoggingContent(SchemaDefaultsMixin, Container):
                 self._save_config({"max_entries": val})
                 self.app.notify(f"Max entries set to {val}", severity="information")
             except ValueError:
-                self.app.notify("Max entries must be a positive integer", severity="error")
+                self.app.notify(
+                    "Max entries must be a positive integer", severity="error"
+                )
 
         elif input_id == "vlog-retention-days":
             try:
@@ -342,9 +372,13 @@ class ViolationLoggingContent(SchemaDefaultsMixin, Container):
                 self._save_config({"retention_days": val})
                 self.app.notify(f"Retention set to {val} days", severity="information")
             except ValueError:
-                self.app.notify("Retention days must be a positive integer", severity="error")
+                self.app.notify(
+                    "Retention days must be a positive integer", severity="error"
+                )
 
         elif input_id and "violation_logging_enabled" in input_id:
-            toggle = self.query_one("#violation_logging_enabled_toggle", TimeBasedToggle)
+            toggle = self.query_one(
+                "#violation_logging_enabled_toggle", TimeBasedToggle
+            )
             value = toggle.get_value()
             self._save_config({"enabled": value})

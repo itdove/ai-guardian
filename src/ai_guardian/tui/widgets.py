@@ -15,21 +15,21 @@ from textual.widgets import Static, Input, Button
 from textual.validation import Validator, ValidationResult
 
 
-DURATION_PATTERN = re.compile(
-    r'^(?:(\d+)d)?(?:(\d+)h)?(?:(\d+)m)?$'
-)
+DURATION_PATTERN = re.compile(r"^(?:(\d+)d)?(?:(\d+)h)?(?:(\d+)m)?$")
 
 
 def format_local_time(utc_timestamp: str) -> str:
     """Convert a UTC ISO 8601 timestamp to a local time display string."""
     try:
-        dt = datetime.fromisoformat(utc_timestamp.replace('Z', '+00:00'))
+        dt = datetime.fromisoformat(utc_timestamp.replace("Z", "+00:00"))
         return dt.astimezone().strftime("%Y-%m-%d %H:%M %Z")
     except Exception:
         return utc_timestamp
 
 
-def sanitize_enabled_value(value: Union[bool, Dict[str, Any]]) -> Union[bool, Dict[str, Any]]:
+def sanitize_enabled_value(
+    value: Union[bool, Dict[str, Any]],
+) -> Union[bool, Dict[str, Any]]:
     """Sanitize an enabled config value before saving.
 
     Valid formats:
@@ -69,7 +69,7 @@ def parse_duration(text: str) -> Optional[timedelta]:
 def duration_from_timestamp(timestamp: str) -> str:
     """Convert an ISO 8601 timestamp to a human-readable remaining duration."""
     try:
-        dt = datetime.fromisoformat(timestamp.replace('Z', '+00:00'))
+        dt = datetime.fromisoformat(timestamp.replace("Z", "+00:00"))
         now = datetime.now(timezone.utc)
         if dt <= now:
             return "expired"
@@ -98,12 +98,14 @@ class ISO8601Validator(Validator):
             return self.success()
 
         try:
-            datetime.fromisoformat(value.replace('Z', '+00:00'))
-            if not value.strip().endswith('Z'):
+            datetime.fromisoformat(value.replace("Z", "+00:00"))
+            if not value.strip().endswith("Z"):
                 return self.failure("Timestamp must be in UTC (end with 'Z')")
             return self.success()
         except Exception:
-            return self.failure("Invalid ISO 8601 format. Expected: YYYY-MM-DDTHH:MM:SSZ")
+            return self.failure(
+                "Invalid ISO 8601 format. Expected: YYYY-MM-DDTHH:MM:SSZ"
+            )
 
 
 class _BlurSaveInput(Input):
@@ -207,9 +209,15 @@ class TimeBasedToggle(VerticalGroup):
         yield Static("", id=f"{self.config_key}_status", classes="tbt-status")
 
         with HorizontalGroup(classes="tbt-btn-row"):
-            yield Button("Enable", id=f"{self.config_key}_btn_enable", classes="tbt-btn")
-            yield Button("Disable", id=f"{self.config_key}_btn_disable", classes="tbt-btn")
-            yield Button("Temp Disable", id=f"{self.config_key}_btn_temp", classes="tbt-btn")
+            yield Button(
+                "Enable", id=f"{self.config_key}_btn_enable", classes="tbt-btn"
+            )
+            yield Button(
+                "Disable", id=f"{self.config_key}_btn_disable", classes="tbt-btn"
+            )
+            yield Button(
+                "Temp Disable", id=f"{self.config_key}_btn_temp", classes="tbt-btn"
+            )
 
         dur = _BlurSaveInput(
             placeholder="Duration: 30m, 2h, 1d",
@@ -262,15 +270,23 @@ class TimeBasedToggle(VerticalGroup):
         btn_en.variant = "success" if self.current_mode == "enabled" else "primary"
         btn_dis.label = "● Disable" if self.current_mode == "disabled" else "Disable"
         btn_dis.variant = "error" if self.current_mode == "disabled" else "primary"
-        btn_tmp.label = "● Temp Disable" if self.current_mode == "temp_disabled" else "Temp Disable"
-        btn_tmp.variant = "warning" if self.current_mode == "temp_disabled" else "primary"
+        btn_tmp.label = (
+            "● Temp Disable" if self.current_mode == "temp_disabled" else "Temp Disable"
+        )
+        btn_tmp.variant = (
+            "warning" if self.current_mode == "temp_disabled" else "primary"
+        )
 
         is_temp = self.current_mode == "temp_disabled"
         temp_row.display = is_temp
         if is_temp:
-            dur = duration_from_timestamp(self.disabled_until) if self.disabled_until else ""
+            dur = (
+                duration_from_timestamp(self.disabled_until)
+                if self.disabled_until
+                else ""
+            )
             dur_input.value = dur if dur and dur != "expired" else ""
-            reason_input.value = getattr(self, '_reason', "")
+            reason_input.value = getattr(self, "_reason", "")
 
         self.update_status_display()
 
@@ -292,7 +308,9 @@ class TimeBasedToggle(VerticalGroup):
             else:
                 if self.disabled_until:
                     try:
-                        dt = datetime.fromisoformat(self.disabled_until.replace('Z', '+00:00'))
+                        dt = datetime.fromisoformat(
+                            self.disabled_until.replace("Z", "+00:00")
+                        )
                         now = datetime.now(timezone.utc)
 
                         if dt > now:
@@ -320,7 +338,9 @@ class TimeBasedToggle(VerticalGroup):
             if self.disabled_until:
                 result["disabled_until"] = self.disabled_until
             try:
-                reason = self.query_one(f"#{self.config_key}_reason", Input).value.strip()
+                reason = self.query_one(
+                    f"#{self.config_key}_reason", Input
+                ).value.strip()
                 if reason:
                     result["reason"] = reason
             except Exception:
@@ -356,7 +376,9 @@ class TimeBasedToggle(VerticalGroup):
 
             delta = parse_duration(duration_text)
             if delta is None:
-                self.app.notify("Invalid duration. Use: 30m, 2h, 1d, 1h30m", severity="error")
+                self.app.notify(
+                    "Invalid duration. Use: 30m, 2h, 1d, 1h30m", severity="error"
+                )
                 return
 
             end_time = datetime.now(timezone.utc) + delta

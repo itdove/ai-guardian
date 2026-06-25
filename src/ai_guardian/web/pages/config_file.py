@@ -1,7 +1,6 @@
 """Config File page — read-only view of configuration files."""
 
 import json
-from pathlib import Path
 
 from nicegui import run, ui
 
@@ -52,9 +51,9 @@ def create_config_file_page(service, daemon_name: str):
 
         with ui.column().classes("flex-grow p-6 gap-4"):
             ui.label("Config File Viewer").classes("text-2xl font-bold")
-            ui.label(
-                "Read-only view of current configuration files."
-            ).classes("text-xs text-grey-6")
+            ui.label("Read-only view of current configuration files.").classes(
+                "text-xs text-grey-6"
+            )
 
             content = ui.column().classes("w-full gap-4")
 
@@ -64,9 +63,7 @@ def create_config_file_page(service, daemon_name: str):
 
                 with content:
                     with ui.card().classes("w-full"):
-                        ui.label("Config Sources").classes(
-                            "text-lg font-bold"
-                        )
+                        ui.label("Config Sources").classes("text-lg font-bold")
                         with ui.column().classes("gap-2"):
                             with ui.row().classes("items-center gap-2"):
                                 ui.icon(
@@ -78,9 +75,7 @@ def create_config_file_page(service, daemon_name: str):
                                     if info["global_exists"]
                                     else "text-red"
                                 )
-                                ui.label("Global:").classes(
-                                    "font-bold text-sm"
-                                )
+                                ui.label("Global:").classes("font-bold text-sm")
                                 ui.label(info["global_path"]).classes(
                                     "text-sm text-grey-4"
                                 ).style("font-family: monospace")
@@ -95,22 +90,20 @@ def create_config_file_page(service, daemon_name: str):
                                     if info["project_exists"]
                                     else "text-red"
                                 )
-                                ui.label("Project:").classes(
-                                    "font-bold text-sm"
-                                )
-                                ui.label(
-                                    info["project_path"] or "Not found"
-                                ).classes("text-sm text-grey-4").style(
-                                    "font-family: monospace"
-                                )
+                                ui.label("Project:").classes("font-bold text-sm")
+                                ui.label(info["project_path"] or "Not found").classes(
+                                    "text-sm text-grey-4"
+                                ).style("font-family: monospace")
 
                     if info["global_exists"] and info["global_content"]:
                         with ui.card().classes("w-full"):
                             ui.label("Global Configuration").classes(
                                 "text-lg font-bold"
                             )
-                            with ui.scroll_area().classes("w-full").style(
-                                "max-height: 500px"
+                            with (
+                                ui.scroll_area()
+                                .classes("w-full")
+                                .style("max-height: 500px")
                             ):
                                 ui.code(
                                     info["global_content"], language="json"
@@ -121,8 +114,10 @@ def create_config_file_page(service, daemon_name: str):
                             ui.label("Project Configuration").classes(
                                 "text-lg font-bold"
                             )
-                            with ui.scroll_area().classes("w-full").style(
-                                "max-height: 500px"
+                            with (
+                                ui.scroll_area()
+                                .classes("w-full")
+                                .style("max-height: 500px")
                             ):
                                 ui.code(
                                     info["project_content"], language="json"
@@ -132,12 +127,12 @@ def create_config_file_page(service, daemon_name: str):
                             ui.label("Project Configuration").classes(
                                 "text-lg font-bold"
                             )
-                            ui.label(
-                                "No project configuration file found."
-                            ).classes("text-grey-6 text-sm")
+                            ui.label("No project configuration file found.").classes(
+                                "text-grey-6 text-sm"
+                            )
 
-                    ui.button(
-                        "Refresh", icon="refresh", on_click=refresh
-                    ).props("dense")
+                    ui.button("Refresh", icon="refresh", on_click=refresh).props(
+                        "dense"
+                    )
 
             ui.timer(0.1, refresh, once=True)

@@ -24,7 +24,9 @@ class TestInstallScriptSyntax:
     def test_script_exists(self):
         assert SCRIPT.exists(), f"{SCRIPT} not found"
 
-    @pytest.mark.skipif(sys.platform == "win32", reason="executable bit not meaningful on Windows")
+    @pytest.mark.skipif(
+        sys.platform == "win32", reason="executable bit not meaningful on Windows"
+    )
     def test_script_is_executable(self):
         assert os.access(SCRIPT, os.X_OK), f"{SCRIPT} is not executable"
 
@@ -173,18 +175,21 @@ class TestInstallScriptAgentDetection:
     def script_content(self):
         return SCRIPT.read_text()
 
-    @pytest.mark.parametrize("agent_path", [
-        "CLAUDE_CONFIG_DIR",
-        ".cursor/hooks.json",
-        ".github/hooks/hooks.json",
-        ".codex/hooks.json",
-        ".codeium/windsurf/hooks.json",
-        ".gemini/settings.json",
-        ".augment/settings.json",
-        ".config/opencode/plugins/ai-guardian.ts",
-        ".aider-desk/extensions/ai-guardian/index.ts",
-        ".openclaw/plugins/ai-guardian/index.ts",
-    ])
+    @pytest.mark.parametrize(
+        "agent_path",
+        [
+            "CLAUDE_CONFIG_DIR",
+            ".cursor/hooks.json",
+            ".github/hooks/hooks.json",
+            ".codex/hooks.json",
+            ".codeium/windsurf/hooks.json",
+            ".gemini/settings.json",
+            ".augment/settings.json",
+            ".config/opencode/plugins/ai-guardian.ts",
+            ".aider-desk/extensions/ai-guardian/index.ts",
+            ".openclaw/plugins/ai-guardian/index.ts",
+        ],
+    )
     def test_detection_checks_agent_path(self, script_content, agent_path):
         assert agent_path in script_content, f"Detection missing path: {agent_path}"
 
@@ -233,9 +238,15 @@ class TestInstallPs1:
     )
     def test_ps1_syntax_check(self):
         result = subprocess.run(
-            ["pwsh", "-NoProfile", "-Command",
-             f"$null = [System.Management.Automation.Language.Parser]::ParseFile('{PS1_SCRIPT}', [ref]$null, [ref]$errors); $errors.Count"],
+            [
+                "pwsh",
+                "-NoProfile",
+                "-Command",
+                f"$null = [System.Management.Automation.Language.Parser]::ParseFile('{PS1_SCRIPT}', [ref]$null, [ref]$errors); $errors.Count",
+            ],
             capture_output=True,
             text=True,
         )
-        assert result.stdout.strip() == "0", f"PowerShell syntax errors: {result.stdout}"
+        assert (
+            result.stdout.strip() == "0"
+        ), f"PowerShell syntax errors: {result.stdout}"

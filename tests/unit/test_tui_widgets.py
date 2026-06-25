@@ -9,8 +9,12 @@ import unittest
 from datetime import datetime, timedelta, timezone
 
 from ai_guardian.tui.widgets import (
-    ISO8601Validator, DurationValidator, TimeBasedToggle,
-    parse_duration, duration_from_timestamp, sanitize_enabled_value,
+    ISO8601Validator,
+    DurationValidator,
+    TimeBasedToggle,
+    parse_duration,
+    duration_from_timestamp,
+    sanitize_enabled_value,
     format_local_time,
 )
 
@@ -63,7 +67,11 @@ class TestSanitizeEnabledValue(unittest.TestCase):
         self.assertIs(sanitize_enabled_value(False), False)
 
     def test_valid_temp_disabled_passthrough(self):
-        val = {"value": False, "disabled_until": "2026-12-31T23:59:59Z", "reason": "test"}
+        val = {
+            "value": False,
+            "disabled_until": "2026-12-31T23:59:59Z",
+            "reason": "test",
+        }
         self.assertEqual(sanitize_enabled_value(val), val)
 
     def test_dict_without_disabled_until_collapses_to_false(self):
@@ -73,7 +81,9 @@ class TestSanitizeEnabledValue(unittest.TestCase):
         self.assertIs(sanitize_enabled_value({"value": True}), True)
 
     def test_dict_with_empty_disabled_until_collapses(self):
-        self.assertIs(sanitize_enabled_value({"value": False, "disabled_until": ""}), False)
+        self.assertIs(
+            sanitize_enabled_value({"value": False, "disabled_until": ""}), False
+        )
 
     def test_dict_with_reason_only_collapses(self):
         self.assertIs(sanitize_enabled_value({"value": False, "reason": "test"}), False)
@@ -102,7 +112,9 @@ class TestParseDuration(unittest.TestCase):
         self.assertEqual(parse_duration("2d12h"), timedelta(days=2, hours=12))
 
     def test_combined_all(self):
-        self.assertEqual(parse_duration("1d2h30m"), timedelta(days=1, hours=2, minutes=30))
+        self.assertEqual(
+            parse_duration("1d2h30m"), timedelta(days=1, hours=2, minutes=30)
+        )
 
     def test_uppercase(self):
         self.assertEqual(parse_duration("2H"), timedelta(hours=2))
@@ -121,12 +133,16 @@ class TestDurationFromTimestamp(unittest.TestCase):
     """Test timestamp to duration conversion."""
 
     def test_future_timestamp(self):
-        future = (datetime.now(timezone.utc) + timedelta(hours=2, minutes=15)).strftime("%Y-%m-%dT%H:%M:%SZ")
+        future = (datetime.now(timezone.utc) + timedelta(hours=2, minutes=15)).strftime(
+            "%Y-%m-%dT%H:%M:%SZ"
+        )
         result = duration_from_timestamp(future)
         self.assertIn("h", result)
 
     def test_expired_timestamp(self):
-        past = (datetime.now(timezone.utc) - timedelta(hours=1)).strftime("%Y-%m-%dT%H:%M:%SZ")
+        past = (datetime.now(timezone.utc) - timedelta(hours=1)).strftime(
+            "%Y-%m-%dT%H:%M:%SZ"
+        )
         self.assertEqual(duration_from_timestamp(past), "expired")
 
     def test_invalid_timestamp(self):
@@ -164,9 +180,7 @@ class TestTimeBasedToggle(unittest.TestCase):
     def test_init_with_bool_true(self):
         """Test initialization with simple boolean True."""
         toggle = TimeBasedToggle(
-            title="Test Feature",
-            config_key="test_feature",
-            current_value=True
+            title="Test Feature", config_key="test_feature", current_value=True
         )
 
         self.assertTrue(toggle.is_enabled)
@@ -176,9 +190,7 @@ class TestTimeBasedToggle(unittest.TestCase):
     def test_init_with_bool_false(self):
         """Test initialization with simple boolean False."""
         toggle = TimeBasedToggle(
-            title="Test Feature",
-            config_key="test_feature",
-            current_value=False
+            title="Test Feature", config_key="test_feature", current_value=False
         )
 
         self.assertFalse(toggle.is_enabled)
@@ -190,7 +202,7 @@ class TestTimeBasedToggle(unittest.TestCase):
         toggle = TimeBasedToggle(
             title="Test Feature",
             config_key="test_feature",
-            current_value={"value": True}
+            current_value={"value": True},
         )
 
         self.assertTrue(toggle.is_enabled)
@@ -198,7 +210,9 @@ class TestTimeBasedToggle(unittest.TestCase):
 
     def test_init_with_dict_temp_disabled(self):
         """Test initialization with dict format (temporarily disabled)."""
-        future_time = (datetime.now(timezone.utc) + timedelta(hours=2)).strftime("%Y-%m-%dT%H:%M:%SZ")
+        future_time = (datetime.now(timezone.utc) + timedelta(hours=2)).strftime(
+            "%Y-%m-%dT%H:%M:%SZ"
+        )
 
         toggle = TimeBasedToggle(
             title="Test Feature",
@@ -206,8 +220,8 @@ class TestTimeBasedToggle(unittest.TestCase):
             current_value={
                 "value": False,
                 "disabled_until": future_time,
-                "reason": "Testing"
-            }
+                "reason": "Testing",
+            },
         )
 
         self.assertFalse(toggle.is_enabled)
@@ -217,9 +231,7 @@ class TestTimeBasedToggle(unittest.TestCase):
     def test_get_value_simple_enabled(self):
         """Test get_value returns True for simple enabled mode."""
         toggle = TimeBasedToggle(
-            title="Test Feature",
-            config_key="test_feature",
-            current_value=True
+            title="Test Feature", config_key="test_feature", current_value=True
         )
 
         # Simulate mode being set to enabled
@@ -233,9 +245,7 @@ class TestTimeBasedToggle(unittest.TestCase):
     def test_get_value_simple_disabled(self):
         """Test get_value returns False for simple disabled mode."""
         toggle = TimeBasedToggle(
-            title="Test Feature",
-            config_key="test_feature",
-            current_value=False
+            title="Test Feature", config_key="test_feature", current_value=False
         )
 
         # Simulate mode being set to disabled
@@ -283,8 +293,8 @@ class TestFormatLocalTime(unittest.TestCase):
         parts = result.split()
         # At least 3 parts: date, time, timezone (TZ may be multi-word on Windows)
         self.assertGreaterEqual(len(parts), 3)
-        self.assertRegex(parts[0], r'\d{4}-\d{2}-\d{2}')
-        self.assertRegex(parts[1], r'\d{2}:\d{2}')
+        self.assertRegex(parts[0], r"\d{4}-\d{2}-\d{2}")
+        self.assertRegex(parts[1], r"\d{2}:\d{2}")
 
     def test_known_utc_midnight(self):
         """Test that UTC midnight converts correctly."""
@@ -293,5 +303,5 @@ class TestFormatLocalTime(unittest.TestCase):
         self.assertNotIn("T00:00:00", result)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()

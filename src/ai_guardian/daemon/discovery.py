@@ -15,11 +15,11 @@ import subprocess
 import threading
 import time
 from dataclasses import dataclass, field as dc_field
-from pathlib import Path
 from typing import Callable, Dict, List, Optional, Tuple
 
 try:
     import docker as docker_sdk
+
     HAS_DOCKER_SDK = True
 except ImportError:
     HAS_DOCKER_SDK = False
@@ -55,6 +55,7 @@ def _detect_engine(client, source: str) -> str:
         pass  # intentionally silent — daemon comm best-effort
     return _engine_from_source(source)
 
+
 from ai_guardian.daemon import (
     DEFAULT_REST_PORT,
     get_pid_path,
@@ -72,7 +73,9 @@ class DaemonTarget:
 
     name: str
     runtime: str  # "local", "container", "kubernetes", "manual"
-    status: str = "unknown"  # "running", "paused", "starting", "stopped", "error", "unknown"
+    status: str = (
+        "unknown"  # "running", "paused", "starting", "stopped", "error", "unknown"
+    )
     host: str = "127.0.0.1"
     port: int = 0
     container_id: Optional[str] = None
@@ -113,7 +116,8 @@ class DaemonDiscovery:
     def discover_all(self) -> List[DaemonTarget]:
         """Run all discovery methods in parallel, return merged list."""
         from concurrent.futures import (
-            ThreadPoolExecutor, as_completed,
+            ThreadPoolExecutor,
+            as_completed,
             TimeoutError as FuturesTimeoutError,
         )
 
@@ -168,6 +172,7 @@ class DaemonDiscovery:
         target with status="stopped" so the tray can show a warning.
         """
         from ai_guardian.config_utils import get_config_dir
+
         config_path = get_config_dir() / "ai-guardian.json"
 
         if not config_path.exists():
@@ -211,6 +216,7 @@ class DaemonDiscovery:
                 logger.debug("Failed to read config: %s", e)
 
         from ai_guardian.daemon.client import is_daemon_running
+
         if is_daemon_running():
             if target.port:
                 api_data = self._probe_daemon(target.port)
@@ -243,33 +249,25 @@ class DaemonDiscovery:
         3. Merge and deduplicate by container ID across all engines
         """
         if not HAS_DOCKER_SDK:
-            logger.debug(
-                "docker SDK not available; skipping container discovery"
-            )
+            logger.debug("docker SDK not available; skipping container discovery")
             return []
 
         clients = self._get_docker_clients()
         if not clients:
             return []
 
-        rest_port = self._config.get("daemon", {}).get(
-            "rest_port", DEFAULT_REST_PORT
-        )
+        rest_port = self._config.get("daemon", {}).get("rest_port", DEFAULT_REST_PORT)
 
         seen_ids: Dict[str, DaemonTarget] = {}
 
         for client, engine in clients:
             try:
-                label_targets = self._sdk_discover_by_label(
-                    client, engine, rest_port
-                )
+                label_targets = self._sdk_discover_by_label(client, engine, rest_port)
                 for t in label_targets:
                     if t.container_id and t.container_id not in seen_ids:
                         seen_ids[t.container_id] = t
 
-                port_targets = self._sdk_discover_by_port(
-                    client, engine, rest_port
-                )
+                port_targets = self._sdk_discover_by_port(client, engine, rest_port)
                 for t in port_targets:
                     if t.container_id and t.container_id not in seen_ids:
                         seen_ids[t.container_id] = t
@@ -289,9 +287,7 @@ class DaemonDiscovery:
         docker_host = os.environ.get("DOCKER_HOST")
         if docker_host:
             try:
-                client = docker_sdk.DockerClient(
-                    base_url=docker_host, timeout=10
-                )
+                client = docker_sdk.DockerClient(base_url=docker_host, timeout=10)
                 client.ping()
                 engine = _detect_engine(client, docker_host)
                 clients.append((client, engine))
@@ -328,9 +324,7 @@ class DaemonDiscovery:
             containers = client.containers.list(
                 filters={"label": "ai-guardian.daemon=true"}
             )
-            return self._sdk_containers_to_targets(
-                engine, containers, rest_port
-            )
+            return self._sdk_containers_to_targets(engine, containers, rest_port)
         except Exception as e:
             logger.debug("SDK label discovery error: %s", e)
             return []
@@ -345,9 +339,7 @@ class DaemonDiscovery:
                 port_key = f"{rest_port}/tcp"
                 if port_key in ports and ports[port_key]:
                     matching.append(c)
-            return self._sdk_containers_to_targets(
-                engine, matching, rest_port
-            )
+            return self._sdk_containers_to_targets(engine, matching, rest_port)
         except Exception as e:
             logger.debug("SDK port discovery error: %s", e)
             return []
@@ -363,11 +355,7 @@ class DaemonDiscovery:
             labels = c.labels or {}
             orig_container_name = c.name or None
 
-            raw_name = (
-                labels.get("ai-guardian.name")
-                or c.name
-                or container_id[:12]
-            )
+            raw_name = labels.get("ai-guardian.name") or c.name or container_id[:12]
             name = raw_name[:128]
 
             label_port = labels.get("ai-guardian.rest-port")
@@ -387,7 +375,8 @@ class DaemonDiscovery:
                         name = api_data["name"]
 
             if not labels.get("ai-guardian.name") and status not in (
-                "running", "paused"
+                "running",
+                "paused",
             ):
                 exec_name = self._sdk_exec_instance_name(c)
                 if exec_name:
@@ -425,12 +414,15 @@ class DaemonDiscovery:
         """Read daemon name from container config via SDK exec_run."""
         try:
             exit_code, output = container.exec_run(
-                ["python3", "-c",
-                 "import json; "
-                 "f=open('/etc/ai-guardian/ai-guardian.json'); "
-                 "c=json.load(f); "
-                 "n=c.get('name') or c.get('daemon',{}).get('name',''); "
-                 "print(n)"],
+                [
+                    "python3",
+                    "-c",
+                    "import json; "
+                    "f=open('/etc/ai-guardian/ai-guardian.json'); "
+                    "c=json.load(f); "
+                    "n=c.get('name') or c.get('daemon',{}).get('name',''); "
+                    "print(n)",
+                ],
                 demux=False,
             )
             if exit_code == 0:
@@ -457,6 +449,7 @@ class DaemonDiscovery:
     def _probe_daemon(port, host="127.0.0.1", timeout=1.0):
         """Probe a daemon's REST API. Returns status dict or None if unreachable."""
         import socket as _socket
+
         try:
             sock = _socket.socket(_socket.AF_INET, _socket.SOCK_STREAM)
             sock.settimeout(timeout)
@@ -469,10 +462,13 @@ class DaemonDiscovery:
             import ipaddress as _ipaddr
             from urllib.request import urlopen
             import json as json_mod
+
             if host not in ("127.0.0.1", "localhost", "::1"):
                 try:
                     if not _ipaddr.ip_address(host).is_private:
-                        logger.warning("Refusing HTTP probe to non-private host: %s", host)
+                        logger.warning(
+                            "Refusing HTTP probe to non-private host: %s", host
+                        )
                         return None
                 except ValueError:
                     pass  # intentionally silent — daemon comm best-effort
@@ -492,16 +488,14 @@ class DaemonDiscovery:
         k8s_cfg = tray_cfg.get("kubernetes", {})
 
         namespace = k8s_cfg.get("namespace", "ai-sdlc")
-        if not re.fullmatch(r'[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?', namespace):
+        if not re.fullmatch(r"[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?", namespace):
             logger.debug("Invalid Kubernetes namespace: %s", namespace)
             return []
 
-        label_selector = k8s_cfg.get(
-            "label_selector", "app=ai-guardian"
-        )
+        label_selector = k8s_cfg.get("label_selector", "app=ai-guardian")
 
         user = os.environ.get("USER", os.environ.get("USERNAME", ""))
-        user = re.sub(r'[^a-zA-Z0-9._-]', '', user)
+        user = re.sub(r"[^a-zA-Z0-9._-]", "", user)
         if user:
             label_selector = f"{label_selector},user={user}"
 
@@ -510,12 +504,19 @@ class DaemonDiscovery:
         try:
             result = subprocess.run(
                 [
-                    "kubectl", "get", "pods",
-                    "-l", label_selector,
-                    "-n", namespace,
-                    "-o", "json",
+                    "kubectl",
+                    "get",
+                    "pods",
+                    "-l",
+                    label_selector,
+                    "-n",
+                    namespace,
+                    "-o",
+                    "json",
                 ],
-                capture_output=True, text=True, timeout=15,
+                capture_output=True,
+                text=True,
+                timeout=15,
             )
             if result.returncode != 0:
                 logger.debug("Kubernetes discovery failed: %s", result.stderr)
@@ -577,6 +578,7 @@ class DaemonDiscovery:
             port = 0
             if url:
                 from urllib.parse import urlparse
+
                 parsed = urlparse(url)
                 host = parsed.hostname or host
                 port = parsed.port or 0
@@ -653,7 +655,7 @@ class DaemonDiscovery:
             wait: If True, block until discovery completes (up to timeout)
             timeout: Max seconds to wait when wait=True
         """
-        if not self._running or not hasattr(self, '_refresh_event'):
+        if not self._running or not hasattr(self, "_refresh_event"):
             return
 
         done = None
@@ -670,7 +672,7 @@ class DaemonDiscovery:
     def stop(self):
         """Stop background discovery."""
         self._running = False
-        if hasattr(self, '_refresh_event'):
+        if hasattr(self, "_refresh_event"):
             self._refresh_event.set()
         if self._thread:
             self._thread.join(timeout=3)

@@ -6,7 +6,6 @@ import tempfile
 from pathlib import Path
 from unittest import mock
 
-import pytest
 
 from ai_guardian.response_format import (
     detect_ide_type,
@@ -103,6 +102,7 @@ class TestAiderDeskSetupConfig:
     def test_aiderdesk_in_ide_configs(self):
         """AiderDesk has IDE config entry with extension_based flag."""
         from ai_guardian.setup import IDESetup
+
         assert "aiderdesk" in IDESetup.IDE_CONFIGS
         config = IDESetup.IDE_CONFIGS["aiderdesk"]
         assert config["name"] == "AiderDesk"
@@ -111,12 +111,14 @@ class TestAiderDeskSetupConfig:
     def test_aiderdesk_config_path(self):
         """AiderDesk config path points to extension directory."""
         from ai_guardian.setup import IDESetup
+
         config = IDESetup.IDE_CONFIGS["aiderdesk"]
         assert config["config_path"] == "~/.aider-desk/extensions/ai-guardian"
 
     def test_aiderdesk_no_hooks_or_scripts(self):
         """AiderDesk config does not define hooks or script_based."""
         from ai_guardian.setup import IDESetup
+
         config = IDESetup.IDE_CONFIGS["aiderdesk"]
         assert "hooks" not in config
         assert "script_based" not in config
@@ -136,7 +138,9 @@ class TestAiderDeskSetupFlow:
                 "get_config_path",
                 return_value=ext_dir,
             ):
-                setup = __import__("ai_guardian.setup", fromlist=["IDESetup"]).IDESetup()
+                setup = __import__(
+                    "ai_guardian.setup", fromlist=["IDESetup"]
+                ).IDESetup()
                 success, message = setup.setup_ide_hooks("aiderdesk")
                 assert success is True
                 assert Path(ext_dir).exists()
@@ -150,7 +154,9 @@ class TestAiderDeskSetupFlow:
                 "get_config_path",
                 return_value=ext_dir,
             ):
-                setup = __import__("ai_guardian.setup", fromlist=["IDESetup"]).IDESetup()
+                setup = __import__(
+                    "ai_guardian.setup", fromlist=["IDESetup"]
+                ).IDESetup()
                 setup.setup_ide_hooks("aiderdesk")
                 index_path = Path(ext_dir) / "index.ts"
                 assert index_path.exists()
@@ -167,7 +173,9 @@ class TestAiderDeskSetupFlow:
                 "get_config_path",
                 return_value=ext_dir,
             ):
-                setup = __import__("ai_guardian.setup", fromlist=["IDESetup"]).IDESetup()
+                setup = __import__(
+                    "ai_guardian.setup", fromlist=["IDESetup"]
+                ).IDESetup()
                 setup.setup_ide_hooks("aiderdesk")
                 pkg_path = Path(ext_dir) / "package.json"
                 assert pkg_path.exists()
@@ -184,7 +192,9 @@ class TestAiderDeskSetupFlow:
                 "get_config_path",
                 return_value=ext_dir,
             ):
-                setup = __import__("ai_guardian.setup", fromlist=["IDESetup"]).IDESetup()
+                setup = __import__(
+                    "ai_guardian.setup", fromlist=["IDESetup"]
+                ).IDESetup()
                 success, message = setup.setup_ide_hooks("aiderdesk", dry_run=True)
                 assert success is True
                 assert "DRY RUN" in message
@@ -202,7 +212,9 @@ class TestAiderDeskSetupFlow:
                 "get_config_path",
                 return_value=ext_dir,
             ):
-                setup = __import__("ai_guardian.setup", fromlist=["IDESetup"]).IDESetup()
+                setup = __import__(
+                    "ai_guardian.setup", fromlist=["IDESetup"]
+                ).IDESetup()
                 success, message = setup.setup_ide_hooks("aiderdesk")
                 assert success is False
                 assert "already configured" in message
@@ -220,7 +232,9 @@ class TestAiderDeskSetupFlow:
                 "get_config_path",
                 return_value=ext_dir,
             ):
-                setup = __import__("ai_guardian.setup", fromlist=["IDESetup"]).IDESetup()
+                setup = __import__(
+                    "ai_guardian.setup", fromlist=["IDESetup"]
+                ).IDESetup()
                 success, message = setup.setup_ide_hooks("aiderdesk", force=True)
                 assert success is True
                 content = index_path.read_text()
@@ -235,7 +249,9 @@ class TestAiderDeskSetupFlow:
                 "get_config_path",
                 return_value=ext_dir,
             ):
-                setup = __import__("ai_guardian.setup", fromlist=["IDESetup"]).IDESetup()
+                setup = __import__(
+                    "ai_guardian.setup", fromlist=["IDESetup"]
+                ).IDESetup()
                 success, message = setup.setup_ide_hooks("aiderdesk")
                 assert "npm install" in message
 
@@ -251,14 +267,19 @@ class TestAiderDeskHooksConfigured:
             index_path = ext_dir / "index.ts"
             index_path.write_text("// ai-guardian extension code")
             from ai_guardian.setup import IDESetup
+
             setup = IDESetup()
             assert setup.check_hooks_configured(ext_dir, "aiderdesk") is True
 
     def test_check_hooks_configured_false_no_dir(self):
         """Returns False when directory does not exist."""
         from ai_guardian.setup import IDESetup
+
         setup = IDESetup()
-        assert setup.check_hooks_configured(Path("/nonexistent/path"), "aiderdesk") is False
+        assert (
+            setup.check_hooks_configured(Path("/nonexistent/path"), "aiderdesk")
+            is False
+        )
 
     def test_check_hooks_configured_false_no_index(self):
         """Returns False when directory exists but no index.ts."""
@@ -266,6 +287,7 @@ class TestAiderDeskHooksConfigured:
             ext_dir = Path(tmpdir) / "ai-guardian"
             ext_dir.mkdir()
             from ai_guardian.setup import IDESetup
+
             setup = IDESetup()
             assert setup.check_hooks_configured(ext_dir, "aiderdesk") is False
 
@@ -277,6 +299,7 @@ class TestAiderDeskHooksConfigured:
             index_path = ext_dir / "index.ts"
             index_path.write_text("// some other extension")
             from ai_guardian.setup import IDESetup
+
             setup = IDESetup()
             assert setup.check_hooks_configured(ext_dir, "aiderdesk") is False
 
@@ -287,6 +310,7 @@ class TestAiderDeskMCPConfig:
     def test_aiderdesk_in_mcp_ide_configs(self):
         """AiderDesk has MCP config entry."""
         from ai_guardian.setup import _MCP_IDE_CONFIGS
+
         assert "aiderdesk" in _MCP_IDE_CONFIGS
         config = _MCP_IDE_CONFIGS["aiderdesk"]
         assert config["config_file"] == "~/.aider-desk/settings.json"
@@ -300,6 +324,7 @@ class TestAiderDeskCLI:
     def test_aiderdesk_in_cli_choices(self):
         """'aiderdesk' is a valid --ide choice."""
         from ai_guardian.setup import IDESetup
+
         assert "aiderdesk" in IDESetup.IDE_CONFIGS
 
 
@@ -309,52 +334,62 @@ class TestAiderDeskExtensionContent:
     def test_extension_has_metadata(self):
         """Extension TS has static metadata."""
         from ai_guardian.setup import _AIDERDESK_EXTENSION_TS
+
         assert "static metadata" in _AIDERDESK_EXTENSION_TS
         assert "'AI Guardian'" in _AIDERDESK_EXTENSION_TS
 
     def test_extension_has_tool_approval_handler(self):
         """Extension TS hooks onToolApproval."""
         from ai_guardian.setup import _AIDERDESK_EXTENSION_TS
+
         assert "onToolApproval" in _AIDERDESK_EXTENSION_TS
 
     def test_extension_has_tool_called_handler(self):
         """Extension TS hooks onToolCalled."""
         from ai_guardian.setup import _AIDERDESK_EXTENSION_TS
+
         assert "onToolCalled" in _AIDERDESK_EXTENSION_TS
 
     def test_extension_has_tool_finished_handler(self):
         """Extension TS hooks onToolFinished."""
         from ai_guardian.setup import _AIDERDESK_EXTENSION_TS
+
         assert "onToolFinished" in _AIDERDESK_EXTENSION_TS
 
     def test_extension_has_prompt_started_handler(self):
         """Extension TS hooks onPromptStarted."""
         from ai_guardian.setup import _AIDERDESK_EXTENSION_TS
+
         assert "onPromptStarted" in _AIDERDESK_EXTENSION_TS
 
     def test_extension_has_files_added_handler(self):
         """Extension TS hooks onFilesAdded."""
         from ai_guardian.setup import _AIDERDESK_EXTENSION_TS
+
         assert "onFilesAdded" in _AIDERDESK_EXTENSION_TS
 
     def test_extension_has_before_commit_handler(self):
         """Extension TS hooks onBeforeCommit."""
         from ai_guardian.setup import _AIDERDESK_EXTENSION_TS
+
         assert "onBeforeCommit" in _AIDERDESK_EXTENSION_TS
 
     def test_extension_sets_ide_type_env_var(self):
         """Extension sets AI_GUARDIAN_IDE_TYPE=aiderdesk."""
         from ai_guardian.setup import _AIDERDESK_EXTENSION_TS
+
         assert "AI_GUARDIAN_IDE_TYPE" in _AIDERDESK_EXTENSION_TS
         assert "aiderdesk" in _AIDERDESK_EXTENSION_TS
 
     def test_extension_uses_execsync(self):
         """Extension calls ai-guardian via execSync."""
         from ai_guardian.setup import _AIDERDESK_EXTENSION_TS
+
         assert "execSync" in _AIDERDESK_EXTENSION_TS
 
     def test_package_json_has_dependency(self):
         """Package JSON includes @aiderdesk/extensions dependency."""
         from ai_guardian.setup import _AIDERDESK_PACKAGE_JSON
+
         content = json.loads(_AIDERDESK_PACKAGE_JSON)
         assert "@aiderdesk/extensions" in content["dependencies"]

@@ -41,7 +41,7 @@ def load_editor_theme() -> str:
     config_path = config_dir / "ai-guardian.json"
     if config_path.exists():
         try:
-            with open(config_path, 'r', encoding='utf-8') as f:
+            with open(config_path, "r", encoding="utf-8") as f:
                 config = json.load(f)
             theme = config.get("console", {}).get("editor_theme", DEFAULT_THEME)
             valid_themes = [t[1] for t in THEME_OPTIONS]
@@ -58,7 +58,7 @@ def load_preferred_ui() -> str:
     config_path = config_dir / "ai-guardian.json"
     if config_path.exists():
         try:
-            with open(config_path, 'r', encoding='utf-8') as f:
+            with open(config_path, "r", encoding="utf-8") as f:
                 config = json.load(f)
             val = config.get("console", {}).get("preferred_ui", DEFAULT_UI_TOOLKIT)
             valid = [t[1] for t in UI_TOOLKIT_OPTIONS]
@@ -76,7 +76,7 @@ def save_preferred_ui(value: str) -> tuple:
     try:
         config = {}
         if config_path.exists():
-            with open(config_path, 'r', encoding='utf-8') as f:
+            with open(config_path, "r", encoding="utf-8") as f:
                 config = json.load(f)
 
         if "console" not in config or not isinstance(config["console"], dict):
@@ -84,7 +84,7 @@ def save_preferred_ui(value: str) -> tuple:
         config["console"]["preferred_ui"] = value
 
         config_path.parent.mkdir(parents=True, exist_ok=True)
-        with open(config_path, 'w', encoding='utf-8') as f:
+        with open(config_path, "w", encoding="utf-8") as f:
             json.dump(config, f, indent=2)
         return True, None
     except Exception as e:
@@ -98,7 +98,7 @@ def save_editor_theme(theme: str) -> tuple:
     try:
         config = {}
         if config_path.exists():
-            with open(config_path, 'r', encoding='utf-8') as f:
+            with open(config_path, "r", encoding="utf-8") as f:
                 config = json.load(f)
 
         if "console" not in config or not isinstance(config["console"], dict):
@@ -106,7 +106,7 @@ def save_editor_theme(theme: str) -> tuple:
         config["console"]["editor_theme"] = theme
 
         config_path.parent.mkdir(parents=True, exist_ok=True)
-        with open(config_path, 'w', encoding='utf-8') as f:
+        with open(config_path, "w", encoding="utf-8") as f:
             json.dump(config, f, indent=2)
         return True, None
     except Exception as e:
@@ -239,7 +239,9 @@ class ConsoleSettingsContent(SchemaDefaultsMixin, Container):
                 self.app.notify(f"Preferred UI set to {value}", severity="information")
             else:
                 self._set_status(f"Save failed: {error}", "error")
-                self.app.notify(f"Failed to save UI preference: {error}", severity="error")
+                self.app.notify(
+                    f"Failed to save UI preference: {error}", severity="error"
+                )
 
     def _set_status(self, message: str, level: str) -> None:
         try:

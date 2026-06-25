@@ -7,7 +7,6 @@ import json
 import os
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from unittest.mock import patch
 
 import pytest
 
@@ -15,7 +14,6 @@ from ai_guardian.audit import (
     AuditComputer,
     AuditReport,
     VIOLATION_TYPE_TO_FEATURE,
-    _AggregateResult,
     audit_command,
     format_audit_csv,
     format_audit_html,

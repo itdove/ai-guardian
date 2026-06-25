@@ -4,7 +4,7 @@ import os
 import re
 import textwrap
 from pathlib import Path
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch
 
 import pytest
 
@@ -31,6 +31,7 @@ def _clean_cache():
 # find_project_root
 # ---------------------------------------------------------------------------
 
+
 class TestFindProjectRoot:
     def test_finds_git_root(self):
         with patch("ai_guardian.gitleaks_config.subprocess.check_output") as mock:
@@ -40,14 +41,19 @@ class TestFindProjectRoot:
 
     def test_fallback_to_cwd_when_not_git_repo(self):
         import subprocess as sp
-        with patch("ai_guardian.gitleaks_config.subprocess.check_output",
-                    side_effect=sp.CalledProcessError(128, "git")):
+
+        with patch(
+            "ai_guardian.gitleaks_config.subprocess.check_output",
+            side_effect=sp.CalledProcessError(128, "git"),
+        ):
             root = find_project_root()
             assert root == Path(os.getcwd())
 
     def test_fallback_to_cwd_when_git_not_installed(self):
-        with patch("ai_guardian.gitleaks_config.subprocess.check_output",
-                    side_effect=FileNotFoundError):
+        with patch(
+            "ai_guardian.gitleaks_config.subprocess.check_output",
+            side_effect=FileNotFoundError,
+        ):
             root = find_project_root()
             assert root == Path(os.getcwd())
 
@@ -64,6 +70,7 @@ class TestFindProjectRoot:
 # load_gitleaks_allowlist
 # ---------------------------------------------------------------------------
 
+
 class TestLoadGitleaksAllowlist:
     def test_returns_none_when_file_missing(self, tmp_path):
         result = load_gitleaks_allowlist(project_root=tmp_path)
@@ -71,10 +78,14 @@ class TestLoadGitleaksAllowlist:
 
     def test_parses_global_paths(self, tmp_path):
         toml_path = tmp_path / ".gitleaks.toml"
-        toml_path.write_text(textwrap.dedent("""\
+        toml_path.write_text(
+            textwrap.dedent(
+                """\
             [allowlist]
                 paths = ["tests/unit/test_foo.py", "tests/fixtures/**"]
-        """))
+        """
+            )
+        )
         result = load_gitleaks_allowlist(project_root=tmp_path)
         assert result is not None
         assert len(result.paths) == 2
@@ -82,10 +93,14 @@ class TestLoadGitleaksAllowlist:
 
     def test_parses_global_regexes(self, tmp_path):
         toml_path = tmp_path / ".gitleaks.toml"
-        toml_path.write_text(textwrap.dedent("""\
+        toml_path.write_text(
+            textwrap.dedent(
+                """\
             [allowlist]
                 regexes = ["test_key_.*", "example_token_\\\\d+"]
-        """))
+        """
+            )
+        )
         result = load_gitleaks_allowlist(project_root=tmp_path)
         assert result is not None
         assert len(result.regexes) == 2
@@ -93,10 +108,14 @@ class TestLoadGitleaksAllowlist:
 
     def test_parses_global_stopwords(self, tmp_path):
         toml_path = tmp_path / ".gitleaks.toml"
-        toml_path.write_text(textwrap.dedent("""\
+        toml_path.write_text(
+            textwrap.dedent(
+                """\
             [allowlist]
                 stopwords = ["test_value", "example", "fake"]
-        """))
+        """
+            )
+        )
         result = load_gitleaks_allowlist(project_root=tmp_path)
         assert result is not None
         assert len(result.stopwords) == 3
@@ -104,10 +123,14 @@ class TestLoadGitleaksAllowlist:
 
     def test_short_stopwords_ignored(self, tmp_path):
         toml_path = tmp_path / ".gitleaks.toml"
-        toml_path.write_text(textwrap.dedent("""\
+        toml_path.write_text(
+            textwrap.dedent(
+                """\
             [allowlist]
                 stopwords = ["ok", "a", "valid_word"]
-        """))
+        """
+            )
+        )
         result = load_gitleaks_allowlist(project_root=tmp_path)
         assert result is not None
         assert len(result.stopwords) == 1
@@ -115,7 +138,9 @@ class TestLoadGitleaksAllowlist:
 
     def test_parses_per_rule_allowlist(self, tmp_path):
         toml_path = tmp_path / ".gitleaks.toml"
-        toml_path.write_text(textwrap.dedent("""\
+        toml_path.write_text(
+            textwrap.dedent(
+                """\
             [[rules]]
             id = "generic-api-key"
             description = "Generic API Key"
@@ -123,7 +148,9 @@ class TestLoadGitleaksAllowlist:
                 regexes = ["fake_key_.*"]
                 paths = ["tests/**"]
                 stopwords = ["test_only"]
-        """))
+        """
+            )
+        )
         result = load_gitleaks_allowlist(project_root=tmp_path)
         assert result is not None
         assert "generic-api-key" in result.rule_allowlists
@@ -134,31 +161,43 @@ class TestLoadGitleaksAllowlist:
 
     def test_rules_without_allowlist_ignored(self, tmp_path):
         toml_path = tmp_path / ".gitleaks.toml"
-        toml_path.write_text(textwrap.dedent("""\
+        toml_path.write_text(
+            textwrap.dedent(
+                """\
             [[rules]]
             id = "some-rule"
             description = "No allowlist here"
-        """))
+        """
+            )
+        )
         result = load_gitleaks_allowlist(project_root=tmp_path)
         assert result is not None
         assert len(result.rule_allowlists) == 0
 
     def test_invalid_regex_skipped_gracefully(self, tmp_path):
         toml_path = tmp_path / ".gitleaks.toml"
-        toml_path.write_text(textwrap.dedent("""\
+        toml_path.write_text(
+            textwrap.dedent(
+                """\
             [allowlist]
                 regexes = ["[invalid", "valid_pattern"]
-        """))
+        """
+            )
+        )
         result = load_gitleaks_allowlist(project_root=tmp_path)
         assert result is not None
         assert len(result.regexes) == 1
 
     def test_dangerous_regex_blocked(self, tmp_path):
         toml_path = tmp_path / ".gitleaks.toml"
-        toml_path.write_text(textwrap.dedent("""\
+        toml_path.write_text(
+            textwrap.dedent(
+                """\
             [allowlist]
                 regexes = [".*", "safe_pattern"]
-        """))
+        """
+            )
+        )
         result = load_gitleaks_allowlist(project_root=tmp_path)
         assert result is not None
         assert len(result.regexes) == 1
@@ -192,6 +231,7 @@ class TestLoadGitleaksAllowlist:
         first = load_gitleaks_allowlist(project_root=tmp_path)
         # Touch file to change mtime
         import time
+
         time.sleep(0.05)
         toml_path.write_text('[allowlist]\n    paths = ["b.py"]\n')
         reset_cache()  # Clear project root cache
@@ -207,10 +247,14 @@ class TestLoadGitleaksAllowlist:
 
     def test_paths_with_dotdot_blocked(self, tmp_path):
         toml_path = tmp_path / ".gitleaks.toml"
-        toml_path.write_text(textwrap.dedent("""\
+        toml_path.write_text(
+            textwrap.dedent(
+                """\
             [allowlist]
                 paths = ["../escape.py", "safe/path.py"]
-        """))
+        """
+            )
+        )
         result = load_gitleaks_allowlist(project_root=tmp_path)
         assert result is not None
         assert len(result.paths) == 1
@@ -221,29 +265,44 @@ class TestLoadGitleaksAllowlist:
 # should_skip_file
 # ---------------------------------------------------------------------------
 
+
 class TestShouldSkipFile:
     def test_exact_path_match(self):
         al = GitleaksAllowlist(paths=["tests/unit/test_foo.py"])
-        with patch("ai_guardian.gitleaks_config.find_project_root",
-                    return_value=Path("/project")):
-            with patch("ai_guardian.gitleaks_config._normalize_path",
-                       return_value="tests/unit/test_foo.py"):
+        with patch(
+            "ai_guardian.gitleaks_config.find_project_root",
+            return_value=Path("/project"),
+        ):
+            with patch(
+                "ai_guardian.gitleaks_config._normalize_path",
+                return_value="tests/unit/test_foo.py",
+            ):
                 assert should_skip_file("/project/tests/unit/test_foo.py", al) is True
 
     def test_glob_pattern(self):
         al = GitleaksAllowlist(paths=["tests/fixtures/*"])
-        with patch("ai_guardian.gitleaks_config.find_project_root",
-                    return_value=Path("/project")):
-            with patch("ai_guardian.gitleaks_config._normalize_path",
-                       return_value="tests/fixtures/secrets.py"):
-                assert should_skip_file("/project/tests/fixtures/secrets.py", al) is True
+        with patch(
+            "ai_guardian.gitleaks_config.find_project_root",
+            return_value=Path("/project"),
+        ):
+            with patch(
+                "ai_guardian.gitleaks_config._normalize_path",
+                return_value="tests/fixtures/secrets.py",
+            ):
+                assert (
+                    should_skip_file("/project/tests/fixtures/secrets.py", al) is True
+                )
 
     def test_no_match(self):
         al = GitleaksAllowlist(paths=["tests/unit/test_foo.py"])
-        with patch("ai_guardian.gitleaks_config.find_project_root",
-                    return_value=Path("/project")):
-            with patch("ai_guardian.gitleaks_config._normalize_path",
-                       return_value="src/main.py"):
+        with patch(
+            "ai_guardian.gitleaks_config.find_project_root",
+            return_value=Path("/project"),
+        ):
+            with patch(
+                "ai_guardian.gitleaks_config._normalize_path",
+                return_value="src/main.py",
+            ):
                 assert should_skip_file("/project/src/main.py", al) is False
 
     def test_empty_paths(self):
@@ -252,16 +311,21 @@ class TestShouldSkipFile:
 
     def test_doublestar_pattern(self):
         al = GitleaksAllowlist(paths=["**/fixtures/**"])
-        with patch("ai_guardian.gitleaks_config.find_project_root",
-                    return_value=Path("/project")):
-            with patch("ai_guardian.gitleaks_config._normalize_path",
-                       return_value="tests/fixtures/data.json"):
+        with patch(
+            "ai_guardian.gitleaks_config.find_project_root",
+            return_value=Path("/project"),
+        ):
+            with patch(
+                "ai_guardian.gitleaks_config._normalize_path",
+                return_value="tests/fixtures/data.json",
+            ):
                 assert should_skip_file("/project/tests/fixtures/data.json", al) is True
 
 
 # ---------------------------------------------------------------------------
 # filter_findings
 # ---------------------------------------------------------------------------
+
 
 class TestFilterFindings:
     def _make_finding(self, rule_id="generic-api-key", line_number=1, file="test.py"):
@@ -271,8 +335,10 @@ class TestFilterFindings:
         al = GitleaksAllowlist(regexes=[re.compile(r"fake_key_\d+", re.IGNORECASE)])
         findings = [self._make_finding(line_number=1)]
         content_lines = ["token = fake_key_12345"]
-        with patch("ai_guardian.gitleaks_config.find_project_root",
-                    return_value=Path("/project")):
+        with patch(
+            "ai_guardian.gitleaks_config.find_project_root",
+            return_value=Path("/project"),
+        ):
             result = filter_findings(findings, content_lines, None, al)
         assert len(result) == 0
 
@@ -280,8 +346,10 @@ class TestFilterFindings:
         al = GitleaksAllowlist(stopwords=["fake_value"])
         findings = [self._make_finding(line_number=1)]
         content_lines = ["api_key = FAKE_VALUE_here"]
-        with patch("ai_guardian.gitleaks_config.find_project_root",
-                    return_value=Path("/project")):
+        with patch(
+            "ai_guardian.gitleaks_config.find_project_root",
+            return_value=Path("/project"),
+        ):
             result = filter_findings(findings, content_lines, None, al)
         assert len(result) == 0
 
@@ -289,11 +357,17 @@ class TestFilterFindings:
         al = GitleaksAllowlist(paths=["tests/*"])
         findings = [self._make_finding(line_number=1)]
         content_lines = ["secret = real_secret"]
-        with patch("ai_guardian.gitleaks_config.find_project_root",
-                    return_value=Path("/project")):
-            with patch("ai_guardian.gitleaks_config._normalize_path",
-                       return_value="tests/test_foo.py"):
-                result = filter_findings(findings, content_lines, "/project/tests/test_foo.py", al)
+        with patch(
+            "ai_guardian.gitleaks_config.find_project_root",
+            return_value=Path("/project"),
+        ):
+            with patch(
+                "ai_guardian.gitleaks_config._normalize_path",
+                return_value="tests/test_foo.py",
+            ):
+                result = filter_findings(
+                    findings, content_lines, "/project/tests/test_foo.py", al
+                )
         assert len(result) == 0
 
     def test_suppresses_by_per_rule_regex(self):
@@ -301,8 +375,10 @@ class TestFilterFindings:
         al = GitleaksAllowlist(rule_allowlists={"generic-api-key": ral})
         findings = [self._make_finding(rule_id="generic-api-key", line_number=1)]
         content_lines = ["key = test_token_abc123"]
-        with patch("ai_guardian.gitleaks_config.find_project_root",
-                    return_value=Path("/project")):
+        with patch(
+            "ai_guardian.gitleaks_config.find_project_root",
+            return_value=Path("/project"),
+        ):
             result = filter_findings(findings, content_lines, None, al)
         assert len(result) == 0
 
@@ -311,8 +387,10 @@ class TestFilterFindings:
         al = GitleaksAllowlist(rule_allowlists={"generic-api-key": ral})
         findings = [self._make_finding(rule_id="aws-access-key", line_number=1)]
         content_lines = ["key = test_token_abc123"]
-        with patch("ai_guardian.gitleaks_config.find_project_root",
-                    return_value=Path("/project")):
+        with patch(
+            "ai_guardian.gitleaks_config.find_project_root",
+            return_value=Path("/project"),
+        ):
             result = filter_findings(findings, content_lines, None, al)
         assert len(result) == 1
 
@@ -321,8 +399,10 @@ class TestFilterFindings:
         al = GitleaksAllowlist(rule_allowlists={"generic-api-key": ral})
         findings = [self._make_finding(rule_id="generic-api-key", line_number=1)]
         content_lines = ["key = example_value"]
-        with patch("ai_guardian.gitleaks_config.find_project_root",
-                    return_value=Path("/project")):
+        with patch(
+            "ai_guardian.gitleaks_config.find_project_root",
+            return_value=Path("/project"),
+        ):
             result = filter_findings(findings, content_lines, None, al)
         assert len(result) == 0
 
@@ -331,19 +411,27 @@ class TestFilterFindings:
         al = GitleaksAllowlist(rule_allowlists={"generic-api-key": ral})
         findings = [self._make_finding(rule_id="generic-api-key", line_number=1)]
         content_lines = ["key = real_secret"]
-        with patch("ai_guardian.gitleaks_config.find_project_root",
-                    return_value=Path("/project")):
-            with patch("ai_guardian.gitleaks_config._normalize_path",
-                       return_value="tests/fixtures/data.py"):
-                result = filter_findings(findings, content_lines, "/project/tests/fixtures/data.py", al)
+        with patch(
+            "ai_guardian.gitleaks_config.find_project_root",
+            return_value=Path("/project"),
+        ):
+            with patch(
+                "ai_guardian.gitleaks_config._normalize_path",
+                return_value="tests/fixtures/data.py",
+            ):
+                result = filter_findings(
+                    findings, content_lines, "/project/tests/fixtures/data.py", al
+                )
         assert len(result) == 0
 
     def test_preserves_non_matching_findings(self):
         al = GitleaksAllowlist(regexes=[re.compile(r"fake_key_\d+", re.IGNORECASE)])
         findings = [self._make_finding(line_number=1)]
         content_lines = ["real_secret_value_here"]
-        with patch("ai_guardian.gitleaks_config.find_project_root",
-                    return_value=Path("/project")):
+        with patch(
+            "ai_guardian.gitleaks_config.find_project_root",
+            return_value=Path("/project"),
+        ):
             result = filter_findings(findings, content_lines, None, al)
         assert len(result) == 1
 
@@ -351,8 +439,10 @@ class TestFilterFindings:
         al = GitleaksAllowlist()
         findings = [self._make_finding(line_number=1)]
         content_lines = ["secret = abc123"]
-        with patch("ai_guardian.gitleaks_config.find_project_root",
-                    return_value=Path("/project")):
+        with patch(
+            "ai_guardian.gitleaks_config.find_project_root",
+            return_value=Path("/project"),
+        ):
             result = filter_findings(findings, content_lines, None, al)
         assert len(result) == 1
 
@@ -360,8 +450,10 @@ class TestFilterFindings:
         al = GitleaksAllowlist(regexes=[re.compile(r"fake_key", re.IGNORECASE)])
         findings = [self._make_finding(line_number=99)]
         content_lines = ["fake_key = abc"]
-        with patch("ai_guardian.gitleaks_config.find_project_root",
-                    return_value=Path("/project")):
+        with patch(
+            "ai_guardian.gitleaks_config.find_project_root",
+            return_value=Path("/project"),
+        ):
             result = filter_findings(findings, content_lines, None, al)
         assert len(result) == 1
 
@@ -369,8 +461,10 @@ class TestFilterFindings:
         al = GitleaksAllowlist(regexes=[re.compile(r"fake_key", re.IGNORECASE)])
         findings = [self._make_finding(line_number=0)]
         content_lines = ["fake_key = abc"]
-        with patch("ai_guardian.gitleaks_config.find_project_root",
-                    return_value=Path("/project")):
+        with patch(
+            "ai_guardian.gitleaks_config.find_project_root",
+            return_value=Path("/project"),
+        ):
             result = filter_findings(findings, content_lines, None, al)
         assert len(result) == 1
 
@@ -381,8 +475,10 @@ class TestFilterFindings:
             self._make_finding(rule_id="rule-b", line_number=2),
         ]
         content_lines = ["fake_key = abc", "real_secret = xyz"]
-        with patch("ai_guardian.gitleaks_config.find_project_root",
-                    return_value=Path("/project")):
+        with patch(
+            "ai_guardian.gitleaks_config.find_project_root",
+            return_value=Path("/project"),
+        ):
             result = filter_findings(findings, content_lines, None, al)
         assert len(result) == 1
         assert result[0]["rule_id"] == "rule-b"
@@ -391,8 +487,10 @@ class TestFilterFindings:
         al = GitleaksAllowlist(paths=["tests/*"])
         findings = [self._make_finding(line_number=1)]
         content_lines = ["secret = abc"]
-        with patch("ai_guardian.gitleaks_config.find_project_root",
-                    return_value=Path("/project")):
+        with patch(
+            "ai_guardian.gitleaks_config.find_project_root",
+            return_value=Path("/project"),
+        ):
             result = filter_findings(findings, content_lines, None, al)
         assert len(result) == 1
 
@@ -401,12 +499,15 @@ class TestFilterFindings:
 # Integration: end-to-end with tmp .gitleaks.toml
 # ---------------------------------------------------------------------------
 
+
 class TestIntegrationParsing:
     """Full parsing round-trip with realistic TOML content."""
 
     def test_full_config_parsing(self, tmp_path):
         toml_path = tmp_path / ".gitleaks.toml"
-        toml_path.write_text(textwrap.dedent("""\
+        toml_path.write_text(
+            textwrap.dedent(
+                """\
             [allowlist]
                 paths = [
                     "tests/unit/test_secret_redaction.py",
@@ -427,7 +528,9 @@ class TestIntegrationParsing:
             description = "AWS Access Key"
             [rules.allowlist]
                 paths = ["deploy/test_config.py"]
-        """))
+        """
+            )
+        )
 
         result = load_gitleaks_allowlist(project_root=tmp_path)
 
@@ -448,10 +551,14 @@ class TestIntegrationParsing:
 
     def test_filter_with_parsed_config(self, tmp_path):
         toml_path = tmp_path / ".gitleaks.toml"
-        toml_path.write_text(textwrap.dedent("""\
+        toml_path.write_text(
+            textwrap.dedent(
+                """\
             [allowlist]
                 regexes = ["test_api_key_.*"]
-        """))
+        """
+            )
+        )
         al = load_gitleaks_allowlist(project_root=tmp_path)
 
         findings = [
@@ -463,8 +570,9 @@ class TestIntegrationParsing:
             'secret = "real_production_key_xyz"',
         ]
 
-        with patch("ai_guardian.gitleaks_config.find_project_root",
-                    return_value=tmp_path):
+        with patch(
+            "ai_guardian.gitleaks_config.find_project_root", return_value=tmp_path
+        ):
             result = filter_findings(findings, content_lines, None, al)
 
         assert len(result) == 1

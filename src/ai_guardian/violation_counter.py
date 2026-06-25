@@ -45,8 +45,8 @@ class ViolationCounter:
             try:
                 data = self._read_unlocked()
                 if not data.get("since"):
-                    data["since"] = datetime.now(timezone.utc).isoformat().replace(
-                        "+00:00", "Z"
+                    data["since"] = (
+                        datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
                     )
                 data["violation_totals"][violation_type] = (
                     data["violation_totals"].get(violation_type, 0) + 1
@@ -84,9 +84,9 @@ class ViolationCounter:
                 total = sum(counts.values())
                 data = {
                     "version": 1,
-                    "since": datetime.now(timezone.utc).isoformat().replace(
-                        "+00:00", "Z"
-                    ),
+                    "since": datetime.now(timezone.utc)
+                    .isoformat()
+                    .replace("+00:00", "Z"),
                     "violation_totals": counts,
                     "total": total,
                 }

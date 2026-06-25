@@ -38,8 +38,9 @@ def load_working_dirs() -> Dict[str, str]:
         data = json.loads(content)
         if not isinstance(data, dict):
             return {}
-        return {k: v for k, v in data.items()
-                if isinstance(k, str) and isinstance(v, str)}
+        return {
+            k: v for k, v in data.items() if isinstance(k, str) and isinstance(v, str)
+        }
     except (json.JSONDecodeError, OSError) as e:
         logger.debug("Could not load working dirs: %s", e)
         return {}
@@ -52,7 +53,9 @@ def save_working_dirs(data: Dict[str, str]) -> None:
     parent.mkdir(parents=True, exist_ok=True)
     content = json.dumps(data, indent=2)
     fd, tmp_path = tempfile.mkstemp(
-        dir=str(parent), prefix=".working-dir-", suffix=".tmp",
+        dir=str(parent),
+        prefix=".working-dir-",
+        suffix=".tmp",
     )
     closed = False
     try:
@@ -90,7 +93,7 @@ def shorten_path(path: str) -> str:
         if path == home:
             return "~"
         if path.startswith(home + os.sep):
-            return "~" + path[len(home):]
+            return "~" + path[len(home) :]
     except RuntimeError:
         pass  # intentionally silent — best-effort operation
     return path
@@ -123,10 +126,12 @@ def _choose_directory_macos(current: Optional[str] = None) -> Optional[str]:
     if current:
         escaped = current.replace("\\", "\\\\").replace('"', '\\"')
         default_clause = f' default location POSIX file "{escaped}"'
-    script = f'POSIX path of (choose folder{default_clause})'
+    script = f"POSIX path of (choose folder{default_clause})"
     result = subprocess.run(
         ["osascript", "-e", script],
-        capture_output=True, text=True, timeout=120,
+        capture_output=True,
+        text=True,
+        timeout=120,
     )
     if result.returncode != 0:
         return None
@@ -136,7 +141,14 @@ def _choose_directory_macos(current: Optional[str] = None) -> Optional[str]:
 
 def _choose_directory_linux(current: Optional[str] = None) -> Optional[str]:
     from ai_guardian.daemon.tray_plugins import _find_icon
-    cmd = ["zenity", "--file-selection", "--directory", "--title", "Choose Working Directory"]
+
+    cmd = [
+        "zenity",
+        "--file-selection",
+        "--directory",
+        "--title",
+        "Choose Working Directory",
+    ]
     icon_path = _find_icon("ai-guardian-320.png")
     if icon_path:
         cmd.extend(["--window-icon", icon_path])
@@ -163,7 +175,9 @@ def _choose_directory_windows(current: Optional[str] = None) -> Optional[str]:
     )
     result = subprocess.run(
         ["powershell", "-Command", ps],
-        capture_output=True, text=True, timeout=120,
+        capture_output=True,
+        text=True,
+        timeout=120,
     )
     if result.returncode != 0:
         return None

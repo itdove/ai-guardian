@@ -5,7 +5,6 @@ import os
 from unittest import mock
 
 from ai_guardian.cli_handlers import (
-    _handle_violations_command,
     _get_daemon_mode,
     _get_client_timeout,
     _set_daemon_mode_in_config,
@@ -20,22 +19,30 @@ class TestGetDaemonMode:
 
 class TestGetClientTimeout:
     def test_default(self):
-        with mock.patch("ai_guardian.cli_handlers._load_config_file", return_value=(None, None)):
+        with mock.patch(
+            "ai_guardian.cli_handlers._load_config_file", return_value=(None, None)
+        ):
             assert _get_client_timeout() == 2.0
 
     def test_reads_from_config(self):
         config = {"daemon": {"client_timeout_seconds": 5.0}}
-        with mock.patch("ai_guardian.cli_handlers._load_config_file", return_value=(config, None)):
+        with mock.patch(
+            "ai_guardian.cli_handlers._load_config_file", return_value=(config, None)
+        ):
             assert _get_client_timeout() == 5.0
 
     def test_clamped_low(self):
         config = {"daemon": {"client_timeout_seconds": 0.1}}
-        with mock.patch("ai_guardian.cli_handlers._load_config_file", return_value=(config, None)):
+        with mock.patch(
+            "ai_guardian.cli_handlers._load_config_file", return_value=(config, None)
+        ):
             assert _get_client_timeout() == 0.5
 
     def test_clamped_high(self):
         config = {"daemon": {"client_timeout_seconds": 99.0}}
-        with mock.patch("ai_guardian.cli_handlers._load_config_file", return_value=(config, None)):
+        with mock.patch(
+            "ai_guardian.cli_handlers._load_config_file", return_value=(config, None)
+        ):
             assert _get_client_timeout() == 10.0
 
 
@@ -49,9 +56,17 @@ class TestDaemonReloadCommand:
         args = mock.MagicMock()
         args.daemon_command = "reload"
 
-        with mock.patch("ai_guardian.daemon.client.is_daemon_running", return_value=True), \
-             mock.patch("ai_guardian.daemon.client.send_reload_config", return_value=True), \
-             mock.patch("ai_guardian.cli_handlers._get_client_timeout", return_value=2.0):
+        with (
+            mock.patch(
+                "ai_guardian.daemon.client.is_daemon_running", return_value=True
+            ),
+            mock.patch(
+                "ai_guardian.daemon.client.send_reload_config", return_value=True
+            ),
+            mock.patch(
+                "ai_guardian.cli_handlers._get_client_timeout", return_value=2.0
+            ),
+        ):
             result = _handle_daemon_command(args)
 
         assert result == 0
@@ -61,8 +76,12 @@ class TestDaemonReloadCommand:
         args = mock.MagicMock()
         args.daemon_command = "reload"
 
-        with mock.patch("ai_guardian.daemon.client.is_daemon_running", return_value=False), \
-             mock.patch("ai_guardian.daemon.client.send_reload_config") as mock_reload:
+        with (
+            mock.patch(
+                "ai_guardian.daemon.client.is_daemon_running", return_value=False
+            ),
+            mock.patch("ai_guardian.daemon.client.send_reload_config") as mock_reload,
+        ):
             result = _handle_daemon_command(args)
 
         assert result == 1
@@ -73,9 +92,17 @@ class TestDaemonReloadCommand:
         args = mock.MagicMock()
         args.daemon_command = "reload"
 
-        with mock.patch("ai_guardian.daemon.client.is_daemon_running", return_value=True), \
-             mock.patch("ai_guardian.daemon.client.send_reload_config", return_value=False), \
-             mock.patch("ai_guardian.cli_handlers._get_client_timeout", return_value=2.0):
+        with (
+            mock.patch(
+                "ai_guardian.daemon.client.is_daemon_running", return_value=True
+            ),
+            mock.patch(
+                "ai_guardian.daemon.client.send_reload_config", return_value=False
+            ),
+            mock.patch(
+                "ai_guardian.cli_handlers._get_client_timeout", return_value=2.0
+            ),
+        ):
             result = _handle_daemon_command(args)
 
         assert result == 1
@@ -88,7 +115,9 @@ class TestDaemonStatusCommand:
         args = mock.MagicMock()
         args.daemon_command = "status"
 
-        with mock.patch("ai_guardian.daemon.client.is_daemon_running", return_value=False):
+        with mock.patch(
+            "ai_guardian.daemon.client.is_daemon_running", return_value=False
+        ):
             result = _handle_daemon_command(args)
 
         assert result == 1
@@ -102,7 +131,9 @@ class TestDaemonStatusCommand:
         args = mock.MagicMock()
         args.daemon_command = "status"
 
-        with mock.patch("ai_guardian.daemon.client.is_daemon_running", return_value=False):
+        with mock.patch(
+            "ai_guardian.daemon.client.is_daemon_running", return_value=False
+        ):
             result = _handle_daemon_command(args)
 
         output = capsys.readouterr().out
@@ -120,7 +151,9 @@ class TestDaemonStatusCommand:
         args = mock.MagicMock()
         args.daemon_command = "status"
 
-        with mock.patch("ai_guardian.daemon.client.is_daemon_running", return_value=False):
+        with mock.patch(
+            "ai_guardian.daemon.client.is_daemon_running", return_value=False
+        ):
             result = _handle_daemon_command(args)
 
         output = capsys.readouterr().out
@@ -136,7 +169,9 @@ class TestDaemonStopCommand:
         args = mock.MagicMock()
         args.daemon_command = "stop"
 
-        with mock.patch("ai_guardian.daemon.client.is_daemon_running", return_value=False):
+        with mock.patch(
+            "ai_guardian.daemon.client.is_daemon_running", return_value=False
+        ):
             result = _handle_daemon_command(args)
 
         assert result == 0
@@ -147,8 +182,14 @@ class TestDaemonStopCommand:
         args = mock.MagicMock()
         args.daemon_command = "stop"
 
-        with mock.patch("ai_guardian.daemon.client.is_daemon_running", return_value=False), \
-             mock.patch("ai_guardian.daemon.client.start_daemon_background") as mock_start:
+        with (
+            mock.patch(
+                "ai_guardian.daemon.client.is_daemon_running", return_value=False
+            ),
+            mock.patch(
+                "ai_guardian.daemon.client.start_daemon_background"
+            ) as mock_start,
+        ):
             _handle_daemon_command(args)
 
         mock_start.assert_not_called()
@@ -158,8 +199,14 @@ class TestDaemonStopCommand:
         args = mock.MagicMock()
         args.daemon_command = "status"
 
-        with mock.patch("ai_guardian.daemon.client.is_daemon_running", return_value=False), \
-             mock.patch("ai_guardian.daemon.client.start_daemon_background") as mock_start:
+        with (
+            mock.patch(
+                "ai_guardian.daemon.client.is_daemon_running", return_value=False
+            ),
+            mock.patch(
+                "ai_guardian.daemon.client.start_daemon_background"
+            ) as mock_start,
+        ):
             _handle_daemon_command(args)
 
         mock_start.assert_not_called()
@@ -211,13 +258,16 @@ class TestDaemonResetCommand:
         args.daemon_command = "reset"
 
         call_count = [0]
+
         def fake_is_alive(pid):
             call_count[0] += 1
             # Alive on first check, dead after SIGTERM
             return call_count[0] <= 1
 
-        with mock.patch("ai_guardian.daemon.is_pid_alive", side_effect=fake_is_alive), \
-             mock.patch("os.kill") as mock_kill:
+        with (
+            mock.patch("ai_guardian.daemon.is_pid_alive", side_effect=fake_is_alive),
+            mock.patch("os.kill") as mock_kill,
+        ):
             result = _handle_daemon_command(args)
 
         assert result == 0
@@ -232,9 +282,11 @@ class TestDaemonResetCommand:
         args = mock.MagicMock()
         args.daemon_command = "reset"
 
-        with mock.patch("ai_guardian.daemon.is_pid_alive", return_value=True), \
-             mock.patch("os.kill") as mock_kill, \
-             mock.patch("time.sleep"):
+        with (
+            mock.patch("ai_guardian.daemon.is_pid_alive", return_value=True),
+            mock.patch("os.kill") as mock_kill,
+            mock.patch("time.sleep"),
+        ):
             result = _handle_daemon_command(args)
 
         assert result == 0
@@ -277,6 +329,7 @@ class TestTrayStopCommand:
         monkeypatch.setenv("AI_GUARDIAN_STATE_DIR", str(tmp_path))
 
         from ai_guardian.cli_handlers import _handle_tray_stop
+
         result = _handle_tray_stop()
 
         assert result == 1
@@ -288,15 +341,18 @@ class TestTrayStopCommand:
         lock_path.write_text("12345")
 
         call_count = [0]
+
         def fake_is_alive(pid):
             call_count[0] += 1
             return call_count[0] <= 3
 
         from ai_guardian.cli_handlers import _handle_tray_stop
 
-        with mock.patch("ai_guardian.daemon.is_pid_alive", side_effect=fake_is_alive), \
-             mock.patch("os.kill") as mock_kill, \
-             mock.patch("time.sleep"):
+        with (
+            mock.patch("ai_guardian.daemon.is_pid_alive", side_effect=fake_is_alive),
+            mock.patch("os.kill") as mock_kill,
+            mock.patch("time.sleep"),
+        ):
             result = _handle_tray_stop()
 
         assert result == 0
@@ -314,10 +370,12 @@ class TestTrayStopCommand:
 
         monotonic_values = iter([0.0, 5.0, 11.0])
 
-        with mock.patch("ai_guardian.daemon.is_pid_alive", return_value=True), \
-             mock.patch("os.kill") as mock_kill, \
-             mock.patch("time.sleep"), \
-             mock.patch("time.monotonic", side_effect=monotonic_values):
+        with (
+            mock.patch("ai_guardian.daemon.is_pid_alive", return_value=True),
+            mock.patch("os.kill") as mock_kill,
+            mock.patch("time.sleep"),
+            mock.patch("time.monotonic", side_effect=monotonic_values),
+        ):
             result = _handle_tray_stop()
 
         assert result == 0
@@ -354,9 +412,15 @@ class TestTrayRestartCommand:
         args.install = False
         args.background = False
 
-        with mock.patch("ai_guardian.cli_handlers._handle_tray_stop", return_value=0) as mock_stop, \
-             mock.patch("ai_guardian.cli_handlers._handle_tray_start", return_value=0) as mock_start, \
-             mock.patch("time.sleep") as mock_sleep:
+        with (
+            mock.patch(
+                "ai_guardian.cli_handlers._handle_tray_stop", return_value=0
+            ) as mock_stop,
+            mock.patch(
+                "ai_guardian.cli_handlers._handle_tray_start", return_value=0
+            ) as mock_start,
+            mock.patch("time.sleep") as mock_sleep,
+        ):
             result = _handle_tray_command(args)
 
         mock_stop.assert_called_once()

@@ -20,44 +20,49 @@ from datetime import datetime, timezone
 from typing import Dict, Any, List, Optional, Tuple
 
 from ai_guardian.config_utils import is_expired, validate_regex_pattern
-from ai_guardian import allowlist_utils
 from ai_guardian.patterns import load_bundled_rules
 from ai_guardian.prompt_injection import _offset_to_line_number, _offset_to_column
 
 logger = logging.getLogger(__name__)
 
 PERSISTENCE_PATTERNS = [
-    r'(?:always\s+)?remember\s+(?:to\s+)?(?:always\b|that\s+you\s+(?:must|should|always))',
-    r'remember\s*:?\s*always\b',
-    r'\bfrom\s+now\s+on\b',
-    r'\bfor\s+all\s+future\b',
-    r'\bpermanent\s+rule\b',
-    r'\bnever\s+forget\b',
-    r'\bkeep\s+in\s+mind\s*:',
-    r'\bmake\s+this\s+your\s+default\b',
-    r'\balways\s+remember\b',
-    r'\bin\s+every\s+(?:future\s+)?(?:response|reply|answer|output)\b',
-    r'\bfor\s+(?:every|all)\s+(?:future\s+)?(?:request|query|prompt|question)s?\b',
-    r'\bgoing\s+forward\b.*\balways\b',
-    r'\bnew\s+permanent\s+(?:rule|instruction|directive)\b',
+    r"(?:always\s+)?remember\s+(?:to\s+)?(?:always\b|that\s+you\s+(?:must|should|always))",
+    r"remember\s*:?\s*always\b",
+    r"\bfrom\s+now\s+on\b",
+    r"\bfor\s+all\s+future\b",
+    r"\bpermanent\s+rule\b",
+    r"\bnever\s+forget\b",
+    r"\bkeep\s+in\s+mind\s*:",
+    r"\bmake\s+this\s+your\s+default\b",
+    r"\balways\s+remember\b",
+    r"\bin\s+every\s+(?:future\s+)?(?:response|reply|answer|output)\b",
+    r"\bfor\s+(?:every|all)\s+(?:future\s+)?(?:request|query|prompt|question)s?\b",
+    r"\bgoing\s+forward\b.*\balways\b",
+    r"\bnew\s+permanent\s+(?:rule|instruction|directive)\b",
 ]
 
 DANGEROUS_ACTIONS = [
-    r'\bdelete\b', r'\bdrop\b', r'\btruncate\b', r'\bremove\s+all\b',
-    r'\bignore\s+(?:all\s+)?(?:security|safety|validation|checks?|permissions?)\b',
-    r'\bskip\s+(?:all\s+)?(?:validation|checks?|security|safety|auth)\b',
-    r'\bdisable\s+(?:all\s+)?(?:security|safety|logging|auth|validation)\b',
-    r'\bbypass\s+(?:all\s+)?(?:security|safety|auth|checks?|filters?)\b',
-    r'\bexecute\s+(?:arbitrary|any|all)\b',
-    r'\binject\b', r'\bexfiltrate?\b',
-    r'\boverride\s+(?:all\s+)?(?:security|safety|rules?|policy|policies)\b',
-    r'\bnever\s+(?:check|validate|verify|sanitize|escape|log)\b',
-    r'\binclude\s+(?:DROP|DELETE|TRUNCATE|INSERT|UPDATE)\b',
-    r'\bno\s+(?:security|safety|validation|auth|checks?)\b',
-    r'\b(?:rm\s+-rf|mkfs|format\s+c:)\b',
-    r'\bbackdoor\b', r'\brootkit\b', r'\bmalware\b',
-    r'\bexpose\s+(?:all\s+)?(?:credentials?|secrets?|passwords?|keys?|tokens?)\b',
-    r'\bignore\s+(?:all\s+)?(?:previous|prior|above)\s+(?:instructions?|rules?)\b',
+    r"\bdelete\b",
+    r"\bdrop\b",
+    r"\btruncate\b",
+    r"\bremove\s+all\b",
+    r"\bignore\s+(?:all\s+)?(?:security|safety|validation|checks?|permissions?)\b",
+    r"\bskip\s+(?:all\s+)?(?:validation|checks?|security|safety|auth)\b",
+    r"\bdisable\s+(?:all\s+)?(?:security|safety|logging|auth|validation)\b",
+    r"\bbypass\s+(?:all\s+)?(?:security|safety|auth|checks?|filters?)\b",
+    r"\bexecute\s+(?:arbitrary|any|all)\b",
+    r"\binject\b",
+    r"\bexfiltrate?\b",
+    r"\boverride\s+(?:all\s+)?(?:security|safety|rules?|policy|policies)\b",
+    r"\bnever\s+(?:check|validate|verify|sanitize|escape|log)\b",
+    r"\binclude\s+(?:DROP|DELETE|TRUNCATE|INSERT|UPDATE)\b",
+    r"\bno\s+(?:security|safety|validation|auth|checks?)\b",
+    r"\b(?:rm\s+-rf|mkfs|format\s+c:)\b",
+    r"\bbackdoor\b",
+    r"\brootkit\b",
+    r"\bmalware\b",
+    r"\bexpose\s+(?:all\s+)?(?:credentials?|secrets?|passwords?|keys?|tokens?)\b",
+    r"\bignore\s+(?:all\s+)?(?:previous|prior|above)\s+(?:instructions?|rules?)\b",
 ]
 
 _COMPILED_PERSISTENCE = None
@@ -67,6 +72,7 @@ _PATTERN_LOCK = threading.Lock()
 
 def _load_patterns_from_toml() -> Dict[str, List[str]]:
     """Load context poisoning patterns from bundled TOML."""
+
     def _transform(raw_rules):
         groups: Dict[str, List[str]] = {}
         for raw in raw_rules:
@@ -75,8 +81,8 @@ def _load_patterns_from_toml() -> Dict[str, List[str]]:
                 if regex:
                     groups.setdefault(raw.get("group", "persistence"), []).append(regex)
         return groups
-    return load_bundled_rules("context_poisoning", _transform, {},
-                             "Context Poisoning")
+
+    return load_bundled_rules("context_poisoning", _transform, {}, "Context Poisoning")
 
 
 def _get_compiled_patterns():
@@ -101,6 +107,7 @@ class ContextPoisoningDetector:
         self.enabled = config.get("enabled", True)
         if isinstance(self.enabled, dict):
             from ai_guardian.config_utils import is_feature_enabled
+
             now = datetime.now(timezone.utc)
             self.enabled = is_feature_enabled(self.enabled, now, default=True)
 
@@ -119,7 +126,9 @@ class ContextPoisoningDetector:
                 try:
                     self.allowlist_patterns.append(re.compile(pat, re.IGNORECASE))
                 except re.error:
-                    logger.warning("Invalid context poisoning allowlist pattern: %s", pat)
+                    logger.warning(
+                        "Invalid context poisoning allowlist pattern: %s", pat
+                    )
 
         self.custom_patterns = []
         for pat in config.get("custom_patterns", []):
@@ -219,31 +228,41 @@ class ContextPoisoningDetector:
         for p_match in persistence_matches:
             if dangerous_match:
                 confidence = high_threshold
-                matched_pattern = p_match.re.pattern + " + " + dangerous_match.re.pattern
-                matched_text = content[p_match.start():min(p_match.end() + 80, len(content))]
+                matched_pattern = (
+                    p_match.re.pattern + " + " + dangerous_match.re.pattern
+                )
+                matched_text = content[
+                    p_match.start() : min(p_match.end() + 80, len(content))
+                ]
                 error_msg = self._format_error(
-                    p_match.group(), dangerous_match.group(),
-                    confidence, is_dangerous=True,
+                    p_match.group(),
+                    dangerous_match.group(),
+                    confidence,
+                    is_dangerous=True,
                 )
             else:
                 confidence = low_threshold
                 matched_pattern = p_match.re.pattern
                 matched_text = p_match.group()
                 error_msg = self._format_error(
-                    p_match.group(), None,
-                    confidence, is_dangerous=False,
+                    p_match.group(),
+                    None,
+                    confidence,
+                    is_dangerous=False,
                 )
 
-            self.findings.append({
-                "matched_text": matched_text,
-                "matched_pattern": matched_pattern,
-                "confidence": confidence,
-                "line_number": _offset_to_line_number(content, p_match.start()),
-                "start_column": _offset_to_column(content, p_match.start()),
-                "end_column": _offset_to_column(content, p_match.end()),
-                "attack_type": "context_poisoning",
-                "error_message": error_msg,
-            })
+            self.findings.append(
+                {
+                    "matched_text": matched_text,
+                    "matched_pattern": matched_pattern,
+                    "confidence": confidence,
+                    "line_number": _offset_to_line_number(content, p_match.start()),
+                    "start_column": _offset_to_column(content, p_match.start()),
+                    "end_column": _offset_to_column(content, p_match.end()),
+                    "attack_type": "context_poisoning",
+                    "error_message": error_msg,
+                }
+            )
 
         first = self.findings[0]
         self.last_matched_pattern = first["matched_pattern"]
@@ -258,7 +277,11 @@ class ContextPoisoningDetector:
         elif self.action == "log-only":
             return False, None, True
         else:
-            return False, "⚠️  Context Poisoning detected (warn mode) - execution allowed", True
+            return (
+                False,
+                "⚠️  Context Poisoning detected (warn mode) - execution allowed",
+                True,
+            )
 
     def _format_error(
         self,
@@ -269,24 +292,36 @@ class ContextPoisoningDetector:
     ) -> str:
         lines = [
             "=" * 70,
-            "Context Poisoning Warning (LLM03)" if not is_dangerous else "Context Poisoning Detected (LLM03)",
+            (
+                "Context Poisoning Warning (LLM03)"
+                if not is_dangerous
+                else "Context Poisoning Detected (LLM03)"
+            ),
             "=" * 70,
             "",
         ]
 
         if is_dangerous:
-            lines.append(f"Persistence keyword: \"{persistence_text}\"")
-            lines.append(f"Dangerous action: \"{dangerous_text}\"")
+            lines.append(f'Persistence keyword: "{persistence_text}"')
+            lines.append(f'Dangerous action: "{dangerous_text}"')
             lines.append(f"Confidence: {confidence:.0%}")
             lines.append("")
-            lines.append("This prompt attempts to inject a persistent malicious instruction")
-            lines.append("into the conversation context. The combination of a persistence")
-            lines.append("keyword with a dangerous action is a strong indicator of an attack.")
+            lines.append(
+                "This prompt attempts to inject a persistent malicious instruction"
+            )
+            lines.append(
+                "into the conversation context. The combination of a persistence"
+            )
+            lines.append(
+                "keyword with a dangerous action is a strong indicator of an attack."
+            )
         else:
-            lines.append(f"Persistence keyword detected: \"{persistence_text}\"")
+            lines.append(f'Persistence keyword detected: "{persistence_text}"')
             lines.append(f"Confidence: {confidence:.0%}")
             lines.append("")
-            lines.append("This prompt contains a persistence keyword that could be used")
+            lines.append(
+                "This prompt contains a persistence keyword that could be used"
+            )
             lines.append("to inject instructions into the conversation context.")
             lines.append("This may be legitimate (e.g., coding preferences).")
 

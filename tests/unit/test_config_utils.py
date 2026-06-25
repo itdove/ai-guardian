@@ -3,9 +3,14 @@ Unit tests for config_utils module
 """
 
 import unittest
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timezone
 
-from ai_guardian.config_utils import parse_iso8601, is_expired, is_feature_enabled, validate_regex_pattern
+from ai_guardian.config_utils import (
+    parse_iso8601,
+    is_expired,
+    is_feature_enabled,
+    validate_regex_pattern,
+)
 
 
 class ConfigUtilsTest(unittest.TestCase):
@@ -182,40 +187,28 @@ class IsFeatureEnabledTest(unittest.TestCase):
     def test_time_based_disabled_not_expired(self):
         """Test time-based disable that hasn't expired yet"""
         current_time = datetime(2026, 4, 13, 11, 0, 0, tzinfo=timezone.utc)
-        config = {
-            "value": False,
-            "disabled_until": "2026-04-13T18:00:00Z"
-        }
+        config = {"value": False, "disabled_until": "2026-04-13T18:00:00Z"}
         # Still disabled (before expiration)
         self.assertFalse(is_feature_enabled(config, current_time))
 
     def test_time_based_disabled_expired_auto_enabled(self):
         """Test time-based disable that has expired (auto-enabled)"""
         current_time = datetime(2026, 4, 13, 19, 0, 0, tzinfo=timezone.utc)
-        config = {
-            "value": False,
-            "disabled_until": "2026-04-13T18:00:00Z"
-        }
+        config = {"value": False, "disabled_until": "2026-04-13T18:00:00Z"}
         # Auto-enabled (after expiration)
         self.assertTrue(is_feature_enabled(config, current_time))
 
     def test_time_based_disabled_at_boundary(self):
         """Test time-based disable exactly at expiration boundary"""
         current_time = datetime(2026, 4, 13, 18, 0, 0, tzinfo=timezone.utc)
-        config = {
-            "value": False,
-            "disabled_until": "2026-04-13T18:00:00Z"
-        }
+        config = {"value": False, "disabled_until": "2026-04-13T18:00:00Z"}
         # Auto-enabled (at expiration time)
         self.assertTrue(is_feature_enabled(config, current_time))
 
     def test_enabled_true_with_disabled_until_ignored(self):
         """Test that disabled_until is ignored when value=True"""
         current_time = datetime(2026, 4, 13, 11, 0, 0, tzinfo=timezone.utc)
-        config = {
-            "value": True,
-            "disabled_until": "2026-04-13T18:00:00Z"
-        }
+        config = {"value": True, "disabled_until": "2026-04-13T18:00:00Z"}
         # Enabled, disabled_until doesn't apply
         self.assertTrue(is_feature_enabled(config, current_time))
 
@@ -227,19 +220,13 @@ class IsFeatureEnabledTest(unittest.TestCase):
 
     def test_invalid_disabled_until_treats_as_permanent(self):
         """Test invalid disabled_until timestamp treats as permanent disable"""
-        config = {
-            "value": False,
-            "disabled_until": "invalid-timestamp"
-        }
+        config = {"value": False, "disabled_until": "invalid-timestamp"}
         # Invalid timestamp - treats as permanent disable (fail-safe)
         self.assertFalse(is_feature_enabled(config))
 
     def test_empty_disabled_until_treats_as_permanent(self):
         """Test empty disabled_until field treats as permanent disable"""
-        config = {
-            "value": False,
-            "disabled_until": ""
-        }
+        config = {"value": False, "disabled_until": ""}
         # Empty timestamp - treats as permanent disable
         self.assertFalse(is_feature_enabled(config))
 
@@ -257,7 +244,7 @@ class IsFeatureEnabledTest(unittest.TestCase):
         config = {
             "value": False,
             "disabled_until": "2026-04-13T14:30:00Z",
-            "reason": "Emergency debugging - production incident"
+            "reason": "Emergency debugging - production incident",
         }
 
         # During emergency window - disabled
@@ -273,7 +260,7 @@ class IsFeatureEnabledTest(unittest.TestCase):
         config = {
             "value": False,
             "disabled_until": "2026-04-13T16:00:00Z",
-            "reason": "Maintenance window - testing with example secrets"
+            "reason": "Maintenance window - testing with example secrets",
         }
 
         # During maintenance - disabled
@@ -289,17 +276,11 @@ class IsFeatureEnabledTest(unittest.TestCase):
         current_time = datetime(2026, 4, 13, 15, 30, 0, tzinfo=timezone.utc)
 
         # Feature 1: expired (should be enabled)
-        feature1_config = {
-            "value": False,
-            "disabled_until": "2026-04-13T15:00:00Z"
-        }
+        feature1_config = {"value": False, "disabled_until": "2026-04-13T15:00:00Z"}
         self.assertTrue(is_feature_enabled(feature1_config, current_time))
 
         # Feature 2: not expired (still disabled)
-        feature2_config = {
-            "value": False,
-            "disabled_until": "2026-04-13T16:00:00Z"
-        }
+        feature2_config = {"value": False, "disabled_until": "2026-04-13T16:00:00Z"}
         self.assertFalse(is_feature_enabled(feature2_config, current_time))
 
         # Feature 3: permanently enabled
@@ -374,7 +355,9 @@ class ValidateRegexPatternTest(unittest.TestCase):
 
     def test_real_world_email_pattern(self):
         """Test real-world email pattern is valid"""
-        self.assertTrue(validate_regex_pattern(r"[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}"))
+        self.assertTrue(
+            validate_regex_pattern(r"[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}")
+        )
 
     def test_real_world_url_pattern(self):
         """Test real-world URL pattern is valid"""
@@ -405,5 +388,5 @@ class ValidateRegexPatternTest(unittest.TestCase):
         self.assertFalse(validate_regex_pattern(pattern, max_length=50))
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()

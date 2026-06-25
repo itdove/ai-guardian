@@ -120,9 +120,7 @@ class PIMLEnginesContent(Container):
             # Strategy
             with Container(classes="section"):
                 yield Static("[bold]Execution Strategy[/bold]", classes="section-title")
-                yield Static(
-                    "[dim]How multiple ML engines combine results.[/dim]"
-                )
+                yield Static("[dim]How multiple ML engines combine results.[/dim]")
                 with Horizontal(classes="setting-row"):
                     yield Label("Strategy:")
                     yield Select(
@@ -146,9 +144,7 @@ class PIMLEnginesContent(Container):
             # Fallback
             with Container(classes="section"):
                 yield Static("[bold]Fallback on Error[/bold]", classes="section-title")
-                yield Static(
-                    "[dim]Action when ML detection is unavailable.[/dim]"
-                )
+                yield Static("[dim]Action when ML detection is unavailable.[/dim]")
                 with Horizontal(classes="setting-row"):
                     yield Label("Fallback:")
                     yield Select(
@@ -183,13 +179,13 @@ class PIMLEnginesContent(Container):
                 yield Static(
                     "Each engine requires 'type' and 'model' fields.\n\n"
                     "Example:\n"
-                    '[\n'
-                    '  {\n'
+                    "[\n"
+                    "  {\n"
                     '    "type": "llm-guard",\n'
                     '    "model": "protectai/deberta-v3-base-prompt-injection-v2",\n'
                     '    "threshold": 0.85\n'
-                    '  }\n'
-                    ']\n\n'
+                    "  }\n"
+                    "]\n\n"
                     "Valid engine types: llm-guard\n"
                     "threshold: 0.0-1.0 (default 0.85)\n\n"
                     "Requires: onnxruntime (included on Python < 3.13)\n"
@@ -223,7 +219,7 @@ class PIMLEnginesContent(Container):
         config = {}
         if config_path.exists():
             try:
-                with open(config_path, 'r', encoding='utf-8') as f:
+                with open(config_path, "r", encoding="utf-8") as f:
                     config = json.load(f)
             except Exception as e:
                 self.app.notify(f"Error loading config: {e}", severity="error")
@@ -268,18 +264,27 @@ class PIMLEnginesContent(Container):
     def _update_ml_status_info(self) -> None:
         try:
             from ai_guardian.ml_detection import is_ml_available, list_registered_models
+
             available = is_ml_available()
             models = list_registered_models()
 
             lines = []
             if available:
-                lines.append("[green]ML dependencies available (onnxruntime, tokenizers)[/green]")
+                lines.append(
+                    "[green]ML dependencies available (onnxruntime, tokenizers)[/green]"
+                )
             else:
                 lines.append("[red]ML dependencies not available[/red]")
-                lines.append("[dim]onnxruntime required (included on Python < 3.13 via rapidocr-onnxruntime)[/dim]")
+                lines.append(
+                    "[dim]onnxruntime required (included on Python < 3.13 via rapidocr-onnxruntime)[/dim]"
+                )
 
             for m in models:
-                status = "[green]downloaded[/green]" if m.get("downloaded") else "[dim]not downloaded[/dim]"
+                status = (
+                    "[green]downloaded[/green]"
+                    if m.get("downloaded")
+                    else "[dim]not downloaded[/dim]"
+                )
                 lines.append(f"  {m['name']} — {status}")
 
             if models and not all(m.get("downloaded") for m in models):
@@ -287,7 +292,9 @@ class PIMLEnginesContent(Container):
 
             self.query_one("#ml-status-info", Static).update("\n".join(lines))
         except Exception as e:
-            self.query_one("#ml-status-info", Static).update(f"[dim]Status check failed: {e}[/dim]")
+            self.query_one("#ml-status-info", Static).update(
+                f"[dim]Status check failed: {e}[/dim]"
+            )
 
     def on_text_area_changed(self, event: TextArea.Changed) -> None:
         if event.text_area.id == "ml-engines-editor":
@@ -339,7 +346,10 @@ class PIMLEnginesContent(Container):
 
         for i, entry in enumerate(data):
             if not isinstance(entry, dict):
-                return None, f"Engine {i + 1}: must be an object with 'type' and 'model'"
+                return (
+                    None,
+                    f"Engine {i + 1}: must be an object with 'type' and 'model'",
+                )
             etype = entry.get("type")
             if not etype:
                 return None, f"Engine {i + 1}: missing 'type' field"
@@ -382,7 +392,9 @@ class PIMLEnginesContent(Container):
 
             config["prompt_injection"] = pi
             self._save_config_dict(config)
-            self.app.notify(f"Saved {len(engines)} ML engine(s)", severity="information")
+            self.app.notify(
+                f"Saved {len(engines)} ML engine(s)", severity="information"
+            )
         except Exception as e:
             self.app.notify(f"Save failed: {e}", severity="error")
 
@@ -424,7 +436,7 @@ class PIMLEnginesContent(Container):
         config_dir = get_config_dir()
         config_path = config_dir / "ai-guardian.json"
         if config_path.exists():
-            with open(config_path, 'r', encoding='utf-8') as f:
+            with open(config_path, "r", encoding="utf-8") as f:
                 return json.load(f)
         return {}
 
@@ -435,5 +447,5 @@ class PIMLEnginesContent(Container):
             backup_path = config_path.with_suffix(".json.bak")
             shutil.copy2(config_path, backup_path)
         config_path.parent.mkdir(parents=True, exist_ok=True)
-        with open(config_path, 'w', encoding='utf-8') as f:
+        with open(config_path, "w", encoding="utf-8") as f:
             json.dump(config, f, indent=2)

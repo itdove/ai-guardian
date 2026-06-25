@@ -13,7 +13,7 @@ NEW in v1.5.0: Part of pattern server support for enterprise pattern management.
 import json
 import logging
 from pathlib import Path
-from typing import Dict, Any, Optional, List
+from typing import Dict, Any
 
 from ai_guardian.config_utils import get_cache_dir, is_feature_enabled
 
@@ -37,7 +37,9 @@ class ConfigInspector:
         """
         self.config = config
 
-    def show_ssrf_config(self, show_sources: bool = False, show_diff: bool = False) -> str:
+    def show_ssrf_config(
+        self, show_sources: bool = False, show_diff: bool = False
+    ) -> str:
         """
         Display SSRF protection configuration.
 
@@ -71,18 +73,23 @@ class ConfigInspector:
         if pattern_server:
             output.append("Pattern Server: CONFIGURED")
             output.append(f"  URL: {pattern_server.get('url', 'N/A')}")
-            output.append(f"  Endpoint: {pattern_server.get('patterns_endpoint', '/patterns/ssrf/v1')}")
+            output.append(
+                f"  Endpoint: {pattern_server.get('patterns_endpoint', '/patterns/ssrf/v1')}"
+            )
 
             # Check cache
             cache_config = pattern_server.get("cache", {})
-            cache_path = Path(cache_config.get("path", str(get_cache_dir() / "ssrf-patterns.toml"))).expanduser()
+            cache_path = Path(
+                cache_config.get("path", str(get_cache_dir() / "ssrf-patterns.toml"))
+            ).expanduser()
             if cache_path.exists():
                 import time
+
                 mtime = cache_path.stat().st_mtime
                 age_hours = (time.time() - mtime) / 3600
                 output.append(f"  Cache: {cache_path} ({age_hours:.1f}h old)")
             else:
-                output.append(f"  Cache: Not present")
+                output.append("  Cache: Not present")
         else:
             output.append("Pattern Server: NOT CONFIGURED (using hardcoded defaults)")
 
@@ -91,9 +98,12 @@ class ConfigInspector:
         # Load effective patterns
         try:
             from ai_guardian.ssrf_protector import SSRFProtector
+
             protector = SSRFProtector(ssrf_config)
 
-            output.append(f"Blocked IP Ranges: {len(protector._blocked_ip_networks)} ranges")
+            output.append(
+                f"Blocked IP Ranges: {len(protector._blocked_ip_networks)} ranges"
+            )
             if show_sources:
                 output.append("")
                 for network in protector._blocked_ip_networks:
@@ -113,7 +123,12 @@ class ConfigInspector:
                 output.append("")
                 for domain in sorted(protector._blocked_domains):
                     # Determine source
-                    if domain in ["metadata.google.internal", "metadata.goog", "169.254.169.254", "fd00:ec2::254"]:
+                    if domain in [
+                        "metadata.google.internal",
+                        "metadata.goog",
+                        "169.254.169.254",
+                        "fd00:ec2::254",
+                    ]:
                         source = "IMMUTABLE"
                     elif pattern_server:
                         source = "SERVER"
@@ -122,7 +137,9 @@ class ConfigInspector:
                     output.append(f"  • {domain:30s} [{source}]")
 
             output.append("")
-            output.append(f"Dangerous URL Schemes: {len(protector.DANGEROUS_SCHEMES)} schemes (IMMUTABLE)")
+            output.append(
+                f"Dangerous URL Schemes: {len(protector.DANGEROUS_SCHEMES)} schemes (IMMUTABLE)"
+            )
             if show_sources:
                 output.append("")
                 for scheme in protector.DANGEROUS_SCHEMES:
@@ -172,14 +189,17 @@ class ConfigInspector:
 
             # Check cache
             cache_config = pattern_server.get("cache", {})
-            cache_path = Path(cache_config.get("path", str(get_cache_dir() / "secrets-patterns.toml"))).expanduser()
+            cache_path = Path(
+                cache_config.get("path", str(get_cache_dir() / "secrets-patterns.toml"))
+            ).expanduser()
             if cache_path.exists():
                 import time
+
                 mtime = cache_path.stat().st_mtime
                 age_hours = (time.time() - mtime) / 3600
                 output.append(f"  Cache: {cache_path} ({age_hours:.1f}h old)")
             else:
-                output.append(f"  Cache: Not present")
+                output.append("  Cache: Not present")
         else:
             output.append("Pattern Server: NOT CONFIGURED (using hardcoded defaults)")
 
@@ -188,9 +208,12 @@ class ConfigInspector:
         # Load effective patterns
         try:
             from ai_guardian.secret_redactor import SecretRedactor
+
             redactor = SecretRedactor(secret_config)
 
-            output.append(f"Secret Patterns: {len(redactor.compiled_patterns)} patterns loaded")
+            output.append(
+                f"Secret Patterns: {len(redactor.compiled_patterns)} patterns loaded"
+            )
 
             if show_sources:
                 output.append("")
@@ -201,7 +224,9 @@ class ConfigInspector:
                     if secret_type not in types_seen:
                         types_seen.add(secret_type)
                         source = "SERVER" if pattern_server else "DEFAULT"
-                        output.append(f"  • {secret_type:40s} [{source}] Strategy: {strategy}")
+                        output.append(
+                            f"  • {secret_type:40s} [{source}] Strategy: {strategy}"
+                        )
 
         except Exception as e:
             output.append(f"Error loading secret redaction configuration: {e}")
@@ -227,7 +252,9 @@ class ConfigInspector:
         output.append("=" * 70)
         output.append("")
 
-        unicode_config = self.config.get("prompt_injection", {}).get("unicode_detection", {})
+        unicode_config = self.config.get("prompt_injection", {}).get(
+            "unicode_detection", {}
+        )
 
         # Basic settings
         enabled = unicode_config.get("enabled", True)
@@ -254,10 +281,15 @@ class ConfigInspector:
         # Load effective patterns
         try:
             from ai_guardian.prompt_injection import UnicodeAttackDetector
+
             detector = UnicodeAttackDetector(unicode_config)
 
-            output.append(f"Zero-Width Characters: {len(detector._zero_width_set)} chars (IMMUTABLE)")
-            output.append(f"Bidi Override Characters: {len(detector._bidi_override_set)} chars (IMMUTABLE)")
+            output.append(
+                f"Zero-Width Characters: {len(detector._zero_width_set)} chars (IMMUTABLE)"
+            )
+            output.append(
+                f"Bidi Override Characters: {len(detector._bidi_override_set)} chars (IMMUTABLE)"
+            )
             output.append(f"Homoglyph Patterns: {len(detector._homoglyph_map)} pairs")
 
             if show_sources:
@@ -318,9 +350,12 @@ class ConfigInspector:
         # Load effective patterns
         try:
             from ai_guardian.config_scanner import ConfigFileScanner
+
             scanner = ConfigFileScanner(scanner_config)
 
-            output.append(f"Exfiltration Patterns: {len(scanner._compiled_patterns)} patterns loaded")
+            output.append(
+                f"Exfiltration Patterns: {len(scanner._compiled_patterns)} patterns loaded"
+            )
 
             if show_sources:
                 output.append("")
@@ -329,8 +364,16 @@ class ConfigInspector:
                     name = pattern_info.get("name", "unknown")
                     desc = pattern_info.get("description", "")
                     # Core patterns are immutable
-                    if name in ["curl_with_env_vars", "wget_with_env_vars", "env_piped_to_curl",
-                               "printenv_exfil", "file_exfil", "base64_exfil", "aws_s3_exfil", "gcp_storage_exfil"]:
+                    if name in [
+                        "curl_with_env_vars",
+                        "wget_with_env_vars",
+                        "env_piped_to_curl",
+                        "printenv_exfil",
+                        "file_exfil",
+                        "base64_exfil",
+                        "aws_s3_exfil",
+                        "gcp_storage_exfil",
+                    ]:
                         source = "IMMUTABLE"
                     elif pattern_server:
                         source = "SERVER"
@@ -377,22 +420,25 @@ class ConfigInspector:
             "ssrf_protection": {},
             "secret_redaction": {},
             "unicode_detection": {},
-            "config_file_scanning": {}
+            "config_file_scanning": {},
         }
 
         # SSRF
         try:
             from ai_guardian.ssrf_protector import SSRFProtector
+
             ssrf_config = self.config.get("ssrf_protection", {})
             protector = SSRFProtector(ssrf_config)
 
             effective_config["ssrf_protection"] = {
                 "enabled": is_feature_enabled(ssrf_config.get("enabled"), default=True),
                 "action": ssrf_config.get("action", "block"),
-                "blocked_ip_ranges": [str(net) for net in protector._blocked_ip_networks],
+                "blocked_ip_ranges": [
+                    str(net) for net in protector._blocked_ip_networks
+                ],
                 "blocked_domains": sorted(protector._blocked_domains),
                 "dangerous_schemes": protector.DANGEROUS_SCHEMES,
-                "pattern_server_configured": "pattern_server" in ssrf_config
+                "pattern_server_configured": "pattern_server" in ssrf_config,
             }
         except Exception as e:
             effective_config["ssrf_protection"]["error"] = str(e)
@@ -400,24 +446,25 @@ class ConfigInspector:
         # Secret Redaction
         try:
             from ai_guardian.secret_redactor import SecretRedactor
+
             secret_config = self.config.get("secret_redaction", {})
-            
+
             # Validate action - reject "block" mode (removed in v1.5)
             action = secret_config.get("action", "warn")
             if action == "block":
                 raise ValueError(
                     'secret_redaction.action="block" is no longer supported. '
                     'Valid values are: "warn", "log-only". '
-                    'See documentation for migration options.'
+                    "See documentation for migration options."
                 )
-            
+
             redactor = SecretRedactor(secret_config)
 
             effective_config["secret_redaction"] = {
                 "enabled": secret_config.get("enabled", True),
                 "action": action,
                 "pattern_count": len(redactor.compiled_patterns),
-                "pattern_server_configured": "pattern_server" in secret_config
+                "pattern_server_configured": "pattern_server" in secret_config,
             }
         except Exception as e:
             effective_config["secret_redaction"]["error"] = str(e)
@@ -425,7 +472,10 @@ class ConfigInspector:
         # Unicode Detection
         try:
             from ai_guardian.prompt_injection import UnicodeAttackDetector
-            unicode_config = self.config.get("prompt_injection", {}).get("unicode_detection", {})
+
+            unicode_config = self.config.get("prompt_injection", {}).get(
+                "unicode_detection", {}
+            )
             detector = UnicodeAttackDetector(unicode_config)
 
             effective_config["unicode_detection"] = {
@@ -433,7 +483,7 @@ class ConfigInspector:
                 "zero_width_chars": len(detector._zero_width_set),
                 "bidi_override_chars": len(detector._bidi_override_set),
                 "homoglyph_patterns": len(detector._homoglyph_map),
-                "pattern_server_configured": "pattern_server" in unicode_config
+                "pattern_server_configured": "pattern_server" in unicode_config,
             }
         except Exception as e:
             effective_config["unicode_detection"]["error"] = str(e)
@@ -441,6 +491,7 @@ class ConfigInspector:
         # Config Scanner
         try:
             from ai_guardian.config_scanner import ConfigFileScanner
+
             scanner_config = self.config.get("config_file_scanning", {})
             scanner = ConfigFileScanner(scanner_config)
 
@@ -448,7 +499,7 @@ class ConfigInspector:
                 "enabled": scanner_config.get("enabled", True),
                 "action": scanner_config.get("action", "block"),
                 "pattern_count": len(scanner._compiled_patterns),
-                "pattern_server_configured": "pattern_server" in scanner_config
+                "pattern_server_configured": "pattern_server" in scanner_config,
             }
         except Exception as e:
             effective_config["config_file_scanning"]["error"] = str(e)

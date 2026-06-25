@@ -15,14 +15,12 @@ import tempfile
 from pathlib import Path
 from unittest import mock
 
-import pytest
 
 from ai_guardian.config_utils import (
     GLOBAL_ONLY_SECTIONS,
     deep_merge,
     get_project_config_path,
     _clear_project_config_cache,
-    _deep_merge_section,
     _find_config_in_dir,
     _get_immutable_info,
     _is_tightening,
@@ -59,7 +57,10 @@ class TestDeepMerge:
 
     def test_global_only_sections_skipped(self):
         base = {"daemon": {"host": "localhost"}, "prompt_injection": {"enabled": True}}
-        override = {"daemon": {"host": "remote"}, "prompt_injection": {"enabled": False}}
+        override = {
+            "daemon": {"host": "remote"},
+            "prompt_injection": {"enabled": False},
+        }
         result = deep_merge(base, override)
         assert result["daemon"]["host"] == "localhost"
         assert result["prompt_injection"]["enabled"] is False
@@ -177,7 +178,9 @@ class TestDeepMerge:
         }
         result = deep_merge(base, override, global_only_sections=frozenset())
         assert result["prompt_injection"]["allowlist_patterns"] == [
-            "__init__", "__main__", "__all__"
+            "__init__",
+            "__main__",
+            "__all__",
         ]
 
     def test_immutable_with_list_field(self):
@@ -199,25 +202,33 @@ class TestDeepMerge:
 
 class TestGetImmutableInfo:
     def test_boolean_true_locks_section(self):
-        section_locked, locked_fields, tighten_only = _get_immutable_info({"immutable": True})
+        section_locked, locked_fields, tighten_only = _get_immutable_info(
+            {"immutable": True}
+        )
         assert section_locked is True
         assert locked_fields is None
         assert tighten_only is False
 
     def test_array_locks_fields(self):
-        section_locked, locked_fields, tighten_only = _get_immutable_info({"immutable": ["enabled", "action"]})
+        section_locked, locked_fields, tighten_only = _get_immutable_info(
+            {"immutable": ["enabled", "action"]}
+        )
         assert section_locked is False
         assert locked_fields == ["enabled", "action"]
         assert tighten_only is False
 
     def test_false_no_lock(self):
-        section_locked, locked_fields, tighten_only = _get_immutable_info({"immutable": False})
+        section_locked, locked_fields, tighten_only = _get_immutable_info(
+            {"immutable": False}
+        )
         assert section_locked is False
         assert locked_fields is None
         assert tighten_only is False
 
     def test_absent_no_lock(self):
-        section_locked, locked_fields, tighten_only = _get_immutable_info({"enabled": True})
+        section_locked, locked_fields, tighten_only = _get_immutable_info(
+            {"enabled": True}
+        )
         assert section_locked is False
         assert locked_fields is None
         assert tighten_only is False
@@ -229,7 +240,9 @@ class TestGetImmutableInfo:
         assert tighten_only is False
 
     def test_tighten_only(self):
-        section_locked, locked_fields, tighten_only = _get_immutable_info({"immutable": "tighten-only"})
+        section_locked, locked_fields, tighten_only = _get_immutable_info(
+            {"immutable": "tighten-only"}
+        )
         assert section_locked is False
         assert locked_fields is None
         assert tighten_only is True
@@ -241,9 +254,12 @@ class TestGetProjectConfigPath:
 
     def test_returns_none_when_no_config(self):
         with tempfile.TemporaryDirectory() as td:
-            with mock.patch.dict(os.environ, {
-                "AI_GUARDIAN_PROJECT_CONFIG": str(Path(td) / "nonexistent.json"),
-            }):
+            with mock.patch.dict(
+                os.environ,
+                {
+                    "AI_GUARDIAN_PROJECT_CONFIG": str(Path(td) / "nonexistent.json"),
+                },
+            ):
                 _clear_project_config_cache()
                 result = get_project_config_path()
                 assert result is None
@@ -252,9 +268,12 @@ class TestGetProjectConfigPath:
         with tempfile.TemporaryDirectory() as td:
             config_path = Path(td) / "custom-config.json"
             config_path.write_text("{}")
-            with mock.patch.dict(os.environ, {
-                "AI_GUARDIAN_PROJECT_CONFIG": str(config_path),
-            }):
+            with mock.patch.dict(
+                os.environ,
+                {
+                    "AI_GUARDIAN_PROJECT_CONFIG": str(config_path),
+                },
+            ):
                 _clear_project_config_cache()
                 result = get_project_config_path()
                 assert result == config_path
@@ -263,9 +282,12 @@ class TestGetProjectConfigPath:
         with tempfile.TemporaryDirectory() as td:
             config_path = Path(td) / "custom-config.json"
             config_path.write_text("{}")
-            with mock.patch.dict(os.environ, {
-                "AI_GUARDIAN_PROJECT_CONFIG": str(config_path),
-            }):
+            with mock.patch.dict(
+                os.environ,
+                {
+                    "AI_GUARDIAN_PROJECT_CONFIG": str(config_path),
+                },
+            ):
                 _clear_project_config_cache()
                 result1 = get_project_config_path()
                 result2 = get_project_config_path()
@@ -294,9 +316,12 @@ class TestLoadConfigFileMerge:
         project_path = tmp_path / "project_config.json"
         project_path.write_text(json.dumps(project_config))
 
-        with mock.patch.dict(os.environ, {
-            "AI_GUARDIAN_PROJECT_CONFIG": str(project_path),
-        }):
+        with mock.patch.dict(
+            os.environ,
+            {
+                "AI_GUARDIAN_PROJECT_CONFIG": str(project_path),
+            },
+        ):
             _clear_config_cache()
             config, error = _load_config_file()
             assert error is None
@@ -324,9 +349,12 @@ class TestLoadConfigFileMerge:
         project_path = tmp_path / "project_config.json"
         project_path.write_text(json.dumps(project_config))
 
-        with mock.patch.dict(os.environ, {
-            "AI_GUARDIAN_PROJECT_CONFIG": str(project_path),
-        }):
+        with mock.patch.dict(
+            os.environ,
+            {
+                "AI_GUARDIAN_PROJECT_CONFIG": str(project_path),
+            },
+        ):
             _clear_config_cache()
             config, error = _load_config_file()
             assert error is None
@@ -344,9 +372,12 @@ class TestLoadConfigFileMerge:
         project_path = tmp_path / "project_config.json"
         project_path.write_text(json.dumps(project_config))
 
-        with mock.patch.dict(os.environ, {
-            "AI_GUARDIAN_PROJECT_CONFIG": str(project_path),
-        }):
+        with mock.patch.dict(
+            os.environ,
+            {
+                "AI_GUARDIAN_PROJECT_CONFIG": str(project_path),
+            },
+        ):
             _clear_config_cache()
             config, error = _load_config_file()
             assert error is None
@@ -369,6 +400,7 @@ class TestLoadConfigFileMerge:
         assert config1["prompt_injection"]["enabled"] is True
 
         import time
+
         time.sleep(0.05)
         config_path.write_text(json.dumps({"prompt_injection": {"enabled": False}}))
 
@@ -383,9 +415,12 @@ class TestLoadConfigFileMerge:
         project_path = tmp_path / "bad_project.json"
         project_path.write_text("not valid json {{{")
 
-        with mock.patch.dict(os.environ, {
-            "AI_GUARDIAN_PROJECT_CONFIG": str(project_path),
-        }):
+        with mock.patch.dict(
+            os.environ,
+            {
+                "AI_GUARDIAN_PROJECT_CONFIG": str(project_path),
+            },
+        ):
             _clear_config_cache()
             config, error = _load_config_file()
             assert config is not None
@@ -406,18 +441,21 @@ class TestSelfProtection:
 
     def test_project_config_matches_immutable_pattern(self):
         from ai_guardian.tool_policy import IMMUTABLE_DENY_PATTERNS
+
         read_patterns = IMMUTABLE_DENY_PATTERNS.get("Read", [])
-        assert any("ai-guardian.json" in p for p in read_patterns), (
-            "IMMUTABLE_DENY_PATTERNS must block reading *ai-guardian.json"
-        )
+        assert any(
+            "ai-guardian.json" in p for p in read_patterns
+        ), "IMMUTABLE_DENY_PATTERNS must block reading *ai-guardian.json"
 
     def test_project_config_blocked_for_write(self):
         from ai_guardian.tool_policy import IMMUTABLE_DENY_PATTERNS
+
         write_patterns = IMMUTABLE_DENY_PATTERNS.get("Write", [])
         assert any("ai-guardian.json" in p for p in write_patterns)
 
     def test_project_config_blocked_for_edit(self):
         from ai_guardian.tool_policy import IMMUTABLE_DENY_PATTERNS
+
         edit_patterns = IMMUTABLE_DENY_PATTERNS.get("Edit", [])
         assert any("ai-guardian.json" in p for p in edit_patterns)
 
@@ -428,9 +466,9 @@ class TestSelfProtection:
         project_config = tmp_path / "ai-guardian.json"
         project_config.write_text("{}")
 
-        checker = ToolPolicyChecker(config={
-            "permissions": {"enabled": True, "rules": []}
-        })
+        checker = ToolPolicyChecker(
+            config={"permissions": {"enabled": True, "rules": []}}
+        )
         hook_data = {
             "tool_name": "Read",
             "parameters": {"file_path": str(project_config)},
@@ -444,8 +482,14 @@ class TestGlobalOnlySections:
     """Test that GLOBAL_ONLY_SECTIONS contains the expected entries."""
 
     def test_expected_sections(self):
-        expected = {"daemon", "mcp_server", "support", "security_instructions",
-                    "on_scan_error", "remote_configs"}
+        expected = {
+            "daemon",
+            "mcp_server",
+            "support",
+            "security_instructions",
+            "on_scan_error",
+            "remote_configs",
+        }
         assert GLOBAL_ONLY_SECTIONS == expected
 
     def test_is_frozenset(self):
@@ -594,30 +638,36 @@ class TestNormalizePermissions:
 
     def test_deprecation_warning_logged(self, caplog):
         import logging
+
         with caplog.at_level(logging.WARNING):
-            _normalize_permissions({
-                "permissions": [{"matcher": "Skill", "mode": "allow"}]
-            })
+            _normalize_permissions(
+                {"permissions": [{"matcher": "Skill", "mode": "allow"}]}
+            )
         assert "DEPRECATED" in caplog.text
         assert "array format" in caplog.text
 
     def test_no_warning_for_dict_format(self, caplog):
         import logging
+
         with caplog.at_level(logging.WARNING):
-            _normalize_permissions({
-                "permissions": {"enabled": True, "rules": []}
-            })
+            _normalize_permissions({"permissions": {"enabled": True, "rules": []}})
         assert "DEPRECATED" not in caplog.text
 
 
 class TestPermissionsMergeFormats:
     """Integration tests for merging permissions across formats — Issue #724."""
 
-    def test_list_global_dict_project_preserves_both(self, _isolate_config_dir, tmp_path):
+    def test_list_global_dict_project_preserves_both(
+        self, _isolate_config_dir, tmp_path
+    ):
         """User-level (old list) + project-level (new dict) merges both rule sets."""
         global_config = {
             "permissions": [
-                {"matcher": "mcp__*", "mode": "allow", "patterns": ["mcp__allowlist__*"]},
+                {
+                    "matcher": "mcp__*",
+                    "mode": "allow",
+                    "patterns": ["mcp__allowlist__*"],
+                },
                 {"matcher": "Skill", "mode": "allow", "patterns": ["*"]},
             ]
         }
@@ -636,9 +686,12 @@ class TestPermissionsMergeFormats:
         project_path = tmp_path / "project_config.json"
         project_path.write_text(json.dumps(project_config))
 
-        with mock.patch.dict(os.environ, {
-            "AI_GUARDIAN_PROJECT_CONFIG": str(project_path),
-        }):
+        with mock.patch.dict(
+            os.environ,
+            {
+                "AI_GUARDIAN_PROJECT_CONFIG": str(project_path),
+            },
+        ):
             _clear_config_cache()
             config, error = _load_config_file()
             assert error is None
@@ -646,7 +699,9 @@ class TestPermissionsMergeFormats:
             assert config["permissions"]["enabled"] is True
             assert len(config["permissions"]["rules"]) == 3
 
-    def test_dict_global_list_project_preserves_both(self, _isolate_config_dir, tmp_path):
+    def test_dict_global_list_project_preserves_both(
+        self, _isolate_config_dir, tmp_path
+    ):
         """User-level (new dict) + project-level (old list) merges both rule sets."""
         global_config = {
             "permissions": {
@@ -668,9 +723,12 @@ class TestPermissionsMergeFormats:
         project_path = tmp_path / "project_config.json"
         project_path.write_text(json.dumps(project_config))
 
-        with mock.patch.dict(os.environ, {
-            "AI_GUARDIAN_PROJECT_CONFIG": str(project_path),
-        }):
+        with mock.patch.dict(
+            os.environ,
+            {
+                "AI_GUARDIAN_PROJECT_CONFIG": str(project_path),
+            },
+        ):
             _clear_config_cache()
             config, error = _load_config_file()
             assert error is None
@@ -697,9 +755,12 @@ class TestPermissionsMergeFormats:
         project_path = tmp_path / "project_config.json"
         project_path.write_text(json.dumps(project_config))
 
-        with mock.patch.dict(os.environ, {
-            "AI_GUARDIAN_PROJECT_CONFIG": str(project_path),
-        }):
+        with mock.patch.dict(
+            os.environ,
+            {
+                "AI_GUARDIAN_PROJECT_CONFIG": str(project_path),
+            },
+        ):
             _clear_config_cache()
             config, error = _load_config_file()
             assert error is None
@@ -1068,4 +1129,3 @@ class TestTightenOnlyMerge:
         assert result["secret_scanning"]["enabled"] is True
         assert result["secret_scanning"]["action"] == "block"
         assert result["secret_scanning"]["sensitivity"] == "high"
-

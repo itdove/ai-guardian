@@ -9,7 +9,7 @@ import os
 from datetime import datetime, timezone
 
 from textual.app import ComposeResult
-from textual.containers import Vertical, Horizontal, VerticalScroll
+from textual.containers import Horizontal, VerticalScroll
 from textual.widgets import Static, Button, DataTable
 
 logger = logging.getLogger(__name__)
@@ -48,6 +48,7 @@ def _fetch_cache_status():
     try:
         from ai_guardian.daemon.multi_client import MultiDaemonClient
         from ai_guardian.daemon.discovery import DaemonDiscovery
+
         discovery = DaemonDiscovery()
         targets = discovery.discover_all()
         if targets:
@@ -98,9 +99,7 @@ class CacheStatusContent(Static):
     """
 
     def compose(self) -> ComposeResult:
-        yield Static(
-            "[bold]Config Cache Status[/bold]", id="cache-status-header"
-        )
+        yield Static("[bold]Config Cache Status[/bold]", id="cache-status-header")
 
         yield Static("", id="cache-summary")
 
@@ -113,9 +112,7 @@ class CacheStatusContent(Static):
 
     def on_mount(self) -> None:
         table = self.query_one("#cache-table", DataTable)
-        table.add_columns(
-            "Project", "Config", "Override", "Last Seen", "Modified"
-        )
+        table.add_columns("Project", "Config", "Override", "Last Seen", "Modified")
         table.cursor_type = "row"
         self._load_data()
 
@@ -148,15 +145,11 @@ class CacheStatusContent(Static):
         total = data.get("total_tracked", 0)
         last_reload = data.get("last_project_config_reload_at")
 
-        overrides = sum(
-            1 for p in projects if p.get("has_project_override")
-        )
+        overrides = sum(1 for p in projects if p.get("has_project_override"))
         reload_str = ""
         if last_reload:
             try:
-                dt = datetime.fromtimestamp(
-                    last_reload, tz=timezone.utc
-                ).astimezone()
+                dt = datetime.fromtimestamp(last_reload, tz=timezone.utc).astimezone()
                 reload_str = f"  Last reload: {dt.strftime('%H:%M:%S')}"
             except Exception:
                 pass  # intentionally silent — best-effort operation
@@ -203,12 +196,8 @@ class CacheStatusContent(Static):
 
         lines = [f"[bold]Details: {project_dir}[/bold]\n"]
         lines.append(f"  Project dir:    {proj.get('project_dir', '—')}")
-        lines.append(
-            f"  Config path:    {proj.get('config_path') or '(none)'}"
-        )
-        lines.append(
-            f"  Config mtime:   {_format_mtime(proj.get('config_mtime'))}"
-        )
+        lines.append(f"  Config path:    {proj.get('config_path') or '(none)'}")
+        lines.append(f"  Config mtime:   {_format_mtime(proj.get('config_mtime'))}")
         lines.append(
             f"  Last seen:      "
             f"{_format_seconds_ago(proj.get('last_seen_seconds_ago'))}"
@@ -228,9 +217,7 @@ class CacheStatusContent(Static):
 
         cache_ago = proj.get("cache_last_accessed_seconds_ago")
         if cache_ago is not None:
-            lines.append(
-                f"  Cache accessed: {_format_seconds_ago(cache_ago)}"
-            )
+            lines.append(f"  Cache accessed: {_format_seconds_ago(cache_ago)}")
 
         detail.update("\n".join(lines))
 

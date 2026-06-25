@@ -10,9 +10,12 @@ import tempfile
 from pathlib import Path
 from unittest.mock import patch, MagicMock
 
-import pytest
 
-from ai_guardian.tui.global_settings import GlobalSettingsContent, FEATURES, FEATURE_ACTIONS
+from ai_guardian.tui.global_settings import (
+    GlobalSettingsContent,
+    FEATURES,
+    FEATURE_ACTIONS,
+)
 
 
 class TestFeatureMap:
@@ -54,17 +57,26 @@ class TestSaveLogic:
         with tempfile.TemporaryDirectory() as tmpdir:
             config_path = Path(tmpdir) / "ai-guardian.json"
             if existing_config:
-                with open(config_path, 'w') as f:
+                with open(config_path, "w") as f:
                     json.dump(existing_config, f)
 
             content = GlobalSettingsContent()
             content._loading = False
 
-            with patch("ai_guardian.tui.global_settings.get_config_dir", return_value=Path(tmpdir)), \
-                 patch.object(type(content), "app", new_callable=lambda: property(lambda self: MagicMock())):
+            with (
+                patch(
+                    "ai_guardian.tui.global_settings.get_config_dir",
+                    return_value=Path(tmpdir),
+                ),
+                patch.object(
+                    type(content),
+                    "app",
+                    new_callable=lambda: property(lambda self: MagicMock()),
+                ),
+            ):
                 content._save(section, value, "Test Feature")
 
-            with open(config_path, 'r') as f:
+            with open(config_path, "r") as f:
                 return json.load(f)
 
     def test_save_enabled(self):
@@ -115,9 +127,9 @@ class TestFeatureActions:
     def test_default_in_options(self):
         for section, info in FEATURE_ACTIONS.items():
             option_values = [v for _, v in info["options"]]
-            assert info["default"] in option_values, (
-                f"{section} default '{info['default']}' not in options"
-            )
+            assert (
+                info["default"] in option_values
+            ), f"{section} default '{info['default']}' not in options"
 
     def test_schema_paths_match_sections(self):
         for section, info in FEATURE_ACTIONS.items():
@@ -131,17 +143,26 @@ class TestActionSaveLogic:
         with tempfile.TemporaryDirectory() as tmpdir:
             config_path = Path(tmpdir) / "ai-guardian.json"
             if existing_config:
-                with open(config_path, 'w') as f:
+                with open(config_path, "w") as f:
                     json.dump(existing_config, f)
 
             content = GlobalSettingsContent()
             content._loading = False
 
-            with patch("ai_guardian.tui.global_settings.get_config_dir", return_value=Path(tmpdir)), \
-                 patch.object(type(content), "app", new_callable=lambda: property(lambda self: MagicMock())):
+            with (
+                patch(
+                    "ai_guardian.tui.global_settings.get_config_dir",
+                    return_value=Path(tmpdir),
+                ),
+                patch.object(
+                    type(content),
+                    "app",
+                    new_callable=lambda: property(lambda self: MagicMock()),
+                ),
+            ):
                 content._save_action(section, value, "Test Feature")
 
-            with open(config_path, 'r') as f:
+            with open(config_path, "r") as f:
                 return json.load(f)
 
     def test_save_action_block(self):

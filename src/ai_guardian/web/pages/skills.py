@@ -102,9 +102,9 @@ def create_skills_page(service, daemon_name: str):
 
         with ui.column().classes("flex-grow p-6 gap-4"):
             ui.label("Skill Permissions").classes("text-2xl font-bold")
-            ui.label(
-                "Manage allow/deny patterns for Skill tools."
-            ).classes("text-xs text-grey-6")
+            ui.label("Manage allow/deny patterns for Skill tools.").classes(
+                "text-xs text-grey-6"
+            )
 
             content = ui.column().classes("w-full gap-4")
 
@@ -114,7 +114,11 @@ def create_skills_page(service, daemon_name: str):
 
                 with content:
                     permissions = config.get("permissions", {})
-                    raw_enabled = permissions.get("enabled", True) if isinstance(permissions, dict) else True
+                    raw_enabled = (
+                        permissions.get("enabled", True)
+                        if isinstance(permissions, dict)
+                        else True
+                    )
 
                     is_temp = False
                     until_dt = None
@@ -131,7 +135,9 @@ def create_skills_page(service, daemon_name: str):
                                     reason = raw_enabled.get("reason", "")
                             except (ValueError, TypeError):
                                 pass  # intentionally silent — invalid value uses default
-                        is_enabled = raw_enabled.get("value", True) if not is_temp else False
+                        is_enabled = (
+                            raw_enabled.get("value", True) if not is_temp else False
+                        )
                     else:
                         is_enabled = bool(raw_enabled)
 
@@ -158,7 +164,9 @@ def create_skills_page(service, daemon_name: str):
 
                             async def do_reenable():
                                 cfg = await run.io_bound(load_web_config)
-                                if "permissions" not in cfg or not isinstance(cfg["permissions"], dict):
+                                if "permissions" not in cfg or not isinstance(
+                                    cfg["permissions"], dict
+                                ):
                                     cfg["permissions"] = {"enabled": True, "rules": []}
                                 cfg["permissions"]["enabled"] = True
                                 await run.io_bound(save_web_config, cfg)
@@ -183,8 +191,13 @@ def create_skills_page(service, daemon_name: str):
 
                                 async def on_toggle(e):
                                     cfg = await run.io_bound(load_web_config)
-                                    if "permissions" not in cfg or not isinstance(cfg["permissions"], dict):
-                                        cfg["permissions"] = {"enabled": True, "rules": []}
+                                    if "permissions" not in cfg or not isinstance(
+                                        cfg["permissions"], dict
+                                    ):
+                                        cfg["permissions"] = {
+                                            "enabled": True,
+                                            "rules": [],
+                                        }
                                     cfg["permissions"]["enabled"] = e.value
                                     await run.io_bound(save_web_config, cfg)
                                     ui.notify(
@@ -195,12 +208,16 @@ def create_skills_page(service, daemon_name: str):
                                 sw.on_value_change(on_toggle)
 
                             with ui.row().classes("items-center gap-2 ml-8"):
-                                dur = ui.input(
-                                    placeholder="e.g. 30m, 2h, 1d"
-                                ).props("dense outlined").classes("w-32")
-                                rsn = ui.input(placeholder="Reason").props(
-                                    "dense outlined"
-                                ).classes("w-40")
+                                dur = (
+                                    ui.input(placeholder="e.g. 30m, 2h, 1d")
+                                    .props("dense outlined")
+                                    .classes("w-32")
+                                )
+                                rsn = (
+                                    ui.input(placeholder="Reason")
+                                    .props("dense outlined")
+                                    .classes("w-40")
+                                )
 
                                 async def do_temp(d=dur, r=rsn):
                                     delta = _parse_duration(d.value or "30m")
@@ -218,8 +235,13 @@ def create_skills_page(service, daemon_name: str):
                                     if rv:
                                         entry["reason"] = rv
                                     cfg = await run.io_bound(load_web_config)
-                                    if "permissions" not in cfg or not isinstance(cfg["permissions"], dict):
-                                        cfg["permissions"] = {"enabled": True, "rules": []}
+                                    if "permissions" not in cfg or not isinstance(
+                                        cfg["permissions"], dict
+                                    ):
+                                        cfg["permissions"] = {
+                                            "enabled": True,
+                                            "rules": [],
+                                        }
                                     cfg["permissions"]["enabled"] = entry
                                     await run.io_bound(save_web_config, cfg)
                                     ui.notify(
@@ -245,30 +267,56 @@ def create_skills_page(service, daemon_name: str):
 
                         if allow_patterns:
                             for idx, pat in enumerate(allow_patterns):
-                                pat_str = pat.get("pattern", pat) if isinstance(pat, dict) else pat
-                                valid_until = pat.get("valid_until") if isinstance(pat, dict) else None
+                                pat_str = (
+                                    pat.get("pattern", pat)
+                                    if isinstance(pat, dict)
+                                    else pat
+                                )
+                                valid_until = (
+                                    pat.get("valid_until")
+                                    if isinstance(pat, dict)
+                                    else None
+                                )
                                 with ui.row().classes("items-center gap-2 w-full"):
                                     ui.icon("check_circle").classes("text-green")
                                     ui.label(pat_str).classes("flex-grow text-sm")
                                     exp = _format_expiration(valid_until)
                                     if exp:
-                                        ui.badge(exp[0], color=exp[1]).classes("text-xs")
+                                        ui.badge(exp[0], color=exp[1]).classes(
+                                            "text-xs"
+                                        )
 
                                     async def do_remove(i=idx):
                                         cfg = await run.io_bound(load_web_config)
                                         perms = cfg.get("permissions", {})
-                                        rules = perms.get("rules", []) if isinstance(perms, dict) else []
+                                        rules = (
+                                            perms.get("rules", [])
+                                            if isinstance(perms, dict)
+                                            else []
+                                        )
                                         for rule in rules:
-                                            if rule.get("matcher") == "Skill" and rule.get("mode") == "allow":
+                                            if (
+                                                rule.get("matcher") == "Skill"
+                                                and rule.get("mode") == "allow"
+                                            ):
                                                 pats = rule.get("patterns", [])
                                                 if i < len(pats):
                                                     removed = pats.pop(i)
                                                     if not pats:
                                                         rules.remove(rule)
-                                                    if isinstance(cfg.get("permissions"), dict):
-                                                        cfg["permissions"]["rules"] = rules
-                                                    await run.io_bound(save_web_config, cfg)
-                                                    ui.notify(f"Removed: {removed}", type="positive")
+                                                    if isinstance(
+                                                        cfg.get("permissions"), dict
+                                                    ):
+                                                        cfg["permissions"][
+                                                            "rules"
+                                                        ] = rules
+                                                    await run.io_bound(
+                                                        save_web_config, cfg
+                                                    )
+                                                    ui.notify(
+                                                        f"Removed: {removed}",
+                                                        type="positive",
+                                                    )
                                                     await refresh()
                                                 break
 
@@ -281,9 +329,13 @@ def create_skills_page(service, daemon_name: str):
                             )
 
                         with ui.row().classes("items-center gap-2 mt-2"):
-                            allow_input = ui.input(
-                                placeholder="Enter pattern (e.g., daf-*, hello)"
-                            ).props("dense outlined").classes("flex-grow")
+                            allow_input = (
+                                ui.input(
+                                    placeholder="Enter pattern (e.g., daf-*, hello)"
+                                )
+                                .props("dense outlined")
+                                .classes("flex-grow")
+                            )
 
                             async def add_allow():
                                 pattern = allow_input.value.strip()
@@ -297,16 +349,27 @@ def create_skills_page(service, daemon_name: str):
                                 rules = perms.get("rules", [])
                                 existing = None
                                 for rule in rules:
-                                    if rule.get("matcher") == "Skill" and rule.get("mode") == "allow":
+                                    if (
+                                        rule.get("matcher") == "Skill"
+                                        and rule.get("mode") == "allow"
+                                    ):
                                         existing = rule
                                         break
                                 if existing:
                                     if pattern in existing.get("patterns", []):
-                                        ui.notify("Pattern already exists", type="warning")
+                                        ui.notify(
+                                            "Pattern already exists", type="warning"
+                                        )
                                         return
                                     existing.setdefault("patterns", []).append(pattern)
                                 else:
-                                    rules.append({"matcher": "Skill", "mode": "allow", "patterns": [pattern]})
+                                    rules.append(
+                                        {
+                                            "matcher": "Skill",
+                                            "mode": "allow",
+                                            "patterns": [pattern],
+                                        }
+                                    )
                                 perms["rules"] = rules
                                 cfg["permissions"] = perms
                                 await run.io_bound(save_web_config, cfg)
@@ -327,35 +390,63 @@ def create_skills_page(service, daemon_name: str):
 
                         if deny_patterns:
                             for idx, pat in enumerate(deny_patterns):
-                                pat_str = pat.get("pattern", pat) if isinstance(pat, dict) else pat
-                                valid_until = pat.get("valid_until") if isinstance(pat, dict) else None
+                                pat_str = (
+                                    pat.get("pattern", pat)
+                                    if isinstance(pat, dict)
+                                    else pat
+                                )
+                                valid_until = (
+                                    pat.get("valid_until")
+                                    if isinstance(pat, dict)
+                                    else None
+                                )
                                 with ui.row().classes("items-center gap-2 w-full"):
                                     ui.icon("block").classes("text-red")
                                     ui.label(pat_str).classes("flex-grow text-sm")
                                     exp = _format_expiration(valid_until)
                                     if exp:
-                                        ui.badge(exp[0], color=exp[1]).classes("text-xs")
+                                        ui.badge(exp[0], color=exp[1]).classes(
+                                            "text-xs"
+                                        )
 
                                     async def do_remove_deny(i=idx):
                                         cfg = await run.io_bound(load_web_config)
                                         perms = cfg.get("permissions", {})
-                                        rules = perms.get("rules", []) if isinstance(perms, dict) else []
+                                        rules = (
+                                            perms.get("rules", [])
+                                            if isinstance(perms, dict)
+                                            else []
+                                        )
                                         for rule in rules:
-                                            if rule.get("matcher") == "Skill" and rule.get("mode") == "deny":
+                                            if (
+                                                rule.get("matcher") == "Skill"
+                                                and rule.get("mode") == "deny"
+                                            ):
                                                 pats = rule.get("patterns", [])
                                                 if i < len(pats):
                                                     removed = pats.pop(i)
                                                     if not pats:
                                                         rules.remove(rule)
-                                                    if isinstance(cfg.get("permissions"), dict):
-                                                        cfg["permissions"]["rules"] = rules
-                                                    await run.io_bound(save_web_config, cfg)
-                                                    ui.notify(f"Removed: {removed}", type="positive")
+                                                    if isinstance(
+                                                        cfg.get("permissions"), dict
+                                                    ):
+                                                        cfg["permissions"][
+                                                            "rules"
+                                                        ] = rules
+                                                    await run.io_bound(
+                                                        save_web_config, cfg
+                                                    )
+                                                    ui.notify(
+                                                        f"Removed: {removed}",
+                                                        type="positive",
+                                                    )
                                                     await refresh()
                                                 break
 
                                     ui.button(
-                                        icon="delete", on_click=do_remove_deny, color="red"
+                                        icon="delete",
+                                        on_click=do_remove_deny,
+                                        color="red",
                                     ).props("flat dense size=sm")
                         else:
                             ui.label("No deny patterns configured.").classes(
@@ -363,9 +454,13 @@ def create_skills_page(service, daemon_name: str):
                             )
 
                         with ui.row().classes("items-center gap-2 mt-2"):
-                            deny_input = ui.input(
-                                placeholder="Enter pattern (e.g., dangerous-*)"
-                            ).props("dense outlined").classes("flex-grow")
+                            deny_input = (
+                                ui.input(
+                                    placeholder="Enter pattern (e.g., dangerous-*)"
+                                )
+                                .props("dense outlined")
+                                .classes("flex-grow")
+                            )
 
                             async def add_deny():
                                 pattern = deny_input.value.strip()
@@ -379,16 +474,27 @@ def create_skills_page(service, daemon_name: str):
                                 rules = perms.get("rules", [])
                                 existing = None
                                 for rule in rules:
-                                    if rule.get("matcher") == "Skill" and rule.get("mode") == "deny":
+                                    if (
+                                        rule.get("matcher") == "Skill"
+                                        and rule.get("mode") == "deny"
+                                    ):
                                         existing = rule
                                         break
                                 if existing:
                                     if pattern in existing.get("patterns", []):
-                                        ui.notify("Pattern already exists", type="warning")
+                                        ui.notify(
+                                            "Pattern already exists", type="warning"
+                                        )
                                         return
                                     existing.setdefault("patterns", []).append(pattern)
                                 else:
-                                    rules.append({"matcher": "Skill", "mode": "deny", "patterns": [pattern]})
+                                    rules.append(
+                                        {
+                                            "matcher": "Skill",
+                                            "mode": "deny",
+                                            "patterns": [pattern],
+                                        }
+                                    )
                                 perms["rules"] = rules
                                 cfg["permissions"] = perms
                                 await run.io_bound(save_web_config, cfg)

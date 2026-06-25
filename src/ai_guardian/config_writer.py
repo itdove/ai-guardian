@@ -17,6 +17,7 @@ from typing import Any, Callable, Dict, Optional, Tuple
 
 try:
     import fcntl
+
     HAS_FCNTL = True
 except ImportError:
     HAS_FCNTL = False
@@ -58,6 +59,7 @@ def _atomic_config_update(
             elif sys.platform == "win32":
                 try:
                     import msvcrt
+
                     msvcrt.locking(lock_fd, msvcrt.LK_LOCK, 1)
                 except (ImportError, OSError):
                     pass
@@ -96,6 +98,7 @@ def _atomic_config_update(
 
             try:
                 from ai_guardian.config_loaders import _clear_config_cache
+
                 _clear_config_cache()
             except ImportError:
                 pass  # intentionally silent — optional dependency
@@ -178,9 +181,14 @@ def add_allowlist_pattern(
         section = _ensure_section(config, config_section)
         patterns = _ensure_list(section, "allowlist_patterns")
         for existing in patterns:
-            existing_str = existing if isinstance(existing, str) else existing.get("pattern", "")
+            existing_str = (
+                existing if isinstance(existing, str) else existing.get("pattern", "")
+            )
             if existing_str == pattern:
-                return True, f"Pattern already exists in {config_section}.allowlist_patterns"
+                return (
+                    True,
+                    f"Pattern already exists in {config_section}.allowlist_patterns",
+                )
         patterns.append(pattern_entry)
         section["allowlist_patterns"] = patterns
         return False, f"Added pattern to {config_section}.allowlist_patterns: {pattern}"
@@ -243,7 +251,10 @@ def add_allowed_domain(
 ) -> bool:
     """Add a domain to ssrf_protection.allowed_domains in ai-guardian.json."""
     return _add_to_config_list(
-        "ssrf_protection", "allowed_domains", domain, config_path,
+        "ssrf_protection",
+        "allowed_domains",
+        domain,
+        config_path,
         normalizer=lambda d: d.lower().strip(),
     )
 
@@ -253,7 +264,9 @@ def add_config_ignore_file(
     config_path: Optional[Path] = None,
 ) -> bool:
     """Add a glob pattern to config_file_scanning.ignore_files in ai-guardian.json."""
-    return _add_to_config_list("config_file_scanning", "ignore_files", pattern, config_path)
+    return _add_to_config_list(
+        "config_file_scanning", "ignore_files", pattern, config_path
+    )
 
 
 def add_permission_rule(
@@ -283,8 +296,7 @@ def add_permission_rule(
         section = _ensure_section(config, "permissions")
         rules = _ensure_list(section, "rules")
         for existing in rules:
-            if (existing.get("mode") == "allow"
-                    and existing.get("matcher") == matcher):
+            if existing.get("mode") == "allow" and existing.get("matcher") == matcher:
                 existing_patterns = existing.get("patterns", [])
                 new_patterns = [p for p in patterns if p not in existing_patterns]
                 if not new_patterns:
@@ -292,7 +304,10 @@ def add_permission_rule(
                 existing_patterns.extend(new_patterns)
                 existing["patterns"] = existing_patterns
                 section["rules"] = rules
-                return False, f"Merged patterns into existing rule for {matcher}: {new_patterns}"
+                return (
+                    False,
+                    f"Merged patterns into existing rule for {matcher}: {new_patterns}",
+                )
         new_rule = {"mode": "allow", "matcher": matcher, "patterns": patterns}
         rules.append(new_rule)
         section["rules"] = rules
@@ -378,6 +393,7 @@ def load_scoped_config(
     if scope == "merged":
         try:
             from ai_guardian.config_loaders import _load_config_file
+
             result, _ = _load_config_file()
             return result or {}
         except Exception:
@@ -385,6 +401,7 @@ def load_scoped_config(
             project_cfg = _load_json_file(_resolve_config_path("project", project_dir))
             if project_cfg:
                 from ai_guardian.config_utils import deep_merge
+
                 return deep_merge(global_cfg, project_cfg)
             return global_cfg
     elif scope == "global":
@@ -415,7 +432,10 @@ def write_scoped_config(
         (success, message) tuple.
     """
     if scope == "project" and section in GLOBAL_ONLY_SECTIONS:
-        return False, f"Section '{section}' is global-only and cannot be set per-project"
+        return (
+            False,
+            f"Section '{section}' is global-only and cannot be set per-project",
+        )
 
     config_path = _resolve_config_path(scope, project_dir)
 
@@ -454,7 +474,10 @@ def delete_project_override(
 
     def updater(config: dict) -> Tuple[bool, str]:
         if section not in config:
-            return True, f"Section '{section}' not in project config — nothing to remove"
+            return (
+                True,
+                f"Section '{section}' not in project config — nothing to remove",
+            )
         if key is None:
             del config[section]
             return False, f"Removed project override for entire section '{section}'"
@@ -508,6 +531,7 @@ def _compute_provenance_impl(
         return _mark_all_provenance(global_cfg, "global", detailed)
 
     from ai_guardian.config_utils import deep_merge
+
     merged = deep_merge(global_cfg, project_cfg)
     return _compute_provenance_recursive(global_cfg, project_cfg, merged, detailed)
 
@@ -545,14 +569,23 @@ def _compute_provenance_recursive(
         if in_project and in_global:
             g_val = global_cfg[key]
             p_val = project_cfg[key]
-            if isinstance(m_val, dict) and isinstance(g_val, dict) and isinstance(p_val, dict):
-                result[key] = _compute_provenance_recursive(g_val, p_val, m_val, detailed)
+            if (
+                isinstance(m_val, dict)
+                and isinstance(g_val, dict)
+                and isinstance(p_val, dict)
+            ):
+                result[key] = _compute_provenance_recursive(
+                    g_val, p_val, m_val, detailed
+                )
             elif isinstance(m_val, list):
                 if detailed:
                     g_list = g_val if isinstance(g_val, list) else []
                     g_set = set(str(i) for i in g_list)
                     result[key] = [
-                        {"value": item, "source": "global" if str(item) in g_set else "project"}
+                        {
+                            "value": item,
+                            "source": "global" if str(item) in g_set else "project",
+                        }
                         for item in m_val
                     ]
                 else:
@@ -629,7 +662,9 @@ def format_provenance_text(
                     item_val = entry.get("value", "")
                     item_src = entry.get("source", "")
                     label = _PROVENANCE_LABELS.get(item_src, item_src)
-                    lines.append(f"{prefix}  - {_format_scalar(item_val):<28s} ({label})")
+                    lines.append(
+                        f"{prefix}  - {_format_scalar(item_val):<28s} ({label})"
+                    )
             else:
                 label = _PROVENANCE_LABELS.get(prov, prov or "")
                 for item in value:

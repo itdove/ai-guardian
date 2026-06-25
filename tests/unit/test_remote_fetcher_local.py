@@ -11,12 +11,9 @@ Tests cover:
 - No caching behavior
 """
 
-import json
 import os
 import sys
 import pytest
-from pathlib import Path
-from unittest.mock import patch
 
 from ai_guardian.remote_fetcher import RemoteFetcher
 
@@ -47,7 +44,10 @@ class TestLocalFilePaths:
         assert config is not None
         assert config["skill_allowed_patterns"] == ["test-*"]
 
-    @pytest.mark.skipif(sys.platform == "win32", reason="Tilde expansion uses USERPROFILE not HOME on Windows")
+    @pytest.mark.skipif(
+        sys.platform == "win32",
+        reason="Tilde expansion uses USERPROFILE not HOME on Windows",
+    )
     def test_tilde_expansion(self, monkeypatch, tmp_path):
         """Test tilde expansion for home directory."""
         # Mock home directory
@@ -76,7 +76,9 @@ class TestLocalFilePaths:
 
         assert config is None
 
-    @pytest.mark.skipif(sys.platform == "win32", reason="chmod 0o000 not effective on Windows")
+    @pytest.mark.skipif(
+        sys.platform == "win32", reason="chmod 0o000 not effective on Windows"
+    )
     def test_permission_denied(self, tmp_path):
         """Test error handling for unreadable file."""
         config_file = tmp_path / "config.toml"
@@ -127,7 +129,7 @@ class TestLocalFilePaths:
     def test_invalid_toml(self, tmp_path):
         """Test error handling for invalid TOML."""
         config_file = tmp_path / "config.toml"
-        config_file.write_text('[invalid toml content')
+        config_file.write_text("[invalid toml content")
 
         fetcher = RemoteFetcher()
         config = fetcher.fetch_config(str(config_file))
@@ -181,7 +183,10 @@ class TestLocalFilePaths:
 
         assert config is None
 
-    @pytest.mark.skipif(sys.platform == "win32", reason="Tilde expansion uses USERPROFILE not HOME on Windows")
+    @pytest.mark.skipif(
+        sys.platform == "win32",
+        reason="Tilde expansion uses USERPROFILE not HOME on Windows",
+    )
     def test_file_url_with_tilde(self, monkeypatch, tmp_path):
         """Test file:// URL with tilde expansion."""
         # Mock home directory
@@ -192,7 +197,7 @@ class TestLocalFilePaths:
 
         fetcher = RemoteFetcher()
         # Note: file:// with tilde is not standard, but we support it
-        config = fetcher.fetch_config(f"file://~/config.toml")
+        config = fetcher.fetch_config("file://~/config.toml")
 
         assert config is not None
         assert config["test"] == "value"
@@ -200,7 +205,7 @@ class TestLocalFilePaths:
     def test_empty_file(self, tmp_path):
         """Test handling of empty file."""
         config_file = tmp_path / "empty.toml"
-        config_file.write_text('')
+        config_file.write_text("")
 
         fetcher = RemoteFetcher()
         config = fetcher.fetch_config(str(config_file))
@@ -213,7 +218,9 @@ class TestLocalFilePaths:
     def test_utf8_content(self, tmp_path):
         """Test UTF-8 encoded content."""
         config_file = tmp_path / "config.json"
-        config_file.write_text('{"description": "Test with émojis 🚀"}', encoding='utf-8')
+        config_file.write_text(
+            '{"description": "Test with émojis 🚀"}', encoding="utf-8"
+        )
 
         fetcher = RemoteFetcher()
         config = fetcher.fetch_config(str(config_file))
@@ -362,7 +369,10 @@ class TestLocalFilePathsEdgeCases:
         # Should fail to find the file
         assert config is None
 
-    @pytest.mark.skipif(sys.platform == "win32", reason="file:/// with Unix absolute paths not valid on Windows")
+    @pytest.mark.skipif(
+        sys.platform == "win32",
+        reason="file:/// with Unix absolute paths not valid on Windows",
+    )
     def test_file_url_triple_slash(self, tmp_path):
         """Test file:/// with triple slash (standard)."""
         config_file = tmp_path / "config.toml"

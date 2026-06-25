@@ -9,32 +9,33 @@ Go RE2 regex compatibility is validated at load time — patterns using
 Python-only features (e.g., \\p{L}) are rejected with a warning.
 """
 
-import fnmatch
 import ipaddress
 import logging
 import re
 import sys
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, List, Optional, Tuple
 
 if sys.version_info >= (3, 11):
     import tomllib
 else:
     import tomli as tomllib
 
-from ai_guardian.patterns.validators import get_validator
 
 logger = logging.getLogger(__name__)
 
 VALID_MATCH_TYPES = {"regex", "literal", "cidr", "range", "glob"}
 
 RE2_INCOMPATIBLE_PATTERNS = [
-    (r'\\p\{', "Unicode property escapes (\\p{...}) are not supported in Go RE2"),
-    (r'\\P\{', "Negated Unicode property escapes (\\P{...}) are not supported in Go RE2"),
-    (r'\(\?<[!=]', "Lookbehinds are not supported in Go RE2"),
-    (r'\(\?>', "Atomic groups are not supported in Go RE2"),
-    (r'\(\?\(', "Conditional patterns are not supported in Go RE2"),
+    (r"\\p\{", "Unicode property escapes (\\p{...}) are not supported in Go RE2"),
+    (
+        r"\\P\{",
+        "Negated Unicode property escapes (\\P{...}) are not supported in Go RE2",
+    ),
+    (r"\(\?<[!=]", "Lookbehinds are not supported in Go RE2"),
+    (r"\(\?>", "Atomic groups are not supported in Go RE2"),
+    (r"\(\?\(", "Conditional patterns are not supported in Go RE2"),
 ]
 
 
@@ -54,6 +55,7 @@ class CompiledRule:
         category: Rule category (secret, pii, prompt_injection, unicode, config_exfil, ssrf)
         metadata: Additional fields from TOML (description, redaction_strategy, etc.)
     """
+
     id: str
     match_type: str
     compiled: Any
@@ -91,7 +93,9 @@ def _compile_regex(raw: dict) -> re.Pattern:
             )
             raise ValueError(f"RE2-incompatible regex: {reason}")
     else:
-        logger.debug(f"Rule {raw.get('id', '?')}: RE2 compat check skipped (re2_compat=false)")
+        logger.debug(
+            f"Rule {raw.get('id', '?')}: RE2 compat check skipped (re2_compat=false)"
+        )
 
     flags = 0
     raw_flags = raw.get("flags", "")
@@ -133,7 +137,9 @@ def _compile_range(raw: dict) -> Tuple[int, int]:
     start = raw.get("start")
     end = raw.get("end")
     if start is None or end is None:
-        raise ValueError(f"Rule {raw.get('id', '?')}: range rule missing 'start' or 'end'")
+        raise ValueError(
+            f"Rule {raw.get('id', '?')}: range rule missing 'start' or 'end'"
+        )
     return (int(start), int(end))
 
 
@@ -154,8 +160,19 @@ _COMPILERS = {
 }
 
 RESERVED_FIELDS = {
-    "id", "match_type", "regex", "source", "target", "cidr", "start", "end",
-    "glob", "flags", "case_insensitive", "multiline", "dotall",
+    "id",
+    "match_type",
+    "regex",
+    "source",
+    "target",
+    "cidr",
+    "start",
+    "end",
+    "glob",
+    "flags",
+    "case_insensitive",
+    "multiline",
+    "dotall",
 }
 
 
@@ -240,5 +257,7 @@ def load_and_compile(path: Path, category: str) -> List[CompiledRule]:
             compiled.append(rule)
         except ValueError as e:
             logger.warning(f"Skipping invalid rule in {path}: {e}")
-    logger.info(f"Loaded {len(compiled)}/{len(raw_rules)} rules from {path.name} ({category})")
+    logger.info(
+        f"Loaded {len(compiled)}/{len(raw_rules)} rules from {path.name} ({category})"
+    )
     return compiled

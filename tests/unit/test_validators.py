@@ -1,7 +1,5 @@
 """Tests for pattern validation functions."""
 
-import pytest
-
 from ai_guardian.patterns.validators import (
     connection_not_placeholder,
     env_not_file_path,
@@ -46,19 +44,18 @@ class TestEnvNotFilePath:
         assert env_not_file_path("PKGMGR='/usr/bin/microdnf'") is False
 
     def test_real_secret_detected(self):
-        assert env_not_file_path(
-            "AWS_SECRET_KEY=wJalrXUtnFEMIK7MDENGEXAMPLEKEY"
-        ) is True
+        assert (
+            env_not_file_path("AWS_SECRET_KEY=wJalrXUtnFEMIK7MDENGEXAMPLEKEY") is True
+        )
 
     def test_aws_key_with_slash_detected(self):
-        assert env_not_file_path(
-            "AWS_SECRET_KEY=wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"
-        ) is True
+        assert (
+            env_not_file_path("AWS_SECRET_KEY=wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY")
+            is True
+        )
 
     def test_base64_token_detected(self):
-        assert env_not_file_path(
-            "TOKEN=dGhpcyBpcyBhIHRlc3QgdG9rZW4="
-        ) is True
+        assert env_not_file_path("TOKEN=dGhpcyBpcyBhIHRlc3QgdG9rZW4=") is True
 
     def test_no_equals_sign_passes(self):
         assert env_not_file_path("NOEQUALSSIGN") is True
@@ -280,29 +277,38 @@ class TestConnectionNotPlaceholder:
     """Tests for connection_not_placeholder validator (Issue #919)."""
 
     def test_real_password_detected(self):
-        assert connection_not_placeholder(
-            "mongodb://user:MySecretPass123@db.example.com:27017/mydb"
-        ) is True
+        assert (
+            connection_not_placeholder(
+                "mongodb://user:MySecretPass123@db.example.com:27017/mydb"
+            )
+            is True
+        )
 
     def test_hidden_placeholder_skipped(self):
-        assert connection_not_placeholder(
-            "mongodb://user:[HIDDEN]@db.example.com:27017/mydb"
-        ) is False
+        assert (
+            connection_not_placeholder(
+                "mongodb://user:[HIDDEN]@db.example.com:27017/mydb"
+            )
+            is False
+        )
 
     def test_redacted_placeholder_skipped(self):
-        assert connection_not_placeholder(
-            "postgres://admin:[REDACTED]@db.host:5432/app"
-        ) is False
+        assert (
+            connection_not_placeholder("postgres://admin:[REDACTED]@db.host:5432/app")
+            is False
+        )
 
     def test_angle_bracket_skipped(self):
-        assert connection_not_placeholder(
-            "mysql://root:<password>@localhost:3306/test"
-        ) is False
+        assert (
+            connection_not_placeholder("mysql://root:<password>@localhost:3306/test")
+            is False
+        )
 
     def test_repeated_chars_skipped(self):
-        assert connection_not_placeholder(
-            "redis://:xxxxxxxx@cache.example.com:6379/0"
-        ) is False
+        assert (
+            connection_not_placeholder("redis://:xxxxxxxx@cache.example.com:6379/0")
+            is False
+        )
 
     def test_no_connection_string_passes(self):
         assert connection_not_placeholder("not a connection string") is True
@@ -383,69 +389,58 @@ class TestTokenNotPlaceholder:
     """Tests for token_not_placeholder validator (Issue #931)."""
 
     def test_glpat_all_x_skipped(self):
-        assert token_not_placeholder(
-            "glpat-xxxxxxxxxxxxxxxxxxxx"
-        ) is False
+        assert token_not_placeholder("glpat-xxxxxxxxxxxxxxxxxxxx") is False
 
     def test_ghp_all_x_skipped(self):
-        assert token_not_placeholder(
-            "ghp_XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
-        ) is False
+        assert (
+            token_not_placeholder("ghp_XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX") is False
+        )
 
     def test_sk_your_key_skipped(self):
-        assert token_not_placeholder(
-            "sk-your-api-key-here-abcdef"
-        ) is False
+        assert token_not_placeholder("sk-your-api-key-here-abcdef") is False
 
     def test_xoxb_placeholder_skipped(self):
-        assert token_not_placeholder(
-            "xoxb-PLACEHOLDER-TOKEN-VALUE"
-        ) is False
+        assert token_not_placeholder("xoxb-PLACEHOLDER-TOKEN-VALUE") is False
 
     def test_glpat_template_angle_skipped(self):
-        assert token_not_placeholder(
-            "glpat-<your-token-here-value>"
-        ) is False
+        assert token_not_placeholder("glpat-<your-token-here-value>") is False
 
     def test_sk_template_dollar_skipped(self):
-        assert token_not_placeholder(
-            "sk-${TOKEN_VALUE_PLACEHOLDER}"
-        ) is False
+        assert token_not_placeholder("sk-${TOKEN_VALUE_PLACEHOLDER}") is False
 
     def test_gho_all_caps_underscores_skipped(self):
-        assert token_not_placeholder(
-            "gho_YOUR_TOKEN_VALUE_HERE_REPLACE_ME_NOW_123456"
-        ) is False
+        assert (
+            token_not_placeholder("gho_YOUR_TOKEN_VALUE_HERE_REPLACE_ME_NOW_123456")
+            is False
+        )
 
     def test_sk_ant_placeholder_skipped(self):
-        assert token_not_placeholder(
-            "sk-ant-example-key-value-abcdefghijklmnop"
-        ) is False
+        assert (
+            token_not_placeholder("sk-ant-example-key-value-abcdefghijklmnop") is False
+        )
 
     def test_sk_proj_placeholder_skipped(self):
-        assert token_not_placeholder(
-            "sk-proj-dummy_token_value_here_abcdef"
-        ) is False
+        assert token_not_placeholder("sk-proj-dummy_token_value_here_abcdef") is False
 
     def test_real_glpat_detected(self):
-        assert token_not_placeholder(
-            "glpat-AbCdEfGhIjKlMnOpQrSt"  # notsecret
-        ) is True
+        assert token_not_placeholder("glpat-AbCdEfGhIjKlMnOpQrSt") is True  # notsecret
 
     def test_real_ghp_detected(self):
-        assert token_not_placeholder(
-            "ghp_a1B2c3D4e5F6g7H8i9J0k1L2m3N4o5P6q7R8"  # notsecret
-        ) is True
+        assert (
+            token_not_placeholder(
+                "ghp_a1B2c3D4e5F6g7H8i9J0k1L2m3N4o5P6q7R8"  # notsecret
+            )
+            is True
+        )
 
     def test_real_sk_detected(self):
-        assert token_not_placeholder(
-            "sk-a1B2c3D4e5F6g7H8i9J0k1L2"
-        ) is True
+        assert token_not_placeholder("sk-a1B2c3D4e5F6g7H8i9J0k1L2") is True
 
     def test_real_xoxb_detected(self):
-        assert token_not_placeholder(
-            "xoxb-not-a-real-slack-token-aBcDeFgHiJ"  # notsecret
-        ) is True
+        assert (
+            token_not_placeholder("xoxb-not-a-real-slack-token-aBcDeFgHiJ")  # notsecret
+            is True
+        )
 
     def test_no_prefix_passes(self):
         assert token_not_placeholder("not-a-token-at-all") is True

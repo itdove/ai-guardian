@@ -6,7 +6,6 @@ import tempfile
 from pathlib import Path
 from unittest import mock
 
-import pytest
 
 from ai_guardian.response_format import (
     detect_ide_type,
@@ -103,6 +102,7 @@ class TestOpenClawSetupConfig:
     def test_openclaw_in_ide_configs(self):
         """OpenClaw has IDE config entry with extension_based flag."""
         from ai_guardian.setup import IDESetup
+
         assert "openclaw" in IDESetup.IDE_CONFIGS
         config = IDESetup.IDE_CONFIGS["openclaw"]
         assert config["name"] == "OpenClaw"
@@ -111,12 +111,14 @@ class TestOpenClawSetupConfig:
     def test_openclaw_config_path(self):
         """OpenClaw config path points to plugin directory."""
         from ai_guardian.setup import IDESetup
+
         config = IDESetup.IDE_CONFIGS["openclaw"]
         assert config["config_path"] == "~/.openclaw/plugins/ai-guardian"
 
     def test_openclaw_no_hooks_or_scripts(self):
         """OpenClaw config does not define hooks or script_based."""
         from ai_guardian.setup import IDESetup
+
         config = IDESetup.IDE_CONFIGS["openclaw"]
         assert "hooks" not in config
         assert "script_based" not in config
@@ -136,7 +138,9 @@ class TestOpenClawSetupFlow:
                 "get_config_path",
                 return_value=ext_dir,
             ):
-                setup = __import__("ai_guardian.setup", fromlist=["IDESetup"]).IDESetup()
+                setup = __import__(
+                    "ai_guardian.setup", fromlist=["IDESetup"]
+                ).IDESetup()
                 success, message = setup.setup_ide_hooks("openclaw")
                 assert success is True
                 assert Path(ext_dir).exists()
@@ -150,7 +154,9 @@ class TestOpenClawSetupFlow:
                 "get_config_path",
                 return_value=ext_dir,
             ):
-                setup = __import__("ai_guardian.setup", fromlist=["IDESetup"]).IDESetup()
+                setup = __import__(
+                    "ai_guardian.setup", fromlist=["IDESetup"]
+                ).IDESetup()
                 setup.setup_ide_hooks("openclaw")
                 index_path = Path(ext_dir) / "index.ts"
                 assert index_path.exists()
@@ -167,7 +173,9 @@ class TestOpenClawSetupFlow:
                 "get_config_path",
                 return_value=ext_dir,
             ):
-                setup = __import__("ai_guardian.setup", fromlist=["IDESetup"]).IDESetup()
+                setup = __import__(
+                    "ai_guardian.setup", fromlist=["IDESetup"]
+                ).IDESetup()
                 setup.setup_ide_hooks("openclaw")
                 pkg_path = Path(ext_dir) / "package.json"
                 assert pkg_path.exists()
@@ -184,7 +192,9 @@ class TestOpenClawSetupFlow:
                 "get_config_path",
                 return_value=ext_dir,
             ):
-                setup = __import__("ai_guardian.setup", fromlist=["IDESetup"]).IDESetup()
+                setup = __import__(
+                    "ai_guardian.setup", fromlist=["IDESetup"]
+                ).IDESetup()
                 success, message = setup.setup_ide_hooks("openclaw", dry_run=True)
                 assert success is True
                 assert "DRY RUN" in message
@@ -202,7 +212,9 @@ class TestOpenClawSetupFlow:
                 "get_config_path",
                 return_value=ext_dir,
             ):
-                setup = __import__("ai_guardian.setup", fromlist=["IDESetup"]).IDESetup()
+                setup = __import__(
+                    "ai_guardian.setup", fromlist=["IDESetup"]
+                ).IDESetup()
                 success, message = setup.setup_ide_hooks("openclaw")
                 assert success is False
                 assert "already configured" in message
@@ -220,7 +232,9 @@ class TestOpenClawSetupFlow:
                 "get_config_path",
                 return_value=ext_dir,
             ):
-                setup = __import__("ai_guardian.setup", fromlist=["IDESetup"]).IDESetup()
+                setup = __import__(
+                    "ai_guardian.setup", fromlist=["IDESetup"]
+                ).IDESetup()
                 success, message = setup.setup_ide_hooks("openclaw", force=True)
                 assert success is True
                 content = index_path.read_text()
@@ -235,7 +249,9 @@ class TestOpenClawSetupFlow:
                 "get_config_path",
                 return_value=ext_dir,
             ):
-                setup = __import__("ai_guardian.setup", fromlist=["IDESetup"]).IDESetup()
+                setup = __import__(
+                    "ai_guardian.setup", fromlist=["IDESetup"]
+                ).IDESetup()
                 success, message = setup.setup_ide_hooks("openclaw")
                 assert "npm install" in message
 
@@ -251,14 +267,18 @@ class TestOpenClawHooksConfigured:
             index_path = ext_dir / "index.ts"
             index_path.write_text("// ai-guardian plugin code")
             from ai_guardian.setup import IDESetup
+
             setup = IDESetup()
             assert setup.check_hooks_configured(ext_dir, "openclaw") is True
 
     def test_check_hooks_configured_false_no_dir(self):
         """Returns False when directory does not exist."""
         from ai_guardian.setup import IDESetup
+
         setup = IDESetup()
-        assert setup.check_hooks_configured(Path("/nonexistent/path"), "openclaw") is False
+        assert (
+            setup.check_hooks_configured(Path("/nonexistent/path"), "openclaw") is False
+        )
 
     def test_check_hooks_configured_false_no_index(self):
         """Returns False when directory exists but no index.ts."""
@@ -266,6 +286,7 @@ class TestOpenClawHooksConfigured:
             ext_dir = Path(tmpdir) / "ai-guardian"
             ext_dir.mkdir()
             from ai_guardian.setup import IDESetup
+
             setup = IDESetup()
             assert setup.check_hooks_configured(ext_dir, "openclaw") is False
 
@@ -277,6 +298,7 @@ class TestOpenClawHooksConfigured:
             index_path = ext_dir / "index.ts"
             index_path.write_text("// some other plugin")
             from ai_guardian.setup import IDESetup
+
             setup = IDESetup()
             assert setup.check_hooks_configured(ext_dir, "openclaw") is False
 
@@ -287,6 +309,7 @@ class TestOpenClawMCPConfig:
     def test_openclaw_in_mcp_ide_configs(self):
         """OpenClaw has MCP config entry."""
         from ai_guardian.setup import _MCP_IDE_CONFIGS
+
         assert "openclaw" in _MCP_IDE_CONFIGS
         config = _MCP_IDE_CONFIGS["openclaw"]
         assert config["config_file"] == "~/.openclaw/settings.json"
@@ -300,6 +323,7 @@ class TestOpenClawRulesConfig:
     def test_openclaw_in_rules_ide_configs(self):
         """OpenClaw has rules config entry for SOUL.md."""
         from ai_guardian.setup import _RULES_IDE_CONFIGS
+
         assert "openclaw" in _RULES_IDE_CONFIGS
         config = _RULES_IDE_CONFIGS["openclaw"]
         assert config["rules_file"] == "SOUL.md"
@@ -312,6 +336,7 @@ class TestOpenClawCLI:
     def test_openclaw_in_cli_choices(self):
         """'openclaw' is a valid --ide choice."""
         from ai_guardian.setup import IDESetup
+
         assert "openclaw" in IDESetup.IDE_CONFIGS
 
 
@@ -321,54 +346,64 @@ class TestOpenClawPluginContent:
     def test_plugin_has_define_plugin_entry(self):
         """Plugin TS uses definePluginEntry from openclaw SDK."""
         from ai_guardian.setup import _OPENCLAW_PLUGIN_TS
+
         assert "definePluginEntry" in _OPENCLAW_PLUGIN_TS
 
     def test_plugin_has_before_tool_call(self):
         """Plugin TS registers before_tool_call hook."""
         from ai_guardian.setup import _OPENCLAW_PLUGIN_TS
+
         assert "before_tool_call" in _OPENCLAW_PLUGIN_TS
 
     def test_plugin_has_after_tool_call(self):
         """Plugin TS registers after_tool_call hook."""
         from ai_guardian.setup import _OPENCLAW_PLUGIN_TS
+
         assert "after_tool_call" in _OPENCLAW_PLUGIN_TS
 
     def test_plugin_has_message_received(self):
         """Plugin TS registers message_received hook."""
         from ai_guardian.setup import _OPENCLAW_PLUGIN_TS
+
         assert "message_received" in _OPENCLAW_PLUGIN_TS
 
     def test_plugin_has_session_hooks(self):
         """Plugin TS registers session_start and session_end hooks."""
         from ai_guardian.setup import _OPENCLAW_PLUGIN_TS
+
         assert "session_start" in _OPENCLAW_PLUGIN_TS
         assert "session_end" in _OPENCLAW_PLUGIN_TS
 
     def test_plugin_has_run_guardian(self):
         """Plugin TS has runGuardian helper function."""
         from ai_guardian.setup import _OPENCLAW_PLUGIN_TS
+
         assert "runGuardian" in _OPENCLAW_PLUGIN_TS
 
     def test_plugin_sets_ide_type_env_var(self):
         """Plugin sets AI_GUARDIAN_IDE_TYPE=openclaw."""
         from ai_guardian.setup import _OPENCLAW_PLUGIN_TS
+
         assert "AI_GUARDIAN_IDE_TYPE" in _OPENCLAW_PLUGIN_TS
         assert "openclaw" in _OPENCLAW_PLUGIN_TS
 
     def test_plugin_uses_execsync(self):
         """Plugin calls ai-guardian via execSync."""
         from ai_guardian.setup import _OPENCLAW_PLUGIN_TS
+
         assert "execSync" in _OPENCLAW_PLUGIN_TS
 
     def test_plugin_returns_block_result(self):
         """Plugin returns block: true with blockReason on tool call blocking."""
         from ai_guardian.setup import _OPENCLAW_PLUGIN_TS
+
         assert "block: true" in _OPENCLAW_PLUGIN_TS
         assert "blockReason" in _OPENCLAW_PLUGIN_TS
 
     def test_package_json_has_dependency(self):
         """Package JSON includes openclaw dependency."""
         from ai_guardian.setup import _OPENCLAW_PACKAGE_JSON
+
         content = json.loads(_OPENCLAW_PACKAGE_JSON)
         assert "openclaw" in content["dependencies"]
         assert content["name"] == "ai-guardian-openclaw"
@@ -376,6 +411,7 @@ class TestOpenClawPluginContent:
     def test_package_json_has_hooks_metadata(self):
         """Package JSON includes openclaw hooks metadata."""
         from ai_guardian.setup import _OPENCLAW_PACKAGE_JSON
+
         content = json.loads(_OPENCLAW_PACKAGE_JSON)
         assert "openclaw" in content
         assert "hooks" in content["openclaw"]

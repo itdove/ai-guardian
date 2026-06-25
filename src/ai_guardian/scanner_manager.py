@@ -11,7 +11,6 @@ import shutil
 import subprocess
 import re
 from dataclasses import dataclass
-from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 
@@ -31,7 +30,15 @@ class InstalledScanner:
 class ScannerManager:
     """Manages installed scanner engines."""
 
-    SUPPORTED_SCANNERS = ["gitleaks", "betterleaks", "leaktk", "trufflehog", "detect-secrets", "secretlint", "gitguardian"]
+    SUPPORTED_SCANNERS = [
+        "gitleaks",
+        "betterleaks",
+        "leaktk",
+        "trufflehog",
+        "detect-secrets",
+        "secretlint",
+        "gitguardian",
+    ]
 
     def __init__(self, config: Optional[dict] = None):
         """
@@ -215,8 +222,10 @@ class ScannerManager:
                 continue
             try:
                 from ai_guardian.scanners.python_loader import (
-                    load_from_module, load_from_file,
+                    load_from_module,
+                    load_from_file,
                 )
+
                 module_path = engine_spec.get("module")
                 file_path = engine_spec.get("path")
                 class_name = engine_spec.get("class")
