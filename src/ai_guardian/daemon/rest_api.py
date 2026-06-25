@@ -52,12 +52,17 @@ class _RestHandler(BaseHTTPRequestHandler):
             self._send_json(self._get_tray_plugins())
         elif path == "/api/config":
             qs = urllib.parse.parse_qs(parsed.query)
-            scope = qs.get("scope", ["merged"])[0]
             project_dir = qs.get("project_dir", [None])[0]
-            if scope in ("global", "project", "merged"):
-                self._send_json(self._get_config_scoped(scope, project_dir))
+            if "scope" not in qs:
+                self._send_json(self._get_config())
             else:
-                self._send_error(400, "scope must be 'global', 'project', or 'merged'")
+                scope = qs["scope"][0]
+                if scope in ("global", "project", "merged"):
+                    self._send_json(self._get_config_scoped(scope, project_dir))
+                else:
+                    self._send_error(
+                        400, "scope must be 'global', 'project', or 'merged'"
+                    )
         elif path == "/api/config/provenance":
             qs = urllib.parse.parse_qs(parsed.query)
             project_dir = qs.get("project_dir", [None])[0]
