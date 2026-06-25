@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.12.1] - 2026-06-24
+
+### Changed
+
+- **README install URLs point to release tag** — install commands now reference `v1.12.1` instead of `main` branch, ensuring stable installations from PyPI match the tagged source
+
+### Fixed
+
+- **Release skill: install URL update must happen before tagging** — moved README URL update step before tag creation so PyPI receives correct URLs in package README
+- **Release skill: added TestPyPI verification step** — recommended pre-tag check to catch README rendering issues before publishing to production PyPI
+
 ## [1.12.0] - 2026-06-24
 
 ### Added
@@ -2627,7 +2638,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Preserves existing configuration
   - Interactive and non-interactive modes
 
-[Unreleased]: https://github.com/itdove/ai-guardian/compare/v1.12.0...HEAD
+[Unreleased]: https://github.com/itdove/ai-guardian/compare/v1.12.1...HEAD
+[1.12.1]: https://github.com/itdove/ai-guardian/compare/v1.12.0...v1.12.1
 [1.12.0]: https://github.com/itdove/ai-guardian/compare/v1.11.1...v1.12.0
 [1.11.1]: https://github.com/itdove/ai-guardian/compare/v1.11.0...v1.11.1
 [1.11.0]: https://github.com/itdove/ai-guardian/compare/v1.10.0...v1.11.0

@@ -67,9 +67,12 @@ When invoked with arguments (e.g., `/release minor`), this skill guides you thro
 7. Determine new version based on release type
 8. Update version in both files (remove `-dev` suffix)
 9. Update CHANGELOG.md (move Unreleased to version section with date)
-10. Commit changes with proper commit message format
-11. Provide instructions for tagging and verification
-12. Provide post-release checklist
+10. Update install URLs in `README.md` to point to the release tag (e.g., `v1.2.0`) — **MUST happen before tagging**
+11. Commit changes with proper commit message format
+12. TestPyPI verification (recommended — see TestPyPI Verification section below)
+13. Create tag and push
+14. Verify PyPI publication
+15. Provide post-release checklist
 
 ### Hotfix Release (`/release hotfix <tag>`)
 
@@ -380,6 +383,47 @@ Removes debug hooks from hooks.json, deletes debug script and log files, removes
 
 **Skipping**: May be skipped for hotfix releases (`/release hotfix`) when the fix is urgent, but this should be documented in the release notes.
 
+## TestPyPI Verification (recommended)
+
+Before creating the production tag, verify the package builds and renders correctly on TestPyPI. This catches README rendering issues, missing files, and metadata problems before they reach the real PyPI (where you can't re-upload the same version).
+
+**Workflow**: `.github/workflows/publish-test.yml`
+
+**Steps**:
+
+1. **Create a test tag** from the release branch (after all commits including URL updates):
+   ```bash
+   git tag -a vX.Y.Z-test1 -m "Test release vX.Y.Z-test1"
+   git push origin vX.Y.Z-test1
+   ```
+
+2. **Wait for TestPyPI publish** workflow to complete:
+   ```bash
+   sleep 5
+   RUN_ID=$(gh run list --workflow=publish-test.yml --limit 1 --json databaseId --jq '.[0].databaseId')
+   gh run watch "$RUN_ID"
+   ```
+
+3. **Verify on TestPyPI**:
+   - Check the project page: `https://test.pypi.org/project/ai-guardian/X.Y.Z-test1/`
+   - Verify README renders correctly (install URLs, badges, formatting)
+   - Verify metadata (version, description, classifiers)
+   - Optionally test install: `pip install -i https://test.pypi.org/simple/ ai-guardian==X.Y.Z.test1`
+
+4. **If issues found**: fix on release branch, delete the test tag, create a new test tag (`-test2`), and re-verify.
+
+5. **If clean**: proceed with production tag creation.
+
+6. **Clean up test tags** after production release:
+   ```bash
+   git tag -d vX.Y.Z-test1
+   git push origin --delete vX.Y.Z-test1
+   ```
+
+**Skipping**: May be skipped for hotfix releases when the fix is urgent. Document the skip in the release notes.
+
+**Why this matters**: PyPI does not allow re-uploading the same version. A README rendering bug or missing metadata on PyPI is permanent for that version — you'd need a patch release (X.Y.Z+1) to fix it.
+
 ## Git Operations
 
 **Branch Naming**:
@@ -414,9 +458,7 @@ Removes debug hooks from hooks.json, deletes debug script and log files, removes
 5. [ ] Test installation from package registry
 6. [ ] Merge release branch back to main
 7. [ ] Bump version to next dev cycle (X.Y+1.0-dev)
-8. [ ] Update curl install URLs in `README.md`:
-      - **Release branch**: replace old version tag with new one (e.g., `v1.11.0` → `v1.11.1`)
-      - **Main branch**: ensure URLs point to `main` (not a version tag — there is no PyPI release for dev versions)
+8. [ ] Ensure main branch `README.md` install URLs point to `main` (not a version tag — there is no PyPI release for dev versions)
 9. [ ] Push main branch
 10. [ ] (Hotfix only) Cherry-pick fix to main
 11. [ ] Generate combined docs export — run the shell one-liner from AGENTS.md "Generating Combined Documentation for LLM Upload" section to create `docs/notebooklm-export.md`
@@ -491,9 +533,11 @@ Removes debug hooks from hooks.json, deletes debug script and log files, removes
 8. **Calculate new version**: Based on current version and release type
 9. **Update version files**: Edit all detected version files atomically
 10. **Update CHANGELOG**: Move Unreleased to version section with date
-11. **Create commits**: Use proper commit message format
-12. **Provide guidance**: Show commands for tagging and next steps
-13. **Validate**: Ensure versions match between all files
+11. **Update install URLs**: Replace `main` with release tag in README.md install commands (**before tagging** — PyPI uses the tag snapshot as package README)
+12. **Create commits**: Use proper commit message format
+13. **TestPyPI verification**: Create test tag, verify README renders correctly on TestPyPI (recommended, may skip for hotfixes)
+14. **Create production tag**: After TestPyPI verification passes
+15. **Validate**: Ensure versions match between all files
 
 **Error Recovery**:
 - If any step fails, provide clear error message and recovery steps
