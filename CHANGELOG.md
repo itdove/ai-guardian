@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.12.0] - 2026-06-24
+
 ### Added
 
 - **Interactive "ask" action mode** (Issue #1115)
@@ -163,6 +165,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Annotation pair syntax corrected**
 - **PII action set to block** when ask dialog returns Block
 - **NiceGUI web tests skipped on Python 3.9**
+- **Security: heredoc bypass of immutable Bash deny patterns** (Issue #1350) — raw (un-stripped) command checked against immutable deny patterns to prevent heredoc bypass
+- **Ask-mode block decisions logged to violations.jsonl** (Issue #1348) — user block choices in ask dialogs now create violation log entries
+- **CI: lint workflow enforces on PRs** (Issue #1349) — correct paths, removed continue-on-error, exit code enforcement
+- **Verified Cursor hook compatibility with Cursor v3.8.11**
 
 ## [1.11.1] - 2026-06-11
 
@@ -2621,7 +2627,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Preserves existing configuration
   - Interactive and non-interactive modes
 
-[Unreleased]: https://github.com/itdove/ai-guardian/compare/v1.11.0...HEAD
+[Unreleased]: https://github.com/itdove/ai-guardian/compare/v1.12.0...HEAD
+[1.12.0]: https://github.com/itdove/ai-guardian/compare/v1.11.1...v1.12.0
 [1.11.1]: https://github.com/itdove/ai-guardian/compare/v1.11.0...v1.11.1
 [1.11.0]: https://github.com/itdove/ai-guardian/compare/v1.10.0...v1.11.0
 [1.10.0]: https://github.com/itdove/ai-guardian/compare/v1.9.1...v1.10.0
