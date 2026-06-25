@@ -18,30 +18,26 @@ def _load_rules():
 
 
 def _refresh_pattern_server_cache():
-    """Trigger a pattern server cache refresh (network call)."""
-    from ai_guardian.web.config_helpers import is_remote_daemon
+    """Trigger a pattern server cache refresh (network call).
 
-    if is_remote_daemon():
-        return "Pattern cache refresh is not available for remote daemons"
+    Routes through DaemonService for both local and remote targets.
+    """
+    from ai_guardian.web.config_helpers import (
+        _get_current_target,
+        _daemon_service,
+    )
 
-    from ai_guardian.config_loaders import _load_pattern_server_config
-    from ai_guardian.pattern_server import PatternServerClient
+    target = _get_current_target()
+    if target is not None and _daemon_service is not None:
+        result = _daemon_service.refresh_pattern_cache(target)
+        if result is None:
+            return "Pattern cache refresh failed"
+        return result.get("result", "done")
 
-    config = _load_pattern_server_config()
-    if not config:
-        return "No pattern server configured"
+    from ai_guardian.daemon.multi_client import MultiDaemonClient
 
-    results = []
-    for ptype in PatternServerClient.DEFAULT_CACHE_FILES:
-        try:
-            client = PatternServerClient(config, pattern_type=ptype)
-            if client._fetch_patterns():
-                results.append(f"{ptype}: refreshed")
-            else:
-                results.append(f"{ptype}: failed")
-        except Exception as exc:
-            results.append(f"{ptype}: error ({exc})")
-    return "; ".join(results)
+    result = MultiDaemonClient._local_refresh_pattern_cache()
+    return result.get("result", "done")
 
 
 def _truncate(text, maxlen=80):

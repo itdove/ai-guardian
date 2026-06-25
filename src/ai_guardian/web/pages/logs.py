@@ -100,6 +100,10 @@ def create_logs_page(service, daemon_name: str):
         with ui.column().classes("flex-grow p-6 gap-4"):
             ui.label("Logs").classes("text-2xl font-bold")
 
+            from ai_guardian.web.config_helpers import is_remote_daemon
+
+            is_remote = is_remote_daemon()
+
             with ui.row().classes("gap-4 items-end"):
                 level_select = ui.select(
                     options={
@@ -117,46 +121,47 @@ def create_logs_page(service, daemon_name: str):
                     icon="refresh",
                     on_click=lambda: load_logs(),
                 )
-                ui.button(
-                    "Open File",
-                    icon="open_in_new",
-                    on_click=lambda: _handle_open(),
-                ).props("flat")
+                if not is_remote:
+                    ui.button(
+                        "Open File",
+                        icon="open_in_new",
+                        on_click=lambda: _handle_open(),
+                    ).props("flat")
 
-                async def _handle_clear():
-                    with ui.dialog() as dialog, ui.card():
-                        ui.label("Clear Log File?").classes("text-lg font-bold")
-                        ui.label(
-                            "This will permanently delete all log entries. "
-                            "This action cannot be undone."
-                        ).classes("text-sm text-red")
+                    async def _handle_clear():
+                        with ui.dialog() as dialog, ui.card():
+                            ui.label("Clear Log File?").classes("text-lg font-bold")
+                            ui.label(
+                                "This will permanently delete all log entries. "
+                                "This action cannot be undone."
+                            ).classes("text-sm text-red")
 
-                        with ui.row().classes("gap-2 mt-4"):
+                            with ui.row().classes("gap-2 mt-4"):
 
-                            async def confirm():
-                                await run.io_bound(_clear_log_file)
-                                dialog.close()
-                                ui.notify("Log file cleared", type="positive")
-                                await load_logs()
+                                async def confirm():
+                                    await run.io_bound(_clear_log_file)
+                                    dialog.close()
+                                    ui.notify("Log file cleared", type="positive")
+                                    await load_logs()
 
-                            ui.button(
-                                "Clear Log",
-                                icon="delete",
-                                color="red",
-                                on_click=confirm,
-                            )
-                            ui.button(
-                                "Cancel",
-                                on_click=dialog.close,
-                            )
-                    dialog.open()
+                                ui.button(
+                                    "Clear Log",
+                                    icon="delete",
+                                    color="red",
+                                    on_click=confirm,
+                                )
+                                ui.button(
+                                    "Cancel",
+                                    on_click=dialog.close,
+                                )
+                        dialog.open()
 
-                ui.button(
-                    "Clear",
-                    icon="delete",
-                    color="red",
-                    on_click=_handle_clear,
-                ).props("flat")
+                    ui.button(
+                        "Clear",
+                        icon="delete",
+                        color="red",
+                        on_click=_handle_clear,
+                    ).props("flat")
 
             def _handle_open():
                 ok = _open_log_file()
@@ -169,50 +174,39 @@ def create_logs_page(service, daemon_name: str):
 
             async def load_logs():
                 content.clear()
-                from ai_guardian.web.config_helpers import is_remote_daemon
+                from ai_guardian.web.config_helpers import load_web_logs
 
-                if is_remote_daemon():
-                    with content:
-                        ui.label(
-                            "Log viewer is not available for remote daemons."
-                        ).classes("text-grey-6")
-                    return
-                log_path = _get_log_path()
-                log_path_label.text = f"File: {log_path}"
-
-                if not log_path.exists():
-                    with content:
-                        ui.label(f"Log file not found: {log_path}").classes(
-                            "text-grey-6"
-                        )
-                    return
-
-                lines = await run.io_bound(_read_last_n_lines, log_path, 500)
                 min_level = level_select.value
+                result = await run.io_bound(load_web_logs, 500, min_level)
 
-                filtered = []
-                for line in lines:
-                    parsed = _parse_log_line(line.rstrip())
-                    if parsed:
-                        ts, mod, lvl, msg = parsed
-                        if _should_show(lvl, min_level):
-                            filtered.append(parsed)
-                    elif min_level == "DEBUG":
-                        filtered.append(("", "", "DEBUG", line.rstrip()))
+                if result is None:
+                    with content:
+                        ui.label("Failed to load logs.").classes("text-grey-6")
+                    return
+
+                log_path_str = result.get("log_path", "")
+                if log_path_str:
+                    log_path_label.text = f"File: {log_path_str}"
+
+                entries = result.get("entries", [])
 
                 with content:
-                    ui.label(f"{len(filtered)} entries (showing {min_level}+)").classes(
+                    ui.label(f"{len(entries)} entries (showing {min_level}+)").classes(
                         "text-xs text-grey-6 mb-2"
                     )
 
-                    if not filtered:
+                    if not entries:
                         ui.label("No log entries match the filter.").classes(
                             "text-grey-6"
                         )
                         return
 
                     parts = []
-                    for ts, mod, lvl, msg in reversed(filtered):
+                    for entry in reversed(entries):
+                        ts = entry.get("timestamp", "")
+                        mod = entry.get("module", "")
+                        lvl = entry.get("level", "DEBUG")
+                        msg = entry.get("message", "")
                         color = LEVEL_COLORS.get(lvl, "#888")
                         ts_html = f'<span style="color:#666">{ts}</span> ' if ts else ""
                         mod_html = (

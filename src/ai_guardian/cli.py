@@ -1176,7 +1176,7 @@ def main():
         args = parser.parse_args()
 
         # Auto-start daemon for CLI commands (Issue #680)
-        _no_autostart = {"daemon", "mcp-server", "tray"}
+        _no_autostart = {"daemon", "mcp-server", "tray", "setup"}
         if args.command and args.command not in _no_autostart:
             _ensure_daemon_started()
 

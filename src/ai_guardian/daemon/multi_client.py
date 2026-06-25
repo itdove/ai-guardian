@@ -703,6 +703,183 @@ class MultiDaemonClient:
         report = computer.compute()
         return _json.loads(format_audit_json(report))
 
+    def get_logs(
+        self,
+        target: DaemonTarget,
+        limit: int = 500,
+        level: str = "INFO",
+    ) -> Optional[dict]:
+        """Get log entries from a daemon."""
+        if target.runtime == "local":
+            return self._local_logs(limit, level)
+        params = f"?limit={limit}&level={level}"
+        return self._rest_request(target, "GET", f"/api/logs{params}")
+
+    @staticmethod
+    def _local_logs(limit: int = 500, level: str = "INFO") -> dict:
+        from pathlib import Path as _Path
+        from ai_guardian.config_utils import get_state_dir
+
+        log_path = get_state_dir() / "ai-guardian.log"
+        if not log_path.exists():
+            return {"entries": [], "count": 0, "log_path": str(log_path)}
+
+        level_priority = {
+            "DEBUG": 10,
+            "INFO": 20,
+            "WARNING": 30,
+            "ERROR": 40,
+            "CRITICAL": 50,
+        }
+        min_priority = level_priority.get(level, 20)
+
+        try:
+            with open(log_path, "r", encoding="utf-8", errors="replace") as f:
+                lines = f.readlines()
+                tail = lines[-limit:] if len(lines) > limit else lines
+        except OSError:
+            return {"entries": [], "count": 0, "log_path": str(log_path)}
+
+        entries = []
+        for line in tail:
+            line = line.rstrip()
+            if not line:
+                continue
+            parts = line.split(" - ")
+            if len(parts) >= 4:
+                if len(parts) == 5:
+                    ts, _, module, lvl, msg = (
+                        parts[0].strip(),
+                        parts[1].strip(),
+                        parts[2].strip(),
+                        parts[3].strip(),
+                        parts[4].strip(),
+                    )
+                else:
+                    ts, module, lvl, msg = (
+                        parts[0].strip(),
+                        parts[1].strip(),
+                        parts[2].strip(),
+                        parts[3].strip(),
+                    )
+                if lvl in level_priority:
+                    if level_priority[lvl] >= min_priority:
+                        entries.append(
+                            {
+                                "timestamp": ts,
+                                "module": module,
+                                "level": lvl,
+                                "message": msg,
+                            }
+                        )
+                elif min_priority <= 10:
+                    entries.append(
+                        {
+                            "timestamp": "",
+                            "module": "",
+                            "level": "DEBUG",
+                            "message": line,
+                        }
+                    )
+            elif min_priority <= 10:
+                entries.append(
+                    {
+                        "timestamp": "",
+                        "module": "",
+                        "level": "DEBUG",
+                        "message": line,
+                    }
+                )
+
+        return {
+            "entries": entries,
+            "count": len(entries),
+            "log_path": str(log_path),
+        }
+
+    def get_performance(
+        self,
+        target: DaemonTarget,
+        since_days: int = 30,
+    ) -> Optional[dict]:
+        """Get hook latency performance data from a daemon."""
+        if target.runtime == "local":
+            return self._local_performance(since_days)
+        params = f"?since_days={since_days}"
+        return self._rest_request(target, "GET", f"/api/performance{params}")
+
+    @staticmethod
+    def _local_performance(since_days: int = 30) -> dict:
+        from ai_guardian.latency_logger import LatencyComputer
+
+        computer = LatencyComputer(since_days=since_days)
+        report = computer.compute()
+        return {
+            "hook_stats": report.hook_stats,
+            "check_stats": report.check_stats,
+            "invocation_count": report.invocation_count,
+        }
+
+    def get_health_check(
+        self,
+        target: DaemonTarget,
+        fix: bool = False,
+    ) -> Optional[dict]:
+        """Run health checks on a daemon."""
+        if target.runtime == "local":
+            return self._local_health_check(fix)
+        params = "?fix=true" if fix else ""
+        return self._rest_request(target, "GET", f"/api/health-check{params}")
+
+    @staticmethod
+    def _local_health_check(fix: bool = False) -> dict:
+        from ai_guardian.doctor import Doctor
+
+        doctor = Doctor(fix=fix)
+        report = doctor.run_all()
+        return {
+            "checks": [
+                {
+                    "name": c.name,
+                    "status": c.status.value,
+                    "message": c.message,
+                    "detail": c.detail,
+                    "fix_hint": c.fix_hint,
+                    "fixable": c.fixable,
+                    "fixed": c.fixed,
+                }
+                for c in report.checks
+            ],
+            "version": report.version,
+        }
+
+    def refresh_pattern_cache(self, target: DaemonTarget) -> Optional[dict]:
+        """Trigger pattern server cache refresh on a daemon."""
+        if target.runtime == "local":
+            return self._local_refresh_pattern_cache()
+        return self._rest_request(target, "POST", "/api/patterns/refresh")
+
+    @staticmethod
+    def _local_refresh_pattern_cache() -> dict:
+        from ai_guardian.config_loaders import _load_pattern_server_config
+        from ai_guardian.pattern_server import PatternServerClient
+
+        config = _load_pattern_server_config()
+        if not config:
+            return {"result": "No pattern server configured"}
+
+        results = []
+        for ptype in PatternServerClient.DEFAULT_CACHE_FILES:
+            try:
+                client = PatternServerClient(config, pattern_type=ptype)
+                if client._fetch_patterns():
+                    results.append(f"{ptype}: refreshed")
+                else:
+                    results.append(f"{ptype}: failed")
+            except Exception as exc:
+                results.append(f"{ptype}: error ({exc})")
+        return {"result": "; ".join(results)}
+
     def export_support(self, target: DaemonTarget) -> Optional[str]:
         """Export support bundle."""
         cmd = ["ai-guardian", "support", "prepare"]
