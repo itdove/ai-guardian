@@ -142,33 +142,38 @@ class TestLoadScStats:
         pytest.importorskip("nicegui", reason="NiceGUI requires Python >= 3.10")
 
     def test_no_violations(self):
-        mock_vl = MagicMock()
-        mock_vl.return_value.get_recent_violations.return_value = []
         from ai_guardian.web.pages.supply_chain import _load_sc_stats
 
-        with patch("ai_guardian.violation_logger.ViolationLogger", mock_vl):
+        with patch(
+            "ai_guardian.web.config_helpers.load_web_violations",
+            return_value={"violations": [], "count": 0},
+        ):
             result = _load_sc_stats()
         assert result == 0
 
     def test_with_violations(self):
-        mock_vl = MagicMock()
-        mock_vl.return_value.get_recent_violations.return_value = [
-            {"violation_type": "supply_chain"},
-            {"violation_type": "supply_chain"},
-            {"violation_type": "supply_chain"},
-        ]
-        from ai_guardian.web.pages.supply_chain import _load_sc_stats
-
-        with patch("ai_guardian.violation_logger.ViolationLogger", mock_vl):
-            result = _load_sc_stats()
-        assert result == 3
-
-    def test_exception_returns_none(self):
         from ai_guardian.web.pages.supply_chain import _load_sc_stats
 
         with patch(
-            "ai_guardian.violation_logger.ViolationLogger",
-            side_effect=Exception("test error"),
+            "ai_guardian.web.config_helpers.load_web_violations",
+            return_value={
+                "violations": [
+                    {"violation_type": "supply_chain"},
+                    {"violation_type": "supply_chain"},
+                    {"violation_type": "supply_chain"},
+                ],
+                "count": 3,
+            },
         ):
             result = _load_sc_stats()
-        assert result is None
+        assert result == 3
+
+    def test_no_result_returns_zero(self):
+        from ai_guardian.web.pages.supply_chain import _load_sc_stats
+
+        with patch(
+            "ai_guardian.web.config_helpers.load_web_violations",
+            return_value=None,
+        ):
+            result = _load_sc_stats()
+        assert result == 0
