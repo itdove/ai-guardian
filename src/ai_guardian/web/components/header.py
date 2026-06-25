@@ -133,9 +133,19 @@ def create_header(daemon_name: str = ""):
     """Create the shared header bar showing current daemon and scope toggle."""
     _init_scope_state()
 
-    from ai_guardian.web.config_helpers import set_current_daemon_name
+    from ai_guardian.web.config_helpers import (
+        set_current_daemon_name,
+        set_current_project_dir,
+    )
 
     set_current_daemon_name(daemon_name)
+
+    try:
+        from nicegui import app
+
+        set_current_project_dir(app.storage.user.get("project_dir") or "")
+    except Exception:
+        set_current_project_dir("")
 
     with ui.header().classes("items-center justify-between bg-blue-grey-10"):
         with ui.row().classes("items-center gap-4"):
@@ -147,7 +157,7 @@ def create_header(daemon_name: str = ""):
             if daemon_name:
                 ui.label("|").classes("text-grey-6")
                 ui.label(daemon_name).classes("text-white font-bold")
-            _create_scope_toggle()
+            _create_project_selector(daemon_name)
         with ui.row().classes("gap-2"):
             if daemon_name:
                 prefix = f"/{daemon_name}"
@@ -328,3 +338,81 @@ def _create_scope_toggle():
                 pass  # intentionally silent — optional dependency
 
         scope_toggle.on_value_change(on_scope_change)
+
+
+def _create_project_selector(daemon_name: str):
+    """Create a project directory selector for daemon config pages.
+
+    Shows for all daemons (local and remote). Populates from the daemon's
+    tracked project directories (active_project_dirs from /api/stats).
+    Stores selection in session state and reloads the page on change.
+    """
+    if not daemon_name:
+        return
+
+    try:
+        from nicegui import app, run
+
+        current = app.storage.user.get("project_dir") or ""
+    except Exception:
+        return
+
+    from ai_guardian.web.config_helpers import (
+        load_web_projects,
+        set_current_project_dir,
+    )
+
+    with ui.row().classes("items-center gap-1 ml-2"):
+        ui.label("|").classes("text-grey-6")
+        ui.label("Project:").classes("text-grey-4 text-xs")
+
+        initial_options = {"": "Global only"}
+        if current:
+            initial_options[current] = _shorten_project_path(current)
+
+        project_select = (
+            ui.select(
+                initial_options,
+                value=current,
+                label=None,
+            )
+            .props(
+                "dense outlined dark options-dense"
+                " popup-content-class='bg-blue-grey-9'"
+            )
+            .classes("min-w-[200px] text-xs")
+        )
+
+        async def _populate():
+            dirs = await run.io_bound(load_web_projects)
+            options = {"": "Global only"}
+            for d in dirs:
+                options[d] = _shorten_project_path(d)
+            project_select.options = options
+            project_select.update()
+            if current and current not in options:
+                project_select.value = ""
+
+        async def on_project_change(e):
+            try:
+                from nicegui import app as _app
+
+                val = e.value or ""
+                _app.storage.user["project_dir"] = val
+                set_current_project_dir(val)
+                await ui.run_javascript("location.reload()")
+            except Exception:
+                pass
+
+        project_select.on_value_change(on_project_change)
+        ui.timer(0.1, _populate, once=True)
+
+
+def _shorten_project_path(path: str) -> str:
+    """Shorten a project path for display in the selector."""
+    try:
+        from ai_guardian.daemon.working_dir import shorten_path
+
+        return shorten_path(path)
+    except Exception:
+        return path

@@ -41,14 +41,21 @@ def _get_config_path(scope):
 def _load_config_by_scope(scope):
     """Load config from the specified scope. Returns (content_str, path_str).
 
-    For remote daemons, fetches via REST API.
+    Routes through DaemonService for both local and remote targets.
     """
     target = _get_current_target()
-    if _is_remote_target(target):
-        cfg = _daemon_service.get_config_scoped(target, scope)
+    if target is not None and _daemon_service is not None:
+        from ai_guardian.web.config_helpers import _get_remote_project_dir
+
+        project_dir = _get_remote_project_dir()
+        cfg = _daemon_service.get_config_scoped(target, scope, project_dir=project_dir)
+        label = f"(daemon: {target.name}"
+        if project_dir:
+            label += f" | project: {project_dir}"
+        label += ")"
         if cfg is not None:
-            return json.dumps(cfg, indent=2), f"(remote: {target.name})"
-        return "", f"(remote: {target.name} — unreachable)"
+            return json.dumps(cfg, indent=2), label
+        return "", f"(daemon: {target.name} — unreachable)"
 
     path = _get_config_path(scope)
     if path is None:
@@ -67,17 +74,29 @@ def _load_config_by_scope(scope):
 def _save_config_with_backup(content_str, path_str):
     """Save config with .json.bak backup. Returns error string or None.
 
-    For remote daemons, writes via REST API.
+    Routes through DaemonService for both local and remote targets.
     """
     parsed, err = _validate_json(content_str)
     if err:
         return err
 
     target = _get_current_target()
-    if _is_remote_target(target):
-        result = _daemon_service.write_config_bulk(target, "global", parsed)
+    if target is not None and _daemon_service is not None:
+        from ai_guardian.web.config_helpers import (
+            _get_current_scope,
+            _get_remote_project_dir,
+        )
+
+        scope = _get_current_scope()
+        project_dir = _get_remote_project_dir()
+        if scope == "project" and project_dir:
+            result = _daemon_service.write_config_bulk(
+                target, "project", parsed, project_dir=project_dir
+            )
+        else:
+            result = _daemon_service.write_config_bulk(target, "global", parsed)
         if result is None:
-            return "Failed to write to remote daemon"
+            return "Failed to write to daemon"
         return None
 
     if not path_str:
@@ -105,14 +124,21 @@ def create_config_editor_page(service, daemon_name: str):
                 "text-xs text-grey-6"
             )
 
-            state = {"scope": "global", "path": None}
+            from ai_guardian.web.config_helpers import _get_remote_project_dir
+
+            project_dir = _get_remote_project_dir()
+            initial_scope = "project" if project_dir else "global"
+            state = {"scope": initial_scope, "path": None}
 
             with ui.card().classes("w-full"):
-                ui.label("Scope").classes("text-lg font-bold")
-                scope_sel = ui.select(
-                    options={"global": "Global", "project": "Project"},
-                    value="global",
-                ).classes("w-48")
+                scope_sel = None
+                if project_dir:
+                    ui.label("Scope").classes("text-lg font-bold")
+                    scope_sel = ui.select(
+                        options={"global": "Global", "project": project_dir},
+                        value=initial_scope,
+                    ).classes("w-auto min-w-[200px]")
+
                 path_label = (
                     ui.label("")
                     .classes("text-sm text-grey-4")
@@ -216,7 +242,7 @@ def create_config_editor_page(service, daemon_name: str):
                 if editor is None:
                     await init_editor()
 
-                sc = scope_val if scope_val else scope_sel.value
+                sc = scope_val or (scope_sel.value if scope_sel else state["scope"])
                 state["scope"] = sc
                 text, path_str = await run.io_bound(_load_config_by_scope, sc)
                 state["path"] = path_str
@@ -224,9 +250,11 @@ def create_config_editor_page(service, daemon_name: str):
                 editor.value = text
                 _update_validation(text)
 
-            async def on_scope_change(e):
-                await load_scope(e.value)
+            if scope_sel is not None:
 
-            scope_sel.on_value_change(on_scope_change)
+                async def on_scope_change(e):
+                    await load_scope(e.value)
+
+                scope_sel.on_value_change(on_scope_change)
 
             ui.timer(0.1, load_scope, once=True)

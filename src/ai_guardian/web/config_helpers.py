@@ -6,7 +6,8 @@ to the correct config file. Backward compatible — defaults to global scope.
 
 Remote daemon support: when the current daemon target is not local,
 reads/writes are routed through DaemonService REST calls instead of
-the local filesystem. Remote daemons always use global scope.
+the local filesystem. Remote daemons support project scope when a
+project directory is selected via the header project selector.
 """
 
 import json
@@ -17,6 +18,7 @@ logger = logging.getLogger(__name__)
 
 _daemon_service = None
 _current_daemon_name = ""
+_current_project_dir = ""
 
 
 def set_daemon_service(service) -> None:
@@ -39,9 +41,28 @@ def set_current_daemon_name(name: str) -> None:
     _current_daemon_name = name
 
 
+def set_current_project_dir(project_dir: str) -> None:
+    """Store the current project directory for remote project scope routing.
+
+    Called from the header project selector on every page load.
+    Uses a module-level variable because NiceGUI's app.storage.user
+    is not accessible from run.io_bound() thread pool threads.
+    """
+    global _current_project_dir
+    _current_project_dir = project_dir or ""
+
+
 def _get_daemon_name() -> str:
     """Get the current daemon name."""
     return _current_daemon_name
+
+
+def _get_remote_project_dir() -> Optional[str]:
+    """Get the project directory for remote daemon routing.
+
+    Returns the module-level project dir (thread-safe), or None if empty.
+    """
+    return _current_project_dir or None
 
 
 def _get_current_target():
@@ -71,13 +92,12 @@ def _is_remote_target(target) -> bool:
 
 
 def _get_current_scope() -> str:
-    """Get the current config scope from NiceGUI session state."""
-    try:
-        from nicegui import app
+    """Derive config scope from project selection.
 
-        return app.storage.user.get("config_scope", "global")
-    except Exception:
-        return "global"
+    If a project directory is selected, scope is "project".
+    Otherwise scope is "global".
+    """
+    return "project" if _current_project_dir else "global"
 
 
 def _get_project_dir() -> Optional[str]:
@@ -97,11 +117,16 @@ def load_web_config() -> dict:
     current scope. The scope only affects where saves go, not what is displayed.
     Returns {} on missing/invalid.
 
-    For remote daemons, fetches config via REST API (global scope only).
+    Routes through DaemonService for both local and remote targets.
+    When a project directory is selected, passes it to get merged
+    (global + project) config.
     """
     target = _get_current_target()
-    if _is_remote_target(target):
-        result = _daemon_service.get_config_scoped(target, "merged")
+    if target is not None and _daemon_service is not None:
+        project_dir = _get_remote_project_dir()
+        result = _daemon_service.get_config_scoped(
+            target, "merged", project_dir=project_dir
+        )
         return result if result is not None else {}
 
     from ai_guardian.config_utils import get_config_dir, get_project_config_path
@@ -125,10 +150,10 @@ def load_web_config_global() -> dict:
     """Load global config regardless of current scope.
 
     Used when pages need to show global defaults alongside project overrides.
-    For remote daemons, fetches via REST API.
+    Routes through DaemonService for both local and remote targets.
     """
     target = _get_current_target()
-    if _is_remote_target(target):
+    if target is not None and _daemon_service is not None:
         result = _daemon_service.get_config_scoped(target, "global")
         return result if result is not None else {}
 
@@ -154,14 +179,22 @@ def load_web_config_global() -> dict:
 def save_web_config(config: dict) -> None:
     """Write config dict to ai-guardian.json for the current scope.
 
-    Reads scope from NiceGUI session state. Falls back to direct filesystem
-    write to global config when scope functions are unavailable.
-
-    For remote daemons, writes via REST API (always global scope).
+    Routes through DaemonService for both local and remote targets.
+    Uses the current scope and project directory selection to determine
+    where the config is written. Falls back to direct filesystem write
+    when no daemon target is available.
     """
     target = _get_current_target()
-    if _is_remote_target(target):
-        _daemon_service.write_config_bulk(target, "global", config)
+    if target is not None and _daemon_service is not None:
+        scope = _get_current_scope()
+        project_dir = _get_remote_project_dir()
+        if scope == "project" and project_dir:
+            _daemon_service.write_config_bulk(
+                target, "project", config, project_dir=project_dir
+            )
+        else:
+            _daemon_service.write_config_bulk(target, "global", config)
+        _invalidate_config_cache_after_save(scope, project_dir)
         return
 
     scope = _get_current_scope()
@@ -220,11 +253,12 @@ def _invalidate_config_cache_after_save(scope: str, project_dir: Optional[str]) 
 def get_web_config_provenance() -> dict:
     """Get provenance information for the current config.
 
-    For remote daemons, fetches via REST API (no project_dir).
+    Routes through DaemonService with project_dir when selected.
     """
     target = _get_current_target()
-    if _is_remote_target(target):
-        result = _daemon_service.get_config_provenance(target)
+    if target is not None and _daemon_service is not None:
+        project_dir = _get_remote_project_dir()
+        result = _daemon_service.get_config_provenance(target, project_dir=project_dir)
         return result if result is not None else {}
 
     try:
@@ -236,15 +270,32 @@ def get_web_config_provenance() -> dict:
 
 
 def get_web_config_scope_label() -> str:
-    """Return human-readable label for the current scope.
+    """Return human-readable label for the current scope."""
+    return "Project" if _current_project_dir else "Global"
 
-    Always returns "Global" for remote daemons (project scope not supported).
+
+def load_web_projects() -> list:
+    """Get list of tracked project directories for the current daemon target.
+
+    Returns sorted list of project directory paths. Uses /api/stats
+    active_project_dirs which is already populated by DaemonState from
+    hook requests.
     """
-    target = _get_current_target()
-    if _is_remote_target(target):
-        return "Global"
-    scope = _get_current_scope()
-    return "Project" if scope == "project" else "Global"
+    if _daemon_service is None:
+        return []
+    name = _get_daemon_name()
+    if not name:
+        return []
+    target = _daemon_service.get_target_by_name(name)
+    if target is None:
+        return []
+    try:
+        status = _daemon_service._client.get_status(target)
+        if status:
+            return sorted(status.get("active_project_dirs") or [])
+    except Exception:
+        pass
+    return []
 
 
 # ---------------------------------------------------------------------------

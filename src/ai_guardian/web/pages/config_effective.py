@@ -220,17 +220,9 @@ def create_config_effective_page(service, daemon_name: str):
                 "(global + project) with per-key provenance."
             ).classes("text-xs text-grey-6")
 
-            with ui.row().classes("items-center gap-4"):
-                project_select = (
-                    ui.select(
-                        {"": "Global only (no project)"},
-                        value="",
-                        label="Project",
-                    )
-                    .props("dense outlined")
-                    .classes("min-w-[300px]")
-                )
+            from ai_guardian.web.config_helpers import _get_remote_project_dir
 
+            with ui.row().classes("items-center gap-4"):
                 view_toggle = ui.toggle(
                     {False: "Show All", True: "Overrides Only"},
                     value=False,
@@ -243,20 +235,8 @@ def create_config_effective_page(service, daemon_name: str):
             content = ui.column().classes("w-full gap-1")
 
             async def refresh():
-                active_dirs = await run.io_bound(
-                    _get_active_project_dirs, service, daemon_name
-                )
-                options = {"": "Global only (no project)"}
-                for d in sorted(active_dirs):
-                    options[d] = _shorten_path(d)
-                project_select.options = options
-                project_select.update()
-
-                if project_select.value not in options:
-                    project_select.value = active_dirs[0] if active_dirs else ""
-
                 content.clear()
-                selected_dir = project_select.value
+                selected_dir = _get_remote_project_dir()
                 proj_dir = _resolve_project_root(selected_dir) if selected_dir else None
 
                 merged, provenance, project_cfg, error = await run.io_bound(
@@ -290,6 +270,5 @@ def create_config_effective_page(service, daemon_name: str):
                             merged, provenance or {}, tree_container, diff_only
                         )
 
-            project_select.on_value_change(lambda _: refresh())
             view_toggle.on_value_change(lambda _: refresh())
             ui.timer(0.1, refresh, once=True)

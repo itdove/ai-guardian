@@ -15,21 +15,26 @@ from ai_guardian.web.config_helpers import (
 def _load_config_files():
     """Load both global and project config file info.
 
-    For remote daemons, fetches config via REST API instead of local filesystem.
+    Routes through DaemonService for both local and remote targets.
+    Uses the selected project directory from the header selector.
     """
     target = _get_current_target()
-    if _is_remote_target(target):
-        return _load_remote_config_files(target)
+    if target is not None and _daemon_service is not None:
+        return _load_daemon_config_files(target)
     return _load_local_config_files()
 
 
-def _load_remote_config_files(target):
-    """Load config from a remote daemon via REST API."""
+def _load_daemon_config_files(target):
+    """Load config from daemon (local or remote) via DaemonService."""
+    from ai_guardian.web.config_helpers import _get_remote_project_dir
+
+    project_dir = _get_remote_project_dir()
+
     result = {
-        "global_path": f"(remote: {target.name})",
+        "global_path": f"(daemon: {target.name})",
         "global_exists": False,
         "global_content": None,
-        "project_path": None,
+        "project_path": project_dir,
         "project_exists": False,
         "project_content": None,
     }
@@ -38,6 +43,14 @@ def _load_remote_config_files(target):
     if global_cfg is not None:
         result["global_exists"] = True
         result["global_content"] = json.dumps(global_cfg, indent=2)
+
+    if project_dir:
+        project_cfg = _daemon_service.get_config_scoped(
+            target, "project", project_dir=project_dir
+        )
+        if project_cfg is not None:
+            result["project_exists"] = True
+            result["project_content"] = json.dumps(project_cfg, indent=2)
 
     return result
 
@@ -115,20 +128,21 @@ def create_config_file_page(service, daemon_name: str):
                                     "text-sm text-grey-4"
                                 ).style("font-family: monospace")
 
-                            with ui.row().classes("items-center gap-2"):
-                                ui.icon(
-                                    "check_circle"
-                                    if info["project_exists"]
-                                    else "cancel"
-                                ).classes(
-                                    "text-green"
-                                    if info["project_exists"]
-                                    else "text-red"
-                                )
-                                ui.label("Project:").classes("font-bold text-sm")
-                                ui.label(info["project_path"] or "Not found").classes(
-                                    "text-sm text-grey-4"
-                                ).style("font-family: monospace")
+                            if info["project_path"]:
+                                with ui.row().classes("items-center gap-2"):
+                                    ui.icon(
+                                        "check_circle"
+                                        if info["project_exists"]
+                                        else "cancel"
+                                    ).classes(
+                                        "text-green"
+                                        if info["project_exists"]
+                                        else "text-red"
+                                    )
+                                    ui.label("Project:").classes("font-bold text-sm")
+                                    ui.label(info["project_path"]).classes(
+                                        "text-sm text-grey-4"
+                                    ).style("font-family: monospace")
 
                     if info["global_exists"] and info["global_content"]:
                         with ui.card().classes("w-full"):
@@ -144,27 +158,24 @@ def create_config_file_page(service, daemon_name: str):
                                     info["global_content"], language="json"
                                 ).classes("w-full")
 
-                    if info["project_exists"] and info["project_content"]:
+                    if info["project_path"]:
                         with ui.card().classes("w-full"):
-                            ui.label("Project Configuration").classes(
-                                "text-lg font-bold"
-                            )
-                            with (
-                                ui.scroll_area()
-                                .classes("w-full")
-                                .style("max-height: 500px")
-                            ):
-                                ui.code(
-                                    info["project_content"], language="json"
-                                ).classes("w-full")
-                    elif not info["project_exists"]:
-                        with ui.card().classes("w-full"):
-                            ui.label("Project Configuration").classes(
-                                "text-lg font-bold"
-                            )
-                            ui.label("No project configuration file found.").classes(
-                                "text-grey-6 text-sm"
-                            )
+                            ui.label(
+                                f"Project Configuration — {info['project_path']}"
+                            ).classes("text-lg font-bold")
+                            if info["project_exists"] and info["project_content"]:
+                                with (
+                                    ui.scroll_area()
+                                    .classes("w-full")
+                                    .style("max-height: 500px")
+                                ):
+                                    ui.code(
+                                        info["project_content"], language="json"
+                                    ).classes("w-full")
+                            else:
+                                ui.label(
+                                    "No project configuration file found."
+                                ).classes("text-grey-6 text-sm")
 
                     ui.button("Refresh", icon="refresh", on_click=refresh).props(
                         "dense"
