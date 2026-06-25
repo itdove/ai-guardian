@@ -12,6 +12,8 @@ from ai_guardian.web.config_helpers import (
     get_web_config_scope_label,
     set_daemon_service,
     set_current_daemon_name,
+    set_current_project_dir,
+    load_web_projects,
     _is_remote_target,
 )
 
@@ -117,9 +119,15 @@ class _FakeTarget:
     runtime: str = "container"
 
 
+class _FakeClient:
+    def get_status(self, target):
+        return {"active_project_dirs": ["/projects/a", "/projects/b"]}
+
+
 class _FakeService:
     def __init__(self):
         self._target = _FakeTarget()
+        self._client = _FakeClient()
         self.calls = []
 
     def get_target_by_name(self, name):
@@ -128,16 +136,19 @@ class _FakeService:
         return None
 
     def get_config_scoped(self, target, scope, project_dir=None):
-        self.calls.append(("get_config_scoped", scope))
+        self.calls.append(("get_config_scoped", scope, project_dir))
         return {"remote": True, "scope": scope}
 
     def get_config_provenance(self, target, project_dir=None):
-        self.calls.append(("get_config_provenance",))
+        self.calls.append(("get_config_provenance", project_dir))
         return {"source": "remote"}
 
     def write_config_bulk(self, target, scope, config, project_dir=None):
-        self.calls.append(("write_config_bulk", scope, config))
+        self.calls.append(("write_config_bulk", scope, config, project_dir))
         return {"status": "ok"}
+
+    def refresh_targets(self):
+        pass
 
 
 class TestIsRemoteTarget:
@@ -166,15 +177,17 @@ class TestRemoteConfigRouting:
         self._svc = _FakeService()
         set_daemon_service(self._svc)
         set_current_daemon_name("test-daemon")
+        set_current_project_dir("")
 
     def teardown_method(self):
         set_daemon_service(None)
         set_current_daemon_name("")
+        set_current_project_dir("")
 
     def test_load_web_config_routes_to_remote(self):
         result = load_web_config()
         assert result == {"remote": True, "scope": "merged"}
-        assert ("get_config_scoped", "merged") in self._svc.calls
+        assert ("get_config_scoped", "merged", None) in self._svc.calls
 
     def test_load_web_config_local_when_no_daemon_name(self, tmp_path):
         set_current_daemon_name("")
@@ -186,43 +199,34 @@ class TestRemoteConfigRouting:
         assert result == {}
         assert len(self._svc.calls) == 0
 
-    def test_load_web_config_local_when_target_is_local(self, tmp_path):
+    def test_load_web_config_routes_local_target_through_service(self):
         self._svc._target = _FakeTarget(runtime="local")
-        data = {"features": {"test": True}}
-        (tmp_path / "ai-guardian.json").write_text(json.dumps(data), encoding="utf-8")
-        with (
-            patch("ai_guardian.config_utils.get_config_dir", return_value=tmp_path),
-            patch("ai_guardian.config_writer.get_config_dir", return_value=tmp_path),
-        ):
-            result = load_web_config()
-        assert result == data
-        assert len(self._svc.calls) == 0
+        result = load_web_config()
+        assert result == {"remote": True, "scope": "merged"}
+        assert ("get_config_scoped", "merged", None) in self._svc.calls
 
     def test_load_web_config_global_routes_to_remote(self):
         result = load_web_config_global()
         assert result == {"remote": True, "scope": "global"}
-        assert ("get_config_scoped", "global") in self._svc.calls
+        assert ("get_config_scoped", "global", None) in self._svc.calls
 
-    def test_save_web_config_routes_to_remote(self):
+    def test_save_web_config_routes_through_service(self):
         config = {"secret_scanning": {"enabled": True}}
         save_web_config(config)
-        assert ("write_config_bulk", "global", config) in self._svc.calls
+        assert ("write_config_bulk", "global", config, None) in self._svc.calls
 
-    def test_save_web_config_always_global_for_remote(self):
+    def test_save_web_config_global_when_no_project_selected(self):
+        set_current_project_dir("")
         config = {"test": True}
-        with patch(
-            "ai_guardian.web.config_helpers._get_current_scope",
-            return_value="project",
-        ):
-            save_web_config(config)
+        save_web_config(config)
         assert self._svc.calls[0][1] == "global"
 
-    def test_provenance_routes_to_remote(self):
+    def test_provenance_routes_through_service(self):
         result = get_web_config_provenance()
         assert result == {"source": "remote"}
-        assert ("get_config_provenance",) in self._svc.calls
+        assert ("get_config_provenance", None) in self._svc.calls
 
-    def test_scope_label_always_global_for_remote(self):
+    def test_scope_label_global_when_no_project_selected(self):
         assert get_web_config_scope_label() == "Global"
 
     def test_load_returns_empty_on_service_error(self):
@@ -238,3 +242,66 @@ class TestRemoteConfigRouting:
         ):
             result = load_web_config()
         assert result == {}
+
+
+class TestRemoteProjectScope:
+    """Tests for remote daemon project scope routing (#1354)."""
+
+    def setup_method(self):
+        self._svc = _FakeService()
+        set_daemon_service(self._svc)
+        set_current_daemon_name("test-daemon")
+        set_current_project_dir("")
+
+    def teardown_method(self):
+        set_daemon_service(None)
+        set_current_daemon_name("")
+        set_current_project_dir("")
+
+    def test_load_passes_project_dir_to_remote(self):
+        set_current_project_dir("/projects/a")
+        result = load_web_config()
+        assert result == {"remote": True, "scope": "merged"}
+        assert ("get_config_scoped", "merged", "/projects/a") in self._svc.calls
+
+    def test_save_uses_project_scope_when_selected(self):
+        set_current_project_dir("/projects/a")
+        config = {"test": True}
+        save_web_config(config)
+        assert (
+            "write_config_bulk",
+            "project",
+            config,
+            "/projects/a",
+        ) in self._svc.calls
+
+    def test_save_global_when_no_project(self):
+        set_current_project_dir("")
+        config = {"test": True}
+        save_web_config(config)
+        assert self._svc.calls[0][1] == "global"
+
+    def test_scope_label_project_when_selected(self):
+        set_current_project_dir("/projects/a")
+        assert get_web_config_scope_label() == "Project"
+
+    def test_scope_label_global_when_no_project(self):
+        set_current_project_dir("")
+        assert get_web_config_scope_label() == "Global"
+
+    def test_provenance_passes_project_dir(self):
+        set_current_project_dir("/projects/a")
+        get_web_config_provenance()
+        assert ("get_config_provenance", "/projects/a") in self._svc.calls
+
+    def test_load_web_projects_returns_sorted_dirs(self):
+        dirs = load_web_projects()
+        assert dirs == ["/projects/a", "/projects/b"]
+
+    def test_load_web_projects_empty_when_no_service(self):
+        set_daemon_service(None)
+        assert load_web_projects() == []
+
+    def test_load_web_projects_empty_when_no_daemon_name(self):
+        set_current_daemon_name("")
+        assert load_web_projects() == []

@@ -98,6 +98,7 @@ class WebConsole:
             reload=False,
             show=show,
             favicon=favicon_value,
+            storage_secret="ai-guardian-web-console",
         )
 
     def _register_pages(self):

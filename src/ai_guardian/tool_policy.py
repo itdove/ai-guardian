@@ -466,7 +466,7 @@ IMMUTABLE_DENY_PATTERNS = {
         "*Rename-Item*Claude\\settings.json*",
         "*Rename-Item*Cursor\\hooks.json*",
         "*Set-Content*Claude\\settings.json*",
-        "*Set-Content*Cursor\\settings.json*",
+        "*Set-Content*Cursor\\hooks.json*",
         "*Clear-Content*Claude\\settings.json*",
         "*Clear-Content*Cursor\\hooks.json*",
         "*Out-File*Claude\\settings.json*",
