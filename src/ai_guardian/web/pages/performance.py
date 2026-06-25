@@ -29,23 +29,13 @@ def _load_latency_config():
 
 
 def _save_latency_config(updates):
-    from ai_guardian.config_utils import get_config_dir
+    from ai_guardian.web.config_helpers import load_web_config, save_web_config
 
-    path = get_config_dir() / "ai-guardian.json"
-    path.parent.mkdir(parents=True, exist_ok=True)
-    config = {}
-    if path.exists():
-        try:
-            with open(path, "r", encoding="utf-8") as f:
-                config = json.load(f)
-        except Exception as e:
-            logging.warning("Failed to read config: %s", e)
+    config = load_web_config()
     if "latency_tracking" not in config:
         config["latency_tracking"] = {}
     config["latency_tracking"].update(updates)
-    with open(path, "w", encoding="utf-8") as f:
-        json.dump(config, f, indent=2)
-        f.write("\n")
+    save_web_config(config)
 
 
 def _clear_latency_log():
@@ -153,9 +143,17 @@ def create_performance_page(service, daemon_name: str):
         with ui.column().classes("flex-grow p-6 gap-4"):
             ui.label("Performance").classes("text-2xl font-bold")
 
-            # --- Config controls ---
-            with ui.expansion("Settings", icon="settings").classes("w-full max-w-2xl"):
-                cfg = _load_latency_config()
+            # --- Config controls (local daemons only) ---
+            from ai_guardian.web.config_helpers import is_remote_daemon
+
+            _is_remote = is_remote_daemon()
+
+            with (
+                ui.expansion("Settings", icon="settings")
+                .classes("w-full max-w-2xl")
+                .set_visibility(not _is_remote)
+            ):
+                cfg = _load_latency_config() if not _is_remote else {}
 
                 with ui.row().classes("items-center gap-4"):
                     ui.label("Enabled")
@@ -315,6 +313,13 @@ def create_performance_page(service, daemon_name: str):
                 if not target:
                     with content:
                         ui.label("No daemons discovered.").classes("text-grey-6")
+                    return
+
+                if target.runtime != "local":
+                    with content:
+                        ui.label(
+                            "Latency data is not available for remote daemons."
+                        ).classes("text-grey-6")
                     return
 
                 data = await run.io_bound(_load_local_latency, since)

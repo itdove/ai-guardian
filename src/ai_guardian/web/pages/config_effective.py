@@ -9,12 +9,25 @@ def _load_effective_data(project_dir=None):
     """Load merged config, provenance, and project config.
 
     Includes auto-generated directory rules with 'generated' provenance.
+    For remote daemons, fetches via DaemonService REST API.
 
     Args:
         project_dir: Project directory for multi-project daemon routing.
 
     Returns (merged_config, provenance, project_config, error).
     """
+    from ai_guardian.web.config_helpers import (
+        _get_current_target,
+        _is_remote_target,
+        _daemon_service,
+    )
+
+    target = _get_current_target()
+    if _is_remote_target(target):
+        merged = _daemon_service.get_config_scoped(target, "merged")
+        provenance = _daemon_service.get_config_provenance(target)
+        return merged or {}, provenance or {}, {}, None
+
     try:
         from ai_guardian.config_writer import (
             load_scoped_config,

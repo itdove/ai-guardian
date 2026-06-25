@@ -58,16 +58,12 @@ def _parse_enabled(raw):
 
 
 def _load_sc_stats():
-    try:
-        from ai_guardian.violation_logger import ViolationLogger
+    from ai_guardian.web.config_helpers import load_web_violations
 
-        vl = ViolationLogger()
-        violations = vl.get_recent_violations(limit=1000, violation_type="supply_chain")
-        if not violations:
-            return 0
-        return len(violations)
-    except Exception:
-        return None
+    result = load_web_violations(violation_type="supply_chain")
+    if result and result.get("violations"):
+        return len(result["violations"])
+    return 0
 
 
 def _render_toggle(

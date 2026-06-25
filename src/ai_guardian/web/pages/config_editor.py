@@ -7,6 +7,11 @@ from pathlib import Path
 from nicegui import run, ui
 
 from ai_guardian.web.components.header import create_header, create_sidebar
+from ai_guardian.web.config_helpers import (
+    _get_current_target,
+    _is_remote_target,
+    _daemon_service,
+)
 
 
 def _validate_json(text):
@@ -34,7 +39,17 @@ def _get_config_path(scope):
 
 
 def _load_config_by_scope(scope):
-    """Load config from the specified scope. Returns (content_str, path_str)."""
+    """Load config from the specified scope. Returns (content_str, path_str).
+
+    For remote daemons, fetches via REST API.
+    """
+    target = _get_current_target()
+    if _is_remote_target(target):
+        cfg = _daemon_service.get_config_scoped(target, scope)
+        if cfg is not None:
+            return json.dumps(cfg, indent=2), f"(remote: {target.name})"
+        return "", f"(remote: {target.name} — unreachable)"
+
     path = _get_config_path(scope)
     if path is None:
         return "", None
@@ -50,12 +65,23 @@ def _load_config_by_scope(scope):
 
 
 def _save_config_with_backup(content_str, path_str):
-    """Save config with .json.bak backup. Returns error string or None."""
-    if not path_str:
-        return "No config path available"
+    """Save config with .json.bak backup. Returns error string or None.
+
+    For remote daemons, writes via REST API.
+    """
     parsed, err = _validate_json(content_str)
     if err:
         return err
+
+    target = _get_current_target()
+    if _is_remote_target(target):
+        result = _daemon_service.write_config_bulk(target, "global", parsed)
+        if result is None:
+            return "Failed to write to remote daemon"
+        return None
+
+    if not path_str:
+        return "No config path available"
     path = Path(path_str)
     path.parent.mkdir(parents=True, exist_ok=True)
     if path.exists():

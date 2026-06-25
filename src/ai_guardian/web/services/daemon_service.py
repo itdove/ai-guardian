@@ -197,6 +197,18 @@ class DaemonService:
         except Exception:
             return None
 
+    def write_config_bulk(
+        self,
+        target: DaemonTarget,
+        scope: str,
+        config: dict,
+        project_dir: Optional[str] = None,
+    ) -> Optional[dict]:
+        try:
+            return self._client.write_config_bulk(target, scope, config, project_dir)
+        except Exception:
+            return None
+
     def delete_config_override(
         self,
         target: DaemonTarget,

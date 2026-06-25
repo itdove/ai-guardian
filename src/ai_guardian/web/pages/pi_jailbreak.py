@@ -66,24 +66,18 @@ def _parse_enabled(raw):
 
 
 def _load_jailbreak_stats():
-    try:
-        from ai_guardian.violation_logger import ViolationLogger
+    from ai_guardian.web.config_helpers import load_web_violations
 
-        vl = ViolationLogger()
-        violations = vl.get_recent_violations(
-            limit=1000, violation_type="jailbreak_detected"
-        )
-        if not violations:
-            return 0, {}
-        total = len(violations)
-        by_category = {}
-        for v in violations:
-            blocked = v.get("blocked", {}) or {}
-            cat = blocked.get("category", "unknown")
-            by_category[cat] = by_category.get(cat, 0) + 1
-        return total, by_category
-    except Exception:
-        return None, None
+    result = load_web_violations(violation_type="jailbreak_detected")
+    violations = result.get("violations", []) if result else []
+    if not violations:
+        return 0, {}
+    by_category = {}
+    for v in violations:
+        blocked = v.get("blocked", {}) or {}
+        cat = blocked.get("category", "unknown")
+        by_category[cat] = by_category.get(cat, 0) + 1
+    return len(violations), by_category
 
 
 def _render_toggle(

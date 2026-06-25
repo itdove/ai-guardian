@@ -19,6 +19,11 @@ def _load_rules():
 
 def _refresh_pattern_server_cache():
     """Trigger a pattern server cache refresh (network call)."""
+    from ai_guardian.web.config_helpers import is_remote_daemon
+
+    if is_remote_daemon():
+        return "Pattern cache refresh is not available for remote daemons"
+
     from ai_guardian.config_loaders import _load_pattern_server_config
     from ai_guardian.pattern_server import PatternServerClient
 

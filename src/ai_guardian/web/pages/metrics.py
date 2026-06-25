@@ -320,7 +320,12 @@ def create_metrics_page(service, daemon_name: str):
                     _trend("Daily Trend (last 14 days)", agg["time_trend"])
 
                     # Audit sections
-                    audit_data = await run.io_bound(_load_local_audit, since)
+                    if target and target.runtime != "local":
+                        audit_data = await run.io_bound(
+                            service.get_daemon_audit, target, f"{since}d"
+                        )
+                    else:
+                        audit_data = await run.io_bound(_load_local_audit, since)
                     if audit_data:
                         _audit_sections(audit_data)
 

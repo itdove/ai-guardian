@@ -49,6 +49,9 @@ class WebConsole:
 
     def __init__(self):
         self._service = DaemonService()
+        from ai_guardian.web.config_helpers import set_daemon_service
+
+        set_daemon_service(self._service)
 
     def run(self, host: str = "127.0.0.1", port: int = 0, show: bool = True):
         if host != "127.0.0.1":

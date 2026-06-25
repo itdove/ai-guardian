@@ -133,6 +133,10 @@ def create_header(daemon_name: str = ""):
     """Create the shared header bar showing current daemon and scope toggle."""
     _init_scope_state()
 
+    from ai_guardian.web.config_helpers import set_current_daemon_name
+
+    set_current_daemon_name(daemon_name)
+
     with ui.header().classes("items-center justify-between bg-blue-grey-10"):
         with ui.row().classes("items-center gap-4"):
             ui.image("/images/ai-guardian-320.png").classes("w-8 h-8")
