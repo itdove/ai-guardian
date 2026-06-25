@@ -26,7 +26,6 @@ from ai_guardian.tui.schema_defaults import (
 )
 from ai_guardian.tui.widgets import TimeBasedToggle, sanitize_enabled_value
 
-
 FEATURES = [
     ("permissions", "permissions_enabled", "🔐 Tool Permissions Enforcement"),
     ("secret_scanning", "secret_scanning", "🔍 Secret Scanning"),

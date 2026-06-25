@@ -25,7 +25,6 @@ from ai_guardian.engine_tester import (
 )
 from ai_guardian.scanners.strategies import ScanResult, SecretMatch
 
-
 # ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------

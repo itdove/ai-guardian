@@ -21,7 +21,6 @@ from ai_guardian.tui.schema_defaults import (
 )
 from ai_guardian.tui.widgets import TimeBasedToggle, sanitize_enabled_value
 
-
 ALL_LOG_TYPES = [
     ("tool_permission", "Tool Permission — blocked tool/skill invocations"),
     ("directory_blocking", "Directory Blocking — protected directory access"),

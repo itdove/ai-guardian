@@ -14,7 +14,6 @@ from textual.containers import HorizontalGroup, VerticalGroup
 from textual.widgets import Static, Input, Button
 from textual.validation import Validator, ValidationResult
 
-
 DURATION_PATTERN = re.compile(r"^(?:(\d+)d)?(?:(\d+)h)?(?:(\d+)m)?$")
 
 

@@ -15,7 +15,6 @@ from textual.widgets import Static, Checkbox
 from ai_guardian.config_utils import get_config_dir
 from ai_guardian.tui.schema_defaults import SchemaDefaultsMixin, default_indicator
 
-
 UNICODE_SETTINGS = [
     (
         "detect_zero_width",

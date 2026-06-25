@@ -11,7 +11,6 @@ from datetime import datetime, timezone
 from ai_guardian.secret_redactor import SecretRedactor
 from ai_guardian.patterns.validators import luhn_check, iban_check, VALID_CC_PREFIXES
 
-
 PII_CONFIG = {
     "enabled": True,
     "pii_types": [

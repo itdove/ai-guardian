@@ -37,7 +37,6 @@ from ai_guardian.scanners.executor import (
 )
 from ai_guardian.scanners.strategies import ScanResult
 
-
 # ---------------------------------------------------------------------------
 # Sample scanner for testing
 # ---------------------------------------------------------------------------
@@ -229,8 +228,7 @@ class TestLoadFromFile:
     """Tests for loading scanners from .py files."""
 
     def test_load_from_file(self):
-        scanner_code = textwrap.dedent(
-            """\
+        scanner_code = textwrap.dedent("""\
             from ai_guardian.scanners.sdk import Scanner, Finding
 
             class FileScanner(Scanner):
@@ -239,8 +237,7 @@ class TestLoadFromFile:
 
                 def scan(self, content, file_path=None):
                     return []
-        """
-        )
+        """)
 
         with tempfile.NamedTemporaryFile(mode="w", suffix=".py", delete=False) as f:
             f.write(scanner_code)
@@ -305,8 +302,7 @@ class TestLoadPythonScanner:
         assert scanner.name == "sample-scanner"
 
     def test_load_via_file(self):
-        scanner_code = textwrap.dedent(
-            """\
+        scanner_code = textwrap.dedent("""\
             from ai_guardian.scanners.sdk import Scanner, Finding
 
             class TmpScanner(Scanner):
@@ -314,8 +310,7 @@ class TestLoadPythonScanner:
                 version = "0.1.0"
                 def scan(self, content, file_path=None):
                     return []
-        """
-        )
+        """)
 
         with tempfile.NamedTemporaryFile(mode="w", suffix=".py", delete=False) as f:
             f.write(scanner_code)
@@ -385,8 +380,7 @@ class TestDiscoverScannerDirectory:
                 assert result == {}
 
     def test_discover_scanner_file(self):
-        scanner_code = textwrap.dedent(
-            """\
+        scanner_code = textwrap.dedent("""\
             from ai_guardian.scanners.sdk import Scanner, Finding
 
             class DirScanner(Scanner):
@@ -394,8 +388,7 @@ class TestDiscoverScannerDirectory:
                 version = "1.0.0"
                 def scan(self, content, file_path=None):
                     return []
-        """
-        )
+        """)
 
         with tempfile.TemporaryDirectory() as tmpdir:
             scanner_dir = Path(tmpdir) / "scanners"

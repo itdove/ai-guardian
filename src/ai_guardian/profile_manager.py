@@ -15,7 +15,6 @@ from typing import Dict, List, Optional, Tuple
 
 from ai_guardian.config_utils import get_cache_dir, get_profiles_dir
 
-
 BUILT_IN_PROFILES = ("minimal", "standard", "strict")
 
 PROFILE_DESCRIPTIONS = {

@@ -22,8 +22,7 @@ def _clean_cache():
     reset_cache()
 
 
-SAMPLE_TOML = textwrap.dedent(
-    """\
+SAMPLE_TOML = textwrap.dedent("""\
     [allowlist]
         paths = [
             "tests/fixtures/**",
@@ -71,17 +70,14 @@ SAMPLE_TOML = textwrap.dedent(
             paths = [
                 "tests/fixtures/images/**",
             ]
-"""
-)
+""")
 
-GLOBAL_ONLY_TOML = textwrap.dedent(
-    """\
+GLOBAL_ONLY_TOML = textwrap.dedent("""\
     [allowlist]
         paths = [
             "tests/fixtures/**",
         ]
-"""
-)
+""")
 
 
 # ---------------------------------------------------------------------------
@@ -162,14 +158,10 @@ class TestLoadAiguardignore:
 
     def test_traversal_paths_blocked(self, tmp_path):
         toml_file = tmp_path / ".aiguardignore.toml"
-        toml_file.write_text(
-            textwrap.dedent(
-                """\
+        toml_file.write_text(textwrap.dedent("""\
             [allowlist]
                 paths = ["../secrets.txt", "safe/path.py"]
-        """
-            )
-        )
+        """))
 
         config = load_aiguardignore(project_root=tmp_path)
         assert config is not None
@@ -202,13 +194,9 @@ class TestLoadAiguardignore:
 
     def test_non_dict_allowlist_section_handled(self, tmp_path):
         toml_file = tmp_path / ".aiguardignore.toml"
-        toml_file.write_text(
-            textwrap.dedent(
-                """\
+        toml_file.write_text(textwrap.dedent("""\
             allowlist = "not a dict"
-        """
-            )
-        )
+        """))
 
         config = load_aiguardignore(project_root=tmp_path)
         assert config is not None
@@ -216,13 +204,9 @@ class TestLoadAiguardignore:
 
     def test_non_dict_scanner_section_skipped(self, tmp_path):
         toml_file = tmp_path / ".aiguardignore.toml"
-        toml_file.write_text(
-            textwrap.dedent(
-                """\
+        toml_file.write_text(textwrap.dedent("""\
             secret_scanning = "not a dict"
-        """
-            )
-        )
+        """))
 
         config = load_aiguardignore(project_root=tmp_path)
         assert config is not None
@@ -230,15 +214,11 @@ class TestLoadAiguardignore:
 
     def test_unknown_scanner_section_ignored(self, tmp_path):
         toml_file = tmp_path / ".aiguardignore.toml"
-        toml_file.write_text(
-            textwrap.dedent(
-                """\
+        toml_file.write_text(textwrap.dedent("""\
             [unknown_scanner]
                 [unknown_scanner.allowlist]
                     paths = ["some/path.py"]
-        """
-            )
-        )
+        """))
 
         config = load_aiguardignore(project_root=tmp_path)
         assert config is not None

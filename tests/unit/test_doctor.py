@@ -24,7 +24,6 @@ from ai_guardian.doctor import (
     format_json,
 )
 
-
 # --- Data model tests ---
 
 

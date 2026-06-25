@@ -8,7 +8,6 @@ from textual.widgets import Button, Input, Static
 
 from ai_guardian.pattern_lister import test_rule_matches as _test_rule_matches
 
-
 CATEGORY_ORDER = [
     "secrets",
     "pii",

@@ -19,7 +19,6 @@ from pathlib import Path
 from typing import List, Dict, Any, Optional, Set
 import fnmatch
 
-
 # Import Phase 1-4 scanners
 try:
     from ai_guardian.ssrf_protector import SSRFProtector

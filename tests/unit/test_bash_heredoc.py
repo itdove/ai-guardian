@@ -114,15 +114,13 @@ EOF"""
             "hook_event_name": "PreToolUse",
             "tool_use": {
                 "name": "Bash",
-                "input": {
-                    "command": """cat <<'EOF' | pbcopy
+                "input": {"command": """cat <<'EOF' | pbcopy
 gh issue create --title "Documentation: Configure ai-guardian" --body "$(cat <<'EOFBODY'
 ## Problem
 Users are confused about ai-guardian configuration > setup process
 EOFBODY
 )"
-EOF"""
-                },
+EOF"""},
             },
         }
 
@@ -168,13 +166,11 @@ EOF"""
             "hook_event_name": "PreToolUse",
             "tool_use": {
                 "name": "Bash",
-                "input": {
-                    "command": """cat <<EOF
+                "input": {"command": """cat <<EOF
 Markdown example:
 > This is a quote about ai-guardian
 > It should not be blocked
-EOF"""
-                },
+EOF"""},
             },
         }
 
@@ -196,11 +192,9 @@ EOF"""
             "hook_event_name": "PreToolUse",
             "tool_use": {
                 "name": "Bash",
-                "input": {
-                    "command": """cat <<'EOF' | pbcopy
+                "input": {"command": """cat <<'EOF' | pbcopy
 gh issue create --title "Doc update" --body "Discussion of ai-guardian > redirect patterns"
-EOF"""
-                },
+EOF"""},
             },
         }
 
@@ -223,12 +217,10 @@ EOF"""
             "hook_event_name": "PreToolUse",
             "tool_use": {
                 "name": "Bash",
-                "input": {
-                    "command": """rm /tmp/ai-guardian.json
+                "input": {"command": """rm /tmp/ai-guardian.json
 cat <<EOF
 This is just documentation
-EOF"""
-                },
+EOF"""},
             },
         }
 

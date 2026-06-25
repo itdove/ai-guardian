@@ -10,6 +10,7 @@ Part of Phase 4: Hermes Security Patterns Integration (Issue #197)
 NEW in v1.5.0: Optional pattern server support for enterprise secret pattern management.
 NEW in v1.6.0: PII detection for GDPR/CCPA compliance (Issue #262).
 """
+
 # ai-guardian:end-allow
 
 import re

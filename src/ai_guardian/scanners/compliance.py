@@ -13,7 +13,6 @@ from typing import Dict, Any, List, Optional
 
 from ai_guardian.scanners.audit import ScanAuditLogger
 
-
 COMPLIANCE_FRAMEWORKS = {
     "hipaa": {
         "name": "HIPAA",

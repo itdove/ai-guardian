@@ -7,7 +7,6 @@ from unittest import mock
 
 import pytest
 
-
 ALL_LOG_TYPES = [
     "tool_permission",
     "directory_blocking",

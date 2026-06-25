@@ -305,26 +305,22 @@ description: "Release skill"
         # Create skill with frontmatter name matching directory
         skill1_dir = skills_dir / "my-skill-dir"
         skill1_dir.mkdir()
-        (skill1_dir / "SKILL.md").write_text(
-            """---
+        (skill1_dir / "SKILL.md").write_text("""---
 name: my-skill
 description: "Test skill"
 ---
 # Content
-"""
-        )
+""")
 
         # Create skill with frontmatter name different from directory
         skill2_dir = skills_dir / "different-dir-name"
         skill2_dir.mkdir()
-        (skill2_dir / "SKILL.md").write_text(
-            """---
+        (skill2_dir / "SKILL.md").write_text("""---
 name: actual-skill-name
 description: "Different name"
 ---
 # Content
-"""
-        )
+""")
 
         # Create skill without SKILL.md (fallback to directory name)
         skill3_dir = skills_dir / "no-frontmatter"

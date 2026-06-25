@@ -202,8 +202,7 @@ def create_sidebar(daemon_name: str, current: str = ""):
 
         # Scroll active item into view after page loads
         if active_link:
-            ui.run_javascript(
-                """
+            ui.run_javascript("""
                 setTimeout(() => {
                     const activeLink = document.querySelector('.bg-blue-grey-8');
                     if (activeLink) {
@@ -213,8 +212,7 @@ def create_sidebar(daemon_name: str, current: str = ""):
                         });
                     }
                 }, 100);
-            """
-            )
+            """)
 
         results_container = (
             ui.column()
@@ -248,8 +246,7 @@ def create_sidebar(daemon_name: str, current: str = ""):
                 results_container.set_visibility(False)
                 # Re-scroll to active item in nav when clearing search
                 if active_link:
-                    ui.run_javascript(
-                        """
+                    ui.run_javascript("""
                         setTimeout(() => {
                             const activeLink = document.querySelector('.bg-blue-grey-8');
                             if (activeLink) {
@@ -259,8 +256,7 @@ def create_sidebar(daemon_name: str, current: str = ""):
                                 });
                             }
                         }, 100);
-                    """
-                    )
+                    """)
                 return
 
             nav_container.set_visibility(False)
@@ -276,8 +272,7 @@ def create_sidebar(daemon_name: str, current: str = ""):
             no_results_label.set_visibility(not any_visible)
 
             # Scroll to active item in search results if present
-            ui.run_javascript(
-                """
+            ui.run_javascript("""
                 setTimeout(() => {
                     const activeResult = document.querySelector('.active-search-result');
                     if (activeResult && activeResult.closest('[style*="display: none"]') === null) {
@@ -287,8 +282,7 @@ def create_sidebar(daemon_name: str, current: str = ""):
                         });
                     }
                 }, 100);
-            """
-            )
+            """)
 
         search_input.on_value_change(on_search)
 

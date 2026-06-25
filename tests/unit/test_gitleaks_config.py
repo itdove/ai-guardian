@@ -78,14 +78,10 @@ class TestLoadGitleaksAllowlist:
 
     def test_parses_global_paths(self, tmp_path):
         toml_path = tmp_path / ".gitleaks.toml"
-        toml_path.write_text(
-            textwrap.dedent(
-                """\
+        toml_path.write_text(textwrap.dedent("""\
             [allowlist]
                 paths = ["tests/unit/test_foo.py", "tests/fixtures/**"]
-        """
-            )
-        )
+        """))
         result = load_gitleaks_allowlist(project_root=tmp_path)
         assert result is not None
         assert len(result.paths) == 2
@@ -93,14 +89,10 @@ class TestLoadGitleaksAllowlist:
 
     def test_parses_global_regexes(self, tmp_path):
         toml_path = tmp_path / ".gitleaks.toml"
-        toml_path.write_text(
-            textwrap.dedent(
-                """\
+        toml_path.write_text(textwrap.dedent("""\
             [allowlist]
                 regexes = ["test_key_.*", "example_token_\\\\d+"]
-        """
-            )
-        )
+        """))
         result = load_gitleaks_allowlist(project_root=tmp_path)
         assert result is not None
         assert len(result.regexes) == 2
@@ -108,14 +100,10 @@ class TestLoadGitleaksAllowlist:
 
     def test_parses_global_stopwords(self, tmp_path):
         toml_path = tmp_path / ".gitleaks.toml"
-        toml_path.write_text(
-            textwrap.dedent(
-                """\
+        toml_path.write_text(textwrap.dedent("""\
             [allowlist]
                 stopwords = ["test_value", "example", "fake"]
-        """
-            )
-        )
+        """))
         result = load_gitleaks_allowlist(project_root=tmp_path)
         assert result is not None
         assert len(result.stopwords) == 3
@@ -123,14 +111,10 @@ class TestLoadGitleaksAllowlist:
 
     def test_short_stopwords_ignored(self, tmp_path):
         toml_path = tmp_path / ".gitleaks.toml"
-        toml_path.write_text(
-            textwrap.dedent(
-                """\
+        toml_path.write_text(textwrap.dedent("""\
             [allowlist]
                 stopwords = ["ok", "a", "valid_word"]
-        """
-            )
-        )
+        """))
         result = load_gitleaks_allowlist(project_root=tmp_path)
         assert result is not None
         assert len(result.stopwords) == 1
@@ -138,9 +122,7 @@ class TestLoadGitleaksAllowlist:
 
     def test_parses_per_rule_allowlist(self, tmp_path):
         toml_path = tmp_path / ".gitleaks.toml"
-        toml_path.write_text(
-            textwrap.dedent(
-                """\
+        toml_path.write_text(textwrap.dedent("""\
             [[rules]]
             id = "generic-api-key"
             description = "Generic API Key"
@@ -148,9 +130,7 @@ class TestLoadGitleaksAllowlist:
                 regexes = ["fake_key_.*"]
                 paths = ["tests/**"]
                 stopwords = ["test_only"]
-        """
-            )
-        )
+        """))
         result = load_gitleaks_allowlist(project_root=tmp_path)
         assert result is not None
         assert "generic-api-key" in result.rule_allowlists
@@ -161,43 +141,31 @@ class TestLoadGitleaksAllowlist:
 
     def test_rules_without_allowlist_ignored(self, tmp_path):
         toml_path = tmp_path / ".gitleaks.toml"
-        toml_path.write_text(
-            textwrap.dedent(
-                """\
+        toml_path.write_text(textwrap.dedent("""\
             [[rules]]
             id = "some-rule"
             description = "No allowlist here"
-        """
-            )
-        )
+        """))
         result = load_gitleaks_allowlist(project_root=tmp_path)
         assert result is not None
         assert len(result.rule_allowlists) == 0
 
     def test_invalid_regex_skipped_gracefully(self, tmp_path):
         toml_path = tmp_path / ".gitleaks.toml"
-        toml_path.write_text(
-            textwrap.dedent(
-                """\
+        toml_path.write_text(textwrap.dedent("""\
             [allowlist]
                 regexes = ["[invalid", "valid_pattern"]
-        """
-            )
-        )
+        """))
         result = load_gitleaks_allowlist(project_root=tmp_path)
         assert result is not None
         assert len(result.regexes) == 1
 
     def test_dangerous_regex_blocked(self, tmp_path):
         toml_path = tmp_path / ".gitleaks.toml"
-        toml_path.write_text(
-            textwrap.dedent(
-                """\
+        toml_path.write_text(textwrap.dedent("""\
             [allowlist]
                 regexes = [".*", "safe_pattern"]
-        """
-            )
-        )
+        """))
         result = load_gitleaks_allowlist(project_root=tmp_path)
         assert result is not None
         assert len(result.regexes) == 1
@@ -247,14 +215,10 @@ class TestLoadGitleaksAllowlist:
 
     def test_paths_with_dotdot_blocked(self, tmp_path):
         toml_path = tmp_path / ".gitleaks.toml"
-        toml_path.write_text(
-            textwrap.dedent(
-                """\
+        toml_path.write_text(textwrap.dedent("""\
             [allowlist]
                 paths = ["../escape.py", "safe/path.py"]
-        """
-            )
-        )
+        """))
         result = load_gitleaks_allowlist(project_root=tmp_path)
         assert result is not None
         assert len(result.paths) == 1
@@ -505,9 +469,7 @@ class TestIntegrationParsing:
 
     def test_full_config_parsing(self, tmp_path):
         toml_path = tmp_path / ".gitleaks.toml"
-        toml_path.write_text(
-            textwrap.dedent(
-                """\
+        toml_path.write_text(textwrap.dedent("""\
             [allowlist]
                 paths = [
                     "tests/unit/test_secret_redaction.py",
@@ -528,9 +490,7 @@ class TestIntegrationParsing:
             description = "AWS Access Key"
             [rules.allowlist]
                 paths = ["deploy/test_config.py"]
-        """
-            )
-        )
+        """))
 
         result = load_gitleaks_allowlist(project_root=tmp_path)
 
@@ -551,14 +511,10 @@ class TestIntegrationParsing:
 
     def test_filter_with_parsed_config(self, tmp_path):
         toml_path = tmp_path / ".gitleaks.toml"
-        toml_path.write_text(
-            textwrap.dedent(
-                """\
+        toml_path.write_text(textwrap.dedent("""\
             [allowlist]
                 regexes = ["test_api_key_.*"]
-        """
-            )
-        )
+        """))
         al = load_gitleaks_allowlist(project_root=tmp_path)
 
         findings = [

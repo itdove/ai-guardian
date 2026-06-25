@@ -25,7 +25,6 @@ from ai_guardian.tui.widgets import (
     format_local_time,
 )
 
-
 PHASE1_PII_TYPES = [
     ("ssn", "Social Security Numbers (XXX-XX-XXXX)"),
     ("credit_card", "Credit Card Numbers (Visa, MC, Amex, etc.)"),

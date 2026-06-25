@@ -10,7 +10,6 @@ import pytest
 
 from ai_guardian.daemon.tray_plugins import load_plugins, load_merged_plugins
 
-
 _TEMPLATE_DIR = (
     Path(__file__).resolve().parents[2]
     / "src"

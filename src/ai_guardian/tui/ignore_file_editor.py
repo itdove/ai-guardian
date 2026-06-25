@@ -6,7 +6,6 @@ Used by ask dialog (all tiers), violations page, and directory scan page.
 
 from typing import List, Optional, Tuple
 
-
 SCOPE_THIS_SCANNER = "this_scanner"
 SCOPE_ALL_SCANNERS = "all_scanners"
 SCOPE_SELECT_SCANNERS = "select_scanners"

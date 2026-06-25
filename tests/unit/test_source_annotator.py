@@ -68,16 +68,14 @@ class TestFindEnclosingMultilineString:
     def test_multiline_string_detected(self, tmp_path):
         from ai_guardian.tui.source_annotator import find_enclosing_multiline_string
 
-        source = textwrap.dedent(
-            '''\
+        source = textwrap.dedent('''\
             x = 1
             msg = """
             this is a
             multi-line string
             """
             y = 2
-        '''
-        )
+        ''')
         f = tmp_path / "test.py"
         f.write_text(source)
         result = find_enclosing_multiline_string(str(f), 3)
@@ -89,13 +87,11 @@ class TestFindEnclosingMultilineString:
     def test_line_outside_multiline(self, tmp_path):
         from ai_guardian.tui.source_annotator import find_enclosing_multiline_string
 
-        source = textwrap.dedent(
-            '''\
+        source = textwrap.dedent('''\
             x = 1
             msg = """multi"""
             y = 2
-        '''
-        )
+        ''')
         f = tmp_path / "test.py"
         f.write_text(source)
         assert find_enclosing_multiline_string(str(f), 1) is None
@@ -134,15 +130,13 @@ class TestPrepareAnnotation:
     def test_block_annotation_multiline(self, tmp_path):
         from ai_guardian.tui.source_annotator import prepare_annotation
 
-        source = textwrap.dedent(
-            '''\
+        source = textwrap.dedent('''\
             x = 1
             msg = """
             SSN: 123-45-6789
             """
             y = 2
-        '''
-        )
+        ''')
         f = tmp_path / "test.py"
         f.write_text(source)
         result = prepare_annotation(str(f), 3)

@@ -5,7 +5,6 @@ Configuration Viewer Tab Content
 Display the current merged configuration with per-key provenance.
 """
 
-
 from textual.app import ComposeResult
 from textual.containers import Container, VerticalScroll
 from textual.widgets import Static, Button

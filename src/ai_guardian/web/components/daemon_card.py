@@ -2,7 +2,6 @@
 
 from nicegui import ui
 
-
 _STATUS_STYLE = {
     "running": ("green", "check_circle"),
     "paused": ("amber", "pause_circle"),

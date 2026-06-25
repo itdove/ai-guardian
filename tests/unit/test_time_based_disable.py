@@ -17,7 +17,6 @@ from unittest import mock
 
 from ai_guardian.config_utils import is_feature_enabled
 
-
 FUTURE_TIME = (datetime.now(timezone.utc) + timedelta(hours=2)).isoformat()
 PAST_TIME = (datetime.now(timezone.utc) - timedelta(hours=2)).isoformat()
 

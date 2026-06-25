@@ -27,7 +27,6 @@ from textual.containers import (
 from textual.screen import ModalScreen
 from textual.widgets import Static, Button, Input, Checkbox, Label, Select, TextArea
 
-
 FORMAT_OPTIONS = [
     ("JSON", "json"),
     ("SARIF", "sarif"),

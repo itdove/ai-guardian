@@ -916,16 +916,13 @@ def _show_suppress_in_source_flow(violation):
             .style("min-height: 400px")
         )
 
-        ui.add_css(
-            """
+        ui.add_css("""
             .cm-content .ai-guardian-annotation { color: #4EC9B0 !important; font-weight: bold; }
-        """
-        )
+        """)
 
         async def _scroll_to_line():
             if highlight_line > 1:
-                await ui.run_javascript(
-                    f"""
+                await ui.run_javascript(f"""
                     const editors = document.querySelectorAll('.cm-editor');
                     const cm = editors[editors.length - 1];
                     if (cm && cm.cmView && cm.cmView.view) {{
@@ -936,8 +933,7 @@ def _show_suppress_in_source_flow(violation):
                             scrollIntoView: true,
                         }});
                     }}
-                    """
-                )
+                    """)
 
         ui.timer(0.5, _scroll_to_line, once=True)
 

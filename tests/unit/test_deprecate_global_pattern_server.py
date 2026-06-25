@@ -15,7 +15,6 @@ import logging
 from ai_guardian.doctor import CheckStatus, Doctor
 from ai_guardian.setup import IDESetup
 
-
 # --- Deprecation warning tests ---
 
 

@@ -26,7 +26,6 @@ from ai_guardian.hook_adapters import (
 from ai_guardian.hook_adapters.base import HookAdapter, NormalizedHookInput
 from ai_guardian.response_format import IDEType
 
-
 # ── NormalizedHookInput ──────────────────────────────────────────────────
 
 

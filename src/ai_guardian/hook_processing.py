@@ -6031,7 +6031,9 @@ def process_hook_data(hook_data, daemon_state=None):
                         logging.info(f"✓ Tool '{checked_tool_name}' allowed by policy")
                 elif permissions_config and ide_type != IDEType.CURSOR:
                     # Permissions enforcement is temporarily disabled
-                    logging.info("⚠️  Tool permissions enforcement temporarily disabled")
+                    logging.info(
+                        "⚠️  Tool permissions enforcement temporarily disabled"
+                    )
             except Exception as e:
                 on_error = _get_on_scan_error_action()
                 if on_error == ActionMode.BLOCK:

@@ -10,7 +10,6 @@ from ai_guardian.hook_processing import (
 )
 from ai_guardian.constants import ViolationType
 
-
 # ---------------------------------------------------------------------------
 # _build_secret_detected_message
 # ---------------------------------------------------------------------------

@@ -17,7 +17,6 @@ from textual.app import ComposeResult
 from textual.containers import Container, Horizontal, Vertical, ScrollableContainer
 from textual.widgets import Static, Input, Button, Select, TextArea
 
-
 HOOK_EVENTS = [
     ("UserPromptSubmit", "UserPromptSubmit"),
     ("PreToolUse", "PreToolUse"),

@@ -17,7 +17,6 @@ import pytest
 from ai_guardian.tui.auto_directory_rules import AutoDirectoryRulesContent
 from ai_guardian.tui.app import NAV_GROUPS, HELP_DOCS
 
-
 # ---------------------------------------------------------------------------
 # Import / navigation tests
 # ---------------------------------------------------------------------------

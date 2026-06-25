@@ -286,16 +286,14 @@ class PostToolUseContentScanningTests(TestCase):
         hook_data = {
             "hook_event_name": "PostToolUse",
             "tool_name": "Read",
-            "tool_response": {
-                "content": """
+            "tool_response": {"content": """
 def hello_world():
     print("Hello, World!")
     return True
 
 if __name__ == "__main__":
     hello_world()
-"""
-            },
+"""},
         }
 
         hook_json = json.dumps(hook_data)
