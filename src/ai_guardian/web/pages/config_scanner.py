@@ -10,8 +10,13 @@ from ai_guardian.web.config_helpers import load_web_config, save_web_config
 
 DEFAULT_SCANNED_FILES = {
     "AI Agent Config": [
-        "CLAUDE.md", "AGENTS.md", ".claude/CLAUDE.md", ".agents/AGENTS.md",
-        ".cursorrules", ".windsurfrules", ".aider.conf.yml",
+        "CLAUDE.md",
+        "AGENTS.md",
+        ".claude/CLAUDE.md",
+        ".agents/AGENTS.md",
+        ".cursorrules",
+        ".windsurfrules",
+        ".aider.conf.yml",
     ],
     "Skill Files": [
         "**/.claude/skills/**/*.md",
@@ -72,22 +77,28 @@ def _parse_enabled(raw):
 def _load_stats():
     try:
         from ai_guardian.violation_logger import ViolationLogger
+
         vl = ViolationLogger()
-        violations = vl.get_recent_violations(limit=1000, violation_type="config_file_exfil")
+        violations = vl.get_recent_violations(
+            limit=1000, violation_type="config_file_exfil"
+        )
         return len(violations) if violations else 0
     except Exception:
         return None
 
 
-def _render_toggle(label, desc, is_temp, until_dt, reason, is_enabled,
-                   save_fn, refresh_fn):
+def _render_toggle(
+    label, desc, is_temp, until_dt, reason, is_enabled, save_fn, refresh_fn
+):
     with ui.card().classes("w-full"):
         if is_temp and until_dt:
             remaining = _format_remaining(until_dt)
             with ui.row().classes("items-center gap-2 w-full"):
                 ui.icon("timer").classes("text-amber")
                 ui.label(label).classes("font-bold text-sm flex-grow")
-                ui.badge(f"TEMP DISABLED — {remaining}", color="amber").classes("text-xs")
+                ui.badge(f"TEMP DISABLED — {remaining}", color="amber").classes(
+                    "text-xs"
+                )
             ui.label(desc).classes("text-xs text-grey-6 ml-8")
             if reason:
                 ui.label(f"Reason: {reason}").classes("text-xs text-grey-7 ml-8")
@@ -97,8 +108,9 @@ def _render_toggle(label, desc, is_temp, until_dt, reason, is_enabled,
                 ui.notify(f"{label} re-enabled", type="positive")
                 await refresh_fn()
 
-            ui.button("Re-enable Now", icon="play_arrow", color="green",
-                      on_click=do_reenable).props("dense size=sm").classes("ml-8")
+            ui.button(
+                "Re-enable Now", icon="play_arrow", color="green", on_click=do_reenable
+            ).props("dense size=sm").classes("ml-8")
         else:
             with ui.row().classes("items-center gap-2 w-full"):
                 sw = ui.switch(label, value=bool(is_enabled)).classes("flex-grow")
@@ -114,24 +126,40 @@ def _render_toggle(label, desc, is_temp, until_dt, reason, is_enabled,
                 sw.on_value_change(on_toggle)
 
             with ui.row().classes("items-center gap-2 ml-8"):
-                dur = ui.input(placeholder="e.g. 30m, 2h, 1d").props("dense outlined").classes("w-32")
-                rsn = ui.input(placeholder="Reason").props("dense outlined").classes("w-40")
+                dur = (
+                    ui.input(placeholder="e.g. 30m, 2h, 1d")
+                    .props("dense outlined")
+                    .classes("w-32")
+                )
+                rsn = (
+                    ui.input(placeholder="Reason")
+                    .props("dense outlined")
+                    .classes("w-40")
+                )
 
                 async def do_temp(d=dur, r=rsn):
                     delta = _parse_duration(d.value or "30m")
                     if not delta:
-                        ui.notify("Invalid duration (e.g. 30m, 2h, 1d)", type="negative")
+                        ui.notify(
+                            "Invalid duration (e.g. 30m, 2h, 1d)", type="negative"
+                        )
                         return
-                    until_ts = (datetime.now(timezone.utc) + delta).strftime("%Y-%m-%dT%H:%M:%SZ")
+                    until_ts = (datetime.now(timezone.utc) + delta).strftime(
+                        "%Y-%m-%dT%H:%M:%SZ"
+                    )
                     entry = {"value": False, "disabled_until": until_ts}
                     rv = r.value.strip()
                     if rv:
                         entry["reason"] = rv
                     await run.io_bound(save_fn, entry)
-                    ui.notify(f"{label} temp disabled for {d.value or '30m'}", type="warning")
+                    ui.notify(
+                        f"{label} temp disabled for {d.value or '30m'}", type="warning"
+                    )
                     await refresh_fn()
 
-                ui.button("Temp Disable", icon="timer", on_click=do_temp).props("dense size=sm")
+                ui.button("Temp Disable", icon="timer", on_click=do_temp).props(
+                    "dense size=sm"
+                )
 
 
 def create_config_scanner_page(service, daemon_name: str):
@@ -174,8 +202,12 @@ def create_config_scanner_page(service, daemon_name: str):
                     _render_toggle(
                         "Config File Scanning",
                         "Detect attempts to exfiltrate AI agent configuration files.",
-                        is_temp, until_dt, reason, is_enabled,
-                        save_enabled, refresh,
+                        is_temp,
+                        until_dt,
+                        reason,
+                        is_enabled,
+                        save_enabled,
+                        refresh,
                     )
 
                     total_files = sum(len(v) for v in DEFAULT_SCANNED_FILES.values())
@@ -183,21 +215,21 @@ def create_config_scanner_page(service, daemon_name: str):
                         ui.label(
                             f"Default Scanned Files ({total_files} patterns)"
                         ).classes("text-lg font-bold")
-                        ui.label(
-                            "These file patterns are always monitored."
-                        ).classes("text-xs text-grey-6")
-                        with ui.scroll_area().classes("w-full").style(
-                            "max-height: 300px"
+                        ui.label("These file patterns are always monitored.").classes(
+                            "text-xs text-grey-6"
+                        )
+                        with (
+                            ui.scroll_area()
+                            .classes("w-full")
+                            .style("max-height: 300px")
                         ):
                             for category, files in DEFAULT_SCANNED_FILES.items():
-                                ui.label(category).classes(
-                                    "font-bold text-sm mt-2"
-                                )
+                                ui.label(category).classes("font-bold text-sm mt-2")
                                 for f in files:
                                     with ui.row().classes("items-center gap-1 ml-4"):
-                                        ui.icon("shield").classes(
-                                            "text-blue-4"
-                                        ).style("font-size: 14px")
+                                        ui.icon("shield").classes("text-blue-4").style(
+                                            "font-size: 14px"
+                                        )
                                         ui.label(f).classes("text-xs")
 
                     with ui.card().classes("w-full"):
@@ -260,17 +292,23 @@ def create_config_scanner_page(service, daemon_name: str):
                                         icon="delete", on_click=remove_file, color="red"
                                     ).props("flat dense size=sm")
                         else:
-                            ui.label("No additional files.").classes("text-grey-6 text-sm")
+                            ui.label("No additional files.").classes(
+                                "text-grey-6 text-sm"
+                            )
 
                         with ui.row().classes("items-center gap-2 mt-2"):
-                            file_input = ui.input(
-                                placeholder="Enter file path or glob pattern"
-                            ).props("dense outlined").classes("flex-grow")
+                            file_input = (
+                                ui.input(placeholder="Enter file path or glob pattern")
+                                .props("dense outlined")
+                                .classes("flex-grow")
+                            )
 
                             async def add_file():
                                 val = file_input.value.strip()
                                 if not val:
-                                    ui.notify("Enter a file path or pattern", type="negative")
+                                    ui.notify(
+                                        "Enter a file path or pattern", type="negative"
+                                    )
                                     return
                                 cfg = await run.io_bound(load_web_config)
                                 sect = cfg.get("config_file_scanning", {})
@@ -288,7 +326,9 @@ def create_config_scanner_page(service, daemon_name: str):
                                 ui.notify(f"Added: {val}", type="positive")
                                 await refresh()
 
-                            ui.button("Add", icon="add", on_click=add_file).props("dense")
+                            ui.button("Add", icon="add", on_click=add_file).props(
+                                "dense"
+                            )
 
                     with ui.card().classes("w-full"):
                         ui.label("Ignore Files").classes("text-lg font-bold")
@@ -316,19 +356,30 @@ def create_config_scanner_page(service, daemon_name: str):
                                             sect["ignore_files"] = items
                                             cfg["config_file_scanning"] = sect
                                             await run.io_bound(save_web_config, cfg)
-                                            ui.notify("Ignore pattern removed", type="positive")
+                                            ui.notify(
+                                                "Ignore pattern removed",
+                                                type="positive",
+                                            )
                                             await refresh()
 
                                     ui.button(
-                                        icon="delete", on_click=remove_ignore, color="red"
+                                        icon="delete",
+                                        on_click=remove_ignore,
+                                        color="red",
                                     ).props("flat dense size=sm")
                         else:
-                            ui.label("No ignore patterns.").classes("text-grey-6 text-sm")
+                            ui.label("No ignore patterns.").classes(
+                                "text-grey-6 text-sm"
+                            )
 
                         with ui.row().classes("items-center gap-2 mt-2"):
-                            ign_input = ui.input(
-                                placeholder="Enter file path or glob pattern to ignore"
-                            ).props("dense outlined").classes("flex-grow")
+                            ign_input = (
+                                ui.input(
+                                    placeholder="Enter file path or glob pattern to ignore"
+                                )
+                                .props("dense outlined")
+                                .classes("flex-grow")
+                            )
 
                             async def add_ignore():
                                 val = ign_input.value.strip()
@@ -351,7 +402,9 @@ def create_config_scanner_page(service, daemon_name: str):
                                 ui.notify(f"Added: {val}", type="positive")
                                 await refresh()
 
-                            ui.button("Add", icon="add", on_click=add_ignore).props("dense")
+                            ui.button("Add", icon="add", on_click=add_ignore).props(
+                                "dense"
+                            )
 
                     # --- Ignore tools ---
                     with ui.card().classes("w-full"):
@@ -380,19 +433,29 @@ def create_config_scanner_page(service, daemon_name: str):
                                             sect["ignore_tools"] = items
                                             cfg["config_file_scanning"] = sect
                                             await run.io_bound(save_web_config, cfg)
-                                            ui.notify("Tool pattern removed", type="positive")
+                                            ui.notify(
+                                                "Tool pattern removed", type="positive"
+                                            )
                                             await refresh()
 
                                     ui.button(
-                                        icon="delete", on_click=remove_ignore_tool, color="red"
+                                        icon="delete",
+                                        on_click=remove_ignore_tool,
+                                        color="red",
                                     ).props("flat dense size=sm")
                         else:
-                            ui.label("No ignore tool patterns.").classes("text-grey-6 text-sm")
+                            ui.label("No ignore tool patterns.").classes(
+                                "text-grey-6 text-sm"
+                            )
 
                         with ui.row().classes("items-center gap-2 mt-2"):
-                            it_input = ui.input(
-                                placeholder="Enter tool name pattern (e.g. mcp__*)"
-                            ).props("dense outlined").classes("flex-grow")
+                            it_input = (
+                                ui.input(
+                                    placeholder="Enter tool name pattern (e.g. mcp__*)"
+                                )
+                                .props("dense outlined")
+                                .classes("flex-grow")
+                            )
 
                             async def add_ignore_tool():
                                 val = it_input.value.strip()
@@ -415,10 +478,14 @@ def create_config_scanner_page(service, daemon_name: str):
                                 ui.notify(f"Added: {val}", type="positive")
                                 await refresh()
 
-                            ui.button("Add", icon="add", on_click=add_ignore_tool).props("dense")
+                            ui.button(
+                                "Add", icon="add", on_click=add_ignore_tool
+                            ).props("dense")
 
                     with ui.card().classes("w-full"):
-                        ui.label("Additional Detection Patterns").classes("text-lg font-bold")
+                        ui.label("Additional Detection Patterns").classes(
+                            "text-lg font-bold"
+                        )
                         ui.label(
                             "Custom regex patterns for detecting exfiltration attempts."
                         ).classes("text-xs text-grey-6")
@@ -443,19 +510,25 @@ def create_config_scanner_page(service, daemon_name: str):
                                             sect["additional_patterns"] = pats
                                             cfg["config_file_scanning"] = sect
                                             await run.io_bound(save_web_config, cfg)
-                                            ui.notify("Pattern removed", type="positive")
+                                            ui.notify(
+                                                "Pattern removed", type="positive"
+                                            )
                                             await refresh()
 
                                     ui.button(
                                         icon="delete", on_click=remove_pat, color="red"
                                     ).props("flat dense size=sm")
                         else:
-                            ui.label("No custom patterns.").classes("text-grey-6 text-sm")
+                            ui.label("No custom patterns.").classes(
+                                "text-grey-6 text-sm"
+                            )
 
                         with ui.row().classes("items-center gap-2 mt-2"):
-                            pat_input = ui.input(
-                                placeholder="Enter custom regex pattern"
-                            ).props("dense outlined").classes("flex-grow")
+                            pat_input = (
+                                ui.input(placeholder="Enter custom regex pattern")
+                                .props("dense outlined")
+                                .classes("flex-grow")
+                            )
 
                             async def add_pattern():
                                 pattern = pat_input.value.strip()
@@ -483,20 +556,26 @@ def create_config_scanner_page(service, daemon_name: str):
                                 ui.notify(f"Added: {pattern}", type="positive")
                                 await refresh()
 
-                            ui.button("Add", icon="add", on_click=add_pattern).props("dense")
+                            ui.button("Add", icon="add", on_click=add_pattern).props(
+                                "dense"
+                            )
 
                     with ui.card().classes("w-full"):
-                        ui.label("Config Scanning Statistics").classes("text-lg font-bold")
+                        ui.label("Config Scanning Statistics").classes(
+                            "text-lg font-bold"
+                        )
                         total = await run.io_bound(_load_stats)
                         if total is None:
                             ui.label("Violation logging not available.").classes(
                                 "text-grey-6 text-sm"
                             )
                         elif total == 0:
-                            ui.label("No config exfiltration attempts detected yet.").classes(
-                                "text-grey-6 text-sm"
-                            )
+                            ui.label(
+                                "No config exfiltration attempts detected yet."
+                            ).classes("text-grey-6 text-sm")
                         else:
-                            ui.label(f"Total config exfiltration attempts: {total}").classes("text-sm")
+                            ui.label(
+                                f"Total config exfiltration attempts: {total}"
+                            ).classes("text-sm")
 
             ui.timer(0.1, refresh, once=True)

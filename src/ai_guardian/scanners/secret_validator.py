@@ -33,14 +33,16 @@ DEFAULT_VALIDATION_TIMEOUT_MS = 3000
 
 class ValidationStatus(str, Enum):
     """Result of secret validation against provider API."""
-    VERIFIED = "verified"        # Secret is active → block
-    INACTIVE = "inactive"        # Secret is revoked/expired → warn only
-    UNVERIFIED = "unverified"    # No validator or network error → block (default)
+
+    VERIFIED = "verified"  # Secret is active → block
+    INACTIVE = "inactive"  # Secret is revoked/expired → warn only
+    UNVERIFIED = "unverified"  # No validator or network error → block (default)
 
 
 @dataclass
 class ValidationResult:
     """Result of validating a single secret."""
+
     status: ValidationStatus
     rule_id: str
     message: str = ""
@@ -55,9 +57,16 @@ class ValidationResult:
 # The rule_id from pattern detection maps to a validator function.
 # ---------------------------------------------------------------------------
 
+
 def _http_validate(
-    rule_id: str, label: str, url: str, headers: Dict[str, str],
-    secret: str, timeout_s: float, *, method: str = "GET",
+    rule_id: str,
+    label: str,
+    url: str,
+    headers: Dict[str, str],
+    secret: str,
+    timeout_s: float,
+    *,
+    method: str = "GET",
     check_body: Optional[Callable] = None,
 ) -> ValidationResult:
     """Shared HTTP validation: 200 = VERIFIED, else INACTIVE, exception = UNVERIFIED.
@@ -99,28 +108,34 @@ def _http_validate(
 
 def _validate_github_token(secret: str, timeout_s: float) -> ValidationResult:
     return _http_validate(
-        "github-personal-token", "GitHub token",
+        "github-personal-token",
+        "GitHub token",
         "https://api.github.com/user",
         {"Authorization": f"token {secret}", "User-Agent": "ai-guardian-validator"},
-        secret, timeout_s,
+        secret,
+        timeout_s,
     )
 
 
 def _validate_openai_key(secret: str, timeout_s: float) -> ValidationResult:
     return _http_validate(
-        "openai-api-key", "OpenAI API key",
+        "openai-api-key",
+        "OpenAI API key",
         "https://api.openai.com/v1/models",
         {"Authorization": f"Bearer {secret}"},
-        secret, timeout_s,
+        secret,
+        timeout_s,
     )
 
 
 def _validate_anthropic_key(secret: str, timeout_s: float) -> ValidationResult:
     return _http_validate(
-        "anthropic-api-key", "Anthropic API key",
+        "anthropic-api-key",
+        "Anthropic API key",
         "https://api.anthropic.com/v1/models",
         {"x-api-key": secret, "anthropic-version": "2023-06-01"},
-        secret, timeout_s,
+        secret,
+        timeout_s,
     )
 
 
@@ -137,29 +152,36 @@ def _validate_slack_token(secret: str, timeout_s: float) -> ValidationResult:
         return None
 
     return _http_validate(
-        "slack-token", "Slack token",
+        "slack-token",
+        "Slack token",
         "https://slack.com/api/auth.test",
         {"Authorization": f"Bearer {secret}"},
-        secret, timeout_s, method="POST",
+        secret,
+        timeout_s,
+        method="POST",
         check_body=_check_slack_body,
     )
 
 
 def _validate_gitlab_token(secret: str, timeout_s: float) -> ValidationResult:
     return _http_validate(
-        "gitlab-personal-token", "GitLab token",
+        "gitlab-personal-token",
+        "GitLab token",
         "https://gitlab.com/api/v4/user",
         {"PRIVATE-TOKEN": secret},
-        secret, timeout_s,
+        secret,
+        timeout_s,
     )
 
 
 def _validate_npm_token(secret: str, timeout_s: float) -> ValidationResult:
     return _http_validate(
-        "npm-token", "npm token",
+        "npm-token",
+        "npm token",
         "https://registry.npmjs.org/-/whoami",
         {"Authorization": f"Bearer {secret}"},
-        secret, timeout_s,
+        secret,
+        timeout_s,
     )
 
 
@@ -207,17 +229,21 @@ BUILTIN_VALIDATORS: Dict[str, ValidatorFn] = {
 # which is for false-positive reduction) configures liveness checking.
 # ---------------------------------------------------------------------------
 
+
 @dataclass
 class CustomValidatorConfig:
     """Configuration for a custom secret validator from TOML rules."""
+
     url: str
-    auth: str = "bearer"       # "bearer", "header", "basic", "query"
-    expect: int = 200          # Expected HTTP status for active secret
-    method: str = "GET"        # HTTP method
+    auth: str = "bearer"  # "bearer", "header", "basic", "query"
+    expect: int = 200  # Expected HTTP status for active secret
+    method: str = "GET"  # HTTP method
     header_name: str = "Authorization"  # Custom header name for auth="header"
 
 
-def _build_custom_validator(config: CustomValidatorConfig, rule_id: str = "custom") -> ValidatorFn:
+def _build_custom_validator(
+    config: CustomValidatorConfig, rule_id: str = "custom"
+) -> ValidatorFn:
     """Build a validator function from custom TOML config."""
 
     def _validate(secret: str, timeout_s: float) -> ValidationResult:
@@ -244,10 +270,13 @@ def _build_custom_validator(config: CustomValidatorConfig, rule_id: str = "custo
 
             try:
                 from ai_guardian.ssrf_protector import SSRFProtector
+
                 protector = SSRFProtector()
                 is_ssrf, reason, _is_immutable = protector._check_url(config.url)
                 if is_ssrf:
-                    logger.warning("Custom validation URL blocked by SSRF protection: %s", reason)
+                    logger.warning(
+                        "Custom validation URL blocked by SSRF protection: %s", reason
+                    )
                     return ValidationResult(
                         status=ValidationStatus.UNVERIFIED,
                         rule_id=rule_id,
@@ -272,7 +301,9 @@ def _build_custom_validator(config: CustomValidatorConfig, rule_id: str = "custo
                 response_code=resp.status_code,
             )
         except requests.RequestException as e:
-            logger.warning(f"Custom validation failed for {config.url.split('?')[0]}: {type(e).__name__}")
+            logger.warning(
+                f"Custom validation failed for {config.url.split('?')[0]}: {type(e).__name__}"
+            )
             return ValidationResult(
                 status=ValidationStatus.UNVERIFIED,
                 rule_id=rule_id,
@@ -297,7 +328,9 @@ def parse_custom_validator(rule: dict) -> Optional[Tuple[str, ValidatorFn]]:
 
     url = live_val.get("url")
     if not url:
-        logger.warning(f"Rule '{rule.get('id', '?')}' has live_validation without url — skipping")
+        logger.warning(
+            f"Rule '{rule.get('id', '?')}' has live_validation without url — skipping"
+        )
         return None
 
     config = CustomValidatorConfig(
@@ -316,6 +349,7 @@ def parse_custom_validator(rule: dict) -> Optional[Tuple[str, ValidatorFn]]:
 # ---------------------------------------------------------------------------
 # SecretValidator — main orchestrator
 # ---------------------------------------------------------------------------
+
 
 class SecretValidator:
     """Orchestrates secret validation against provider APIs.
@@ -337,7 +371,9 @@ class SecretValidator:
                 pass
     """
 
-    def __init__(self, config: Optional[Dict] = None, custom_rules: Optional[List[dict]] = None):
+    def __init__(
+        self, config: Optional[Dict] = None, custom_rules: Optional[List[dict]] = None
+    ):
         """Initialize the secret validator.
 
         Args:
@@ -350,7 +386,9 @@ class SecretValidator:
         """
         self._config = config or {}
         self._enabled = self._config.get("validate_secrets", False)
-        self._timeout_ms = self._config.get("validation_timeout_ms", DEFAULT_VALIDATION_TIMEOUT_MS)
+        self._timeout_ms = self._config.get(
+            "validation_timeout_ms", DEFAULT_VALIDATION_TIMEOUT_MS
+        )
         self._on_inactive = self._config.get("on_inactive", "warn")
 
         # Build validator registry: built-in + custom
@@ -493,7 +531,9 @@ class SecretValidator:
                         results[idx] = future.result()
                     except Exception as e:
                         rule_id = secrets[idx].get("rule_id", "unknown")
-                        logger.warning(f"Validation error for {rule_id}: {type(e).__name__}")
+                        logger.warning(
+                            f"Validation error for {rule_id}: {type(e).__name__}"
+                        )
                         results[idx] = ValidationResult(
                             status=ValidationStatus.UNVERIFIED,
                             rule_id=rule_id,
@@ -533,9 +573,7 @@ class SecretValidator:
         for secret, result in zip(secrets, validation_results):
             if result.status == ValidationStatus.INACTIVE:
                 inactive.append(secret)
-                logger.info(
-                    f"Secret '{result.rule_id}' is inactive: {result.message}"
-                )
+                logger.info(f"Secret '{result.rule_id}' is inactive: {result.message}")
             else:
                 active.append(secret)
                 if result.status == ValidationStatus.VERIFIED:

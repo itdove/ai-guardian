@@ -10,10 +10,12 @@ class TestNavGroups:
 
     def test_nav_groups_has_eight_categories(self):
         from ai_guardian.web.components.header import NAV_GROUPS
+
         assert len(NAV_GROUPS) == 8
 
     def test_nav_groups_categories(self):
         from ai_guardian.web.components.header import NAV_GROUPS
+
         names = [g[0] for g in NAV_GROUPS]
         assert names == [
             "Security Overview",
@@ -28,6 +30,7 @@ class TestNavGroups:
 
     def test_all_items_have_label_and_suffix(self):
         from ai_guardian.web.components.header import NAV_GROUPS
+
         for group_name, items in NAV_GROUPS:
             for entry in items:
                 assert len(entry) == 2, f"Bad entry in {group_name}: {entry}"
@@ -41,6 +44,7 @@ class TestSearchIndex:
 
     def test_index_contains_nav_items(self):
         from ai_guardian.web.components.header import _build_search_index
+
         index = _build_search_index("/test")
         labels = [entry[1] for entry in index]
         assert "Security Dashboard" in labels
@@ -50,6 +54,7 @@ class TestSearchIndex:
 
     def test_index_contains_feature_toggles(self):
         from ai_guardian.web.components.header import _build_search_index
+
         index = _build_search_index("/test")
         labels = [entry[1] for entry in index]
         assert "PII Detection" in labels
@@ -58,8 +63,10 @@ class TestSearchIndex:
 
     def test_feature_toggle_entries_point_to_settings(self):
         from ai_guardian.web.components.header import (
-            NAV_GROUPS, _build_search_index,
+            NAV_GROUPS,
+            _build_search_index,
         )
+
         index = _build_search_index("/test")
         nav_labels = set()
         for _, items in NAV_GROUPS:
@@ -68,31 +75,36 @@ class TestSearchIndex:
 
         for search_text, label, group_name, path in index:
             if label not in nav_labels:
-                assert path.startswith("/test/settings#feature-"), (
-                    f"Feature toggle '{label}' should point to settings"
-                )
+                assert path.startswith(
+                    "/test/settings#feature-"
+                ), f"Feature toggle '{label}' should point to settings"
 
     def test_search_text_is_lowercase(self):
         from ai_guardian.web.components.header import _build_search_index
+
         index = _build_search_index("/test")
         for search_text, _, _, _ in index:
             assert search_text == search_text.lower()
 
     def test_paths_use_prefix(self):
         from ai_guardian.web.components.header import _build_search_index
+
         index = _build_search_index("/myhost")
         for _, _, _, path in index:
             assert path.startswith("/myhost")
 
     def test_index_has_minimum_entries(self):
         from ai_guardian.web.components.header import _build_search_index
+
         index = _build_search_index("/test")
         assert len(index) >= 39, f"Expected >=39 entries, got {len(index)}"
 
     def test_feature_group_name_format(self):
         from ai_guardian.web.components.header import (
-            NAV_GROUPS, _build_search_index,
+            NAV_GROUPS,
+            _build_search_index,
         )
+
         index = _build_search_index("/test")
         nav_labels = set()
         for _, items in NAV_GROUPS:
@@ -117,6 +129,7 @@ class TestSearchMatching:
 
     def test_ssrf_matches_nav_and_feature(self):
         from ai_guardian.web.components.header import _build_search_index
+
         index = _build_search_index("/d")
         results = self._match("ssrf", index)
         labels = [r[0] for r in results]
@@ -125,6 +138,7 @@ class TestSearchMatching:
 
     def test_pii_matches_detection(self):
         from ai_guardian.web.components.header import _build_search_index
+
         index = _build_search_index("/d")
         results = self._match("pii", index)
         labels = [r[0] for r in results]
@@ -132,6 +146,7 @@ class TestSearchMatching:
 
     def test_case_insensitive(self):
         from ai_guardian.web.components.header import _build_search_index
+
         index = _build_search_index("/d")
         lower = self._match("secret", index)
         upper = self._match("SECRET", index)
@@ -140,6 +155,7 @@ class TestSearchMatching:
 
     def test_partial_match(self):
         from ai_guardian.web.components.header import _build_search_index
+
         index = _build_search_index("/d")
         results = self._match("perm", index)
         labels = [r[0] for r in results]
@@ -148,18 +164,21 @@ class TestSearchMatching:
 
     def test_no_match(self):
         from ai_guardian.web.components.header import _build_search_index
+
         index = _build_search_index("/d")
         results = self._match("xyznonexistent", index)
         assert len(results) == 0
 
     def test_config_key_match(self):
         from ai_guardian.web.components.header import _build_search_index
+
         index = _build_search_index("/d")
         results = self._match("scan_pii", index)
         assert len(results) >= 1
 
     def test_description_keyword_match(self):
         from ai_guardian.web.components.header import _build_search_index
+
         index = _build_search_index("/d")
         results = self._match("ocr", index)
         labels = [r[0] for r in results]
@@ -167,6 +186,7 @@ class TestSearchMatching:
 
     def test_gdpr_matches_pii(self):
         from ai_guardian.web.components.header import _build_search_index
+
         index = _build_search_index("/d")
         results = self._match("gdpr", index)
         labels = [r[0] for r in results]
@@ -178,19 +198,22 @@ class TestNavGroupsConsistency:
 
     def test_total_nav_item_count(self):
         from ai_guardian.web.components.header import NAV_GROUPS
+
         total = sum(len(items) for _, items in NAV_GROUPS)
         assert total == 40
 
     def test_first_item_is_dashboard(self):
         from ai_guardian.web.components.header import NAV_GROUPS
+
         label, suffix = NAV_GROUPS[0][1][0]
         assert label == "Security Dashboard"
         assert suffix == ""
 
     def test_suffixes_start_with_slash_or_empty(self):
         from ai_guardian.web.components.header import NAV_GROUPS
+
         for group_name, items in NAV_GROUPS:
             for label, suffix in items:
-                assert suffix == "" or suffix.startswith("/"), (
-                    f"{group_name}/{label} has bad suffix: {suffix}"
-                )
+                assert suffix == "" or suffix.startswith(
+                    "/"
+                ), f"{group_name}/{label} has bad suffix: {suffix}"

@@ -9,13 +9,11 @@ Custom profiles are stored in ~/.config/ai-guardian/profiles/.
 
 import json
 import re
-import sys
 from importlib.resources import files
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
-from ai_guardian.config_utils import get_cache_dir, get_config_dir, get_profiles_dir
-
+from ai_guardian.config_utils import get_cache_dir, get_profiles_dir
 
 BUILT_IN_PROFILES = ("minimal", "standard", "strict")
 
@@ -135,7 +133,10 @@ def save_profile(name: str, config: Dict) -> Tuple[bool, str]:
         Tuple of (success, message)
     """
     if name.startswith("@"):
-        return False, f"Profile name cannot start with '@' (reserved for built-in profiles)"
+        return (
+            False,
+            "Profile name cannot start with '@' (reserved for built-in profiles)",
+        )
 
     if name in BUILT_IN_PROFILES:
         return False, (
@@ -172,24 +173,28 @@ def list_profiles() -> List[Dict[str, str]]:
 
     for name in BUILT_IN_PROFILES:
         path = _get_builtin_profile_path(name)
-        result.append({
-            "name": f"@{name}",
-            "type": "builtin",
-            "description": PROFILE_DESCRIPTIONS.get(name, ""),
-            "path": str(path),
-        })
+        result.append(
+            {
+                "name": f"@{name}",
+                "type": "builtin",
+                "description": PROFILE_DESCRIPTIONS.get(name, ""),
+                "path": str(path),
+            }
+        )
 
     profiles_dir = get_profiles_dir()
     if profiles_dir.exists():
         for f in sorted(profiles_dir.iterdir()):
             if f.suffix == ".json" and f.is_file():
                 stem = f.stem
-                result.append({
-                    "name": stem,
-                    "type": "custom",
-                    "description": str(f),
-                    "path": str(f),
-                })
+                result.append(
+                    {
+                        "name": stem,
+                        "type": "custom",
+                        "description": str(f),
+                        "path": str(f),
+                    }
+                )
 
     return result
 

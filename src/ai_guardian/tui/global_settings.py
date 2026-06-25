@@ -9,7 +9,7 @@ Uses TimeBasedToggle widgets (same as individual panels) without help text for c
 import logging
 import json
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 from textual.app import ComposeResult
 from textual.containers import Container, Horizontal, VerticalScroll
@@ -20,9 +20,11 @@ from ai_guardian.config_utils import (
     get_project_config_path,
     GLOBAL_ONLY_SECTIONS,
 )
-from ai_guardian.tui.schema_defaults import SchemaDefaultsMixin, select_options_with_default
+from ai_guardian.tui.schema_defaults import (
+    SchemaDefaultsMixin,
+    select_options_with_default,
+)
 from ai_guardian.tui.widgets import TimeBasedToggle, sanitize_enabled_value
-
 
 FEATURES = [
     ("permissions", "permissions_enabled", "🔐 Tool Permissions Enforcement"),
@@ -189,7 +191,10 @@ class GlobalSettingsContent(SchemaDefaultsMixin, Container):
                     yield Label("⚠️  On Scan Error:")
                     yield Select(
                         select_options_with_default(
-                            [("Allow (fail-open)", "allow"), ("Block (fail-closed)", "block")],
+                            [
+                                ("Allow (fail-open)", "allow"),
+                                ("Block (fail-closed)", "block"),
+                            ],
                             "on_scan_error",
                         ),
                         value="allow",
@@ -242,6 +247,7 @@ class GlobalSettingsContent(SchemaDefaultsMixin, Container):
             if project_path:
                 return project_path
             from ai_guardian.config_utils import _find_git_root
+
             root = _find_git_root() or Path.cwd()
             return root / ".ai-guardian" / "ai-guardian.json"
         config_dir = get_config_dir()
@@ -254,7 +260,7 @@ class GlobalSettingsContent(SchemaDefaultsMixin, Container):
         immutables: dict = {}
         if global_path.exists():
             try:
-                with open(global_path, 'r', encoding='utf-8') as f:
+                with open(global_path, "r", encoding="utf-8") as f:
                     global_cfg = json.load(f)
                 for section, data in global_cfg.items():
                     if not isinstance(data, dict):
@@ -279,7 +285,9 @@ class GlobalSettingsContent(SchemaDefaultsMixin, Container):
                 if path.exists():
                     notice.update(f"[dim]Editing project config: {path}[/dim]")
                 else:
-                    notice.update(f"[yellow]Project config will be created at: {path}[/yellow]")
+                    notice.update(
+                        f"[yellow]Project config will be created at: {path}[/yellow]"
+                    )
             else:
                 path = self._get_config_path()
                 notice.update(f"[dim]Editing global config: {path}[/dim]")
@@ -294,7 +302,7 @@ class GlobalSettingsContent(SchemaDefaultsMixin, Container):
             config = {}
             if config_path.exists():
                 try:
-                    with open(config_path, 'r', encoding='utf-8') as f:
+                    with open(config_path, "r", encoding="utf-8") as f:
                         config = json.load(f)
                 except Exception as e:
                     self.app.notify(f"Error loading config: {e}", severity="error")
@@ -303,7 +311,9 @@ class GlobalSettingsContent(SchemaDefaultsMixin, Container):
             if not self._is_project_scope:
                 self._global_config = config
 
-            immutables = self._load_global_immutable_fields() if self._is_project_scope else {}
+            immutables = (
+                self._load_global_immutable_fields() if self._is_project_scope else {}
+            )
 
             try:
                 on_scan_error = config.get("on_scan_error", "allow")
@@ -315,28 +325,42 @@ class GlobalSettingsContent(SchemaDefaultsMixin, Container):
 
             for section, config_key, _ in FEATURES:
                 section_data = config.get(section, {})
-                raw = section_data.get("enabled", True) if isinstance(section_data, dict) else True
+                raw = (
+                    section_data.get("enabled", True)
+                    if isinstance(section_data, dict)
+                    else True
+                )
                 is_global_only = section in GLOBAL_ONLY_SECTIONS
                 section_immutable = immutables.get(section)
                 section_fully_locked = section_immutable is True
-                locked_fields = section_immutable if isinstance(section_immutable, list) else []
+                locked_fields = (
+                    section_immutable if isinstance(section_immutable, list) else []
+                )
                 enabled_locked = section_fully_locked or "enabled" in locked_fields
 
                 try:
                     toggle = self.query_one(f"#{config_key}_toggle", TimeBasedToggle)
                     toggle.load_value(raw)
-                    toggle.disabled = (self._is_project_scope and is_global_only) or enabled_locked
+                    toggle.disabled = (
+                        self._is_project_scope and is_global_only
+                    ) or enabled_locked
                 except Exception:
                     pass
 
                 if section in FEATURE_ACTIONS:
                     action_info = FEATURE_ACTIONS[section]
-                    action_value = section_data.get("action", action_info["default"]) if isinstance(section_data, dict) else action_info["default"]
+                    action_value = (
+                        section_data.get("action", action_info["default"])
+                        if isinstance(section_data, dict)
+                        else action_info["default"]
+                    )
                     action_locked = section_fully_locked or "action" in locked_fields
                     try:
                         action_select = self.query_one(f"#{config_key}_action", Select)
                         action_select.value = action_value
-                        action_select.disabled = (self._is_project_scope and is_global_only) or action_locked
+                        action_select.disabled = (
+                            self._is_project_scope and is_global_only
+                        ) or action_locked
                     except Exception:
                         pass
 
@@ -351,6 +375,7 @@ class GlobalSettingsContent(SchemaDefaultsMixin, Container):
             return
         try:
             from ai_guardian.config_writer import compute_provenance
+
             prov = compute_provenance()
         except Exception:
             return
@@ -365,7 +390,9 @@ class GlobalSettingsContent(SchemaDefaultsMixin, Container):
             else:
                 badge = "global"
 
-            badge_text = "[dim cyan] ⓟ[/dim cyan]" if badge == "project" else "[dim] ⓖ[/dim]"
+            badge_text = (
+                "[dim cyan] ⓟ[/dim cyan]" if badge == "project" else "[dim] ⓖ[/dim]"
+            )
             try:
                 toggle = self.query_one(f"#{config_key}_toggle", TimeBasedToggle)
                 title_static = toggle.query(".tbt-title")[0]
@@ -426,7 +453,7 @@ class GlobalSettingsContent(SchemaDefaultsMixin, Container):
 
         try:
             if config_path.exists():
-                with open(config_path, 'r', encoding='utf-8') as f:
+                with open(config_path, "r", encoding="utf-8") as f:
                     config = json.load(f)
             else:
                 config_path.parent.mkdir(parents=True, exist_ok=True)
@@ -434,7 +461,7 @@ class GlobalSettingsContent(SchemaDefaultsMixin, Container):
 
             config["on_scan_error"] = value
 
-            with open(config_path, 'w', encoding='utf-8') as f:
+            with open(config_path, "w", encoding="utf-8") as f:
                 json.dump(config, f, indent=2)
 
             label = "fail-open" if value == "allow" else "fail-closed"
@@ -449,7 +476,7 @@ class GlobalSettingsContent(SchemaDefaultsMixin, Container):
 
         try:
             if config_path.exists():
-                with open(config_path, 'r', encoding='utf-8') as f:
+                with open(config_path, "r", encoding="utf-8") as f:
                     config = json.load(f)
             else:
                 config_path.parent.mkdir(parents=True, exist_ok=True)
@@ -460,11 +487,13 @@ class GlobalSettingsContent(SchemaDefaultsMixin, Container):
 
             config[section]["action"] = value
 
-            with open(config_path, 'w', encoding='utf-8') as f:
+            with open(config_path, "w", encoding="utf-8") as f:
                 json.dump(config, f, indent=2)
 
             scope = "project" if self._is_project_scope else "global"
-            self.app.notify(f"✓ {display}: action = {value} [{scope}]", severity="success")
+            self.app.notify(
+                f"✓ {display}: action = {value} [{scope}]", severity="success"
+            )
 
         except Exception as e:
             self.app.notify(f"Error saving: {e}", severity="error")
@@ -474,7 +503,7 @@ class GlobalSettingsContent(SchemaDefaultsMixin, Container):
 
         try:
             if config_path.exists():
-                with open(config_path, 'r', encoding='utf-8') as f:
+                with open(config_path, "r", encoding="utf-8") as f:
                     config = json.load(f)
             else:
                 config_path.parent.mkdir(parents=True, exist_ok=True)
@@ -485,7 +514,7 @@ class GlobalSettingsContent(SchemaDefaultsMixin, Container):
 
             config[section]["enabled"] = value
 
-            with open(config_path, 'w', encoding='utf-8') as f:
+            with open(config_path, "w", encoding="utf-8") as f:
                 json.dump(config, f, indent=2)
 
             scope = "project" if self._is_project_scope else "global"
@@ -494,6 +523,7 @@ class GlobalSettingsContent(SchemaDefaultsMixin, Container):
                 self.app.notify(f"✓ {display}: {status} [{scope}]", severity="success")
             elif isinstance(value, dict) and value.get("disabled_until"):
                 from ai_guardian.tui.widgets import format_local_time
+
                 self.app.notify(
                     f"✓ {display}: temp disabled until {format_local_time(value['disabled_until'])} [{scope}]",
                     severity="success",

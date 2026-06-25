@@ -24,6 +24,7 @@ class TestCheckGiAvailable:
 
     def test_returns_false_when_gi_missing(self):
         import builtins
+
         real_import = builtins.__import__
 
         def fake_import(name, *args, **kwargs):
@@ -46,7 +47,9 @@ class TestIsTrayAvailable:
 
     @mock.patch("ai_guardian.daemon.tray.HAS_PYSTRAY", True)
     def test_returns_false_on_linux_without_gi(self):
-        with mock.patch("ai_guardian.daemon.tray._check_gi_available", return_value=False):
+        with mock.patch(
+            "ai_guardian.daemon.tray._check_gi_available", return_value=False
+        ):
             with mock.patch("platform.system", return_value="Linux"):
                 with mock.patch.dict("os.environ", {"DISPLAY": ":0"}):
                     assert is_tray_available() is False
@@ -177,8 +180,7 @@ class TestTrayPauseRoutesLocalThroughMultiClient:
 
 
 class TestFlashReload:
-    @pytest.mark.parametrize("status", ["running", "paused"],
-                             ids=["running", "paused"])
+    @pytest.mark.parametrize("status", ["running", "paused"], ids=["running", "paused"])
     def test_flash_reload_preserves_status(self, status):
         tray = DaemonTray(
             get_stats_callback=lambda: {},
@@ -221,7 +223,9 @@ class TestFormatTimeAgo:
 class TestCrossPlatform:
     def test_dispatch_to_main_without_pyobjc(self):
         called = []
-        with mock.patch.dict("sys.modules", {"PyObjCTools": None, "PyObjCTools.AppHelper": None}):
+        with mock.patch.dict(
+            "sys.modules", {"PyObjCTools": None, "PyObjCTools.AppHelper": None}
+        ):
             with mock.patch("platform.system", return_value="Darwin"):
                 tray = DaemonTray(
                     get_stats_callback=lambda: {},
@@ -238,7 +242,12 @@ class TestCrossPlatform:
             pause_callback=lambda mins: None,
         )
         with mock.patch("platform.system", return_value="Linux"):
-            with mock.patch("shutil.which", side_effect=lambda x: "/usr/bin/gnome-terminal" if x == "gnome-terminal" else None):
+            with mock.patch(
+                "shutil.which",
+                side_effect=lambda x: (
+                    "/usr/bin/gnome-terminal" if x == "gnome-terminal" else None
+                ),
+            ):
                 with mock.patch("subprocess.Popen") as mock_popen:
                     tray._launch_console()
                     mock_popen.assert_called_once()
@@ -252,7 +261,10 @@ class TestCrossPlatform:
             pause_callback=lambda mins: None,
         )
         with mock.patch("platform.system", return_value="Linux"):
-            with mock.patch("shutil.which", side_effect=lambda x: "/usr/bin/kgx" if x == "kgx" else None):
+            with mock.patch(
+                "shutil.which",
+                side_effect=lambda x: "/usr/bin/kgx" if x == "kgx" else None,
+            ):
                 with mock.patch("subprocess.Popen") as mock_popen:
                     tray._launch_console()
                     mock_popen.assert_called_once()
@@ -321,10 +333,7 @@ class TestCrossPlatform:
 
 
 class TestDaemonTrayIcon:
-    @pytest.mark.skipif(
-        not is_tray_available(),
-        reason="pystray/Pillow not installed"
-    )
+    @pytest.mark.skipif(not is_tray_available(), reason="pystray/Pillow not installed")
     def test_create_icon_returns_image(self):
         tray = DaemonTray(
             get_stats_callback=lambda: {},
@@ -335,10 +344,7 @@ class TestDaemonTrayIcon:
         assert icon is not None
         assert icon.mode == "RGBA"
 
-    @pytest.mark.skipif(
-        not is_tray_available(),
-        reason="pystray/Pillow not installed"
-    )
+    @pytest.mark.skipif(not is_tray_available(), reason="pystray/Pillow not installed")
     def test_fallback_icon_when_no_tray_icon(self):
         tray = DaemonTray(
             get_stats_callback=lambda: {},
@@ -350,40 +356,29 @@ class TestDaemonTrayIcon:
         assert icon is not None
         assert icon.size == (22, 22)
 
-    @pytest.mark.skipif(
-        not is_tray_available(),
-        reason="pystray/Pillow not installed"
-    )
+    @pytest.mark.skipif(not is_tray_available(), reason="pystray/Pillow not installed")
     def test_find_tray_icon_path_returns_path_or_none(self):
         result = DaemonTray._find_tray_icon_path()
         if result is not None:
             from pathlib import Path
+
             assert Path(result).exists()
 
-    @pytest.mark.skipif(
-        not is_tray_available(),
-        reason="pystray/Pillow not installed"
-    )
+    @pytest.mark.skipif(not is_tray_available(), reason="pystray/Pillow not installed")
     def test_find_tray_icon_path_macos(self):
         with mock.patch("platform.system", return_value="Darwin"):
             result = DaemonTray._find_tray_icon_path()
         if result is not None:
             assert "Template" in result
 
-    @pytest.mark.skipif(
-        not is_tray_available(),
-        reason="pystray/Pillow not installed"
-    )
+    @pytest.mark.skipif(not is_tray_available(), reason="pystray/Pillow not installed")
     def test_find_tray_icon_path_windows(self):
         with mock.patch("platform.system", return_value="Windows"):
             result = DaemonTray._find_tray_icon_path()
         if result is not None:
             assert "16" in result
 
-    @pytest.mark.skipif(
-        not is_tray_available(),
-        reason="pystray/Pillow not installed"
-    )
+    @pytest.mark.skipif(not is_tray_available(), reason="pystray/Pillow not installed")
     def test_find_tray_icon_path_linux(self):
         with mock.patch("platform.system", return_value="Linux"):
             result = DaemonTray._find_tray_icon_path()
@@ -396,6 +391,7 @@ class TestDaemonTrayIcon:
             result = DaemonTray._find_tray_icon_path()
         if result is not None:
             from pathlib import Path
+
             assert Path(result).exists(), (
                 f"Icon path {result} does not exist — "
                 "as_file() context manager may have cleaned it up"
@@ -403,6 +399,7 @@ class TestDaemonTrayIcon:
 
     def test_all_required_tray_icon_sizes_exist(self):
         from pathlib import Path
+
         images_dir = Path(__file__).resolve().parent.parent.parent / "images"
         required = [
             "tray-icon-16.png",
@@ -414,13 +411,11 @@ class TestDaemonTrayIcon:
         for name in required:
             assert (images_dir / name).exists(), f"Missing tray icon: {name}"
 
-    @pytest.mark.skipif(
-        not is_tray_available(),
-        reason="pystray/Pillow not installed"
-    )
+    @pytest.mark.skipif(not is_tray_available(), reason="pystray/Pillow not installed")
     def test_tray_icon_png_dimensions(self):
         from pathlib import Path
         from PIL import Image
+
         images_dir = Path(__file__).resolve().parent.parent.parent / "images"
         expected_sizes = {
             "tray-icon-16.png": (16, 16),
@@ -449,9 +444,11 @@ class TestIconInversion:
         ids=["macos", "kde", "gnome-light", "gnome-dark"],
     )
     def test_needs_dark_icon(self, platform_name, env, gsettings_stdout, expected):
-        with mock.patch("platform.system", return_value=platform_name), \
-             mock.patch.dict("os.environ", env, clear=False), \
-             mock.patch("subprocess.run") as mock_run:
+        with (
+            mock.patch("platform.system", return_value=platform_name),
+            mock.patch.dict("os.environ", env, clear=False),
+            mock.patch("subprocess.run") as mock_run,
+        ):
             if gsettings_stdout is not None:
                 mock_run.return_value = mock.MagicMock(stdout=gsettings_stdout)
             assert DaemonTray._needs_dark_icon() is expected
@@ -459,6 +456,7 @@ class TestIconInversion:
     @pytest.mark.skipif(not is_tray_available(), reason="Pillow not installed")
     def test_invert_icon_makes_dark(self):
         from PIL import Image as PILImage
+
         img = PILImage.new("RGBA", (22, 22), (255, 255, 255, 200))
         inverted = DaemonTray._invert_icon(img)
         r, g, b, a = inverted.split()
@@ -477,10 +475,12 @@ class TestRunPlatformBranching:
             pause_callback=lambda mins: None,
         )
         mock_icon = mock.MagicMock()
-        with mock.patch("ai_guardian.daemon.tray.pystray", create=True) as mock_pystray, \
-             mock.patch("platform.system", return_value="Linux"), \
-             mock.patch("ai_guardian.daemon.tray._suppress_gtk_stderr", return_value=42), \
-             mock.patch("ai_guardian.daemon.tray.threading") as mock_threading:
+        with (
+            mock.patch("ai_guardian.daemon.tray.pystray", create=True) as mock_pystray,
+            mock.patch("platform.system", return_value="Linux"),
+            mock.patch("ai_guardian.daemon.tray._suppress_gtk_stderr", return_value=42),
+            mock.patch("ai_guardian.daemon.tray.threading") as mock_threading,
+        ):
             mock_pystray.Icon.return_value = mock_icon
             mock_pystray.Menu = mock.MagicMock()
             mock_pystray.MenuItem = mock.MagicMock()
@@ -502,8 +502,10 @@ class TestRunPlatformBranching:
             pause_callback=lambda mins: None,
         )
         mock_icon = mock.MagicMock()
-        with mock.patch("ai_guardian.daemon.tray.pystray", create=True) as mock_pystray, \
-             mock.patch("platform.system", return_value="Darwin"):
+        with (
+            mock.patch("ai_guardian.daemon.tray.pystray", create=True) as mock_pystray,
+            mock.patch("platform.system", return_value="Darwin"),
+        ):
             mock_pystray.Icon.return_value = mock_icon
             mock_pystray.Menu = mock.MagicMock()
             mock_pystray.MenuItem = mock.MagicMock()
@@ -523,9 +525,15 @@ class TestRunPlatformBranching:
         mock_appkit.NSApplication.sharedApplication.return_value = mock_app
         mock_appkit.NSApplicationActivationPolicyAccessory = 1
         mock_foundation = mock.MagicMock()
-        mock_foundation.NSBundle.mainBundle.return_value.infoDictionary.return_value = {}
-        with mock.patch("platform.system", return_value="Darwin"), \
-             mock.patch.dict("sys.modules", {"AppKit": mock_appkit, "Foundation": mock_foundation}):
+        mock_foundation.NSBundle.mainBundle.return_value.infoDictionary.return_value = (
+            {}
+        )
+        with (
+            mock.patch("platform.system", return_value="Darwin"),
+            mock.patch.dict(
+                "sys.modules", {"AppKit": mock_appkit, "Foundation": mock_foundation}
+            ),
+        ):
             DaemonTray._ensure_macos_activation_policy()
         mock_app.setActivationPolicy_.assert_called_once_with(1)
 
@@ -541,12 +549,23 @@ class TestRunPlatformBranching:
         mock_appkit.NSApplicationActivationPolicyAccessory = 1
         mock_info = {}
         mock_foundation = mock.MagicMock()
-        mock_foundation.NSBundle.mainBundle.return_value.infoDictionary.return_value = mock_info
+        mock_foundation.NSBundle.mainBundle.return_value.infoDictionary.return_value = (
+            mock_info
+        )
         mock_image = mock.MagicMock()
-        mock_appkit.NSImage.alloc.return_value.initWithContentsOfFile_.return_value = mock_image
-        with mock.patch("platform.system", return_value="Darwin"), \
-             mock.patch.dict("sys.modules", {"AppKit": mock_appkit, "Foundation": mock_foundation}), \
-             mock.patch("ai_guardian.daemon.tray_plugins._find_icon", return_value="/path/to/icon.icns"):
+        mock_appkit.NSImage.alloc.return_value.initWithContentsOfFile_.return_value = (
+            mock_image
+        )
+        with (
+            mock.patch("platform.system", return_value="Darwin"),
+            mock.patch.dict(
+                "sys.modules", {"AppKit": mock_appkit, "Foundation": mock_foundation}
+            ),
+            mock.patch(
+                "ai_guardian.daemon.tray_plugins._find_icon",
+                return_value="/path/to/icon.icns",
+            ),
+        ):
             DaemonTray._ensure_macos_activation_policy()
         assert mock_info["CFBundleIdentifier"] == "com.itdove.ai-guardian.tray"
         assert mock_info["CFBundleName"] == "AI Guardian Tray"
@@ -560,10 +579,16 @@ class TestRunPlatformBranching:
         mock_appkit.NSApplicationActivationPolicyAccessory = 1
         mock_info = {}
         mock_foundation = mock.MagicMock()
-        mock_foundation.NSBundle.mainBundle.return_value.infoDictionary.return_value = mock_info
-        with mock.patch("platform.system", return_value="Darwin"), \
-             mock.patch.dict("sys.modules", {"AppKit": mock_appkit, "Foundation": mock_foundation}), \
-             mock.patch("ai_guardian.daemon.tray_plugins._find_icon", return_value=""):
+        mock_foundation.NSBundle.mainBundle.return_value.infoDictionary.return_value = (
+            mock_info
+        )
+        with (
+            mock.patch("platform.system", return_value="Darwin"),
+            mock.patch.dict(
+                "sys.modules", {"AppKit": mock_appkit, "Foundation": mock_foundation}
+            ),
+            mock.patch("ai_guardian.daemon.tray_plugins._find_icon", return_value=""),
+        ):
             DaemonTray._ensure_macos_activation_policy()
         mock_app.setApplicationIconImage_.assert_not_called()
 
@@ -574,7 +599,7 @@ class TestSuppressGtkStderr:
             assert _suppress_gtk_stderr() is None
 
     def test_returns_fd_on_linux(self):
-        import os
+
         with mock.patch("platform.system", return_value="Linux"):
             saved_fd = _suppress_gtk_stderr()
             assert saved_fd is not None
@@ -586,6 +611,7 @@ class TestSuppressGtkStderr:
     def test_roundtrip_preserves_stderr(self):
         import os
         import sys
+
         with mock.patch("platform.system", return_value="Linux"):
             original_fd = os.dup(2)
             try:
@@ -613,15 +639,19 @@ class TestSingleDaemonFlatMenu:
         return tray
 
     def test_is_single_daemon_with_one_target(self):
-        tray = self._make_tray([DaemonTarget(name="local", runtime="local", status="running")])
+        tray = self._make_tray(
+            [DaemonTarget(name="local", runtime="local", status="running")]
+        )
         assert tray._is_single_daemon() is True
         assert tray._is_multi_daemon() is False
 
     def test_is_multi_daemon_with_two_targets(self):
-        tray = self._make_tray([
-            DaemonTarget(name="local", runtime="local", status="running"),
-            DaemonTarget(name="remote", runtime="container", status="running"),
-        ])
+        tray = self._make_tray(
+            [
+                DaemonTarget(name="local", runtime="local", status="running"),
+                DaemonTarget(name="remote", runtime="container", status="running"),
+            ]
+        )
         assert tray._is_multi_daemon() is True
         assert tray._is_single_daemon() is False
 
@@ -638,8 +668,12 @@ class TestSingleDaemonFlatMenu:
                 "● my-host",
             ),
             (
-                dict(name="sandbox", runtime="container",
-                     container_engine="podman", status="running"),
+                dict(
+                    name="sandbox",
+                    runtime="container",
+                    container_engine="podman",
+                    status="running",
+                ),
                 "● sandbox (podman)",
             ),
             (
@@ -661,17 +695,25 @@ class TestSingleDaemonFlatMenu:
 
     def test_flat_menu_with_single_container_target(self):
         """Single container daemon uses flat layout — same as local."""
-        tray = self._make_tray([
-            DaemonTarget(name="carbonite-prod", runtime="container",
-                         container_engine="podman", status="running"),
-        ])
+        tray = self._make_tray(
+            [
+                DaemonTarget(
+                    name="carbonite-prod",
+                    runtime="container",
+                    container_engine="podman",
+                    status="running",
+                ),
+            ]
+        )
         assert tray._is_single_daemon() is True
 
     def test_dynamic_switch_flat_to_nested(self):
         """Layout switches dynamically when targets change count."""
-        tray = self._make_tray([
-            DaemonTarget(name="local", runtime="local", status="running"),
-        ])
+        tray = self._make_tray(
+            [
+                DaemonTarget(name="local", runtime="local", status="running"),
+            ]
+        )
         assert tray._is_single_daemon() is True
 
         tray._targets.append(
@@ -715,7 +757,12 @@ class TestIDESetupMenu:
     def test_launch_ide_setup_linux_keeps_terminal_open(self):
         with mock.patch("platform.system", return_value="Linux"):
             with mock.patch("sys.executable", "/usr/bin/python3"):
-                with mock.patch("shutil.which", side_effect=lambda x: "/usr/bin/gnome-terminal" if x == "gnome-terminal" else None):
+                with mock.patch(
+                    "shutil.which",
+                    side_effect=lambda x: (
+                        "/usr/bin/gnome-terminal" if x == "gnome-terminal" else None
+                    ),
+                ):
                     with mock.patch("subprocess.Popen") as mock_popen:
                         DaemonTray._launch_ide_setup("copilot")
                         mock_popen.assert_called_once()
@@ -772,33 +819,26 @@ class TestIDESetupMenu:
 class TestPausedIconDimming:
     """Tests for visual pause state indicator (issue #684)."""
 
-    @pytest.mark.skipif(
-        not is_tray_available(),
-        reason="pystray/Pillow not installed"
-    )
+    @pytest.mark.skipif(not is_tray_available(), reason="pystray/Pillow not installed")
     def test_apply_paused_dimming_reduces_alpha(self):
         from PIL import Image
+
         img = Image.new("RGBA", (22, 22), (255, 255, 255, 200))
         dimmed = DaemonTray._apply_paused_dimming(img)
         assert dimmed.size == (22, 22)
         _, _, _, a = dimmed.getpixel((10, 10))
         assert a == 100
 
-    @pytest.mark.skipif(
-        not is_tray_available(),
-        reason="pystray/Pillow not installed"
-    )
+    @pytest.mark.skipif(not is_tray_available(), reason="pystray/Pillow not installed")
     def test_apply_paused_dimming_does_not_modify_original(self):
         from PIL import Image
+
         img = Image.new("RGBA", (22, 22), (255, 255, 255, 200))
         DaemonTray._apply_paused_dimming(img)
         _, _, _, a = img.getpixel((10, 10))
         assert a == 200
 
-    @pytest.mark.skipif(
-        not is_tray_available(),
-        reason="pystray/Pillow not installed"
-    )
+    @pytest.mark.skipif(not is_tray_available(), reason="pystray/Pillow not installed")
     def test_create_icon_dimmed_when_paused(self):
         tray = DaemonTray(
             get_stats_callback=lambda: {},
@@ -815,10 +855,7 @@ class TestPausedIconDimming:
         for i in non_zero:
             assert paused_alpha[i] <= normal_alpha[i]
 
-    @pytest.mark.skipif(
-        not is_tray_available(),
-        reason="pystray/Pillow not installed"
-    )
+    @pytest.mark.skipif(not is_tray_available(), reason="pystray/Pillow not installed")
     def test_create_icon_normal_when_running(self):
         tray = DaemonTray(
             get_stats_callback=lambda: {},
@@ -875,7 +912,8 @@ class TestUpdateStatusPauseTimer:
         tray._icon = mock_icon
         with mock.patch.object(tray, "_create_icon", return_value="fake_img"):
             with mock.patch.object(
-                DaemonTray, "_dispatch_to_main",
+                DaemonTray,
+                "_dispatch_to_main",
                 side_effect=lambda func: func(),
             ):
                 tray.update_status("paused")
@@ -889,9 +927,7 @@ class TestUpdateStatusPauseTimer:
             pause_callback=lambda mins: None,
         )
         tray._icon = mock.MagicMock()
-        with mock.patch.object(
-            DaemonTray, "_dispatch_to_main"
-        ) as mock_dispatch:
+        with mock.patch.object(DaemonTray, "_dispatch_to_main") as mock_dispatch:
             tray.update_status("paused")
             assert mock_dispatch.call_count >= 1
             first_call_arg = mock_dispatch.call_args_list[0][0][0]
@@ -941,9 +977,11 @@ class TestPausedTargetMenuVisibility:
 
     def test_single_running_includes_paused(self):
         """_single_running returns True for paused targets."""
-        tray = self._make_tray([
-            DaemonTarget(name="local", runtime="local", status="paused"),
-        ])
+        tray = self._make_tray(
+            [
+                DaemonTarget(name="local", runtime="local", status="paused"),
+            ]
+        )
         with mock.patch("ai_guardian.daemon.tray.pystray", create=True):
             assert tray._is_single_daemon() is True
             fn = lambda _item: (
@@ -954,9 +992,11 @@ class TestPausedTargetMenuVisibility:
 
     def test_single_not_running_excludes_paused(self):
         """_single_not_running returns False for paused targets."""
-        tray = self._make_tray([
-            DaemonTarget(name="local", runtime="local", status="paused"),
-        ])
+        tray = self._make_tray(
+            [
+                DaemonTarget(name="local", runtime="local", status="paused"),
+            ]
+        )
         fn = lambda _item: (
             tray._is_single_daemon()
             and tray._targets[0].status not in ("running", "paused")
@@ -965,10 +1005,12 @@ class TestPausedTargetMenuVisibility:
 
     def test_auto_select_prefers_paused_over_unknown(self):
         """_auto_select_target selects paused targets over unknown ones."""
-        tray = self._make_tray([
-            DaemonTarget(name="unknown-one", runtime="container", status="unknown"),
-            DaemonTarget(name="paused-local", runtime="local", status="paused"),
-        ])
+        tray = self._make_tray(
+            [
+                DaemonTarget(name="unknown-one", runtime="container", status="unknown"),
+                DaemonTarget(name="paused-local", runtime="local", status="paused"),
+            ]
+        )
         tray._active_target = None
         tray._auto_select_target()
         assert tray._active_target.name == "paused-local"
@@ -993,7 +1035,9 @@ class TestPausedTargetMenuVisibility:
         """Status label appends shortened working dir for running daemon."""
         mock_shorten.return_value = "~/dev/project"
         t = DaemonTarget(
-            name="my-host", runtime="local", status="running",
+            name="my-host",
+            runtime="local",
+            status="running",
             working_dir="/Users/dev/project",
         )
         label = DaemonTray._daemon_status_label(t)
@@ -1011,7 +1055,9 @@ class TestPausedTargetMenuVisibility:
         """Status label truncates paths longer than 40 chars."""
         mock_shorten.return_value = "~/very/deep/nested/project/directory/name"
         t = DaemonTarget(
-            name="host", runtime="local", status="running",
+            name="host",
+            runtime="local",
+            status="running",
             working_dir="/home/user/very/deep/nested/project/directory/name",
         )
         label = DaemonTray._daemon_status_label(t)
@@ -1047,7 +1093,8 @@ class TestWorkingDirApply:
         )
         tray._targets = [
             DaemonTarget(
-                name="daemon-a", runtime="local",
+                name="daemon-a",
+                runtime="local",
                 working_dir="/already/set",
             ),
         ]
@@ -1076,7 +1123,8 @@ class TestUntilResumePauseOption:
             tray._build_single_daemon_daemon_items()
 
             labels = [
-                call[0][0] for call in mock_pystray.MenuItem.call_args_list
+                call[0][0]
+                for call in mock_pystray.MenuItem.call_args_list
                 if isinstance(call[0][0], str)
             ]
             assert "Until resume" in labels
@@ -1102,7 +1150,8 @@ class TestUntilResumePauseOption:
             tray._build_multi_daemon_menu_items()
 
             labels = [
-                call[0][0] for call in mock_pystray.MenuItem.call_args_list
+                call[0][0]
+                for call in mock_pystray.MenuItem.call_args_list
                 if isinstance(call[0][0], str)
             ]
             assert labels.count("Until resume") >= 1
@@ -1158,6 +1207,7 @@ class TestUntilResumePauseOption:
         tray._status = "paused"
         tray._start_pause_timer()
         import time
+
         time.sleep(0.2)
         tray._stop_pause_timer()
         assert tray._status == "paused"
@@ -1175,6 +1225,7 @@ class TestUntilResumePauseOption:
         tray._status = "paused"
         tray._start_pause_timer()
         import time
+
         time.sleep(0.2)
         tray._stop_pause_timer()
         assert tray._status == "running"
@@ -1321,9 +1372,15 @@ class TestWakeDetection:
             tray._stats_refresh_running = False
             return orig_wait(0)
 
-        with mock.patch.dict("sys.modules", {"PyObjCTools": None, "PyObjCTools.AppHelper": None}):
-            with mock.patch.object(tray, "_dispatch_to_main", side_effect=tracking_dispatch):
-                with mock.patch.object(tray._refresh_event, "wait", side_effect=stop_after_one_wait):
+        with mock.patch.dict(
+            "sys.modules", {"PyObjCTools": None, "PyObjCTools.AppHelper": None}
+        ):
+            with mock.patch.object(
+                tray, "_dispatch_to_main", side_effect=tracking_dispatch
+            ):
+                with mock.patch.object(
+                    tray._refresh_event, "wait", side_effect=stop_after_one_wait
+                ):
                     with mock.patch("ai_guardian.daemon.tray.time") as mock_time:
                         mock_time.time = mock.MagicMock(side_effect=time_values)
                         tray._stats_refresh_running = True
@@ -1360,9 +1417,15 @@ class TestWakeDetection:
             tray._stats_refresh_running = False
             return orig_wait(0)
 
-        with mock.patch.dict("sys.modules", {"PyObjCTools": None, "PyObjCTools.AppHelper": None}):
-            with mock.patch.object(tray, "_dispatch_to_main", side_effect=tracking_dispatch):
-                with mock.patch.object(tray._refresh_event, "wait", side_effect=stop_after_one_wait):
+        with mock.patch.dict(
+            "sys.modules", {"PyObjCTools": None, "PyObjCTools.AppHelper": None}
+        ):
+            with mock.patch.object(
+                tray, "_dispatch_to_main", side_effect=tracking_dispatch
+            ):
+                with mock.patch.object(
+                    tray._refresh_event, "wait", side_effect=stop_after_one_wait
+                ):
                     with mock.patch("ai_guardian.daemon.tray.time") as mock_time:
                         mock_time.time = mock.MagicMock(side_effect=[now, now + 10])
                         tray._stats_refresh_running = True
@@ -1372,8 +1435,9 @@ class TestWakeDetection:
 
         assert len(rebuild_calls) == 0
 
-    @pytest.mark.parametrize("platform_name", ["Linux", "Windows"],
-                             ids=["linux", "windows"])
+    @pytest.mark.parametrize(
+        "platform_name", ["Linux", "Windows"], ids=["linux", "windows"]
+    )
     def test_register_wake_handler_non_darwin_is_noop(self, platform_name):
         tray = DaemonTray(
             get_stats_callback=lambda: {},
@@ -1392,12 +1456,16 @@ class TestWakeDetection:
         )
         mock_center = mock.MagicMock()
         mock_workspace = mock.MagicMock()
-        mock_workspace.sharedWorkspace.return_value.notificationCenter.return_value = mock_center
+        mock_workspace.sharedWorkspace.return_value.notificationCenter.return_value = (
+            mock_center
+        )
         mock_appkit = mock.MagicMock()
         mock_appkit.NSWorkspace = mock_workspace
 
-        with mock.patch("platform.system", return_value="Darwin"), \
-             mock.patch.dict("sys.modules", {"AppKit": mock_appkit}):
+        with (
+            mock.patch("platform.system", return_value="Darwin"),
+            mock.patch.dict("sys.modules", {"AppKit": mock_appkit}),
+        ):
             tray._register_wake_handler()
 
         mock_center.addObserverForName_object_queue_usingBlock_.assert_called_once()
@@ -1405,7 +1473,10 @@ class TestWakeDetection:
         assert call_args[0] == "NSWorkspaceDidWakeNotification"
         center, token = tray._wake_observer
         assert center is mock_center
-        assert token is mock_center.addObserverForName_object_queue_usingBlock_.return_value
+        assert (
+            token
+            is mock_center.addObserverForName_object_queue_usingBlock_.return_value
+        )
 
     def test_register_wake_handler_graceful_without_pyobjc(self):
         tray = DaemonTray(
@@ -1413,8 +1484,10 @@ class TestWakeDetection:
             stop_callback=lambda: None,
             pause_callback=lambda mins: None,
         )
-        with mock.patch("platform.system", return_value="Darwin"), \
-             mock.patch.dict("sys.modules", {"AppKit": None}):
+        with (
+            mock.patch("platform.system", return_value="Darwin"),
+            mock.patch.dict("sys.modules", {"AppKit": None}),
+        ):
             tray._register_wake_handler()
         assert tray._wake_observer is None
 
@@ -1457,17 +1530,23 @@ class TestWakeDetection:
             pause_callback=lambda mins: None,
         )
         mock_icon = mock.MagicMock()
-        with mock.patch("ai_guardian.daemon.tray.pystray", create=True) as mock_pystray, \
-             mock.patch("platform.system", return_value="Linux"), \
-             mock.patch.object(tray, "_register_wake_handler") as mock_reg:
+        with (
+            mock.patch("ai_guardian.daemon.tray.pystray", create=True) as mock_pystray,
+            mock.patch("platform.system", return_value="Linux"),
+            mock.patch.object(tray, "_register_wake_handler") as mock_reg,
+        ):
             mock_pystray.Icon.return_value = mock_icon
             mock_pystray.Menu = mock.MagicMock()
             mock_pystray.MenuItem = mock.MagicMock()
             tray._start_stats_refresh = mock.MagicMock()
             tray._create_icon = mock.MagicMock()
             tray._ensure_macos_activation_policy = mock.MagicMock()
-            with mock.patch("ai_guardian.daemon.tray._suppress_gtk_stderr", return_value=None), \
-                 mock.patch("ai_guardian.daemon.tray.threading"):
+            with (
+                mock.patch(
+                    "ai_guardian.daemon.tray._suppress_gtk_stderr", return_value=None
+                ),
+                mock.patch("ai_guardian.daemon.tray.threading"),
+            ):
                 tray._run()
             mock_reg.assert_called_once()
 
@@ -1497,7 +1576,11 @@ class TestNonBlockingMenuRefresh:
             tray._build_single_daemon_menu_items()
 
             first_call = mock_pystray.MenuItem.call_args_list[0]
-            vis_cb = first_call[1].get("visible") or first_call[0][2] if len(first_call[0]) > 2 else first_call[1].get("visible")
+            vis_cb = (
+                first_call[1].get("visible") or first_call[0][2]
+                if len(first_call[0]) > 2
+                else first_call[1].get("visible")
+            )
             vis_cb(None)
 
         mock_discovery.request_refresh.assert_not_called()
@@ -1536,29 +1619,41 @@ class TestIsTrayRunningReturnsPid:
     """Tests for _is_tray_running() returning PID instead of True (issue #713)."""
 
     def test_returns_false_when_no_lock(self, tmp_path):
-        with mock.patch("ai_guardian.daemon.tray._get_tray_lock_path", return_value=tmp_path / "tray.lock"):
+        with mock.patch(
+            "ai_guardian.daemon.tray._get_tray_lock_path",
+            return_value=tmp_path / "tray.lock",
+        ):
             assert _is_tray_running() is False
 
     def test_returns_pid_when_alive(self, tmp_path):
         import os
+
         lock = tmp_path / "tray.lock"
         lock.write_text(str(os.getpid()))
-        with mock.patch("ai_guardian.daemon.tray._get_tray_lock_path", return_value=lock):
+        with mock.patch(
+            "ai_guardian.daemon.tray._get_tray_lock_path", return_value=lock
+        ):
             result = _is_tray_running()
             assert result == os.getpid()
 
     def test_returns_false_when_pid_dead(self, tmp_path):
         lock = tmp_path / "tray.lock"
         lock.write_text("999999999")
-        with mock.patch("ai_guardian.daemon.tray._get_tray_lock_path", return_value=lock), \
-             mock.patch("ai_guardian.daemon.is_pid_alive", return_value=False):
+        with (
+            mock.patch(
+                "ai_guardian.daemon.tray._get_tray_lock_path", return_value=lock
+            ),
+            mock.patch("ai_guardian.daemon.is_pid_alive", return_value=False),
+        ):
             assert _is_tray_running() is False
             assert not lock.exists()
 
     def test_returns_false_when_lock_has_bad_content(self, tmp_path):
         lock = tmp_path / "tray.lock"
         lock.write_text("not-a-number")
-        with mock.patch("ai_guardian.daemon.tray._get_tray_lock_path", return_value=lock):
+        with mock.patch(
+            "ai_guardian.daemon.tray._get_tray_lock_path", return_value=lock
+        ):
             assert _is_tray_running() is False
             assert not lock.exists()
 
@@ -1576,8 +1671,10 @@ class TestRunBlockingReturnValue:
             assert tray.run_blocking() is False
 
     def test_returns_false_when_already_running(self):
-        with mock.patch("ai_guardian.daemon.tray.HAS_PYSTRAY", True), \
-             mock.patch("ai_guardian.daemon.tray._is_tray_running", return_value=12345):
+        with (
+            mock.patch("ai_guardian.daemon.tray.HAS_PYSTRAY", True),
+            mock.patch("ai_guardian.daemon.tray._is_tray_running", return_value=12345),
+        ):
             tray = DaemonTray(
                 get_stats_callback=lambda: {},
                 stop_callback=lambda: None,
@@ -1591,15 +1688,20 @@ class TestTrayStartAlreadyRunningMessage:
 
     def test_prints_already_running_with_pid(self):
         from ai_guardian.cli_handlers import _handle_tray_start
+
         args = mock.MagicMock()
         args.background = False
         args.no_discover = False
 
-        with mock.patch("ai_guardian.daemon.tray.is_tray_available", return_value=True), \
-             mock.patch("ai_guardian.daemon.tray._is_tray_running", return_value=42), \
-             mock.patch("sys.stdin") as mock_stdin, \
-             mock.patch("ai_guardian.cli_handlers._load_config_file", return_value=({}, None)), \
-             mock.patch("builtins.print") as mock_print:
+        with (
+            mock.patch("ai_guardian.daemon.tray.is_tray_available", return_value=True),
+            mock.patch("ai_guardian.daemon.tray._is_tray_running", return_value=42),
+            mock.patch("sys.stdin") as mock_stdin,
+            mock.patch(
+                "ai_guardian.cli_handlers._load_config_file", return_value=({}, None)
+            ),
+            mock.patch("builtins.print") as mock_print,
+        ):
             mock_stdin.isatty.return_value = False
             result = _handle_tray_start(args)
 
@@ -1608,26 +1710,35 @@ class TestTrayStartAlreadyRunningMessage:
 
     def test_prints_success_when_not_running(self):
         from ai_guardian.cli_handlers import _handle_tray_start
+
         args = mock.MagicMock()
         args.background = False
         args.no_discover = False
 
-        with mock.patch("ai_guardian.daemon.tray.is_tray_available", return_value=True), \
-             mock.patch("ai_guardian.daemon.tray._is_tray_running", return_value=False), \
-             mock.patch("sys.stdin") as mock_stdin, \
-             mock.patch("ai_guardian.cli_handlers._load_config_file", return_value=({}, None)), \
-             mock.patch("ai_guardian.daemon.tray.DaemonTray") as MockTray, \
-             mock.patch("ai_guardian.daemon.discovery.DaemonDiscovery"), \
-             mock.patch("ai_guardian.daemon.multi_client.MultiDaemonClient"), \
-             mock.patch("ai_guardian.daemon.client.send_status_request", return_value={}), \
-             mock.patch("builtins.print") as mock_print:
+        with (
+            mock.patch("ai_guardian.daemon.tray.is_tray_available", return_value=True),
+            mock.patch("ai_guardian.daemon.tray._is_tray_running", return_value=False),
+            mock.patch("sys.stdin") as mock_stdin,
+            mock.patch(
+                "ai_guardian.cli_handlers._load_config_file", return_value=({}, None)
+            ),
+            mock.patch("ai_guardian.daemon.tray.DaemonTray") as MockTray,
+            mock.patch("ai_guardian.daemon.discovery.DaemonDiscovery"),
+            mock.patch("ai_guardian.daemon.multi_client.MultiDaemonClient"),
+            mock.patch(
+                "ai_guardian.daemon.client.send_status_request", return_value={}
+            ),
+            mock.patch("builtins.print") as mock_print,
+        ):
             mock_stdin.isatty.return_value = False
             mock_tray_instance = MockTray.return_value
             mock_tray_instance.run_blocking.return_value = None
             result = _handle_tray_start(args)
 
         assert result == 0
-        mock_print.assert_called_once_with("ai-guardian tray started (multi-daemon mode)")
+        mock_print.assert_called_once_with(
+            "ai-guardian tray started (multi-daemon mode)"
+        )
 
 
 class TestMcpProactiveMenuVisibility:
@@ -1638,11 +1749,18 @@ class TestMcpProactiveMenuVisibility:
         import json
 
         config_file = tmp_path / ".claude.json"
-        config_file.write_text(json.dumps({
-            "mcpServers": {
-                "ai-guardian": {"command": "ai-guardian", "args": ["mcp-server"]}
-            }
-        }))
+        config_file.write_text(
+            json.dumps(
+                {
+                    "mcpServers": {
+                        "ai-guardian": {
+                            "command": "ai-guardian",
+                            "args": ["mcp-server"],
+                        }
+                    }
+                }
+            )
+        )
         with mock.patch(
             "ai_guardian.daemon.tray.DaemonTray._is_mcp_installed",
             wraps=DaemonTray._is_mcp_installed,
@@ -1699,11 +1817,18 @@ class TestMcpProactiveMenuVisibility:
         settings_dir = tmp_path / ".claude"
         settings_dir.mkdir()
         config_file = settings_dir / "settings.json"
-        config_file.write_text(json.dumps({
-            "mcpServers": {
-                "ai-guardian": {"command": "ai-guardian", "args": ["mcp-server"]}
-            }
-        }))
+        config_file.write_text(
+            json.dumps(
+                {
+                    "mcpServers": {
+                        "ai-guardian": {
+                            "command": "ai-guardian",
+                            "args": ["mcp-server"],
+                        }
+                    }
+                }
+            )
+        )
         with mock.patch("pathlib.Path.expanduser", return_value=config_file):
             assert DaemonTray._is_mcp_installed() is True
 
@@ -1743,7 +1868,8 @@ class TestMcpProactiveMultiDaemonClosure:
             tray._build_multi_daemon_menu_items()
 
             mcp_calls = [
-                call for call in mock_pystray.MenuItem.call_args_list
+                call
+                for call in mock_pystray.MenuItem.call_args_list
                 if len(call[0]) > 0
                 and callable(call[0][0])
                 and not isinstance(call[0][0], mock.MagicMock)
@@ -1784,7 +1910,8 @@ class TestShellMenuItem:
             tray._build_single_daemon_menu_items()
 
             labels = [
-                call[0][0] for call in mock_pystray.MenuItem.call_args_list
+                call[0][0]
+                for call in mock_pystray.MenuItem.call_args_list
                 if isinstance(call[0][0], str)
             ]
             assert "Terminal" in labels
@@ -1806,7 +1933,8 @@ class TestShellMenuItem:
             tray._build_single_daemon_menu_items()
 
             labels = [
-                call[0][0] for call in mock_pystray.MenuItem.call_args_list
+                call[0][0]
+                for call in mock_pystray.MenuItem.call_args_list
                 if isinstance(call[0][0], str)
             ]
             assert "Terminal" in labels
@@ -1833,7 +1961,8 @@ class TestShellMenuItem:
             tray._build_multi_daemon_menu_items()
 
             labels = [
-                call[0][0] for call in mock_pystray.MenuItem.call_args_list
+                call[0][0]
+                for call in mock_pystray.MenuItem.call_args_list
                 if isinstance(call[0][0], str)
             ]
             assert "Terminal" in labels
@@ -1876,24 +2005,31 @@ class TestShellMenuItem:
     @pytest.mark.parametrize(
         "platform_name, env, expected_shell",
         [
-            pytest.param("Linux", {"SHELL": "/bin/zsh"}, "/bin/zsh",
-                         id="unix-shell-env-set"),
-            pytest.param("Linux", {}, "/bin/sh",
-                         id="unix-shell-env-unset"),
-            pytest.param("Windows", {"COMSPEC": r"C:\Windows\cmd.exe"},
-                         r"C:\Windows\cmd.exe", id="win-comspec-set"),
-            pytest.param("Windows", {}, "cmd.exe",
-                         id="win-comspec-unset"),
+            pytest.param(
+                "Linux", {"SHELL": "/bin/zsh"}, "/bin/zsh", id="unix-shell-env-set"
+            ),
+            pytest.param("Linux", {}, "/bin/sh", id="unix-shell-env-unset"),
+            pytest.param(
+                "Windows",
+                {"COMSPEC": r"C:\Windows\cmd.exe"},
+                r"C:\Windows\cmd.exe",
+                id="win-comspec-set",
+            ),
+            pytest.param("Windows", {}, "cmd.exe", id="win-comspec-unset"),
         ],
     )
     def test_launch_shell_resolves_shell(self, platform_name, env, expected_shell):
         """_launch_shell uses $SHELL / $COMSPEC depending on platform."""
         with mock.patch.dict("os.environ", env, clear=True):
             with mock.patch("platform.system", return_value=platform_name):
-                with mock.patch("ai_guardian.daemon.multi_client._launch_in_terminal") as mock_launch:
+                with mock.patch(
+                    "ai_guardian.daemon.multi_client._launch_in_terminal"
+                ) as mock_launch:
                     DaemonTray._launch_shell()
                     mock_launch.assert_called_once_with(
-                        [expected_shell], keep_open=True, cwd=None,
+                        [expected_shell],
+                        keep_open=True,
+                        cwd=None,
                     )
 
     def test_launch_shell_passes_cwd(self):
@@ -1908,10 +2044,14 @@ class TestShellMenuItem:
             platform_name = "Linux"
         with mock.patch.dict("os.environ", env, clear=True):
             with mock.patch("platform.system", return_value=platform_name):
-                with mock.patch("ai_guardian.daemon.multi_client._launch_in_terminal") as mock_launch:
+                with mock.patch(
+                    "ai_guardian.daemon.multi_client._launch_in_terminal"
+                ) as mock_launch:
                     DaemonTray._launch_shell(cwd="/home/user/project")
                     mock_launch.assert_called_once_with(
-                        [expected_shell], keep_open=True, cwd="/home/user/project",
+                        [expected_shell],
+                        keep_open=True,
+                        cwd="/home/user/project",
                     )
 
 
@@ -1940,6 +2080,7 @@ class TestPluginMenuItems:
 
     def test_get_daemon_plugins_returns_plugins_for_known_slot(self):
         from ai_guardian.daemon.tray_plugins import Plugin, PluginItem
+
         tray = self._make_tray()
         tray._daemon_plugins[0] = [
             Plugin(name="Test", items=[PluginItem(label="Run", command="echo")])
@@ -1951,10 +2092,14 @@ class TestPluginMenuItems:
     def test_poll_plugins_updates_daemon_plugins(self):
         mc = mock.MagicMock()
         mc._local_plugins.return_value = {
-            "plugins": [{
-                "name": "TestPlugin",
-                "items": [{"label": "Hello", "command": "echo", "type": "background"}]
-            }]
+            "plugins": [
+                {
+                    "name": "TestPlugin",
+                    "items": [
+                        {"label": "Hello", "command": "echo", "type": "background"}
+                    ],
+                }
+            ]
         }
         local_target = DaemonTarget(name="local", runtime="local", status="running")
         tray = self._make_tray(targets=[local_target], multi_client=mc)
@@ -1994,9 +2139,9 @@ class TestPluginMenuItems:
         assert tray._daemon_plugins[0] is first_plugins
 
     def test_build_single_daemon_plugin_items_returns_list(self):
-        tray = self._make_tray(targets=[
-            DaemonTarget(name="local", runtime="local", status="running")
-        ])
+        tray = self._make_tray(
+            targets=[DaemonTarget(name="local", runtime="local", status="running")]
+        )
         with mock.patch("ai_guardian.daemon.tray.pystray", create=True) as mock_pystray:
             mock_pystray.MenuItem = mock.MagicMock()
             mock_pystray.Menu = mock.MagicMock()
@@ -2014,7 +2159,9 @@ class TestPluginMenuItems:
         assert len(items) == tray._MAX_PLUGIN_SLOTS
 
     def test_execute_plugin_command_terminal(self):
-        with mock.patch("ai_guardian.daemon.multi_client._launch_in_terminal") as mock_launch:
+        with mock.patch(
+            "ai_guardian.daemon.multi_client._launch_in_terminal"
+        ) as mock_launch:
             DaemonTray._execute_plugin_command("echo hello", "terminal")
             mock_launch.assert_called_once()
             assert mock_launch.call_args[0][0] == ["echo", "hello"]
@@ -2031,9 +2178,13 @@ class TestPluginMenuItems:
     def test_execute_plugin_command_notification(self):
         with mock.patch("subprocess.run") as mock_run:
             mock_run.return_value = mock.MagicMock(stdout="Pod count: 3\n")
-            with mock.patch("ai_guardian.daemon.tray_plugins.send_notification") as mock_notify:
+            with mock.patch(
+                "ai_guardian.daemon.tray_plugins.send_notification"
+            ) as mock_notify:
                 with mock.patch.dict("os.environ", {"SHELL": "/bin/zsh"}):
-                    DaemonTray._execute_plugin_command("kubectl get pods | wc -l", "notification")
+                    DaemonTray._execute_plugin_command(
+                        "kubectl get pods | wc -l", "notification"
+                    )
                     mock_run.assert_called_once()
                     args = mock_run.call_args[0][0]
                     assert args == ["/bin/zsh", "-lc", "kubectl get pods | wc -l"]
@@ -2042,9 +2193,13 @@ class TestPluginMenuItems:
     def test_execute_plugin_command_clipboard(self):
         with mock.patch("subprocess.run") as mock_run:
             mock_run.return_value = mock.MagicMock(stdout="10.0.0.5\n")
-            with mock.patch("ai_guardian.daemon.tray_plugins.copy_to_clipboard") as mock_copy:
+            with mock.patch(
+                "ai_guardian.daemon.tray_plugins.copy_to_clipboard"
+            ) as mock_copy:
                 with mock.patch.dict("os.environ", {"SHELL": "/bin/zsh"}):
-                    DaemonTray._execute_plugin_command("kubectl get svc -o ip", "clipboard")
+                    DaemonTray._execute_plugin_command(
+                        "kubectl get svc -o ip", "clipboard"
+                    )
                     mock_run.assert_called_once()
                     args = mock_run.call_args[0][0]
                     assert args == ["/bin/zsh", "-lc", "kubectl get svc -o ip"]
@@ -2053,7 +2208,9 @@ class TestPluginMenuItems:
     def test_execute_plugin_command_notification_no_output(self):
         with mock.patch("subprocess.run") as mock_run:
             mock_run.return_value = mock.MagicMock(stdout="")
-            with mock.patch("ai_guardian.daemon.tray_plugins.send_notification") as mock_notify:
+            with mock.patch(
+                "ai_guardian.daemon.tray_plugins.send_notification"
+            ) as mock_notify:
                 with mock.patch.dict("os.environ", {"SHELL": "/bin/zsh"}):
                     DaemonTray._execute_plugin_command("true", "notification")
                     mock_notify.assert_called_once_with("AI Guardian", "(no output)")
@@ -2061,12 +2218,18 @@ class TestPluginMenuItems:
     def test_execute_plugin_command_modal(self):
         with mock.patch("subprocess.run") as mock_run:
             mock_run.return_value = mock.MagicMock(
-                stdout="ai-guardian 1.8.0\n", returncode=0, stderr="",
+                stdout="ai-guardian 1.8.0\n",
+                returncode=0,
+                stderr="",
             )
-            with mock.patch("ai_guardian.daemon.tray_plugins.show_dialog") as mock_dialog:
+            with mock.patch(
+                "ai_guardian.daemon.tray_plugins.show_dialog"
+            ) as mock_dialog:
                 with mock.patch.dict("os.environ", {"SHELL": "/bin/zsh"}):
                     DaemonTray._execute_plugin_command(
-                        "ai-guardian --version", "modal", label="Version",
+                        "ai-guardian --version",
+                        "modal",
+                        label="Version",
                     )
                     mock_run.assert_called_once()
                     args = mock_run.call_args[0][0]
@@ -2079,9 +2242,13 @@ class TestPluginMenuItems:
     def test_execute_plugin_command_modal_no_output(self):
         with mock.patch("subprocess.run") as mock_run:
             mock_run.return_value = mock.MagicMock(
-                stdout="", returncode=0, stderr="",
+                stdout="",
+                returncode=0,
+                stderr="",
             )
-            with mock.patch("ai_guardian.daemon.tray_plugins.show_dialog") as mock_dialog:
+            with mock.patch(
+                "ai_guardian.daemon.tray_plugins.show_dialog"
+            ) as mock_dialog:
                 with mock.patch.dict("os.environ", {"SHELL": "/bin/zsh"}):
                     DaemonTray._execute_plugin_command("true", "modal")
                     mock_dialog.assert_called_once_with("AI Guardian", "(no output)")
@@ -2089,22 +2256,31 @@ class TestPluginMenuItems:
     def test_execute_plugin_command_modal_shows_stderr_on_failure(self):
         with mock.patch("subprocess.run") as mock_run:
             mock_run.return_value = mock.MagicMock(
-                stdout="", returncode=1, stderr="command not found\n",
+                stdout="",
+                returncode=1,
+                stderr="command not found\n",
             )
-            with mock.patch("ai_guardian.daemon.tray_plugins.show_dialog") as mock_dialog:
+            with mock.patch(
+                "ai_guardian.daemon.tray_plugins.show_dialog"
+            ) as mock_dialog:
                 with mock.patch.dict("os.environ", {"SHELL": "/bin/zsh"}):
                     DaemonTray._execute_plugin_command(
-                        "bad-command", "modal", label="Check",
+                        "bad-command",
+                        "modal",
+                        label="Check",
                     )
                     mock_dialog.assert_called_once_with("Check", "command not found")
 
     def test_execute_plugin_command_modal_shows_both_on_failure(self):
         with mock.patch("subprocess.run") as mock_run:
             mock_run.return_value = mock.MagicMock(
-                stdout="partial output\n", returncode=1,
+                stdout="partial output\n",
+                returncode=1,
                 stderr="warning: something\n",
             )
-            with mock.patch("ai_guardian.daemon.tray_plugins.show_dialog") as mock_dialog:
+            with mock.patch(
+                "ai_guardian.daemon.tray_plugins.show_dialog"
+            ) as mock_dialog:
                 with mock.patch.dict("os.environ", {"SHELL": "/bin/zsh"}):
                     DaemonTray._execute_plugin_command("cmd", "modal")
                     title, msg = mock_dialog.call_args[0]
@@ -2116,24 +2292,31 @@ class TestPluginMenuItems:
         """Modal includes stderr even on success (e.g. --summary output)."""
         with mock.patch("subprocess.run") as mock_run:
             mock_run.return_value = mock.MagicMock(
-                stdout="", returncode=0,
+                stdout="",
+                returncode=0,
                 stderr="Sanitized image: 3 region(s) redacted\n",
             )
-            with mock.patch("ai_guardian.daemon.tray_plugins.show_dialog") as mock_dialog:
+            with mock.patch(
+                "ai_guardian.daemon.tray_plugins.show_dialog"
+            ) as mock_dialog:
                 with mock.patch.dict("os.environ", {"SHELL": "/bin/zsh"}):
                     DaemonTray._execute_plugin_command("cmd", "modal")
                     mock_dialog.assert_called_once_with(
-                        "AI Guardian", "Sanitized image: 3 region(s) redacted",
+                        "AI Guardian",
+                        "Sanitized image: 3 region(s) redacted",
                     )
 
     def test_execute_plugin_command_modal_merges_stdout_and_stderr_on_success(self):
         """Modal shows both stdout and stderr on success."""
         with mock.patch("subprocess.run") as mock_run:
             mock_run.return_value = mock.MagicMock(
-                stdout="main output\n", returncode=0,
+                stdout="main output\n",
+                returncode=0,
                 stderr="summary line\n",
             )
-            with mock.patch("ai_guardian.daemon.tray_plugins.show_dialog") as mock_dialog:
+            with mock.patch(
+                "ai_guardian.daemon.tray_plugins.show_dialog"
+            ) as mock_dialog:
                 with mock.patch.dict("os.environ", {"SHELL": "/bin/zsh"}):
                     DaemonTray._execute_plugin_command("cmd", "modal")
                     title, msg = mock_dialog.call_args[0]
@@ -2164,7 +2347,9 @@ class TestPluginMenuItems:
 
     def test_execute_plugin_command_terminal_no_login_shell(self):
         """Terminal type does NOT use login shell wrapping."""
-        with mock.patch("ai_guardian.daemon.multi_client._launch_in_terminal") as mock_launch:
+        with mock.patch(
+            "ai_guardian.daemon.multi_client._launch_in_terminal"
+        ) as mock_launch:
             with mock.patch.dict("os.environ", {"SHELL": "/bin/zsh"}):
                 DaemonTray._execute_plugin_command("echo hello", "terminal")
                 mock_launch.assert_called_once()
@@ -2181,8 +2366,10 @@ class TestPluginMenuItems:
         with mock.patch("subprocess.run") as mock_run:
             with mock.patch.dict("os.environ", {"SHELL": "/bin/zsh"}):
                 DaemonTray._execute_plugin_command(
-                    "echo hello", "background",
-                    target=target, run_on_target=True,
+                    "echo hello",
+                    "background",
+                    target=target,
+                    run_on_target=True,
                 )
                 mock_run.assert_called_once()
                 args = mock_run.call_args[0][0]
@@ -2192,7 +2379,9 @@ class TestPluginMenuItems:
     def test_resolve_plugin_ai_guardian_replaces_bare_command(self):
         """ai-guardian in plugin commands resolves to python -m ai_guardian."""
         result = DaemonTray._resolve_plugin_ai_guardian(
-            "ai-guardian sanitize img.png --summary", False, None,
+            "ai-guardian sanitize img.png --summary",
+            False,
+            None,
         )
         assert "python" in result  # May be absolute path
         assert "-m ai_guardian sanitize img.png --summary" in result
@@ -2200,17 +2389,25 @@ class TestPluginMenuItems:
     def test_resolve_plugin_ai_guardian_bare_no_args(self):
         """ai-guardian alone (no arguments) resolves correctly."""
         result = DaemonTray._resolve_plugin_ai_guardian(
-            "ai-guardian", False, None,
+            "ai-guardian",
+            False,
+            None,
         )
         assert "python" in result.lower()
         assert "-m ai_guardian" in result
         before_m = result.split("-m")[0].strip().lower()
-        assert before_m.endswith("python") or before_m.endswith("python.exe") or "python" in before_m
+        assert (
+            before_m.endswith("python")
+            or before_m.endswith("python.exe")
+            or "python" in before_m
+        )
 
     def test_resolve_plugin_ai_guardian_non_matching_command(self):
         """Commands not starting with ai-guardian are left unchanged."""
         result = DaemonTray._resolve_plugin_ai_guardian(
-            "kubectl get pods", False, None,
+            "kubectl get pods",
+            False,
+            None,
         )
         assert result == "kubectl get pods"
 
@@ -2219,7 +2416,9 @@ class TestPluginMenuItems:
         target = mock.MagicMock()
         target.runtime = "container"
         result = DaemonTray._resolve_plugin_ai_guardian(
-            "ai-guardian doctor", True, target,
+            "ai-guardian doctor",
+            True,
+            target,
         )
         assert result == "ai-guardian doctor"
 
@@ -2228,7 +2427,9 @@ class TestPluginMenuItems:
         target = mock.MagicMock()
         target.runtime = "kubernetes"
         result = DaemonTray._resolve_plugin_ai_guardian(
-            "ai-guardian doctor", True, target,
+            "ai-guardian doctor",
+            True,
+            target,
         )
         assert result == "ai-guardian doctor"
 
@@ -2238,15 +2439,20 @@ class TestPluginMenuItems:
         target.runtime = "local"
         with mock.patch("sys.executable", "/venv/bin/python"):
             result = DaemonTray._resolve_plugin_ai_guardian(
-                "ai-guardian doctor", True, target,
+                "ai-guardian doctor",
+                True,
+                target,
             )
             assert "-m ai_guardian doctor" in result
 
     def test_execute_plugin_command_resolves_ai_guardian_terminal(self):
         """Terminal plugin commands with ai-guardian use tray's Python."""
-        with mock.patch("ai_guardian.daemon.multi_client._launch_in_terminal") as mock_launch:
+        with mock.patch(
+            "ai_guardian.daemon.multi_client._launch_in_terminal"
+        ) as mock_launch:
             DaemonTray._execute_plugin_command(
-                "ai-guardian doctor", "terminal",
+                "ai-guardian doctor",
+                "terminal",
             )
             mock_launch.assert_called_once()
             args = mock_launch.call_args[0][0]
@@ -2260,7 +2466,8 @@ class TestPluginMenuItems:
             mock_run.return_value = mock.MagicMock(stdout="ok\n")
             with mock.patch("ai_guardian.daemon.tray_plugins.send_notification"):
                 DaemonTray._execute_plugin_command(
-                    "ai-guardian version", "notification",
+                    "ai-guardian version",
+                    "notification",
                 )
                 args = mock_run.call_args[0][0]
                 cmd_line = " ".join(args)
@@ -2274,10 +2481,14 @@ class TestPluginMenuItems:
             "label": "Deploy",
             "command": "deploy {tray.env}",
             "type": "terminal",
-            "params": [{"name": "env", "hint": "Environment", "default": "dev"}]
+            "params": [{"name": "env", "hint": "Environment", "default": "dev"}],
         }
-        with mock.patch("ai_guardian.tui.display._tkinter_available", return_value=True):
-            with mock.patch("ai_guardian.tui.display._nicegui_available", return_value=False):
+        with mock.patch(
+            "ai_guardian.tui.display._tkinter_available", return_value=True
+        ):
+            with mock.patch(
+                "ai_guardian.tui.display._nicegui_available", return_value=False
+            ):
                 with mock.patch("subprocess.Popen") as mock_popen:
                     with mock.patch("sys.executable", "/usr/bin/python3"):
                         tray._execute_plugin_command_with_params(item_dict)
@@ -2293,11 +2504,17 @@ class TestPluginMenuItems:
             "label": "Deploy",
             "command": "deploy {tray.env}",
             "type": "terminal",
-            "params": [{"name": "env", "hint": "Environment", "default": "dev"}]
+            "params": [{"name": "env", "hint": "Environment", "default": "dev"}],
         }
-        with mock.patch("ai_guardian.tui.display._tkinter_available", return_value=False):
-            with mock.patch("ai_guardian.tui.display._nicegui_available", return_value=False):
-                with mock.patch("ai_guardian.daemon.multi_client._launch_in_terminal") as mock_launch:
+        with mock.patch(
+            "ai_guardian.tui.display._tkinter_available", return_value=False
+        ):
+            with mock.patch(
+                "ai_guardian.tui.display._nicegui_available", return_value=False
+            ):
+                with mock.patch(
+                    "ai_guardian.daemon.multi_client._launch_in_terminal"
+                ) as mock_launch:
                     with mock.patch("sys.executable", "/usr/bin/python3"):
                         tray._execute_plugin_command_with_params(item_dict)
                         mock_launch.assert_called_once()
@@ -2305,19 +2522,27 @@ class TestPluginMenuItems:
     def test_execute_plugin_command_with_params_nicegui_direct_call(self):
         """Uses direct TrayPromptApp call when tkinter unavailable but NiceGUI available."""
         import ai_guardian.tui.tray_prompt  # noqa: F401 — pre-import before mocking display
+
         tray = self._make_tray()
         item_dict = {
             "label": "Deploy",
             "command": "deploy {tray.env}",
             "type": "terminal",
-            "params": [{"name": "env", "hint": "Environment", "default": "dev"}]
+            "params": [{"name": "env", "hint": "Environment", "default": "dev"}],
         }
-        with mock.patch("ai_guardian.tui.display._tkinter_available", return_value=False):
-            with mock.patch("ai_guardian.tui.display._nicegui_available", return_value=True):
-                with mock.patch("ai_guardian.tui.tray_prompt.TrayPromptApp") as mock_app:
+        with mock.patch(
+            "ai_guardian.tui.display._tkinter_available", return_value=False
+        ):
+            with mock.patch(
+                "ai_guardian.tui.display._nicegui_available", return_value=True
+            ):
+                with mock.patch(
+                    "ai_guardian.tui.tray_prompt.TrayPromptApp"
+                ) as mock_app:
                     mock_app.return_value.run.return_value = None
                     tray._execute_plugin_command_with_params(item_dict)
                     import time
+
                     time.sleep(0.1)
                     mock_app.assert_called_once()
 
@@ -2327,10 +2552,14 @@ class TestPluginMenuItems:
             "label": "Shell",
             "command": {"darwin": "open .", "default": "xdg-open ."},
             "type": "terminal",
-            "params": []
+            "params": [],
         }
-        with mock.patch("ai_guardian.tui.display._tkinter_available", return_value=True):
-            with mock.patch("ai_guardian.tui.display._nicegui_available", return_value=False):
+        with mock.patch(
+            "ai_guardian.tui.display._tkinter_available", return_value=True
+        ):
+            with mock.patch(
+                "ai_guardian.tui.display._nicegui_available", return_value=False
+            ):
                 with mock.patch("subprocess.Popen") as mock_popen:
                     with mock.patch("sys.executable", "/usr/bin/python3"):
                         tray._execute_plugin_command_with_params(item_dict)
@@ -2342,19 +2571,22 @@ class TestPluginMenuItems:
             "label": "Shell",
             "command": {"windows": "start ."},
             "type": "terminal",
-            "params": []
+            "params": [],
         }
         with mock.patch("platform.system", return_value="Darwin"):
-            with mock.patch("ai_guardian.tui.display._tkinter_available", return_value=True):
-                with mock.patch("ai_guardian.tui.display._nicegui_available", return_value=False):
+            with mock.patch(
+                "ai_guardian.tui.display._tkinter_available", return_value=True
+            ):
+                with mock.patch(
+                    "ai_guardian.tui.display._nicegui_available", return_value=False
+                ):
                     with mock.patch("subprocess.Popen") as mock_popen:
                         tray._execute_plugin_command_with_params(item_dict)
                         mock_popen.assert_not_called()
 
     def test_execute_plugin_command_with_params_dispatches_on_submit(self):
         """Watcher thread dispatches command when output file has content."""
-        import os
-        import tempfile
+
         tray = self._make_tray()
         item_dict = {
             "label": "Deploy",
@@ -2362,8 +2594,12 @@ class TestPluginMenuItems:
             "type": "terminal",
             "params": [],
         }
-        with mock.patch("ai_guardian.tui.display._tkinter_available", return_value=True):
-            with mock.patch("ai_guardian.tui.display._nicegui_available", return_value=False):
+        with mock.patch(
+            "ai_guardian.tui.display._tkinter_available", return_value=True
+        ):
+            with mock.patch(
+                "ai_guardian.tui.display._nicegui_available", return_value=False
+            ):
                 with mock.patch("subprocess.Popen") as mock_popen:
                     with mock.patch("sys.executable", "/usr/bin/python3"):
                         tray._execute_plugin_command_with_params(item_dict)
@@ -2374,21 +2610,22 @@ class TestPluginMenuItems:
                             f.write("deploy prod")
 
         import time
-        with mock.patch.object(
-            DaemonTray, "_execute_plugin_command"
-        ) as mock_exec:
+
+        with mock.patch.object(DaemonTray, "_execute_plugin_command") as mock_exec:
             time.sleep(1.5)
             if mock_exec.called:
                 mock_exec.assert_called_once_with(
-                    "deploy prod", "terminal", target=None,
-                    run_on_target=False, label="Deploy",
+                    "deploy prod",
+                    "terminal",
+                    target=None,
+                    run_on_target=False,
+                    label="Deploy",
                 )
 
     def test_execute_plugin_command_with_params_noop_on_cancel(self):
         """Watcher thread does nothing when output file is empty (cancel)."""
-        import os
-        import os
         import time
+
         tray = self._make_tray()
         item_dict = {
             "label": "Deploy",
@@ -2396,8 +2633,12 @@ class TestPluginMenuItems:
             "type": "terminal",
             "params": [],
         }
-        with mock.patch("ai_guardian.tui.display._tkinter_available", return_value=True):
-            with mock.patch("ai_guardian.tui.display._nicegui_available", return_value=False):
+        with mock.patch(
+            "ai_guardian.tui.display._tkinter_available", return_value=True
+        ):
+            with mock.patch(
+                "ai_guardian.tui.display._nicegui_available", return_value=False
+            ):
                 with mock.patch("subprocess.Popen") as mock_popen:
                     with mock.patch("sys.executable", "/usr/bin/python3"):
                         tray._execute_plugin_command_with_params(item_dict)
@@ -2407,22 +2648,22 @@ class TestPluginMenuItems:
                         with open(output_path, "w") as f:
                             pass
 
-        with mock.patch.object(
-            DaemonTray, "_execute_plugin_command"
-        ) as mock_exec:
+        with mock.patch.object(DaemonTray, "_execute_plugin_command") as mock_exec:
             time.sleep(1.5)
             mock_exec.assert_not_called()
-
 
     def test_execute_plugin_command_shell_and_operator(self):
         with mock.patch("subprocess.run") as mock_run:
             mock_run.return_value = mock.MagicMock(
-                stdout="ok\n", returncode=0, stderr="",
+                stdout="ok\n",
+                returncode=0,
+                stderr="",
             )
             with mock.patch("ai_guardian.daemon.tray_plugins.show_dialog"):
                 with mock.patch.dict("os.environ", {"SHELL": "/bin/zsh"}):
                     DaemonTray._execute_plugin_command(
-                        "uname -a && lsb_release -a", "modal",
+                        "uname -a && lsb_release -a",
+                        "modal",
                     )
                     args = mock_run.call_args[0][0]
                     assert args == ["/bin/zsh", "-lc", "uname -a && lsb_release -a"]
@@ -2433,7 +2674,8 @@ class TestPluginMenuItems:
             with mock.patch("ai_guardian.daemon.tray_plugins.send_notification"):
                 with mock.patch.dict("os.environ", {"SHELL": "/bin/zsh"}):
                     DaemonTray._execute_plugin_command(
-                        "echo hello; echo world", "notification",
+                        "echo hello; echo world",
+                        "notification",
                     )
                     args = mock_run.call_args[0][0]
                     assert args == ["/bin/zsh", "-lc", "echo hello; echo world"]
@@ -2444,7 +2686,8 @@ class TestPluginMenuItems:
             with mock.patch("ai_guardian.daemon.tray_plugins.copy_to_clipboard"):
                 with mock.patch.dict("os.environ", {"SHELL": "/bin/zsh"}):
                     DaemonTray._execute_plugin_command(
-                        "ai-guardian doctor > /tmp/report.txt", "clipboard",
+                        "ai-guardian doctor > /tmp/report.txt",
+                        "clipboard",
                     )
                     args = mock_run.call_args[0][0]
                     assert args[0] == "/bin/zsh"
@@ -2453,17 +2696,24 @@ class TestPluginMenuItems:
                     assert "-m ai_guardian doctor > /tmp/report.txt" in args[2]
 
     def test_execute_plugin_command_shell_terminal(self):
-        with mock.patch("ai_guardian.daemon.multi_client._launch_in_terminal") as mock_launch:
+        with mock.patch(
+            "ai_guardian.daemon.multi_client._launch_in_terminal"
+        ) as mock_launch:
             DaemonTray._execute_plugin_command(
-                "echo hello && echo world", "terminal",
+                "echo hello && echo world",
+                "terminal",
             )
             mock_launch.assert_called_once()
             assert mock_launch.call_args[0][0] == [
-                "sh", "-c", "echo hello && echo world",
+                "sh",
+                "-c",
+                "echo hello && echo world",
             ]
 
     def test_execute_plugin_command_simple_still_splits(self):
-        with mock.patch("ai_guardian.daemon.multi_client._launch_in_terminal") as mock_launch:
+        with mock.patch(
+            "ai_guardian.daemon.multi_client._launch_in_terminal"
+        ) as mock_launch:
             DaemonTray._execute_plugin_command("echo hello", "terminal")
             mock_launch.assert_called_once()
             assert mock_launch.call_args[0][0] == ["echo", "hello"]
@@ -2473,7 +2723,9 @@ class TestDoctorMenuItem:
     """Verify Doctor menu item and config error notification (#742)."""
 
     def test_launch_doctor_calls_launch_in_terminal(self):
-        with mock.patch("ai_guardian.daemon.multi_client._launch_in_terminal") as mock_launch:
+        with mock.patch(
+            "ai_guardian.daemon.multi_client._launch_in_terminal"
+        ) as mock_launch:
             with mock.patch("sys.executable", "/usr/bin/python3"):
                 DaemonTray._launch_doctor()
                 mock_launch.assert_called_once()
@@ -2482,7 +2734,9 @@ class TestDoctorMenuItem:
                 assert mock_launch.call_args[1].get("keep_open", True) is True
 
     def test_launch_doctor_uses_python_command(self):
-        with mock.patch("ai_guardian.daemon.multi_client._launch_in_terminal") as mock_launch:
+        with mock.patch(
+            "ai_guardian.daemon.multi_client._launch_in_terminal"
+        ) as mock_launch:
             DaemonTray._launch_doctor()
             cmd = mock_launch.call_args[0][0]
             assert "doctor" in cmd
@@ -2494,7 +2748,9 @@ class TestDoctorMenuItem:
             stop_callback=lambda: None,
             pause_callback=lambda mins: None,
         )
-        with mock.patch.object(DaemonTray, "_send_config_error_notification") as mock_notify:
+        with mock.patch.object(
+            DaemonTray, "_send_config_error_notification"
+        ) as mock_notify:
             tray._check_config_error_notification()
             assert mock_notify.call_count == 1
 
@@ -2522,7 +2778,9 @@ class TestDoctorMenuItem:
             stop_callback=lambda: None,
             pause_callback=lambda mins: None,
         )
-        with mock.patch.object(DaemonTray, "_send_config_error_notification") as mock_notify:
+        with mock.patch.object(
+            DaemonTray, "_send_config_error_notification"
+        ) as mock_notify:
             tray._check_config_error_notification()
             mock_notify.assert_not_called()
 
@@ -2531,14 +2789,17 @@ class TestAboutMenuItem:
     """Tests for About menu item in tray (issue #766)."""
 
     def test_build_about_text_contains_version(self):
-        with mock.patch("ai_guardian.daemon.tray.DaemonTray._build_about_text",
-                        wraps=DaemonTray._build_about_text):
+        with mock.patch(
+            "ai_guardian.daemon.tray.DaemonTray._build_about_text",
+            wraps=DaemonTray._build_about_text,
+        ):
             text = DaemonTray._build_about_text()
         assert "AI Guardian v" in text
 
     def test_build_about_text_contains_python(self):
         text = DaemonTray._build_about_text()
         import sys
+
         expected = f"{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}"
         assert f"Python: {expected}" in text
 
@@ -2548,8 +2809,10 @@ class TestAboutMenuItem:
 
     def test_build_about_text_contains_config_path(self):
         from pathlib import Path
-        with mock.patch("ai_guardian.config_utils.get_config_dir",
-                        return_value=Path("/fake/config")):
+
+        with mock.patch(
+            "ai_guardian.config_utils.get_config_dir", return_value=Path("/fake/config")
+        ):
             text = DaemonTray._build_about_text()
         assert "Config: " in text
 
@@ -2559,21 +2822,34 @@ class TestAboutMenuItem:
 
     def test_build_about_text_contains_scanners(self):
         from ai_guardian.scanner_manager import InstalledScanner
+
         fake_scanners = [
-            InstalledScanner(name="gitleaks", version="8.30.1",
-                             path="/usr/bin/gitleaks", is_default=True),
-            InstalledScanner(name="betterleaks", version="1.2.0",
-                             path="/usr/bin/betterleaks", is_default=False),
+            InstalledScanner(
+                name="gitleaks",
+                version="8.30.1",
+                path="/usr/bin/gitleaks",
+                is_default=True,
+            ),
+            InstalledScanner(
+                name="betterleaks",
+                version="1.2.0",
+                path="/usr/bin/betterleaks",
+                is_default=False,
+            ),
         ]
-        with mock.patch("ai_guardian.scanner_manager.ScannerManager.list_configured",
-                        return_value=fake_scanners):
+        with mock.patch(
+            "ai_guardian.scanner_manager.ScannerManager.list_configured",
+            return_value=fake_scanners,
+        ):
             text = DaemonTray._build_about_text()
         assert "gitleaks 8.30.1 (default)" in text
         assert "betterleaks 1.2.0" in text
 
     def test_build_about_text_no_scanners_installed(self):
-        with mock.patch("ai_guardian.scanner_manager.ScannerManager.list_configured",
-                        return_value=[]):
+        with mock.patch(
+            "ai_guardian.scanner_manager.ScannerManager.list_configured",
+            return_value=[],
+        ):
             text = DaemonTray._build_about_text()
         assert "Scanners: none installed" in text
 
@@ -2599,7 +2875,9 @@ class TestAboutMenuItem:
             stop_callback=lambda: None,
             pause_callback=lambda mins: None,
         )
-        with mock.patch("ai_guardian.daemon.tray_plugins.show_dialog", side_effect=Exception("fail")):
+        with mock.patch(
+            "ai_guardian.daemon.tray_plugins.show_dialog", side_effect=Exception("fail")
+        ):
             with mock.patch("threading.Thread") as mock_thread:
                 mock_thread.return_value = mock.MagicMock()
                 tray._on_about(None, None)
@@ -2613,10 +2891,14 @@ class TestAboutMenuItem:
             stop_callback=lambda: None,
             pause_callback=lambda mins: None,
         )
-        with mock.patch("ai_guardian.daemon.tray.pystray", create=True) as mock_pystray, \
-             mock.patch("platform.system", return_value="Linux"), \
-             mock.patch("ai_guardian.daemon.tray._suppress_gtk_stderr", return_value=None), \
-             mock.patch("ai_guardian.daemon.tray.threading"):
+        with (
+            mock.patch("ai_guardian.daemon.tray.pystray", create=True) as mock_pystray,
+            mock.patch("platform.system", return_value="Linux"),
+            mock.patch(
+                "ai_guardian.daemon.tray._suppress_gtk_stderr", return_value=None
+            ),
+            mock.patch("ai_guardian.daemon.tray.threading"),
+        ):
             mock_icon = mock.MagicMock()
             mock_pystray.Icon.return_value = mock_icon
             mock_pystray.Menu = mock.MagicMock()
@@ -2691,9 +2973,12 @@ class TestAboutMenuItem:
     def test_per_daemon_about_calls_multi_client(self):
         mc = mock.MagicMock()
         mc.get_about.return_value = {
-            "version": "1.8.0", "python": "3.11.9",
-            "platform": "Linux 5.15 x86_64", "config_path": "/root/.config/ai-guardian/ai-guardian.json",
-            "scanners": [], "url": "https://github.com/itdove/ai-guardian",
+            "version": "1.8.0",
+            "python": "3.11.9",
+            "platform": "Linux 5.15 x86_64",
+            "config_path": "/root/.config/ai-guardian/ai-guardian.json",
+            "scanners": [],
+            "url": "https://github.com/itdove/ai-guardian",
         }
         tray = DaemonTray(
             get_stats_callback=lambda: {},
@@ -2719,9 +3004,12 @@ class TestAboutMenuItem:
     def test_per_daemon_about_caches_result(self):
         mc = mock.MagicMock()
         mc.get_about.return_value = {
-            "version": "1.8.0", "python": "3.11.9",
-            "platform": "Linux", "config_path": None,
-            "scanners": [], "url": "https://github.com/itdove/ai-guardian",
+            "version": "1.8.0",
+            "python": "3.11.9",
+            "platform": "Linux",
+            "config_path": None,
+            "scanners": [],
+            "url": "https://github.com/itdove/ai-guardian",
         }
         tray = DaemonTray(
             get_stats_callback=lambda: {},
@@ -2837,7 +3125,8 @@ class TestVersionMismatchDetection:
                 mock_thread.return_value = mock.MagicMock()
                 tray._check_version_mismatch()
                 notify_calls = [
-                    c for c in mock_thread.call_args_list
+                    c
+                    for c in mock_thread.call_args_list
                     if c[1].get("name") == "version-mismatch-notify"
                 ]
                 assert len(notify_calls) == 1
@@ -2876,7 +3165,9 @@ class TestVersionMismatchDetection:
             assert ("sandbox", "container") not in tray._version_mismatch_notified
 
     def test_send_version_mismatch_notification(self):
-        with mock.patch("ai_guardian.daemon.tray_plugins.send_notification") as mock_notify:
+        with mock.patch(
+            "ai_guardian.daemon.tray_plugins.send_notification"
+        ) as mock_notify:
             DaemonTray._send_version_mismatch_notification("sandbox", "1.8.0", "1.9.0")
             mock_notify.assert_called_once()
             args = mock_notify.call_args[0]
@@ -2967,6 +3258,7 @@ class TestDiscoveryAnimation:
     )
     def test_generate_discovery_frames_returns_four_images(self):
         from PIL import Image
+
         tray = self._make_tray()
         frames = tray._generate_discovery_frames()
         assert len(frames) == 4
@@ -3058,10 +3350,12 @@ class TestDiscoveryAnimation:
     def test_start_defers_discovery_to_run(self):
         disc = mock.MagicMock()
         tray = self._make_tray(discovery=disc)
-        with mock.patch("ai_guardian.daemon.tray.HAS_PYSTRAY", True), \
-             mock.patch("ai_guardian.daemon.tray._is_tray_running", return_value=False), \
-             mock.patch("ai_guardian.daemon.tray._write_tray_lock"), \
-             mock.patch.object(tray, "_run"):
+        with (
+            mock.patch("ai_guardian.daemon.tray.HAS_PYSTRAY", True),
+            mock.patch("ai_guardian.daemon.tray._is_tray_running", return_value=False),
+            mock.patch("ai_guardian.daemon.tray._write_tray_lock"),
+            mock.patch.object(tray, "_run"),
+        ):
             tray.start()
             disc.start_background_discovery.assert_not_called()
 
@@ -3069,11 +3363,15 @@ class TestDiscoveryAnimation:
         tray = self._make_tray()
         tray._is_initial_discovery = True
         tray._discovery_in_progress = True
-        with mock.patch.object(tray, "_stop_discovery_animation") as mock_stop, \
-             mock.patch.object(DaemonTray, "_dispatch_to_main"):
-            tray._on_targets_updated([
-                DaemonTarget(name="local", runtime="local", status="running"),
-            ])
+        with (
+            mock.patch.object(tray, "_stop_discovery_animation") as mock_stop,
+            mock.patch.object(DaemonTray, "_dispatch_to_main"),
+        ):
+            tray._on_targets_updated(
+                [
+                    DaemonTarget(name="local", runtime="local", status="running"),
+                ]
+            )
             mock_stop.assert_called_once()
         assert tray._is_initial_discovery is False
         assert tray._discovery_in_progress is False
@@ -3082,20 +3380,28 @@ class TestDiscoveryAnimation:
         tray = self._make_tray()
         dispatched = []
         with mock.patch.object(
-            DaemonTray, "_dispatch_to_main", side_effect=lambda fn: dispatched.append(fn)
+            DaemonTray,
+            "_dispatch_to_main",
+            side_effect=lambda fn: dispatched.append(fn),
         ):
-            tray._on_targets_updated([
-                DaemonTarget(name="local", runtime="local", status="running"),
-            ])
+            tray._on_targets_updated(
+                [
+                    DaemonTarget(name="local", runtime="local", status="running"),
+                ]
+            )
         assert tray._refresh_menu_and_clear_discovery_flag in dispatched
 
     def test_on_targets_updated_polls_plugins_immediately(self):
         tray = self._make_tray()
-        with mock.patch.object(tray, "_poll_plugins") as mock_poll, \
-             mock.patch.object(DaemonTray, "_dispatch_to_main"):
-            tray._on_targets_updated([
-                DaemonTarget(name="local", runtime="local", status="running"),
-            ])
+        with (
+            mock.patch.object(tray, "_poll_plugins") as mock_poll,
+            mock.patch.object(DaemonTray, "_dispatch_to_main"),
+        ):
+            tray._on_targets_updated(
+                [
+                    DaemonTarget(name="local", runtime="local", status="running"),
+                ]
+            )
             mock_poll.assert_called_once()
 
     def test_stop_cleans_up_animation(self):
@@ -3127,10 +3433,12 @@ class TestDiscoveryAnimation:
 
     def test_no_animation_without_discovery(self):
         tray = self._make_tray()
-        with mock.patch("ai_guardian.daemon.tray.HAS_PYSTRAY", True), \
-             mock.patch("ai_guardian.daemon.tray._is_tray_running", return_value=False), \
-             mock.patch("ai_guardian.daemon.tray._write_tray_lock"), \
-             mock.patch.object(tray, "_run"):
+        with (
+            mock.patch("ai_guardian.daemon.tray.HAS_PYSTRAY", True),
+            mock.patch("ai_guardian.daemon.tray._is_tray_running", return_value=False),
+            mock.patch("ai_guardian.daemon.tray._write_tray_lock"),
+            mock.patch.object(tray, "_run"),
+        ):
             tray.start()
             assert tray._discovery_in_progress is False
 
@@ -3144,17 +3452,23 @@ class TestDiscoveryAnimation:
     def test_run_starts_animation_and_discovery(self):
         disc = mock.MagicMock()
         tray = self._make_tray(discovery=disc)
-        with mock.patch.object(tray, "_start_discovery_animation") as mock_anim, \
-             mock.patch.object(tray, "_create_icon", return_value=mock.MagicMock()), \
-             mock.patch.object(tray, "_ensure_macos_activation_policy"), \
-             mock.patch.object(tray, "_build_single_daemon_menu_items", return_value=[]), \
-             mock.patch.object(tray, "_build_single_daemon_plugin_items", return_value=[]), \
-             mock.patch.object(tray, "_build_single_daemon_daemon_items", return_value=[]), \
-             mock.patch.object(tray, "_build_multi_daemon_menu_items", return_value=[]), \
-             mock.patch.object(tray, "_build_ide_setup_menu_items", return_value=[]), \
-             mock.patch.object(tray, "_start_stats_refresh"), \
-             mock.patch.object(tray, "_register_wake_handler"), \
-             mock.patch("ai_guardian.daemon.tray.pystray", create=True) as mock_pystray:
+        with (
+            mock.patch.object(tray, "_start_discovery_animation") as mock_anim,
+            mock.patch.object(tray, "_create_icon", return_value=mock.MagicMock()),
+            mock.patch.object(tray, "_ensure_macos_activation_policy"),
+            mock.patch.object(tray, "_build_single_daemon_menu_items", return_value=[]),
+            mock.patch.object(
+                tray, "_build_single_daemon_plugin_items", return_value=[]
+            ),
+            mock.patch.object(
+                tray, "_build_single_daemon_daemon_items", return_value=[]
+            ),
+            mock.patch.object(tray, "_build_multi_daemon_menu_items", return_value=[]),
+            mock.patch.object(tray, "_build_ide_setup_menu_items", return_value=[]),
+            mock.patch.object(tray, "_start_stats_refresh"),
+            mock.patch.object(tray, "_register_wake_handler"),
+            mock.patch("ai_guardian.daemon.tray.pystray", create=True) as mock_pystray,
+        ):
             mock_icon = mock.MagicMock()
             mock_pystray.Icon.return_value = mock_icon
             mock_pystray.Menu = mock.MagicMock()
@@ -3167,17 +3481,23 @@ class TestDiscoveryAnimation:
 
     def test_run_skips_animation_without_discovery(self):
         tray = self._make_tray()
-        with mock.patch.object(tray, "_start_discovery_animation") as mock_anim, \
-             mock.patch.object(tray, "_create_icon", return_value=mock.MagicMock()), \
-             mock.patch.object(tray, "_ensure_macos_activation_policy"), \
-             mock.patch.object(tray, "_build_single_daemon_menu_items", return_value=[]), \
-             mock.patch.object(tray, "_build_single_daemon_plugin_items", return_value=[]), \
-             mock.patch.object(tray, "_build_single_daemon_daemon_items", return_value=[]), \
-             mock.patch.object(tray, "_build_multi_daemon_menu_items", return_value=[]), \
-             mock.patch.object(tray, "_build_ide_setup_menu_items", return_value=[]), \
-             mock.patch.object(tray, "_start_stats_refresh"), \
-             mock.patch.object(tray, "_register_wake_handler"), \
-             mock.patch("ai_guardian.daemon.tray.pystray", create=True) as mock_pystray:
+        with (
+            mock.patch.object(tray, "_start_discovery_animation") as mock_anim,
+            mock.patch.object(tray, "_create_icon", return_value=mock.MagicMock()),
+            mock.patch.object(tray, "_ensure_macos_activation_policy"),
+            mock.patch.object(tray, "_build_single_daemon_menu_items", return_value=[]),
+            mock.patch.object(
+                tray, "_build_single_daemon_plugin_items", return_value=[]
+            ),
+            mock.patch.object(
+                tray, "_build_single_daemon_daemon_items", return_value=[]
+            ),
+            mock.patch.object(tray, "_build_multi_daemon_menu_items", return_value=[]),
+            mock.patch.object(tray, "_build_ide_setup_menu_items", return_value=[]),
+            mock.patch.object(tray, "_start_stats_refresh"),
+            mock.patch.object(tray, "_register_wake_handler"),
+            mock.patch("ai_guardian.daemon.tray.pystray", create=True) as mock_pystray,
+        ):
             mock_icon = mock.MagicMock()
             mock_pystray.Icon.return_value = mock_icon
             mock_pystray.Menu = mock.MagicMock()
@@ -3225,9 +3545,11 @@ class TestDiscoveryAnimation:
         with mock.patch.object(
             DaemonTray, "_dispatch_to_main", side_effect=tracking_dispatch
         ):
-            tray._on_targets_updated([
-                DaemonTarget(name="local", runtime="local", status="running"),
-            ])
+            tray._on_targets_updated(
+                [
+                    DaemonTarget(name="local", runtime="local", status="running"),
+                ]
+            )
         assert True in guard_values
         assert tray._refreshing_from_discovery is False
 
@@ -3260,8 +3582,13 @@ class TestGlobalPlugins:
         mc = mock.MagicMock()
         mc._local_plugins.return_value = {
             "plugins": [
-                {"name": "Quick Links", "scope": "global",
-                 "items": [{"label": "Docs", "command": "echo", "type": "background"}]},
+                {
+                    "name": "Quick Links",
+                    "scope": "global",
+                    "items": [
+                        {"label": "Docs", "command": "echo", "type": "background"}
+                    ],
+                },
                 {"name": "Daemon", "items": [{"label": "Status", "command": "echo"}]},
             ]
         }
@@ -3275,8 +3602,13 @@ class TestGlobalPlugins:
         mc = mock.MagicMock()
         mc._local_plugins.return_value = {
             "plugins": [
-                {"name": "Global", "scope": "global",
-                 "items": [{"label": "Docs", "command": "echo", "type": "background"}]},
+                {
+                    "name": "Global",
+                    "scope": "global",
+                    "items": [
+                        {"label": "Docs", "command": "echo", "type": "background"}
+                    ],
+                },
                 {"name": "Daemon", "items": [{"label": "Status", "command": "echo"}]},
             ]
         }
@@ -3292,14 +3624,19 @@ class TestGlobalPlugins:
         mc = mock.MagicMock()
         plugin_data = {
             "plugins": [
-                {"name": "Links", "scope": "global",
-                 "items": [{"label": "Docs", "command": "echo"}]},
+                {
+                    "name": "Links",
+                    "scope": "global",
+                    "items": [{"label": "Docs", "command": "echo"}],
+                },
             ]
         }
         mc.get_plugins.return_value = plugin_data
         mc.get_status.return_value = {"menu_tags": []}
         remote_target = DaemonTarget(
-            name="remote", runtime="container", status="running",
+            name="remote",
+            runtime="container",
+            status="running",
         )
         tray = self._make_tray(targets=[remote_target], multi_client=mc)
         tray._poll_plugins()
@@ -3321,12 +3658,18 @@ class TestGlobalPlugins:
 
     def test_global_plugin_visible_when_present(self):
         from ai_guardian.daemon.tray_plugins import Plugin, PluginItem
-        tray = self._make_tray(targets=[
-            DaemonTarget(name="local", runtime="local", status="running"),
-        ])
+
+        tray = self._make_tray(
+            targets=[
+                DaemonTarget(name="local", runtime="local", status="running"),
+            ]
+        )
         tray._global_plugins = [
-            Plugin(name="Quick Links", scope="global",
-                   items=[PluginItem(label="Docs", command="echo docs")]),
+            Plugin(
+                name="Quick Links",
+                scope="global",
+                items=[PluginItem(label="Docs", command="echo docs")],
+            ),
         ]
         with mock.patch("ai_guardian.daemon.tray.pystray", create=True) as mock_pystray:
             mock_pystray.MenuItem = mock.MagicMock()
@@ -3334,10 +3677,13 @@ class TestGlobalPlugins:
             tray._build_global_plugin_items()
 
         plugin_calls = [
-            call for call in mock_pystray.MenuItem.call_args_list
-            if len(call[0]) >= 2 and isinstance(call[0][1], mock.MagicMock)
+            call
+            for call in mock_pystray.MenuItem.call_args_list
+            if len(call[0]) >= 2
+            and isinstance(call[0][1], mock.MagicMock)
             and call[1].get("visible") is not None
-            and callable(call[0][0]) and call[0][0](None) == "Quick Links"
+            and callable(call[0][0])
+            and call[0][0](None) == "Quick Links"
         ]
         assert len(plugin_calls) >= 1
         first_plugin = plugin_calls[0]
@@ -3345,9 +3691,11 @@ class TestGlobalPlugins:
         assert vis_fn(None) is True
 
     def test_global_plugin_hidden_when_no_global_plugins(self):
-        tray = self._make_tray(targets=[
-            DaemonTarget(name="local", runtime="local", status="running"),
-        ])
+        tray = self._make_tray(
+            targets=[
+                DaemonTarget(name="local", runtime="local", status="running"),
+            ]
+        )
         tray._global_plugins = []
         with mock.patch("ai_guardian.daemon.tray.pystray", create=True) as mock_pystray:
             mock_pystray.MenuItem = mock.MagicMock()
@@ -3360,10 +3708,14 @@ class TestGlobalPlugins:
 
     def test_poll_plugins_clears_globals_when_no_targets(self):
         from ai_guardian.daemon.tray_plugins import Plugin, PluginItem
+
         tray = self._make_tray(targets=[])
         tray._global_plugins = [
-            Plugin(name="Stale", scope="global",
-                   items=[PluginItem(label="X", command="echo")]),
+            Plugin(
+                name="Stale",
+                scope="global",
+                items=[PluginItem(label="X", command="echo")],
+            ),
         ]
         tray._poll_plugins()
         assert tray._global_plugins == []
@@ -3371,18 +3723,25 @@ class TestGlobalPlugins:
     def test_run_includes_global_plugin_items(self):
         """_run() calls _build_global_plugin_items."""
         tray = self._make_tray()
-        with mock.patch.object(tray, "_build_global_plugin_items",
-                               return_value=[]) as mock_build, \
-             mock.patch.object(tray, "_create_icon", return_value=mock.MagicMock()), \
-             mock.patch.object(tray, "_ensure_macos_activation_policy"), \
-             mock.patch.object(tray, "_build_single_daemon_menu_items", return_value=[]), \
-             mock.patch.object(tray, "_build_single_daemon_plugin_items", return_value=[]), \
-             mock.patch.object(tray, "_build_single_daemon_daemon_items", return_value=[]), \
-             mock.patch.object(tray, "_build_multi_daemon_menu_items", return_value=[]), \
-             mock.patch.object(tray, "_build_ide_setup_menu_items", return_value=[]), \
-             mock.patch.object(tray, "_start_stats_refresh"), \
-             mock.patch.object(tray, "_register_wake_handler"), \
-             mock.patch("ai_guardian.daemon.tray.pystray", create=True) as mock_pystray:
+        with (
+            mock.patch.object(
+                tray, "_build_global_plugin_items", return_value=[]
+            ) as mock_build,
+            mock.patch.object(tray, "_create_icon", return_value=mock.MagicMock()),
+            mock.patch.object(tray, "_ensure_macos_activation_policy"),
+            mock.patch.object(tray, "_build_single_daemon_menu_items", return_value=[]),
+            mock.patch.object(
+                tray, "_build_single_daemon_plugin_items", return_value=[]
+            ),
+            mock.patch.object(
+                tray, "_build_single_daemon_daemon_items", return_value=[]
+            ),
+            mock.patch.object(tray, "_build_multi_daemon_menu_items", return_value=[]),
+            mock.patch.object(tray, "_build_ide_setup_menu_items", return_value=[]),
+            mock.patch.object(tray, "_start_stats_refresh"),
+            mock.patch.object(tray, "_register_wake_handler"),
+            mock.patch("ai_guardian.daemon.tray.pystray", create=True) as mock_pystray,
+        ):
             mock_icon = mock.MagicMock()
             mock_pystray.Icon.return_value = mock_icon
             mock_pystray.Menu = mock.MagicMock()
@@ -3409,8 +3768,13 @@ class TestMultiTargetExecution:
     def test_resolve_target_list_all(self):
         tray = self._make_tray()
         t1 = DaemonTarget(name="a", runtime="local", status="running")
-        t2 = DaemonTarget(name="b", runtime="container", status="running",
-                          container_id="abc123def456", container_engine="podman")
+        t2 = DaemonTarget(
+            name="b",
+            runtime="container",
+            status="running",
+            container_id="abc123def456",
+            container_engine="podman",
+        )
         tray._targets = [t1, t2]
         result = tray._resolve_target_list("all")
         assert len(result) == 2
@@ -3420,10 +3784,20 @@ class TestMultiTargetExecution:
     def test_resolve_target_list_containers(self):
         tray = self._make_tray()
         t1 = DaemonTarget(name="a", runtime="local", status="running")
-        t2 = DaemonTarget(name="b", runtime="container", status="running",
-                          container_id="abc123def456", container_engine="podman")
-        t3 = DaemonTarget(name="c", runtime="container", status="running",
-                          container_id="def456abc123", container_engine="docker")
+        t2 = DaemonTarget(
+            name="b",
+            runtime="container",
+            status="running",
+            container_id="abc123def456",
+            container_engine="podman",
+        )
+        t3 = DaemonTarget(
+            name="c",
+            runtime="container",
+            status="running",
+            container_id="def456abc123",
+            container_engine="docker",
+        )
         tray._targets = [t1, t2, t3]
         result = tray._resolve_target_list("containers")
         assert len(result) == 2
@@ -3431,8 +3805,9 @@ class TestMultiTargetExecution:
         assert t2 in result
         assert t3 in result
 
-    @pytest.mark.parametrize("mode", ["containers", "bogus"],
-                             ids=["containers-no-match", "unknown-mode"])
+    @pytest.mark.parametrize(
+        "mode", ["containers", "bogus"], ids=["containers-no-match", "unknown-mode"]
+    )
     def test_resolve_target_list_returns_empty(self, mode):
         tray = self._make_tray()
         tray._targets = [DaemonTarget(name="a", runtime="local")]
@@ -3442,11 +3817,18 @@ class TestMultiTargetExecution:
     def test_execute_multi_target_command(self, mock_exec):
         tray = self._make_tray()
         t1 = DaemonTarget(name="a", runtime="local")
-        t2 = DaemonTarget(name="b", runtime="container",
-                          container_id="abc123def456", container_engine="podman")
+        t2 = DaemonTarget(
+            name="b",
+            runtime="container",
+            container_id="abc123def456",
+            container_engine="podman",
+        )
         tray._execute_multi_target_command(
-            [t1, t2], "echo hello", "terminal",
-            run_on_target=True, label="Test",
+            [t1, t2],
+            "echo hello",
+            "terminal",
+            run_on_target=True,
+            label="Test",
         )
         assert mock_exec.call_count == 2
         calls = mock_exec.call_args_list
@@ -3456,7 +3838,8 @@ class TestMultiTargetExecution:
     def test_serialize_targets_for_selector(self):
         tray = self._make_tray()
         t = DaemonTarget(
-            name="proj", runtime="container",
+            name="proj",
+            runtime="container",
             container_name="sandbox-1",
             container_engine="podman",
             container_id="abc123def456",
@@ -3487,15 +3870,16 @@ class TestWebConsoleVersionGating:
         saved = DaemonTray._has_web_console
         try:
             DaemonTray._has_web_console = False
-            with mock.patch("ai_guardian.daemon.tray.pystray", create=True) as mock_pystray:
+            with mock.patch(
+                "ai_guardian.daemon.tray.pystray", create=True
+            ) as mock_pystray:
                 mock_pystray.MenuItem = mock.MagicMock()
                 mock_pystray.Menu = mock.MagicMock()
                 mock_pystray.Menu.SEPARATOR = mock.MagicMock()
                 tray._build_single_daemon_menu_items()
 
                 for call in mock_pystray.MenuItem.call_args_list:
-                    if (isinstance(call[0][0], str)
-                            and call[0][0] == "Console"):
+                    if isinstance(call[0][0], str) and call[0][0] == "Console":
                         vis = call[1].get("visible") or call[0][2]
                         assert vis(None) is True
                         return
@@ -3516,17 +3900,21 @@ class TestWebConsoleVersionGating:
         saved = DaemonTray._has_web_console
         try:
             DaemonTray._has_web_console = True
-            with mock.patch("ai_guardian.daemon.tray.pystray", create=True) as mock_pystray, \
-                 mock.patch.object(DaemonTray, "_is_web_console_ready",
-                                   return_value=True):
+            with (
+                mock.patch(
+                    "ai_guardian.daemon.tray.pystray", create=True
+                ) as mock_pystray,
+                mock.patch.object(
+                    DaemonTray, "_is_web_console_ready", return_value=True
+                ),
+            ):
                 mock_pystray.MenuItem = mock.MagicMock()
                 mock_pystray.Menu = mock.MagicMock()
                 mock_pystray.Menu.SEPARATOR = mock.MagicMock()
                 tray._build_single_daemon_menu_items()
 
                 for call in mock_pystray.MenuItem.call_args_list:
-                    if (isinstance(call[0][0], str)
-                            and call[0][0] == "Console"):
+                    if isinstance(call[0][0], str) and call[0][0] == "Console":
                         vis = call[1].get("visible") or call[0][2]
                         assert vis(None) is True
                         return
@@ -3550,15 +3938,16 @@ class TestWebConsoleVersionGating:
         saved = DaemonTray._has_web_console
         try:
             DaemonTray._has_web_console = False
-            with mock.patch("ai_guardian.daemon.tray.pystray", create=True) as mock_pystray:
+            with mock.patch(
+                "ai_guardian.daemon.tray.pystray", create=True
+            ) as mock_pystray:
                 mock_pystray.MenuItem = mock.MagicMock()
                 mock_pystray.Menu = mock.MagicMock()
                 mock_pystray.Menu.SEPARATOR = mock.MagicMock()
                 tray._build_multi_daemon_menu_items()
 
                 for call in mock_pystray.MenuItem.call_args_list:
-                    if (isinstance(call[0][0], str)
-                            and call[0][0] == "Console"):
+                    if isinstance(call[0][0], str) and call[0][0] == "Console":
                         vis = call[1].get("visible") or call[0][2]
                         assert vis(None) is False
                         return
@@ -3589,9 +3978,11 @@ class TestGreyedOutMenuItems:
 
     def test_single_daemon_items_have_enabled_guard(self):
         """Console, Violations, Metrics, Statistics get enabled= when built."""
-        tray = self._make_tray([
-            DaemonTarget(name="local", runtime="local", status="stopped"),
-        ])
+        tray = self._make_tray(
+            [
+                DaemonTarget(name="local", runtime="local", status="stopped"),
+            ]
+        )
         with mock.patch("ai_guardian.daemon.tray.pystray", create=True) as mock_pystray:
             mock_pystray.MenuItem = mock.MagicMock()
             mock_pystray.Menu = mock.MagicMock()
@@ -3603,15 +3994,17 @@ class TestGreyedOutMenuItems:
                 assert kwargs is not None, f"{label} not found in menu items"
                 enabled_cb = kwargs.get("enabled")
                 assert enabled_cb is not None, f"{label} missing enabled= parameter"
-                assert enabled_cb(None) is False, (
-                    f"{label} should be disabled when daemon is stopped"
-                )
+                assert (
+                    enabled_cb(None) is False
+                ), f"{label} should be disabled when daemon is stopped"
 
     def test_single_daemon_items_enabled_when_running(self):
         """Daemon-dependent items are enabled when daemon is running."""
-        tray = self._make_tray([
-            DaemonTarget(name="local", runtime="local", status="running"),
-        ])
+        tray = self._make_tray(
+            [
+                DaemonTarget(name="local", runtime="local", status="running"),
+            ]
+        )
         with mock.patch("ai_guardian.daemon.tray.pystray", create=True) as mock_pystray:
             mock_pystray.MenuItem = mock.MagicMock()
             mock_pystray.Menu = mock.MagicMock()
@@ -3623,15 +4016,17 @@ class TestGreyedOutMenuItems:
                 assert kwargs is not None, f"{label} not found"
                 enabled_cb = kwargs.get("enabled")
                 assert enabled_cb is not None, f"{label} missing enabled="
-                assert enabled_cb(None) is True, (
-                    f"{label} should be enabled when daemon is running"
-                )
+                assert (
+                    enabled_cb(None) is True
+                ), f"{label} should be enabled when daemon is running"
 
     def test_terminal_has_no_enabled_guard(self):
         """Terminal should always be active (local operation)."""
-        tray = self._make_tray([
-            DaemonTarget(name="local", runtime="local", status="stopped"),
-        ])
+        tray = self._make_tray(
+            [
+                DaemonTarget(name="local", runtime="local", status="stopped"),
+            ]
+        )
         with mock.patch("ai_guardian.daemon.tray.pystray", create=True) as mock_pystray:
             mock_pystray.MenuItem = mock.MagicMock()
             mock_pystray.Menu = mock.MagicMock()
@@ -3644,9 +4039,11 @@ class TestGreyedOutMenuItems:
 
     def test_statistics_visible_when_daemon_stopped(self):
         """Statistics should be visible (but greyed) when daemon is stopped."""
-        tray = self._make_tray([
-            DaemonTarget(name="local", runtime="local", status="stopped"),
-        ])
+        tray = self._make_tray(
+            [
+                DaemonTarget(name="local", runtime="local", status="stopped"),
+            ]
+        )
         with mock.patch("ai_guardian.daemon.tray.pystray", create=True) as mock_pystray:
             mock_pystray.MenuItem = mock.MagicMock()
             mock_pystray.Menu = mock.MagicMock()
@@ -3657,15 +4054,17 @@ class TestGreyedOutMenuItems:
             assert kwargs is not None, "Statistics not found"
             vis_cb = kwargs.get("visible")
             assert vis_cb is not None, "Statistics missing visible="
-            assert vis_cb(None) is True, (
-                "Statistics should be visible when single daemon exists"
-            )
+            assert (
+                vis_cb(None) is True
+            ), "Statistics should be visible when single daemon exists"
 
     def test_start_daemon_visible_when_stopped(self):
         """Start daemon should be visible when daemon is stopped."""
-        tray = self._make_tray([
-            DaemonTarget(name="local", runtime="local", status="stopped"),
-        ])
+        tray = self._make_tray(
+            [
+                DaemonTarget(name="local", runtime="local", status="stopped"),
+            ]
+        )
         tray._single_daemon_closures = {
             "pause_action": lambda m: lambda _, __: None,
             "resume_action": lambda _, __: None,
@@ -3691,9 +4090,9 @@ class TestGreyedOutMenuItems:
             assert kwargs is not None, "Start daemon not found"
             vis_cb = kwargs.get("visible")
             assert vis_cb is not None, "Start daemon missing visible="
-            assert vis_cb(None) is True, (
-                "Start daemon should be visible when daemon is stopped"
-            )
+            assert (
+                vis_cb(None) is True
+            ), "Start daemon should be visible when daemon is stopped"
 
     def test_daemon_status_label_starting(self):
         """Status label shows starting indicator for starting daemons."""
@@ -3711,9 +4110,11 @@ class TestGreyedOutMenuItems:
 
     def test_single_daemon_items_disabled_when_starting(self):
         """Items greyed out during daemon startup."""
-        tray = self._make_tray([
-            DaemonTarget(name="local", runtime="local", status="starting"),
-        ])
+        tray = self._make_tray(
+            [
+                DaemonTarget(name="local", runtime="local", status="starting"),
+            ]
+        )
         with mock.patch("ai_guardian.daemon.tray.pystray", create=True) as mock_pystray:
             mock_pystray.MenuItem = mock.MagicMock()
             mock_pystray.Menu = mock.MagicMock()
@@ -3725,9 +4126,9 @@ class TestGreyedOutMenuItems:
                 assert kwargs is not None, f"{label} not found"
                 enabled_cb = kwargs.get("enabled")
                 assert enabled_cb is not None, f"{label} missing enabled="
-                assert enabled_cb(None) is False, (
-                    f"{label} should be disabled when daemon is starting"
-                )
+                assert (
+                    enabled_cb(None) is False
+                ), f"{label} should be disabled when daemon is starting"
 
     def test_multi_daemon_items_have_enabled_guard(self):
         """Multi-daemon submenu items get enabled= based on slot status."""
@@ -3752,21 +4153,23 @@ class TestGreyedOutMenuItems:
             tray._build_multi_daemon_menu_items()
 
             console_calls = [
-                call for call in mock_pystray.MenuItem.call_args_list
-                if call[0] and isinstance(call[0][0], str)
-                and call[0][0] == "Console"
+                call
+                for call in mock_pystray.MenuItem.call_args_list
+                if call[0] and isinstance(call[0][0], str) and call[0][0] == "Console"
             ]
             assert len(console_calls) >= 2, "Expected Console in multiple slots"
             for call in console_calls:
-                assert call[1].get("enabled") is not None, (
-                    "Console in multi-daemon should have enabled="
-                )
+                assert (
+                    call[1].get("enabled") is not None
+                ), "Console in multi-daemon should have enabled="
 
     def test_about_disabled_when_no_daemons_running(self):
         """Top-level About greyed out when no daemon is running."""
-        tray = self._make_tray([
-            DaemonTarget(name="local", runtime="local", status="stopped"),
-        ])
+        tray = self._make_tray(
+            [
+                DaemonTarget(name="local", runtime="local", status="stopped"),
+            ]
+        )
         enabled_cb = lambda _: any(
             t.status in ("running", "paused") for t in tray._targets
         )
@@ -3774,9 +4177,11 @@ class TestGreyedOutMenuItems:
 
     def test_about_enabled_when_daemon_running(self):
         """Top-level About active when a daemon is running."""
-        tray = self._make_tray([
-            DaemonTarget(name="local", runtime="local", status="running"),
-        ])
+        tray = self._make_tray(
+            [
+                DaemonTarget(name="local", runtime="local", status="running"),
+            ]
+        )
         enabled_cb = lambda _: any(
             t.status in ("running", "paused") for t in tray._targets
         )
@@ -3788,16 +4193,12 @@ class TestPluginEnabledGuard:
 
     def test_run_on_target_plugin_disabled_when_daemon_stopped(self):
         """Plugin with run_on_target=True greyed out when daemon stopped."""
-        from ai_guardian.daemon.tray_plugins import PluginItem, Plugin
+        from ai_guardian.daemon.tray_plugins import PluginItem
 
         target = DaemonTarget(name="local", runtime="local", status="stopped")
-        item = PluginItem(label="Remote Cmd", command="echo hello",
-                          run_on_target=True)
+        item = PluginItem(label="Remote Cmd", command="echo hello", run_on_target=True)
 
-        enabled = (
-            item.run_on_target
-            and target.status not in ("running", "paused")
-        )
+        enabled = item.run_on_target and target.status not in ("running", "paused")
         assert enabled is True  # run_on_target is True and daemon IS stopped
         assert target.status not in ("running", "paused")
 
@@ -3806,8 +4207,7 @@ class TestPluginEnabledGuard:
         from ai_guardian.daemon.tray_plugins import PluginItem
 
         target = DaemonTarget(name="local", runtime="local", status="stopped")
-        item = PluginItem(label="Local Cmd", command="echo hello",
-                          run_on_target=False)
+        item = PluginItem(label="Local Cmd", command="echo hello", run_on_target=False)
 
         if not item.run_on_target:
             enabled = True
@@ -3820,8 +4220,7 @@ class TestPluginEnabledGuard:
         from ai_guardian.daemon.tray_plugins import PluginItem
 
         target = DaemonTarget(name="local", runtime="local", status="running")
-        item = PluginItem(label="Remote Cmd", command="echo hello",
-                          run_on_target=True)
+        item = PluginItem(label="Remote Cmd", command="echo hello", run_on_target=True)
 
         if not item.run_on_target:
             enabled = True
@@ -3855,17 +4254,21 @@ class TestDiscoveryStartingStatus:
         mock_pp.read_text.return_value = pid_content
 
         with (
-            mock.patch("ai_guardian.config_utils.get_config_dir",
-                       return_value=mock_cfg_dir),
-            mock.patch("ai_guardian.daemon.discovery.get_pid_path",
-                       return_value=mock_pp),
-            mock.patch("ai_guardian.daemon.discovery.get_socket_path",
-                       return_value="/tmp/fake.sock"),
+            mock.patch(
+                "ai_guardian.config_utils.get_config_dir", return_value=mock_cfg_dir
+            ),
+            mock.patch(
+                "ai_guardian.daemon.discovery.get_pid_path", return_value=mock_pp
+            ),
+            mock.patch(
+                "ai_guardian.daemon.discovery.get_socket_path",
+                return_value="/tmp/fake.sock",
+            ),
             mock.patch("os.getpid", return_value=99999),
-            mock.patch("ai_guardian.daemon.client.is_daemon_running",
-                       return_value=False),
-            mock.patch("ai_guardian.daemon.discovery.is_pid_alive",
-                       return_value=True),
+            mock.patch(
+                "ai_guardian.daemon.client.is_daemon_running", return_value=False
+            ),
+            mock.patch("ai_guardian.daemon.discovery.is_pid_alive", return_value=True),
         ):
             target = discovery.discover_local()
 
@@ -3893,14 +4296,19 @@ class TestDiscoveryStartingStatus:
         mock_pp.exists.return_value = False
 
         with (
-            mock.patch("ai_guardian.config_utils.get_config_dir",
-                       return_value=mock_cfg_dir),
-            mock.patch("ai_guardian.daemon.discovery.get_pid_path",
-                       return_value=mock_pp),
-            mock.patch("ai_guardian.daemon.discovery.get_socket_path",
-                       return_value="/tmp/fake.sock"),
-            mock.patch("ai_guardian.daemon.client.is_daemon_running",
-                       return_value=False),
+            mock.patch(
+                "ai_guardian.config_utils.get_config_dir", return_value=mock_cfg_dir
+            ),
+            mock.patch(
+                "ai_guardian.daemon.discovery.get_pid_path", return_value=mock_pp
+            ),
+            mock.patch(
+                "ai_guardian.daemon.discovery.get_socket_path",
+                return_value="/tmp/fake.sock",
+            ),
+            mock.patch(
+                "ai_guardian.daemon.client.is_daemon_running", return_value=False
+            ),
         ):
             target = discovery.discover_local()
 
@@ -3990,7 +4398,8 @@ class TestTrayAutoStartDaemon:
                 return_value=True,
             ),
             mock.patch.object(
-                tray, "_request_discovery_refresh",
+                tray,
+                "_request_discovery_refresh",
             ) as mock_refresh,
         ):
             tray._check_and_autostart_daemon()
@@ -4000,15 +4409,20 @@ class TestTrayAutoStartDaemon:
     def test_autostart_called_from_single_daemon_action(self):
         tray = self._make_tray(standalone=True)
         target = DaemonTarget(
-            name="local", runtime="local", status="stopped",
+            name="local",
+            runtime="local",
+            status="stopped",
         )
         tray._targets = [target]
         tray._multi_client = mock.MagicMock()
 
         with mock.patch.object(
-            tray, "_check_and_autostart_daemon",
+            tray,
+            "_check_and_autostart_daemon",
         ) as mock_check:
-            with mock.patch("ai_guardian.daemon.tray.pystray", create=True) as mock_pystray:
+            with mock.patch(
+                "ai_guardian.daemon.tray.pystray", create=True
+            ) as mock_pystray:
                 mock_pystray.MenuItem = mock.MagicMock()
                 mock_pystray.Menu = mock.MagicMock()
                 mock_pystray.Menu.SEPARATOR = mock.MagicMock()
@@ -4094,7 +4508,9 @@ class TestAutostartEnabledMenuItems:
         """Menu items enabled when daemon stopped but autostart possible."""
         tray = self._make_tray(standalone=True, status="stopped")
         with mock.patch.object(
-            tray, "_can_autostart_daemon", return_value=True,
+            tray,
+            "_can_autostart_daemon",
+            return_value=True,
         ):
             fn = lambda _item: (
                 tray._is_single_daemon()
@@ -4228,7 +4644,9 @@ class TestBuildDirPauseItems:
             pause_callback=lambda _: None,
         )
         items = tray._build_dir_pause_items(
-            lambda _: {}, lambda d, m: None, lambda d: None,
+            lambda _: {},
+            lambda d, m: None,
+            lambda d: None,
         )
         assert len(items) == tray._MAX_DIR_PAUSE_SLOTS
 
@@ -4243,7 +4661,9 @@ class TestBuildDirPauseItems:
             pause_callback=lambda _: None,
         )
         items = tray._build_dir_pause_items(
-            lambda _: stats, lambda d, m: None, lambda d: None,
+            lambda _: stats,
+            lambda d, m: None,
+            lambda d: None,
         )
         assert items[0].visible is True
         assert items[1].visible is True
@@ -4260,7 +4680,9 @@ class TestBuildDirPauseItems:
             pause_callback=lambda _: None,
         )
         items = tray._build_dir_pause_items(
-            lambda _: stats, lambda d, m: None, lambda d: None,
+            lambda _: stats,
+            lambda d, m: None,
+            lambda d: None,
         )
         label = items[0].text
         assert label.startswith("☾")
@@ -4277,7 +4699,9 @@ class TestBuildDirPauseItems:
             pause_callback=lambda _: None,
         )
         items = tray._build_dir_pause_items(
-            lambda _: stats, lambda d, m: None, lambda d: None,
+            lambda _: stats,
+            lambda d, m: None,
+            lambda d: None,
         )
         label = items[0].text
         assert label.startswith("●")
@@ -4330,7 +4754,9 @@ class TestDirPauseRouting:
     def test_single_daemon_pause_dir_routes_through_multi_client(self):
         mc = mock.MagicMock()
         local_target = DaemonTarget(
-            name="local", runtime="local", status="running",
+            name="local",
+            runtime="local",
+            status="running",
         )
         tray = DaemonTray(
             get_stats_callback=lambda: {},
@@ -4346,7 +4772,9 @@ class TestDirPauseRouting:
     def test_mk_multi_pause_dir_calls_multi_client(self):
         mc = mock.MagicMock()
         local_target = DaemonTarget(
-            name="local", runtime="local", status="running",
+            name="local",
+            runtime="local",
+            status="running",
         )
         tray = DaemonTray(
             get_stats_callback=lambda: {},
@@ -4358,13 +4786,17 @@ class TestDirPauseRouting:
         fn = tray._mk_multi_pause_dir(0)
         fn("/home/user/proj", 15)
         mc.send_pause_dir.assert_called_once_with(
-            local_target, "/home/user/proj", 15,
+            local_target,
+            "/home/user/proj",
+            15,
         )
 
     def test_mk_multi_resume_dir_calls_multi_client(self):
         mc = mock.MagicMock()
         local_target = DaemonTarget(
-            name="local", runtime="local", status="running",
+            name="local",
+            runtime="local",
+            status="running",
         )
         tray = DaemonTray(
             get_stats_callback=lambda: {},
@@ -4376,7 +4808,8 @@ class TestDirPauseRouting:
         fn = tray._mk_multi_resume_dir(0)
         fn("/home/user/proj")
         mc.send_resume_dir.assert_called_once_with(
-            local_target, "/home/user/proj",
+            local_target,
+            "/home/user/proj",
         )
 
 
@@ -4490,6 +4923,7 @@ class TestDaemonUpgrade:
     def test_check_pypi_version_throttled(self):
         tray = self._make_tray()
         import time as _time
+
         tray._pypi_last_check = _time.monotonic()
         with mock.patch(
             "ai_guardian.daemon.multi_client.urlopen",
@@ -4500,7 +4934,9 @@ class TestDaemonUpgrade:
     def test_check_pypi_version_runs_when_stale(self):
         tray = self._make_tray()
         tray._pypi_last_check = 0.0
-        tray._check_pypi_version = lambda: setattr(tray, "_pypi_latest", "2.0.0") or setattr(tray, "_pypi_last_check", 999999999.0)
+        tray._check_pypi_version = lambda: setattr(
+            tray, "_pypi_latest", "2.0.0"
+        ) or setattr(tray, "_pypi_last_check", 999999999.0)
         tray._check_pypi_version()
         assert tray._pypi_latest == "2.0.0"
 
@@ -4508,6 +4944,7 @@ class TestDaemonUpgrade:
         """Verify _check_pypi_version stores PyPI result via MultiDaemonClient."""
         import json
         from ai_guardian.daemon.multi_client import MultiDaemonClient
+
         fake_resp = mock.MagicMock()
         fake_resp.read.return_value = json.dumps(
             {"info": {"version": "3.0.0"}}
@@ -4526,15 +4963,14 @@ class TestDaemonUpgrade:
         t = DaemonTarget(name="d1", runtime="container", status="running")
         tray._targets = [t]
         tray._daemon_versions[("d1", "container")] = "1.0.0"
-        with mock.patch("ai_guardian.__version__", "2.0.0"), \
-             mock.patch("threading.Thread") as mock_thread:
+        with (
+            mock.patch("ai_guardian.__version__", "2.0.0"),
+            mock.patch("threading.Thread") as mock_thread,
+        ):
             mock_thread.return_value = mock.MagicMock()
             tray._check_version_mismatch()
             thread_calls = mock_thread.call_args_list
-            pip_calls = [
-                c for c in thread_calls
-                if c[1].get("name") == "pip-check"
-            ]
+            pip_calls = [c for c in thread_calls if c[1].get("name") == "pip-check"]
             assert len(pip_calls) == 1
 
     def test_on_upgrade_single_spawns_thread(self):

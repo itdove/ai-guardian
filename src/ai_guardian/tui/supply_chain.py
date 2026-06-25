@@ -18,9 +18,7 @@ def _format_enabled(value: Union[bool, Dict[str, Any]]) -> str:
         disabled_until = value.get("disabled_until")
         if disabled_until:
             try:
-                until_dt = datetime.fromisoformat(
-                    disabled_until.replace("Z", "+00:00")
-                )
+                until_dt = datetime.fromisoformat(disabled_until.replace("Z", "+00:00"))
                 if datetime.now(timezone.utc) < until_dt:
                     remaining = until_dt - datetime.now(timezone.utc)
                     total = max(0, int(remaining.total_seconds()))
@@ -70,9 +68,7 @@ class SupplyChainContent(Container):
     """
 
     def compose(self) -> ComposeResult:
-        yield Static(
-            "[bold]Supply Chain Scanning[/bold]", id="sc-header"
-        )
+        yield Static("[bold]Supply Chain Scanning[/bold]", id="sc-header")
 
         with VerticalScroll():
             with Container(classes="sc-section"):
@@ -83,9 +79,7 @@ class SupplyChainContent(Container):
                 yield Static("", id="sc-status")
 
             with Container(classes="sc-section"):
-                yield Static(
-                    "[bold]Scan Targets[/bold]", classes="sc-section-title"
-                )
+                yield Static("[bold]Scan Targets[/bold]", classes="sc-section-title")
                 yield Static("", id="sc-scan-targets")
 
             with Container(classes="sc-section"):
@@ -122,6 +116,7 @@ class SupplyChainContent(Container):
             if project_path:
                 return project_path
             from ai_guardian.config_utils import _find_git_root
+
             root = _find_git_root() or Path.cwd()
             return root / ".ai-guardian" / "ai-guardian.json"
         return get_config_dir() / "ai-guardian.json"
@@ -208,9 +203,7 @@ class SupplyChainContent(Container):
                         else "?"
                     )
                     cat = (
-                        blocked.get("category", "")
-                        if isinstance(blocked, dict)
-                        else ""
+                        blocked.get("category", "") if isinstance(blocked, dict) else ""
                     )
                     cat_str = f" [{cat}]" if cat else ""
                     lines.append(f"  {ts}  {fp}{cat_str}")

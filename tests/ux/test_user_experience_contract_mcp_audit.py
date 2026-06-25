@@ -8,15 +8,12 @@ findings are produced and security warnings are actionable.
 Issue #468
 """
 
-import json
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
-import pytest
 
 from ai_guardian.mcp_audit import (
     MCPAuditor,
     MCPServerInfo,
-    AuditFinding,
 )
 
 
@@ -90,10 +87,12 @@ class TestCredentialExposureUX:
         auditor = MCPAuditor()
         report = auditor.audit_config([server])
 
-        credential_findings = [f for f in report.findings if f.category == "credential_exposure"]
-        assert len(credential_findings) == 0, (
-            "Trusted server should NOT trigger credential exposure warning"
-        )
+        credential_findings = [
+            f for f in report.findings if f.category == "credential_exposure"
+        ]
+        assert (
+            len(credential_findings) == 0
+        ), "Trusted server should NOT trigger credential exposure warning"
 
 
 class TestNpxAutoInstallUX:
@@ -260,7 +259,9 @@ class TestDeepScanUX:
         )
 
         auditor = MCPAuditor()
-        with patch.object(auditor, "_resolve_source_path", return_value=str(source_dir)):
+        with patch.object(
+            auditor, "_resolve_source_path", return_value=str(source_dir)
+        ):
             report = auditor.scan_source(server)
 
         assert report is not None

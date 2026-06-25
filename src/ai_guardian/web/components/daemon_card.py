@@ -2,7 +2,6 @@
 
 from nicegui import ui
 
-
 _STATUS_STYLE = {
     "running": ("green", "check_circle"),
     "paused": ("amber", "pause_circle"),
@@ -46,9 +45,11 @@ def daemon_card(target, stats: dict, on_click=None):
 
     color, icon = _status_color_icon(status)
 
-    with ui.card().classes("w-72 cursor-pointer hover:shadow-lg").on(
-        "click", on_click
-    ) if on_click else ui.card().classes("w-72"):
+    with (
+        ui.card().classes("w-72 cursor-pointer hover:shadow-lg").on("click", on_click)
+        if on_click
+        else ui.card().classes("w-72")
+    ):
         with ui.row().classes("items-center gap-2 w-full"):
             ui.icon(icon).classes(f"text-{color} text-xl")
             ui.label(target.name).classes("text-lg font-bold flex-grow")

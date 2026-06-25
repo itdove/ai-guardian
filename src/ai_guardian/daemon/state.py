@@ -34,9 +34,14 @@ DAEMON_PAUSE_FILENAME = "daemon.paused"
 class DaemonState:
     """Thread-safe in-memory state for the daemon process."""
 
-    def __init__(self, config_path=None, idle_timeout=DEFAULT_IDLE_TIMEOUT,
-                 context_ttl=DEFAULT_CONTEXT_TTL, sessions_file=None,
-                 pause_file=None):
+    def __init__(
+        self,
+        config_path=None,
+        idle_timeout=DEFAULT_IDLE_TIMEOUT,
+        context_ttl=DEFAULT_CONTEXT_TTL,
+        sessions_file=None,
+        pause_file=None,
+    ):
         self._lock = threading.Lock()
 
         # Source file mtime tracking for dev-mode auto-restart (#1223)
@@ -92,7 +97,7 @@ class DaemonState:
 
         # Project config tracking (#617)
         self._project_config_mtimes = {}  # project_dir -> mtime
-        self._project_config_paths = {}   # project_dir -> config_path str
+        self._project_config_paths = {}  # project_dir -> config_path str
         self._project_dir_last_seen = {}  # project_dir -> monotonic timestamp
         self._last_project_config_reload_at = None  # unix timestamp
 
@@ -189,7 +194,8 @@ class DaemonState:
         now = time.monotonic()
         with self._lock:
             expired = [
-                k for k, v in self._hook_contexts.items()
+                k
+                for k, v in self._hook_contexts.items()
                 if now - v["timestamp"] > self._context_ttl
             ]
             for key in expired:
@@ -214,7 +220,9 @@ class DaemonState:
             for key in keys_to_remove:
                 del self._hook_contexts[key]
             if keys_to_remove:
-                logger.debug(f"Cleaned up {len(keys_to_remove)} contexts for session {session_id[:16]}...")
+                logger.debug(
+                    f"Cleaned up {len(keys_to_remove)} contexts for session {session_id[:16]}..."
+                )
             return len(keys_to_remove)
 
     def cleanup_session_state(self, session_key):
@@ -352,9 +360,7 @@ class DaemonState:
             self._config = json.loads(content)
             stat = os.stat(self._config_path)
             self._config_mtime = stat.st_mtime
-            self._config_checksum = hashlib.sha256(
-                content.encode("utf-8")
-            ).hexdigest()
+            self._config_checksum = hashlib.sha256(content.encode("utf-8")).hexdigest()
             self._last_checksum_check = time.monotonic()
 
             # Invalidate compiled pattern cache on config change
@@ -384,6 +390,7 @@ class DaemonState:
     def _check_mcp_installed():
         """Check if ai-guardian MCP server is configured in any supported IDE."""
         from ai_guardian.daemon import is_mcp_installed
+
         return is_mcp_installed()
 
     # --- Project config tracking (#617) ---
@@ -453,7 +460,8 @@ class DaemonState:
         now = time.monotonic()
         with self._lock:
             stale = [
-                d for d, last_seen in self._project_dir_last_seen.items()
+                d
+                for d, last_seen in self._project_dir_last_seen.items()
                 if now - last_seen > PROJECT_CONFIG_TTL
             ]
             for d in stale:
@@ -465,6 +473,7 @@ class DaemonState:
 
         if stale:
             import importlib
+
             for mod_name in ("gitleaks_config", "aiguardignore", "config_loaders"):
                 try:
                     mod = importlib.import_module(f"ai_guardian.{mod_name}")
@@ -600,12 +609,11 @@ class DaemonState:
         directory = os.path.realpath(directory)
         with self._lock:
             if duration_minutes > 0:
-                self._paused_dirs[directory] = (
-                    time.monotonic() + duration_minutes * 60
-                )
+                self._paused_dirs[directory] = time.monotonic() + duration_minutes * 60
                 logger.info(
                     "Directory paused for %d minutes: %s",
-                    duration_minutes, directory,
+                    duration_minutes,
+                    directory,
                 )
             else:
                 self._paused_dirs[directory] = 0.0
@@ -747,7 +755,11 @@ class DaemonState:
             bool: True if globally paused or cwd is directory-paused
         """
         try:
-            path = Path(pause_file) if pause_file else get_state_dir() / DAEMON_PAUSE_FILENAME
+            path = (
+                Path(pause_file)
+                if pause_file
+                else get_state_dir() / DAEMON_PAUSE_FILENAME
+            )
             if not path.exists():
                 return False
             content = path.read_text(encoding="utf-8")
@@ -786,8 +798,9 @@ class DaemonState:
         """
         with self._lock:
             uptime = time.time() - self._started_at
-            violations = (self._blocked_count + self._warning_count
-                         + self._log_only_count)
+            violations = (
+                self._blocked_count + self._warning_count + self._log_only_count
+            )
 
             last_block_seconds_ago = None
             if self._last_block_time is not None:
@@ -889,6 +902,7 @@ class DaemonState:
     def _get_version():
         try:
             from ai_guardian import __version__
+
             return __version__
         except ImportError:
             return "unknown"
@@ -898,6 +912,7 @@ class DaemonState:
         """Get max mtime of all .py files in the ai_guardian package directory."""
         try:
             import ai_guardian
+
             pkg_dir = Path(ai_guardian.__file__).parent
             max_mtime = 0.0
             for py_file in pkg_dir.rglob("*.py"):
@@ -943,9 +958,12 @@ class DaemonState:
 
         try:
             from ai_guardian.ml_detection import is_ml_available, MLEngineManager
+
             if not is_ml_available():
                 with self._lock:
-                    self._ml_load_error = "ML dependencies not available (onnxruntime required)"
+                    self._ml_load_error = (
+                        "ML dependencies not available (onnxruntime required)"
+                    )
                 return None
 
             config = self.get_config() or {}
@@ -954,22 +972,24 @@ class DaemonState:
 
             if not engines_config:
                 with self._lock:
-                    self._ml_load_error = "No ml_engines configured in prompt_injection config"
+                    self._ml_load_error = (
+                        "No ml_engines configured in prompt_injection config"
+                    )
                 return None
 
             strategy = pi_config.get("ml_strategy", "any-match")
             consensus_threshold = pi_config.get("consensus_threshold", 2)
 
             manager = MLEngineManager(
-                engines_config, strategy=strategy,
+                engines_config,
+                strategy=strategy,
                 consensus_threshold=consensus_threshold,
             )
 
             if not manager.available:
                 with self._lock:
-                    self._ml_load_error = (
-                        "No ML engines loaded: "
-                        + "; ".join(manager.load_errors)
+                    self._ml_load_error = "No ML engines loaded: " + "; ".join(
+                        manager.load_errors
                     )
                 return None
 
@@ -1091,7 +1111,9 @@ class DaemonState:
                 self._session_last_activity[key] = last_activity
 
             loaded = len(self._security_injected_sessions)
-            logger.info(f"Loaded {loaded} persisted session(s) from {self._sessions_file}")
+            logger.info(
+                f"Loaded {loaded} persisted session(s) from {self._sessions_file}"
+            )
         except (json.JSONDecodeError, OSError) as e:
             logger.debug(f"Could not load persisted sessions: {e}")
 

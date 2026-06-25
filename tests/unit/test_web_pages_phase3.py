@@ -13,36 +13,44 @@ class TestPageImports:
 
     def test_pi_detection_page_exists(self):
         from ai_guardian.web.pages.pi_detection import create_pi_detection_page
+
         assert callable(create_pi_detection_page)
 
     def test_pi_patterns_page_exists(self):
         from ai_guardian.web.pages.pi_patterns import create_pi_patterns_page
+
         assert callable(create_pi_patterns_page)
 
     def test_pi_jailbreak_page_exists(self):
         from ai_guardian.web.pages.pi_jailbreak import create_pi_jailbreak_page
+
         assert callable(create_pi_jailbreak_page)
 
     def test_pi_unicode_page_exists(self):
         from ai_guardian.web.pages.pi_unicode import create_pi_unicode_page
+
         assert callable(create_pi_unicode_page)
 
     def test_ssrf_page_exists(self):
         from ai_guardian.web.pages.ssrf import create_ssrf_page
+
         assert callable(create_ssrf_page)
 
     def test_config_scanner_page_exists(self):
         from ai_guardian.web.pages.config_scanner import (
             create_config_scanner_page,
         )
+
         assert callable(create_config_scanner_page)
 
     def test_scan_pii_page_exists(self):
         from ai_guardian.web.pages.scan_pii import create_scan_pii_page
+
         assert callable(create_scan_pii_page)
 
     def test_annotations_page_exists(self):
         from ai_guardian.web.pages.annotations import create_annotations_page
+
         assert callable(create_annotations_page)
 
 
@@ -70,13 +78,11 @@ class TestRouteSidebarConsistency:
     def test_all_routes_in_sidebar(self):
         from ai_guardian.web.components.header import NAV_GROUPS
 
-        all_suffixes = [
-            suffix for _, items in NAV_GROUPS for _, suffix in items
-        ]
+        all_suffixes = [suffix for _, items in NAV_GROUPS for _, suffix in items]
         for route in self.PHASE3_ROUTES:
-            assert route in all_suffixes, (
-                f"Route {route} not found in sidebar navigation"
-            )
+            assert (
+                route in all_suffixes
+            ), f"Route {route} not found in sidebar navigation"
 
 
 class TestPIDetectionHelpers:
@@ -290,10 +296,13 @@ class TestScanPIIData:
 class TestConfigLoadSavePhase3:
 
     def test_load_config_missing_file(self, tmp_path):
-        with mock.patch(
-            "ai_guardian.config_utils.get_config_dir", return_value=tmp_path
-        ), mock.patch(
-            "ai_guardian.config_writer.get_config_dir", return_value=tmp_path
+        with (
+            mock.patch(
+                "ai_guardian.config_utils.get_config_dir", return_value=tmp_path
+            ),
+            mock.patch(
+                "ai_guardian.config_writer.get_config_dir", return_value=tmp_path
+            ),
         ):
             from ai_guardian.web.config_helpers import load_web_config
 
@@ -303,10 +312,13 @@ class TestConfigLoadSavePhase3:
         config_file = tmp_path / "ai-guardian.json"
         config_file.write_text('{"prompt_injection": {"enabled": true}}')
 
-        with mock.patch(
-            "ai_guardian.config_utils.get_config_dir", return_value=tmp_path
-        ), mock.patch(
-            "ai_guardian.config_writer.get_config_dir", return_value=tmp_path
+        with (
+            mock.patch(
+                "ai_guardian.config_utils.get_config_dir", return_value=tmp_path
+            ),
+            mock.patch(
+                "ai_guardian.config_writer.get_config_dir", return_value=tmp_path
+            ),
         ):
             from ai_guardian.web.config_helpers import load_web_config
 
@@ -314,10 +326,13 @@ class TestConfigLoadSavePhase3:
             assert result["prompt_injection"]["enabled"] is True
 
     def test_save_config_creates_file(self, tmp_path):
-        with mock.patch(
-            "ai_guardian.config_utils.get_config_dir", return_value=tmp_path
-        ), mock.patch(
-            "ai_guardian.config_writer.get_config_dir", return_value=tmp_path
+        with (
+            mock.patch(
+                "ai_guardian.config_utils.get_config_dir", return_value=tmp_path
+            ),
+            mock.patch(
+                "ai_guardian.config_writer.get_config_dir", return_value=tmp_path
+            ),
         ):
             from ai_guardian.web.config_helpers import save_web_config
 
@@ -328,10 +343,13 @@ class TestConfigLoadSavePhase3:
             assert data["test"] is True
 
     def test_save_config_pretty_prints(self, tmp_path):
-        with mock.patch(
-            "ai_guardian.config_utils.get_config_dir", return_value=tmp_path
-        ), mock.patch(
-            "ai_guardian.config_writer.get_config_dir", return_value=tmp_path
+        with (
+            mock.patch(
+                "ai_guardian.config_utils.get_config_dir", return_value=tmp_path
+            ),
+            mock.patch(
+                "ai_guardian.config_writer.get_config_dir", return_value=tmp_path
+            ),
         ):
             from ai_guardian.web.config_helpers import save_web_config
 

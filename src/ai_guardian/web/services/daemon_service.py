@@ -30,7 +30,6 @@ class DaemonService:
     def targets(self) -> List[DaemonTarget]:
         return self._targets
 
-
     def get_target_by_name(self, name: str) -> Optional[DaemonTarget]:
         for t in self._targets:
             if t.name == name:
@@ -76,7 +75,11 @@ class DaemonService:
     ) -> Optional[dict]:
         try:
             return self._client.get_violation_context(
-                target, file_path, line_number, violation_type, secret_type,
+                target,
+                file_path,
+                line_number,
+                violation_type,
+                secret_type,
             )
         except Exception:
             return None
@@ -101,8 +104,11 @@ class DaemonService:
     ) -> Optional[dict]:
         try:
             return self._client.get_audit(
-                target, since=since, until=until,
-                violation_type=violation_type, severity=severity,
+                target,
+                since=since,
+                until=until,
+                violation_type=violation_type,
+                severity=severity,
             )
         except Exception:
             return None
@@ -142,10 +148,9 @@ class DaemonService:
         try:
             if target.runtime == "local":
                 from ai_guardian.daemon.client import send_reload_config
+
                 return send_reload_config()
-            result = self._client._rest_request(
-                target, "POST", "/api/reload"
-            )
+            result = self._client._rest_request(target, "POST", "/api/reload")
             return result is not None
         except Exception:
             return False
@@ -182,7 +187,12 @@ class DaemonService:
     ) -> Optional[dict]:
         try:
             return self._client.write_config(
-                target, scope, section, key, value, project_dir,
+                target,
+                scope,
+                section,
+                key,
+                value,
+                project_dir,
             )
         except Exception:
             return None
@@ -196,7 +206,10 @@ class DaemonService:
     ) -> Optional[dict]:
         try:
             return self._client.delete_config_override(
-                target, section, key, project_dir,
+                target,
+                section,
+                key,
+                project_dir,
             )
         except Exception:
             return None

@@ -19,9 +19,9 @@ from ai_guardian import check_secrets_with_gitleaks
 class TestScannerEngineIntegration(unittest.TestCase):
     """Tests for scanner engine integration."""
 
-    @patch('ai_guardian.hook_processing.HAS_SCANNER_ENGINE', True)
-    @patch('ai_guardian.hook_processing.select_engine')
-    @patch('ai_guardian.hook_processing._load_secret_scanning_config')
+    @patch("ai_guardian.hook_processing.HAS_SCANNER_ENGINE", True)
+    @patch("ai_guardian.hook_processing.select_engine")
+    @patch("ai_guardian.hook_processing._load_secret_scanning_config")
     def test_scanner_not_found_warns(self, mock_load_config, mock_select_engine):
         """Test that missing scanner warns instead of blocking (Issue #343)."""
         # Mock configuration with leaktk
@@ -37,28 +37,34 @@ class TestScannerEngineIntegration(unittest.TestCase):
 
         # Should return warning (not blocking)
         has_secrets, error_msg = check_secrets_with_gitleaks(
-            "aws_key=AKIAIOSFODNN7EXAMPLE",
-            filename="test.txt"
+            "aws_key=AKIAIOSFODNN7EXAMPLE", filename="test.txt"
         )
 
         # Verify it warns but does NOT block
-        self.assertFalse(has_secrets, "Should NOT block when scanner not found (Issue #343)")
+        self.assertFalse(
+            has_secrets, "Should NOT block when scanner not found (Issue #343)"
+        )
         self.assertIsNotNone(error_msg, "Warning message should be returned")
         self.assertIn("WARNING", error_msg, "Should indicate warning")
-        self.assertIn("ai-guardian scanner install leaktk", error_msg, "Should suggest installing configured scanner")
+        self.assertIn(
+            "ai-guardian scanner install leaktk",
+            error_msg,
+            "Should suggest installing configured scanner",
+        )
         self.assertIn("you may leak secrets", error_msg, "Should warn about risk")
         # Issue #384: Context-aware message
-        self.assertIn("No secret scanning available", error_msg, "Should use context-aware title")
+        self.assertIn(
+            "No secret scanning available", error_msg, "Should use context-aware title"
+        )
         self.assertIn("['leaktk']", error_msg, "Should list tried engines")
 
-    @patch('ai_guardian.hook_processing.HAS_SCANNER_ENGINE', True)
-    @patch('ai_guardian.hook_processing.select_engine')
-    @patch('ai_guardian.hook_processing.select_all_engines')
-    @patch('ai_guardian.hook_processing.run_engine')
-    @patch('ai_guardian.hook_processing._load_secret_scanning_config')
+    @patch("ai_guardian.hook_processing.HAS_SCANNER_ENGINE", True)
+    @patch("ai_guardian.hook_processing.select_engine")
+    @patch("ai_guardian.hook_processing.select_all_engines")
+    @patch("ai_guardian.hook_processing.run_engine")
+    @patch("ai_guardian.hook_processing._load_secret_scanning_config")
     def test_scanner_engine_used_when_available(
-        self, mock_load_config, mock_run_single,
-        mock_select_all, mock_select_engine
+        self, mock_load_config, mock_run_single, mock_select_all, mock_select_engine
     ):
         """Test that configured scanner engine is used when available."""
         from ai_guardian.scanners.strategies import ScanResult
@@ -81,8 +87,7 @@ class TestScannerEngineIntegration(unittest.TestCase):
 
         # Run scan
         has_secrets, error_msg = check_secrets_with_gitleaks(
-            "clean content",
-            filename="test.txt"
+            "clean content", filename="test.txt"
         )
 
         # Verify select_all_engines was called (strategy framework + first-match prep)
@@ -92,8 +97,8 @@ class TestScannerEngineIntegration(unittest.TestCase):
         self.assertFalse(has_secrets)
         self.assertIsNone(error_msg)
 
-    @patch('ai_guardian.hook_processing.HAS_SCANNER_ENGINE', False)
-    @patch('ai_guardian.hook_processing.subprocess.run')
+    @patch("ai_guardian.hook_processing.HAS_SCANNER_ENGINE", False)
+    @patch("ai_guardian.hook_processing.subprocess.run")
     def test_legacy_fallback_when_scanner_engine_unavailable(self, mock_run):
         """Test that legacy gitleaks is used when scanner engine module unavailable."""
         # Mock gitleaks run (no secrets)
@@ -104,8 +109,7 @@ class TestScannerEngineIntegration(unittest.TestCase):
 
         # Run scan
         has_secrets, error_msg = check_secrets_with_gitleaks(
-            "clean content",
-            filename="test.txt"
+            "clean content", filename="test.txt"
         )
 
         # Verify gitleaks command was used (legacy fallback)
@@ -117,9 +121,9 @@ class TestScannerEngineIntegration(unittest.TestCase):
         self.assertFalse(has_secrets)
         self.assertIsNone(error_msg)
 
-    @patch('ai_guardian.hook_processing.HAS_SCANNER_ENGINE', True)
-    @patch('ai_guardian.hook_processing.select_engine')
-    @patch('ai_guardian.hook_processing._load_secret_scanning_config')
+    @patch("ai_guardian.hook_processing.HAS_SCANNER_ENGINE", True)
+    @patch("ai_guardian.hook_processing.select_engine")
+    @patch("ai_guardian.hook_processing._load_secret_scanning_config")
     def test_unexpected_error_fails_open(self, mock_load_config, mock_select_engine):
         """Test that unexpected errors fail open (allow operation)."""
         # Mock configuration
@@ -130,22 +134,20 @@ class TestScannerEngineIntegration(unittest.TestCase):
 
         # Should fail open
         has_secrets, error_msg = check_secrets_with_gitleaks(
-            "some content",
-            filename="test.txt"
+            "some content", filename="test.txt"
         )
 
         # Verify it fails open (allows operation)
         self.assertFalse(has_secrets, "Should fail open on unexpected errors")
         self.assertIsNone(error_msg)
 
-    @patch('ai_guardian.hook_processing.HAS_SCANNER_ENGINE', True)
-    @patch('ai_guardian.hook_processing.select_engine')
-    @patch('ai_guardian.hook_processing.select_all_engines')
-    @patch('ai_guardian.hook_processing.run_engine')
-    @patch('ai_guardian.hook_processing._load_secret_scanning_config')
+    @patch("ai_guardian.hook_processing.HAS_SCANNER_ENGINE", True)
+    @patch("ai_guardian.hook_processing.select_engine")
+    @patch("ai_guardian.hook_processing.select_all_engines")
+    @patch("ai_guardian.hook_processing.run_engine")
+    @patch("ai_guardian.hook_processing._load_secret_scanning_config")
     def test_gitleaks_exit_code_1_not_treated_as_success(
-        self, mock_load_config, mock_run_single,
-        mock_select_all, mock_select_engine
+        self, mock_load_config, mock_run_single, mock_select_all, mock_select_engine
     ):
         """Exit code 1 from gitleaks with findings must block (Issue #411).
 
@@ -167,28 +169,36 @@ class TestScannerEngineIntegration(unittest.TestCase):
         # Mock run_single_engine to return secrets found
         mock_run_single.return_value = ScanResult(
             has_secrets=True,
-            secrets=[SecretMatch(rule_id="generic-api-key", description="API Key",
-                                file="test.txt", line_number=1, engine="gitleaks")],
+            secrets=[
+                SecretMatch(
+                    rule_id="generic-api-key",
+                    description="API Key",
+                    file="test.txt",
+                    line_number=1,
+                    engine="gitleaks",
+                )
+            ],
             engine="gitleaks",
             scan_time_ms=10.0,
         )
 
         has_secrets, error_msg = check_secrets_with_gitleaks(
-            "AWS_ACCESS_KEY=AKIAIOSFODNN7TESTKEY",  # notsecret
-            filename="test.txt"
+            "AWS_ACCESS_KEY=AKIAIOSFODNN7TESTKEY", filename="test.txt"  # notsecret
         )
 
-        self.assertTrue(has_secrets, "Exit code 1 from gitleaks must mean secrets found, not success (Issue #411)")
+        self.assertTrue(
+            has_secrets,
+            "Exit code 1 from gitleaks must mean secrets found, not success (Issue #411)",
+        )
         self.assertIsNotNone(error_msg)
 
-    @patch('ai_guardian.hook_processing.HAS_SCANNER_ENGINE', True)
-    @patch('ai_guardian.hook_processing.select_engine')
-    @patch('ai_guardian.hook_processing.select_all_engines')
-    @patch('ai_guardian.hook_processing.run_engine')
-    @patch('ai_guardian.hook_processing._load_secret_scanning_config')
+    @patch("ai_guardian.hook_processing.HAS_SCANNER_ENGINE", True)
+    @patch("ai_guardian.hook_processing.select_engine")
+    @patch("ai_guardian.hook_processing.select_all_engines")
+    @patch("ai_guardian.hook_processing.run_engine")
+    @patch("ai_guardian.hook_processing._load_secret_scanning_config")
     def test_gitleaks_exit_code_42_blocks_operation(
-        self, mock_load_config, mock_run_single,
-        mock_select_all, mock_select_engine
+        self, mock_load_config, mock_run_single, mock_select_all, mock_select_engine
     ):
         """Exit code 42 (custom) from gitleaks must be treated as secrets found."""
         from ai_guardian.scanners.strategies import ScanResult, SecretMatch
@@ -205,30 +215,42 @@ class TestScannerEngineIntegration(unittest.TestCase):
         # Mock run_single_engine to return secrets found
         mock_run_single.return_value = ScanResult(
             has_secrets=True,
-            secrets=[SecretMatch(rule_id="aws-access-token", description="AWS Key",
-                                file="test.txt", line_number=1, engine="gitleaks")],
+            secrets=[
+                SecretMatch(
+                    rule_id="aws-access-token",
+                    description="AWS Key",
+                    file="test.txt",
+                    line_number=1,
+                    engine="gitleaks",
+                )
+            ],
             engine="gitleaks",
             scan_time_ms=10.0,
         )
 
         has_secrets, error_msg = check_secrets_with_gitleaks(
-            "AWS_ACCESS_KEY=AKIAIOSFODNN7TESTKEY",  # notsecret
-            filename="test.txt"
+            "AWS_ACCESS_KEY=AKIAIOSFODNN7TESTKEY", filename="test.txt"  # notsecret
         )
 
-        self.assertTrue(has_secrets, "Exit code 42 from gitleaks must block the operation")
+        self.assertTrue(
+            has_secrets, "Exit code 42 from gitleaks must block the operation"
+        )
         self.assertIsNotNone(error_msg)
         self.assertIn("Secret Detected", error_msg)
 
-    @patch('ai_guardian.hook_processing.HAS_SCANNER_ENGINE', True)
-    @patch('ai_guardian.hook_processing.select_engine')
-    @patch('ai_guardian.hook_processing.build_scanner_command')
-    @patch('ai_guardian.hook_processing.get_parser')
-    @patch('ai_guardian.hook_processing._load_secret_scanning_config')
-    @patch('ai_guardian.hook_processing.subprocess.run')
+    @patch("ai_guardian.hook_processing.HAS_SCANNER_ENGINE", True)
+    @patch("ai_guardian.hook_processing.select_engine")
+    @patch("ai_guardian.hook_processing.build_scanner_command")
+    @patch("ai_guardian.hook_processing.get_parser")
+    @patch("ai_guardian.hook_processing._load_secret_scanning_config")
+    @patch("ai_guardian.hook_processing.subprocess.run")
     def test_gitleaks_exit_code_0_allows_operation(
-        self, mock_run, mock_load_config, mock_get_parser,
-        mock_build_command, mock_select_engine
+        self,
+        mock_run,
+        mock_load_config,
+        mock_get_parser,
+        mock_build_command,
+        mock_select_engine,
     ):
         """Exit code 0 from gitleaks means no secrets found — allow operation."""
         mock_load_config.return_value = ({"engines": ["gitleaks"]}, None)
@@ -251,26 +273,24 @@ class TestScannerEngineIntegration(unittest.TestCase):
         mock_parser.parse.return_value = {
             "has_secrets": False,
             "findings": [],
-            "total_findings": 0
+            "total_findings": 0,
         }
         mock_get_parser.return_value = mock_parser
 
         has_secrets, error_msg = check_secrets_with_gitleaks(
-            "clean content without secrets",
-            filename="test.txt"
+            "clean content without secrets", filename="test.txt"
         )
 
         self.assertFalse(has_secrets, "Exit code 0 should allow the operation")
         self.assertIsNone(error_msg)
 
-    @patch('ai_guardian.hook_processing.HAS_SCANNER_ENGINE', True)
-    @patch('ai_guardian.hook_processing.select_engine')
-    @patch('ai_guardian.hook_processing.select_all_engines')
-    @patch('ai_guardian.hook_processing.run_engine')
-    @patch('ai_guardian.hook_processing._load_secret_scanning_config')
+    @patch("ai_guardian.hook_processing.HAS_SCANNER_ENGINE", True)
+    @patch("ai_guardian.hook_processing.select_engine")
+    @patch("ai_guardian.hook_processing.select_all_engines")
+    @patch("ai_guardian.hook_processing.run_engine")
+    @patch("ai_guardian.hook_processing._load_secret_scanning_config")
     def test_betterleaks_exit_code_1_not_treated_as_success(
-        self, mock_load_config, mock_run_single,
-        mock_select_all, mock_select_engine
+        self, mock_load_config, mock_run_single, mock_select_all, mock_select_engine
     ):
         """Exit code 1 from betterleaks with findings must block (Issue #411)."""
         from ai_guardian.scanners.strategies import ScanResult, SecretMatch
@@ -287,18 +307,27 @@ class TestScannerEngineIntegration(unittest.TestCase):
         # Mock run_single_engine to return secrets found
         mock_run_single.return_value = ScanResult(
             has_secrets=True,
-            secrets=[SecretMatch(rule_id="generic-api-key", description="Key",
-                                file="test.txt", line_number=1, engine="betterleaks")],
+            secrets=[
+                SecretMatch(
+                    rule_id="generic-api-key",
+                    description="Key",
+                    file="test.txt",
+                    line_number=1,
+                    engine="betterleaks",
+                )
+            ],
             engine="betterleaks",
             scan_time_ms=10.0,
         )
 
         has_secrets, error_msg = check_secrets_with_gitleaks(
-            "AWS_ACCESS_KEY=AKIAIOSFODNN7TESTKEY",  # notsecret
-            filename="test.txt"
+            "AWS_ACCESS_KEY=AKIAIOSFODNN7TESTKEY", filename="test.txt"  # notsecret
         )
 
-        self.assertTrue(has_secrets, "Exit code 1 from betterleaks must mean secrets found (Issue #411)")
+        self.assertTrue(
+            has_secrets,
+            "Exit code 1 from betterleaks must mean secrets found (Issue #411)",
+        )
         self.assertIsNotNone(error_msg)
 
 
@@ -310,23 +339,30 @@ class TestGuardClauseFallthrough(unittest.TestCase):
     subprocess path (not the multi-engine strategy framework).
     """
 
-    @patch('ai_guardian.hook_processing.HAS_SCANNER_ENGINE', True)
-    @patch('ai_guardian.hook_processing.HAS_PATTERN_SERVER', True)
-    @patch('ai_guardian.hook_processing.PatternServerClient')
-    @patch('ai_guardian.hook_processing._load_pattern_server_config')
-    @patch('ai_guardian.hook_processing.resolve_engine_config_path')
-    @patch('ai_guardian.hook_processing.select_engine')
-    @patch('ai_guardian.hook_processing.select_all_engines')
-    @patch('ai_guardian.hook_processing.run_engine')
-    @patch('ai_guardian.hook_processing.build_scanner_command')
-    @patch('ai_guardian.hook_processing.get_parser')
-    @patch('ai_guardian.hook_processing.subprocess.run')
-    @patch('ai_guardian.hook_processing._load_secret_scanning_config')
+    @patch("ai_guardian.hook_processing.HAS_SCANNER_ENGINE", True)
+    @patch("ai_guardian.hook_processing.HAS_PATTERN_SERVER", True)
+    @patch("ai_guardian.hook_processing.PatternServerClient")
+    @patch("ai_guardian.hook_processing._load_pattern_server_config")
+    @patch("ai_guardian.hook_processing.resolve_engine_config_path")
+    @patch("ai_guardian.hook_processing.select_engine")
+    @patch("ai_guardian.hook_processing.select_all_engines")
+    @patch("ai_guardian.hook_processing.run_engine")
+    @patch("ai_guardian.hook_processing.build_scanner_command")
+    @patch("ai_guardian.hook_processing.get_parser")
+    @patch("ai_guardian.hook_processing.subprocess.run")
+    @patch("ai_guardian.hook_processing._load_secret_scanning_config")
     def test_guard_clause_falls_through_to_gitleaks(
-        self, mock_load_config, mock_subprocess, mock_get_parser,
-        mock_build_cmd, mock_run_single,
-        mock_select_all, mock_select_engine, mock_resolve_config,
-        mock_pattern_config, mock_pattern_client_cls
+        self,
+        mock_load_config,
+        mock_subprocess,
+        mock_get_parser,
+        mock_build_cmd,
+        mock_run_single,
+        mock_select_all,
+        mock_select_engine,
+        mock_resolve_config,
+        mock_pattern_config,
+        mock_pattern_client_cls,
     ):
         """Guard clause (empty findings) must try remaining engines, not return immediately.
 
@@ -336,14 +372,20 @@ class TestGuardClauseFallthrough(unittest.TestCase):
         """
         from ai_guardian.scanners.strategies import ScanResult, SecretMatch
 
-        mock_pattern_config.return_value = {"url": "https://example.com/patterns", "version": "1.0"}
+        mock_pattern_config.return_value = {
+            "url": "https://example.com/patterns",
+            "version": "1.0",
+        }
         mock_client = MagicMock()
         mock_client.get_patterns_path.return_value = "/tmp/pattern_server.toml"
         mock_pattern_client_cls.return_value = mock_client
 
         mock_load_config.return_value = (
-            {"engines": ["betterleaks", "gitleaks"],
-             "execution_strategy": "first-match"}, None
+            {
+                "engines": ["betterleaks", "gitleaks"],
+                "execution_strategy": "first-match",
+            },
+            None,
         )
 
         mock_bl_engine = MagicMock()
@@ -369,55 +411,78 @@ class TestGuardClauseFallthrough(unittest.TestCase):
         )
 
         mock_parser = MagicMock()
-        mock_parser.parse.return_value = {"has_secrets": False, "findings": [], "total_findings": 0}
+        mock_parser.parse.return_value = {
+            "has_secrets": False,
+            "findings": [],
+            "total_findings": 0,
+        }
         mock_get_parser.return_value = mock_parser
 
         mock_run_single.return_value = ScanResult(
             has_secrets=True,
-            secrets=[SecretMatch(
-                rule_id="private-key", description="Private Key",
-                file="test.txt", line_number=1, engine="gitleaks"
-            )],
-            engine="gitleaks", scan_time_ms=15.0
+            secrets=[
+                SecretMatch(
+                    rule_id="private-key",
+                    description="Private Key",
+                    file="test.txt",
+                    line_number=1,
+                    engine="gitleaks",
+                )
+            ],
+            engine="gitleaks",
+            scan_time_ms=15.0,
         )
 
         has_secrets, error_msg = check_secrets_with_gitleaks(
             "-----BEGIN RSA PRIVATE KEY-----\nMIIE...\n-----END RSA PRIVATE KEY-----",
-            filename="test.txt"
+            filename="test.txt",
         )
 
-        self.assertTrue(has_secrets, "Gitleaks should catch the secret via guard clause fallthrough (Issue #538)")
+        self.assertTrue(
+            has_secrets,
+            "Gitleaks should catch the secret via guard clause fallthrough (Issue #538)",
+        )
         self.assertIn("Secret Detected", error_msg)
         self.assertIn("first-match fallthrough", error_msg)
         mock_run_single.assert_called()
 
-    @patch('ai_guardian.hook_processing.HAS_SCANNER_ENGINE', True)
-    @patch('ai_guardian.hook_processing.HAS_PATTERN_SERVER', True)
-    @patch('ai_guardian.hook_processing.PatternServerClient')
-    @patch('ai_guardian.hook_processing._load_pattern_server_config')
-    @patch('ai_guardian.hook_processing.resolve_engine_config_path')
-    @patch('ai_guardian.hook_processing.select_engine')
-    @patch('ai_guardian.hook_processing.select_all_engines')
-    @patch('ai_guardian.hook_processing.run_engine')
-    @patch('ai_guardian.hook_processing.build_scanner_command')
-    @patch('ai_guardian.hook_processing.get_parser')
-    @patch('ai_guardian.hook_processing.subprocess.run')
-    @patch('ai_guardian.hook_processing._load_secret_scanning_config')
+    @patch("ai_guardian.hook_processing.HAS_SCANNER_ENGINE", True)
+    @patch("ai_guardian.hook_processing.HAS_PATTERN_SERVER", True)
+    @patch("ai_guardian.hook_processing.PatternServerClient")
+    @patch("ai_guardian.hook_processing._load_pattern_server_config")
+    @patch("ai_guardian.hook_processing.resolve_engine_config_path")
+    @patch("ai_guardian.hook_processing.select_engine")
+    @patch("ai_guardian.hook_processing.select_all_engines")
+    @patch("ai_guardian.hook_processing.run_engine")
+    @patch("ai_guardian.hook_processing.build_scanner_command")
+    @patch("ai_guardian.hook_processing.get_parser")
+    @patch("ai_guardian.hook_processing.subprocess.run")
+    @patch("ai_guardian.hook_processing._load_secret_scanning_config")
     def test_guard_clause_returns_clean_when_no_remaining_engines(
-        self, mock_load_config, mock_subprocess, mock_get_parser,
-        mock_build_cmd, mock_run_single,
-        mock_select_all, mock_select_engine, mock_resolve_config,
-        mock_pattern_config, mock_pattern_client_cls
+        self,
+        mock_load_config,
+        mock_subprocess,
+        mock_get_parser,
+        mock_build_cmd,
+        mock_run_single,
+        mock_select_all,
+        mock_select_engine,
+        mock_resolve_config,
+        mock_pattern_config,
+        mock_pattern_client_cls,
     ):
         """Guard clause with single engine returns clean (no fallthrough possible)."""
-        mock_pattern_config.return_value = {"url": "https://example.com/patterns", "version": "1.0"}
+        mock_pattern_config.return_value = {
+            "url": "https://example.com/patterns",
+            "version": "1.0",
+        }
         mock_client = MagicMock()
         mock_client.get_patterns_path.return_value = "/tmp/pattern_server.toml"
         mock_pattern_client_cls.return_value = mock_client
 
         mock_load_config.return_value = (
-            {"engines": ["betterleaks"],
-             "execution_strategy": "first-match"}, None
+            {"engines": ["betterleaks"], "execution_strategy": "first-match"},
+            None,
         )
 
         mock_bl_engine = MagicMock()
@@ -438,30 +503,42 @@ class TestGuardClauseFallthrough(unittest.TestCase):
         )
 
         mock_parser = MagicMock()
-        mock_parser.parse.return_value = {"has_secrets": False, "findings": [], "total_findings": 0}
+        mock_parser.parse.return_value = {
+            "has_secrets": False,
+            "findings": [],
+            "total_findings": 0,
+        }
         mock_get_parser.return_value = mock_parser
 
         has_secrets, error_msg = check_secrets_with_gitleaks(
             "clean content", filename="test.txt"
         )
 
-        self.assertFalse(has_secrets, "Single engine with no findings should return clean")
+        self.assertFalse(
+            has_secrets, "Single engine with no findings should return clean"
+        )
         self.assertIsNone(error_msg)
         mock_run_single.assert_not_called()
 
-    @patch('ai_guardian.hook_processing.HAS_SCANNER_ENGINE', True)
-    @patch('ai_guardian.hook_processing._load_pattern_server_config')
-    @patch('ai_guardian.hook_processing.select_engine')
-    @patch('ai_guardian.hook_processing.select_all_engines')
-    @patch('ai_guardian.hook_processing.run_engine')
-    @patch('ai_guardian.hook_processing.build_scanner_command')
-    @patch('ai_guardian.hook_processing.get_parser')
-    @patch('ai_guardian.hook_processing.subprocess.run')
-    @patch('ai_guardian.hook_processing._load_secret_scanning_config')
+    @patch("ai_guardian.hook_processing.HAS_SCANNER_ENGINE", True)
+    @patch("ai_guardian.hook_processing._load_pattern_server_config")
+    @patch("ai_guardian.hook_processing.select_engine")
+    @patch("ai_guardian.hook_processing.select_all_engines")
+    @patch("ai_guardian.hook_processing.run_engine")
+    @patch("ai_guardian.hook_processing.build_scanner_command")
+    @patch("ai_guardian.hook_processing.get_parser")
+    @patch("ai_guardian.hook_processing.subprocess.run")
+    @patch("ai_guardian.hook_processing._load_secret_scanning_config")
     def test_fallthrough_uses_none_config_path(
-        self, mock_load_config, mock_subprocess, mock_get_parser,
-        mock_build_cmd, mock_run_single,
-        mock_select_all, mock_select_engine, mock_pattern_config
+        self,
+        mock_load_config,
+        mock_subprocess,
+        mock_get_parser,
+        mock_build_cmd,
+        mock_run_single,
+        mock_select_all,
+        mock_select_engine,
+        mock_pattern_config,
     ):
         """Fallthrough engines must use config_path=None (their own default rules).
 
@@ -473,8 +550,11 @@ class TestGuardClauseFallthrough(unittest.TestCase):
 
         mock_pattern_config.return_value = None
         mock_load_config.return_value = (
-            {"engines": ["betterleaks", "gitleaks"],
-             "execution_strategy": "first-match"}, None
+            {
+                "engines": ["betterleaks", "gitleaks"],
+                "execution_strategy": "first-match",
+            },
+            None,
         )
 
         mock_bl_engine = MagicMock()
@@ -495,33 +575,42 @@ class TestGuardClauseFallthrough(unittest.TestCase):
 
         config_paths_received = []
 
-        def tracking_run_single(engine_config, source_file, report_file, config_path=None):
+        def tracking_run_single(
+            engine_config, source_file, report_file, config_path=None
+        ):
             config_paths_received.append(config_path)
             if engine_config.type == "gitleaks":
                 return ScanResult(
                     has_secrets=True,
-                    secrets=[SecretMatch(
-                        rule_id="private-key", description="Private Key",
-                        file="test.txt", line_number=1, engine="gitleaks"
-                    )],
-                    engine="gitleaks", scan_time_ms=15.0
+                    secrets=[
+                        SecretMatch(
+                            rule_id="private-key",
+                            description="Private Key",
+                            file="test.txt",
+                            line_number=1,
+                            engine="gitleaks",
+                        )
+                    ],
+                    engine="gitleaks",
+                    scan_time_ms=15.0,
                 )
             return ScanResult(
-                has_secrets=False, secrets=[], engine="betterleaks",
-                scan_time_ms=10.0
+                has_secrets=False, secrets=[], engine="betterleaks", scan_time_ms=10.0
             )
 
         mock_run_single.side_effect = tracking_run_single
 
         has_secrets, error_msg = check_secrets_with_gitleaks(
             "-----BEGIN RSA PRIVATE KEY-----\nMIIE...\n-----END RSA PRIVATE KEY-----",
-            filename="test.txt"
+            filename="test.txt",
         )
 
         self.assertTrue(has_secrets)
         for cp in config_paths_received:
-            self.assertIsNone(cp, f"Engine received config_path={cp}, expected None (Issue #538)")
+            self.assertIsNone(
+                cp, f"Engine received config_path={cp}, expected None (Issue #538)"
+            )
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()

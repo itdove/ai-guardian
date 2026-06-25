@@ -59,7 +59,10 @@ def rescan_violation(
 
     handler = _SCAN_HANDLERS.get(violation_type)
     if handler is None:
-        return {"status": "not_found", "message": f"Unsupported violation type: {violation_type}"}
+        return {
+            "status": "not_found",
+            "message": f"Unsupported violation type: {violation_type}",
+        }
 
     return handler(content, file_path, line_number, sub_type, config)
 
@@ -67,6 +70,7 @@ def rescan_violation(
 def _load_config() -> Dict:
     try:
         from ai_guardian.config_loaders import _load_config_file
+
         cfg, _ = _load_config_file()
         return cfg or {}
     except Exception:
@@ -95,6 +99,7 @@ def _scan_secrets(content, file_path, line_number, sub_type, config):
         }
 
     from ai_guardian.hook_processing import _last_secret_matched_text
+
     matched = _last_secret_matched_text or ""
 
     if not matched and error_msg:
@@ -127,7 +132,9 @@ def _scan_pii(content, file_path, line_number, sub_type, config):
         pii_config["enabled"] = True
 
     has_pii, _redacted, redactions, _warning = _scan_for_pii(
-        content, pii_config, file_path=file_path,
+        content,
+        pii_config,
+        file_path=file_path,
     )
 
     if not has_pii or not redactions:
@@ -194,7 +201,10 @@ def _scan_context_poisoning(content, file_path, line_number, sub_type, config):
     try:
         from ai_guardian.context_poisoning import check_context_poisoning
     except ImportError:
-        return {"status": "not_found", "message": "Context poisoning scanner not available"}
+        return {
+            "status": "not_found",
+            "message": "Context poisoning scanner not available",
+        }
 
     should_block, error_msg, detected = check_context_poisoning(content, config)
     if not detected:

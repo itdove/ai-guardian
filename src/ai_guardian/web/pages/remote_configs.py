@@ -78,19 +78,15 @@ def create_remote_configs_page(service, daemon_name: str):
 
                     with ui.card().classes("w-full"):
                         ui.label("Remote URLs").classes("text-lg font-bold")
-                        ui.label(
-                            "Configuration sources fetched periodically."
-                        ).classes("text-xs text-grey-6")
+                        ui.label("Configuration sources fetched periodically.").classes(
+                            "text-xs text-grey-6"
+                        )
 
                         if urls:
                             for idx, entry in enumerate(urls):
-                                with ui.row().classes(
-                                    "items-center gap-2 w-full"
-                                ):
+                                with ui.row().classes("items-center gap-2 w-full"):
                                     ui.icon(
-                                        "link"
-                                        if entry["enabled"]
-                                        else "link_off"
+                                        "link" if entry["enabled"] else "link_off"
                                     ).classes(
                                         "text-green"
                                         if entry["enabled"]
@@ -105,28 +101,22 @@ def create_remote_configs_page(service, daemon_name: str):
                                             color="blue-grey",
                                         ).classes("text-xs")
 
-                                    sw = ui.switch(
-                                        "", value=entry["enabled"]
-                                    ).props("dense")
+                                    sw = ui.switch("", value=entry["enabled"]).props(
+                                        "dense"
+                                    )
 
                                     async def toggle_enabled(e, i=idx):
                                         cfg = await run.io_bound(load_web_config)
                                         sect = cfg.get("remote_configs", {})
                                         items = sect.get("urls", [])
                                         if i < len(items):
-                                            norm = _normalize_url_entry(
-                                                items[i]
-                                            )
+                                            norm = _normalize_url_entry(items[i])
                                             norm["enabled"] = e.value
                                             items[i] = norm
                                             sect["urls"] = items
                                             cfg["remote_configs"] = sect
-                                            await run.io_bound(
-                                                save_web_config, cfg
-                                            )
-                                            ui.notify(
-                                                "Updated", type="positive"
-                                            )
+                                            await run.io_bound(save_web_config, cfg)
+                                            ui.notify("Updated", type="positive")
 
                                     sw.on_value_change(toggle_enabled)
 
@@ -139,18 +129,15 @@ def create_remote_configs_page(service, daemon_name: str):
                                         )
                                         ui.notify(
                                             f"{msg}",
-                                            type=(
-                                                "positive" if ok
-                                                else "negative"
-                                            ),
+                                            type=("positive" if ok else "negative"),
                                         )
 
                                     ui.button(
                                         icon="speed",
                                         on_click=test_url,
-                                    ).props("flat dense size=sm").tooltip(
-                                        "Test connectivity"
-                                    )
+                                    ).props(
+                                        "flat dense size=sm"
+                                    ).tooltip("Test connectivity")
 
                                     async def remove_url(i=idx):
                                         cfg = await run.io_bound(load_web_config)
@@ -160,12 +147,8 @@ def create_remote_configs_page(service, daemon_name: str):
                                             items.pop(i)
                                             sect["urls"] = items
                                             cfg["remote_configs"] = sect
-                                            await run.io_bound(
-                                                save_web_config, cfg
-                                            )
-                                            ui.notify(
-                                                "Removed", type="positive"
-                                            )
+                                            await run.io_bound(save_web_config, cfg)
+                                            ui.notify("Removed", type="positive")
                                             await refresh()
 
                                     ui.button(
@@ -179,19 +162,21 @@ def create_remote_configs_page(service, daemon_name: str):
                             )
 
                         with ui.row().classes("items-center gap-2 mt-2"):
-                            url_input = ui.input(
-                                placeholder="https://example.com/config.json"
-                            ).props("dense outlined").classes("flex-grow")
-                            token_input = ui.input(
-                                placeholder="Token env var (optional)"
-                            ).props("dense outlined").classes("w-48")
+                            url_input = (
+                                ui.input(placeholder="https://example.com/config.json")
+                                .props("dense outlined")
+                                .classes("flex-grow")
+                            )
+                            token_input = (
+                                ui.input(placeholder="Token env var (optional)")
+                                .props("dense outlined")
+                                .classes("w-48")
+                            )
 
                             async def add_url():
                                 val = url_input.value.strip()
                                 if not val:
-                                    ui.notify(
-                                        "Enter a URL", type="negative"
-                                    )
+                                    ui.notify("Enter a URL", type="negative")
                                     return
                                 if not (
                                     val.startswith("http://")
@@ -222,9 +207,9 @@ def create_remote_configs_page(service, daemon_name: str):
                                 ui.notify(f"Added: {val}", type="positive")
                                 await refresh()
 
-                            ui.button(
-                                "Add", icon="add", on_click=add_url
-                            ).props("dense")
+                            ui.button("Add", icon="add", on_click=add_url).props(
+                                "dense"
+                            )
 
                     with ui.card().classes("w-full"):
                         ui.label("Cache Settings").classes("text-lg font-bold")
@@ -234,19 +219,27 @@ def create_remote_configs_page(service, daemon_name: str):
                         ).classes("text-xs text-grey-6")
 
                         with ui.row().classes("items-center gap-4"):
-                            refresh_input = ui.number(
-                                label="Refresh interval (hours)",
-                                value=rc.get("refresh_interval_hours", 12),
-                                min=1,
-                                max=168,
-                            ).props("dense outlined").classes("w-48")
+                            refresh_input = (
+                                ui.number(
+                                    label="Refresh interval (hours)",
+                                    value=rc.get("refresh_interval_hours", 12),
+                                    min=1,
+                                    max=168,
+                                )
+                                .props("dense outlined")
+                                .classes("w-48")
+                            )
 
-                            expire_input = ui.number(
-                                label="Expire after (hours)",
-                                value=rc.get("expire_after_hours", 168),
-                                min=1,
-                                max=720,
-                            ).props("dense outlined").classes("w-48")
+                            expire_input = (
+                                ui.number(
+                                    label="Expire after (hours)",
+                                    value=rc.get("expire_after_hours", 168),
+                                    min=1,
+                                    max=720,
+                                )
+                                .props("dense outlined")
+                                .classes("w-48")
+                            )
 
                             async def save_cache():
                                 cfg = await run.io_bound(load_web_config)
@@ -261,11 +254,10 @@ def create_remote_configs_page(service, daemon_name: str):
                                 )
                                 cfg["remote_configs"] = sect
                                 await run.io_bound(save_web_config, cfg)
-                                ui.notify("Cache settings saved",
-                                          type="positive")
+                                ui.notify("Cache settings saved", type="positive")
 
-                            ui.button(
-                                "Save", icon="save", on_click=save_cache
-                            ).props("dense")
+                            ui.button("Save", icon="save", on_click=save_cache).props(
+                                "dense"
+                            )
 
             ui.timer(0.1, refresh, once=True)

@@ -6,7 +6,6 @@ and ask_dialog headless shortcut.
 
 import json
 import os
-import tempfile
 from pathlib import Path
 from unittest.mock import patch, MagicMock
 
@@ -18,72 +17,86 @@ class TestGetPreferredUi:
 
     def test_default_is_auto(self):
         from ai_guardian.tui.display import get_preferred_ui
+
         with patch.dict(os.environ, {}, clear=False):
             os.environ.pop("AI_GUARDIAN_PREFERRED_UI", None)
             with patch("ai_guardian.config_utils.get_config_dir") as mock_dir:
                 mock_dir.return_value = Path("/nonexistent")
                 assert get_preferred_ui() == "auto"
 
-    @pytest.mark.parametrize("value", ["auto", "tkinter", "nicegui", "textual", "headless"])
+    @pytest.mark.parametrize(
+        "value", ["auto", "tkinter", "nicegui", "textual", "headless"]
+    )
     def test_env_var_valid_values(self, value):
         from ai_guardian.tui.display import get_preferred_ui
+
         with patch.dict(os.environ, {"AI_GUARDIAN_PREFERRED_UI": value}):
             assert get_preferred_ui() == value
 
     def test_env_var_case_insensitive(self):
         from ai_guardian.tui.display import get_preferred_ui
+
         with patch.dict(os.environ, {"AI_GUARDIAN_PREFERRED_UI": "HEADLESS"}):
             assert get_preferred_ui() == "headless"
 
     def test_env_var_invalid_falls_to_config(self, tmp_path):
         from ai_guardian.tui.display import get_preferred_ui
+
         config_path = tmp_path / "ai-guardian.json"
-        config_path.write_text(json.dumps({
-            "console": {"preferred_ui": "nicegui"}
-        }))
+        config_path.write_text(json.dumps({"console": {"preferred_ui": "nicegui"}}))
         with patch.dict(os.environ, {"AI_GUARDIAN_PREFERRED_UI": "invalid"}):
-            with patch("ai_guardian.config_utils.get_config_dir", return_value=tmp_path):
+            with patch(
+                "ai_guardian.config_utils.get_config_dir", return_value=tmp_path
+            ):
                 assert get_preferred_ui() == "nicegui"
 
     def test_reads_from_config_file(self, tmp_path):
         from ai_guardian.tui.display import get_preferred_ui
+
         config_path = tmp_path / "ai-guardian.json"
-        config_path.write_text(json.dumps({
-            "console": {"preferred_ui": "textual"}
-        }))
+        config_path.write_text(json.dumps({"console": {"preferred_ui": "textual"}}))
         with patch.dict(os.environ, {}, clear=False):
             os.environ.pop("AI_GUARDIAN_PREFERRED_UI", None)
-            with patch("ai_guardian.config_utils.get_config_dir", return_value=tmp_path):
+            with patch(
+                "ai_guardian.config_utils.get_config_dir", return_value=tmp_path
+            ):
                 assert get_preferred_ui() == "textual"
 
     def test_invalid_config_value_falls_to_auto(self, tmp_path):
         from ai_guardian.tui.display import get_preferred_ui
+
         config_path = tmp_path / "ai-guardian.json"
-        config_path.write_text(json.dumps({
-            "console": {"preferred_ui": "invalid_value"}
-        }))
+        config_path.write_text(
+            json.dumps({"console": {"preferred_ui": "invalid_value"}})
+        )
         with patch.dict(os.environ, {}, clear=False):
             os.environ.pop("AI_GUARDIAN_PREFERRED_UI", None)
-            with patch("ai_guardian.config_utils.get_config_dir", return_value=tmp_path):
+            with patch(
+                "ai_guardian.config_utils.get_config_dir", return_value=tmp_path
+            ):
                 assert get_preferred_ui() == "auto"
 
     def test_missing_console_section(self, tmp_path):
         from ai_guardian.tui.display import get_preferred_ui
+
         config_path = tmp_path / "ai-guardian.json"
         config_path.write_text(json.dumps({"secret_scanning": {}}))
         with patch.dict(os.environ, {}, clear=False):
             os.environ.pop("AI_GUARDIAN_PREFERRED_UI", None)
-            with patch("ai_guardian.config_utils.get_config_dir", return_value=tmp_path):
+            with patch(
+                "ai_guardian.config_utils.get_config_dir", return_value=tmp_path
+            ):
                 assert get_preferred_ui() == "auto"
 
     def test_env_var_overrides_config(self, tmp_path):
         from ai_guardian.tui.display import get_preferred_ui
+
         config_path = tmp_path / "ai-guardian.json"
-        config_path.write_text(json.dumps({
-            "console": {"preferred_ui": "nicegui"}
-        }))
+        config_path.write_text(json.dumps({"console": {"preferred_ui": "nicegui"}}))
         with patch.dict(os.environ, {"AI_GUARDIAN_PREFERRED_UI": "headless"}):
-            with patch("ai_guardian.config_utils.get_config_dir", return_value=tmp_path):
+            with patch(
+                "ai_guardian.config_utils.get_config_dir", return_value=tmp_path
+            ):
                 assert get_preferred_ui() == "headless"
 
 
@@ -92,8 +105,11 @@ class TestAskDialogHeadless:
 
     def test_headless_skips_daemon_and_subprocess(self):
         from ai_guardian.tui.ask_dialog import (
-            show_ask_dialog, AskViolationInfo, AskDecision,
+            show_ask_dialog,
+            AskViolationInfo,
+            AskDecision,
         )
+
         violation = AskViolationInfo(
             violation_type="secret_detected",
             summary="test",
@@ -103,7 +119,9 @@ class TestAskDialogHeadless:
         )
         with patch("ai_guardian.tui.display.get_preferred_ui", return_value="headless"):
             with patch("ai_guardian.tui.ask_dialog._show_via_daemon") as mock_daemon:
-                with patch("ai_guardian.tui.ask_dialog._show_via_subprocess") as mock_sub:
+                with patch(
+                    "ai_guardian.tui.ask_dialog._show_via_subprocess"
+                ) as mock_sub:
                     result = show_ask_dialog(violation, fallback_action="block")
                     mock_daemon.assert_not_called()
                     mock_sub.assert_not_called()
@@ -111,8 +129,11 @@ class TestAskDialogHeadless:
 
     def test_headless_warn_fallback(self):
         from ai_guardian.tui.ask_dialog import (
-            show_ask_dialog, AskViolationInfo, AskDecision,
+            show_ask_dialog,
+            AskViolationInfo,
+            AskDecision,
         )
+
         violation = AskViolationInfo(
             violation_type="secret_detected",
             summary="test",
@@ -126,8 +147,12 @@ class TestAskDialogHeadless:
 
     def test_auto_tries_daemon_first(self):
         from ai_guardian.tui.ask_dialog import (
-            show_ask_dialog, AskViolationInfo, AskResult, AskDecision,
+            show_ask_dialog,
+            AskViolationInfo,
+            AskResult,
+            AskDecision,
         )
+
         violation = AskViolationInfo(
             violation_type="secret_detected",
             summary="test",
@@ -137,7 +162,9 @@ class TestAskDialogHeadless:
         )
         mock_result = AskResult(decision=AskDecision.ALLOW_ONCE)
         with patch("ai_guardian.tui.display.get_preferred_ui", return_value="auto"):
-            with patch("ai_guardian.tui.ask_dialog._show_via_daemon", return_value=mock_result) as mock_daemon:
+            with patch(
+                "ai_guardian.tui.ask_dialog._show_via_daemon", return_value=mock_result
+            ) as mock_daemon:
                 result = show_ask_dialog(violation)
                 mock_daemon.assert_called_once()
                 assert result.decision == AskDecision.ALLOW_ONCE
@@ -156,13 +183,16 @@ class TestCliHandlerPreferredUi:
 
     def test_headless_skips_all_ui(self):
         from ai_guardian.cli_handlers import _handle_prompt_ask
-        args = self._make_args({
-            "violation_type": "secret_detected",
-            "summary": "test",
-            "matched_text": "***",
-            "config_section": "secret_scanning",
-            "error_message": "found",
-        })
+
+        args = self._make_args(
+            {
+                "violation_type": "secret_detected",
+                "summary": "test",
+                "matched_text": "***",
+                "config_section": "secret_scanning",
+                "error_message": "found",
+            }
+        )
         with patch("ai_guardian.tui.display.get_preferred_ui", return_value="headless"):
             with patch("ai_guardian.tui.display._tkinter_available") as mock_tk:
                 with patch("ai_guardian.tui.display._nicegui_available") as mock_ng:
@@ -174,35 +204,48 @@ class TestCliHandlerPreferredUi:
     def test_tkinter_preference_only_tries_tkinter(self):
         from ai_guardian.cli_handlers import _handle_prompt_ask
         from ai_guardian.tui.ask_dialog import AskResult, AskDecision
-        args = self._make_args({
-            "violation_type": "secret_detected",
-            "summary": "test",
-            "matched_text": "***",
-            "config_section": "secret_scanning",
-            "error_message": "found",
-        })
+
+        args = self._make_args(
+            {
+                "violation_type": "secret_detected",
+                "summary": "test",
+                "matched_text": "***",
+                "config_section": "secret_scanning",
+                "error_message": "found",
+            }
+        )
         mock_result = AskResult(decision=AskDecision.BLOCK)
         mock_dialog = MagicMock()
         mock_dialog.run.return_value = mock_result
         with patch("ai_guardian.tui.display.get_preferred_ui", return_value="tkinter"):
             with patch("ai_guardian.tui.display._tkinter_available", return_value=True):
-                with patch("ai_guardian.tui.ask_dialog._TkinterAskDialog", return_value=mock_dialog):
+                with patch(
+                    "ai_guardian.tui.ask_dialog._TkinterAskDialog",
+                    return_value=mock_dialog,
+                ):
                     with patch("ai_guardian.tui.display._nicegui_available") as mock_ng:
                         _handle_prompt_ask(args)
                         mock_ng.assert_not_called()
 
     def test_auto_cascade(self):
         from ai_guardian.cli_handlers import _handle_prompt_ask
-        args = self._make_args({
-            "violation_type": "secret_detected",
-            "summary": "test",
-            "matched_text": "***",
-            "config_section": "secret_scanning",
-            "error_message": "found",
-        })
+
+        args = self._make_args(
+            {
+                "violation_type": "secret_detected",
+                "summary": "test",
+                "matched_text": "***",
+                "config_section": "secret_scanning",
+                "error_message": "found",
+            }
+        )
         with patch("ai_guardian.tui.display.get_preferred_ui", return_value="auto"):
-            with patch("ai_guardian.tui.display._tkinter_available", return_value=False):
-                with patch("ai_guardian.tui.display._nicegui_available", return_value=False):
+            with patch(
+                "ai_guardian.tui.display._tkinter_available", return_value=False
+            ):
+                with patch(
+                    "ai_guardian.tui.display._nicegui_available", return_value=False
+                ):
                     result = _handle_prompt_ask(args)
                     assert result == 0
 
@@ -212,7 +255,10 @@ class TestTrayPromptPreferredUi:
 
     def test_headless_raises(self):
         from ai_guardian.tui.tray_prompt import TrayPromptApp
-        with patch("ai_guardian.tui.tray_prompt.get_preferred_ui", return_value="headless"):
+
+        with patch(
+            "ai_guardian.tui.tray_prompt.get_preferred_ui", return_value="headless"
+        ):
             app = TrayPromptApp([], "echo", "terminal")
             assert app.needs_terminal is False
             with pytest.raises(RuntimeError, match="headless"):
@@ -220,21 +266,32 @@ class TestTrayPromptPreferredUi:
 
     def test_needs_terminal_textual(self):
         from ai_guardian.tui.tray_prompt import TrayPromptApp
-        with patch("ai_guardian.tui.tray_prompt.get_preferred_ui", return_value="textual"):
+
+        with patch(
+            "ai_guardian.tui.tray_prompt.get_preferred_ui", return_value="textual"
+        ):
             app = TrayPromptApp([], "echo", "terminal")
             assert app.needs_terminal is True
 
     def test_needs_terminal_tkinter(self):
         from ai_guardian.tui.tray_prompt import TrayPromptApp
-        with patch("ai_guardian.tui.tray_prompt.get_preferred_ui", return_value="tkinter"):
+
+        with patch(
+            "ai_guardian.tui.tray_prompt.get_preferred_ui", return_value="tkinter"
+        ):
             app = TrayPromptApp([], "echo", "terminal")
             assert app.needs_terminal is False
 
     def test_needs_terminal_auto_fallback(self):
         from ai_guardian.tui.tray_prompt import TrayPromptApp
+
         with patch("ai_guardian.tui.tray_prompt.get_preferred_ui", return_value="auto"):
-            with patch("ai_guardian.tui.tray_prompt._tkinter_available", return_value=False):
-                with patch("ai_guardian.tui.tray_prompt._nicegui_available", return_value=False):
+            with patch(
+                "ai_guardian.tui.tray_prompt._tkinter_available", return_value=False
+            ):
+                with patch(
+                    "ai_guardian.tui.tray_prompt._nicegui_available", return_value=False
+                ):
                     app = TrayPromptApp([], "echo", "terminal")
                     assert app.needs_terminal is True
 
@@ -244,23 +301,30 @@ class TestConsoleSettingsPreferredUi:
 
     def test_load_default(self, tmp_path):
         from ai_guardian.tui.console_settings import load_preferred_ui
-        with patch("ai_guardian.tui.console_settings.get_config_dir", return_value=tmp_path):
+
+        with patch(
+            "ai_guardian.tui.console_settings.get_config_dir", return_value=tmp_path
+        ):
             assert load_preferred_ui() == "auto"
 
     def test_load_from_config(self, tmp_path):
         from ai_guardian.tui.console_settings import load_preferred_ui
+
         config_path = tmp_path / "ai-guardian.json"
-        config_path.write_text(json.dumps({
-            "console": {"preferred_ui": "headless"}
-        }))
-        with patch("ai_guardian.tui.console_settings.get_config_dir", return_value=tmp_path):
+        config_path.write_text(json.dumps({"console": {"preferred_ui": "headless"}}))
+        with patch(
+            "ai_guardian.tui.console_settings.get_config_dir", return_value=tmp_path
+        ):
             assert load_preferred_ui() == "headless"
 
     def test_save_creates_console_section(self, tmp_path):
         from ai_guardian.tui.console_settings import save_preferred_ui
+
         config_path = tmp_path / "ai-guardian.json"
         config_path.write_text(json.dumps({}))
-        with patch("ai_guardian.tui.console_settings.get_config_dir", return_value=tmp_path):
+        with patch(
+            "ai_guardian.tui.console_settings.get_config_dir", return_value=tmp_path
+        ):
             success, error = save_preferred_ui("nicegui")
             assert success is True
             config = json.loads(config_path.read_text())
@@ -268,12 +332,19 @@ class TestConsoleSettingsPreferredUi:
 
     def test_save_preserves_other_settings(self, tmp_path):
         from ai_guardian.tui.console_settings import save_preferred_ui
+
         config_path = tmp_path / "ai-guardian.json"
-        config_path.write_text(json.dumps({
-            "console": {"editor_theme": "dracula"},
-            "secret_scanning": {"enabled": True},
-        }))
-        with patch("ai_guardian.tui.console_settings.get_config_dir", return_value=tmp_path):
+        config_path.write_text(
+            json.dumps(
+                {
+                    "console": {"editor_theme": "dracula"},
+                    "secret_scanning": {"enabled": True},
+                }
+            )
+        )
+        with patch(
+            "ai_guardian.tui.console_settings.get_config_dir", return_value=tmp_path
+        ):
             success, _ = save_preferred_ui("textual")
             assert success is True
             config = json.loads(config_path.read_text())

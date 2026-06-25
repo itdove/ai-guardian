@@ -30,13 +30,12 @@ else:
     try:
         import tomli as tomllib
     except ImportError:
-        logging.error(
-            "tomli package required for Python < 3.11 but not available"
-        )
+        logging.error("tomli package required for Python < 3.11 but not available")
         tomllib = None
 
 try:
     import requests
+
     HAS_REQUESTS = True
 except ImportError:
     HAS_REQUESTS = False
@@ -47,6 +46,7 @@ logger = logging.getLogger(__name__)
 
 class InstallMethod(Enum):
     """Installation method types."""
+
     PACKAGE_MANAGER = "package_manager"
     DIRECT_DOWNLOAD = "direct_download"
     FROM_FILE = "from_file"
@@ -56,7 +56,15 @@ class ScannerInstaller:
     """Handles installation of scanner engines."""
 
     # Supported scanners
-    SUPPORTED_SCANNERS = ["gitleaks", "betterleaks", "leaktk", "trufflehog", "detect-secrets", "secretlint", "gitguardian"]
+    SUPPORTED_SCANNERS = [
+        "gitleaks",
+        "betterleaks",
+        "leaktk",
+        "trufflehog",
+        "detect-secrets",
+        "secretlint",
+        "gitguardian",
+    ]
 
     # License information for scanners
     SCANNER_LICENSES = {
@@ -71,7 +79,14 @@ class ScannerInstaller:
 
     # Scanners NOT available via Linux distro package managers (apt/dnf/yum).
     # These are Go/Rust/Node binaries distributed via GitHub releases only.
-    DOWNLOAD_ONLY_LINUX = {"gitleaks", "betterleaks", "leaktk", "trufflehog", "secretlint", "gitguardian"}
+    DOWNLOAD_ONLY_LINUX = {
+        "gitleaks",
+        "betterleaks",
+        "leaktk",
+        "trufflehog",
+        "secretlint",
+        "gitguardian",
+    }
 
     def __init__(self, install_dir: Optional[Path] = None):
         """
@@ -90,7 +105,9 @@ class ScannerInstaller:
             if local_app_data:
                 self.install_dir = Path(local_app_data) / "ai-guardian" / "bin"
             else:
-                self.install_dir = Path.home() / "AppData" / "Local" / "ai-guardian" / "bin"
+                self.install_dir = (
+                    Path.home() / "AppData" / "Local" / "ai-guardian" / "bin"
+                )
             self.install_dir.mkdir(parents=True, exist_ok=True)
         else:
             default_dir = Path("/usr/local/bin")
@@ -155,11 +172,15 @@ class ScannerInstaller:
                 try:
                     with open(pyproject_path, "rb") as f:
                         data = tomllib.load(f)
-                    config = data.get("tool", {}).get("ai-guardian", {}).get("scanners", {})
+                    config = (
+                        data.get("tool", {}).get("ai-guardian", {}).get("scanners", {})
+                    )
                     if config:
                         return config
                 except Exception as e:
-                    logger.warning(f"Failed to load scanner config from {pyproject_path}: {e}")
+                    logger.warning(
+                        f"Failed to load scanner config from {pyproject_path}: {e}"
+                    )
 
         logger.warning("pyproject.toml not found in any expected location")
         return {}
@@ -294,7 +315,11 @@ class ScannerInstaller:
                     logger.warning("pip/pip3 not found, cannot install detect-secrets")
                     return False
             # TruffleHog on macOS - use Homebrew with tap
-            elif scanner_name == "trufflehog" and system == "darwin" and shutil.which("brew"):
+            elif (
+                scanner_name == "trufflehog"
+                and system == "darwin"
+                and shutil.which("brew")
+            ):
                 logger.info(f"Installing {scanner_name} via Homebrew...")
                 result = subprocess.run(
                     ["brew", "install", "trufflesecurity/trufflehog/trufflehog"],
@@ -373,7 +398,9 @@ class ScannerInstaller:
             Contents of checksums file as string, or None if download fails
         """
         if not HAS_REQUESTS:
-            logger.warning("requests library not available, skipping checksum verification")
+            logger.warning(
+                "requests library not available, skipping checksum verification"
+            )
             return None
 
         # Different scanners have different checksums file naming conventions
@@ -385,9 +412,7 @@ class ScannerInstaller:
         else:
             checksums_filename = f"{scanner_name}_{version}_checksums.txt"
 
-        checksums_url = (
-            f"https://github.com/{repo}/releases/download/v{version}/{checksums_filename}"
-        )
+        checksums_url = f"https://github.com/{repo}/releases/download/v{version}/{checksums_filename}"
 
         try:
             logger.info(f"Downloading checksums from {checksums_url}")
@@ -432,7 +457,7 @@ class ScannerInstaller:
 
         # Parse checksums file and look for our hash
         # Format is typically: "<hash>  <filename>" or "<hash> <filename>"
-        checksums_lines = checksums_content.strip().split('\n')
+        checksums_lines = checksums_content.strip().split("\n")
         found = False
 
         for line in checksums_lines:
@@ -448,7 +473,7 @@ class ScannerInstaller:
             file_hash = parts[0].lower()
             file_name_part = parts[-1]  # Take last part as filename
             # Handle binary mode indicator (*filename) from sha256sum
-            if file_name_part.startswith('*'):
+            if file_name_part.startswith("*"):
                 file_name = file_name_part[1:]  # Strip asterisk
             else:
                 file_name = file_name_part
@@ -478,10 +503,13 @@ class ScannerInstaller:
         resolved_dir = str(extract_dir.resolve())
         for member in tar_ref.getmembers():
             member_path = (extract_dir / member.name).resolve()
-            if not str(member_path).startswith(resolved_dir + os.sep) and str(member_path) != resolved_dir:
+            if (
+                not str(member_path).startswith(resolved_dir + os.sep)
+                and str(member_path) != resolved_dir
+            ):
                 raise RuntimeError(f"Path traversal detected in archive: {member.name}")
         if sys.version_info >= (3, 12):
-            tar_ref.extractall(extract_dir, filter='data')
+            tar_ref.extractall(extract_dir, filter="data")
         else:
             tar_ref.extractall(extract_dir)
 
@@ -491,8 +519,13 @@ class ScannerInstaller:
         resolved_dir = str(extract_dir.resolve())
         for info in zip_ref.infolist():
             member_path = (extract_dir / info.filename).resolve()
-            if not str(member_path).startswith(resolved_dir + os.sep) and str(member_path) != resolved_dir:
-                raise RuntimeError(f"Path traversal detected in archive: {info.filename}")
+            if (
+                not str(member_path).startswith(resolved_dir + os.sep)
+                and str(member_path) != resolved_dir
+            ):
+                raise RuntimeError(
+                    f"Path traversal detected in archive: {info.filename}"
+                )
         zip_ref.extractall(extract_dir)
 
     def install_from_download(
@@ -528,7 +561,7 @@ class ScannerInstaller:
         version = version or self.get_latest_version(scanner_name)
 
         # Validate version format before using in URLs
-        if not re.match(r'^\d+\.\d+\.\d+$', version):
+        if not re.match(r"^\d+\.\d+\.\d+$", version):
             raise ValueError(f"Invalid version format: {version}")
 
         # Detect platform
@@ -584,12 +617,18 @@ class ScannerInstaller:
                 logger.info(f"Downloaded {archive_path.stat().st_size} bytes")
 
                 # Download and verify checksums
-                checksums_content = self._download_checksums(scanner_name, version, repo)
+                checksums_content = self._download_checksums(
+                    scanner_name, version, repo
+                )
                 if checksums_content:
                     self._verify_checksum(archive_path, checksums_content, filename)
-                    print(f"✓ Checksum verification passed for {scanner_name} {version}")
+                    print(
+                        f"✓ Checksum verification passed for {scanner_name} {version}"
+                    )
                 else:
-                    print(f"⚠ Checksum verification skipped - checksums file not available")
+                    print(
+                        "⚠ Checksum verification skipped - checksums file not available"
+                    )
                     logger.warning(
                         "Checksum verification skipped - checksums file not available"
                     )
@@ -683,16 +722,24 @@ class ScannerInstaller:
             print("⚠️  LICENSE NOTICE: TruffleHog")
             print("=" * 70)
             print()
-            print("TruffleHog is licensed under AGPL-3.0 (GNU Affero General Public License).")
+            print(
+                "TruffleHog is licensed under AGPL-3.0 (GNU Affero General Public License)."
+            )
             print()
-            print("AI Guardian uses TruffleHog as an EXTERNAL TOOL via subprocess execution,")
-            print("which does NOT create a derivative work or require AGPL compliance for")
+            print(
+                "AI Guardian uses TruffleHog as an EXTERNAL TOOL via subprocess execution,"
+            )
+            print(
+                "which does NOT create a derivative work or require AGPL compliance for"
+            )
             print("AI Guardian itself (similar to how Apache projects can invoke Git).")
             print()
             print("However, you should be aware of TruffleHog's license terms:")
             print("  - License: AGPL-3.0 (copyleft)")
             print("  - Repository: https://github.com/trufflesecurity/trufflehog")
-            print("  - License text: https://github.com/trufflesecurity/trufflehog/blob/main/LICENSE")
+            print(
+                "  - License text: https://github.com/trufflesecurity/trufflehog/blob/main/LICENSE"
+            )
             print()
             print("By proceeding with this installation, you acknowledge TruffleHog's")
             print("AGPL-3.0 license and agree to its terms.")
@@ -702,8 +749,12 @@ class ScannerInstaller:
 
             # Prompt for confirmation
             try:
-                response = input("Continue with TruffleHog installation? (y/N): ").strip().lower()
-                if response not in ['y', 'yes']:
+                response = (
+                    input("Continue with TruffleHog installation? (y/N): ")
+                    .strip()
+                    .lower()
+                )
+                if response not in ["y", "yes"]:
                     print("Installation cancelled.")
                     return False
             except (EOFError, KeyboardInterrupt):
@@ -715,15 +766,11 @@ class ScannerInstaller:
         if version:
             # Explicit version specified
             target_version = version
-            logger.info(
-                f"Installing {scanner_name} {version} (explicitly specified)"
-            )
+            logger.info(f"Installing {scanner_name} {version} (explicitly specified)")
         elif use_pinned:
             # Use pinned version from pyproject.toml
             target_version = self.get_pinned_version(scanner_name)
-            logger.info(
-                f"Installing {scanner_name} {target_version} (pinned version)"
-            )
+            logger.info(f"Installing {scanner_name} {target_version} (pinned version)")
         else:
             # Try to fetch latest from GitHub (with fallback to pinned)
             target_version = self.get_latest_version(scanner_name)
@@ -748,7 +795,9 @@ class ScannerInstaller:
                 binary_path = shutil.which(scanner_name)
                 if not binary_path:
                     binary_path = self.install_dir / self._get_binary_name(scanner_name)
-                print(f"✓ {scanner_name} {installed_version} is already installed (up-to-date)")
+                print(
+                    f"✓ {scanner_name} {installed_version} is already installed (up-to-date)"
+                )
                 print(f"  Path: {binary_path}")
                 print()
                 print("No action needed.")
@@ -758,7 +807,9 @@ class ScannerInstaller:
                 print(f"Current version: {installed_version}")
                 print(f"Latest version:  {target_version}")
                 print()
-                print(f"Upgrading {scanner_name} from {installed_version} to {target_version}...")
+                print(
+                    f"Upgrading {scanner_name} from {installed_version} to {target_version}..."
+                )
             elif comparison > 0 and not version:
                 # Installed version is newer, don't auto-downgrade
                 binary_path = shutil.which(scanner_name)
@@ -768,7 +819,9 @@ class ScannerInstaller:
                 print(f"  Path: {binary_path}")
                 print()
                 print(f"Latest version available: {target_version}")
-                print(f"To downgrade, use: ai-guardian scanner install {scanner_name} --version {target_version}")
+                print(
+                    f"To downgrade, use: ai-guardian scanner install {scanner_name} --version {target_version}"
+                )
                 return True
             else:
                 # Explicit version specified: allow downgrade/reinstall
@@ -784,20 +837,31 @@ class ScannerInstaller:
         # When the scanner is already installed, skip package manager
         # to avoid unnecessary sudo prompts on Linux.
         scanner_already_available = installed_version or shutil.which(scanner_name)
-        if (method is None or method == InstallMethod.PACKAGE_MANAGER) and not scanner_already_available:
+        if (
+            method is None or method == InstallMethod.PACKAGE_MANAGER
+        ) and not scanner_already_available:
             if self.install_via_package_manager(scanner_name):
                 # Verify installed version matches request
                 installed_version = self._get_installed_version(scanner_name)
-                if installed_version and self._compare_versions(installed_version, target_version) == 0:
+                if (
+                    installed_version
+                    and self._compare_versions(installed_version, target_version) == 0
+                ):
                     print(f"✓ Installed {scanner_name} via package manager")
                     return True
                 else:
                     # Version mismatch - package manager installed wrong version
                     if installed_version:
-                        print(f"⚠️  Package manager installed {scanner_name} {installed_version}, but {target_version} was requested")
+                        print(
+                            f"⚠️  Package manager installed {scanner_name} {installed_version}, but {target_version} was requested"
+                        )
                     else:
-                        print(f"⚠️  Package manager installation succeeded but version verification failed")
-                    print(f"Falling back to direct download for {scanner_name} {target_version}...")
+                        print(
+                            "⚠️  Package manager installation succeeded but version verification failed"
+                        )
+                    print(
+                        f"Falling back to direct download for {scanner_name} {target_version}..."
+                    )
                     # Fall through to direct download
 
         # Fallback to direct download with determined version
@@ -833,8 +897,8 @@ class ScannerInstaller:
         # gitleaks, betterleaks, leaktk, trufflehog: <binary> version
         # detect-secrets: <binary> --version
         version_commands = [
-            [binary_path, "version"],      # Try subcommand first
-            [binary_path, "--version"],    # Fallback to flag
+            [binary_path, "version"],  # Try subcommand first
+            [binary_path, "--version"],  # Fallback to flag
         ]
 
         # Try to get version
@@ -857,8 +921,9 @@ class ScannerInstaller:
 
                     # Extract version number
                     import re
+
                     # Match semantic version pattern
-                    match = re.search(r'v?(\d+\.\d+\.\d+)', output)
+                    match = re.search(r"v?(\d+\.\d+\.\d+)", output)
                     if match:
                         return match.group(1)
 
@@ -885,9 +950,10 @@ class ScannerInstaller:
              0 if version1 == version2
              1 if version1 > version2
         """
+
         # Parse version strings
         def parse_version(v: str) -> tuple:
-            parts = v.strip().lstrip('v').split('.')
+            parts = v.strip().lstrip("v").split(".")
             return tuple(int(p) for p in parts)
 
         try:
@@ -925,8 +991,8 @@ class ScannerInstaller:
 
         # Try both version command formats
         version_commands = [
-            [binary_path, "version"],      # Try subcommand first
-            [binary_path, "--version"],    # Fallback to flag
+            [binary_path, "version"],  # Try subcommand first
+            [binary_path, "--version"],  # Fallback to flag
         ]
 
         for cmd in version_commands:

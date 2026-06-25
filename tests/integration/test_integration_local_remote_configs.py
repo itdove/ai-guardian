@@ -5,10 +5,8 @@ Tests RemoteFetcher with mixed URL types and scenarios that simulate
 real-world usage patterns.
 """
 
-import json
 import sys
 import pytest
-from pathlib import Path
 
 from ai_guardian.remote_fetcher import RemoteFetcher
 
@@ -102,7 +100,9 @@ class TestRemoteFetcherIntegration:
         assert local_result2 is not None
         assert local_result2["source"] == "local"
 
-    @pytest.mark.skipif(sys.platform == "win32", reason="file:/// URL format differs on Windows")
+    @pytest.mark.skipif(
+        sys.platform == "win32", reason="file:/// URL format differs on Windows"
+    )
     def test_file_url_variations(self, tmp_path):
         """Test various file:// URL formats."""
         config = tmp_path / "config.toml"
@@ -176,7 +176,7 @@ class TestRemoteFetcherIntegration:
         assert result3 is not None
 
         # Failure (invalid content)
-        config.write_text('[invalid')
+        config.write_text("[invalid")
         result4 = fetcher.fetch_config(str(config))
         assert result4 is None
 
@@ -186,7 +186,9 @@ class TestRemoteFetcherIntegration:
         assert result5 is not None
         assert result5["test"] == "fixed"
 
-    @pytest.mark.skipif(sys.platform == "win32", reason="~ expansion uses USERPROFILE on Windows")
+    @pytest.mark.skipif(
+        sys.platform == "win32", reason="~ expansion uses USERPROFILE on Windows"
+    )
     def test_tilde_expansion_integration(self, tmp_path, monkeypatch):
         """Test tilde expansion in real scenarios."""
         # Mock HOME

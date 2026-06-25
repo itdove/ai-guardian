@@ -15,7 +15,6 @@ import os
 import re
 import urllib.request
 import urllib.error
-from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
@@ -50,6 +49,7 @@ def is_ml_available():
     try:
         import onnxruntime  # noqa: F401
         import tokenizers  # noqa: F401
+
         return True
     except ImportError:
         return False
@@ -61,6 +61,7 @@ def get_models_dir():
     Uses get_cache_dir() / 'models'. Creates directory if needed.
     """
     from ai_guardian.config_utils import get_cache_dir
+
     models_dir = get_cache_dir() / "models"
     models_dir.mkdir(parents=True, exist_ok=True)
     return models_dir
@@ -84,12 +85,14 @@ def list_registered_models():
         downloaded = model_path.exists() and all(
             (model_path / fname).exists() for fname in info["files"]
         )
-        results.append({
-            "name": name,
-            "description": info.get("description", ""),
-            "downloaded": downloaded,
-            "path": str(model_path) if downloaded else None,
-        })
+        results.append(
+            {
+                "name": name,
+                "description": info.get("description", ""),
+                "downloaded": downloaded,
+                "path": str(model_path) if downloaded else None,
+            }
+        )
     return results
 
 
@@ -134,9 +137,7 @@ def download_model(model_name=DEFAULT_MODEL, force=False):
         except Exception as e:
             if dest_file.exists():
                 dest_file.unlink()
-            raise RuntimeError(
-                f"Failed to download {local_name}: {e}"
-            ) from e
+            raise RuntimeError(f"Failed to download {local_name}: {e}") from e
 
     manifest = {
         "model_name": model_name,
@@ -204,12 +205,15 @@ def verify_model(model_name=DEFAULT_MODEL):
     dest = _model_dir(model_name)
 
     if not dest.exists():
-        return False, f"Model not downloaded. Run: ai-guardian ml download"
+        return False, "Model not downloaded. Run: ai-guardian ml download"
 
     for local_name in info["files"]:
         fpath = dest / local_name
         if not fpath.exists():
-            return False, f"Missing file: {local_name}. Run: ai-guardian ml download --force"
+            return (
+                False,
+                f"Missing file: {local_name}. Run: ai-guardian ml download --force",
+            )
 
     manifest_path = dest / "manifest.json"
     if manifest_path.exists():
@@ -269,8 +273,7 @@ class MLEngine:
 
         if not onnx_path.exists():
             raise FileNotFoundError(
-                f"Model not found at {onnx_path}. "
-                f"Run: ai-guardian ml download"
+                f"Model not found at {onnx_path}. " f"Run: ai-guardian ml download"
             )
         if not tokenizer_path.exists():
             raise FileNotFoundError(
@@ -357,8 +360,7 @@ class MLEngineManager:
     (first-match, any-match, consensus).
     """
 
-    def __init__(self, engines_config, strategy="any-match",
-                 consensus_threshold=2):
+    def __init__(self, engines_config, strategy="any-match", consensus_threshold=2):
         """Initialize engine manager.
 
         Args:
@@ -430,14 +432,16 @@ class MLEngineManager:
                     f"Engine {engine.engine_type}/{engine.model_name} "
                     f"prediction failed: {e}"
                 )
-                results.append({
-                    "is_injection": False,
-                    "confidence": 0.0,
-                    "label": "ERROR",
-                    "model": engine.model_name,
-                    "engine_type": engine.engine_type,
-                    "error": str(e),
-                })
+                results.append(
+                    {
+                        "is_injection": False,
+                        "confidence": 0.0,
+                        "label": "ERROR",
+                        "model": engine.model_name,
+                        "engine_type": engine.engine_type,
+                        "error": str(e),
+                    }
+                )
 
         is_injection, confidence = self._apply_strategy(results)
 
@@ -478,9 +482,7 @@ class MLEngineManager:
             return False, max(r["confidence"] for r in valid_results)
 
         elif self.strategy == "consensus":
-            injection_count = sum(
-                1 for r in valid_results if r["is_injection"]
-            )
+            injection_count = sum(1 for r in valid_results if r["is_injection"])
             threshold = min(self.consensus_threshold, len(valid_results))
             is_injection = injection_count >= threshold
             if is_injection:

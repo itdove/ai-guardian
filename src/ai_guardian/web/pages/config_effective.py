@@ -1,7 +1,5 @@
 """Effective Config page — merged configuration with per-key provenance."""
 
-import json
-
 from nicegui import run, ui
 
 from ai_guardian.web.components.header import create_header, create_sidebar
@@ -22,6 +20,7 @@ def _load_effective_data(project_dir=None):
             load_scoped_config,
             compute_detailed_provenance,
         )
+
         merged = load_scoped_config("merged", project_dir)
         provenance = compute_detailed_provenance(project_dir)
         project = load_scoped_config("project", project_dir)
@@ -45,6 +44,7 @@ def _inject_generated_rules(merged, provenance):
             DirectoryRuleGenerator,
             insert_generated_rules,
         )
+
         generator = DirectoryRuleGenerator(merged)
         generated_rules = generator.generate_directory_rules()
         if not generated_rules:
@@ -58,7 +58,9 @@ def _inject_generated_rules(merged, provenance):
                 for rule in generated_rules:
                     rules_prov.append({"value": rule, "source": "generated"})
             else:
-                dir_prov["rules"] = [{"value": r, "source": "generated"} for r in generated_rules]
+                dir_prov["rules"] = [
+                    {"value": r, "source": "generated"} for r in generated_rules
+                ]
     except Exception:
         pass
 
@@ -85,6 +87,7 @@ def _resolve_project_root(working_dir):
         return None
     try:
         from ai_guardian.gitleaks_config import find_project_root
+
         root = find_project_root(working_dir)
         return str(root) if root else working_dir
     except Exception:
@@ -108,7 +111,9 @@ def _provenance_label(source: str) -> str:
     return "Global"
 
 
-def _render_tree(config: dict, provenance: dict, parent_element, diff_only: bool = False):
+def _render_tree(
+    config: dict, provenance: dict, parent_element, diff_only: bool = False
+):
     """Recursively render config tree with provenance badges."""
     for key in sorted(config.keys()):
         if key.startswith("_"):
@@ -149,12 +154,10 @@ def _render_tree(config: dict, provenance: dict, parent_element, diff_only: bool
                         for item in value:
                             with inner:
                                 with ui.row().classes("items-center gap-2"):
-                                    ui.label(f"- {item}").classes(
-                                        "text-sm font-mono"
+                                    ui.label(f"- {item}").classes("text-sm font-mono")
+                                    ui.badge(label, color=color).props("dense").classes(
+                                        "text-xs"
                                     )
-                                    ui.badge(
-                                        label, color=color
-                                    ).props("dense").classes("text-xs")
         else:
             src = prov if isinstance(prov, str) else "global"
             if diff_only and src != "project":
@@ -184,6 +187,7 @@ def _shorten_path(path: str) -> str:
     """Shorten a path for display in the selector."""
     try:
         from ai_guardian.daemon.working_dir import shorten_path
+
         return shorten_path(path)
     except Exception:
         return path
@@ -194,9 +198,7 @@ def create_config_effective_page(service, daemon_name: str):
     create_header(daemon_name)
 
     with ui.row().classes("w-full min-h-screen no-wrap"):
-        create_sidebar(
-            daemon_name, current=f"/{daemon_name}/config-effective"
-        )
+        create_sidebar(daemon_name, current=f"/{daemon_name}/config-effective")
 
         with ui.column().classes("flex-grow p-6 gap-4"):
             ui.label("Effective Configuration").classes("text-2xl font-bold")
@@ -206,20 +208,24 @@ def create_config_effective_page(service, daemon_name: str):
             ).classes("text-xs text-grey-6")
 
             with ui.row().classes("items-center gap-4"):
-                project_select = ui.select(
-                    {"": "Global only (no project)"},
-                    value="",
-                    label="Project",
-                ).props("dense outlined").classes("min-w-[300px]")
+                project_select = (
+                    ui.select(
+                        {"": "Global only (no project)"},
+                        value="",
+                        label="Project",
+                    )
+                    .props("dense outlined")
+                    .classes("min-w-[300px]")
+                )
 
                 view_toggle = ui.toggle(
                     {False: "Show All", True: "Overrides Only"},
                     value=False,
                 ).props("dense")
 
-                ui.button(
-                    icon="refresh", on_click=lambda: refresh()
-                ).props("dense flat round").tooltip("Refresh")
+                ui.button(icon="refresh", on_click=lambda: refresh()).props(
+                    "dense flat round"
+                ).tooltip("Refresh")
 
             content = ui.column().classes("w-full gap-1")
 
@@ -247,9 +253,7 @@ def create_config_effective_page(service, daemon_name: str):
                 with content:
                     if error:
                         with ui.card().classes("w-full"):
-                            ui.label("Error").classes(
-                                "text-lg font-bold text-red"
-                            )
+                            ui.label("Error").classes("text-lg font-bold text-red")
                             ui.label(error).classes("text-sm text-red")
                         return
 

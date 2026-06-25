@@ -5,13 +5,13 @@ Fetches engine configuration from a remote URL for centralized management.
 Supports config versioning, auto-updates on TTL expiry, and merge strategies.
 """
 
-import json
 import logging
 import os
 from typing import Optional, Dict, Any, List
 
 try:
     from ai_guardian.remote_fetcher import RemoteFetcher
+
     HAS_REMOTE_FETCHER = True
 except ImportError:
     HAS_REMOTE_FETCHER = False

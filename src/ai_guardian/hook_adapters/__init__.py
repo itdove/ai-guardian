@@ -27,15 +27,15 @@ logger = logging.getLogger(__name__)
 # Ordered by detection specificity: most unique fields first.
 # Claude Code is last because it is the default fallback.
 ADAPTER_CLASSES = [
-    ClineAdapter,        # clineVersion field
-    GeminiCLIAdapter,    # transcript_path field
-    WindsurfAdapter,     # agent_action_name field
-    CopilotAdapter,      # toolName field or timestamp+cwd
-    CursorAdapter,       # cursor_version or hook_name
-    KiroAdapter,         # kiro_hook_type or kiro_version
-    AugmentAdapter,      # is_mcp_tool + tool_name
-    OpenCodeAdapter,     # opencode_version or hook_source
-    ClaudeCodeAdapter,   # PascalCase hook_event_name (fallback)
+    ClineAdapter,  # clineVersion field
+    GeminiCLIAdapter,  # transcript_path field
+    WindsurfAdapter,  # agent_action_name field
+    CopilotAdapter,  # toolName field or timestamp+cwd
+    CursorAdapter,  # cursor_version or hook_name
+    KiroAdapter,  # kiro_hook_type or kiro_version
+    AugmentAdapter,  # is_mcp_tool + tool_name
+    OpenCodeAdapter,  # opencode_version or hook_source
+    ClaudeCodeAdapter,  # PascalCase hook_event_name (fallback)
 ]
 
 # Env var value → adapter class (includes aliases like "copilot" → CopilotAdapter)
@@ -73,7 +73,11 @@ def detect_adapter(hook_data: Dict) -> HookAdapter:
     ide_override = os.environ.get("AI_GUARDIAN_IDE_TYPE", "").lower()
     if ide_override and ide_override in _ENV_ALIAS_MAP:
         adapter = _ENV_ALIAS_MAP[ide_override]()
-        logger.debug("Adapter selected via AI_GUARDIAN_IDE_TYPE=%s: %s", ide_override, adapter.name)
+        logger.debug(
+            "Adapter selected via AI_GUARDIAN_IDE_TYPE=%s: %s",
+            ide_override,
+            adapter.name,
+        )
         return adapter
 
     # 3. Auto-detect from hook data structure

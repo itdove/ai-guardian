@@ -50,7 +50,8 @@ class TestDaemonServiceStatus:
     def test_get_all_daemon_status(self, service, mock_target):
         service._targets = [mock_target]
         service._client.get_status.return_value = {
-            "request_count": 42, "blocked_count": 3
+            "request_count": 42,
+            "blocked_count": 3,
         }
         result = service.get_all_daemon_status()
         assert len(result) == 1
@@ -82,7 +83,8 @@ class TestDaemonServiceConfig:
 class TestDaemonServiceViolations:
     def test_get_daemon_violations(self, service, mock_target):
         service._client.get_violations.return_value = {
-            "violations": [{"type": "secret_detected"}], "count": 1
+            "violations": [{"type": "secret_detected"}],
+            "count": 1,
         }
         result = service.get_daemon_violations(mock_target, limit=10)
         assert result["count"] == 1
@@ -91,12 +93,8 @@ class TestDaemonServiceViolations:
         )
 
     def test_get_daemon_violations_with_type(self, service, mock_target):
-        service._client.get_violations.return_value = {
-            "violations": [], "count": 0
-        }
-        service.get_daemon_violations(
-            mock_target, violation_type="pii_detected"
-        )
+        service._client.get_violations.return_value = {"violations": [], "count": 0}
+        service.get_daemon_violations(mock_target, violation_type="pii_detected")
         service._client.get_violations.assert_called_once_with(
             mock_target, limit=50, violation_type="pii_detected"
         )
@@ -110,13 +108,12 @@ class TestDaemonServiceViolations:
 class TestDaemonServiceMetrics:
     def test_get_daemon_metrics(self, service, mock_target):
         service._client.get_metrics.return_value = {
-            "total_violations": 10, "by_type": {}
+            "total_violations": 10,
+            "by_type": {},
         }
         result = service.get_daemon_metrics(mock_target, since_days=7)
         assert result["total_violations"] == 10
-        service._client.get_metrics.assert_called_once_with(
-            mock_target, since_days=7
-        )
+        service._client.get_metrics.assert_called_once_with(mock_target, since_days=7)
 
     def test_get_daemon_metrics_handles_error(self, service, mock_target):
         service._client.get_metrics.side_effect = Exception("fail")

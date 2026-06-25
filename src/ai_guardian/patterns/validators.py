@@ -13,7 +13,7 @@ import math
 import re
 import sys
 from collections import Counter
-from typing import Callable, Dict, List, Optional, Tuple, Union
+from typing import Callable, Dict, List, Optional, Tuple
 
 if sys.version_info >= (3, 11):
     import tomllib
@@ -37,8 +37,7 @@ def shannon_entropy(text: str) -> float:
     length = len(text)
     counts = Counter(text)
     return -sum(
-        (count / length) * math.log2(count / length)
-        for count in counts.values()
+        (count / length) * math.log2(count / length) for count in counts.values()
     )
 
 
@@ -75,32 +74,66 @@ def iban_check(iban_str: str) -> bool:
     Returns:
         True if the IBAN passes mod-97 validation
     """
-    iban = iban_str.replace(' ', '').upper()
+    iban = iban_str.replace(" ", "").upper()
     if len(iban) < 15 or len(iban) > 34:
         return False
     rearranged = iban[4:] + iban[:4]
-    numeric = ''
+    numeric = ""
     for ch in rearranged:
         if ch.isdigit():
             numeric += ch
         elif ch.isalpha():
-            numeric += str(ord(ch) - ord('A') + 10)
+            numeric += str(ord(ch) - ord("A") + 10)
         else:
             return False
     return int(numeric) % 97 == 1
 
 
 VALID_CC_PREFIXES = (
-    '4',
-    '51', '52', '53', '54', '55',
-    '2221', '2222', '2223', '2224', '2225', '2226', '2227', '2228', '2229',
-    '223', '224', '225', '226', '227', '228', '229',
-    '23', '24', '25', '26',
-    '270', '271', '2720',
-    '34', '37',
-    '6011', '65', '644', '645', '646', '647', '648', '649',
-    '35',
-    '30', '36', '38', '39',
+    "4",
+    "51",
+    "52",
+    "53",
+    "54",
+    "55",
+    "2221",
+    "2222",
+    "2223",
+    "2224",
+    "2225",
+    "2226",
+    "2227",
+    "2228",
+    "2229",
+    "223",
+    "224",
+    "225",
+    "226",
+    "227",
+    "228",
+    "229",
+    "23",
+    "24",
+    "25",
+    "26",
+    "270",
+    "271",
+    "2720",
+    "34",
+    "37",
+    "6011",
+    "65",
+    "644",
+    "645",
+    "646",
+    "647",
+    "648",
+    "649",
+    "35",
+    "30",
+    "36",
+    "38",
+    "39",
 )
 
 
@@ -113,7 +146,7 @@ def credit_card_check(number_str: str) -> bool:
     Returns:
         True if passes both Luhn checksum AND has a valid card network prefix
     """
-    digits_only = re.sub(r'[- ]', '', number_str)
+    digits_only = re.sub(r"[- ]", "", number_str)
     if not luhn_check(digits_only):
         return False
     if not digits_only.startswith(VALID_CC_PREFIXES):
@@ -130,10 +163,10 @@ def aadhaar_check(number_str: str) -> bool:
     Returns:
         True if the number looks like a plausible Aadhaar number
     """
-    digits = re.sub(r'[- ]', '', number_str)
+    digits = re.sub(r"[- ]", "", number_str)
     if len(digits) != 12 or not digits.isdigit():
         return False
-    if digits[0] in ('0', '1'):
+    if digits[0] in ("0", "1"):
         return False
     if len(set(digits)) == 1:
         return False
@@ -142,32 +175,37 @@ def aadhaar_check(number_str: str) -> bool:
 
 def _is_file_path(value: str) -> bool:
     """Check if a value looks like a filesystem path."""
-    if value.startswith('/') and '/' in value[1:]:
-        return _has_path_like_segments(value.split('/'))
-    if len(value) >= 3 and value[0].isalpha() and value[1] == ':' and value[2] in ('/', '\\'):
-        rest = value[2:].replace('\\', '/')
-        return _has_path_like_segments(rest.split('/'))
-    if value.startswith('./') or value.startswith('../'):
-        return _has_path_like_segments(value.split('/'))
+    if value.startswith("/") and "/" in value[1:]:
+        return _has_path_like_segments(value.split("/"))
+    if (
+        len(value) >= 3
+        and value[0].isalpha()
+        and value[1] == ":"
+        and value[2] in ("/", "\\")
+    ):
+        rest = value[2:].replace("\\", "/")
+        return _has_path_like_segments(rest.split("/"))
+    if value.startswith("./") or value.startswith("../"):
+        return _has_path_like_segments(value.split("/"))
     return False
 
 
 def _has_path_like_segments(parts: list) -> bool:
     """Check if split path segments look like directory/file names, not base64."""
     for p in parts:
-        if p == '' or p in ('.', '..'):
+        if p == "" or p in (".", ".."):
             continue
-        if not all(c.isalnum() or c in '-_.' for c in p):
+        if not all(c.isalnum() or c in "-_." for c in p):
             return False
     return True
 
 
 _PLACEHOLDER_RE = re.compile(
-    r'^(?:'
-    r'(?:your|my|example|replace|insert|enter|put|test|fake|dummy|sample|placeholder|changeme)[-_]'
-    r'|'
-    r'.*[-_](?:here|placeholder|example|changeme)$'
-    r')',
+    r"^(?:"
+    r"(?:your|my|example|replace|insert|enter|put|test|fake|dummy|sample|placeholder|changeme)[-_]"
+    r"|"
+    r".*[-_](?:here|placeholder|example|changeme)$"
+    r")",
     re.IGNORECASE,
 )
 
@@ -178,8 +216,8 @@ def _is_placeholder(value: str) -> bool:
 
 
 _CONTAINER_IMAGE_RE = re.compile(
-    r'^(?:localhost|[\w.-]+\.(?:io|com|net|org|dev|cloud|local))'
-    r'/[\w./-]+(?::[\w./-]+)?$',
+    r"^(?:localhost|[\w.-]+\.(?:io|com|net|org|dev|cloud|local))"
+    r"/[\w./-]+(?::[\w./-]+)?$",
 )
 
 
@@ -193,13 +231,13 @@ def env_not_file_path(matched_text: str) -> bool:
     starts with underscore (Python identifier), looks like a placeholder,
     or is a container image reference.
     """
-    eq_pos = matched_text.find('=')
+    eq_pos = matched_text.find("=")
     if eq_pos < 0:
         return True
-    value = matched_text[eq_pos + 1:].strip().strip("'\"")
+    value = matched_text[eq_pos + 1 :].strip().strip("'\"")
     if not value:
         return True
-    if value.startswith('_'):
+    if value.startswith("_"):
         return False
     if _is_placeholder(value):
         return False
@@ -209,19 +247,19 @@ def env_not_file_path(matched_text: str) -> bool:
 
 
 _BRACKET_PLACEHOLDER_RE = re.compile(
-    r'^\[(?:HIDDEN|REDACTED|PASSWORD|MASKED|REMOVED|SECRET|CENSORED)\]$',
+    r"^\[(?:HIDDEN|REDACTED|PASSWORD|MASKED|REMOVED|SECRET|CENSORED)\]$",
     re.IGNORECASE,
 )
 
 _ANGLE_PLACEHOLDER_RE = re.compile(
-    r'^<[a-z0-9_-]+>$',
+    r"^<[a-z0-9_-]+>$",
     re.IGNORECASE,
 )
 
-_REPEATED_CHAR_RE = re.compile(r'^(.)\1{5,}$')
+_REPEATED_CHAR_RE = re.compile(r"^(.)\1{5,}$")
 
 _CONNECTION_URI_RE = re.compile(
-    r'(?:mongodb|mysql|postgres(?:ql)?|redis)://[^:]*:([^@]+)@',
+    r"(?:mongodb|mysql|postgres(?:ql)?|redis)://[^:]*:([^@]+)@",
     re.IGNORECASE,
 )
 
@@ -249,14 +287,14 @@ def connection_not_placeholder(matched_text: str) -> bool:
 
 
 _TOKEN_PREFIX_RE = re.compile(
-    r'^(?:sk-(?:proj-|ant-)?|gh[pors]_|glpat-|xox[baprs]-|sq0csp-|r8_)',
+    r"^(?:sk-(?:proj-|ant-)?|gh[pors]_|glpat-|xox[baprs]-|sq0csp-|r8_)",
 )
 
-_REPEATED_CHAR_TOKEN_RE = re.compile(r'^(.)\1{7,}$')
+_REPEATED_CHAR_TOKEN_RE = re.compile(r"^(.)\1{7,}$")
 
-_ALL_CAPS_UNDERSCORES_RE = re.compile(r'^[A-Z0-9]+(?:_[A-Z0-9]+)+$')
+_ALL_CAPS_UNDERSCORES_RE = re.compile(r"^[A-Z0-9]+(?:_[A-Z0-9]+)+$")
 
-_TEMPLATE_SYNTAX_RE = re.compile(r'<[^>]+>|\$\{[^}]+\}|\{\{[^}]+\}\}')
+_TEMPLATE_SYNTAX_RE = re.compile(r"<[^>]+>|\$\{[^}]+\}|\{\{[^}]+\}\}")
 
 
 def _is_token_placeholder(body: str) -> bool:
@@ -279,7 +317,7 @@ def token_not_placeholder(matched_text: str) -> bool:
     m = _TOKEN_PREFIX_RE.match(matched_text)
     if not m:
         return True
-    body = matched_text[m.end():]
+    body = matched_text[m.end() :]
     if _is_token_placeholder(body):
         return False
     return True
@@ -317,7 +355,8 @@ def load_stopwords(config: Optional[Dict] = None) -> List[str]:
         user_stopwords = config.get("stopwords", [])
         if user_stopwords:
             extra = [
-                w.lower() for w in user_stopwords
+                w.lower()
+                for w in user_stopwords
                 if isinstance(w, str) and len(w) >= MIN_STOPWORD_LENGTH
             ]
             existing = set(stopwords)

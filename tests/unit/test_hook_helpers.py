@@ -1,7 +1,7 @@
 """Tests for extracted hook_processing helper functions."""
+
 from unittest.mock import MagicMock
 
-import pytest
 
 from ai_guardian.hook_processing import (
     _build_secret_detected_message,
@@ -10,10 +10,10 @@ from ai_guardian.hook_processing import (
 )
 from ai_guardian.constants import ViolationType
 
-
 # ---------------------------------------------------------------------------
 # _build_secret_detected_message
 # ---------------------------------------------------------------------------
+
 
 class TestBuildSecretDetectedMessage:
 
@@ -40,7 +40,9 @@ class TestBuildSecretDetectedMessage:
 
     def test_custom_protection_label(self):
         msg = _build_secret_detected_message(
-            "gitleaks", self.SAMPLE_DETAILS, "Built-in gitleaks rules",
+            "gitleaks",
+            self.SAMPLE_DETAILS,
+            "Built-in gitleaks rules",
             protection_label="Secret Scanning (any-match strategy)",
         )
         assert "Protection: Secret Scanning (any-match strategy)" in msg
@@ -65,7 +67,8 @@ class TestBuildSecretDetectedMessage:
 
     def test_pattern_description_passthrough(self):
         msg = _build_secret_detected_message(
-            "betterleaks", self.SAMPLE_DETAILS,
+            "betterleaks",
+            self.SAMPLE_DETAILS,
             "LeakTK Pattern Server (https://patterns.example.com)",
         )
         assert "Patterns: LeakTK Pattern Server (https://patterns.example.com)" in msg
@@ -80,6 +83,7 @@ class TestBuildSecretDetectedMessage:
 # _log_pii_violation
 # ---------------------------------------------------------------------------
 
+
 class TestLogPiiViolation:
 
     SAMPLE_REDACTIONS = [
@@ -91,8 +95,13 @@ class TestLogPiiViolation:
     def test_returns_action_and_types(self):
         pii_config = {"action": "warn"}
         action, types = _log_pii_violation(
-            None, pii_config, self.SAMPLE_REDACTIONS,
-            "Write", "PostToolUse", "/tmp/test.py", "some text",
+            None,
+            pii_config,
+            self.SAMPLE_REDACTIONS,
+            "Write",
+            "PostToolUse",
+            "/tmp/test.py",
+            "some text",
             HookEvent.POST_TOOL_USE,
         )
         assert action == "warn"
@@ -100,8 +109,13 @@ class TestLogPiiViolation:
 
     def test_default_action_is_block(self):
         action, _ = _log_pii_violation(
-            None, {}, self.SAMPLE_REDACTIONS,
-            "Write", "PostToolUse", "/tmp/test.py", "text",
+            None,
+            {},
+            self.SAMPLE_REDACTIONS,
+            "Write",
+            "PostToolUse",
+            "/tmp/test.py",
+            "text",
             HookEvent.POST_TOOL_USE,
         )
         assert action == "block"
@@ -109,8 +123,13 @@ class TestLogPiiViolation:
     def test_calls_violation_logger(self):
         mock_logger = MagicMock()
         _log_pii_violation(
-            mock_logger, {"action": "block"}, self.SAMPLE_REDACTIONS,
-            "Write", "PostToolUse", "/tmp/test.py", "line1\nline2\nline3",
+            mock_logger,
+            {"action": "block"},
+            self.SAMPLE_REDACTIONS,
+            "Write",
+            "PostToolUse",
+            "/tmp/test.py",
+            "line1\nline2\nline3",
             HookEvent.POST_TOOL_USE,
             hook_tool_use_id="tu-123",
             hook_session_id="sess-456",
@@ -131,8 +150,13 @@ class TestLogPiiViolation:
 
     def test_no_logger_does_not_raise(self):
         action, types = _log_pii_violation(
-            None, {"action": "redact"}, self.SAMPLE_REDACTIONS,
-            "Read", "PreToolUse", None, None,
+            None,
+            {"action": "redact"},
+            self.SAMPLE_REDACTIONS,
+            "Read",
+            "PreToolUse",
+            None,
+            None,
             HookEvent.PRE_TOOL_USE,
         )
         assert action == "redact"
@@ -140,8 +164,13 @@ class TestLogPiiViolation:
     def test_bash_command_included(self):
         mock_logger = MagicMock()
         _log_pii_violation(
-            mock_logger, {"action": "block"}, self.SAMPLE_REDACTIONS,
-            "Bash", "PostToolUse", None, "output",
+            mock_logger,
+            {"action": "block"},
+            self.SAMPLE_REDACTIONS,
+            "Bash",
+            "PostToolUse",
+            None,
+            "output",
             HookEvent.POST_TOOL_USE,
             bash_command="cat /etc/passwd",
         )
@@ -152,8 +181,13 @@ class TestLogPiiViolation:
         mock_logger = MagicMock()
         pretool = {"file_path": "/some/file.py"}
         _log_pii_violation(
-            mock_logger, {"action": "block"}, self.SAMPLE_REDACTIONS,
-            "Write", "PostToolUse", None, "text",
+            mock_logger,
+            {"action": "block"},
+            self.SAMPLE_REDACTIONS,
+            "Write",
+            "PostToolUse",
+            None,
+            "text",
             HookEvent.POST_TOOL_USE,
             pretool_ctx=pretool,
         )
@@ -163,8 +197,13 @@ class TestLogPiiViolation:
     def test_line_number_from_first_redaction(self):
         mock_logger = MagicMock()
         _log_pii_violation(
-            mock_logger, {"action": "block"}, self.SAMPLE_REDACTIONS,
-            "Write", "PostToolUse", "/f.py", "text",
+            mock_logger,
+            {"action": "block"},
+            self.SAMPLE_REDACTIONS,
+            "Write",
+            "PostToolUse",
+            "/f.py",
+            "text",
             HookEvent.POST_TOOL_USE,
         )
         blocked = mock_logger.log_violation.call_args[1]["blocked"]

@@ -7,7 +7,6 @@ import json
 import os
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from unittest.mock import patch
 
 import pytest
 
@@ -416,10 +415,23 @@ class TestFormatCsv:
 
 
 class TestMetricsCommand:
-    def _make_args(self, json_flag=False, csv_flag=False, since="30d", type=None,
-                   reset=False, metrics_yes=False):
-        return argparse.Namespace(json=json_flag, csv=csv_flag, since=since,
-                                  type=type, reset=reset, metrics_yes=metrics_yes)
+    def _make_args(
+        self,
+        json_flag=False,
+        csv_flag=False,
+        since="30d",
+        type=None,
+        reset=False,
+        metrics_yes=False,
+    ):
+        return argparse.Namespace(
+            json=json_flag,
+            csv=csv_flag,
+            since=since,
+            type=type,
+            reset=reset,
+            metrics_yes=metrics_yes,
+        )
 
     def test_default_output(self, _isolate_config_dir, capsys):
         state_dir = os.environ["AI_GUARDIAN_STATE_DIR"]
@@ -448,10 +460,13 @@ class TestMetricsCommand:
 
     def test_since_filter(self, _isolate_config_dir, capsys):
         state_dir = os.environ["AI_GUARDIAN_STATE_DIR"]
-        _write_violations(state_dir, [
-            _make_violation(timestamp=_now_iso()),
-            _make_violation(timestamp=_days_ago_iso(60)),
-        ])
+        _write_violations(
+            state_dir,
+            [
+                _make_violation(timestamp=_now_iso()),
+                _make_violation(timestamp=_days_ago_iso(60)),
+            ],
+        )
         result = metrics_command(self._make_args(since="7d", json_flag=True))
         assert result == 0
         captured = capsys.readouterr()
@@ -460,11 +475,16 @@ class TestMetricsCommand:
 
     def test_type_filter(self, _isolate_config_dir, capsys):
         state_dir = os.environ["AI_GUARDIAN_STATE_DIR"]
-        _write_violations(state_dir, [
-            _make_violation(violation_type="tool_permission"),
-            _make_violation(violation_type="secret_detected"),
-        ])
-        result = metrics_command(self._make_args(type="secret_detected", json_flag=True))
+        _write_violations(
+            state_dir,
+            [
+                _make_violation(violation_type="tool_permission"),
+                _make_violation(violation_type="secret_detected"),
+            ],
+        )
+        result = metrics_command(
+            self._make_args(type="secret_detected", json_flag=True)
+        )
         assert result == 0
         captured = capsys.readouterr()
         data = json.loads(captured.out)
@@ -484,11 +504,14 @@ class TestMetricsCommand:
 
     def test_reset_with_yes(self, _isolate_config_dir, capsys):
         state_dir = os.environ["AI_GUARDIAN_STATE_DIR"]
-        _write_violations(state_dir, [
-            _make_violation(violation_type="secret_detected"),
-            _make_violation(violation_type="secret_detected"),
-            _make_violation(violation_type="tool_permission"),
-        ])
+        _write_violations(
+            state_dir,
+            [
+                _make_violation(violation_type="secret_detected"),
+                _make_violation(violation_type="secret_detected"),
+                _make_violation(violation_type="tool_permission"),
+            ],
+        )
         counter_path = Path(state_dir) / "violation_counters.json"
         counter = ViolationCounter(counter_path=counter_path)
         for _ in range(50):
@@ -572,12 +595,16 @@ class TestMetricsAuditRouting:
     """Test that metrics_command routes to audit for --html/--until/--severity."""
 
     def _make_args(self, html=False, until=None, severity=None, **kwargs):
-        defaults = dict(json=False, csv=False, since="30d", type=None,
-                        reset=False, metrics_yes=False)
-        defaults.update(kwargs)
-        return argparse.Namespace(
-            html=html, until=until, severity=severity, **defaults
+        defaults = dict(
+            json=False,
+            csv=False,
+            since="30d",
+            type=None,
+            reset=False,
+            metrics_yes=False,
         )
+        defaults.update(kwargs)
+        return argparse.Namespace(html=html, until=until, severity=severity, **defaults)
 
     def test_html_routes_to_audit(self, _isolate_config_dir, capsys):
         state_dir = os.environ["AI_GUARDIAN_STATE_DIR"]
@@ -589,10 +616,13 @@ class TestMetricsAuditRouting:
 
     def test_severity_routes_to_audit(self, _isolate_config_dir, capsys):
         state_dir = os.environ["AI_GUARDIAN_STATE_DIR"]
-        _write_violations(state_dir, [
-            _make_violation(severity="warning"),
-            _make_violation(severity="critical"),
-        ])
+        _write_violations(
+            state_dir,
+            [
+                _make_violation(severity="warning"),
+                _make_violation(severity="critical"),
+            ],
+        )
         result = metrics_command(self._make_args(severity="critical", json=True))
         assert result == 0
         captured = capsys.readouterr()

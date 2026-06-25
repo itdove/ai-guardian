@@ -1,12 +1,9 @@
 """Tests for Junie (JetBrains) MCP-only support (Issue #637)."""
 
-import json
 import os
 import tempfile
 from pathlib import Path
-from unittest import mock
 
-import pytest
 
 from ai_guardian.setup import (
     IDESetup,
@@ -171,8 +168,6 @@ class TestJunieCLI:
 
     def test_junie_in_cli_choices(self):
         """'junie' is a valid --ide choice."""
-        from ai_guardian.cli import main
-        import argparse
 
         # Verify by checking IDE_CONFIGS which is used for validation
         assert "junie" in IDESetup.IDE_CONFIGS
@@ -184,9 +179,11 @@ class TestJunieConfigScanner:
     def test_junie_guidelines_in_default_config_files(self):
         """Junie guidelines.md is scanned for config file threats."""
         from ai_guardian.config_scanner import ConfigFileScanner
+
         assert ".junie/guidelines.md" in ConfigFileScanner.DEFAULT_CONFIG_FILES
 
     def test_junie_guidelines_in_scanner_patterns(self):
         """Junie guidelines.md is in scanner CONFIG_FILE_PATTERNS."""
         from ai_guardian.scanner import CONFIG_FILE_PATTERNS
+
         assert ".junie/guidelines.md" in CONFIG_FILE_PATTERNS

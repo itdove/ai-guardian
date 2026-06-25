@@ -36,21 +36,18 @@ UI_TOOLKIT_DESCRIPTIONS = {
 }
 
 
-
 def create_console_settings_page(service, daemon_name: str):
     """Create the Console Settings page."""
     create_header(daemon_name)
 
     with ui.row().classes("w-full min-h-screen no-wrap"):
-        create_sidebar(
-            daemon_name, current=f"/{daemon_name}/console-settings"
-        )
+        create_sidebar(daemon_name, current=f"/{daemon_name}/console-settings")
 
         with ui.column().classes("flex-grow p-6 gap-4"):
             ui.label("Console Settings").classes("text-2xl font-bold")
-            ui.label(
-                "Configure console display preferences."
-            ).classes("text-xs text-grey-6")
+            ui.label("Configure console display preferences.").classes(
+                "text-xs text-grey-6"
+            )
 
             content = ui.column().classes("w-full gap-4")
 
@@ -61,13 +58,12 @@ def create_console_settings_page(service, daemon_name: str):
                 with content:
                     with ui.card().classes("w-full"):
                         ui.label("Editor Theme").classes("text-lg font-bold")
-                        ui.label(
-                            "Theme used for JSON editors in the console."
-                        ).classes("text-xs text-grey-6")
+                        ui.label("Theme used for JSON editors in the console.").classes(
+                            "text-xs text-grey-6"
+                        )
 
-                        current = (
-                            config.get("console", {})
-                            .get("editor_theme", "monokai")
+                        current = config.get("console", {}).get(
+                            "editor_theme", "monokai"
                         )
                         theme_sel = ui.select(
                             options=EDITOR_THEMES,
@@ -79,9 +75,7 @@ def create_console_settings_page(service, daemon_name: str):
                         ).classes("text-sm text-grey-4 mt-1")
 
                         async def save_theme(e):
-                            desc_label.text = THEME_DESCRIPTIONS.get(
-                                e.value, ""
-                            )
+                            desc_label.text = THEME_DESCRIPTIONS.get(e.value, "")
                             cfg = await run.io_bound(load_web_config)
                             console = cfg.get("console", {})
                             if not isinstance(console, dict):
@@ -97,18 +91,15 @@ def create_console_settings_page(service, daemon_name: str):
                         theme_sel.on_value_change(save_theme)
 
                     with ui.card().classes("w-full"):
-                        ui.label("Preferred UI Toolkit").classes(
-                            "text-lg font-bold"
-                        )
+                        ui.label("Preferred UI Toolkit").classes("text-lg font-bold")
                         ui.label(
                             "UI toolkit for interactive dialogs (tray-prompt, "
                             "ask-prompt). Override with env var "
                             "AI_GUARDIAN_PREFERRED_UI."
                         ).classes("text-xs text-grey-6")
 
-                        ui_current = (
-                            config.get("console", {})
-                            .get("preferred_ui", "auto")
+                        ui_current = config.get("console", {}).get(
+                            "preferred_ui", "auto"
                         )
                         ui_sel = ui.select(
                             options=UI_TOOLKITS,

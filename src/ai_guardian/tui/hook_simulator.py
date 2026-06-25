@@ -9,7 +9,6 @@ violations.
 import json
 import logging
 import os
-import sys
 import tempfile
 from io import StringIO
 from unittest.mock import patch as mock_patch
@@ -17,7 +16,6 @@ from unittest.mock import patch as mock_patch
 from textual.app import ComposeResult
 from textual.containers import Container, Horizontal, Vertical, ScrollableContainer
 from textual.widgets import Static, Input, Button, Select, TextArea
-
 
 HOOK_EVENTS = [
     ("UserPromptSubmit", "UserPromptSubmit"),
@@ -312,8 +310,10 @@ class HookSimulatorContent(ScrollableContainer):
         self._update_field_visibility("UserPromptSubmit")
         for widget_id in (
             "#sim-input-section",
-            "#sim-results-section", "#sim-redacted-section",
-            "#sim-tool-section", "#sim-filepath-section",
+            "#sim-results-section",
+            "#sim-redacted-section",
+            "#sim-tool-section",
+            "#sim-filepath-section",
         ):
             w = self.query_one(widget_id)
             w.styles.height = "auto"
@@ -402,9 +402,11 @@ class HookSimulatorContent(ScrollableContainer):
             devnull = StringIO()
 
             with mock_patch.dict(os.environ, env_overrides):
-                with mock_patch("sys.stdin", StringIO(stdin_data)), \
-                     mock_patch("sys.stderr", devnull), \
-                     mock_patch("sys.stdout", devnull):
+                with (
+                    mock_patch("sys.stdin", StringIO(stdin_data)),
+                    mock_patch("sys.stderr", devnull),
+                    mock_patch("sys.stdout", devnull),
+                ):
                     logging.disable(logging.CRITICAL)
                     try:
                         result = ai_guardian.process_hook_input()
@@ -428,9 +430,7 @@ class HookSimulatorContent(ScrollableContainer):
         if parsed["decision"] == "BLOCKED":
             decision_widget.update("[red bold]BLOCKED[/red bold]")
         elif parsed["decision"] == "ALLOWED WITH WARNING":
-            decision_widget.update(
-                "[#d4aa00 bold]ALLOWED WITH WARNING[/#d4aa00 bold]"
-            )
+            decision_widget.update("[#d4aa00 bold]ALLOWED WITH WARNING[/#d4aa00 bold]")
         else:
             decision_widget.update("[green bold]ALLOWED[/green bold]")
 
@@ -461,9 +461,7 @@ class HookSimulatorContent(ScrollableContainer):
         w.display = True
         w.styles.height = "auto"
 
-        self.query_one("#sim-decision", Static).update(
-            "[red bold]ERROR[/red bold]"
-        )
+        self.query_one("#sim-decision", Static).update("[red bold]ERROR[/red bold]")
         self.query_one("#sim-details", Static).update(message)
 
     def _clear_results(self):

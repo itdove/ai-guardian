@@ -13,9 +13,7 @@ def create_daemon_picker_page(service):
 
     with ui.column().classes("w-full p-8 items-center gap-6"):
         ui.label("AI Guardian Web Console").classes("text-3xl font-bold")
-        ui.label("Select a daemon to view its dashboard").classes(
-            "text-grey-6"
-        )
+        ui.label("Select a daemon to view its dashboard").classes("text-grey-6")
 
         cards = ui.row().classes("gap-4 flex-wrap justify-center")
 
@@ -39,10 +37,9 @@ def create_daemon_picker_page(service):
                     t = entry["target"]
                     s = entry["status"]
                     daemon_card(
-                        t, s,
-                        on_click=lambda _t=t: ui.navigate.to(
-                            f"/{_t.name}"
-                        ),
+                        t,
+                        s,
+                        on_click=lambda _t=t: ui.navigate.to(f"/{_t.name}"),
                     )
 
         ui.timer(10.0, refresh)

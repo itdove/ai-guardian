@@ -1,7 +1,5 @@
 """Tests for TomlPatternsScanner — Scanner SDK engine."""
 
-import pytest
-
 from ai_guardian.patterns.validators import shannon_entropy
 from ai_guardian.scanners.sdk import Scanner, Finding
 from ai_guardian.scanners.toml_patterns import TomlPatternsScanner
@@ -26,7 +24,9 @@ class TestTomlPatternsScanner:
 
     def test_scan_returns_finding_objects(self):
         scanner = TomlPatternsScanner()
-        findings = scanner.scan("Token: ghp_abcdefghijklmnopqrstuvwxyz0123456789")  # notsecret
+        findings = scanner.scan(
+            "Token: ghp_abcdefghijklmnopqrstuvwxyz0123456789"
+        )  # notsecret
         for f in findings:
             assert isinstance(f, Finding)
             assert f.rule_id
@@ -37,7 +37,11 @@ class TestTomlPatternsScanner:
     def test_scan_no_match(self):
         scanner = TomlPatternsScanner()
         findings = scanner.scan("Nothing sensitive here at all.")
-        secret_findings = [f for f in findings if f.rule_id.startswith("openai") or f.rule_id.startswith("github")]
+        secret_findings = [
+            f
+            for f in findings
+            if f.rule_id.startswith("openai") or f.rule_id.startswith("github")
+        ]
         assert len(secret_findings) == 0
 
     def test_scan_empty_content(self):
@@ -51,11 +55,17 @@ class TestTomlPatternsScanner:
     def test_configure_additional_patterns(self):
         scanner = TomlPatternsScanner()
         initial_count = scanner._cache.rule_count
-        scanner.configure({
-            "additional_patterns": [
-                {"id": "custom-1", "match_type": "regex", "regex": "custom-secret-[0-9]+"}
-            ]
-        })
+        scanner.configure(
+            {
+                "additional_patterns": [
+                    {
+                        "id": "custom-1",
+                        "match_type": "regex",
+                        "regex": "custom-secret-[0-9]+",
+                    }
+                ]
+            }
+        )
         assert scanner._cache.rule_count == initial_count + 1
 
 
@@ -251,6 +261,7 @@ class TestTomlPatternsEngineBuilder:
 
     def test_select_toml_patterns_engine(self):
         from ai_guardian.scanners.engine_builder import _build_engine_config
+
         config = _build_engine_config("toml-patterns")
         assert config is not None
         assert config.type == "python"
@@ -259,12 +270,14 @@ class TestTomlPatternsEngineBuilder:
 
     def test_select_toml_patterns_as_dict(self):
         from ai_guardian.scanners.engine_builder import _build_engine_config
+
         config = _build_engine_config({"type": "toml-patterns"})
         assert config is not None
         assert config.python_scanner.name == "toml-patterns"
 
     def test_select_engine_with_toml_patterns(self):
         from ai_guardian.scanners.engine_builder import select_engine
+
         config = select_engine(["toml-patterns"])
         assert config is not None
         assert config.python_scanner.name == "toml-patterns"
@@ -357,10 +370,12 @@ class TestTomlPatternsAllowlistAndIgnoreInteraction:
     def test_ignore_files_takes_precedence(self):
         """Ignored file returns [] without even checking allowlist."""
         scanner = TomlPatternsScanner()
-        scanner.configure({
-            "allowlist_patterns": ["some-pattern"],
-            "ignore_files": ["**/fixtures/**"],
-        })
+        scanner.configure(
+            {
+                "allowlist_patterns": ["some-pattern"],
+                "ignore_files": ["**/fixtures/**"],
+            }
+        )
         findings = scanner.scan(
             "Config: sk-abcdefghijklmnopqrstuvwxyz",
             file_path="/project/fixtures/test.json",
@@ -369,10 +384,12 @@ class TestTomlPatternsAllowlistAndIgnoreInteraction:
 
     def test_allowlist_filters_when_not_ignored(self):
         scanner = TomlPatternsScanner()
-        scanner.configure({
-            "allowlist_patterns": ["sk-abcdefghijklmnopqrstuvwxyz"],
-            "ignore_files": ["**/fixtures/**"],
-        })
+        scanner.configure(
+            {
+                "allowlist_patterns": ["sk-abcdefghijklmnopqrstuvwxyz"],
+                "ignore_files": ["**/fixtures/**"],
+            }
+        )
         findings = scanner.scan(
             "Config: sk-abcdefghijklmnopqrstuvwxyz",
             file_path="/project/src/main.py",
@@ -415,51 +432,75 @@ class TestTomlPatternsKeywordPreFilter:
     def test_keyword_present_allows_match(self):
         """Rule with keywords fires when keyword is in content."""
         from ai_guardian.patterns.cache import PatternCache
+
         cache = PatternCache()
-        cache.load_rules([{
-            "id": "test-keyword-rule",
-            "match_type": "regex",
-            "regex": r"sk-[a-z]{20,}",
-            "keywords": ["sk-"],
-        }], category="secrets")
+        cache.load_rules(
+            [
+                {
+                    "id": "test-keyword-rule",
+                    "match_type": "regex",
+                    "regex": r"sk-[a-z]{20,}",
+                    "keywords": ["sk-"],
+                }
+            ],
+            category="secrets",
+        )
         findings = cache.scan("Config: sk-abcdefghijklmnopqrstuvwxyz")
         assert len(findings) >= 1
 
     def test_keyword_absent_skips_rule(self):
         """Rule with keywords does NOT fire when keyword is missing."""
         from ai_guardian.patterns.cache import PatternCache
+
         cache = PatternCache()
-        cache.load_rules([{
-            "id": "test-keyword-rule",
-            "match_type": "regex",
-            "regex": r"sk-[a-z]{20,}",
-            "keywords": ["sk-"],
-        }], category="secrets")
+        cache.load_rules(
+            [
+                {
+                    "id": "test-keyword-rule",
+                    "match_type": "regex",
+                    "regex": r"sk-[a-z]{20,}",
+                    "keywords": ["sk-"],
+                }
+            ],
+            category="secrets",
+        )
         findings = cache.scan("This text has no relevant prefix")
         assert len(findings) == 0
 
     def test_keyword_case_insensitive(self):
         """Keyword matching is case-insensitive."""
         from ai_guardian.patterns.cache import PatternCache
+
         cache = PatternCache()
-        cache.load_rules([{
-            "id": "test-keyword-rule",
-            "match_type": "regex",
-            "regex": r"(?i)token-[a-z0-9]{10,}",
-            "keywords": ["TOKEN-"],
-        }], category="secrets")
+        cache.load_rules(
+            [
+                {
+                    "id": "test-keyword-rule",
+                    "match_type": "regex",
+                    "regex": r"(?i)token-[a-z0-9]{10,}",
+                    "keywords": ["TOKEN-"],
+                }
+            ],
+            category="secrets",
+        )
         findings = cache.scan("value: token-abc1234567890")
         assert len(findings) >= 1
 
     def test_no_keywords_fires_on_all_content(self):
         """Rules without keywords field fire on any matching content."""
         from ai_guardian.patterns.cache import PatternCache
+
         cache = PatternCache()
-        cache.load_rules([{
-            "id": "test-no-keyword-rule",
-            "match_type": "regex",
-            "regex": r"secret-[a-z]{10,}",
-        }], category="secrets")
+        cache.load_rules(
+            [
+                {
+                    "id": "test-no-keyword-rule",
+                    "match_type": "regex",
+                    "regex": r"secret-[a-z]{10,}",
+                }
+            ],
+            category="secrets",
+        )
         findings = cache.scan("found: secret-abcdefghijklmnop")
         assert len(findings) >= 1
 
@@ -470,38 +511,56 @@ class TestTomlPatternsEntropyFilter:
     def test_high_entropy_match_passes(self):
         """Match with entropy above threshold is kept."""
         from ai_guardian.patterns.cache import PatternCache
+
         cache = PatternCache()
-        cache.load_rules([{
-            "id": "test-entropy-rule",
-            "match_type": "regex",
-            "regex": r"key-[A-Za-z0-9]{20,}",
-            "entropy": 3.0,
-        }], category="secrets")
+        cache.load_rules(
+            [
+                {
+                    "id": "test-entropy-rule",
+                    "match_type": "regex",
+                    "regex": r"key-[A-Za-z0-9]{20,}",
+                    "entropy": 3.0,
+                }
+            ],
+            category="secrets",
+        )
         findings = cache.scan("value: key-aB3kQ9xLm7Zy2pR4wE6tX")
         assert len(findings) >= 1
 
     def test_low_entropy_match_rejected(self):
         """Match with entropy below threshold is filtered out."""
         from ai_guardian.patterns.cache import PatternCache
+
         cache = PatternCache()
-        cache.load_rules([{
-            "id": "test-entropy-rule",
-            "match_type": "regex",
-            "regex": r"key-[A-Za-z]{20,}",
-            "entropy": 3.0,
-        }], category="secrets")
+        cache.load_rules(
+            [
+                {
+                    "id": "test-entropy-rule",
+                    "match_type": "regex",
+                    "regex": r"key-[A-Za-z]{20,}",
+                    "entropy": 3.0,
+                }
+            ],
+            category="secrets",
+        )
         findings = cache.scan("value: key-aaaaaaaaaaaaaaaaaaaaaaa")
         assert len(findings) == 0
 
     def test_no_entropy_field_passes_all(self):
         """Rules without entropy field accept all matches."""
         from ai_guardian.patterns.cache import PatternCache
+
         cache = PatternCache()
-        cache.load_rules([{
-            "id": "test-no-entropy",
-            "match_type": "regex",
-            "regex": r"key-[A-Za-z]{20,}",
-        }], category="secrets")
+        cache.load_rules(
+            [
+                {
+                    "id": "test-no-entropy",
+                    "match_type": "regex",
+                    "regex": r"key-[A-Za-z]{20,}",
+                }
+            ],
+            category="secrets",
+        )
         findings = cache.scan("value: key-aaaaaaaaaaaaaaaaaaaaaaa")
         assert len(findings) >= 1
 
@@ -518,12 +577,18 @@ class TestTomlPatternsStopwords:
         scanner = TomlPatternsScanner()
         assert "example" in scanner._stopwords
         from ai_guardian.patterns.cache import PatternCache
+
         cache = PatternCache()
-        cache.load_rules([{
-            "id": "test-stop",
-            "match_type": "regex",
-            "regex": r"key-[a-z_]+",
-        }], category="secrets")
+        cache.load_rules(
+            [
+                {
+                    "id": "test-stop",
+                    "match_type": "regex",
+                    "regex": r"key-[a-z_]+",
+                }
+            ],
+            category="secrets",
+        )
         scanner._cache = cache
         findings = scanner.scan("value: key-example_value")
         assert not any(f.rule_id == "test-stop" for f in findings)
@@ -532,12 +597,18 @@ class TestTomlPatternsStopwords:
         """A match NOT containing a stopword is kept."""
         scanner = TomlPatternsScanner()
         from ai_guardian.patterns.cache import PatternCache
+
         cache = PatternCache()
-        cache.load_rules([{
-            "id": "test-stop",
-            "match_type": "regex",
-            "regex": r"key-[a-z]{20,}",
-        }], category="secrets")
+        cache.load_rules(
+            [
+                {
+                    "id": "test-stop",
+                    "match_type": "regex",
+                    "regex": r"key-[a-z]{20,}",
+                }
+            ],
+            category="secrets",
+        )
         scanner._cache = cache
         findings = scanner.scan("value: key-abcdefghijklmnopqrstuvwxyz")
         assert any(f.rule_id == "test-stop" for f in findings)

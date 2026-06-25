@@ -26,8 +26,15 @@ class _TextualAskDialog:
 
     def run(self) -> AskResult:
         from textual.app import App, ComposeResult
-        from textual.containers import Container, Horizontal, Vertical
-        from textual.widgets import Static, Button, Input, Select, Header, Footer, TextArea
+        from textual.containers import Container, Horizontal
+        from textual.widgets import (
+            Static,
+            Button,
+            Input,
+            Header,
+            Footer,
+            TextArea,
+        )
         from textual.binding import Binding
 
         violation = self._violation
@@ -103,31 +110,59 @@ class _TextualAskDialog:
                         counter += ")"
                         title_text += f"  {counter}"
                     yield Static(title_text, id="title")
-                    yield Static(f"[bold]Type:[/bold] {icon} {v.violation_type}", classes="detail-row")
+                    yield Static(
+                        f"[bold]Type:[/bold] {icon} {v.violation_type}",
+                        classes="detail-row",
+                    )
                     if v.hook_event:
-                        yield Static(f"[bold]Hook:[/bold] {v.hook_event}", classes="detail-row")
-                    yield Static(f"[bold]Summary:[/bold] {v.summary}", classes="detail-row")
+                        yield Static(
+                            f"[bold]Hook:[/bold] {v.hook_event}", classes="detail-row"
+                        )
+                    yield Static(
+                        f"[bold]Summary:[/bold] {v.summary}", classes="detail-row"
+                    )
                     if v.file_path:
                         loc = v.file_path
                         if v.line_number:
                             loc += f":{v.line_number}"
                             if v.start_column is not None:
                                 loc += f":{v.start_column + 1}"
-                        yield Static(f"[bold]Location:[/bold] {loc}", classes="detail-row")
+                        yield Static(
+                            f"[bold]Location:[/bold] {loc}", classes="detail-row"
+                        )
                     yield Static(v.matched_text[:300], id="matched-text")
 
                     with Horizontal(id="button-bar"):
-                        yield Button("Allow Once", id="btn-allow-once", variant="success")
-                        yield Button("Allow Always...", id="btn-allow-always", variant="primary")
+                        yield Button(
+                            "Allow Once", id="btn-allow-once", variant="success"
+                        )
+                        yield Button(
+                            "Allow Always...", id="btn-allow-always", variant="primary"
+                        )
                         if v.file_path:
-                            yield Button("View File", id="btn-view-file", variant="default")
-                            from ai_guardian.tui.source_annotator import get_comment_prefix
+                            yield Button(
+                                "View File", id="btn-view-file", variant="default"
+                            )
+                            from ai_guardian.tui.source_annotator import (
+                                get_comment_prefix,
+                            )
+
                             if get_comment_prefix(v.file_path) is not None:
-                                yield Button("Suppress in Source...", id="btn-suppress-source", variant="warning")
-                            yield Button("Ignore File...", id="btn-ignore-file", variant="default")
+                                yield Button(
+                                    "Suppress in Source...",
+                                    id="btn-suppress-source",
+                                    variant="warning",
+                                )
+                            yield Button(
+                                "Ignore File...",
+                                id="btn-ignore-file",
+                                variant="default",
+                            )
                         yield Button("Block", id="btn-block", variant="error")
                         if v.total_findings and v.total_findings > 1:
-                            yield Button("Block All", id="btn-block-all", variant="error")
+                            yield Button(
+                                "Block All", id="btn-block-all", variant="error"
+                            )
 
                     with Container(id="editor-section"):
                         yield Static("[bold]Pattern Editor[/bold]")
@@ -139,15 +174,24 @@ class _TextualAskDialog:
                         yield Button("Test Pattern", id="btn-test", variant="default")
                         yield Static("", id="editor-preview")
                         with Horizontal():
-                            yield Button("Add to Allowlist", id="btn-confirm", variant="success")
-                            yield Button("Cancel Editor", id="btn-cancel-editor", variant="default")
+                            yield Button(
+                                "Add to Allowlist", id="btn-confirm", variant="success"
+                            )
+                            yield Button(
+                                "Cancel Editor",
+                                id="btn-cancel-editor",
+                                variant="default",
+                            )
 
                 yield Footer()
 
             def on_mount(self):
                 from ai_guardian.tui.pattern_editor import suggest_pattern
+
                 try:
-                    self.query_one("#pattern-input", Input).value = suggest_pattern(violation.matched_text, violation.config_section)
+                    self.query_one("#pattern-input", Input).value = suggest_pattern(
+                        violation.matched_text, violation.config_section
+                    )
                 except Exception:
                     pass
 
@@ -166,6 +210,7 @@ class _TextualAskDialog:
                     self._show_editor()
                 elif bid == "btn-view-file":
                     from ai_guardian.tui.file_opener import open_in_editor
+
                     open_in_editor(violation.file_path, violation.line_number)
                 elif bid == "btn-suppress-source":
                     self._show_suppress_in_source()
@@ -192,7 +237,10 @@ class _TextualAskDialog:
 
             def on_input_changed(self, event: Input.Changed):
                 if event.input.id == "pattern-input":
-                    if hasattr(self, '_debounce_timer') and self._debounce_timer is not None:
+                    if (
+                        hasattr(self, "_debounce_timer")
+                        and self._debounce_timer is not None
+                    ):
                         self._debounce_timer.stop()
                     self._debounce_timer = self.set_timer(0.3, self._test_pattern)
 
@@ -213,9 +261,11 @@ class _TextualAskDialog:
 
             def _test_pattern(self):
                 from ai_guardian.tui.pattern_editor import (
-                    validate_pattern, generate_config_preview,
+                    validate_pattern,
+                    generate_config_preview,
                     get_pattern_type_for_section,
                 )
+
                 try:
                     pat = self.query_one("#pattern-input", Input).value.strip()
                     ptype = get_pattern_type_for_section(violation.config_section)
@@ -224,7 +274,9 @@ class _TextualAskDialog:
                     preview = self.query_one("#editor-preview", Static)
                     if valid:
                         status.update(f"[green]PASS: {msg}[/green]")
-                        preview.update(generate_config_preview(pat, violation.config_section))
+                        preview.update(
+                            generate_config_preview(pat, violation.config_section)
+                        )
                     else:
                         status.update(f"[red]FAIL: {msg}[/red]")
                         preview.update("")
@@ -232,7 +284,11 @@ class _TextualAskDialog:
                     pass
 
             def _confirm_pattern(self):
-                from ai_guardian.tui.pattern_editor import validate_pattern, get_pattern_type_for_section
+                from ai_guardian.tui.pattern_editor import (
+                    validate_pattern,
+                    get_pattern_type_for_section,
+                )
+
                 try:
                     pat = self.query_one("#pattern-input", Input).value.strip()
                     ptype = get_pattern_type_for_section(violation.config_section)
@@ -249,13 +305,16 @@ class _TextualAskDialog:
 
             def _show_config_editor(self, save_pat):
                 from ai_guardian.tui.pattern_editor import (
-                    prepare_config_with_pattern, get_config_scope_options,
+                    prepare_config_with_pattern,
+                    get_config_scope_options,
                 )
+
                 try:
                     scope_options = get_config_scope_options()
                     self._selected_config_path = scope_options[0][1]
                     json_text, line_number = prepare_config_with_pattern(
-                        save_pat, violation.config_section,
+                        save_pat,
+                        violation.config_section,
                         config_path=self._selected_config_path,
                     )
                     section = self.query_one("#editor-section")
@@ -270,18 +329,25 @@ class _TextualAskDialog:
                             line_info += f":{v.start_column + 1}"
                         config_title += f"\nSource: {v.file_path}{line_info}"
                     container.mount(Static(config_title, id="title"))
-                    container.mount(Static("[dim]Review the config, then Save or Cancel.[/dim]"))
+                    container.mount(
+                        Static("[dim]Review the config, then Save or Cancel.[/dim]")
+                    )
                     if len(scope_options) > 1:
                         from textual.widgets import RadioSet, RadioButton
+
                         scope_set = RadioSet(id="config-scope-select")
                         container.mount(Static("[bold]Save to:[/bold]"))
                         container.mount(scope_set)
                         for i, (label, path_str) in enumerate(scope_options):
-                            scope_set.mount(RadioButton(f"{label} ({path_str})", value=i == 0))
+                            scope_set.mount(
+                                RadioButton(f"{label} ({path_str})", value=i == 0)
+                            )
                         self._scope_options = scope_options
                     config_area = TextArea(
-                        json_text, language="json",
-                        show_line_numbers=True, tab_behavior="indent",
+                        json_text,
+                        language="json",
+                        show_line_numbers=True,
+                        tab_behavior="indent",
                         id="config-text-editor",
                     )
                     container.mount(config_area)
@@ -290,7 +356,9 @@ class _TextualAskDialog:
                         pass
                     container.mount(bar)
                     bar.mount(Button("Save", id="btn-save-config", variant="success"))
-                    bar.mount(Button("Cancel", id="btn-cancel-config", variant="default"))
+                    bar.mount(
+                        Button("Cancel", id="btn-cancel-config", variant="default")
+                    )
                     config_area.cursor_location = (line_number - 1, 0)
                     config_area.scroll_cursor_visible(center=True)
                 except Exception:
@@ -298,13 +366,17 @@ class _TextualAskDialog:
 
             def on_radio_set_changed(self, event):
                 if event.radio_set.id == "config-scope-select":
-                    from ai_guardian.tui.pattern_editor import prepare_config_with_pattern
+                    from ai_guardian.tui.pattern_editor import (
+                        prepare_config_with_pattern,
+                    )
+
                     idx = event.index
-                    opts = getattr(self, '_scope_options', [])
+                    opts = getattr(self, "_scope_options", [])
                     if idx < len(opts):
                         self._selected_config_path = opts[idx][1]
                         json_text, line_number = prepare_config_with_pattern(
-                            self._pending_save_pat, violation.config_section,
+                            self._pending_save_pat,
+                            violation.config_section,
                             config_path=self._selected_config_path,
                         )
                         try:
@@ -317,6 +389,7 @@ class _TextualAskDialog:
 
             def _save_config_editor(self):
                 import json as json_mod
+
                 try:
                     text = self.query_one("#config-text-editor", TextArea).text
                     try:
@@ -326,7 +399,7 @@ class _TextualAskDialog:
                             f"[red]Invalid JSON: {e}[/red]"
                         )
                         return
-                    selected = getattr(self, '_selected_config_path', None)
+                    selected = getattr(self, "_selected_config_path", None)
                     if _write_config_text(text, config_path_str=selected):
                         dialog_self._result = AskResult(
                             decision=AskDecision.ALLOW_ALWAYS,
@@ -344,6 +417,7 @@ class _TextualAskDialog:
 
             def _save_source_editor(self):
                 from ai_guardian.tui.source_annotator import write_annotated_source
+
                 try:
                     text = self.query_one("#source-text-editor", TextArea).text
                     if write_annotated_source(self._source_file_path, text):
@@ -363,9 +437,12 @@ class _TextualAskDialog:
                 try:
                     path = self.query_one("#ignore-path-input", Input).value.strip()
                     from ai_guardian.tui.ignore_file_editor import validate_ignore_path
+
                     valid, msg = validate_ignore_path(path)
                     if not valid:
-                        self.query_one("#ignore-path-status", Static).update(f"[red]{msg}[/red]")
+                        self.query_one("#ignore-path-status", Static).update(
+                            f"[red]{msg}[/red]"
+                        )
                         return
                     toml_text = self.query_one("#ignore-preview", TextArea).text
                     if _write_aiguardignore_text(toml_text):
@@ -387,7 +464,10 @@ class _TextualAskDialog:
                 self.exit()
 
             def _show_suppress_in_source(self):
-                from ai_guardian.tui.source_annotator import prepare_annotation, write_annotated_source
+                from ai_guardian.tui.source_annotator import (
+                    prepare_annotation,
+                )
+
                 v = violation
                 result = prepare_annotation(v.file_path, v.line_number or 1)
                 if result is None:
@@ -402,15 +482,22 @@ class _TextualAskDialog:
                 line_info = f":{v.line_number}" if v.line_number else ""
                 if v.start_column is not None and v.line_number:
                     line_info += f":{v.start_column + 1}"
-                container.mount(Static(
-                    f"[bold]{build_sub_dialog_title(f'Suppress in Source — {ann_label}', v)}[/bold]\n"
-                    f"File: {v.file_path}{line_info}",
-                    id="title",
-                ))
-                container.mount(Static("[dim]Review the annotated source. Save to write the file.[/dim]"))
+                container.mount(
+                    Static(
+                        f"[bold]{build_sub_dialog_title(f'Suppress in Source — {ann_label}', v)}[/bold]\n"
+                        f"File: {v.file_path}{line_info}",
+                        id="title",
+                    )
+                )
+                container.mount(
+                    Static(
+                        "[dim]Review the annotated source. Save to write the file.[/dim]"
+                    )
+                )
                 source_area = TextArea(
                     modified_content,
-                    show_line_numbers=True, tab_behavior="indent",
+                    show_line_numbers=True,
+                    tab_behavior="indent",
                     id="source-text-editor",
                 )
                 container.mount(source_area)
@@ -426,11 +513,11 @@ class _TextualAskDialog:
 
             def _show_ignore_file(self):
                 from ai_guardian.tui.ignore_file_editor import (
-                    SCANNER_LABELS, resolve_scanner_types,
-                    validate_ignore_path, suggest_ignore_path,
+                    SCANNER_LABELS,
+                    suggest_ignore_path,
                 )
                 from ai_guardian.aiguardignore import (
-                    SCANNER_TYPES, generate_aiguardignore_preview,
+                    generate_aiguardignore_preview,
                 )
 
                 v = violation
@@ -444,22 +531,30 @@ class _TextualAskDialog:
                 line_info = f":{v.line_number}" if v.line_number else ""
                 if v.start_column is not None and v.line_number:
                     line_info += f":{v.start_column + 1}"
-                container.mount(Static(
-                    f"[bold]{build_sub_dialog_title('Ignore File — .aiguardignore.toml', v)}[/bold]\n"
-                    f"File: {v.file_path}{line_info}",
-                    id="title",
-                ))
+                container.mount(
+                    Static(
+                        f"[bold]{build_sub_dialog_title('Ignore File — .aiguardignore.toml', v)}[/bold]\n"
+                        f"File: {v.file_path}{line_info}",
+                        id="title",
+                    )
+                )
                 container.mount(Static("\n[bold]Path pattern:[/bold]"))
                 container.mount(Input(value=rel_path, id="ignore-path-input"))
                 container.mount(Static("", id="ignore-path-status"))
-                container.mount(Static(f"\nScope: [bold]This scanner only ({scanner_label})[/bold]"))
+                container.mount(
+                    Static(f"\nScope: [bold]This scanner only ({scanner_label})[/bold]")
+                )
                 container.mount(Static("\n[bold]Preview:[/bold]"))
 
                 try:
-                    toml_text, _ = generate_aiguardignore_preview(rel_path, [v.config_section])
+                    toml_text, _ = generate_aiguardignore_preview(
+                        rel_path, [v.config_section]
+                    )
                 except Exception:
                     toml_text = ""
-                container.mount(TextArea(toml_text, id="ignore-preview", read_only=True))
+                container.mount(
+                    TextArea(toml_text, id="ignore-preview", read_only=True)
+                )
                 container.mount(Static("", id="ignore-editor-status"))
                 with Horizontal(id="button-bar") as bar:
                     pass

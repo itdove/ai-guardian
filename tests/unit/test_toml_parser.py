@@ -1,8 +1,6 @@
 """Tests for TOML pattern parser and rule compilation."""
 
 import re
-import tempfile
-from pathlib import Path
 
 import pytest
 
@@ -109,6 +107,7 @@ class TestCompileRule:
         rule = compile_rule(raw, "ssrf")
         assert rule.match_type == "cidr"
         import ipaddress
+
         assert isinstance(rule.compiled, ipaddress.IPv4Network)
 
     def test_compile_range_rule(self):

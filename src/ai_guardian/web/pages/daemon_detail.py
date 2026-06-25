@@ -8,6 +8,7 @@ from ai_guardian.web.components.local_time import inject_local_time_js
 
 def _load_local_daemon_config():
     from ai_guardian.config_loaders import _load_config_file
+
     cfg, _ = _load_config_file()
     cfg = cfg or {}
     daemon_cfg = cfg.get("daemon", {})
@@ -19,7 +20,9 @@ def _load_local_daemon_config():
     }
 
 
-def _save_local_daemon_config(idle_timeout, client_timeout, tray_enabled, tray_auto_install):
+def _save_local_daemon_config(
+    idle_timeout, client_timeout, tray_enabled, tray_auto_install
+):
     import json
     from ai_guardian.config_utils import get_config_dir
 
@@ -40,12 +43,11 @@ def _save_local_daemon_config(idle_timeout, client_timeout, tray_enabled, tray_a
     full_config["daemon"] = daemon_config
 
     config_path.parent.mkdir(parents=True, exist_ok=True)
-    config_path.write_text(
-        json.dumps(full_config, indent=2) + "\n", encoding="utf-8"
-    )
+    config_path.write_text(json.dumps(full_config, indent=2) + "\n", encoding="utf-8")
 
     try:
         from ai_guardian.daemon.client import send_reload_config
+
         send_reload_config()
     except Exception:
         pass  # intentionally silent — optional dependency
@@ -54,6 +56,7 @@ def _save_local_daemon_config(idle_timeout, client_timeout, tray_enabled, tray_a
 def _is_local_daemon_running():
     try:
         from ai_guardian.daemon.client import is_daemon_running
+
         return is_daemon_running()
     except Exception:
         return False
@@ -62,6 +65,7 @@ def _is_local_daemon_running():
 def _start_local_daemon():
     try:
         from ai_guardian.daemon.client import start_daemon_background
+
         return start_daemon_background()
     except Exception:
         return False
@@ -70,6 +74,7 @@ def _start_local_daemon():
 def _stop_local_daemon():
     try:
         from ai_guardian.daemon.client import send_shutdown
+
         return send_shutdown()
     except Exception:
         return False
@@ -148,9 +153,7 @@ def create_daemon_detail_page(service, daemon_name: str):
                     return
 
                 stats = None
-                all_status = await run.io_bound(
-                    service.get_all_daemon_status
-                )
+                all_status = await run.io_bound(service.get_all_daemon_status)
                 for entry in all_status:
                     if entry["target"].name == daemon_name:
                         stats = entry["status"]
@@ -201,50 +204,50 @@ def create_daemon_detail_page(service, daemon_name: str):
                                     ui.label(str(target.port))
                                 if target.runtime == "local":
                                     from ai_guardian.daemon import get_socket_path
+
                                     ui.label("Socket:").classes("text-grey-6")
                                     ui.label(str(get_socket_path()))
 
                     # Config card (local only)
                     if target.runtime == "local":
-                        daemon_cfg = await run.io_bound(
-                            _load_local_daemon_config
-                        )
+                        daemon_cfg = await run.io_bound(_load_local_daemon_config)
                         with config_container:
                             with ui.card().classes("w-full"):
-                                ui.label("Configuration").classes(
-                                    "text-lg font-bold"
-                                )
+                                ui.label("Configuration").classes("text-lg font-bold")
                                 ui.label(
                                     "Changes are saved to config and"
                                     " daemon is reloaded automatically."
                                 ).classes("text-xs text-grey-6")
 
                                 with ui.column().classes("gap-3 mt-2"):
-                                    with ui.row().classes(
-                                        "items-center gap-2"
-                                    ):
-                                        cfg_idle = ui.number(
-                                            label="Idle Timeout (minutes)",
-                                            value=daemon_cfg[
-                                                "idle_timeout_minutes"
-                                            ],
-                                            min=0, step=5,
-                                        ).props(
-                                            "dense outlined"
-                                        ).classes("w-40")
-                                        ui.label(
-                                            "0 = never auto-stop"
-                                        ).classes("text-xs text-grey-6")
+                                    with ui.row().classes("items-center gap-2"):
+                                        cfg_idle = (
+                                            ui.number(
+                                                label="Idle Timeout (minutes)",
+                                                value=daemon_cfg[
+                                                    "idle_timeout_minutes"
+                                                ],
+                                                min=0,
+                                                step=5,
+                                            )
+                                            .props("dense outlined")
+                                            .classes("w-40")
+                                        )
+                                        ui.label("0 = never auto-stop").classes(
+                                            "text-xs text-grey-6"
+                                        )
 
-                                    cfg_client = ui.number(
-                                        label="Client Timeout (seconds)",
-                                        value=daemon_cfg[
-                                            "client_timeout_seconds"
-                                        ],
-                                        min=0.5, max=10.0, step=0.5,
-                                    ).props(
-                                        "dense outlined"
-                                    ).classes("w-40")
+                                    cfg_client = (
+                                        ui.number(
+                                            label="Client Timeout (seconds)",
+                                            value=daemon_cfg["client_timeout_seconds"],
+                                            min=0.5,
+                                            max=10.0,
+                                            step=0.5,
+                                        )
+                                        .props("dense outlined")
+                                        .classes("w-40")
+                                    )
 
                                     cfg_tray = ui.switch(
                                         "System Tray",
@@ -256,8 +259,10 @@ def create_daemon_detail_page(service, daemon_name: str):
                                     )
 
                                     async def do_save_config(
-                                        idle=cfg_idle, client=cfg_client,
-                                        tray=cfg_tray, auto=cfg_auto_install,
+                                        idle=cfg_idle,
+                                        client=cfg_client,
+                                        tray=cfg_tray,
+                                        auto=cfg_auto_install,
                                     ):
                                         try:
                                             await run.io_bound(
@@ -278,21 +283,18 @@ def create_daemon_detail_page(service, daemon_name: str):
                                             )
 
                                     ui.button(
-                                        "Save", icon="save",
+                                        "Save",
+                                        icon="save",
                                         on_click=do_save_config,
                                     ).props("dense")
 
                     # Features card
-                    cfg = await run.io_bound(
-                        service.get_daemon_config, target
-                    )
+                    cfg = await run.io_bound(service.get_daemon_config, target)
                     features = (cfg or {}).get("features", {})
                     if features:
                         with features_container:
                             with ui.card().classes("w-full"):
-                                ui.label("Features").classes(
-                                    "text-lg font-bold"
-                                )
+                                ui.label("Features").classes("text-lg font-bold")
                                 labels = {
                                     "secret_scanning": "Secret Scanning",
                                     "scan_pii": "PII Detection",
@@ -310,31 +312,15 @@ def create_daemon_detail_page(service, daemon_name: str):
                                 with ui.grid(columns=2).classes("gap-1"):
                                     for key, label in labels.items():
                                         enabled = features.get(key, False)
-                                        icon = (
-                                            "check_circle" if enabled
-                                            else "cancel"
-                                        )
-                                        color = (
-                                            "text-green" if enabled
-                                            else "text-red"
-                                        )
-                                        with ui.row().classes(
-                                            "items-center gap-1"
-                                        ):
-                                            ui.icon(icon).classes(
-                                                f"{color} text-sm"
-                                            )
+                                        icon = "check_circle" if enabled else "cancel"
+                                        color = "text-green" if enabled else "text-red"
+                                        with ui.row().classes("items-center gap-1"):
+                                            ui.icon(icon).classes(f"{color} text-sm")
                                             ui.label(label).classes("text-sm")
 
-                                action_mode = features.get(
-                                    "action_mode", "block"
-                                )
-                                proactive = features.get(
-                                    "proactive_level", "low"
-                                )
-                                with ui.row().classes(
-                                    "gap-4 text-sm text-grey-6 mt-1"
-                                ):
+                                action_mode = features.get("action_mode", "block")
+                                proactive = features.get("proactive_level", "low")
+                                with ui.row().classes("gap-4 text-sm text-grey-6 mt-1"):
                                     ui.label(f"Action mode: {action_mode}")
                                     ui.label(f"Proactive level: {proactive}")
 
@@ -343,10 +329,9 @@ def create_daemon_detail_page(service, daemon_name: str):
                 paused = stats and stats.get("paused")
                 with controls_container:
                     if paused:
+
                         async def do_resume():
-                            ok = await run.io_bound(
-                                service.resume_daemon, target
-                            )
+                            ok = await run.io_bound(service.resume_daemon, target)
                             ui.notify(
                                 "Resumed" if ok else "Failed",
                                 type="positive" if ok else "negative",
@@ -354,26 +339,36 @@ def create_daemon_detail_page(service, daemon_name: str):
                             await refresh()
 
                         ui.button(
-                            "Resume", icon="play_arrow",
-                            color="green", on_click=do_resume,
+                            "Resume",
+                            icon="play_arrow",
+                            color="green",
+                            on_click=do_resume,
                         )
                     else:
                         with ui.row().classes("items-center gap-2"):
-                            pause_input = ui.number(
-                                label="Minutes",
-                                value=30, min=0, max=1440, step=5,
-                            ).props("dense outlined").classes("w-28")
-                            ui.label("0 = indefinite").classes(
-                                "text-xs text-grey-6"
+                            pause_input = (
+                                ui.number(
+                                    label="Minutes",
+                                    value=30,
+                                    min=0,
+                                    max=1440,
+                                    step=5,
+                                )
+                                .props("dense outlined")
+                                .classes("w-28")
                             )
+                            ui.label("0 = indefinite").classes("text-xs text-grey-6")
 
                             async def do_pause(inp=pause_input):
                                 minutes = int(inp.value or 30)
                                 ok = await run.io_bound(
-                                    service.pause_daemon, target, minutes,
+                                    service.pause_daemon,
+                                    target,
+                                    minutes,
                                 )
                                 msg = (
-                                    "indefinitely" if minutes == 0
+                                    "indefinitely"
+                                    if minutes == 0
                                     else f"for {minutes} min"
                                 )
                                 ui.notify(
@@ -383,29 +378,29 @@ def create_daemon_detail_page(service, daemon_name: str):
                                 await refresh()
 
                             ui.button(
-                                "Pause", icon="pause",
-                                color="amber", on_click=do_pause,
+                                "Pause",
+                                icon="pause",
+                                color="amber",
+                                on_click=do_pause,
                             )
 
                     with ui.row().classes("gap-2"):
+
                         async def do_reload():
-                            ok = await run.io_bound(
-                                service.reload_daemon, target
-                            )
+                            ok = await run.io_bound(service.reload_daemon, target)
                             ui.notify(
                                 "Config reloaded" if ok else "Failed",
                                 type="positive" if ok else "negative",
                             )
 
                         ui.button(
-                            "Reload Config", icon="refresh",
+                            "Reload Config",
+                            icon="refresh",
                             on_click=do_reload,
                         )
 
                         if target.runtime == "local":
-                            running = await run.io_bound(
-                                _is_local_daemon_running
-                            )
+                            running = await run.io_bound(_is_local_daemon_running)
 
                             async def do_start():
                                 ok = await run.io_bound(_start_local_daemon)
@@ -425,35 +420,46 @@ def create_daemon_detail_page(service, daemon_name: str):
 
                             if running:
                                 ui.button(
-                                    "Stop", icon="stop",
-                                    color="red", on_click=do_stop,
+                                    "Stop",
+                                    icon="stop",
+                                    color="red",
+                                    on_click=do_stop,
                                 )
                             else:
                                 ui.button(
-                                    "Start", icon="play_arrow",
-                                    color="green", on_click=do_start,
+                                    "Start",
+                                    icon="play_arrow",
+                                    color="green",
+                                    on_click=do_start,
                                 )
 
                 # Update violations (small table)
                 violations_container.clear()
-                v_data = await run.io_bound(
-                    service.get_daemon_violations, target, 10
-                )
+                v_data = await run.io_bound(service.get_daemon_violations, target, 10)
                 vlist = (v_data or {}).get("violations", [])
                 with violations_container:
                     if vlist:
                         table = ui.table(
                             columns=[
-                                {"name": "timestamp", "label": "Time",
-                                 "field": "timestamp"},
-                                {"name": "type", "label": "Type",
-                                 "field": "type"},
-                                {"name": "severity", "label": "Severity",
-                                 "field": "severity"},
-                                {"name": "action", "label": "Action",
-                                 "field": "action"},
+                                {
+                                    "name": "timestamp",
+                                    "label": "Time",
+                                    "field": "timestamp",
+                                },
+                                {"name": "type", "label": "Type", "field": "type"},
+                                {
+                                    "name": "severity",
+                                    "label": "Severity",
+                                    "field": "severity",
+                                },
+                                {
+                                    "name": "action",
+                                    "label": "Action",
+                                    "field": "action",
+                                },
                             ],
-                            rows=vlist, row_key="timestamp",
+                            rows=vlist,
+                            row_key="timestamp",
                         ).classes("w-full")
                         table.add_slot(
                             "body-cell-timestamp",
@@ -464,8 +470,6 @@ def create_daemon_detail_page(service, daemon_name: str):
                         )
                         inject_local_time_js()
                     else:
-                        ui.label("No recent violations").classes(
-                            "text-sm text-grey-6"
-                        )
+                        ui.label("No recent violations").classes("text-sm text-grey-6")
 
             ui.timer(10.0, refresh)

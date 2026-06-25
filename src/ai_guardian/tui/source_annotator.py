@@ -8,38 +8,83 @@ import ast
 import logging
 import os
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, Optional, Tuple
 
 from ai_guardian.annotations import INLINE_MARKER, BLOCK_BEGIN_MARKER, BLOCK_END_MARKER
 
 logger = logging.getLogger(__name__)
 
 COMMENT_PREFIXES: Dict[str, str] = {
-    ".py": "#", ".pyw": "#", ".pyi": "#",
-    ".rb": "#", ".rake": "#",
-    ".sh": "#", ".bash": "#", ".zsh": "#",
-    ".yml": "#", ".yaml": "#",
-    ".toml": "#", ".cfg": "#", ".ini": "#", ".conf": "#",
-    ".txt": "#", ".md": "#", ".rst": "#",
-    ".env": "#", ".properties": "#", ".gitignore": "#",
-    ".dockerignore": "#", ".editorconfig": "#",
-    ".r": "#", ".R": "#",
-    ".pl": "#", ".pm": "#",
-    ".ps1": "#", ".psm1": "#",
-    ".tf": "#", ".tfvars": "#",
-    ".js": "//", ".mjs": "//", ".cjs": "//",
-    ".ts": "//", ".tsx": "//", ".jsx": "//",
-    ".go": "//", ".rs": "//",
-    ".java": "//", ".kt": "//", ".kts": "//", ".scala": "//", ".groovy": "//",
-    ".c": "//", ".cpp": "//", ".cc": "//", ".cxx": "//", ".h": "//", ".hpp": "//",
-    ".cs": "//", ".swift": "//", ".dart": "//", ".v": "//",
-    ".proto": "//", ".zig": "//",
-    ".sql": "--", ".lua": "--", ".hs": "--", ".elm": "--",
-    ".erl": "%", ".ex": "#", ".exs": "#",
-    ".clj": ";;", ".cljs": ";;", ".cljc": ";;",
-    ".lisp": ";;", ".el": ";;",
+    ".py": "#",
+    ".pyw": "#",
+    ".pyi": "#",
+    ".rb": "#",
+    ".rake": "#",
+    ".sh": "#",
+    ".bash": "#",
+    ".zsh": "#",
+    ".yml": "#",
+    ".yaml": "#",
+    ".toml": "#",
+    ".cfg": "#",
+    ".ini": "#",
+    ".conf": "#",
+    ".txt": "#",
+    ".md": "#",
+    ".rst": "#",
+    ".env": "#",
+    ".properties": "#",
+    ".gitignore": "#",
+    ".dockerignore": "#",
+    ".editorconfig": "#",
+    ".r": "#",
+    ".R": "#",
+    ".pl": "#",
+    ".pm": "#",
+    ".ps1": "#",
+    ".psm1": "#",
+    ".tf": "#",
+    ".tfvars": "#",
+    ".js": "//",
+    ".mjs": "//",
+    ".cjs": "//",
+    ".ts": "//",
+    ".tsx": "//",
+    ".jsx": "//",
+    ".go": "//",
+    ".rs": "//",
+    ".java": "//",
+    ".kt": "//",
+    ".kts": "//",
+    ".scala": "//",
+    ".groovy": "//",
+    ".c": "//",
+    ".cpp": "//",
+    ".cc": "//",
+    ".cxx": "//",
+    ".h": "//",
+    ".hpp": "//",
+    ".cs": "//",
+    ".swift": "//",
+    ".dart": "//",
+    ".v": "//",
+    ".proto": "//",
+    ".zig": "//",
+    ".sql": "--",
+    ".lua": "--",
+    ".hs": "--",
+    ".elm": "--",
+    ".erl": "%",
+    ".ex": "#",
+    ".exs": "#",
+    ".clj": ";;",
+    ".cljs": ";;",
+    ".cljc": ";;",
+    ".lisp": ";;",
+    ".el": ";;",
     ".vim": '"',
-    ".bat": "REM", ".cmd": "REM",
+    ".bat": "REM",
+    ".cmd": "REM",
 }
 
 
@@ -218,6 +263,7 @@ def write_annotated_source(file_path: str, content: str) -> bool:
     try:
         dir_path = os.path.dirname(file_path)
         import tempfile
+
         fd, tmp_path = tempfile.mkstemp(dir=dir_path, suffix=".tmp")
         try:
             with os.fdopen(fd, "w", encoding="utf-8") as f:

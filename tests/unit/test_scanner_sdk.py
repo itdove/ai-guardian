@@ -11,7 +11,7 @@ import tempfile
 import textwrap
 from pathlib import Path
 from typing import List
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import pytest
 
@@ -35,8 +35,7 @@ from ai_guardian.scanners.executor import (
     run_python_scanner,
     run_engine,
 )
-from ai_guardian.scanners.strategies import ScanResult, SecretMatch
-
+from ai_guardian.scanners.strategies import ScanResult
 
 # ---------------------------------------------------------------------------
 # Sample scanner for testing
@@ -53,12 +52,14 @@ class SampleScanner(Scanner):
         findings = []
         for i, line in enumerate(content.splitlines(), 1):
             if "LEAK" in line:
-                findings.append(Finding(
-                    rule_id="test-leak",
-                    line_number=i,
-                    matched_text=line.strip(),
-                    description="Test leak detected",
-                ))
+                findings.append(
+                    Finding(
+                        rule_id="test-leak",
+                        line_number=i,
+                        matched_text=line.strip(),
+                        description="Test leak detected",
+                    )
+                )
         return findings
 
 
@@ -79,12 +80,14 @@ class ConfigurableScanner(Scanner):
         for i, line in enumerate(content.splitlines(), 1):
             for pattern in self.patterns:
                 if pattern in line:
-                    findings.append(Finding(
-                        rule_id=f"custom-{pattern}",
-                        line_number=i,
-                        matched_text=line.strip(),
-                        description=f"Pattern '{pattern}' detected",
-                    ))
+                    findings.append(
+                        Finding(
+                            rule_id=f"custom-{pattern}",
+                            line_number=i,
+                            matched_text=line.strip(),
+                            description=f"Pattern '{pattern}' detected",
+                        )
+                    )
         return findings
 
 
@@ -236,9 +239,7 @@ class TestLoadFromFile:
                     return []
         """)
 
-        with tempfile.NamedTemporaryFile(
-            mode="w", suffix=".py", delete=False
-        ) as f:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".py", delete=False) as f:
             f.write(scanner_code)
             f.flush()
             tmp_path = f.name
@@ -275,9 +276,7 @@ class TestLoadFromModule:
     """Tests for loading scanners from Python modules."""
 
     def test_load_from_module(self):
-        cls = load_from_module(
-            "tests.unit.test_scanner_sdk", "SampleScanner"
-        )
+        cls = load_from_module("tests.unit.test_scanner_sdk", "SampleScanner")
         assert cls is SampleScanner
 
     def test_load_from_module_not_found(self):
@@ -313,9 +312,7 @@ class TestLoadPythonScanner:
                     return []
         """)
 
-        with tempfile.NamedTemporaryFile(
-            mode="w", suffix=".py", delete=False
-        ) as f:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".py", delete=False) as f:
             f.write(scanner_code)
             f.flush()
             tmp_path = f.name
@@ -350,7 +347,9 @@ class TestDiscoverEntryPoints:
     """Tests for entry point discovery."""
 
     def test_discover_entry_points_empty(self):
-        with patch("ai_guardian.scanners.python_loader.importlib.metadata") as mock_meta:
+        with patch(
+            "ai_guardian.scanners.python_loader.importlib.metadata"
+        ) as mock_meta:
             if sys.version_info >= (3, 12):
                 mock_meta.entry_points.return_value = []
             else:
@@ -366,13 +365,17 @@ class TestDiscoverScannerDirectory:
         with tempfile.TemporaryDirectory() as tmpdir:
             scanner_dir = Path(tmpdir) / "scanners"
             scanner_dir.mkdir()
-            with patch("ai_guardian.config_utils.get_config_dir", return_value=Path(tmpdir)):
+            with patch(
+                "ai_guardian.config_utils.get_config_dir", return_value=Path(tmpdir)
+            ):
                 result = discover_scanner_directory()
                 assert result == {}
 
     def test_discover_dir_not_exists(self):
         with tempfile.TemporaryDirectory() as tmpdir:
-            with patch("ai_guardian.config_utils.get_config_dir", return_value=Path(tmpdir)):
+            with patch(
+                "ai_guardian.config_utils.get_config_dir", return_value=Path(tmpdir)
+            ):
                 result = discover_scanner_directory()
                 assert result == {}
 
@@ -392,7 +395,9 @@ class TestDiscoverScannerDirectory:
             scanner_dir.mkdir()
             (scanner_dir / "my_scanner.py").write_text(scanner_code)
 
-            with patch("ai_guardian.config_utils.get_config_dir", return_value=Path(tmpdir)):
+            with patch(
+                "ai_guardian.config_utils.get_config_dir", return_value=Path(tmpdir)
+            ):
                 result = discover_scanner_directory()
                 assert "dir-scanner" in result
                 assert issubclass(result["dir-scanner"], Scanner)
@@ -403,7 +408,9 @@ class TestDiscoverScannerDirectory:
             scanner_dir.mkdir()
             (scanner_dir / "_helper.py").write_text("# not a scanner")
 
-            with patch("ai_guardian.config_utils.get_config_dir", return_value=Path(tmpdir)):
+            with patch(
+                "ai_guardian.config_utils.get_config_dir", return_value=Path(tmpdir)
+            ):
                 result = discover_scanner_directory()
                 assert result == {}
 
@@ -504,9 +511,7 @@ class TestRunPythonScanner:
     """Tests for the run_python_scanner function."""
 
     def test_run_python_scanner_no_findings(self):
-        with tempfile.NamedTemporaryFile(
-            mode="w", suffix=".txt", delete=False
-        ) as f:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".txt", delete=False) as f:
             f.write("safe content\nno issues here\n")
             f.flush()
             tmp_path = f.name
@@ -528,9 +533,7 @@ class TestRunPythonScanner:
             os.unlink(tmp_path)
 
     def test_run_python_scanner_with_findings(self):
-        with tempfile.NamedTemporaryFile(
-            mode="w", suffix=".txt", delete=False
-        ) as f:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".txt", delete=False) as f:
             f.write("line 1\nLEAK secret here\nline 3\n")
             f.flush()
             tmp_path = f.name
@@ -559,9 +562,7 @@ class TestRunPythonScanner:
             def scan(self, content, file_path=None):
                 raise RuntimeError("Scan failed")
 
-        with tempfile.NamedTemporaryFile(
-            mode="w", suffix=".txt", delete=False
-        ) as f:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".txt", delete=False) as f:
             f.write("content\n")
             f.flush()
             tmp_path = f.name
@@ -581,9 +582,7 @@ class TestRunPythonScanner:
             os.unlink(tmp_path)
 
     def test_run_python_scanner_multiple_findings(self):
-        with tempfile.NamedTemporaryFile(
-            mode="w", suffix=".txt", delete=False
-        ) as f:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".txt", delete=False) as f:
             f.write("LEAK one\nclean\nLEAK two\n")
             f.flush()
             tmp_path = f.name
@@ -608,9 +607,7 @@ class TestRunEngine:
     """Tests for the run_engine dispatcher."""
 
     def test_dispatches_to_python_scanner(self):
-        with tempfile.NamedTemporaryFile(
-            mode="w", suffix=".txt", delete=False
-        ) as f:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".txt", delete=False) as f:
             f.write("LEAK\n")
             f.flush()
             tmp_path = f.name

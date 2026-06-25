@@ -13,6 +13,7 @@ def _run_audit():
     """Run MCP security audit, returning (servers, report) or ([], None)."""
     try:
         from ai_guardian.mcp_audit import MCPAuditor
+
         auditor = MCPAuditor()
         servers = auditor.discover_servers()
         report = auditor.audit_config(servers)
@@ -31,9 +32,9 @@ def create_mcp_security_page(service, daemon_name: str):
 
         with ui.column().classes("flex-grow p-6 gap-4"):
             ui.label("MCP Security Audit").classes("text-2xl font-bold")
-            ui.label(
-                "Scan MCP server configurations for security issues."
-            ).classes("text-xs text-grey-6")
+            ui.label("Scan MCP server configurations for security issues.").classes(
+                "text-xs text-grey-6"
+            )
 
             content = ui.column().classes("w-full gap-4")
 
@@ -48,9 +49,7 @@ def create_mcp_security_page(service, daemon_name: str):
                 with content:
                     if report is None:
                         with ui.card().classes("w-full"):
-                            ui.label("Audit Unavailable").classes(
-                                "text-lg font-bold"
-                            )
+                            ui.label("Audit Unavailable").classes("text-lg font-bold")
                             ui.label(
                                 "MCP audit module could not be loaded. "
                                 "Ensure ai-guardian is installed with MCP support."
@@ -70,13 +69,13 @@ def create_mcp_security_page(service, daemon_name: str):
                                 "text-sm"
                             )
                             if trusted:
-                                ui.badge(
-                                    f"{trusted} trusted", color="green"
-                                ).classes("text-xs")
+                                ui.badge(f"{trusted} trusted", color="green").classes(
+                                    "text-xs"
+                                )
                             if untrusted:
-                                ui.badge(
-                                    f"{untrusted} untrusted", color="red"
-                                ).classes("text-xs")
+                                ui.badge(f"{untrusted} untrusted", color="red").classes(
+                                    "text-xs"
+                                )
 
                         findings = getattr(report, "findings", []) or []
                         if findings:
@@ -88,13 +87,9 @@ def create_mcp_security_page(service, daemon_name: str):
                             for s in ["critical", "high", "medium", "low", "info"]:
                                 if s in sev_counts:
                                     parts.append(f"{sev_counts[s]} {s}")
-                            ui.label(
-                                f"Findings: {', '.join(parts)}"
-                            ).classes("text-sm")
+                            ui.label(f"Findings: {', '.join(parts)}").classes("text-sm")
                         else:
-                            ui.label("No issues found.").classes(
-                                "text-sm text-green"
-                            )
+                            ui.label("No issues found.").classes("text-sm text-green")
 
                         scan_ms = getattr(report, "scan_time_ms", None)
                         if scan_ms is not None:
@@ -104,9 +99,7 @@ def create_mcp_security_page(service, daemon_name: str):
 
                     # Servers
                     with ui.card().classes("w-full"):
-                        ui.label("Discovered Servers").classes(
-                            "text-lg font-bold"
-                        )
+                        ui.label("Discovered Servers").classes("text-lg font-bold")
                         if servers:
                             with ui.grid(columns="200px 1fr 100px 100px").classes(
                                 "w-full gap-y-2 gap-x-4 items-center"
@@ -127,9 +120,7 @@ def create_mcp_security_page(service, daemon_name: str):
                                 for srv in servers:
                                     name = getattr(srv, "name", str(srv))
                                     cmd = getattr(srv, "command", "")
-                                    is_trusted = getattr(
-                                        srv, "is_trusted", False
-                                    )
+                                    is_trusted = getattr(srv, "is_trusted", False)
                                     env_count = len(
                                         getattr(srv, "env_var_names", []) or []
                                     )
@@ -138,15 +129,13 @@ def create_mcp_security_page(service, daemon_name: str):
                                     ui.label(
                                         cmd if len(cmd) <= 40 else cmd[:37] + "..."
                                     ).classes("text-xs text-grey-6")
-                                    trust_color = (
-                                        "green" if is_trusted else "red"
-                                    )
+                                    trust_color = "green" if is_trusted else "red"
                                     trust_label = (
                                         "trusted" if is_trusted else "untrusted"
                                     )
-                                    ui.badge(
-                                        trust_label, color=trust_color
-                                    ).classes("text-xs")
+                                    ui.badge(trust_label, color=trust_color).classes(
+                                        "text-xs"
+                                    )
                                     ui.label(
                                         str(env_count) if env_count else "—"
                                     ).classes("text-xs text-grey-6")
@@ -174,19 +163,11 @@ def create_mcp_security_page(service, daemon_name: str):
                                 "info": "help_outline",
                             }
                             for finding in findings:
-                                sev = getattr(
-                                    finding, "severity", "info"
-                                ).lower()
+                                sev = getattr(finding, "severity", "info").lower()
                                 msg = getattr(finding, "message", str(finding))
-                                srv_name = getattr(
-                                    finding, "server_name", ""
-                                )
-                                with ui.row().classes(
-                                    "items-center gap-2 w-full"
-                                ):
-                                    ui.icon(
-                                        sev_icons.get(sev, "help")
-                                    ).classes(
+                                srv_name = getattr(finding, "server_name", "")
+                                with ui.row().classes("items-center gap-2 w-full"):
+                                    ui.icon(sev_icons.get(sev, "help")).classes(
                                         f"text-{sev_colors.get(sev, 'grey')}"
                                     )
                                     ui.badge(
@@ -194,17 +175,13 @@ def create_mcp_security_page(service, daemon_name: str):
                                         color=sev_colors.get(sev, "grey"),
                                     ).classes("text-xs")
                                     if srv_name:
-                                        ui.label(srv_name).classes(
-                                            "font-bold text-xs"
-                                        )
-                                    ui.label(msg).classes(
-                                        "text-sm flex-grow"
-                                    )
+                                        ui.label(srv_name).classes("font-bold text-xs")
+                                    ui.label(msg).classes("text-sm flex-grow")
                                 ui.separator().classes("my-1")
 
                     # Run audit button
-                    ui.button(
-                        "Run Audit", icon="refresh", on_click=run_audit
-                    ).props("dense").classes("mt-2")
+                    ui.button("Run Audit", icon="refresh", on_click=run_audit).props(
+                        "dense"
+                    ).classes("mt-2")
 
             ui.timer(0.1, run_audit, once=True)

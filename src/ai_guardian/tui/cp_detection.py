@@ -12,7 +12,8 @@ from textual.widgets import Static, Button, Input, Label, Select
 
 from ai_guardian.config_utils import get_config_dir
 from ai_guardian.tui.schema_defaults import (
-    SchemaDefaultsMixin, default_indicator,
+    SchemaDefaultsMixin,
+    default_indicator,
     select_options_with_default,
 )
 from ai_guardian.tui.widgets import TimeBasedToggle, sanitize_enabled_value
@@ -85,7 +86,10 @@ class CPDetectionContent(SchemaDefaultsMixin, Container):
     """
 
     def compose(self) -> ComposeResult:
-        yield Static("[bold]Context Poisoning — Detection Settings (LLM03)[/bold]", id="cp-detection-header")
+        yield Static(
+            "[bold]Context Poisoning — Detection Settings (LLM03)[/bold]",
+            id="cp-detection-header",
+        )
 
         with VerticalScroll():
             yield TimeBasedToggle(
@@ -97,7 +101,9 @@ class CPDetectionContent(SchemaDefaultsMixin, Container):
             )
 
             with Container(classes="section"):
-                yield Static("[bold]Action on Detection[/bold]", classes="section-title")
+                yield Static(
+                    "[bold]Action on Detection[/bold]", classes="section-title"
+                )
 
                 with Horizontal(classes="setting-row"):
                     yield Label("Action Mode:")
@@ -138,9 +144,7 @@ class CPDetectionContent(SchemaDefaultsMixin, Container):
                         id="cp-sensitivity-select",
                         allow_blank=False,
                     )
-                yield Static(
-                    f"{default_indicator('context_poisoning.sensitivity')}"
-                )
+                yield Static(f"{default_indicator('context_poisoning.sensitivity')}")
 
             with Container(classes="section"):
                 yield Static("[bold]Ignore Files[/bold]", classes="section-title")
@@ -167,7 +171,9 @@ class CPDetectionContent(SchemaDefaultsMixin, Container):
                 )
 
             with Container(classes="section"):
-                yield Static("[bold]Detection Statistics[/bold]", classes="section-title")
+                yield Static(
+                    "[bold]Detection Statistics[/bold]", classes="section-title"
+                )
                 yield Static("", id="cp-detection-stats")
 
     def on_mount(self) -> None:
@@ -191,7 +197,7 @@ class CPDetectionContent(SchemaDefaultsMixin, Container):
         config = {}
         if config_path.exists():
             try:
-                with open(config_path, 'r', encoding='utf-8') as f:
+                with open(config_path, "r", encoding="utf-8") as f:
                     config = json.load(f)
             except Exception as e:
                 self.app.notify(f"Error loading config: {e}", severity="error")
@@ -204,7 +210,9 @@ class CPDetectionContent(SchemaDefaultsMixin, Container):
         ignore_tools = cp_config.get("ignore_tools", [])
 
         try:
-            toggle = self.query_one("#context_poisoning_enabled_toggle", TimeBasedToggle)
+            toggle = self.query_one(
+                "#context_poisoning_enabled_toggle", TimeBasedToggle
+            )
             toggle.load_value(enabled_value)
         except Exception:
             pass
@@ -215,8 +223,16 @@ class CPDetectionContent(SchemaDefaultsMixin, Container):
         except Exception:
             pass
 
-        files_text = "\n".join(f"  {f}" for f in ignore_files) if ignore_files else "[dim]No ignore patterns configured[/dim]"
-        tools_text = "\n".join(f"  {t}" for t in ignore_tools) if ignore_tools else "[dim]No ignored tools configured[/dim]"
+        files_text = (
+            "\n".join(f"  {f}" for f in ignore_files)
+            if ignore_files
+            else "[dim]No ignore patterns configured[/dim]"
+        )
+        tools_text = (
+            "\n".join(f"  {t}" for t in ignore_tools)
+            if ignore_tools
+            else "[dim]No ignored tools configured[/dim]"
+        )
         try:
             self.query_one("#cp-ignore-files-list", Static).update(files_text)
             self.query_one("#cp-ignore-tools-list", Static).update(tools_text)
@@ -229,15 +245,20 @@ class CPDetectionContent(SchemaDefaultsMixin, Container):
     def _load_statistics(self) -> None:
         try:
             from ai_guardian.violation_logger import ViolationLogger
+
             logger = ViolationLogger()
-            violations = logger.get_recent_violations(limit=1000, violation_type="context_poisoning", resolved=None)
+            violations = logger.get_recent_violations(
+                limit=1000, violation_type="context_poisoning", resolved=None
+            )
             total = len(violations)
             unresolved = len([v for v in violations if not v.get("resolved", False)])
             self.query_one("#cp-detection-stats", Static).update(
                 f"Total context poisoning violations: {total}\nUnresolved: {unresolved}"
             )
         except Exception as e:
-            self.query_one("#cp-detection-stats", Static).update(f"[dim]Error: {e}[/dim]")
+            self.query_one("#cp-detection-stats", Static).update(
+                f"[dim]Error: {e}[/dim]"
+            )
 
     def _save_field(self, field: str, value) -> None:
         if field == "enabled":
@@ -247,29 +268,31 @@ class CPDetectionContent(SchemaDefaultsMixin, Container):
         try:
             config = {}
             if config_path.exists():
-                with open(config_path, 'r', encoding='utf-8') as f:
+                with open(config_path, "r", encoding="utf-8") as f:
                     config = json.load(f)
             if "context_poisoning" not in config:
                 config["context_poisoning"] = {}
             config["context_poisoning"][field] = value
-            with open(config_path, 'w', encoding='utf-8') as f:
+            with open(config_path, "w", encoding="utf-8") as f:
                 json.dump(config, f, indent=2)
             self.app.notify(f"Saved {field}", severity="success")
         except Exception as e:
             self.app.notify(f"Error saving {field}: {e}", severity="error")
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
-        if getattr(self, '_loading', False):
+        if getattr(self, "_loading", False):
             return
         bid = event.button.id
         if bid and "context_poisoning_enabled" in bid:
-            toggle = self.query_one("#context_poisoning_enabled_toggle", TimeBasedToggle)
+            toggle = self.query_one(
+                "#context_poisoning_enabled_toggle", TimeBasedToggle
+            )
             if toggle.current_mode == "temp_disabled":
                 return
             self._save_field("enabled", toggle.get_value())
 
     def on_select_changed(self, event) -> None:
-        if getattr(self, '_loading', False):
+        if getattr(self, "_loading", False):
             return
         sid = event.select.id
         if sid == "cp-action-select":
@@ -278,11 +301,13 @@ class CPDetectionContent(SchemaDefaultsMixin, Container):
             self._save_field("sensitivity", event.value)
 
     def on_input_submitted(self, event: Input.Submitted) -> None:
-        if getattr(self, '_loading', False):
+        if getattr(self, "_loading", False):
             return
         iid = event.input.id
         if iid and "context_poisoning_enabled" in iid:
-            toggle = self.query_one("#context_poisoning_enabled_toggle", TimeBasedToggle)
+            toggle = self.query_one(
+                "#context_poisoning_enabled_toggle", TimeBasedToggle
+            )
             self._save_field("enabled", toggle.get_value())
         elif iid == "cp-ignore-file-input":
             self._add_list_item("ignore_files", event.input)
@@ -299,7 +324,7 @@ class CPDetectionContent(SchemaDefaultsMixin, Container):
         try:
             config = {}
             if config_path.exists():
-                with open(config_path, 'r', encoding='utf-8') as f:
+                with open(config_path, "r", encoding="utf-8") as f:
                     config = json.load(f)
             if "context_poisoning" not in config:
                 config["context_poisoning"] = {}
@@ -309,7 +334,7 @@ class CPDetectionContent(SchemaDefaultsMixin, Container):
                 self.app.notify("Already in list", severity="warning")
                 return
             config["context_poisoning"][field].append(value)
-            with open(config_path, 'w', encoding='utf-8') as f:
+            with open(config_path, "w", encoding="utf-8") as f:
                 json.dump(config, f, indent=2)
             input_widget.value = ""
             self.load_config()

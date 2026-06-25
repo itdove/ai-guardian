@@ -13,6 +13,7 @@ _logger = logging.getLogger(__name__)
 
 def _load_rules():
     from ai_guardian.pattern_lister import PatternLister
+
     return PatternLister().get_all_rules()
 
 
@@ -41,7 +42,7 @@ def _refresh_pattern_server_cache():
 def _truncate(text, maxlen=80):
     if len(text) <= maxlen:
         return text
-    return text[:maxlen - 3] + "..."
+    return text[: maxlen - 3] + "..."
 
 
 def create_detection_patterns_page(service, daemon_name: str):
@@ -59,22 +60,32 @@ def create_detection_patterns_page(service, daemon_name: str):
             ).classes("text-xs text-grey-6")
 
             filter_state = {
-                "category": "all", "source": "all",
-                "search": "", "mode": "search",
+                "category": "all",
+                "source": "all",
+                "search": "",
+                "mode": "search",
             }
 
             with ui.row().classes("items-center gap-4 w-full"):
-                cat_select = ui.select(
-                    options={"all": "All Categories"},
-                    value="all",
-                    label="Category",
-                ).props("dense outlined").classes("w-48")
+                cat_select = (
+                    ui.select(
+                        options={"all": "All Categories"},
+                        value="all",
+                        label="Category",
+                    )
+                    .props("dense outlined")
+                    .classes("w-48")
+                )
 
-                src_select = ui.select(
-                    options={"all": "All Sources"},
-                    value="all",
-                    label="Source",
-                ).props("dense outlined").classes("w-48")
+                src_select = (
+                    ui.select(
+                        options={"all": "All Sources"},
+                        value="all",
+                        label="Source",
+                    )
+                    .props("dense outlined")
+                    .classes("w-48")
+                )
 
                 mode_toggle = ui.toggle(
                     {
@@ -84,9 +95,11 @@ def create_detection_patterns_page(service, daemon_name: str):
                     value="search",
                 ).props("dense no-caps")
 
-                search_input = ui.input(
-                    placeholder="Search by ID, description, or pattern..."
-                ).props("dense outlined clearable").classes("flex-grow")
+                search_input = (
+                    ui.input(placeholder="Search by ID, description, or pattern...")
+                    .props("dense outlined clearable")
+                    .classes("flex-grow")
+                )
 
                 refresh_status = ui.label("").classes("text-xs text-grey-6")
 
@@ -97,7 +110,9 @@ def create_detection_patterns_page(service, daemon_name: str):
                     await refresh()
 
                 ui.button(
-                    "Refresh Patterns", on_click=_on_refresh, icon="refresh",
+                    "Refresh Patterns",
+                    on_click=_on_refresh,
+                    icon="refresh",
                 ).props("dense flat no-caps").classes("ml-2")
 
             mode_hint = ui.label("").classes("text-xs text-grey-6 -mt-2")
@@ -146,9 +161,7 @@ def create_detection_patterns_page(service, daemon_name: str):
                 with badge_row:
                     for c in categories:
                         color = "red" if c == "self_protection" else "blue"
-                        ui.badge(f"{c}: {counts[c]}", color=color).classes(
-                            "text-xs"
-                        )
+                        ui.badge(f"{c}: {counts[c]}", color=color).classes("text-xs")
 
                 _render_table(all_rules)
 
@@ -167,7 +180,8 @@ def create_detection_patterns_page(service, daemon_name: str):
                     else:
                         ql = q.lower()
                         filtered = [
-                            r for r in filtered
+                            r
+                            for r in filtered
                             if ql in r.id.lower()
                             or ql in r.description.lower()
                             or ql in r.pattern.lower()
@@ -200,57 +214,104 @@ def create_detection_patterns_page(service, daemon_name: str):
                         ).classes("text-sm text-grey-6")
 
                     columns = [
-                        {"name": "id", "label": "ID", "field": "id",
-                         "sortable": True, "align": "left"},
-                        {"name": "category", "label": "Category",
-                         "field": "category", "sortable": True, "align": "left"},
-                        {"name": "group", "label": "Group", "field": "group",
-                         "sortable": True, "align": "left"},
-                        {"name": "match_type", "label": "Type",
-                         "field": "match_type", "sortable": True,
-                         "align": "left"},
-                        {"name": "pattern", "label": "Pattern",
-                         "field": "pattern", "align": "left"},
-                        {"name": "description", "label": "Description",
-                         "field": "description", "align": "left"},
-                        {"name": "source", "label": "Source",
-                         "field": "source", "sortable": True, "align": "left"},
-                        {"name": "severity", "label": "Severity",
-                         "field": "severity", "sortable": True,
-                         "align": "left"},
+                        {
+                            "name": "id",
+                            "label": "ID",
+                            "field": "id",
+                            "sortable": True,
+                            "align": "left",
+                        },
+                        {
+                            "name": "category",
+                            "label": "Category",
+                            "field": "category",
+                            "sortable": True,
+                            "align": "left",
+                        },
+                        {
+                            "name": "group",
+                            "label": "Group",
+                            "field": "group",
+                            "sortable": True,
+                            "align": "left",
+                        },
+                        {
+                            "name": "match_type",
+                            "label": "Type",
+                            "field": "match_type",
+                            "sortable": True,
+                            "align": "left",
+                        },
+                        {
+                            "name": "pattern",
+                            "label": "Pattern",
+                            "field": "pattern",
+                            "align": "left",
+                        },
+                        {
+                            "name": "description",
+                            "label": "Description",
+                            "field": "description",
+                            "align": "left",
+                        },
+                        {
+                            "name": "source",
+                            "label": "Source",
+                            "field": "source",
+                            "sortable": True,
+                            "align": "left",
+                        },
+                        {
+                            "name": "severity",
+                            "label": "Severity",
+                            "field": "severity",
+                            "sortable": True,
+                            "align": "left",
+                        },
                     ]
 
                     rows = []
                     for r in filtered:
-                        rows.append({
-                            "id": r.id,
-                            "category": r.category,
-                            "group": r.group,
-                            "match_type": r.match_type,
-                            "pattern": _truncate(r.pattern),
-                            "full_pattern": r.pattern,
-                            "description": r.description,
-                            "source": r.source,
-                            "severity": r.severity,
-                        })
+                        rows.append(
+                            {
+                                "id": r.id,
+                                "category": r.category,
+                                "group": r.group,
+                                "match_type": r.match_type,
+                                "pattern": _truncate(r.pattern),
+                                "full_pattern": r.pattern,
+                                "description": r.description,
+                                "source": r.source,
+                                "severity": r.severity,
+                            }
+                        )
 
-                    table = ui.table(
-                        columns=columns,
-                        rows=rows,
-                        row_key="id",
-                        pagination={"rowsPerPage": 50, "sortBy": "category"},
-                    ).classes("w-full").props("dense flat bordered wrap-cells")
+                    table = (
+                        ui.table(
+                            columns=columns,
+                            rows=rows,
+                            row_key="id",
+                            pagination={"rowsPerPage": 50, "sortBy": "category"},
+                        )
+                        .classes("w-full")
+                        .props("dense flat bordered wrap-cells")
+                    )
 
-                    table.add_slot("body-cell-pattern", r'''
+                    table.add_slot(
+                        "body-cell-pattern",
+                        r"""
                         <q-td :props="props">
                             <q-tooltip>{{ props.row.full_pattern }}</q-tooltip>
                             <span style="font-family: monospace; font-size: 0.8em;">
                                 {{ props.value }}
                             </span>
                         </q-td>
-                    ''')
+                    """,
+                    )
 
-                    table.add_slot("body-cell-severity", r'''
+                    table.add_slot(
+                        "body-cell-severity",
+                        r"""
                         <q-td :props="props">
                             <q-badge v-if="props.value === 'immutable'"
                                      color="red" :label="props.value" />
@@ -260,9 +321,12 @@ def create_detection_patterns_page(service, daemon_name: str):
                                 {{ props.value || '—' }}
                             </span>
                         </q-td>
-                    ''')
+                    """,
+                    )
 
-                    table.add_slot("body-cell-source", r'''
+                    table.add_slot(
+                        "body-cell-source",
+                        r"""
                         <q-td :props="props">
                             <q-badge v-if="props.value === 'hardcoded'"
                                      color="amber" text-color="black"
@@ -273,7 +337,8 @@ def create_detection_patterns_page(service, daemon_name: str):
                             <q-badge v-else color="teal"
                                      :label="props.value" />
                         </q-td>
-                    ''')
+                    """,
+                    )
 
                     ui.label(
                         "User-configurable patterns (allowlists, custom patterns) "

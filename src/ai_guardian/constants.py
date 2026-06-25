@@ -9,6 +9,7 @@ from enum import Enum
 
 class ActionMode(str, Enum):
     """Action modes for security policy enforcement."""
+
     BLOCK = "block"
     WARN = "warn"
     LOG_ONLY = "log-only"
@@ -49,6 +50,7 @@ def parse_ask_action(action_str: str):
 
 class ViolationType(str, Enum):
     """Violation types logged by the violation logger."""
+
     SECRET_DETECTED = "secret_detected"
     PII_DETECTED = "pii_detected"
     DIRECTORY_BLOCKING = "directory_blocking"
@@ -68,6 +70,7 @@ class ViolationType(str, Enum):
 
 class HookEvent(str, Enum):
     """Hook event types from IDE integrations."""
+
     PROMPT = "prompt"
     PRE_TOOL_USE = "pretooluse"
     POST_TOOL_USE = "posttooluse"

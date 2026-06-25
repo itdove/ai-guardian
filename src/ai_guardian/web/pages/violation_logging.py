@@ -22,7 +22,10 @@ ALL_LOG_TYPES = [
     ("pii_detected", "PII Detected — personal identifiable information"),
     ("secret_in_transcript", "Secret in Transcript — secrets from ! shell commands"),
     ("pii_in_transcript", "PII in Transcript — PII from ! shell commands"),
-    ("prompt_injection_in_transcript", "Injection in Transcript — prompt injection from ! shell commands"),
+    (
+        "prompt_injection_in_transcript",
+        "Injection in Transcript — prompt injection from ! shell commands",
+    ),
     ("annotation_suppressed", "Annotation Suppressed — inline suppression applied"),
     ("image_secret_detected", "Image Secret — secrets found in images via OCR"),
     ("image_pii_detected", "Image PII — PII found in images via OCR"),
@@ -47,6 +50,7 @@ def _parse_duration(text):
 
 def _save_vlog_config(updates):
     from ai_guardian.config_utils import get_config_dir
+
     path = get_config_dir() / "ai-guardian.json"
     path.parent.mkdir(parents=True, exist_ok=True)
     config = {}
@@ -66,6 +70,7 @@ def _save_vlog_config(updates):
 
 def _load_local_stats():
     from ai_guardian.violation_logger import ViolationLogger
+
     vl = ViolationLogger()
     recent = vl.get_recent_violations(limit=1000)
     type_counts = {}
@@ -148,29 +153,27 @@ def create_violation_logging_page(service, daemon_name: str):
                                 reason = vlog["enabled"].get("reason", "")
                             with ui.row().classes("items-center gap-2 mt-2"):
                                 ui.icon("timer").classes("text-amber")
-                                ui.label(
-                                    f"TEMP DISABLED — {remaining} left"
-                                ).classes("text-amber font-bold")
+                                ui.label(f"TEMP DISABLED — {remaining} left").classes(
+                                    "text-amber font-bold"
+                                )
                                 if reason:
                                     ui.label(f"({reason})").classes(
                                         "text-xs text-grey-6"
                                     )
 
                             async def do_reenable():
-                                await run.io_bound(
-                                    _save_vlog_config, {"enabled": True}
-                                )
+                                await run.io_bound(_save_vlog_config, {"enabled": True})
                                 ui.notify("Re-enabled", type="positive")
                                 await refresh()
 
                             ui.button(
-                                "Re-enable Now", icon="play_arrow",
-                                color="green", on_click=do_reenable,
+                                "Re-enable Now",
+                                icon="play_arrow",
+                                color="green",
+                                on_click=do_reenable,
                             ).props("dense size=sm")
                         else:
-                            switch = ui.switch(
-                                "Enabled", value=is_enabled
-                            )
+                            switch = ui.switch("Enabled", value=is_enabled)
 
                             async def on_toggle(e):
                                 await run.io_bound(
@@ -184,16 +187,22 @@ def create_violation_logging_page(service, daemon_name: str):
                             switch.on_value_change(on_toggle)
 
                             with ui.row().classes("items-center gap-2 mt-2"):
-                                dur_input = ui.input(
-                                    placeholder="e.g. 30m, 2h, 1d",
-                                ).props("dense outlined").classes("w-36")
-                                rsn_input = ui.input(
-                                    placeholder="Reason (optional)",
-                                ).props("dense outlined").classes("w-48")
+                                dur_input = (
+                                    ui.input(
+                                        placeholder="e.g. 30m, 2h, 1d",
+                                    )
+                                    .props("dense outlined")
+                                    .classes("w-36")
+                                )
+                                rsn_input = (
+                                    ui.input(
+                                        placeholder="Reason (optional)",
+                                    )
+                                    .props("dense outlined")
+                                    .classes("w-48")
+                                )
 
-                                async def do_temp_disable(
-                                    d=dur_input, r=rsn_input
-                                ):
+                                async def do_temp_disable(d=dur_input, r=rsn_input):
                                     delta = _parse_duration(d.value or "30m")
                                     if not delta:
                                         ui.notify(
@@ -218,21 +227,26 @@ def create_violation_logging_page(service, daemon_name: str):
                                     await refresh()
 
                                 ui.button(
-                                    "Temp Disable", icon="timer",
+                                    "Temp Disable",
+                                    icon="timer",
                                     on_click=do_temp_disable,
                                 ).props("dense size=sm")
 
                     # --- Retention Settings ---
                     with ui.card().classes("w-full"):
-                        ui.label("Retention Settings").classes(
-                            "text-lg font-bold"
-                        )
+                        ui.label("Retention Settings").classes("text-lg font-bold")
 
                         with ui.row().classes("items-center gap-4"):
                             ui.label("Max Entries:").classes("text-sm")
-                            max_input = ui.number(
-                                value=max_entries, min=1, step=1,
-                            ).props("dense outlined").classes("w-32")
+                            max_input = (
+                                ui.number(
+                                    value=max_entries,
+                                    min=1,
+                                    step=1,
+                                )
+                                .props("dense outlined")
+                                .classes("w-32")
+                            )
 
                             async def save_max(e, inp=max_input):
                                 try:
@@ -242,9 +256,7 @@ def create_violation_logging_page(service, daemon_name: str):
                                     await run.io_bound(
                                         _save_vlog_config, {"max_entries": val}
                                     )
-                                    ui.notify(
-                                        f"Max entries: {val}", type="positive"
-                                    )
+                                    ui.notify(f"Max entries: {val}", type="positive")
                                 except (ValueError, TypeError):
                                     ui.notify(
                                         "Must be a positive integer",
@@ -255,9 +267,15 @@ def create_violation_logging_page(service, daemon_name: str):
 
                         with ui.row().classes("items-center gap-4 mt-2"):
                             ui.label("Retention Days:").classes("text-sm")
-                            ret_input = ui.number(
-                                value=retention_days, min=1, step=1,
-                            ).props("dense outlined").classes("w-32")
+                            ret_input = (
+                                ui.number(
+                                    value=retention_days,
+                                    min=1,
+                                    step=1,
+                                )
+                                .props("dense outlined")
+                                .classes("w-32")
+                            )
 
                             async def save_ret(e, inp=ret_input):
                                 try:
@@ -282,9 +300,7 @@ def create_violation_logging_page(service, daemon_name: str):
 
                     # --- Log Types ---
                     with ui.card().classes("w-full"):
-                        ui.label("Violation Types to Log").classes(
-                            "text-lg font-bold"
-                        )
+                        ui.label("Violation Types to Log").classes("text-lg font-bold")
                         ui.label(
                             "Uncheck types to stop logging specific categories. "
                             "Empty selection logs all types."
@@ -293,17 +309,13 @@ def create_violation_logging_page(service, daemon_name: str):
                         checkboxes = {}
                         for log_type, description in ALL_LOG_TYPES:
                             checked = log_type in log_types
-                            cb = ui.checkbox(
-                                description, value=checked
-                            ).classes("text-sm")
+                            cb = ui.checkbox(description, value=checked).classes(
+                                "text-sm"
+                            )
                             checkboxes[log_type] = cb
 
-                            async def on_type_change(
-                                e, cbs=checkboxes
-                            ):
-                                enabled_types = [
-                                    lt for lt, c in cbs.items() if c.value
-                                ]
+                            async def on_type_change(e, cbs=checkboxes):
+                                enabled_types = [lt for lt, c in cbs.items() if c.value]
                                 await run.io_bound(
                                     _save_vlog_config,
                                     {"log_types": enabled_types},
@@ -320,25 +332,35 @@ def create_violation_logging_page(service, daemon_name: str):
                     with ui.card().classes("w-full"):
                         ui.label("Log Statistics").classes("text-lg font-bold")
                         stats = await run.io_bound(_load_local_stats)
-                        ui.label(
-                            f"Total logged violations: {stats['total']}"
-                        ).classes("text-sm")
+                        ui.label(f"Total logged violations: {stats['total']}").classes(
+                            "text-sm"
+                        )
                         if stats["by_type"]:
                             rows = [
                                 {"type": k, "count": v}
                                 for k, v in sorted(
                                     stats["by_type"].items(),
-                                    key=lambda x: x[1], reverse=True,
+                                    key=lambda x: x[1],
+                                    reverse=True,
                                 )
                             ]
                             ui.table(
                                 columns=[
-                                    {"name": "type", "label": "Type",
-                                     "field": "type", "sortable": True},
-                                    {"name": "count", "label": "Count",
-                                     "field": "count", "sortable": True},
+                                    {
+                                        "name": "type",
+                                        "label": "Type",
+                                        "field": "type",
+                                        "sortable": True,
+                                    },
+                                    {
+                                        "name": "count",
+                                        "label": "Count",
+                                        "field": "count",
+                                        "sortable": True,
+                                    },
                                 ],
-                                rows=rows, row_key="type",
+                                rows=rows,
+                                row_key="type",
                             ).classes("w-full max-w-md")
 
             ui.timer(0.1, refresh, once=True)

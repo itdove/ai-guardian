@@ -12,10 +12,14 @@ from typing import Union, Dict, Any
 
 from textual.app import ComposeResult
 from textual.containers import Container, Horizontal, VerticalScroll
-from textual.widgets import Button, Static, Input, Label
+from textual.widgets import Button, Static, Input
 
 from ai_guardian.config_utils import get_config_dir, get_project_config_path
-from ai_guardian.tui.widgets import TimeBasedToggle, sanitize_enabled_value, format_local_time
+from ai_guardian.tui.widgets import (
+    TimeBasedToggle,
+    sanitize_enabled_value,
+    format_local_time,
+)
 
 
 class PatternRow(Horizontal):
@@ -41,7 +45,14 @@ class PatternRow(Horizontal):
     }
     """
 
-    def __init__(self, pattern: Union[str, Dict[str, Any]], index: int, mode: str, *args, **kwargs):
+    def __init__(
+        self,
+        pattern: Union[str, Dict[str, Any]],
+        index: int,
+        mode: str,
+        *args,
+        **kwargs,
+    ):
         super().__init__(*args, **kwargs)
         self.pattern_data = pattern
         self.index = index
@@ -69,7 +80,9 @@ class PatternRow(Horizontal):
         if self.valid_until:
             # Add expiration badge with color coding
             try:
-                expiry_dt = datetime.fromisoformat(self.valid_until.replace('Z', '+00:00'))
+                expiry_dt = datetime.fromisoformat(
+                    self.valid_until.replace("Z", "+00:00")
+                )
                 now = datetime.now(timezone.utc)
 
                 if expiry_dt <= now:
@@ -81,9 +94,13 @@ class PatternRow(Horizontal):
                     if time_remaining.total_seconds() < 86400:  # 24 hours
                         pattern_display += f" [status-warn][expires {format_local_time(self.valid_until)}][/status-warn]"
                     else:
-                        pattern_display += f" [dim][until {format_local_time(self.valid_until)}][/dim]"
+                        pattern_display += (
+                            f" [dim][until {format_local_time(self.valid_until)}][/dim]"
+                        )
             except Exception:
-                pattern_display += f" [dim][until {format_local_time(self.valid_until)}][/dim]"
+                pattern_display += (
+                    f" [dim][until {format_local_time(self.valid_until)}][/dim]"
+                )
 
         yield Static(pattern_display)
         yield Button("Remove", id=f"remove-{self.mode}-{self.index}", variant="error")
@@ -223,6 +240,7 @@ class SkillsContent(Container):
             if project_path:
                 return project_path
             from ai_guardian.config_utils import _find_git_root
+
             root = _find_git_root() or Path.cwd()
             return root / ".ai-guardian" / "ai-guardian.json"
         return get_config_dir() / "ai-guardian.json"
@@ -244,19 +262,39 @@ class SkillsContent(Container):
 
             # Allow list section
             with Container(classes="section"):
-                yield Static("[bold][green]✓ Allow List[/green][/bold]", classes="section-title")
-                yield Static("Skills matching these patterns will be allowed.", classes="section-title")
-                yield Static("[dim]Add pattern: Press 'a' or Enter • Remove: Focus Remove button and press Enter[/dim]")
+                yield Static(
+                    "[bold][green]✓ Allow List[/green][/bold]", classes="section-title"
+                )
+                yield Static(
+                    "Skills matching these patterns will be allowed.",
+                    classes="section-title",
+                )
+                yield Static(
+                    "[dim]Add pattern: Press 'a' or Enter • Remove: Focus Remove button and press Enter[/dim]"
+                )
                 yield VerticalScroll(id="patterns-allow-container")
-                yield Input(placeholder="Enter pattern (e.g., daf-*, hello)", id="new-allow-pattern")
+                yield Input(
+                    placeholder="Enter pattern (e.g., daf-*, hello)",
+                    id="new-allow-pattern",
+                )
 
             # Deny list section
             with Container(classes="section"):
-                yield Static("[bold][red]✗ Deny List[/red][/bold]", classes="section-title")
-                yield Static("Skills matching these patterns will be blocked.", classes="section-title")
-                yield Static("[dim]Add pattern: Press 'd' or Enter • Remove: Focus Remove button and press Enter[/dim]")
+                yield Static(
+                    "[bold][red]✗ Deny List[/red][/bold]", classes="section-title"
+                )
+                yield Static(
+                    "Skills matching these patterns will be blocked.",
+                    classes="section-title",
+                )
+                yield Static(
+                    "[dim]Add pattern: Press 'd' or Enter • Remove: Focus Remove button and press Enter[/dim]"
+                )
                 yield VerticalScroll(id="patterns-deny-container")
-                yield Input(placeholder="Enter pattern (e.g., dangerous-*)", id="new-deny-pattern")
+                yield Input(
+                    placeholder="Enter pattern (e.g., dangerous-*)",
+                    id="new-deny-pattern",
+                )
 
     def on_mount(self) -> None:
         """Load permissions when mounted."""
@@ -284,7 +322,7 @@ class SkillsContent(Container):
 
         if config_path.exists():
             try:
-                with open(config_path, 'r', encoding='utf-8') as f:
+                with open(config_path, "r", encoding="utf-8") as f:
                     config = json.load(f)
 
                     # Load permissions enabled toggle
@@ -294,7 +332,9 @@ class SkillsContent(Container):
                     else:
                         perm_enabled = True
                     try:
-                        toggle = self.query_one("#sk_permissions_enabled_toggle", TimeBasedToggle)
+                        toggle = self.query_one(
+                            "#sk_permissions_enabled_toggle", TimeBasedToggle
+                        )
                         toggle.load_value(perm_enabled)
                     except Exception:
                         pass
@@ -304,7 +344,9 @@ class SkillsContent(Container):
                     if isinstance(permissions_obj, dict):
                         all_permissions = permissions_obj.get("rules", [])
                     else:
-                        all_permissions = permissions_obj if isinstance(permissions_obj, list) else []
+                        all_permissions = (
+                            permissions_obj if isinstance(permissions_obj, list) else []
+                        )
 
                     # Extract allow and deny patterns for Skill matcher
                     for perm in all_permissions:
@@ -324,13 +366,17 @@ class SkillsContent(Container):
 
         if allow_patterns:
             for idx, pattern in enumerate(allow_patterns):
-                allow_container.mount(PatternRow(pattern, idx, "allow", classes="pattern-row"))
+                allow_container.mount(
+                    PatternRow(pattern, idx, "allow", classes="pattern-row")
+                )
         else:
-            allow_container.mount(Static(
-                "[muted]No allow patterns configured.\n"
-                "Add patterns to allow specific skills.[/muted]",
-                classes="empty-state"
-            ))
+            allow_container.mount(
+                Static(
+                    "[muted]No allow patterns configured.\n"
+                    "Add patterns to allow specific skills.[/muted]",
+                    classes="empty-state",
+                )
+            )
 
         # Display deny patterns
         deny_container = self.query_one("#patterns-deny-container", VerticalScroll)
@@ -338,17 +384,21 @@ class SkillsContent(Container):
 
         if deny_patterns:
             for idx, pattern in enumerate(deny_patterns):
-                deny_container.mount(PatternRow(pattern, idx, "deny", classes="pattern-row"))
+                deny_container.mount(
+                    PatternRow(pattern, idx, "deny", classes="pattern-row")
+                )
         else:
-            deny_container.mount(Static(
-                "[muted]No deny patterns configured.\n"
-                "Add patterns to block specific skills.[/muted]",
-                classes="empty-state"
-            ))
+            deny_container.mount(
+                Static(
+                    "[muted]No deny patterns configured.\n"
+                    "Add patterns to block specific skills.[/muted]",
+                    classes="empty-state",
+                )
+            )
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         """Handle button presses (remove buttons and toggle buttons)."""
-        if getattr(self, '_loading', False):
+        if getattr(self, "_loading", False):
             return
         button_id = event.button.id
 
@@ -368,7 +418,7 @@ class SkillsContent(Container):
 
     def on_input_submitted(self, event: Input.Submitted) -> None:
         """Handle Enter key in input fields."""
-        if getattr(self, '_loading', False):
+        if getattr(self, "_loading", False):
             return
         input_id = event.input.id
         if input_id and "sk_permissions_enabled" in input_id:
@@ -398,31 +448,37 @@ class SkillsContent(Container):
 
         try:
             if config_path.exists():
-                with open(config_path, 'r', encoding='utf-8') as f:
+                with open(config_path, "r", encoding="utf-8") as f:
                     config = json.load(f)
             else:
                 config = {}
 
-            if "permissions" not in config or not isinstance(config["permissions"], dict):
+            if "permissions" not in config or not isinstance(
+                config["permissions"], dict
+            ):
                 config["permissions"] = {"enabled": True, "rules": []}
 
             value = sanitize_enabled_value(value)
             config["permissions"]["enabled"] = value
 
-            with open(config_path, 'w', encoding='utf-8') as f:
+            with open(config_path, "w", encoding="utf-8") as f:
                 json.dump(config, f, indent=2)
 
             if isinstance(value, bool):
                 status = "enabled" if value else "disabled"
-                self.app.notify(f"✓ Permissions enforcement {status}", severity="success")
+                self.app.notify(
+                    f"✓ Permissions enforcement {status}", severity="success"
+                )
             else:
                 if value.get("disabled_until"):
                     self.app.notify(
                         f"✓ Permissions enforcement temporarily disabled until {format_local_time(value['disabled_until'])}",
-                        severity="success"
+                        severity="success",
                     )
                 else:
-                    self.app.notify("✓ Permissions enforcement disabled", severity="success")
+                    self.app.notify(
+                        "✓ Permissions enforcement disabled", severity="success"
+                    )
 
         except Exception as e:
             self.app.notify(f"Error saving config: {e}", severity="error")
@@ -440,7 +496,7 @@ class SkillsContent(Container):
 
         try:
             if config_path.exists():
-                with open(config_path, 'r', encoding='utf-8') as f:
+                with open(config_path, "r", encoding="utf-8") as f:
                     config = json.load(f)
             else:
                 config = {}
@@ -465,29 +521,31 @@ class SkillsContent(Container):
 
             if existing_rule:
                 if pattern in existing_rule.get("patterns", []):
-                    self.app.notify(f"Pattern already in {mode} list", severity="warning")
+                    self.app.notify(
+                        f"Pattern already in {mode} list", severity="warning"
+                    )
                     return
                 existing_rule.setdefault("patterns", []).append(pattern)
             else:
-                all_permissions.append({
-                    "matcher": "Skill",
-                    "mode": mode,
-                    "patterns": [pattern]
-                })
+                all_permissions.append(
+                    {"matcher": "Skill", "mode": mode, "patterns": [pattern]}
+                )
 
             if is_dict_format:
                 config["permissions"]["rules"] = all_permissions
             else:
                 config["permissions"] = all_permissions
 
-            with open(config_path, 'w', encoding='utf-8') as f:
+            with open(config_path, "w", encoding="utf-8") as f:
                 json.dump(config, f, indent=2)
 
             # Clear input
             self.query_one(f"#{input_id}", Input).value = ""
 
             self.load_patterns()
-            self.app.notify(f"✓ Added pattern to {mode} list: {pattern}", severity="success")
+            self.app.notify(
+                f"✓ Added pattern to {mode} list: {pattern}", severity="success"
+            )
 
         except Exception as e:
             self.app.notify(f"Error adding pattern: {e}", severity="error")
@@ -501,7 +559,7 @@ class SkillsContent(Container):
             return
 
         try:
-            with open(config_path, 'r', encoding='utf-8') as f:
+            with open(config_path, "r", encoding="utf-8") as f:
                 config = json.load(f)
 
             # NEW unified structure in v1.4.0
@@ -509,7 +567,9 @@ class SkillsContent(Container):
             if isinstance(permissions_obj, dict):
                 all_permissions = permissions_obj.get("rules", [])
             else:
-                all_permissions = permissions_obj if isinstance(permissions_obj, list) else []
+                all_permissions = (
+                    permissions_obj if isinstance(permissions_obj, list) else []
+                )
 
             # Find and remove pattern
             for perm in all_permissions:
@@ -525,13 +585,19 @@ class SkillsContent(Container):
                         if isinstance(config.get("permissions"), dict):
                             config["permissions"]["rules"] = all_permissions
                         else:
-                            config["permissions"] = {"enabled": True, "rules": all_permissions}
+                            config["permissions"] = {
+                                "enabled": True,
+                                "rules": all_permissions,
+                            }
 
-                        with open(config_path, 'w', encoding='utf-8') as f:
+                        with open(config_path, "w", encoding="utf-8") as f:
                             json.dump(config, f, indent=2)
 
                         self.load_patterns()
-                        self.app.notify(f"✓ Removed pattern from {mode} list: {removed_pattern}", severity="success")
+                        self.app.notify(
+                            f"✓ Removed pattern from {mode} list: {removed_pattern}",
+                            severity="success",
+                        )
                         return
 
             self.app.notify(f"Pattern not found at index {index}", severity="error")

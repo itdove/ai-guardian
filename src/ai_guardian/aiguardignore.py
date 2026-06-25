@@ -56,30 +56,36 @@ except ImportError:
 
 try:
     import tomli_w
+
     HAS_TOML_W = True
 except ImportError:
     HAS_TOML_W = False
 
 SCHEMA_HEADER = "#:schema https://raw.githubusercontent.com/itdove/ai-guardian/main/src/ai_guardian/schemas/aiguardignore.schema.json\n"
 
-SCANNER_TYPES = frozenset({
-    "secret_scanning",
-    "scan_pii",
-    "prompt_injection",
-    "config_file_scanning",
-    "context_poisoning",
-    "supply_chain",
-    "image_scanning",
-})
+SCANNER_TYPES = frozenset(
+    {
+        "secret_scanning",
+        "scan_pii",
+        "prompt_injection",
+        "config_file_scanning",
+        "context_poisoning",
+        "supply_chain",
+        "image_scanning",
+    }
+)
 
 # Per-project cache to avoid cross-project contamination (#1227)
-_cached_configs: Dict[Path, tuple] = {}  # project_root -> (toml_path, mtime, AiguardignoreConfig)
+_cached_configs: Dict[Path, tuple] = (
+    {}
+)  # project_root -> (toml_path, mtime, AiguardignoreConfig)
 _cache_last_accessed: Dict[Path, float] = {}  # project_root -> monotonic timestamp
 
 
 @dataclass
 class AiguardignoreConfig:
     """Parsed .aiguardignore.toml data."""
+
     global_paths: List[str] = field(default_factory=list)
     scanner_paths: Dict[str, List[str]] = field(default_factory=dict)
 
@@ -88,9 +94,7 @@ def _validate_paths(raw: List[str]) -> List[str]:
     safe = []
     for p in raw:
         if ".." in p.split("/"):
-            logger.warning(
-                f"Blocked .aiguardignore.toml path with '..': '{p}'"
-            )
+            logger.warning(f"Blocked .aiguardignore.toml path with '..': '{p}'")
             continue
         safe.append(p)
     return safe
@@ -187,10 +191,7 @@ def reset_cache():
 def cleanup_stale_entries(max_age: float = 86400.0):
     """Remove cache entries not accessed within max_age seconds."""
     now = time.monotonic()
-    stale_keys = [
-        k for k, ts in _cache_last_accessed.items()
-        if now - ts > max_age
-    ]
+    stale_keys = [k for k, ts in _cache_last_accessed.items() if now - ts > max_age]
     for key in stale_keys:
         _cached_configs.pop(key, None)
         _cache_last_accessed.pop(key, None)
@@ -219,9 +220,7 @@ def find_project_root_for_file(file_path: str) -> Optional[Path]:
     return find_project_root()
 
 
-def make_relative_path(
-    abs_path: str, project_root: Optional[Path] = None
-) -> str:
+def make_relative_path(abs_path: str, project_root: Optional[Path] = None) -> str:
     """Convert an absolute file path to a project-relative path."""
     root = project_root or find_project_root_for_file(abs_path)
     if root is None:
@@ -300,9 +299,7 @@ def add_ignore_path(
                     paths.append(path_pattern)
 
         is_new = not toml_path.is_file()
-        fd, tmp_path = tempfile.mkstemp(
-            dir=str(root), suffix=".aiguardignore.tmp"
-        )
+        fd, tmp_path = tempfile.mkstemp(dir=str(root), suffix=".aiguardignore.tmp")
         try:
             with os.fdopen(fd, "wb") as f:
                 if is_new:
@@ -394,9 +391,7 @@ def write_aiguardignore_text(
             return False
 
     try:
-        fd, tmp_path = tempfile.mkstemp(
-            dir=str(root), suffix=".aiguardignore.tmp"
-        )
+        fd, tmp_path = tempfile.mkstemp(dir=str(root), suffix=".aiguardignore.tmp")
         try:
             with os.fdopen(fd, "w", encoding="utf-8") as f:
                 f.write(toml_text)

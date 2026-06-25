@@ -21,13 +21,12 @@ import logging
 import os
 import re
 import shutil
-import sys
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
 
 from ai_guardian.language_patterns import SKIP_DIRS
-from typing import Any, Dict, List, Optional
+from typing import Dict, List, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -273,9 +272,12 @@ class MCPAuditor:
     def _check_trust(self, server_name: str) -> bool:
         """Check if an MCP server is trusted via permissions.rules."""
         try:
-            if not hasattr(self, '_policy_checker'):
+            if not hasattr(self, "_policy_checker"):
                 from ai_guardian.tool_policy import ToolPolicyChecker
-                self._policy_checker = ToolPolicyChecker(config=self.config if self.config else None)
+
+                self._policy_checker = ToolPolicyChecker(
+                    config=self.config if self.config else None
+                )
 
             checker = self._policy_checker
             hook_data = {
@@ -426,7 +428,12 @@ class MCPAuditor:
                         for line_num, line in enumerate(f, 1):
                             if line_num > _MAX_LINES_PER_FILE:
                                 break
-                            for category, severity, pattern, desc in _SOURCE_SCAN_PATTERNS:
+                            for (
+                                category,
+                                severity,
+                                pattern,
+                                desc,
+                            ) in _SOURCE_SCAN_PATTERNS:
                                 if pattern.search(line):
                                     rel_path = os.path.relpath(fpath, source_path)
                                     findings.append(
@@ -576,9 +583,7 @@ class MCPAuditor:
         for s in sorted(servers, key=lambda x: x.name):
             trust = "Trusted" if s.is_trusted else "Untrusted"
             cred_count = sum(
-                1
-                for v in s.env_var_names
-                if _CREDENTIAL_ENV_PATTERN.search(v)
+                1 for v in s.env_var_names if _CREDENTIAL_ENV_PATTERN.search(v)
             )
             env_info = str(len(s.env_var_names))
             if cred_count and not s.is_trusted:
@@ -619,7 +624,9 @@ class MCPAuditor:
         untrusted = len(report.servers) - trusted
 
         print(f"\nMCP Config Audit ({report.scan_time_ms}ms)\n")
-        print(f"Servers: {len(report.servers)} total, {trusted} trusted, {untrusted} untrusted")
+        print(
+            f"Servers: {len(report.servers)} total, {trusted} trusted, {untrusted} untrusted"
+        )
 
         if not report.findings:
             print("\nNo issues found.\n")
@@ -688,7 +695,9 @@ class MCPAuditor:
             label = severity.upper()
             print(f"  [{label}]")
             for finding in items:
-                print(f"    {finding.file_path}:{finding.line_number} - {finding.message}")
+                print(
+                    f"    {finding.file_path}:{finding.line_number} - {finding.message}"
+                )
                 if finding.code_snippet:
                     print(f"      | {finding.code_snippet}")
             print()

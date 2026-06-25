@@ -18,62 +18,63 @@ import ai_guardian
 class HookInputParsingTests(TestCase):
     """Test hook input parsing and validation"""
 
-    @patch('ai_guardian.hook_processing._load_secret_redaction_config')
-    @patch('ai_guardian.hook_processing._load_pattern_server_config')
+    @patch("ai_guardian.hook_processing._load_secret_redaction_config")
+    @patch("ai_guardian.hook_processing._load_pattern_server_config")
     def test_valid_json_processed(self, mock_pattern_config, mock_redaction_config):
         """Verify valid JSON hook data is processed"""
         mock_pattern_config.return_value = None
         mock_redaction_config.return_value = (None, None)
 
-        hook_data = {
-            "hook_event_name": "UserPromptSubmit",
-            "prompt": "Normal prompt"
-        }
+        hook_data = {"hook_event_name": "UserPromptSubmit", "prompt": "Normal prompt"}
 
-        with patch('sys.stdin', StringIO(json.dumps(hook_data))):
+        with patch("sys.stdin", StringIO(json.dumps(hook_data))):
             result = ai_guardian.process_hook_input()
 
         assert result is not None
-        assert 'exit_code' in result
+        assert "exit_code" in result
 
-    @patch('ai_guardian.hook_processing._load_secret_redaction_config')
-    @patch('ai_guardian.hook_processing._load_pattern_server_config')
-    def test_userpromptsubmit_hook_processing(self, mock_pattern_config, mock_redaction_config):
+    @patch("ai_guardian.hook_processing._load_secret_redaction_config")
+    @patch("ai_guardian.hook_processing._load_pattern_server_config")
+    def test_userpromptsubmit_hook_processing(
+        self, mock_pattern_config, mock_redaction_config
+    ):
         """Test UserPromptSubmit hook is processed"""
         mock_pattern_config.return_value = None
         mock_redaction_config.return_value = (None, None)
 
         hook_data = {
             "hook_event_name": "UserPromptSubmit",
-            "prompt": "What is the capital of France?"
+            "prompt": "What is the capital of France?",
         }
 
-        with patch('sys.stdin', StringIO(json.dumps(hook_data))):
+        with patch("sys.stdin", StringIO(json.dumps(hook_data))):
             result = ai_guardian.process_hook_input()
 
-        assert result['exit_code'] == 0, "Normal prompt should be allowed"
+        assert result["exit_code"] == 0, "Normal prompt should be allowed"
 
-    @patch('ai_guardian.hook_processing._load_secret_redaction_config')
-    @patch('ai_guardian.hook_processing._load_pattern_server_config')
-    def test_pretooluse_hook_processing(self, mock_pattern_config, mock_redaction_config):
+    @patch("ai_guardian.hook_processing._load_secret_redaction_config")
+    @patch("ai_guardian.hook_processing._load_pattern_server_config")
+    def test_pretooluse_hook_processing(
+        self, mock_pattern_config, mock_redaction_config
+    ):
         """Test PreToolUse hook is processed"""
         mock_pattern_config.return_value = None
         mock_redaction_config.return_value = (None, None)
 
         hook_data = create_hook_data(
-            tool_name="Bash",
-            tool_input={"command": "ls -la"},
-            hook_event="PreToolUse"
+            tool_name="Bash", tool_input={"command": "ls -la"}, hook_event="PreToolUse"
         )
 
-        with patch('sys.stdin', StringIO(json.dumps(hook_data))):
+        with patch("sys.stdin", StringIO(json.dumps(hook_data))):
             result = ai_guardian.process_hook_input()
 
-        assert result['exit_code'] == 0, "Normal Bash command should be allowed"
+        assert result["exit_code"] == 0, "Normal Bash command should be allowed"
 
-    @patch('ai_guardian.hook_processing._load_secret_redaction_config')
-    @patch('ai_guardian.hook_processing._load_pattern_server_config')
-    def test_posttooluse_hook_processing(self, mock_pattern_config, mock_redaction_config):
+    @patch("ai_guardian.hook_processing._load_secret_redaction_config")
+    @patch("ai_guardian.hook_processing._load_pattern_server_config")
+    def test_posttooluse_hook_processing(
+        self, mock_pattern_config, mock_redaction_config
+    ):
         """Test PostToolUse hook is processed"""
         mock_pattern_config.return_value = None
         mock_redaction_config.return_value = (None, None)
@@ -81,19 +82,19 @@ class HookInputParsingTests(TestCase):
         hook_data = {
             "hook_event_name": "PostToolUse",
             "tool_name": "Bash",
-            "tool_response": {
-                "output": "Hello, World!"
-            }
+            "tool_response": {"output": "Hello, World!"},
         }
 
-        with patch('sys.stdin', StringIO(json.dumps(hook_data))):
+        with patch("sys.stdin", StringIO(json.dumps(hook_data))):
             result = ai_guardian.process_hook_input()
 
-        assert result['exit_code'] == 0, "Clean output should be allowed"
+        assert result["exit_code"] == 0, "Clean output should be allowed"
 
-    @patch('ai_guardian.hook_processing._load_secret_redaction_config')
-    @patch('ai_guardian.hook_processing._load_pattern_server_config')
-    def test_userpromptsubmit_allows_curl_pipe_bash(self, mock_pattern_config, mock_redaction_config):
+    @patch("ai_guardian.hook_processing._load_secret_redaction_config")
+    @patch("ai_guardian.hook_processing._load_pattern_server_config")
+    def test_userpromptsubmit_allows_curl_pipe_bash(
+        self, mock_pattern_config, mock_redaction_config
+    ):
         """Supply chain scanning should not block UserPromptSubmit (issue #1114)"""
         mock_pattern_config.return_value = None
         mock_redaction_config.return_value = (None, None)
@@ -101,20 +102,22 @@ class HookInputParsingTests(TestCase):
         hook_data = {
             "hook_event_name": "UserPromptSubmit",
             "prompt": "The script has AI_GUARDIAN_VERSION, I think we can reuse it for example here\n"
-                      "    curl -fsSL https://raw.githubusercontent.com/itdove/ai-guardian/v1.11.1/install.sh | bash -s --"
+            "    curl -fsSL https://raw.githubusercontent.com/itdove/ai-guardian/v1.11.1/install.sh | bash -s --",
         }
 
-        with patch('sys.stdin', StringIO(json.dumps(hook_data))):
+        with patch("sys.stdin", StringIO(json.dumps(hook_data))):
             result = ai_guardian.process_hook_input()
 
-        assert result['exit_code'] == 0, "Prompt discussing curl install should not be blocked"
+        assert (
+            result["exit_code"] == 0
+        ), "Prompt discussing curl install should not be blocked"
 
 
 class HookToolResponseExtractionTests(TestCase):
     """Test tool response extraction for different tools"""
 
-    @patch('ai_guardian.hook_processing._load_secret_redaction_config')
-    @patch('ai_guardian.hook_processing._load_pattern_server_config')
+    @patch("ai_guardian.hook_processing._load_secret_redaction_config")
+    @patch("ai_guardian.hook_processing._load_pattern_server_config")
     def test_bash_output_extraction(self, mock_pattern_config, mock_redaction_config):
         """Verify Bash output is extracted correctly"""
         mock_pattern_config.return_value = None
@@ -123,18 +126,16 @@ class HookToolResponseExtractionTests(TestCase):
         hook_data = {
             "hook_event_name": "PostToolUse",
             "tool_name": "Bash",
-            "tool_response": {
-                "output": "Command output here"
-            }
+            "tool_response": {"output": "Command output here"},
         }
 
-        with patch('sys.stdin', StringIO(json.dumps(hook_data))):
+        with patch("sys.stdin", StringIO(json.dumps(hook_data))):
             result = ai_guardian.process_hook_input()
 
-        assert result['exit_code'] == 0
+        assert result["exit_code"] == 0
 
-    @patch('ai_guardian.hook_processing._load_secret_redaction_config')
-    @patch('ai_guardian.hook_processing._load_pattern_server_config')
+    @patch("ai_guardian.hook_processing._load_secret_redaction_config")
+    @patch("ai_guardian.hook_processing._load_pattern_server_config")
     def test_read_content_extraction(self, mock_pattern_config, mock_redaction_config):
         """Verify Read file content is extracted correctly"""
         mock_pattern_config.return_value = None
@@ -143,19 +144,19 @@ class HookToolResponseExtractionTests(TestCase):
         hook_data = {
             "hook_event_name": "PostToolUse",
             "tool_name": "Read",
-            "tool_response": {
-                "content": "File content here"
-            }
+            "tool_response": {"content": "File content here"},
         }
 
-        with patch('sys.stdin', StringIO(json.dumps(hook_data))):
+        with patch("sys.stdin", StringIO(json.dumps(hook_data))):
             result = ai_guardian.process_hook_input()
 
-        assert result['exit_code'] == 0
+        assert result["exit_code"] == 0
 
-    @patch('ai_guardian.hook_processing._load_secret_redaction_config')
-    @patch('ai_guardian.hook_processing._load_pattern_server_config')
-    def test_mcp_tool_response_extraction(self, mock_pattern_config, mock_redaction_config):
+    @patch("ai_guardian.hook_processing._load_secret_redaction_config")
+    @patch("ai_guardian.hook_processing._load_pattern_server_config")
+    def test_mcp_tool_response_extraction(
+        self, mock_pattern_config, mock_redaction_config
+    ):
         """Verify MCP tool responses are handled"""
         mock_pattern_config.return_value = None
         mock_redaction_config.return_value = (None, None)
@@ -163,20 +164,19 @@ class HookToolResponseExtractionTests(TestCase):
         hook_data = {
             "hook_event_name": "PostToolUse",
             "tool_name": attack_constants.MCP_TOOL_NOTEBOOKLM_QUERY,
-            "tool_response": {
-                "answer": "Query result",
-                "sources": []
-            }
+            "tool_response": {"answer": "Query result", "sources": []},
         }
 
-        with patch('sys.stdin', StringIO(json.dumps(hook_data))):
+        with patch("sys.stdin", StringIO(json.dumps(hook_data))):
             result = ai_guardian.process_hook_input()
 
-        assert result['exit_code'] == 0
+        assert result["exit_code"] == 0
 
-    @patch('ai_guardian.hook_processing._load_secret_redaction_config')
-    @patch('ai_guardian.hook_processing._load_pattern_server_config')
-    def test_tool_with_no_scannable_output(self, mock_pattern_config, mock_redaction_config):
+    @patch("ai_guardian.hook_processing._load_secret_redaction_config")
+    @patch("ai_guardian.hook_processing._load_pattern_server_config")
+    def test_tool_with_no_scannable_output(
+        self, mock_pattern_config, mock_redaction_config
+    ):
         """Verify tools with no scannable output are skipped"""
         mock_pattern_config.return_value = None
         mock_redaction_config.return_value = (None, None)
@@ -184,17 +184,14 @@ class HookToolResponseExtractionTests(TestCase):
         hook_data = {
             "hook_event_name": "PostToolUse",
             "tool_name": "Write",
-            "tool_response": {
-                "success": True,
-                "file_path": "/tmp/test.txt"
-            }
+            "tool_response": {"success": True, "file_path": "/tmp/test.txt"},
         }
 
-        with patch('sys.stdin', StringIO(json.dumps(hook_data))):
+        with patch("sys.stdin", StringIO(json.dumps(hook_data))):
             result = ai_guardian.process_hook_input()
 
         # Write tool output shouldn't be scanned
-        assert result['exit_code'] == 0
+        assert result["exit_code"] == 0
 
 
 class PreToolUsePermissionTests(TestCase):
@@ -205,9 +202,11 @@ class PreToolUsePermissionTests(TestCase):
     don't get auto-approved when clean.
     """
 
-    @patch('ai_guardian.hook_processing._load_secret_redaction_config')
-    @patch('ai_guardian.hook_processing._load_pattern_server_config')
-    def test_pretooluse_no_permission_override_for_edit_claude_code(self, mock_pattern_config, mock_redaction_config):
+    @patch("ai_guardian.hook_processing._load_secret_redaction_config")
+    @patch("ai_guardian.hook_processing._load_pattern_server_config")
+    def test_pretooluse_no_permission_override_for_edit_claude_code(
+        self, mock_pattern_config, mock_redaction_config
+    ):
         """Verify PreToolUse does NOT auto-approve Edit operations (Claude Code)"""
         mock_pattern_config.return_value = None
         mock_redaction_config.return_value = (None, None)
@@ -219,69 +218,79 @@ class PreToolUsePermissionTests(TestCase):
             tool_input={
                 "file_path": "/tmp/config.py",
                 "old_string": "old code",
-                "new_string": "print('Hello, World!')"
+                "new_string": "print('Hello, World!')",
             },
-            hook_event="PreToolUse"
+            hook_event="PreToolUse",
         )
 
-        with patch('sys.stdin', StringIO(json.dumps(hook_data))):
+        with patch("sys.stdin", StringIO(json.dumps(hook_data))):
             result = ai_guardian.process_hook_input()
 
         # Should allow (exit_code 0)
-        assert result['exit_code'] == 0
+        assert result["exit_code"] == 0
 
         # Parse JSON response
-        response = json.loads(result['output'])
+        response = json.loads(result["output"])
 
         # CRITICAL: Should NOT contain permissionDecision when no threat detected
         # This allows Claude Code's normal permission system to prompt user
-        if 'hookSpecificOutput' in response:
-            assert 'permissionDecision' not in response['hookSpecificOutput'], \
-                "permissionDecision should be omitted to allow normal permission prompt"
+        if "hookSpecificOutput" in response:
+            assert (
+                "permissionDecision" not in response["hookSpecificOutput"]
+            ), "permissionDecision should be omitted to allow normal permission prompt"
         # Also check that response is empty (no auto-approve)
-        assert response == {} or 'systemMessage' in response, \
-            "Response should be empty or only contain systemMessage (warnings)"
+        assert (
+            response == {} or "systemMessage" in response
+        ), "Response should be empty or only contain systemMessage (warnings)"
 
-    @patch('ai_guardian.hook_processing._load_secret_redaction_config')
-    @patch('ai_guardian.hook_processing._load_pattern_server_config')
-    @patch('ai_guardian.hook_processing.detect_adapter')
-    def test_pretooluse_no_permission_override_for_edit_github_copilot(self, mock_detect_adapter, mock_pattern_config, mock_redaction_config):
+    @patch("ai_guardian.hook_processing._load_secret_redaction_config")
+    @patch("ai_guardian.hook_processing._load_pattern_server_config")
+    @patch("ai_guardian.hook_processing.detect_adapter")
+    def test_pretooluse_no_permission_override_for_edit_github_copilot(
+        self, mock_detect_adapter, mock_pattern_config, mock_redaction_config
+    ):
         """Verify PreToolUse does NOT auto-approve Edit operations (GitHub Copilot)"""
         mock_pattern_config.return_value = None
         mock_redaction_config.return_value = (None, None)
         from ai_guardian.hook_adapters import CopilotAdapter
+
         mock_detect_adapter.return_value = CopilotAdapter()
 
         # GitHub Copilot format: toolName and toolArgs (JSON string)
         hook_data = {
             "hookEventName": "preToolUse",
             "toolName": "Edit",
-            "toolArgs": json.dumps({
-                "file_path": "/tmp/config.py",
-                "old_string": "old code",
-                "new_string": "print('Hello, World!')"
-            })
+            "toolArgs": json.dumps(
+                {
+                    "file_path": "/tmp/config.py",
+                    "old_string": "old code",
+                    "new_string": "print('Hello, World!')",
+                }
+            ),
         }
 
-        with patch('sys.stdin', StringIO(json.dumps(hook_data))):
+        with patch("sys.stdin", StringIO(json.dumps(hook_data))):
             result = ai_guardian.process_hook_input()
 
         # Should allow
-        assert result['exit_code'] == 0
+        assert result["exit_code"] == 0
 
         # Parse JSON response
-        response = json.loads(result['output'])
+        response = json.loads(result["output"])
 
         # CRITICAL: Should NOT contain permissionDecision when no threat detected
         # Empty response allows Claude Code's normal permission system
-        assert 'permissionDecision' not in response, \
-            "permissionDecision should be omitted to allow normal permission prompt"
+        assert (
+            "permissionDecision" not in response
+        ), "permissionDecision should be omitted to allow normal permission prompt"
         # Also check that response is empty (no auto-approve)
         assert response == {}, f"Response should be empty but got: {response}"
 
-    @patch('ai_guardian.hook_processing._load_secret_redaction_config')
-    @patch('ai_guardian.hook_processing._load_pattern_server_config')
-    def test_pretooluse_no_permission_override_for_write_claude_code(self, mock_pattern_config, mock_redaction_config):
+    @patch("ai_guardian.hook_processing._load_secret_redaction_config")
+    @patch("ai_guardian.hook_processing._load_pattern_server_config")
+    def test_pretooluse_no_permission_override_for_write_claude_code(
+        self, mock_pattern_config, mock_redaction_config
+    ):
         """Verify PreToolUse does NOT auto-approve Write operations (Claude Code)"""
         mock_pattern_config.return_value = None
         mock_redaction_config.return_value = (None, None)
@@ -289,61 +298,63 @@ class PreToolUsePermissionTests(TestCase):
         # Write tool with clean content
         hook_data = create_hook_data(
             tool_name="Write",
-            tool_input={
-                "file_path": "/tmp/output.txt",
-                "content": "Hello, World!"
-            },
-            hook_event="PreToolUse"
+            tool_input={"file_path": "/tmp/output.txt", "content": "Hello, World!"},
+            hook_event="PreToolUse",
         )
 
-        with patch('sys.stdin', StringIO(json.dumps(hook_data))):
+        with patch("sys.stdin", StringIO(json.dumps(hook_data))):
             result = ai_guardian.process_hook_input()
 
         # Should allow (exit_code 0)
-        assert result['exit_code'] == 0
+        assert result["exit_code"] == 0
 
         # Parse JSON response
-        response = json.loads(result['output'])
+        response = json.loads(result["output"])
 
         # CRITICAL: Should NOT contain permissionDecision when no threat detected
-        if 'hookSpecificOutput' in response:
-            assert 'permissionDecision' not in response['hookSpecificOutput'], \
-                "permissionDecision should be omitted to allow normal permission prompt"
+        if "hookSpecificOutput" in response:
+            assert (
+                "permissionDecision" not in response["hookSpecificOutput"]
+            ), "permissionDecision should be omitted to allow normal permission prompt"
         # Also check that response is empty or only has warnings
-        assert response == {} or 'systemMessage' in response, \
-            "Response should be empty or only contain systemMessage (warnings)"
+        assert (
+            response == {} or "systemMessage" in response
+        ), "Response should be empty or only contain systemMessage (warnings)"
 
-    @patch('ai_guardian.hook_processing._load_secret_redaction_config')
-    @patch('ai_guardian.hook_processing._load_pattern_server_config')
-    @patch('ai_guardian.hook_processing.detect_adapter')
-    def test_pretooluse_no_permission_override_for_write_github_copilot(self, mock_detect_adapter, mock_pattern_config, mock_redaction_config):
+    @patch("ai_guardian.hook_processing._load_secret_redaction_config")
+    @patch("ai_guardian.hook_processing._load_pattern_server_config")
+    @patch("ai_guardian.hook_processing.detect_adapter")
+    def test_pretooluse_no_permission_override_for_write_github_copilot(
+        self, mock_detect_adapter, mock_pattern_config, mock_redaction_config
+    ):
         """Verify PreToolUse does NOT auto-approve Write operations (GitHub Copilot)"""
         mock_pattern_config.return_value = None
         mock_redaction_config.return_value = (None, None)
         from ai_guardian.hook_adapters import CopilotAdapter
+
         mock_detect_adapter.return_value = CopilotAdapter()
 
         # GitHub Copilot format: toolName and toolArgs (JSON string)
         hook_data = {
             "hookEventName": "preToolUse",
             "toolName": "Write",
-            "toolArgs": json.dumps({
-                "file_path": "/tmp/output.txt",
-                "content": "Hello, World!"
-            })
+            "toolArgs": json.dumps(
+                {"file_path": "/tmp/output.txt", "content": "Hello, World!"}
+            ),
         }
 
-        with patch('sys.stdin', StringIO(json.dumps(hook_data))):
+        with patch("sys.stdin", StringIO(json.dumps(hook_data))):
             result = ai_guardian.process_hook_input()
 
         # Should allow
-        assert result['exit_code'] == 0
+        assert result["exit_code"] == 0
 
         # Parse JSON response
-        response = json.loads(result['output'])
+        response = json.loads(result["output"])
 
         # CRITICAL: Should NOT contain permissionDecision when no threat detected
-        assert 'permissionDecision' not in response, \
-            "permissionDecision should be omitted to allow normal permission prompt"
+        assert (
+            "permissionDecision" not in response
+        ), "permissionDecision should be omitted to allow normal permission prompt"
         # Also check that response is empty
         assert response == {}, f"Response should be empty but got: {response}"

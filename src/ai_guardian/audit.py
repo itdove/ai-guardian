@@ -168,9 +168,7 @@ class AuditComputer:
             report.trend_change_pct = None
 
         if report.total_violations > 0:
-            report.resolution_pct = (
-                agg.resolved_count / report.total_violations * 100
-            )
+            report.resolution_pct = agg.resolved_count / report.total_violations * 100
         report.avg_resolution_seconds = (
             sum(agg.resolution_deltas) / len(agg.resolution_deltas)
             if agg.resolution_deltas
@@ -221,9 +219,7 @@ class AuditComputer:
                 agg.files[fp] += 1
 
             tool = (
-                blocked.get("tool_name")
-                or blocked.get("tool")
-                or blocked.get("source")
+                blocked.get("tool_name") or blocked.get("tool") or blocked.get("source")
             )
             if tool:
                 agg.tools[tool] += 1
@@ -335,9 +331,7 @@ class AuditComputer:
         for v in violations:
             blocked = v.get("blocked") or {}
             tool = (
-                blocked.get("tool_name")
-                or blocked.get("tool")
-                or blocked.get("source")
+                blocked.get("tool_name") or blocked.get("tool") or blocked.get("source")
             )
             if tool:
                 counter[tool] += 1
@@ -393,9 +387,7 @@ class AuditComputer:
             return {}
 
     @staticmethod
-    def _compute_posture(
-        features: Dict[str, bool], critical_unresolved: int
-    ) -> str:
+    def _compute_posture(features: Dict[str, bool], critical_unresolved: int) -> str:
         if not features:
             return "UNKNOWN"
         core_features = [
@@ -575,17 +567,19 @@ def format_audit_csv(violations: List[Dict], stream: TextIO) -> None:
             or blocked.get("source")
             or ""
         )
-        writer.writerow([
-            v.get("timestamp", ""),
-            v.get("violation_type", ""),
-            v.get("severity", ""),
-            context.get("action", ""),
-            blocked.get("file_path", ""),
-            tool,
-            context.get("session_id", ""),
-            v.get("resolved", False),
-            v.get("resolved_at", ""),
-        ])
+        writer.writerow(
+            [
+                v.get("timestamp", ""),
+                v.get("violation_type", ""),
+                v.get("severity", ""),
+                context.get("action", ""),
+                blocked.get("file_path", ""),
+                tool,
+                context.get("session_id", ""),
+                v.get("resolved", False),
+                v.get("resolved_at", ""),
+            ]
+        )
 
 
 def format_audit_html(report: AuditReport) -> str:
@@ -603,7 +597,9 @@ def format_audit_html(report: AuditReport) -> str:
     type_rows = ""
     if report.by_type:
         for vtype, count in report.by_type.items():
-            pct = count / report.total_violations * 100 if report.total_violations else 0
+            pct = (
+                count / report.total_violations * 100 if report.total_violations else 0
+            )
             bar_w = int(pct * 2)
             type_rows += (
                 f"<tr><td>{_esc(vtype)}</td><td>{count:,}</td>"
@@ -625,7 +621,9 @@ def format_audit_html(report: AuditReport) -> str:
     action_rows = ""
     if report.by_action:
         for action, count in report.by_action.items():
-            pct = count / report.total_violations * 100 if report.total_violations else 0
+            pct = (
+                count / report.total_violations * 100 if report.total_violations else 0
+            )
             action_rows += (
                 f"<tr><td>{_esc(action)}</td>"
                 f"<td>{count:,}</td><td>{pct:.1f}%</td></tr>\n"
@@ -666,7 +664,7 @@ def format_audit_html(report: AuditReport) -> str:
             color = "#2e7d32" if enabled else "#c62828"
             vcount = report.violations_per_feature.get(feature, 0)
             compliance_rows += (
-                f'<tr><td>{_esc(feature)}</td>'
+                f"<tr><td>{_esc(feature)}</td>"
                 f'<td style="color:{color};font-weight:bold">{icon}</td>'
                 f"<td>{vcount:,}</td></tr>\n"
             )
@@ -826,9 +824,7 @@ def _build_trend_svg(time_trend: List[Dict]) -> str:
 
     return (
         f'<svg width="{svg_width}" height="{svg_height}" '
-        f'xmlns="http://www.w3.org/2000/svg">\n'
-        + "\n".join(bars)
-        + "\n</svg>"
+        f'xmlns="http://www.w3.org/2000/svg">\n' + "\n".join(bars) + "\n</svg>"
     )
 
 

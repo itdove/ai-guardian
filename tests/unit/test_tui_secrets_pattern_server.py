@@ -7,10 +7,6 @@ in the pattern_server section (url, auth, cache, etc.).
 """
 
 import json
-import os
-import tempfile
-from pathlib import Path
-from unittest.mock import patch
 
 import pytest
 
@@ -33,13 +29,13 @@ def config_path(config_dir):
 
 def write_config(config_path, config):
     """Write config dict to JSON file."""
-    with open(config_path, 'w', encoding='utf-8') as f:
+    with open(config_path, "w", encoding="utf-8") as f:
         json.dump(config, f, indent=2)
 
 
 def read_config(config_path):
     """Read config from JSON file."""
-    with open(config_path, 'r', encoding='utf-8') as f:
+    with open(config_path, "r", encoding="utf-8") as f:
         return json.load(f)
 
 
@@ -56,7 +52,7 @@ class TestSavePatternServerEnabled:
 
         config = {}
         if config_path.exists():
-            with open(config_path, 'r', encoding='utf-8') as f:
+            with open(config_path, "r", encoding="utf-8") as f:
                 config = json.load(f)
 
         if "secret_scanning" not in config:
@@ -67,14 +63,16 @@ class TestSavePatternServerEnabled:
         SecretsContent._ensure_pattern_server_section(None, config)
         config["secret_scanning"]["pattern_server"]["enabled"] = value
 
-        with open(config_path, 'w', encoding='utf-8') as f:
+        with open(config_path, "w", encoding="utf-8") as f:
             json.dump(config, f, indent=2)
 
         return read_config(config_path)
 
     def test_enable_sets_enabled_true(self, config_path, config_dir):
         """Enabling pattern server should write enabled: true."""
-        write_config(config_path, {"secret_scanning": {"pattern_server": {"enabled": False}}})
+        write_config(
+            config_path, {"secret_scanning": {"pattern_server": {"enabled": False}}}
+        )
         result = self._make_widget_and_save(config_path, config_dir, True)
 
         ps = result["secret_scanning"]["pattern_server"]
@@ -83,16 +81,19 @@ class TestSavePatternServerEnabled:
 
     def test_disable_sets_enabled_false_preserves_config(self, config_path, config_dir):
         """Disabling should set enabled: false and preserve all other config."""
-        write_config(config_path, {
-            "secret_scanning": {
-                "pattern_server": {
-                    "enabled": True,
-                    "url": "https://example.com",
-                    "auth": {"method": "bearer"},
-                    "cache": {"refresh_interval_hours": 12},
+        write_config(
+            config_path,
+            {
+                "secret_scanning": {
+                    "pattern_server": {
+                        "enabled": True,
+                        "url": "https://example.com",
+                        "auth": {"method": "bearer"},
+                        "cache": {"refresh_interval_hours": 12},
+                    }
                 }
-            }
-        })
+            },
+        )
         result = self._make_widget_and_save(config_path, config_dir, False)
 
         ps = result["secret_scanning"]["pattern_server"]
@@ -103,15 +104,18 @@ class TestSavePatternServerEnabled:
 
     def test_enable_preserves_existing_url(self, config_path, config_dir):
         """Enabling should preserve existing url and other fields."""
-        write_config(config_path, {
-            "secret_scanning": {
-                "pattern_server": {
-                    "enabled": False,
-                    "url": "https://example.com",
-                    "warn_on_failure": False,
+        write_config(
+            config_path,
+            {
+                "secret_scanning": {
+                    "pattern_server": {
+                        "enabled": False,
+                        "url": "https://example.com",
+                        "warn_on_failure": False,
+                    }
                 }
-            }
-        })
+            },
+        )
         result = self._make_widget_and_save(config_path, config_dir, True)
 
         ps = result["secret_scanning"]["pattern_server"]
@@ -119,25 +123,35 @@ class TestSavePatternServerEnabled:
         assert ps["url"] == "https://example.com"
         assert ps["warn_on_failure"] is False
 
-    def test_enable_overwrites_previous_enabled_preserves_config(self, config_path, config_dir):
+    def test_enable_overwrites_previous_enabled_preserves_config(
+        self, config_path, config_dir
+    ):
         """Enabling should overwrite any previous enabled value and preserve other config."""
-        write_config(config_path, {
-            "secret_scanning": {
-                "pattern_server": {
-                    "enabled": {"value": False, "disabled_until": "2030-01-01T00:00:00Z"},
-                    "url": "https://example.com",
-                    "disabled_until": "2030-01-01T00:00:00Z",
-                    "disabled_reason": "testing",
+        write_config(
+            config_path,
+            {
+                "secret_scanning": {
+                    "pattern_server": {
+                        "enabled": {
+                            "value": False,
+                            "disabled_until": "2030-01-01T00:00:00Z",
+                        },
+                        "url": "https://example.com",
+                        "disabled_until": "2030-01-01T00:00:00Z",
+                        "disabled_reason": "testing",
+                    }
                 }
-            }
-        })
+            },
+        )
         result = self._make_widget_and_save(config_path, config_dir, True)
 
         ps = result["secret_scanning"]["pattern_server"]
         assert ps["enabled"] is True
         assert ps["url"] == "https://example.com"
 
-    def test_enable_from_null_creates_section_with_enabled(self, config_path, config_dir):
+    def test_enable_from_null_creates_section_with_enabled(
+        self, config_path, config_dir
+    ):
         """Enabling from null state creates section with enabled: true."""
         write_config(config_path, {"secret_scanning": {"pattern_server": None}})
         result = self._make_widget_and_save(config_path, config_dir, True)
@@ -148,15 +162,18 @@ class TestSavePatternServerEnabled:
 
     def test_temp_disable_stores_in_enabled_field(self, config_path, config_dir):
         """Temp disable should store time-based dict in the enabled field, preserving config."""
-        write_config(config_path, {
-            "secret_scanning": {
-                "pattern_server": {
-                    "enabled": True,
-                    "url": "https://example.com",
-                    "cache": {"refresh_interval_hours": 12},
+        write_config(
+            config_path,
+            {
+                "secret_scanning": {
+                    "pattern_server": {
+                        "enabled": True,
+                        "url": "https://example.com",
+                        "cache": {"refresh_interval_hours": 12},
+                    }
                 }
-            }
-        })
+            },
+        )
         value = {
             "value": False,
             "disabled_until": "2030-06-01T12:00:00Z",
@@ -171,9 +188,15 @@ class TestSavePatternServerEnabled:
         assert ps["enabled"]["reason"] == "maintenance window"
         assert ps["url"] == "https://example.com"
         assert ps["cache"]["refresh_interval_hours"] == 12
-        assert "disabled_until" not in ps or ps.get("disabled_until") == ps["enabled"].get("disabled_until") is None or True
+        assert (
+            "disabled_until" not in ps
+            or ps.get("disabled_until") == ps["enabled"].get("disabled_until") is None
+            or True
+        )
 
-    def test_temp_disable_from_null_creates_section_with_time_based_enabled(self, config_path, config_dir):
+    def test_temp_disable_from_null_creates_section_with_time_based_enabled(
+        self, config_path, config_dir
+    ):
         """Temp disable from null state creates section with time-based enabled."""
         write_config(config_path, {"secret_scanning": {"pattern_server": None}})
         value = {
@@ -190,18 +213,21 @@ class TestSavePatternServerEnabled:
 
     def test_temp_disable_preserves_all_config(self, config_path, config_dir):
         """Temp disable should not modify any field other than enabled."""
-        write_config(config_path, {
-            "secret_scanning": {
-                "pattern_server": {
-                    "enabled": True,
-                    "url": "https://example.com",
-                    "patterns_endpoint": "/patterns/gitleaks/8.18.1",
-                    "warn_on_failure": True,
-                    "auth": {"method": "bearer", "token_env": "MY_TOKEN"},
-                    "cache": {"path": "/tmp/cache", "refresh_interval_hours": 24},
+        write_config(
+            config_path,
+            {
+                "secret_scanning": {
+                    "pattern_server": {
+                        "enabled": True,
+                        "url": "https://example.com",
+                        "patterns_endpoint": "/patterns/gitleaks/8.18.1",
+                        "warn_on_failure": True,
+                        "auth": {"method": "bearer", "token_env": "MY_TOKEN"},
+                        "cache": {"path": "/tmp/cache", "refresh_interval_hours": 24},
+                    }
                 }
-            }
-        })
+            },
+        )
         value = {"value": False, "disabled_until": "2030-06-01T12:00:00Z"}
         result = self._make_widget_and_save(config_path, config_dir, value)
 
@@ -214,26 +240,33 @@ class TestSavePatternServerEnabled:
         assert ps["cache"]["path"] == "/tmp/cache"
         assert ps["cache"]["refresh_interval_hours"] == 24
 
-    def test_no_config_file_creates_section_with_enabled_false(self, config_path, config_dir):
+    def test_no_config_file_creates_section_with_enabled_false(
+        self, config_path, config_dir
+    ):
         """Saving with no existing config file should create section with enabled: false."""
         result = self._make_widget_and_save(config_path, config_dir, False)
         ps = result["secret_scanning"]["pattern_server"]
         assert isinstance(ps, dict)
         assert ps["enabled"] is False
 
-    def test_disable_preserves_sibling_secret_scanning_fields(self, config_path, config_dir):
+    def test_disable_preserves_sibling_secret_scanning_fields(
+        self, config_path, config_dir
+    ):
         """Disabling pattern server should not touch sibling secret_scanning fields."""
-        write_config(config_path, {
-            "secret_scanning": {
-                "enabled": True,
-                "engines": ["gitleaks"],
-                "allowlist_patterns": ["pk_test_.*"],
-                "pattern_server": {
+        write_config(
+            config_path,
+            {
+                "secret_scanning": {
                     "enabled": True,
-                    "url": "https://example.com",
+                    "engines": ["gitleaks"],
+                    "allowlist_patterns": ["pk_test_.*"],
+                    "pattern_server": {
+                        "enabled": True,
+                        "url": "https://example.com",
+                    },
                 }
-            }
-        })
+            },
+        )
         result = self._make_widget_and_save(config_path, config_dir, False)
 
         ss = result["secret_scanning"]
@@ -292,11 +325,7 @@ class TestReadEnabledState:
 
     def test_enabled_true_reads_as_enabled(self):
         """pattern_server with enabled: true → enabled."""
-        config = {
-            "secret_scanning": {
-                "pattern_server": {"enabled": True}
-            }
-        }
+        config = {"secret_scanning": {"pattern_server": {"enabled": True}}}
         assert self._read_enabled_value(config) is True
 
     def test_enabled_false_reads_as_disabled(self):
@@ -310,11 +339,7 @@ class TestReadEnabledState:
 
     def test_enabled_false_without_url_reads_as_disabled(self):
         """pattern_server with enabled: false and no url → disabled."""
-        config = {
-            "secret_scanning": {
-                "pattern_server": {"enabled": False}
-            }
-        }
+        config = {"secret_scanning": {"pattern_server": {"enabled": False}}}
         assert self._read_enabled_value(config) is False
 
     def test_enabled_time_based_reads_correctly(self):
@@ -334,20 +359,12 @@ class TestReadEnabledState:
 
     def test_section_with_url_no_enabled_reads_as_enabled(self):
         """pattern_server with url but no enabled field → enabled (backward compat)."""
-        config = {
-            "secret_scanning": {
-                "pattern_server": {"url": "https://example.com"}
-            }
-        }
+        config = {"secret_scanning": {"pattern_server": {"url": "https://example.com"}}}
         assert self._read_enabled_value(config) is True
 
     def test_section_with_any_content_no_enabled_reads_as_enabled(self):
         """pattern_server with any non-empty content and no enabled field → enabled (backward compat)."""
-        config = {
-            "secret_scanning": {
-                "pattern_server": {"warn_on_failure": False}
-            }
-        }
+        config = {"secret_scanning": {"pattern_server": {"warn_on_failure": False}}}
         assert self._read_enabled_value(config) is True
 
     def test_backward_compat_disabled_until_at_section_level(self):
@@ -369,9 +386,7 @@ class TestReadEnabledState:
 
     def test_root_level_fallback(self):
         """Root-level pattern_server (deprecated) should be read as fallback."""
-        config = {
-            "pattern_server": {"url": "https://legacy.example.com"}
-        }
+        config = {"pattern_server": {"url": "https://legacy.example.com"}}
         assert self._read_enabled_value(config) is True
 
     def test_null_does_not_fallback_to_root(self):
@@ -402,6 +417,7 @@ class TestEnsurePatternServerSection:
     def test_creates_from_empty(self):
         """Creates both secret_scanning and pattern_server from empty config."""
         from ai_guardian.tui.secrets import SecretsContent
+
         config = {}
         SecretsContent._ensure_pattern_server_section(None, config)
         assert isinstance(config["secret_scanning"]["pattern_server"], dict)
@@ -414,13 +430,11 @@ class TestEnsurePatternServerSection:
 
     def test_preserves_existing_dict(self):
         """Preserves existing pattern_server dict."""
-        config = {
-            "secret_scanning": {
-                "pattern_server": {"url": "https://example.com"}
-            }
-        }
+        config = {"secret_scanning": {"pattern_server": {"url": "https://example.com"}}}
         SecretsContent._ensure_pattern_server_section(None, config)
-        assert config["secret_scanning"]["pattern_server"]["url"] == "https://example.com"
+        assert (
+            config["secret_scanning"]["pattern_server"]["url"] == "https://example.com"
+        )
 
 
 class TestSaveSecretScanningField:
@@ -435,15 +449,17 @@ class TestSaveSecretScanningField:
         """Simulate the save logic from _save_secret_scanning_field."""
         config = {}
         if config_path.exists():
-            with open(config_path, 'r', encoding='utf-8') as f:
+            with open(config_path, "r", encoding="utf-8") as f:
                 config = json.load(f)
 
-        if "secret_scanning" not in config or not isinstance(config["secret_scanning"], dict):
+        if "secret_scanning" not in config or not isinstance(
+            config["secret_scanning"], dict
+        ):
             config["secret_scanning"] = {}
 
         config["secret_scanning"][field] = value
 
-        with open(config_path, 'w', encoding='utf-8') as f:
+        with open(config_path, "w", encoding="utf-8") as f:
             json.dump(config, f, indent=2)
 
         return read_config(config_path)
@@ -480,17 +496,20 @@ class TestSaveSecretScanningField:
 
     def test_save_preserves_existing_fields(self, config_path, config_dir):
         """Saving validation fields preserves all other secret_scanning fields."""
-        write_config(config_path, {
-            "secret_scanning": {
-                "enabled": True,
-                "engines": ["gitleaks"],
-                "allowlist_patterns": ["pk_test_.*"],
-                "pattern_server": {
+        write_config(
+            config_path,
+            {
+                "secret_scanning": {
                     "enabled": True,
-                    "url": "https://example.com",
-                },
-            }
-        })
+                    "engines": ["gitleaks"],
+                    "allowlist_patterns": ["pk_test_.*"],
+                    "pattern_server": {
+                        "enabled": True,
+                        "url": "https://example.com",
+                    },
+                }
+            },
+        )
         result = self._simulate_save(config_path, "validate_secrets", True)
 
         ss = result["secret_scanning"]

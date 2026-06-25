@@ -65,7 +65,10 @@ class TestSaveWorkingDirs:
         assert path.exists()
         assert json.loads(path.read_text()) == {"daemon-a": "/home/user"}
 
-    @pytest.mark.skipif(sys.platform == "win32", reason="Unix file permissions not applicable on Windows")
+    @pytest.mark.skipif(
+        sys.platform == "win32",
+        reason="Unix file permissions not applicable on Windows",
+    )
     def test_atomic_write_permissions(self, state_dir):
         save_working_dirs({"daemon-a": "/home/user"})
         path = state_dir / "working_dir.json"
@@ -85,9 +88,9 @@ class TestSaveWorkingDirs:
     def test_overwrites_existing(self, state_dir):
         save_working_dirs({"a": "/first"})
         save_working_dirs({"a": "/second"})
-        assert json.loads(
-            (state_dir / "working_dir.json").read_text()
-        ) == {"a": "/second"}
+        assert json.loads((state_dir / "working_dir.json").read_text()) == {
+            "a": "/second"
+        }
 
 
 class TestGetWorkingDir:
@@ -146,9 +149,7 @@ class TestChooseDirectory:
     @mock.patch("ai_guardian.daemon.working_dir.platform.system", return_value="Darwin")
     @mock.patch("ai_guardian.daemon.working_dir.subprocess.run")
     def test_macos_returns_path(self, mock_run, _mock_sys):
-        mock_run.return_value = mock.Mock(
-            returncode=0, stdout="/Users/dev/project\n"
-        )
+        mock_run.return_value = mock.Mock(returncode=0, stdout="/Users/dev/project\n")
         result = choose_directory("/Users/dev")
         assert result == "/Users/dev/project"
         assert mock_run.called
@@ -166,9 +167,7 @@ class TestChooseDirectory:
     @mock.patch("ai_guardian.daemon.working_dir.subprocess.run")
     @mock.patch("ai_guardian.daemon.tray_plugins._find_icon", return_value="")
     def test_linux_returns_path(self, _icon, mock_run, _mock_sys):
-        mock_run.return_value = mock.Mock(
-            returncode=0, stdout="/home/user/project\n"
-        )
+        mock_run.return_value = mock.Mock(returncode=0, stdout="/home/user/project\n")
         result = choose_directory()
         assert result == "/home/user/project"
 
@@ -180,7 +179,9 @@ class TestChooseDirectory:
         result = choose_directory()
         assert result is None
 
-    @mock.patch("ai_guardian.daemon.working_dir.platform.system", return_value="Windows")
+    @mock.patch(
+        "ai_guardian.daemon.working_dir.platform.system", return_value="Windows"
+    )
     @mock.patch("ai_guardian.daemon.working_dir.subprocess.run")
     def test_windows_returns_path(self, mock_run, _mock_sys):
         mock_run.return_value = mock.Mock(
@@ -189,7 +190,9 @@ class TestChooseDirectory:
         result = choose_directory()
         assert result == "C:\\Users\\dev\\project"
 
-    @mock.patch("ai_guardian.daemon.working_dir.platform.system", return_value="FreeBSD")
+    @mock.patch(
+        "ai_guardian.daemon.working_dir.platform.system", return_value="FreeBSD"
+    )
     def test_unsupported_returns_none(self, _mock_sys):
         assert choose_directory() is None
 

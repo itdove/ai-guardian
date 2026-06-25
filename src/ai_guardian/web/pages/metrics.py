@@ -10,6 +10,7 @@ from ai_guardian.web.components.header import create_header, create_sidebar
 
 def _load_local_metrics(since_days):
     from ai_guardian.metrics import MetricsComputer
+
     mc = MetricsComputer(since_days=since_days)
     report = mc.compute()
     return {
@@ -31,6 +32,7 @@ def _load_local_metrics(since_days):
 
 def _load_local_audit(since_days):
     from ai_guardian.audit import AuditComputer
+
     computer = AuditComputer(since=f"{since_days}d")
     report = computer.compute()
     return {
@@ -46,13 +48,20 @@ def _load_local_audit(since_days):
 
 def _export_audit(since_days, fmt):
     from ai_guardian.audit import (
-        AuditComputer, format_audit_html, format_audit_json, format_audit_csv,
+        AuditComputer,
+        format_audit_html,
+        format_audit_json,
+        format_audit_csv,
     )
+
     computer = AuditComputer(since=f"{since_days}d")
     suffix = {"html": ".html", "json": ".json", "csv": ".csv"}[fmt]
     tmp = tempfile.NamedTemporaryFile(
-        prefix="ai-guardian-audit-", suffix=suffix,
-        delete=False, mode="w", encoding="utf-8",
+        prefix="ai-guardian-audit-",
+        suffix=suffix,
+        delete=False,
+        mode="w",
+        encoding="utf-8",
     )
     if fmt == "csv":
         violations = computer._read_violations()
@@ -70,6 +79,7 @@ def _export_audit(since_days, fmt):
 def _get_retention_days():
     try:
         from ai_guardian.violation_logger import ViolationLogger
+
         vl = ViolationLogger()
         cfg = getattr(vl, "config", {}) or {}
         return cfg.get("retention_days", 30)
@@ -79,11 +89,13 @@ def _get_retention_days():
 
 def _reset_counters():
     from ai_guardian.violation_counter import ViolationCounter
+
     return ViolationCounter().reset_to_current_log()
 
 
 def _get_metrics_clipboard_text(since_days):
     from ai_guardian.metrics import MetricsComputer, format_human
+
     computer = MetricsComputer(since_days=since_days)
     report = computer.compute()
     return format_human(report)
@@ -107,38 +119,42 @@ def create_metrics_page(service, daemon_name: str):
                 btn_30d = ui.button("30 Days", on_click=lambda: set_range(30))
                 if retention < 30:
                     btn_30d.props("disable")
-                    btn_30d.tooltip(
-                        f"Retention is {retention} days"
-                    )
+                    btn_30d.tooltip(f"Retention is {retention} days")
                 btn_all = ui.button(
                     f"All ({retention}d)",
                     on_click=lambda: set_range(retention),
                 )
                 ui.button(
-                    "Refresh", icon="refresh",
+                    "Refresh",
+                    icon="refresh",
                     on_click=lambda: load_metrics(),
                 ).props("flat")
                 ui.button(
-                    "Reset Counters", icon="restart_alt",
+                    "Reset Counters",
+                    icon="restart_alt",
                     on_click=lambda: handle_reset(),
                     color="orange",
                 ).props("flat")
 
             with ui.row().classes("gap-2 items-center"):
                 ui.button(
-                    "Export HTML", icon="description",
+                    "Export HTML",
+                    icon="description",
                     on_click=lambda: do_export("html"),
                 ).props("flat")
                 ui.button(
-                    "Export JSON", icon="data_object",
+                    "Export JSON",
+                    icon="data_object",
                     on_click=lambda: do_export("json"),
                 ).props("flat")
                 ui.button(
-                    "Export CSV", icon="table_chart",
+                    "Export CSV",
+                    icon="table_chart",
                     on_click=lambda: do_export("csv"),
                 ).props("flat")
                 ui.button(
-                    "Copy to Clipboard", icon="content_copy",
+                    "Copy to Clipboard",
+                    icon="content_copy",
                     on_click=lambda: do_copy_metrics(),
                 ).props("flat")
                 export_label = ui.label("").classes("text-sm")
@@ -179,29 +195,29 @@ def create_metrics_page(service, daemon_name: str):
 
             async def handle_reset():
                 with ui.dialog() as dialog, ui.card():
-                    ui.label("Reset Cumulative Counters?").classes(
-                        "text-lg font-bold"
-                    )
+                    ui.label("Reset Cumulative Counters?").classes("text-lg font-bold")
                     ui.label(
                         "This will reset all-time counters to the current "
                         "log file counts and update the tracking start date."
                     ).classes("text-sm text-orange")
 
                     with ui.row().classes("gap-2 mt-4"):
+
                         async def confirm():
                             await run.io_bound(_reset_counters)
                             dialog.close()
-                            ui.notify(
-                                "Counters reset", type="positive"
-                            )
+                            ui.notify("Counters reset", type="positive")
                             await load_metrics()
 
                         ui.button(
-                            "Reset", icon="restart_alt",
-                            color="orange", on_click=confirm,
+                            "Reset",
+                            icon="restart_alt",
+                            color="orange",
+                            on_click=confirm,
                         )
                         ui.button(
-                            "Cancel", on_click=dialog.close,
+                            "Cancel",
+                            on_click=dialog.close,
                         )
                 dialog.open()
 
@@ -212,11 +228,18 @@ def create_metrics_page(service, daemon_name: str):
                 since = current_range["days"]
 
                 agg = {
-                    "total": 0, "resolved": 0, "unresolved": 0,
-                    "sessions": 0, "by_type": {}, "by_severity": {},
-                    "by_action": {}, "top_files": [], "top_tools": [],
+                    "total": 0,
+                    "resolved": 0,
+                    "unresolved": 0,
+                    "sessions": 0,
+                    "by_type": {},
+                    "by_severity": {},
+                    "by_action": {},
+                    "top_files": [],
+                    "top_tools": [],
                     "time_trend": [],
-                    "cumulative_total": 0, "cumulative_since": "",
+                    "cumulative_total": 0,
+                    "cumulative_since": "",
                     "cumulative_by_type": {},
                 }
 
@@ -256,7 +279,11 @@ def create_metrics_page(service, daemon_name: str):
 
                     # Cumulative totals
                     if agg["cumulative_total"] > 0:
-                        since_str = agg["cumulative_since"][:10] if agg["cumulative_since"] else ""
+                        since_str = (
+                            agg["cumulative_since"][:10]
+                            if agg["cumulative_since"]
+                            else ""
+                        )
                         with ui.row().classes("gap-4 flex-wrap"):
                             with ui.card().classes("items-center p-4"):
                                 ui.label(str(agg["cumulative_total"])).classes(
@@ -267,9 +294,7 @@ def create_metrics_page(service, daemon_name: str):
                                 )
                             if since_str:
                                 with ui.card().classes("items-center p-4"):
-                                    ui.label(since_str).classes(
-                                        "text-xl font-bold"
-                                    )
+                                    ui.label(since_str).classes("text-xl font-bold")
                                     ui.label("Tracking Since").classes(
                                         "text-sm text-grey-6"
                                     )
@@ -286,7 +311,9 @@ def create_metrics_page(service, daemon_name: str):
                                 ui.label(lbl).classes("text-sm text-grey-6")
 
                     _breakdown("By Type", agg["by_type"], "type", agg["total"])
-                    _breakdown("By Severity", agg["by_severity"], "severity", agg["total"])
+                    _breakdown(
+                        "By Severity", agg["by_severity"], "severity", agg["total"]
+                    )
                     _breakdown("By Action", agg["by_action"], "action", agg["total"])
                     _top_list("Top Files", agg["top_files"])
                     _top_list("Top Tools", agg["top_tools"])
@@ -311,11 +338,17 @@ def _breakdown(title, data, key_name, total):
         rows.append({key_name: k, "count": v, "pct": pct})
     ui.table(
         columns=[
-            {"name": key_name, "label": key_name.title(), "field": key_name, "sortable": True},
+            {
+                "name": key_name,
+                "label": key_name.title(),
+                "field": key_name,
+                "sortable": True,
+            },
             {"name": "count", "label": "Count", "field": "count", "sortable": True},
             {"name": "pct", "label": "%", "field": "pct"},
         ],
-        rows=rows, row_key=key_name,
+        rows=rows,
+        row_key=key_name,
     ).classes("w-full max-w-lg")
 
 
@@ -333,7 +366,8 @@ def _top_list(title, items):
             {"name": "name", "label": "Name", "field": "name"},
             {"name": "count", "label": "Count", "field": "count", "sortable": True},
         ],
-        rows=rows, row_key="name",
+        rows=rows,
+        row_key="name",
     ).classes("w-full max-w-lg")
 
 
@@ -367,8 +401,10 @@ def _trend(title, trend_data):
 def _audit_sections(data):
     posture = data.get("security_posture", "UNKNOWN")
     posture_colors = {
-        "GOOD": "green", "FAIR": "orange",
-        "NEEDS ATTENTION": "red", "UNKNOWN": "grey",
+        "GOOD": "green",
+        "FAIR": "orange",
+        "NEEDS ATTENTION": "red",
+        "UNKNOWN": "grey",
     }
     p_color = posture_colors.get(posture, "grey")
 
@@ -396,7 +432,10 @@ def _audit_sections(data):
             {"name": "value", "label": "Value", "field": "value"},
         ],
         rows=[
-            {"metric": "Resolution Rate", "value": f"{data.get('resolution_pct', 0):.1f}%"},
+            {
+                "metric": "Resolution Rate",
+                "value": f"{data.get('resolution_pct', 0):.1f}%",
+            },
             {"metric": "Avg Time to Resolution", "value": avg_display},
         ],
         row_key="metric",
@@ -408,16 +447,23 @@ def _audit_sections(data):
         ui.label("Compliance Summary").classes("text-lg font-bold mt-4")
         rows = []
         for feat, enabled in features.items():
-            rows.append({
-                "feature": feat,
-                "status": "✓ enabled" if enabled else "✗ disabled",
-                "violations": vpf.get(feat, 0),
-            })
+            rows.append(
+                {
+                    "feature": feat,
+                    "status": "✓ enabled" if enabled else "✗ disabled",
+                    "violations": vpf.get(feat, 0),
+                }
+            )
         ui.table(
             columns=[
                 {"name": "feature", "label": "Feature", "field": "feature"},
                 {"name": "status", "label": "Status", "field": "status"},
-                {"name": "violations", "label": "Violations", "field": "violations", "sortable": True},
+                {
+                    "name": "violations",
+                    "label": "Violations",
+                    "field": "violations",
+                    "sortable": True,
+                },
             ],
             rows=rows,
             row_key="feature",

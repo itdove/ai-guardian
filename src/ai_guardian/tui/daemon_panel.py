@@ -36,7 +36,8 @@ class DaemonPanelContent(Static):
         yield Static("[bold]Daemon Configuration[/bold]\n", classes="section-header")
 
         with Vertical(classes="form-group"):
-            yield Static("[dim]Daemon auto-starts on any command and falls back to direct if unavailable[/dim]",
+            yield Static(
+                "[dim]Daemon auto-starts on any command and falls back to direct if unavailable[/dim]",
                 classes="help-text",
             )
 
@@ -121,7 +122,10 @@ class DaemonPanelContent(Static):
 
     def _start_daemon(self):
         try:
-            from ai_guardian.daemon.client import is_daemon_running, start_daemon_background
+            from ai_guardian.daemon.client import (
+                is_daemon_running,
+                start_daemon_background,
+            )
 
             if is_daemon_running():
                 self.app.notify("Daemon is already running", severity="warning")
@@ -179,6 +183,7 @@ class DaemonPanelContent(Static):
 
             try:
                 from ai_guardian.daemon.client import send_reload_config
+
                 send_reload_config()
             except Exception:
                 pass  # intentionally silent — optional dependency
@@ -232,7 +237,9 @@ class DaemonPanelContent(Static):
                 ]
                 self.daemon_status = "\n".join(lines)
             else:
-                self.daemon_status = "[yellow]Running but could not fetch stats[/yellow]"
+                self.daemon_status = (
+                    "[yellow]Running but could not fetch stats[/yellow]"
+                )
         except Exception as e:
             self.daemon_status = f"[red]Error: {e}[/red]"
 

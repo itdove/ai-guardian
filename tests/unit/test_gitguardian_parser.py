@@ -71,7 +71,11 @@ class TestGitGuardianOutputParser(unittest.TestCase):
                     "validity": "valid_data",
                     "incidents": [
                         {
-                            "location": {"filename": "a.py", "line_start": 1, "line_end": 1},
+                            "location": {
+                                "filename": "a.py",
+                                "line_start": 1,
+                                "line_end": 1,
+                            },
                             "type": "aws_key",
                         }
                     ],
@@ -81,7 +85,11 @@ class TestGitGuardianOutputParser(unittest.TestCase):
                     "validity": "no_checker",
                     "incidents": [
                         {
-                            "location": {"filename": "b.py", "line_start": 10, "line_end": 10},
+                            "location": {
+                                "filename": "b.py",
+                                "line_start": 10,
+                                "line_end": 10,
+                            },
                             "type": "github_token",
                         }
                     ],
@@ -103,7 +111,11 @@ class TestGitGuardianOutputParser(unittest.TestCase):
                     "validity": "no_checker",
                     "incidents": [
                         {
-                            "location": {"filename": "f.py", "line_start": 1, "line_end": 1},
+                            "location": {
+                                "filename": "f.py",
+                                "line_start": 1,
+                                "line_end": 1,
+                            },
                             "type": "test_secret",
                         }
                     ],

@@ -8,32 +8,99 @@ from ai_guardian.web.components.header import create_header, create_sidebar
 from ai_guardian.web.config_helpers import load_web_config
 
 FEATURE_GROUPS = [
-    ("Scanning", [
-        ("secret_scanning", "Secret Scanning", "Scan for API keys, tokens, credentials"),
-        ("scan_pii", "PII Detection", "GDPR/CCPA compliance scanning"),
-        ("image_scanning", "Image Scanning", "OCR-based image scanning for secrets and PII"),
-        ("transcript_scanning", "Transcript Scanning", "Scan conversation for secrets/PII from ! commands"),
-    ]),
-    ("Threat Detection", [
-        ("prompt_injection", "Prompt Injection", "Detect and block prompt injection attacks"),
-        ("ssrf_protection", "SSRF Protection", "Block requests to private networks and metadata"),
-        ("config_file_scanning", "Config File Scanner", "Detect credential exfiltration in config files"),
-        ("context_poisoning", "Context Poisoning", "Detect context poisoning attempts"),
-        ("supply_chain", "Supply Chain", "Detect malicious hooks, MCP servers, and plugins"),
-    ]),
-    ("Response Protection", [
-        ("secret_redaction", "Secret Redaction", "Redact secrets from tool outputs"),
-        ("annotations", "Annotations", "Inline suppression for secrets and PII"),
-    ]),
-    ("Access Control", [
-        ("permissions", "Permissions", "Tool permission enforcement"),
-        ("security_instructions", "Security Instructions", "Security rule injection into AI context"),
-        ("directory_rules", "Directory Rules", "Block access to protected directories"),
-    ]),
-    ("Monitoring", [
-        ("violation_logging", "Violation Logging", "Log blocked operations for audit"),
-        ("latency_tracking", "Latency Tracking", "Record per-hook timing to latency.jsonl"),
-    ]),
+    (
+        "Scanning",
+        [
+            (
+                "secret_scanning",
+                "Secret Scanning",
+                "Scan for API keys, tokens, credentials",
+            ),
+            ("scan_pii", "PII Detection", "GDPR/CCPA compliance scanning"),
+            (
+                "image_scanning",
+                "Image Scanning",
+                "OCR-based image scanning for secrets and PII",
+            ),
+            (
+                "transcript_scanning",
+                "Transcript Scanning",
+                "Scan conversation for secrets/PII from ! commands",
+            ),
+        ],
+    ),
+    (
+        "Threat Detection",
+        [
+            (
+                "prompt_injection",
+                "Prompt Injection",
+                "Detect and block prompt injection attacks",
+            ),
+            (
+                "ssrf_protection",
+                "SSRF Protection",
+                "Block requests to private networks and metadata",
+            ),
+            (
+                "config_file_scanning",
+                "Config File Scanner",
+                "Detect credential exfiltration in config files",
+            ),
+            (
+                "context_poisoning",
+                "Context Poisoning",
+                "Detect context poisoning attempts",
+            ),
+            (
+                "supply_chain",
+                "Supply Chain",
+                "Detect malicious hooks, MCP servers, and plugins",
+            ),
+        ],
+    ),
+    (
+        "Response Protection",
+        [
+            (
+                "secret_redaction",
+                "Secret Redaction",
+                "Redact secrets from tool outputs",
+            ),
+            ("annotations", "Annotations", "Inline suppression for secrets and PII"),
+        ],
+    ),
+    (
+        "Access Control",
+        [
+            ("permissions", "Permissions", "Tool permission enforcement"),
+            (
+                "security_instructions",
+                "Security Instructions",
+                "Security rule injection into AI context",
+            ),
+            (
+                "directory_rules",
+                "Directory Rules",
+                "Block access to protected directories",
+            ),
+        ],
+    ),
+    (
+        "Monitoring",
+        [
+            (
+                "violation_logging",
+                "Violation Logging",
+                "Log blocked operations for audit",
+            ),
+            (
+                "latency_tracking",
+                "Latency Tracking",
+                "Record per-hook timing to latency.jsonl",
+            ),
+        ],
+    ),
 ]
 
 FEATURE_PAGE_SLUGS = {
@@ -78,9 +145,7 @@ def _parse_enabled(status):
         disabled_until = status.get("disabled_until")
         if disabled_until:
             try:
-                dt = datetime.fromisoformat(
-                    disabled_until.replace("Z", "+00:00")
-                )
+                dt = datetime.fromisoformat(disabled_until.replace("Z", "+00:00"))
                 if datetime.now(timezone.utc) < dt:
                     return False, dt
             except (ValueError, TypeError):
@@ -149,6 +214,7 @@ def _categorize_violation(reason):
 def _load_recent_violations():
     try:
         from ai_guardian.violation_logger import ViolationLogger
+
         vl = ViolationLogger()
         violations = vl.get_recent_violations(limit=100)
         now = datetime.now(timezone.utc)
@@ -169,6 +235,7 @@ def _load_recent_violations():
 def _load_total_violation_count():
     try:
         from ai_guardian.violation_logger import ViolationLogger
+
         vl = ViolationLogger()
         return len(vl.get_recent_violations(limit=1000))
     except Exception:
@@ -208,9 +275,7 @@ def create_dashboard_page(service, daemon_name: str):
                 await run.io_bound(service.refresh_targets)
                 target = service.get_target_by_name(daemon_name)
                 if target:
-                    statuses = await run.io_bound(
-                        service.get_all_daemon_status
-                    )
+                    statuses = await run.io_bound(service.get_all_daemon_status)
                     stats = None
                     for e in statuses:
                         if e["target"].name == daemon_name:
@@ -221,9 +286,7 @@ def create_dashboard_page(service, daemon_name: str):
                         if paused:
                             status_icon._props["name"] = "pause_circle"
                             status_icon.classes(replace="text-amber text-sm")
-                            remaining = stats.get(
-                                "pause_remaining_seconds", 0
-                            )
+                            remaining = stats.get("pause_remaining_seconds", 0)
                             if remaining > 0:
                                 status_label.text = (
                                     f"Paused ({_fmt_remaining(remaining)})"
@@ -253,21 +316,20 @@ def create_dashboard_page(service, daemon_name: str):
                             )
                             cat = _categorize_violation(reason)
                             cats[cat] = cats.get(cat, 0) + 1
-                        ui.label(
-                            f"Total: {len(recent)} violations"
-                        ).classes("text-sm")
+                        ui.label(f"Total: {len(recent)} violations").classes("text-sm")
                         with ui.row().classes("gap-2 flex-wrap mt-1"):
                             for cat, count in sorted(
                                 cats.items(),
-                                key=lambda x: x[1], reverse=True,
+                                key=lambda x: x[1],
+                                reverse=True,
                             ):
-                                ui.badge(
-                                    f"{cat}: {count}", color="red"
-                                ).classes("text-xs")
+                                ui.badge(f"{cat}: {count}", color="red").classes(
+                                    "text-xs"
+                                )
                     else:
-                        ui.label(
-                            "No violations in last 24 hours"
-                        ).classes("text-sm text-green")
+                        ui.label("No violations in last 24 hours").classes(
+                            "text-sm text-green"
+                        )
 
             async def build_page():
                 content.clear()
@@ -315,35 +377,23 @@ def create_dashboard_page(service, daemon_name: str):
                                 ui.label(str(temp_disabled_count)).classes(
                                     "text-3xl font-bold text-amber"
                                 )
-                                ui.label("Temp Disabled").classes(
-                                    "text-sm text-grey-6"
-                                )
+                                ui.label("Temp Disabled").classes("text-sm text-grey-6")
 
                         on_scan_error = config.get("on_scan_error", "allow")
                         action = config.get("action", "block")
                         if isinstance(action, dict):
                             action = action.get("mode", "block")
                         with ui.card().classes("items-center p-4"):
-                            ui.label(action.upper()).classes(
-                                "text-lg font-bold"
-                            )
-                            ui.label("Action Mode").classes(
-                                "text-sm text-grey-6"
-                            )
+                            ui.label(action.upper()).classes("text-lg font-bold")
+                            ui.label("Action Mode").classes("text-sm text-grey-6")
                         with ui.card().classes("items-center p-4"):
-                            ui.label(on_scan_error.upper()).classes(
-                                "text-lg font-bold"
-                            )
-                            ui.label("On Error").classes(
-                                "text-sm text-grey-6"
-                            )
+                            ui.label(on_scan_error.upper()).classes("text-lg font-bold")
+                            ui.label("On Error").classes("text-sm text-grey-6")
 
                     # --- Feature Groups ---
                     for group_name, features in FEATURE_GROUPS:
                         with ui.card().classes("w-full"):
-                            ui.label(group_name).classes(
-                                "text-lg font-bold"
-                            )
+                            ui.label(group_name).classes("text-lg font-bold")
                             with ui.row().classes("gap-3 flex-wrap mt-1"):
                                 for key, label, desc in features:
                                     status = _get_feature_status(config, key)
@@ -373,31 +423,22 @@ def create_dashboard_page(service, daemon_name: str):
                                         if slug
                                         else f"border-left: 4px solid {border}"
                                     )
-                                    card = ui.card().classes("w-52").style(
-                                        card_style
-                                    )
+                                    card = ui.card().classes("w-52").style(card_style)
                                     if slug:
                                         card.on(
                                             "click",
-                                            lambda dn=daemon_name, s=slug:
-                                                ui.navigate.to(f"/{dn}/{s}"),
+                                            lambda dn=daemon_name, s=slug: ui.navigate.to(
+                                                f"/{dn}/{s}"
+                                            ),
                                         )
                                     with card:
-                                        with ui.row().classes(
-                                            "items-center gap-1"
-                                        ):
+                                        with ui.row().classes("items-center gap-1"):
                                             ui.icon(icon).classes(
                                                 f"{status_color} text-sm"
                                             )
-                                            ui.label(label).classes(
-                                                "font-bold text-sm"
-                                            )
-                                        ui.label(desc).classes(
-                                            "text-xs text-grey-6"
-                                        )
-                                        with ui.row().classes(
-                                            "items-center gap-2"
-                                        ):
+                                            ui.label(label).classes("font-bold text-sm")
+                                        ui.label(desc).classes("text-xs text-grey-6")
+                                        with ui.row().classes("items-center gap-2"):
                                             ui.label(status_text).classes(
                                                 f"text-xs {status_color}"
                                             )
@@ -412,70 +453,75 @@ def create_dashboard_page(service, daemon_name: str):
                                             )
                                             mins = max(
                                                 0,
-                                                int(
-                                                    remaining.total_seconds()
-                                                    / 60
-                                                ),
+                                                int(remaining.total_seconds() / 60),
                                             )
-                                            ui.label(
-                                                f"{mins}m remaining"
-                                            ).classes("text-xs text-amber")
+                                            ui.label(f"{mins}m remaining").classes(
+                                                "text-xs text-amber"
+                                            )
 
                     # --- Recent Violations (refreshed periodically) ---
                     nonlocal violations_box
                     with ui.card().classes("w-full"):
-                        ui.label(
-                            "Recent Violations (Last 24 Hours)"
-                        ).classes("text-lg font-bold")
+                        ui.label("Recent Violations (Last 24 Hours)").classes(
+                            "text-lg font-bold"
+                        )
                         violations_box = ui.column().classes("w-full")
 
                     await refresh_violations()
 
                     # --- Recommendations ---
                     with ui.card().classes("w-full"):
-                        ui.label("Recommendations").classes(
-                            "text-lg font-bold"
-                        )
+                        ui.label("Recommendations").classes("text-lg font-bold")
                         recs = []
                         if disabled_count:
-                            recs.append((
-                                "warning",
-                                f"{disabled_count} security feature(s) "
-                                f"disabled. Enable them in Global Settings "
-                                f"for maximum protection.",
-                            ))
+                            recs.append(
+                                (
+                                    "warning",
+                                    f"{disabled_count} security feature(s) "
+                                    f"disabled. Enable them in Global Settings "
+                                    f"for maximum protection.",
+                                )
+                            )
                         if temp_disabled_count:
-                            recs.append((
-                                "info",
-                                f"{temp_disabled_count} feature(s) temporarily "
-                                f"disabled. They will re-enable automatically.",
-                            ))
-                        total_v = await run.io_bound(
-                            _load_total_violation_count
-                        )
+                            recs.append(
+                                (
+                                    "info",
+                                    f"{temp_disabled_count} feature(s) temporarily "
+                                    f"disabled. They will re-enable automatically.",
+                                )
+                            )
+                        total_v = await run.io_bound(_load_total_violation_count)
                         if total_v > 100:
-                            recs.append((
-                                "warning",
-                                f"{total_v} total violations. Review the "
-                                f"Violations page to identify patterns.",
-                            ))
+                            recs.append(
+                                (
+                                    "warning",
+                                    f"{total_v} total violations. Review the "
+                                    f"Violations page to identify patterns.",
+                                )
+                            )
                         if not recs:
-                            recs.append((
-                                "positive",
-                                "All security features enabled — good "
-                                "security posture!",
-                            ))
-                            recs.append((
-                                "info",
-                                "Tip: Review the Violations page regularly "
-                                "to monitor security events.",
-                            ))
-                        recs.append((
-                            "warning",
-                            "Shell bypass: Commands with '!' prefix bypass "
-                            "all hooks. Enable transcript_scanning for "
-                            "after-the-fact detection.",
-                        ))
+                            recs.append(
+                                (
+                                    "positive",
+                                    "All security features enabled — good "
+                                    "security posture!",
+                                )
+                            )
+                            recs.append(
+                                (
+                                    "info",
+                                    "Tip: Review the Violations page regularly "
+                                    "to monitor security events.",
+                                )
+                            )
+                        recs.append(
+                            (
+                                "warning",
+                                "Shell bypass: Commands with '!' prefix bypass "
+                                "all hooks. Enable transcript_scanning for "
+                                "after-the-fact detection.",
+                            )
+                        )
 
                         for severity, text in recs:
                             icon_map = {
@@ -483,9 +529,7 @@ def create_dashboard_page(service, daemon_name: str):
                                 "warning": ("warning", "text-amber"),
                                 "info": ("lightbulb", "text-blue-4"),
                             }
-                            ic, clr = icon_map.get(
-                                severity, ("info", "text-grey-6")
-                            )
+                            ic, clr = icon_map.get(severity, ("info", "text-grey-6"))
                             with ui.row().classes("items-start gap-2"):
                                 ui.icon(ic).classes(f"{clr} text-sm mt-1")
                                 ui.label(text).classes("text-sm")

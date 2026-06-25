@@ -157,6 +157,7 @@ def validate_pattern(
 def _permission_rule_from_pattern(pattern: str) -> dict:
     """Build a permission allow rule dict from a pattern string."""
     from ai_guardian.config_writer import _parse_permission_pattern
+
     matcher, rule_patterns = _parse_permission_pattern(pattern)
     return {"mode": "allow", "matcher": matcher, "patterns": rule_patterns}
 
@@ -195,7 +196,7 @@ def suggest_domain(url_or_text: str) -> str:
             return parsed.hostname.lower()
     except Exception:
         pass  # intentionally silent — best-effort operation
-    url_match = re.search(r'https?://([^/:\s]+)', text)
+    url_match = re.search(r"https?://([^/:\s]+)", text)
     if url_match:
         return url_match.group(1).lower()
     return text
@@ -219,7 +220,9 @@ def get_config_scope_options() -> list:
 
 
 def prepare_config_with_pattern(
-    pattern: str, config_section: str, config_path: Optional[str] = None,
+    pattern: str,
+    config_section: str,
+    config_path: Optional[str] = None,
 ) -> tuple:
     """Insert a pattern into config JSON in memory, return (json_text, line_number).
 
@@ -232,7 +235,9 @@ def prepare_config_with_pattern(
     """
     from ai_guardian.config_utils import get_config_dir
 
-    resolved = Path(config_path) if config_path else get_config_dir() / "ai-guardian.json"
+    resolved = (
+        Path(config_path) if config_path else get_config_dir() / "ai-guardian.json"
+    )
     config = {}
     if resolved.exists():
         try:
@@ -248,8 +253,10 @@ def prepare_config_with_pattern(
         search_value = new_rule["patterns"][-1] if new_rule["patterns"] else pattern
         merged = False
         for existing in rules:
-            if (existing.get("mode") == "allow"
-                    and existing.get("matcher") == new_rule["matcher"]):
+            if (
+                existing.get("mode") == "allow"
+                and existing.get("matcher") == new_rule["matcher"]
+            ):
                 existing_patterns = existing.get("patterns", [])
                 for p in new_rule["patterns"]:
                     if p not in existing_patterns:
@@ -294,11 +301,12 @@ def suggest_pattern(matched_text: str, config_section: str = "") -> str:
         return matched_text.strip()
     if config_section == "directory_rules":
         import os
+
         path = matched_text.strip()
         if os.path.isfile(path):
             return os.path.dirname(path) + "/**"
         return path + "/**" if not path.endswith("/**") else path
-    env_match = re.match(r'^([A-Z][A-Z0-9_]+)\s*=', matched_text)
+    env_match = re.match(r"^([A-Z][A-Z0-9_]+)\s*=", matched_text)
     if env_match:
-        return env_match.group(1) + r'\s*='
+        return env_match.group(1) + r"\s*="
     return re.escape(matched_text)

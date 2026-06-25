@@ -26,7 +26,6 @@ from ai_guardian.hook_adapters import (
 from ai_guardian.hook_adapters.base import HookAdapter, NormalizedHookInput
 from ai_guardian.response_format import IDEType
 
-
 # ── NormalizedHookInput ──────────────────────────────────────────────────
 
 
@@ -204,10 +203,12 @@ class TestAdapterRegistry:
 
     def test_ide_type_field_beats_auto_detection(self):
         """_ide_type field takes priority over auto-detection from hook data."""
-        adapter = detect_adapter({
-            "_ide_type": "cursor",
-            "clineVersion": "1.0.0",
-        })
+        adapter = detect_adapter(
+            {
+                "_ide_type": "cursor",
+                "clineVersion": "1.0.0",
+            }
+        )
         assert isinstance(adapter, CursorAdapter)
 
     def test_ide_type_field_case_insensitive(self):
@@ -219,9 +220,13 @@ class TestAdapterRegistry:
         assert isinstance(adapter, ClaudeCodeAdapter)
 
     def test_get_adapter_by_ide_type(self):
-        assert isinstance(get_adapter_by_ide_type(IDEType.CLAUDE_CODE), ClaudeCodeAdapter)
+        assert isinstance(
+            get_adapter_by_ide_type(IDEType.CLAUDE_CODE), ClaudeCodeAdapter
+        )
         assert isinstance(get_adapter_by_ide_type(IDEType.CURSOR), CursorAdapter)
-        assert isinstance(get_adapter_by_ide_type(IDEType.GITHUB_COPILOT), CopilotAdapter)
+        assert isinstance(
+            get_adapter_by_ide_type(IDEType.GITHUB_COPILOT), CopilotAdapter
+        )
         assert isinstance(get_adapter_by_ide_type(IDEType.GEMINI_CLI), GeminiCLIAdapter)
         assert isinstance(get_adapter_by_ide_type(IDEType.CLINE), ClineAdapter)
         assert isinstance(get_adapter_by_ide_type(IDEType.KIRO), KiroAdapter)
@@ -264,7 +269,13 @@ class TestAutoDetection:
         assert isinstance(adapter, CopilotAdapter)
 
     def test_detect_copilot_from_timestamp_cwd(self):
-        adapter = detect_adapter({"hook_event_name": "preToolUse", "timestamp": "2026-01-01T00:00:00Z", "cwd": "/home"})
+        adapter = detect_adapter(
+            {
+                "hook_event_name": "preToolUse",
+                "timestamp": "2026-01-01T00:00:00Z",
+                "cwd": "/home",
+            }
+        )
         assert isinstance(adapter, CopilotAdapter)
 
     def test_detect_cursor_from_cursor_version(self):
@@ -285,11 +296,13 @@ class TestAutoDetection:
 
     def test_detect_gemini_not_claude_with_transcript_path(self):
         """Claude Code data with transcript_path should NOT be detected as Gemini."""
-        adapter = detect_adapter({
-            "hook_event_name": "PreToolUse",
-            "transcript_path": "/home/user/.claude/sessions/transcript.jsonl",
-            "tool_name": "Bash",
-        })
+        adapter = detect_adapter(
+            {
+                "hook_event_name": "PreToolUse",
+                "transcript_path": "/home/user/.claude/sessions/transcript.jsonl",
+                "tool_name": "Bash",
+            }
+        )
         assert isinstance(adapter, ClaudeCodeAdapter)
 
     def test_detect_opencode_from_opencode_version(self):
@@ -429,10 +442,17 @@ class TestNormalization:
         assert n.event == HookEvent.BEFORE_READ_FILE
 
     def test_windsurf_post_events(self):
-        for action in ("post_run_command", "post_read_code", "post_write_code", "post_mcp_tool_use"):
+        for action in (
+            "post_run_command",
+            "post_read_code",
+            "post_write_code",
+            "post_mcp_tool_use",
+        ):
             data = {"agent_action_name": action}
             n = WindsurfAdapter().normalize_input(data)
-            assert n.event == HookEvent.POST_TOOL_USE, f"{action} should map to POST_TOOL_USE"
+            assert (
+                n.event == HookEvent.POST_TOOL_USE
+            ), f"{action} should map to POST_TOOL_USE"
 
     def test_gemini_beforetool(self):
         data = {
@@ -521,7 +541,9 @@ class TestResponseFormatting:
         assert result["exit_code"] == 0
         data = json.loads(result["output"])
         assert data["hookSpecificOutput"]["permissionDecision"] == "deny"
-        assert "blocked by ai-guardian" in data["hookSpecificOutput"]["additionalContext"]
+        assert (
+            "blocked by ai-guardian" in data["hookSpecificOutput"]["additionalContext"]
+        )
         assert "secret detected" in data["hookSpecificOutput"]["additionalContext"]
         assert "Secret found" not in data["hookSpecificOutput"]["additionalContext"]
         assert result["_blocked"] is True
@@ -752,7 +774,10 @@ class TestAgentFacingMessages:
         )
         data = json.loads(result["output"])
         assert data["systemMessage"] == "Log mode: tool policy violation"
-        assert data["hookSpecificOutput"]["additionalContext"] == "Log mode: tool policy violation"
+        assert (
+            data["hookSpecificOutput"]["additionalContext"]
+            == "Log mode: tool policy violation"
+        )
         assert data["hookSpecificOutput"]["hookEventName"] == "PreToolUse"
 
     def test_claude_code_posttooluse_warn_has_additional_context(self):
@@ -763,7 +788,10 @@ class TestAgentFacingMessages:
         )
         data = json.loads(result["output"])
         assert data["systemMessage"] == "Log mode: secret detected in output"
-        assert data["hookSpecificOutput"]["additionalContext"] == "Log mode: secret detected in output"
+        assert (
+            data["hookSpecificOutput"]["additionalContext"]
+            == "Log mode: secret detected in output"
+        )
 
     def test_claude_code_pretooluse_allow_no_additional_context(self):
         result = ClaudeCodeAdapter().format_response(
@@ -861,7 +889,10 @@ class TestAgentFacingMessages:
             warning_message="Log mode: secret in output",
         )
         data = json.loads(result["output"])
-        assert "Log mode: secret in output" in data["hookSpecificOutput"]["additionalContext"]
+        assert (
+            "Log mode: secret in output"
+            in data["hookSpecificOutput"]["additionalContext"]
+        )
 
     def test_gemini_pretooluse_warn_no_additional_context(self):
         result = GeminiCLIAdapter().format_response(
@@ -960,19 +991,31 @@ class TestAgentFacingMessages:
 
     def test_sanitize_block_reason_known_types(self):
         adapter = ClaudeCodeAdapter()
-        assert adapter._sanitize_block_reason("secret_detected") == \
-            "Operation blocked by ai-guardian: secret detected"
-        assert adapter._sanitize_block_reason("prompt_injection") == \
-            "Operation blocked by ai-guardian: prompt injection detected"
-        assert adapter._sanitize_block_reason("directory_blocking") == \
-            "Operation blocked by ai-guardian: directory access blocked"
-        assert adapter._sanitize_block_reason("tool_permission") == \
-            "Operation blocked by ai-guardian: tool permission denied"
-        assert adapter._sanitize_block_reason("ssrf_blocked") == \
-            "Operation blocked by ai-guardian: SSRF protection triggered"
+        assert (
+            adapter._sanitize_block_reason("secret_detected")
+            == "Operation blocked by ai-guardian: secret detected"
+        )
+        assert (
+            adapter._sanitize_block_reason("prompt_injection")
+            == "Operation blocked by ai-guardian: prompt injection detected"
+        )
+        assert (
+            adapter._sanitize_block_reason("directory_blocking")
+            == "Operation blocked by ai-guardian: directory access blocked"
+        )
+        assert (
+            adapter._sanitize_block_reason("tool_permission")
+            == "Operation blocked by ai-guardian: tool permission denied"
+        )
+        assert (
+            adapter._sanitize_block_reason("ssrf_blocked")
+            == "Operation blocked by ai-guardian: SSRF protection triggered"
+        )
 
     def test_sanitize_block_reason_unknown_type(self):
-        assert "security violation" in ClaudeCodeAdapter._sanitize_block_reason("unknown_type")
+        assert "security violation" in ClaudeCodeAdapter._sanitize_block_reason(
+            "unknown_type"
+        )
 
     def test_sanitize_block_reason_none(self):
         assert "security violation" in ClaudeCodeAdapter._sanitize_block_reason(None)
@@ -1083,9 +1126,16 @@ class TestAdapterNames:
 
     def test_all_adapters_have_names(self):
         adapters = [
-            ClaudeCodeAdapter(), CursorAdapter(), CopilotAdapter(),
-            CodexAdapter(), WindsurfAdapter(), GeminiCLIAdapter(),
-            ClineAdapter(), KiroAdapter(), AugmentAdapter(), JunieAdapter(),
+            ClaudeCodeAdapter(),
+            CursorAdapter(),
+            CopilotAdapter(),
+            CodexAdapter(),
+            WindsurfAdapter(),
+            GeminiCLIAdapter(),
+            ClineAdapter(),
+            KiroAdapter(),
+            AugmentAdapter(),
+            JunieAdapter(),
         ]
         for adapter in adapters:
             assert adapter.name
@@ -1107,31 +1157,37 @@ class TestBackwardCompatibility:
 
     def test_detect_ide_type_claude(self):
         from ai_guardian.response_format import detect_ide_type
+
         result = detect_ide_type({"hook_event_name": "PreToolUse"})
         assert result == IDEType.CLAUDE_CODE
 
     def test_detect_ide_type_cursor(self):
         from ai_guardian.response_format import detect_ide_type
+
         result = detect_ide_type({"cursor_version": "0.50"})
         assert result == IDEType.CURSOR
 
     def test_detect_hook_event_prompt(self):
         from ai_guardian.response_format import detect_hook_event
+
         result = detect_hook_event({"hook_event_name": "UserPromptSubmit"})
         assert result == HookEvent.PROMPT
 
     def test_detect_hook_event_pretooluse(self):
         from ai_guardian.response_format import detect_hook_event
+
         result = detect_hook_event({"hook_event_name": "PreToolUse"})
         assert result == HookEvent.PRE_TOOL_USE
 
     def test_detect_hook_event_kiro(self):
         from ai_guardian.response_format import detect_hook_event
+
         result = detect_hook_event({"hook_event_name": "pre_tool_use"})
         assert result == HookEvent.PRE_TOOL_USE
 
     def test_format_response_wrapper(self):
         from ai_guardian.response_format import format_response
+
         result = format_response(
             IDEType.CLAUDE_CODE,
             has_secrets=False,
@@ -1217,7 +1273,8 @@ class TestDefaultTranscriptPaths:
         """CopilotAdapter returns empty list when transcript doesn't exist."""
         adapter = CopilotAdapter()
         with mock.patch.object(
-            CopilotAdapter, "TRANSCRIPT_PATH",
+            CopilotAdapter,
+            "TRANSCRIPT_PATH",
             str(tmp_path / "nonexistent.jsonl"),
         ):
             assert adapter.get_default_transcript_paths() == []
@@ -1236,7 +1293,9 @@ class TestDefaultTranscriptPaths:
         new.write_text('{"text":"new"}\n')
 
         adapter = CodexAdapter()
-        with mock.patch.object(CodexAdapter, "SESSIONS_DIR", str(tmp_path / "sessions")):
+        with mock.patch.object(
+            CodexAdapter, "SESSIONS_DIR", str(tmp_path / "sessions")
+        ):
             paths = adapter.get_default_transcript_paths()
             assert len(paths) == 2
             # Most recent first
@@ -1247,7 +1306,8 @@ class TestDefaultTranscriptPaths:
         """CodexAdapter returns empty list when sessions dir doesn't exist."""
         adapter = CodexAdapter()
         with mock.patch.object(
-            CodexAdapter, "SESSIONS_DIR",
+            CodexAdapter,
+            "SESSIONS_DIR",
             str(tmp_path / "nonexistent"),
         ):
             assert adapter.get_default_transcript_paths() == []
@@ -1275,7 +1335,9 @@ class TestDefaultTranscriptPaths:
         f2.write_text('{"text":"day2"}\n')
 
         adapter = CodexAdapter()
-        with mock.patch.object(CodexAdapter, "SESSIONS_DIR", str(tmp_path / "sessions")):
+        with mock.patch.object(
+            CodexAdapter, "SESSIONS_DIR", str(tmp_path / "sessions")
+        ):
             paths = adapter.get_default_transcript_paths()
             assert len(paths) == 2
             # Both files found, most recent modification first
@@ -1285,13 +1347,18 @@ class TestDefaultTranscriptPaths:
     def test_other_adapters_return_empty(self):
         """Adapters without transcript defaults return empty list."""
         for adapter_cls in [
-            CursorAdapter, WindsurfAdapter, GeminiCLIAdapter,
-            ClineAdapter, KiroAdapter, AugmentAdapter, OpenCodeAdapter,
+            CursorAdapter,
+            WindsurfAdapter,
+            GeminiCLIAdapter,
+            ClineAdapter,
+            KiroAdapter,
+            AugmentAdapter,
+            OpenCodeAdapter,
         ]:
             adapter = adapter_cls()
-            assert adapter.get_default_transcript_paths() == [], (
-                f"{adapter.name} should return empty transcript paths"
-            )
+            assert (
+                adapter.get_default_transcript_paths() == []
+            ), f"{adapter.name} should return empty transcript paths"
 
 
 # ── Cursor Event-Based Hook Fixes (Issue #1220) ─────────────────────────
@@ -1302,6 +1369,7 @@ class TestCursorToolNameExtraction:
 
     def test_tool_policy_extract_cursor_beforereadfile(self):
         from ai_guardian.tool_policy import ToolPolicyChecker
+
         checker = ToolPolicyChecker(config={})
         hook_data = {
             "cursor_version": "0.50.0",
@@ -1314,6 +1382,7 @@ class TestCursorToolNameExtraction:
 
     def test_tool_policy_extract_cursor_beforeshellexecution(self):
         from ai_guardian.tool_policy import ToolPolicyChecker
+
         checker = ToolPolicyChecker(config={})
         hook_data = {
             "cursor_version": "0.50.0",
@@ -1325,6 +1394,7 @@ class TestCursorToolNameExtraction:
     def test_tool_policy_no_block_on_cursor_beforereadfile(self):
         """check_tool_allowed should not fail with 'unable to determine tool name'."""
         from ai_guardian.tool_policy import ToolPolicyChecker
+
         checker = ToolPolicyChecker(config={"rules": []})
         hook_data = {
             "cursor_version": "0.50.0",

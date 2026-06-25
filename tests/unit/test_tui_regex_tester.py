@@ -7,11 +7,8 @@ Tests the find_matches() helper function and config integration logic.
 
 import json
 import re
-import tempfile
-from pathlib import Path
 from unittest.mock import patch
 
-import pytest
 
 from ai_guardian.tui.regex_tester import (
     RegexTesterContent,
@@ -78,7 +75,9 @@ class TestFindMatches:
         assert matches == []
 
     def test_case_insensitive_flag(self):
-        is_valid, _, matches = find_matches(r"hello", "Hello HELLO hello", flags=re.IGNORECASE)
+        is_valid, _, matches = find_matches(
+            r"hello", "Hello HELLO hello", flags=re.IGNORECASE
+        )
         assert is_valid is True
         assert len(matches) == 3
 
@@ -130,9 +129,7 @@ class TestFindMatches:
 
     def test_email_pattern(self):
         text = "Contact user@example.com or admin@test.org for help"
-        is_valid, _, matches = find_matches(
-            r"[\w.+-]+@[\w-]+\.[\w.]+", text
-        )
+        is_valid, _, matches = find_matches(r"[\w.+-]+@[\w-]+\.[\w.]+", text)
         assert is_valid is True
         assert len(matches) == 2
         assert matches[0]["text"] == "user@example.com"
@@ -172,9 +169,15 @@ class TestConfigSections:
         assert "secret_scanning" in CONFIG_SECTIONS
 
     def test_config_sections_values(self):
-        assert CONFIG_SECTIONS["prompt_injection"] == ("prompt_injection", "allowlist_patterns")
+        assert CONFIG_SECTIONS["prompt_injection"] == (
+            "prompt_injection",
+            "allowlist_patterns",
+        )
         assert CONFIG_SECTIONS["scan_pii"] == ("scan_pii", "allowlist_patterns")
-        assert CONFIG_SECTIONS["secret_scanning"] == ("secret_scanning", "allowlist_patterns")
+        assert CONFIG_SECTIONS["secret_scanning"] == (
+            "secret_scanning",
+            "allowlist_patterns",
+        )
 
 
 class TestConfigIntegration:
@@ -182,20 +185,22 @@ class TestConfigIntegration:
 
     def _write_config(self, config_dir, config):
         config_path = config_dir / "ai-guardian.json"
-        with open(config_path, 'w', encoding='utf-8') as f:
+        with open(config_path, "w", encoding="utf-8") as f:
             json.dump(config, f, indent=2)
         return config_path
 
     def _read_config(self, config_dir):
         config_path = config_dir / "ai-guardian.json"
-        with open(config_path, 'r', encoding='utf-8') as f:
+        with open(config_path, "r", encoding="utf-8") as f:
             return json.load(f)
 
     def test_add_pattern_to_prompt_injection(self, tmp_path):
         config = {"prompt_injection": {"allowlist_patterns": []}}
         self._write_config(tmp_path, config)
 
-        with patch('ai_guardian.tui.regex_tester.get_config_dir', return_value=tmp_path):
+        with patch(
+            "ai_guardian.tui.regex_tester.get_config_dir", return_value=tmp_path
+        ):
             result = self._read_config(tmp_path)
             result["prompt_injection"]["allowlist_patterns"].append(r"test.*pattern")
             self._write_config(tmp_path, result)
@@ -207,7 +212,9 @@ class TestConfigIntegration:
         config = {"scan_pii": {"allowlist_patterns": []}}
         self._write_config(tmp_path, config)
 
-        with patch('ai_guardian.tui.regex_tester.get_config_dir', return_value=tmp_path):
+        with patch(
+            "ai_guardian.tui.regex_tester.get_config_dir", return_value=tmp_path
+        ):
             result = self._read_config(tmp_path)
             result["scan_pii"]["allowlist_patterns"].append(r"user@example\.com")
             self._write_config(tmp_path, result)
@@ -219,9 +226,13 @@ class TestConfigIntegration:
         config = {"secret_scanning": {"allowlist_patterns": []}}
         self._write_config(tmp_path, config)
 
-        with patch('ai_guardian.tui.regex_tester.get_config_dir', return_value=tmp_path):
+        with patch(
+            "ai_guardian.tui.regex_tester.get_config_dir", return_value=tmp_path
+        ):
             result = self._read_config(tmp_path)
-            result["secret_scanning"]["allowlist_patterns"].append(r"pk_test_[A-Za-z0-9]+")
+            result["secret_scanning"]["allowlist_patterns"].append(
+                r"pk_test_[A-Za-z0-9]+"
+            )
             self._write_config(tmp_path, result)
 
         saved = self._read_config(tmp_path)
@@ -231,7 +242,9 @@ class TestConfigIntegration:
         config = {}
         self._write_config(tmp_path, config)
 
-        with patch('ai_guardian.tui.regex_tester.get_config_dir', return_value=tmp_path):
+        with patch(
+            "ai_guardian.tui.regex_tester.get_config_dir", return_value=tmp_path
+        ):
             result = self._read_config(tmp_path)
             section_key = "prompt_injection"
             field_key = "allowlist_patterns"
@@ -270,7 +283,8 @@ class TestConfigIntegration:
         existing = result["prompt_injection"]["allowlist_patterns"]
         pattern_to_check = r"dict_pattern"
         is_duplicate = any(
-            (entry if isinstance(entry, str) else entry.get("pattern", "")) == pattern_to_check
+            (entry if isinstance(entry, str) else entry.get("pattern", ""))
+            == pattern_to_check
             for entry in existing
         )
         assert is_duplicate is True

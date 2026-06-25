@@ -34,8 +34,8 @@ Usage:
 import logging
 import warnings
 from contextlib import contextmanager
-from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional, Tuple
+from dataclasses import dataclass
+from typing import Any, Dict, List, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -43,6 +43,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class CheckResult:
     """Result of a security check."""
+
     blocked: bool = False
     detected: bool = False
     violation_type: Optional[str] = None
@@ -60,6 +61,7 @@ class SecurityViolation(Exception):
 
 class _SecurityWarning(UserWarning):
     """Warning category for action='warn' detections."""
+
     pass
 
 
@@ -80,8 +82,7 @@ class GuardSession:
         """Check text for secrets, prompt injection, context poisoning."""
         raise NotImplementedError
 
-    def check_file(self, file_path: str,
-                   content: Optional[str] = None) -> CheckResult:
+    def check_file(self, file_path: str, content: Optional[str] = None) -> CheckResult:
         """Check file path access and optionally scan file content."""
         raise NotImplementedError
 
@@ -118,15 +119,20 @@ class GuardSession:
         return CheckResult(
             blocked=blocked,
             detected=detected,
-            violation_type=types[0] if len(types) == 1 else (
-                ",".join(types) if types else None
+            violation_type=(
+                types[0] if len(types) == 1 else (",".join(types) if types else None)
             ),
             message="; ".join(messages) if messages else None,
-            details={"individual_results": [
-                {"violation_type": r.violation_type, "message": r.message}
-                for r in results if r.detected
-            ]} if len(results) > 1 and detected else (
-                results[0].details if results else None
+            details=(
+                {
+                    "individual_results": [
+                        {"violation_type": r.violation_type, "message": r.message}
+                        for r in results
+                        if r.detected
+                    ]
+                }
+                if len(results) > 1 and detected
+                else (results[0].details if results else None)
             ),
         )
 
@@ -141,6 +147,7 @@ class _DirectSession(GuardSession):
     def _ensure_config(self):
         if self._config is None:
             from ai_guardian.config_loaders import _load_config_file
+
             cfg, _ = _load_config_file()
             self._config = cfg or {}
 
@@ -151,14 +158,21 @@ class _DirectSession(GuardSession):
         if secret_cfg.get("enabled", True):
             try:
                 from ai_guardian.hook_processing import check_secrets_with_gitleaks
+
                 has_secrets, msg = check_secrets_with_gitleaks(
-                    text, filename=filename, secret_config=secret_cfg,
+                    text,
+                    filename=filename,
+                    secret_config=secret_cfg,
                 )
                 if has_secrets:
-                    results.append(CheckResult(
-                        blocked=True, detected=True,
-                        violation_type="secret_detected", message=msg,
-                    ))
+                    results.append(
+                        CheckResult(
+                            blocked=True,
+                            detected=True,
+                            violation_type="secret_detected",
+                            message=msg,
+                        )
+                    )
             except Exception as e:
                 logger.debug("Secret scanning unavailable: %s", e)
 
@@ -166,14 +180,20 @@ class _DirectSession(GuardSession):
         if pi_cfg.get("enabled", True):
             try:
                 from ai_guardian.prompt_injection import check_prompt_injection
+
                 should_block, msg, detected = check_prompt_injection(
-                    text, self._config,
+                    text,
+                    self._config,
                 )
                 if detected:
-                    results.append(CheckResult(
-                        blocked=should_block, detected=True,
-                        violation_type="prompt_injection", message=msg,
-                    ))
+                    results.append(
+                        CheckResult(
+                            blocked=should_block,
+                            detected=True,
+                            violation_type="prompt_injection",
+                            message=msg,
+                        )
+                    )
             except Exception as e:
                 logger.debug("Prompt injection check unavailable: %s", e)
 
@@ -181,35 +201,45 @@ class _DirectSession(GuardSession):
         if cp_cfg.get("enabled", True):
             try:
                 from ai_guardian.context_poisoning import check_context_poisoning
+
                 should_block, msg, detected = check_context_poisoning(
-                    text, self._config,
+                    text,
+                    self._config,
                 )
                 if detected:
-                    results.append(CheckResult(
-                        blocked=should_block, detected=True,
-                        violation_type="context_poisoning", message=msg,
-                    ))
+                    results.append(
+                        CheckResult(
+                            blocked=should_block,
+                            detected=True,
+                            violation_type="context_poisoning",
+                            message=msg,
+                        )
+                    )
             except Exception as e:
                 logger.debug("Context poisoning check unavailable: %s", e)
 
         merged = self._merge_results(results)
         return self._handle_result(merged)
 
-    def check_file(self, file_path: str,
-                   content: Optional[str] = None) -> CheckResult:
+    def check_file(self, file_path: str, content: Optional[str] = None) -> CheckResult:
         results = []
 
         try:
             from ai_guardian.hook_processing import check_directory_denied
+
             is_denied, denied_dir, warning_msg, pattern = check_directory_denied(
-                file_path, self._config,
+                file_path,
+                self._config,
             )
             if is_denied:
-                results.append(CheckResult(
-                    blocked=True, detected=True,
-                    violation_type="directory_blocked",
-                    message=warning_msg or f"Access denied: {file_path}",
-                ))
+                results.append(
+                    CheckResult(
+                        blocked=True,
+                        detected=True,
+                        violation_type="directory_blocked",
+                        message=warning_msg or f"Access denied: {file_path}",
+                    )
+                )
         except Exception as e:
             logger.debug("Directory check unavailable: %s", e)
 
@@ -218,15 +248,22 @@ class _DirectSession(GuardSession):
             if cfg_scanner_cfg.get("enabled", True):
                 try:
                     from ai_guardian.config_scanner import check_config_file_threats
+
                     should_block, msg, details = check_config_file_threats(
-                        file_path, content, self._config,
+                        file_path,
+                        content,
+                        self._config,
                     )
                     if should_block:
-                        results.append(CheckResult(
-                            blocked=True, detected=True,
-                            violation_type="config_file_exfil",
-                            message=msg, details=details,
-                        ))
+                        results.append(
+                            CheckResult(
+                                blocked=True,
+                                detected=True,
+                                violation_type="config_file_exfil",
+                                message=msg,
+                                details=details,
+                            )
+                        )
                 except Exception as e:
                     logger.debug("Config file check unavailable: %s", e)
 
@@ -234,15 +271,22 @@ class _DirectSession(GuardSession):
             if sc_cfg.get("enabled", True):
                 try:
                     from ai_guardian.supply_chain import check_supply_chain_threats
+
                     should_block, msg, details = check_supply_chain_threats(
-                        file_path, content, self._config,
+                        file_path,
+                        content,
+                        self._config,
                     )
                     if should_block:
-                        results.append(CheckResult(
-                            blocked=True, detected=True,
-                            violation_type="supply_chain_threat",
-                            message=msg, details=details,
-                        ))
+                        results.append(
+                            CheckResult(
+                                blocked=True,
+                                detected=True,
+                                violation_type="supply_chain_threat",
+                                message=msg,
+                                details=details,
+                            )
+                        )
                 except Exception as e:
                     logger.debug("Supply chain check unavailable: %s", e)
 
@@ -263,15 +307,21 @@ class _DirectSession(GuardSession):
         if cfg_scanner_cfg.get("enabled", True):
             try:
                 from ai_guardian.config_scanner import check_bash_command_threats
+
                 should_block, msg, details = check_bash_command_threats(
-                    command, self._config,
+                    command,
+                    self._config,
                 )
                 if should_block:
-                    results.append(CheckResult(
-                        blocked=True, detected=True,
-                        violation_type="config_file_exfil",
-                        message=msg, details=details,
-                    ))
+                    results.append(
+                        CheckResult(
+                            blocked=True,
+                            detected=True,
+                            violation_type="config_file_exfil",
+                            message=msg,
+                            details=details,
+                        )
+                    )
             except Exception as e:
                 logger.debug("Command check unavailable: %s", e)
 
@@ -280,6 +330,7 @@ class _DirectSession(GuardSession):
 
     def sanitize(self, text: str) -> Dict[str, Any]:
         from ai_guardian.sanitizer import sanitize_text
+
         return sanitize_text(text)
 
 
@@ -292,8 +343,10 @@ class _RestSession(GuardSession):
 
     def _ensure_daemon(self):
         from ai_guardian.daemon.client import (
-            is_daemon_running, start_daemon_background,
+            is_daemon_running,
+            start_daemon_background,
         )
+
         if not is_daemon_running():
             started = start_daemon_background()
             if not started:
@@ -302,12 +355,15 @@ class _RestSession(GuardSession):
                 raise RuntimeError("Daemon started but not responding")
 
     def check_content(self, text: str, *, filename: str = "input") -> CheckResult:
-        return self._send_check("content", {
-            "text": text, "filename": filename,
-        })
+        return self._send_check(
+            "content",
+            {
+                "text": text,
+                "filename": filename,
+            },
+        )
 
-    def check_file(self, file_path: str,
-                   content: Optional[str] = None) -> CheckResult:
+    def check_file(self, file_path: str, content: Optional[str] = None) -> CheckResult:
         data: Dict[str, Any] = {"file_path": file_path}
         if content is not None:
             data["content"] = content
@@ -318,33 +374,40 @@ class _RestSession(GuardSession):
 
     def sanitize(self, text: str) -> Dict[str, Any]:
         from ai_guardian.daemon.client import send_sdk_check
+
         response = send_sdk_check("sanitize", {"text": text}, timeout=5.0)
         if response is None:
             return {"sanitized_text": text, "redactions": [], "stats": {}}
         return response.get("data", response)
 
-    def _send_check(self, check_type: str,
-                    data: Dict[str, Any]) -> CheckResult:
+    def _send_check(self, check_type: str, data: Dict[str, Any]) -> CheckResult:
         from ai_guardian.daemon.client import send_sdk_check
+
         response = send_sdk_check(check_type, data, timeout=5.0)
         if response is None:
-            return self._handle_result(CheckResult(
-                blocked=False, detected=False,
-                message="Daemon unreachable",
-            ))
+            return self._handle_result(
+                CheckResult(
+                    blocked=False,
+                    detected=False,
+                    message="Daemon unreachable",
+                )
+            )
         resp_data = response.get("data", response)
-        return self._handle_result(CheckResult(
-            blocked=resp_data.get("blocked", False),
-            detected=resp_data.get("detected", False),
-            violation_type=resp_data.get("violation_type"),
-            message=resp_data.get("message"),
-            details=resp_data.get("details"),
-        ))
+        return self._handle_result(
+            CheckResult(
+                blocked=resp_data.get("blocked", False),
+                detected=resp_data.get("detected", False),
+                violation_type=resp_data.get("violation_type"),
+                message=resp_data.get("message"),
+                details=resp_data.get("details"),
+            )
+        )
 
 
 @contextmanager
-def monitor(action: str = "block", mode: str = "direct",
-            config: Optional[Dict[str, Any]] = None):
+def monitor(
+    action: str = "block", mode: str = "direct", config: Optional[Dict[str, Any]] = None
+):
     """Create a guarded session for security checks.
 
     Args:
@@ -358,13 +421,9 @@ def monitor(action: str = "block", mode: str = "direct",
         sanitize() methods.
     """
     if action not in ("block", "warn", "log"):
-        raise ValueError(
-            f"action must be 'block', 'warn', or 'log', got {action!r}"
-        )
+        raise ValueError(f"action must be 'block', 'warn', or 'log', got {action!r}")
     if mode not in ("direct", "rest"):
-        raise ValueError(
-            f"mode must be 'direct' or 'rest', got {mode!r}"
-        )
+        raise ValueError(f"mode must be 'direct' or 'rest', got {mode!r}")
 
     if mode == "direct":
         session = _DirectSession(action=action, config=config)

@@ -12,7 +12,6 @@ from nicegui import run, ui
 from ai_guardian.web.components.header import create_header, create_sidebar
 from ai_guardian.web.config_helpers import load_web_config, save_web_config
 
-
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
@@ -112,10 +111,7 @@ def _matches_search(rule, matcher_query: str, pattern_query: str) -> bool:
             return False
     if pattern_query:
         q = pattern_query.lower()
-        if not any(
-            q in _pattern_to_str(p).lower()
-            for p in rule.get("patterns", [])
-        ):
+        if not any(q in _pattern_to_str(p).lower() for p in rule.get("patterns", [])):
             return False
     return True
 
@@ -131,6 +127,7 @@ def _get_all_rules(config):
 # ---------------------------------------------------------------------------
 # Page
 # ---------------------------------------------------------------------------
+
 
 def create_permission_rules_page(service, daemon_name: str):
     """Create the unified Permission Rules page."""
@@ -242,9 +239,7 @@ def create_permission_rules_page(service, daemon_name: str):
                                     }
                                 cfg["permissions"]["enabled"] = True
                                 await run.io_bound(save_web_config, cfg)
-                                ui.notify(
-                                    "Permissions re-enabled", type="positive"
-                                )
+                                ui.notify("Permissions re-enabled", type="positive")
                                 await refresh()
 
                             ui.button(
@@ -340,9 +335,7 @@ def create_permission_rules_page(service, daemon_name: str):
                     all_rules = _get_all_rules(config)
                     type_counts = {}
                     for rule in all_rules:
-                        t_label, _, _ = _classify_matcher(
-                            rule.get("matcher", "")
-                        )
+                        t_label, _, _ = _classify_matcher(rule.get("matcher", ""))
                         type_counts[t_label] = type_counts.get(t_label, 0) + 1
 
                     with ui.card().classes("w-full"):
@@ -394,18 +387,16 @@ def create_permission_rules_page(service, daemon_name: str):
 
                     with ui.card().classes("w-full"):
                         with ui.row().classes("items-center gap-2 w-full"):
-                            ui.label("Rules").classes(
-                                "text-lg font-bold flex-grow"
-                            )
+                            ui.label("Rules").classes("text-lg font-bold flex-grow")
                             ui.label(
                                 f"{len(all_rules)} rule"
                                 f"{'s' if len(all_rules) != 1 else ''}"
                             ).classes("text-xs text-grey-6")
 
                         if not all_rules:
-                            ui.label(
-                                "No permission rules configured."
-                            ).classes("text-grey-6 text-sm")
+                            ui.label("No permission rules configured.").classes(
+                                "text-grey-6 text-sm"
+                            )
                         else:
                             for idx, rule in enumerate(all_rules):
                                 matcher = rule.get("matcher", "")
@@ -413,9 +404,7 @@ def create_permission_rules_page(service, daemon_name: str):
                                 patterns = rule.get("patterns", [])
                                 action = rule.get("action", "")
                                 immutable = rule.get("immutable", False)
-                                t_label, t_icon, t_color = (
-                                    _classify_matcher(matcher)
-                                )
+                                t_label, t_icon, t_color = _classify_matcher(matcher)
 
                                 # Type filter
                                 if (
@@ -434,45 +423,34 @@ def create_permission_rules_page(service, daemon_name: str):
                                     visible_pats = [
                                         (pi, p)
                                         for pi, p in enumerate(patterns)
-                                        if pat_q
-                                        in _pattern_to_str(p).lower()
+                                        if pat_q in _pattern_to_str(p).lower()
                                     ]
                                     if not visible_pats:
                                         continue
                                 else:
                                     visible_pats = list(enumerate(patterns))
 
-                                mode_color = (
-                                    "green" if mode == "allow" else "red"
-                                )
-                                border_hex = (
-                                    "#4caf50"
-                                    if mode == "allow"
-                                    else "#f44336"
-                                )
+                                mode_color = "green" if mode == "allow" else "red"
+                                border_hex = "#4caf50" if mode == "allow" else "#f44336"
 
-                                with ui.card().classes("w-full").style(
-                                    f"border-left: 3px solid {border_hex}"
+                                with (
+                                    ui.card()
+                                    .classes("w-full")
+                                    .style(f"border-left: 3px solid {border_hex}")
                                 ):
                                     # --- Rule header row ---
-                                    with ui.row().classes(
-                                        "items-center gap-2 w-full"
-                                    ):
-                                        ui.badge(
-                                            str(idx), color="blue-grey"
-                                        ).classes("text-xs").props("outline")
-                                        ui.icon(t_icon).classes(
-                                            f"text-{t_color}"
+                                    with ui.row().classes("items-center gap-2 w-full"):
+                                        ui.badge(str(idx), color="blue-grey").classes(
+                                            "text-xs"
+                                        ).props("outline")
+                                        ui.icon(t_icon).classes(f"text-{t_color}")
+                                        ui.badge(t_label, color=t_color).classes(
+                                            "text-xs"
                                         )
-                                        ui.badge(
-                                            t_label, color=t_color
-                                        ).classes("text-xs")
                                         ui.badge(
                                             mode.upper(), color=mode_color
                                         ).classes("text-xs")
-                                        ui.label(matcher).classes(
-                                            "font-bold text-sm"
-                                        )
+                                        ui.label(matcher).classes("font-bold text-sm")
                                         if action and mode == "deny":
                                             ui.badge(
                                                 action,
@@ -489,13 +467,9 @@ def create_permission_rules_page(service, daemon_name: str):
                                             ui.badge(
                                                 "immutable",
                                                 color="blue-grey",
-                                            ).classes("text-xs").props(
-                                                "outline"
-                                            )
+                                            ).classes("text-xs").props("outline")
 
-                                        ui.element("div").classes(
-                                            "flex-grow"
-                                        )
+                                        ui.element("div").classes("flex-grow")
 
                                         if not immutable:
                                             # Move up
@@ -505,9 +479,7 @@ def create_permission_rules_page(service, daemon_name: str):
                                                 cfg = await run.io_bound(
                                                     load_web_config
                                                 )
-                                                p = cfg.get(
-                                                    "permissions", {}
-                                                )
+                                                p = cfg.get("permissions", {})
                                                 rl = (
                                                     p.get("rules", [])
                                                     if isinstance(p, dict)
@@ -519,14 +491,10 @@ def create_permission_rules_page(service, daemon_name: str):
                                                         rl[i],
                                                     )
                                                     if isinstance(
-                                                        cfg.get(
-                                                            "permissions"
-                                                        ),
+                                                        cfg.get("permissions"),
                                                         dict,
                                                     ):
-                                                        cfg["permissions"][
-                                                            "rules"
-                                                        ] = rl
+                                                        cfg["permissions"]["rules"] = rl
                                                     await run.io_bound(
                                                         save_web_config,
                                                         cfg,
@@ -538,11 +506,7 @@ def create_permission_rules_page(service, daemon_name: str):
                                                 on_click=do_move_up,
                                             ).props(
                                                 "flat dense size=sm"
-                                                + (
-                                                    " disable"
-                                                    if idx == 0
-                                                    else ""
-                                                )
+                                                + (" disable" if idx == 0 else "")
                                             )
 
                                             # Move down
@@ -550,9 +514,7 @@ def create_permission_rules_page(service, daemon_name: str):
                                                 cfg = await run.io_bound(
                                                     load_web_config
                                                 )
-                                                p = cfg.get(
-                                                    "permissions", {}
-                                                )
+                                                p = cfg.get("permissions", {})
                                                 rl = (
                                                     p.get("rules", [])
                                                     if isinstance(p, dict)
@@ -564,14 +526,10 @@ def create_permission_rules_page(service, daemon_name: str):
                                                         rl[i],
                                                     )
                                                     if isinstance(
-                                                        cfg.get(
-                                                            "permissions"
-                                                        ),
+                                                        cfg.get("permissions"),
                                                         dict,
                                                     ):
-                                                        cfg["permissions"][
-                                                            "rules"
-                                                        ] = rl
+                                                        cfg["permissions"]["rules"] = rl
                                                     await run.io_bound(
                                                         save_web_config,
                                                         cfg,
@@ -585,8 +543,7 @@ def create_permission_rules_page(service, daemon_name: str):
                                                 "flat dense size=sm"
                                                 + (
                                                     " disable"
-                                                    if idx
-                                                    == len(all_rules) - 1
+                                                    if idx == len(all_rules) - 1
                                                     else ""
                                                 )
                                             )
@@ -598,20 +555,21 @@ def create_permission_rules_page(service, daemon_name: str):
                                                 rmo=mode,
                                                 ra=action,
                                             ):
-                                                with ui.dialog() as dlg, ui.card().classes(
-                                                    "w-[400px]"
+                                                with (
+                                                    ui.dialog() as dlg,
+                                                    ui.card().classes("w-[400px]"),
                                                 ):
-                                                    ui.label(
-                                                        "Edit Rule"
-                                                    ).classes(
+                                                    ui.label("Edit Rule").classes(
                                                         "text-lg font-bold"
                                                     )
-                                                    em = ui.input(
-                                                        label="Matcher",
-                                                        value=rm,
-                                                    ).props(
-                                                        "outlined dense"
-                                                    ).classes("w-full")
+                                                    em = (
+                                                        ui.input(
+                                                            label="Matcher",
+                                                            value=rm,
+                                                        )
+                                                        .props("outlined dense")
+                                                        .classes("w-full")
+                                                    )
                                                     emd = ui.select(
                                                         label="Mode",
                                                         options={
@@ -650,44 +608,29 @@ def create_permission_rules_page(service, daemon_name: str):
                                                             {},
                                                         )
                                                         rl = (
-                                                            pr.get(
-                                                                "rules", []
-                                                            )
-                                                            if isinstance(
-                                                                pr, dict
-                                                            )
+                                                            pr.get("rules", [])
+                                                            if isinstance(pr, dict)
                                                             else []
                                                         )
                                                         if ii < len(rl):
-                                                            rl[ii][
-                                                                "matcher"
-                                                            ] = mv
-                                                            rl[ii][
-                                                                "mode"
-                                                            ] = emd.value
+                                                            rl[ii]["matcher"] = mv
+                                                            rl[ii]["mode"] = emd.value
                                                             av = ea.value
                                                             if (
                                                                 av
-                                                                and emd.value
-                                                                == "deny"
+                                                                and emd.value == "deny"
                                                             ):
-                                                                rl[ii][
-                                                                    "action"
-                                                                ] = av
+                                                                rl[ii]["action"] = av
                                                             else:
                                                                 rl[ii].pop(
                                                                     "action",
                                                                     None,
                                                                 )
                                                             if isinstance(
-                                                                cfg.get(
-                                                                    "permissions"
-                                                                ),
+                                                                cfg.get("permissions"),
                                                                 dict,
                                                             ):
-                                                                cfg[
-                                                                    "permissions"
-                                                                ][
+                                                                cfg["permissions"][
                                                                     "rules"
                                                                 ] = rl
                                                             await run.io_bound(
@@ -701,9 +644,7 @@ def create_permission_rules_page(service, daemon_name: str):
                                                         )
                                                         await refresh()
 
-                                                    with ui.row().classes(
-                                                        "gap-2 mt-2"
-                                                    ):
+                                                    with ui.row().classes("gap-2 mt-2"):
                                                         ui.button(
                                                             "Save",
                                                             icon="save",
@@ -727,9 +668,7 @@ def create_permission_rules_page(service, daemon_name: str):
                                                 cfg = await run.io_bound(
                                                     load_web_config
                                                 )
-                                                p = cfg.get(
-                                                    "permissions", {}
-                                                )
+                                                p = cfg.get("permissions", {})
                                                 rl = (
                                                     p.get("rules", [])
                                                     if isinstance(p, dict)
@@ -738,14 +677,10 @@ def create_permission_rules_page(service, daemon_name: str):
                                                 if i < len(rl):
                                                     rl.pop(i)
                                                     if isinstance(
-                                                        cfg.get(
-                                                            "permissions"
-                                                        ),
+                                                        cfg.get("permissions"),
                                                         dict,
                                                     ):
-                                                        cfg["permissions"][
-                                                            "rules"
-                                                        ] = rl
+                                                        cfg["permissions"]["rules"] = rl
                                                     await run.io_bound(
                                                         save_web_config,
                                                         cfg,
@@ -771,19 +706,22 @@ def create_permission_rules_page(service, daemon_name: str):
                                         else f"Patterns ({n_shown}/{n_total} matching)"
                                     )
 
-                                    with ui.expansion(
-                                        label_text,
-                                        value=n_total <= 10,
-                                    ).classes(
-                                        "ml-6 w-full text-xs"
-                                    ).props("dense"):
+                                    with (
+                                        ui.expansion(
+                                            label_text,
+                                            value=n_total <= 10,
+                                        )
+                                        .classes("ml-6 w-full text-xs")
+                                        .props("dense")
+                                    ):
                                         for pi, p in visible_pats:
                                             pat_str = _pattern_to_str(p)
-                                            with ui.row().classes(
-                                                "items-center gap-1 "
-                                                "w-full py-0"
-                                            ).style(
-                                                "min-height: 28px"
+                                            with (
+                                                ui.row()
+                                                .classes(
+                                                    "items-center gap-1 " "w-full py-0"
+                                                )
+                                                .style("min-height: 28px")
                                             ):
                                                 ui.label(pat_str).classes(
                                                     "text-xs text-grey-4 "
@@ -797,9 +735,7 @@ def create_permission_rules_page(service, daemon_name: str):
                                                         ui.badge(
                                                             exp[0],
                                                             color=exp[1],
-                                                        ).classes(
-                                                            "text-xs"
-                                                        )
+                                                        ).classes("text-xs")
 
                                                 if not immutable:
                                                     # Edit pattern
@@ -808,23 +744,26 @@ def create_permission_rules_page(service, daemon_name: str):
                                                         pii=pi,
                                                         old=pat_str,
                                                     ):
-                                                        with ui.dialog() as d, ui.card().classes(
-                                                            "w-[400px]"
+                                                        with (
+                                                            ui.dialog() as d,
+                                                            ui.card().classes(
+                                                                "w-[400px]"
+                                                            ),
                                                         ):
                                                             ui.label(
                                                                 "Edit Pattern"
                                                             ).classes(
-                                                                "text-sm "
-                                                                "font-bold"
+                                                                "text-sm " "font-bold"
                                                             )
-                                                            ep = ui.input(
-                                                                label="Pattern",
-                                                                value=old,
-                                                            ).props(
-                                                                "outlined "
-                                                                "dense"
-                                                            ).classes(
-                                                                "w-full"
+                                                            ep = (
+                                                                ui.input(
+                                                                    label="Pattern",
+                                                                    value=old,
+                                                                )
+                                                                .props(
+                                                                    "outlined " "dense"
+                                                                )
+                                                                .classes("w-full")
                                                             )
 
                                                             async def _sp(
@@ -838,8 +777,10 @@ def create_permission_rules_page(service, daemon_name: str):
                                                                         type="negative",
                                                                     )
                                                                     return
-                                                                cfg = await run.io_bound(
-                                                                    load_web_config
+                                                                cfg = (
+                                                                    await run.io_bound(
+                                                                        load_web_config
+                                                                    )
                                                                 )
                                                                 pr = cfg.get(
                                                                     "permissions",
@@ -856,28 +797,14 @@ def create_permission_rules_page(service, daemon_name: str):
                                                                     )
                                                                     else []
                                                                 )
-                                                                if (
-                                                                    rii
-                                                                    < len(rl)
-                                                                ):
-                                                                    pts = rl[
-                                                                        rii
-                                                                    ].get(
+                                                                if rii < len(rl):
+                                                                    pts = rl[rii].get(
                                                                         "patterns",
                                                                         [],
                                                                     )
-                                                                    if (
-                                                                        piii
-                                                                        < len(
-                                                                            pts
-                                                                        )
-                                                                    ):
-                                                                        pts[
-                                                                            piii
-                                                                        ] = v
-                                                                        rl[
-                                                                            rii
-                                                                        ][
+                                                                    if piii < len(pts):
+                                                                        pts[piii] = v
+                                                                        rl[rii][
                                                                             "patterns"
                                                                         ] = pts
                                                                         if isinstance(
@@ -909,23 +836,17 @@ def create_permission_rules_page(service, daemon_name: str):
                                                                     "Save",
                                                                     icon="save",
                                                                     on_click=_sp,
-                                                                ).props(
-                                                                    "dense"
-                                                                )
+                                                                ).props("dense")
                                                                 ui.button(
                                                                     "Cancel",
                                                                     on_click=d.close,
-                                                                ).props(
-                                                                    "dense flat"
-                                                                )
+                                                                ).props("dense flat")
                                                         d.open()
 
                                                     ui.button(
                                                         icon="edit",
                                                         on_click=do_edit_pat,
-                                                    ).props(
-                                                        "flat dense size=xs"
-                                                    )
+                                                    ).props("flat dense size=xs")
 
                                                     # Delete pattern
                                                     async def do_del_pat(
@@ -939,37 +860,25 @@ def create_permission_rules_page(service, daemon_name: str):
                                                             {},
                                                         )
                                                         rl = (
-                                                            pr.get(
-                                                                "rules", []
-                                                            )
-                                                            if isinstance(
-                                                                pr, dict
-                                                            )
+                                                            pr.get("rules", [])
+                                                            if isinstance(pr, dict)
                                                             else []
                                                         )
                                                         if ri < len(rl):
-                                                            pts = rl[
-                                                                ri
-                                                            ].get(
+                                                            pts = rl[ri].get(
                                                                 "patterns",
                                                                 [],
                                                             )
-                                                            if pii < len(
-                                                                pts
-                                                            ):
+                                                            if pii < len(pts):
                                                                 pts.pop(pii)
-                                                                rl[ri][
-                                                                    "patterns"
-                                                                ] = pts
+                                                                rl[ri]["patterns"] = pts
                                                                 if isinstance(
                                                                     cfg.get(
                                                                         "permissions"
                                                                     ),
                                                                     dict,
                                                                 ):
-                                                                    cfg[
-                                                                        "permissions"
-                                                                    ][
+                                                                    cfg["permissions"][
                                                                         "rules"
                                                                     ] = rl
                                                                 await run.io_bound(
@@ -986,28 +895,27 @@ def create_permission_rules_page(service, daemon_name: str):
                                                         icon="delete",
                                                         on_click=do_del_pat,
                                                         color="red",
-                                                    ).props(
-                                                        "flat dense size=xs"
-                                                    )
+                                                    ).props("flat dense size=xs")
 
                                         # Add pattern button
                                         if not immutable:
 
                                             async def do_add_pat(ri=idx):
-                                                with ui.dialog() as d, ui.card().classes(
-                                                    "w-[400px]"
+                                                with (
+                                                    ui.dialog() as d,
+                                                    ui.card().classes("w-[400px]"),
                                                 ):
-                                                    ui.label(
-                                                        "Add Pattern"
-                                                    ).classes(
+                                                    ui.label("Add Pattern").classes(
                                                         "text-sm font-bold"
                                                     )
-                                                    np = ui.input(
-                                                        label="Pattern",
-                                                        placeholder="e.g. daf-*, *",
-                                                    ).props(
-                                                        "outlined dense"
-                                                    ).classes("w-full")
+                                                    np = (
+                                                        ui.input(
+                                                            label="Pattern",
+                                                            placeholder="e.g. daf-*, *",
+                                                        )
+                                                        .props("outlined dense")
+                                                        .classes("w-full")
+                                                    )
 
                                                     async def _ap(rii=ri):
                                                         v = np.value.strip()
@@ -1025,12 +933,8 @@ def create_permission_rules_page(service, daemon_name: str):
                                                             {},
                                                         )
                                                         rl = (
-                                                            pr.get(
-                                                                "rules", []
-                                                            )
-                                                            if isinstance(
-                                                                pr, dict
-                                                            )
+                                                            pr.get("rules", [])
+                                                            if isinstance(pr, dict)
                                                             else []
                                                         )
                                                         if rii < len(rl):
@@ -1039,14 +943,10 @@ def create_permission_rules_page(service, daemon_name: str):
                                                                 [],
                                                             ).append(v)
                                                             if isinstance(
-                                                                cfg.get(
-                                                                    "permissions"
-                                                                ),
+                                                                cfg.get("permissions"),
                                                                 dict,
                                                             ):
-                                                                cfg[
-                                                                    "permissions"
-                                                                ][
+                                                                cfg["permissions"][
                                                                     "rules"
                                                                 ] = rl
                                                             await run.io_bound(
@@ -1060,9 +960,7 @@ def create_permission_rules_page(service, daemon_name: str):
                                                         )
                                                         await refresh()
 
-                                                    with ui.row().classes(
-                                                        "gap-2 mt-1"
-                                                    ):
+                                                    with ui.row().classes("gap-2 mt-1"):
                                                         ui.button(
                                                             "Add",
                                                             icon="add",
@@ -1071,24 +969,20 @@ def create_permission_rules_page(service, daemon_name: str):
                                                         ui.button(
                                                             "Cancel",
                                                             on_click=d.close,
-                                                        ).props(
-                                                            "dense flat"
-                                                        )
+                                                        ).props("dense flat")
                                                 d.open()
 
                                             ui.button(
                                                 "Add Pattern",
                                                 icon="add",
                                                 on_click=do_add_pat,
-                                            ).props(
-                                                "dense size=sm flat"
-                                            ).classes("mt-1")
+                                            ).props("dense size=sm flat").classes(
+                                                "mt-1"
+                                            )
 
                         # --- Add rule button + dialog ---
                         async def show_add_dialog():
-                            with ui.dialog() as dialog, ui.card().classes(
-                                "w-[400px]"
-                            ):
+                            with ui.dialog() as dialog, ui.card().classes("w-[400px]"):
                                 ui.label("Add Permission Rule").classes(
                                     "text-lg font-bold"
                                 )
@@ -1127,7 +1021,7 @@ def create_permission_rules_page(service, daemon_name: str):
                                 ).classes("w-48")
                                 ui.label(
                                     "The rule is created with a single "
-                                    "\"*\" pattern. Add more patterns "
+                                    '"*" pattern. Add more patterns '
                                     "inline after creation."
                                 ).classes("text-xs text-grey-6 mt-2")
 
@@ -1141,9 +1035,7 @@ def create_permission_rules_page(service, daemon_name: str):
                                                 type="negative",
                                             )
                                             return
-                                        cfg = await run.io_bound(
-                                            load_web_config
-                                        )
+                                        cfg = await run.io_bound(load_web_config)
                                         perms = cfg.get("permissions", {})
                                         if not isinstance(perms, dict):
                                             perms = {
@@ -1162,13 +1054,9 @@ def create_permission_rules_page(service, daemon_name: str):
                                         rules.append(new_rule)
                                         perms["rules"] = rules
                                         cfg["permissions"] = perms
-                                        await run.io_bound(
-                                            save_web_config, cfg
-                                        )
+                                        await run.io_bound(save_web_config, cfg)
                                         dialog.close()
-                                        ui.notify(
-                                            "Rule added", type="positive"
-                                        )
+                                        ui.notify("Rule added", type="positive")
                                         await refresh()
 
                                     ui.button(

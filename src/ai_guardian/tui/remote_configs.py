@@ -7,16 +7,18 @@ permissions and settings from enterprise/team sources.
 """
 
 import json
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any
 
 from textual.app import ComposeResult
-from textual.containers import Container, Horizontal, VerticalScroll, Vertical
+from textual.containers import Container, Horizontal, VerticalScroll
 from textual.widgets import Static, Button, Input, Label, Checkbox
 from textual.message import Message
 
 from ai_guardian.config_utils import get_config_dir
 from ai_guardian.tui.schema_defaults import (
-    SchemaDefaultsMixin, default_indicator, default_placeholder,
+    SchemaDefaultsMixin,
+    default_indicator,
+    default_placeholder,
 )
 
 
@@ -105,8 +107,12 @@ class RemoteConfigEntry(Container):
                 yield Static(f"Token: ${self.token_env}", classes="muted")
 
         with Horizontal(classes="button-row"):
-            yield Button("Test", variant="primary", id=f"test_{self.index}", classes="compact")
-            yield Button("Remove", variant="error", id=f"remove_{self.index}", classes="compact")
+            yield Button(
+                "Test", variant="primary", id=f"test_{self.index}", classes="compact"
+            )
+            yield Button(
+                "Remove", variant="error", id=f"remove_{self.index}", classes="compact"
+            )
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         """Handle button press."""
@@ -192,7 +198,9 @@ class RemoteConfigsContent(SchemaDefaultsMixin, Container):
 
     def compose(self) -> ComposeResult:
         """Compose the remote configs tab content."""
-        yield Static("[bold]Remote Configuration Management[/bold]", id="remote-configs-header")
+        yield Static(
+            "[bold]Remote Configuration Management[/bold]", id="remote-configs-header"
+        )
 
         with VerticalScroll():
             # Configuration URLs section
@@ -200,7 +208,7 @@ class RemoteConfigsContent(SchemaDefaultsMixin, Container):
                 yield Static("[bold]Remote Config URLs[/bold]", classes="section-title")
                 yield Static(
                     "[dim]Load permissions and policies from remote sources (enterprise/team policies)[/dim]",
-                    classes="section-title"
+                    classes="section-title",
                 )
 
                 with VerticalScroll(id="urls-list"):
@@ -208,15 +216,22 @@ class RemoteConfigsContent(SchemaDefaultsMixin, Container):
 
             # Add new URL section
             with Container(id="add-url-section"):
-                yield Static("[bold]Add New Remote Config[/bold]", classes="section-title")
+                yield Static(
+                    "[bold]Add New Remote Config[/bold]", classes="section-title"
+                )
 
                 with Horizontal(classes="setting-row"):
                     yield Label("URL:")
-                    yield Input(placeholder="https://example.com/ai-guardian.json", id="new-url-input")
+                    yield Input(
+                        placeholder="https://example.com/ai-guardian.json",
+                        id="new-url-input",
+                    )
 
                 with Horizontal(classes="setting-row"):
                     yield Label("Token Env Var:")
-                    yield Input(placeholder="GITHUB_TOKEN (optional)", id="new-token-env-input")
+                    yield Input(
+                        placeholder="GITHUB_TOKEN (optional)", id="new-token-env-input"
+                    )
 
                 with Horizontal(classes="setting-row"):
                     yield Label("")
@@ -229,7 +244,9 @@ class RemoteConfigsContent(SchemaDefaultsMixin, Container):
                 with Horizontal(classes="setting-row"):
                     yield Label("Refresh Interval:")
                     yield Input(
-                        placeholder=default_placeholder("remote_configs.refresh_interval_hours"),
+                        placeholder=default_placeholder(
+                            "remote_configs.refresh_interval_hours"
+                        ),
                         id="refresh-interval-input",
                     )
                     yield Static(
@@ -240,7 +257,9 @@ class RemoteConfigsContent(SchemaDefaultsMixin, Container):
                 with Horizontal(classes="setting-row"):
                     yield Label("Expire After:")
                     yield Input(
-                        placeholder=default_placeholder("remote_configs.expire_after_hours"),
+                        placeholder=default_placeholder(
+                            "remote_configs.expire_after_hours"
+                        ),
                         id="expire-after-input",
                     )
                     yield Static(
@@ -265,7 +284,7 @@ class RemoteConfigsContent(SchemaDefaultsMixin, Container):
         config = {}
         if config_path.exists():
             try:
-                with open(config_path, 'r', encoding='utf-8') as f:
+                with open(config_path, "r", encoding="utf-8") as f:
                     config = json.load(f)
             except Exception as e:
                 self.app.notify(f"Error loading config: {e}", severity="error")
@@ -282,7 +301,9 @@ class RemoteConfigsContent(SchemaDefaultsMixin, Container):
 
         # Update cache settings
         try:
-            self.query_one("#refresh-interval-input", Input).value = str(refresh_interval)
+            self.query_one("#refresh-interval-input", Input).value = str(
+                refresh_interval
+            )
             self.query_one("#expire-after-input", Input).value = str(expire_after)
         except Exception:
             pass  # Widgets may not be mounted yet
@@ -312,11 +333,15 @@ class RemoteConfigsContent(SchemaDefaultsMixin, Container):
         if event.button.id == "add-url-button":
             self.add_url()
 
-    def on_remote_config_entry_remove_pressed(self, message: RemoteConfigEntry.RemovePressed) -> None:
+    def on_remote_config_entry_remove_pressed(
+        self, message: RemoteConfigEntry.RemovePressed
+    ) -> None:
         """Handle remove button press on URL entry."""
         self.remove_url(message.index)
 
-    def on_remote_config_entry_test_pressed(self, message: RemoteConfigEntry.TestPressed) -> None:
+    def on_remote_config_entry_test_pressed(
+        self, message: RemoteConfigEntry.TestPressed
+    ) -> None:
         """Handle test button press on URL entry."""
         self.test_url(message.url)
 
@@ -354,8 +379,15 @@ class RemoteConfigsContent(SchemaDefaultsMixin, Container):
             return
 
         # Validate URL format
-        if not (url.startswith("http://") or url.startswith("https://") or url.startswith("/")):
-            self.app.notify("URL must start with http://, https://, or / (for local files)", severity="error")
+        if not (
+            url.startswith("http://")
+            or url.startswith("https://")
+            or url.startswith("/")
+        ):
+            self.app.notify(
+                "URL must start with http://, https://, or / (for local files)",
+                severity="error",
+            )
             return
 
         config_dir = get_config_dir()
@@ -363,7 +395,7 @@ class RemoteConfigsContent(SchemaDefaultsMixin, Container):
 
         try:
             if config_path.exists():
-                with open(config_path, 'r', encoding='utf-8') as f:
+                with open(config_path, "r", encoding="utf-8") as f:
                     config = json.load(f)
             else:
                 config = {}
@@ -381,14 +413,16 @@ class RemoteConfigsContent(SchemaDefaultsMixin, Container):
             # Check if URL already exists
             existing_urls = config["remote_configs"]["urls"]
             for existing in existing_urls:
-                existing_url = existing if isinstance(existing, str) else existing.get("url", "")
+                existing_url = (
+                    existing if isinstance(existing, str) else existing.get("url", "")
+                )
                 if existing_url == url:
                     self.app.notify("URL already exists", severity="warning")
                     return
 
             config["remote_configs"]["urls"].append(url_config)
 
-            with open(config_path, 'w', encoding='utf-8') as f:
+            with open(config_path, "w", encoding="utf-8") as f:
                 json.dump(config, f, indent=2)
 
             # Clear inputs
@@ -408,7 +442,7 @@ class RemoteConfigsContent(SchemaDefaultsMixin, Container):
 
         try:
             if config_path.exists():
-                with open(config_path, 'r', encoding='utf-8') as f:
+                with open(config_path, "r", encoding="utf-8") as f:
                     config = json.load(f)
             else:
                 return
@@ -417,13 +451,20 @@ class RemoteConfigsContent(SchemaDefaultsMixin, Container):
                 urls = config["remote_configs"]["urls"]
                 if 0 <= index < len(urls):
                     removed_url = urls.pop(index)
-                    removed_url_str = removed_url if isinstance(removed_url, str) else removed_url.get("url", "")
+                    removed_url_str = (
+                        removed_url
+                        if isinstance(removed_url, str)
+                        else removed_url.get("url", "")
+                    )
 
-                    with open(config_path, 'w', encoding='utf-8') as f:
+                    with open(config_path, "w", encoding="utf-8") as f:
                         json.dump(config, f, indent=2)
 
                     self.load_config()
-                    self.app.notify(f"✓ Removed remote config: {removed_url_str}", severity="success")
+                    self.app.notify(
+                        f"✓ Removed remote config: {removed_url_str}",
+                        severity="success",
+                    )
 
         except Exception as e:
             self.app.notify(f"Error removing URL: {e}", severity="error")
@@ -435,7 +476,7 @@ class RemoteConfigsContent(SchemaDefaultsMixin, Container):
 
         try:
             if config_path.exists():
-                with open(config_path, 'r', encoding='utf-8') as f:
+                with open(config_path, "r", encoding="utf-8") as f:
                     config = json.load(f)
             else:
                 return
@@ -449,7 +490,7 @@ class RemoteConfigsContent(SchemaDefaultsMixin, Container):
                     else:
                         urls[index]["enabled"] = enabled
 
-                    with open(config_path, 'w', encoding='utf-8') as f:
+                    with open(config_path, "w", encoding="utf-8") as f:
                         json.dump(config, f, indent=2)
 
                     status = "enabled" if enabled else "disabled"
@@ -465,7 +506,7 @@ class RemoteConfigsContent(SchemaDefaultsMixin, Container):
 
         try:
             if config_path.exists():
-                with open(config_path, 'r', encoding='utf-8') as f:
+                with open(config_path, "r", encoding="utf-8") as f:
                     config = json.load(f)
             else:
                 config = {}
@@ -475,7 +516,7 @@ class RemoteConfigsContent(SchemaDefaultsMixin, Container):
 
             config["remote_configs"][field] = value
 
-            with open(config_path, 'w', encoding='utf-8') as f:
+            with open(config_path, "w", encoding="utf-8") as f:
                 json.dump(config, f, indent=2)
 
             self.app.notify(f"✓ Saved {field}: {value}", severity="success")
@@ -487,13 +528,19 @@ class RemoteConfigsContent(SchemaDefaultsMixin, Container):
         """Test connection to a remote config URL."""
         try:
             import requests
+
             response = requests.get(url, timeout=5)
             if response.status_code == 200:
                 self.app.notify(f"✓ URL is reachable: {url}", severity="success")
             else:
-                self.app.notify(f"URL returned status {response.status_code}", severity="warning")
+                self.app.notify(
+                    f"URL returned status {response.status_code}", severity="warning"
+                )
         except ImportError:
-            self.app.notify("requests library not installed - cannot test connection", severity="error")
+            self.app.notify(
+                "requests library not installed - cannot test connection",
+                severity="error",
+            )
         except Exception as e:
             self.app.notify(f"✗ Cannot connect to URL: {e}", severity="error")
 

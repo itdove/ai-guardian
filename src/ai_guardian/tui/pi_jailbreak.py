@@ -70,11 +70,16 @@ class PIJailbreakContent(Container):
     """
 
     def compose(self) -> ComposeResult:
-        yield Static("[bold]Prompt Injection — Jailbreak Patterns[/bold]", id="pi-jailbreak-header")
+        yield Static(
+            "[bold]Prompt Injection — Jailbreak Patterns[/bold]",
+            id="pi-jailbreak-header",
+        )
 
         with VerticalScroll():
             with Container(classes="section"):
-                yield Static("[bold]Built-in Jailbreak Detection[/bold]", classes="section-title")
+                yield Static(
+                    "[bold]Built-in Jailbreak Detection[/bold]", classes="section-title"
+                )
                 yield Static(
                     "[dim]AI Guardian includes built-in patterns that detect common "
                     "jailbreak techniques. These cannot be disabled individually but "
@@ -92,7 +97,9 @@ class PIJailbreakContent(Container):
                 )
 
             with Container(classes="section"):
-                yield Static("[bold]Custom Jailbreak Patterns[/bold]", classes="section-title")
+                yield Static(
+                    "[bold]Custom Jailbreak Patterns[/bold]", classes="section-title"
+                )
                 yield Static(
                     "[dim]Add regex patterns to detect additional jailbreak techniques. "
                     "These are matched against user prompts only (not file content).[/dim]",
@@ -105,7 +112,9 @@ class PIJailbreakContent(Container):
                 )
 
             with Container(classes="section"):
-                yield Static("[bold]Jailbreak Statistics[/bold]", classes="section-title")
+                yield Static(
+                    "[bold]Jailbreak Statistics[/bold]", classes="section-title"
+                )
                 yield Static("", id="jailbreak-stats")
 
     def on_mount(self) -> None:
@@ -125,7 +134,7 @@ class PIJailbreakContent(Container):
         config = {}
         if config_path.exists():
             try:
-                with open(config_path, 'r', encoding='utf-8') as f:
+                with open(config_path, "r", encoding="utf-8") as f:
                     config = json.load(f)
             except Exception as e:
                 self.app.notify(f"Error loading config: {e}", severity="error")
@@ -148,8 +157,11 @@ class PIJailbreakContent(Container):
     def _load_statistics(self) -> None:
         try:
             from ai_guardian.violation_logger import ViolationLogger
+
             logger = ViolationLogger()
-            violations = logger.get_recent_violations(limit=1000, violation_type="jailbreak_detected", resolved=None)
+            violations = logger.get_recent_violations(
+                limit=1000, violation_type="jailbreak_detected", resolved=None
+            )
             total = len(violations)
             unresolved = len([v for v in violations if not v.get("resolved", False)])
             self.query_one("#jailbreak-stats", Static).update(
@@ -182,7 +194,7 @@ class PIJailbreakContent(Container):
         try:
             config = {}
             if config_path.exists():
-                with open(config_path, 'r', encoding='utf-8') as f:
+                with open(config_path, "r", encoding="utf-8") as f:
                     config = json.load(f)
 
             if "prompt_injection" not in config:
@@ -196,12 +208,12 @@ class PIJailbreakContent(Container):
 
             config["prompt_injection"]["jailbreak_patterns"].append(pattern)
 
-            with open(config_path, 'w', encoding='utf-8') as f:
+            with open(config_path, "w", encoding="utf-8") as f:
                 json.dump(config, f, indent=2)
 
             input_widget.value = ""
             self.load_config()
-            self.app.notify(f"Added jailbreak pattern", severity="success")
+            self.app.notify("Added jailbreak pattern", severity="success")
 
         except Exception as e:
             self.app.notify(f"Error: {e}", severity="error")

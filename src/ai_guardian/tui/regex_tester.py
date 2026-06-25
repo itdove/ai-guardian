@@ -8,7 +8,7 @@ and config integration for allowlist patterns.
 
 import json
 import re
-from typing import List, Tuple, Union
+from typing import List, Tuple
 
 from textual.app import ComposeResult
 from textual.containers import Container, Horizontal, VerticalScroll
@@ -75,12 +75,14 @@ def find_matches(
     for i, match in enumerate(compiled.finditer(text)):
         if i >= max_matches:
             break
-        matches.append({
-            "text": match.group(),
-            "start": match.start(),
-            "end": match.end(),
-            "line": _line_for_pos(match.start()),
-        })
+        matches.append(
+            {
+                "text": match.group(),
+                "start": match.start(),
+                "end": match.end(),
+                "line": _line_for_pos(match.start()),
+            }
+        )
 
     return True, "", matches
 
@@ -154,7 +156,9 @@ class RegexTesterContent(Container):
                 )
                 yield Static("", id="regex-validation-status")
                 with Horizontal(classes="flag-row"):
-                    yield Checkbox("Case Insensitive", value=True, id="regex-flag-ignorecase")
+                    yield Checkbox(
+                        "Case Insensitive", value=True, id="regex-flag-ignorecase"
+                    )
                     yield Checkbox("Multiline", value=True, id="regex-flag-multiline")
 
             with Container(classes="section"):
@@ -266,7 +270,9 @@ class RegexTesterContent(Container):
         suffix = ""
         if count >= MAX_MATCHES_DISPLAYED:
             suffix = f" (showing first {MAX_MATCHES_DISPLAYED})"
-        summary = f"[green]{count} match{'es' if count != 1 else ''} found[/green]{suffix}"
+        summary = (
+            f"[green]{count} match{'es' if count != 1 else ''} found[/green]{suffix}"
+        )
 
         detail_lines = []
         for i, m in enumerate(matches, 1):
@@ -311,7 +317,9 @@ class RegexTesterContent(Container):
             return
 
         if not validate_regex_pattern(pattern):
-            self.app.notify("Pattern is not safe (ReDoS risk or invalid syntax)", severity="error")
+            self.app.notify(
+                "Pattern is not safe (ReDoS risk or invalid syntax)", severity="error"
+            )
             return
 
         try:
@@ -337,7 +345,7 @@ class RegexTesterContent(Container):
         try:
             config = {}
             if config_path.exists():
-                with open(config_path, 'r', encoding='utf-8') as f:
+                with open(config_path, "r", encoding="utf-8") as f:
                     config = json.load(f)
 
             if section_key not in config:
@@ -347,7 +355,9 @@ class RegexTesterContent(Container):
 
             existing = config[section_key][field_key]
             for entry in existing:
-                entry_str = entry if isinstance(entry, str) else entry.get("pattern", "")
+                entry_str = (
+                    entry if isinstance(entry, str) else entry.get("pattern", "")
+                )
                 if entry_str == pattern:
                     self.app.notify(
                         f"Pattern already in {section_key} {field_key}",
@@ -357,7 +367,7 @@ class RegexTesterContent(Container):
 
             config[section_key][field_key].append(pattern)
 
-            with open(config_path, 'w', encoding='utf-8') as f:
+            with open(config_path, "w", encoding="utf-8") as f:
                 json.dump(config, f, indent=2)
 
             section_labels = {

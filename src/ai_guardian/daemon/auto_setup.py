@@ -42,6 +42,7 @@ def _is_auto_install_disabled(config):
         return not auto_install
     if isinstance(auto_install, dict):
         from ai_guardian.config_utils import is_feature_enabled
+
         return not is_feature_enabled(auto_install, default=True)
     return False
 
@@ -98,6 +99,7 @@ def auto_setup_tray():
         config = None
         try:
             from ai_guardian.config_loaders import _load_config_file
+
             config, _ = _load_config_file()
         except Exception:
             pass  # intentionally silent — best-effort operation
@@ -107,6 +109,7 @@ def auto_setup_tray():
             return
 
         from ai_guardian.daemon.tray import is_tray_available
+
         if not is_tray_available():
             logger.debug("Auto-setup: skipped (tray not available)")
             return
@@ -124,6 +127,7 @@ def auto_setup_tray():
             logger.info("First run: installed tray autostart")
 
         from ai_guardian.daemon.tray import _is_tray_running
+
         if not _is_tray_running():
             _start_tray_background()
             logger.info("First run: started tray in background")

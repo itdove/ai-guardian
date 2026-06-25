@@ -14,89 +14,172 @@ from ai_guardian.web.components.header import create_header, create_sidebar
 
 FILTER_TABS = [
     ("All", None, "Show all violation types"),
-    ("Tool Permission", "tool_permission", "Blocked tool/MCP server execution (permission rules)"),
-    ("Secrets", "secret_detected", "Hard-coded secrets detected in files or prompts (API keys, tokens, passwords)"),
-    ("Secret Redaction", "secret_redaction", "Secrets found in tool output and redacted before reaching the AI model"),
-    ("Directories", "directory_blocking", "File access blocked by directory protection rules"),
-    ("Prompt Injection", "prompt_injection", "Attempts to manipulate AI behavior detected in prompts or files"),
+    (
+        "Tool Permission",
+        "tool_permission",
+        "Blocked tool/MCP server execution (permission rules)",
+    ),
+    (
+        "Secrets",
+        "secret_detected",
+        "Hard-coded secrets detected in files or prompts (API keys, tokens, passwords)",
+    ),
+    (
+        "Secret Redaction",
+        "secret_redaction",
+        "Secrets found in tool output and redacted before reaching the AI model",
+    ),
+    (
+        "Directories",
+        "directory_blocking",
+        "File access blocked by directory protection rules",
+    ),
+    (
+        "Prompt Injection",
+        "prompt_injection",
+        "Attempts to manipulate AI behavior detected in prompts or files",
+    ),
     ("Jailbreak", "jailbreak_detected", "Attempts to bypass AI safety constraints"),
-    ("SSRF Blocked", "ssrf_blocked", "Blocked access to private networks, metadata endpoints, or dangerous URLs"),
-    ("Config Exfil", "config_file_exfil", "Credential exfiltration commands detected in AI config files (CLAUDE.md, AGENTS.md)"),
-    ("PII Detected", "pii_detected", "Personal Identifiable Information found in files or prompts (SSN, credit card, phone)"),
-    ("Secret in Transcript", "secret_in_transcript", "Secret found in conversation history (possibly from ! shell command)"),
-    ("PII in Transcript", "pii_in_transcript", "Personal Identifiable Information found in conversation history"),
-    ("Injection in Transcript", "prompt_injection_in_transcript", "Prompt injection pattern found in conversation history"),
-    ("Annotation Suppressed", "annotation_suppressed", "Finding suppressed by an inline annotation (ai-guardian:allow, gitleaks:allow)"),
-    ("Image Secret", "image_secret_detected", "Secret detected in image via OCR scanning"),
+    (
+        "SSRF Blocked",
+        "ssrf_blocked",
+        "Blocked access to private networks, metadata endpoints, or dangerous URLs",
+    ),
+    (
+        "Config Exfil",
+        "config_file_exfil",
+        "Credential exfiltration commands detected in AI config files (CLAUDE.md, AGENTS.md)",
+    ),
+    (
+        "PII Detected",
+        "pii_detected",
+        "Personal Identifiable Information found in files or prompts (SSN, credit card, phone)",
+    ),
+    (
+        "Secret in Transcript",
+        "secret_in_transcript",
+        "Secret found in conversation history (possibly from ! shell command)",
+    ),
+    (
+        "PII in Transcript",
+        "pii_in_transcript",
+        "Personal Identifiable Information found in conversation history",
+    ),
+    (
+        "Injection in Transcript",
+        "prompt_injection_in_transcript",
+        "Prompt injection pattern found in conversation history",
+    ),
+    (
+        "Annotation Suppressed",
+        "annotation_suppressed",
+        "Finding suppressed by an inline annotation (ai-guardian:allow, gitleaks:allow)",
+    ),
+    (
+        "Image Secret",
+        "image_secret_detected",
+        "Secret detected in image via OCR scanning",
+    ),
     ("Image PII", "image_pii_detected", "PII detected in image via OCR scanning"),
 ]
 
 DETAIL_FIELDS = {
     "tool_permission": [
-        ("Tool", "tool_name"), ("File", "tool_value"),
-        ("File Path", "file_path"), ("Line", "line_number"),
-        ("Column", "start_column"), ("Position", "position"), ("Reason", "reason"),
+        ("Tool", "tool_name"),
+        ("File", "tool_value"),
+        ("File Path", "file_path"),
+        ("Line", "line_number"),
+        ("Column", "start_column"),
+        ("Position", "position"),
+        ("Reason", "reason"),
     ],
     "secret_detected": [
-        ("File", "file_path"), ("Source", "source"),
-        ("Line", "line_number"), ("Column", "start_column"),
+        ("File", "file_path"),
+        ("Source", "source"),
+        ("Line", "line_number"),
+        ("Column", "start_column"),
         ("End Line", "end_line"),
-        ("Position", "position"), ("Type", "secret_type"),
+        ("Position", "position"),
+        ("Type", "secret_type"),
         ("Findings", "total_findings"),
     ],
     "prompt_injection": [
-        ("Source", "source"), ("File", "file_path"),
-        ("Line", "line_number"), ("Column", "start_column"),
+        ("Source", "source"),
+        ("File", "file_path"),
+        ("Line", "line_number"),
+        ("Column", "start_column"),
         ("Position", "position"),
-        ("Pattern", "pattern"), ("Matched", "matched_text"),
-        ("Method", "method"), ("Confidence", "confidence"),
+        ("Pattern", "pattern"),
+        ("Matched", "matched_text"),
+        ("Method", "method"),
+        ("Confidence", "confidence"),
     ],
     "secret_redaction": [
-        ("Tool", "tool"), ("Command", "command"),
-        ("File", "file_path"), ("Line", "line_number"),
+        ("Tool", "tool"),
+        ("Command", "command"),
+        ("File", "file_path"),
+        ("Line", "line_number"),
         ("Column", "start_column"),
-        ("Count", "redaction_count"), ("Types", "redacted_types"),
+        ("Count", "redaction_count"),
+        ("Types", "redacted_types"),
     ],
     "pii_detected": [
-        ("Hook", "hook"), ("Tool", "tool"), ("Command", "command"),
-        ("File", "file_path"), ("Line", "line_number"),
+        ("Hook", "hook"),
+        ("Tool", "tool"),
+        ("Command", "command"),
+        ("File", "file_path"),
+        ("Line", "line_number"),
         ("Column", "start_column"),
-        ("Count", "pii_count"), ("Types", "pii_types"),
+        ("Count", "pii_count"),
+        ("Types", "pii_types"),
     ],
     "jailbreak_detected": [
-        ("File", "file_path"), ("Line", "line_number"),
+        ("File", "file_path"),
+        ("Line", "line_number"),
         ("Column", "start_column"),
-        ("Tool", "tool"), ("Matched", "matched_text"),
+        ("Tool", "tool"),
+        ("Matched", "matched_text"),
         ("Confidence", "confidence"),
     ],
     "ssrf_blocked": [
-        ("Tool", "tool_name"), ("URL", "tool_value"),
-        ("File", "file_path"), ("Line", "line_number"),
-        ("Column", "start_column"), ("Reason", "reason"),
+        ("Tool", "tool_name"),
+        ("URL", "tool_value"),
+        ("File", "file_path"),
+        ("Line", "line_number"),
+        ("Column", "start_column"),
+        ("Reason", "reason"),
     ],
     "config_file_exfil": [
-        ("File", "file_path"), ("Reason", "reason"),
+        ("File", "file_path"),
+        ("Reason", "reason"),
         ("Details", "details"),
     ],
     "directory_blocking": [
-        ("File", "file_path"), ("Directory", "denied_directory"),
+        ("File", "file_path"),
+        ("Directory", "denied_directory"),
     ],
     "secret_in_transcript": [
-        ("File", "file_path"), ("Line", "line_number"),
+        ("File", "file_path"),
+        ("Line", "line_number"),
         ("Column", "start_column"),
-        ("Type", "secret_type"), ("Source", "source"),
+        ("Type", "secret_type"),
+        ("Source", "source"),
     ],
     "pii_in_transcript": [
-        ("File", "file_path"), ("Line", "line_number"),
+        ("File", "file_path"),
+        ("Line", "line_number"),
         ("Column", "start_column"),
-        ("Count", "pii_count"), ("Types", "pii_types"),
+        ("Count", "pii_count"),
+        ("Types", "pii_types"),
     ],
     "image_secret_detected": [
-        ("File", "file_path"), ("Type", "secret_type"),
+        ("File", "file_path"),
+        ("Type", "secret_type"),
         ("Source", "source"),
     ],
     "image_pii_detected": [
-        ("File", "file_path"), ("Count", "pii_count"),
+        ("File", "file_path"),
+        ("Count", "pii_count"),
         ("Types", "pii_types"),
     ],
 }
@@ -124,6 +207,7 @@ def _format_violation_markdown(v: dict) -> str:
         if val is not None:
             if key == "secret_type":
                 from ai_guardian.secret_type_names import get_secret_type_display
+
                 val = get_secret_type_display(str(val))
             if isinstance(val, list):
                 val = ", ".join(str(x) for x in val)
@@ -144,6 +228,7 @@ def _format_violation_markdown(v: dict) -> str:
 
 def _load_local_violations(limit, violation_type):
     from ai_guardian.violation_logger import ViolationLogger
+
     vl = ViolationLogger()
     return vl.get_recent_violations(
         limit=limit, violation_type=violation_type, resolved=None
@@ -170,6 +255,7 @@ def create_violations_page(service, daemon_name: str):
 
             with ui.row().classes("gap-1 flex-wrap"):
                 for label, vtype, tooltip in FILTER_TABS:
+
                     async def on_click(vt=vtype, lbl=label):
                         active_filter["vtype"] = vt
                         for bl, b in buttons.items():
@@ -182,19 +268,23 @@ def create_violations_page(service, daemon_name: str):
                         await load_violations()
 
                     is_all = label == "All"
-                    btn = ui.button(
-                        label, on_click=on_click,
-                    ).props(
-                        "dense size=sm no-caps"
-                        + (" color=primary" if is_all else " outline")
-                    ).tooltip(tooltip)
+                    btn = (
+                        ui.button(
+                            label,
+                            on_click=on_click,
+                        )
+                        .props(
+                            "dense size=sm no-caps"
+                            + (" color=primary" if is_all else " outline")
+                        )
+                        .tooltip(tooltip)
+                    )
                     buttons[label] = btn
 
             ui.button(
-                "Scan File/Directory", icon="search",
-                on_click=lambda: ui.navigate.to(
-                    f"/{daemon_name}/directory-scan"
-                ),
+                "Scan File/Directory",
+                icon="search",
+                on_click=lambda: ui.navigate.to(f"/{daemon_name}/directory-scan"),
             ).props("dense outline color=positive")
 
             cards_container = ui.column().classes("w-full gap-1")
@@ -208,32 +298,26 @@ def create_violations_page(service, daemon_name: str):
                 all_violations = []
                 if target:
                     if target.runtime == "local":
-                        raw = await run.io_bound(
-                            _load_local_violations, 50, vtype
-                        )
+                        raw = await run.io_bound(_load_local_violations, 50, vtype)
                     else:
                         raw = await run.io_bound(
                             service.get_daemon_violations, target, 50, vtype
                         )
                     if raw:
-                        vlist = raw if isinstance(raw, list) else raw.get(
-                            "violations", []
+                        vlist = (
+                            raw if isinstance(raw, list) else raw.get("violations", [])
                         )
                         all_violations.extend(vlist)
 
-                all_violations.sort(
-                    key=lambda v: v.get("timestamp", ""), reverse=True
-                )
+                all_violations.sort(key=lambda v: v.get("timestamp", ""), reverse=True)
 
                 with cards_container:
                     if not all_violations:
-                        ui.label(
-                            "No violations found."
-                        ).classes("text-grey-6 mt-4")
+                        ui.label("No violations found.").classes("text-grey-6 mt-4")
                         return
-                    ui.label(
-                        f"{len(all_violations)} violations"
-                    ).classes("text-xs text-grey-6")
+                    ui.label(f"{len(all_violations)} violations").classes(
+                        "text-xs text-grey-6"
+                    )
                     for v in all_violations:
                         _render_violation_card(v, service, daemon_name)
 
@@ -242,11 +326,20 @@ def create_violations_page(service, daemon_name: str):
             ui.timer(0.1, load_violations, once=True)
 
 
-_ALLOWLIST_TYPES = frozenset({
-    "secret_detected", "pii_detected", "prompt_injection", "jailbreak_detected",
-    "directory_blocking", "ssrf_blocked", "config_file_exfil",
-    "context_poisoning", "supply_chain", "tool_permission",
-})
+_ALLOWLIST_TYPES = frozenset(
+    {
+        "secret_detected",
+        "pii_detected",
+        "prompt_injection",
+        "jailbreak_detected",
+        "directory_blocking",
+        "ssrf_blocked",
+        "config_file_exfil",
+        "context_poisoning",
+        "supply_chain",
+        "tool_permission",
+    }
+)
 
 
 def _render_violation_card(v: dict, service=None, daemon_name: str = ""):
@@ -266,6 +359,7 @@ def _render_violation_card(v: dict, service=None, daemon_name: str = ""):
         context = {}
 
     from ai_guardian.theme import quasar_severity, violation_badge
+
     sev_color = quasar_severity(severity)
     sev_icon = {"critical": "error", "high": "warning", "warning": "info"}.get(
         severity, "help"
@@ -293,7 +387,10 @@ def _render_violation_card(v: dict, service=None, daemon_name: str = ""):
                         ui.label(f"{label}:").classes("text-xs text-grey-6")
                         display = str(val)
                         if key == "secret_type":
-                            from ai_guardian.secret_type_names import get_secret_type_display
+                            from ai_guardian.secret_type_names import (
+                                get_secret_type_display,
+                            )
+
                             display = get_secret_type_display(display)
                         if key == "start_column" and isinstance(val, int):
                             display = str(val + 1)
@@ -307,35 +404,40 @@ def _render_violation_card(v: dict, service=None, daemon_name: str = ""):
 
         if vtype == "tool_permission" and suggestion.get("rule"):
             ui.label("Suggested rule:").classes("text-xs text-grey-6 mt-1")
-            ui.code(
-                json.dumps(suggestion["rule"], indent=2), language="json"
-            ).classes("text-xs")
+            ui.code(json.dumps(suggestion["rule"], indent=2), language="json").classes(
+                "text-xs"
+            )
 
         tool_use_id = context.get("tool_use_id")
         hook_event = context.get("hook_event", "")
         has_pretool = bool(context.get("pretool_context"))
         if tool_use_id and has_pretool:
-            hook_label = hook_event.replace(
-                "posttooluse", "PostToolUse"
-            ).replace("pretooluse", "PreToolUse")
-            ui.label(
-                f"Correlation: {tool_use_id[:16]}... ({hook_label})"
-            ).classes("text-xs text-grey-7 mt-1")
+            hook_label = hook_event.replace("posttooluse", "PostToolUse").replace(
+                "pretooluse", "PreToolUse"
+            )
+            ui.label(f"Correlation: {tool_use_id[:16]}... ({hook_label})").classes(
+                "text-xs text-grey-7 mt-1"
+            )
 
         with ui.row().classes("gap-2 mt-1"):
+
             def show_details(violation=v):
                 with ui.dialog() as dialog, ui.card().classes("w-[600px]"):
                     ui.label("Violation Details").classes("text-lg font-bold")
                     violation_json = json.dumps(
-                        violation, indent=2, default=str,
+                        violation,
+                        indent=2,
+                        default=str,
                     )
                     ui.code(
-                        violation_json, language="json",
+                        violation_json,
+                        language="json",
                     ).classes("max-h-[300px] overflow-auto text-xs")
 
                     with ui.row().classes("gap-2 mt-1"):
                         ui.button(
-                            "Copy JSON", icon="data_object",
+                            "Copy JSON",
+                            icon="data_object",
                             on_click=lambda vj=violation_json: (
                                 ui.run_javascript(
                                     f"navigator.clipboard.writeText({json.dumps(vj)})"
@@ -344,7 +446,8 @@ def _render_violation_card(v: dict, service=None, daemon_name: str = ""):
                         ).props("flat dense size=sm")
                         violation_md = _format_violation_markdown(violation)
                         ui.button(
-                            "Copy as Markdown", icon="article",
+                            "Copy as Markdown",
+                            icon="article",
                             on_click=lambda md=violation_md: (
                                 ui.run_javascript(
                                     f"navigator.clipboard.writeText({json.dumps(md)})"
@@ -354,16 +457,13 @@ def _render_violation_card(v: dict, service=None, daemon_name: str = ""):
 
                     ui.separator()
                     ui.label("How to Resolve").classes("font-bold mt-2")
-                    instructions, snippet = _get_resolution_instructions(
-                        violation
-                    )
+                    instructions, snippet = _get_resolution_instructions(violation)
                     ui.label(instructions).classes("text-sm")
                     if snippet:
-                        ui.code(snippet, language="json").classes(
-                            "text-xs mt-1"
-                        )
+                        ui.code(snippet, language="json").classes("text-xs mt-1")
                         ui.button(
-                            "Copy Config", icon="content_copy",
+                            "Copy Config",
+                            icon="content_copy",
                             on_click=lambda s=snippet: ui.run_javascript(
                                 f"navigator.clipboard.writeText({json.dumps(s)})"
                             ),
@@ -371,36 +471,62 @@ def _render_violation_card(v: dict, service=None, daemon_name: str = ""):
 
                     with ui.row().classes("w-full justify-between mt-2"):
                         if vtype in _ALLOWLIST_TYPES and service is not None:
+
                             async def on_always_allow(
-                                dlg=dialog, viol=violation,
-                                svc=service, dname=daemon_name,
+                                dlg=dialog,
+                                viol=violation,
+                                svc=service,
+                                dname=daemon_name,
                             ):
                                 await _show_allow_always_flow(
-                                    dlg, viol, svc, dname,
+                                    dlg,
+                                    viol,
+                                    svc,
+                                    dname,
                                 )
 
                             ui.button(
-                                "Always Allow...", icon="check_circle",
+                                "Always Allow...",
+                                icon="check_circle",
                                 on_click=on_always_allow,
                             ).props("color=positive dense size=sm")
 
                         blocked_data = violation.get("blocked", {})
-                        v_file_path = blocked_data.get("file_path", "") if isinstance(blocked_data, dict) else ""
+                        v_file_path = (
+                            blocked_data.get("file_path", "")
+                            if isinstance(blocked_data, dict)
+                            else ""
+                        )
                         if v_file_path:
-                            from ai_guardian.tui.source_annotator import get_comment_prefix
-                            v_line_number = blocked_data.get("line_number") if isinstance(blocked_data, dict) else None
-                            if v_line_number and get_comment_prefix(v_file_path) is not None:
+                            from ai_guardian.tui.source_annotator import (
+                                get_comment_prefix,
+                            )
+
+                            v_line_number = (
+                                blocked_data.get("line_number")
+                                if isinstance(blocked_data, dict)
+                                else None
+                            )
+                            if (
+                                v_line_number
+                                and get_comment_prefix(v_file_path) is not None
+                            ):
+
                                 def on_suppress_source(viol=violation):
                                     _show_suppress_in_source_flow(viol)
+
                                 ui.button(
-                                    "Suppress in Source...", icon="code",
+                                    "Suppress in Source...",
+                                    icon="code",
                                     on_click=on_suppress_source,
                                 ).props("color=warning dense size=sm")
 
                             def on_ignore_file(viol=violation):
                                 _show_ignore_file_flow(viol)
+
                             ui.button(
-                                "Ignore File...", icon="block",
+                                "Ignore File...",
+                                icon="block",
                                 on_click=on_ignore_file,
                             ).props("color=warning dense size=sm")
 
@@ -408,30 +534,33 @@ def _render_violation_card(v: dict, service=None, daemon_name: str = ""):
                 dialog.open()
 
             ui.button(
-                "Details", icon="info", on_click=show_details,
+                "Details",
+                icon="info",
+                on_click=show_details,
             ).props("flat dense size=sm")
 
             if has_pretool:
+
                 def show_correlated(ctx=context, tid=tool_use_id):
                     pretool = ctx.get("pretool_context", {})
                     with ui.dialog() as dialog, ui.card().classes("w-[600px]"):
                         ui.label("Correlated PreToolUse Context").classes(
                             "text-lg font-bold"
                         )
-                        ui.label(
-                            f"Correlation ID: {tid}"
-                        ).classes("text-xs text-grey-6")
+                        ui.label(f"Correlation ID: {tid}").classes(
+                            "text-xs text-grey-6"
+                        )
                         ui.code(
                             json.dumps(pretool, indent=2, default=str),
                             language="json",
                         ).classes("max-h-[400px] overflow-auto text-xs")
-                        ui.button(
-                            "Close", on_click=dialog.close
-                        ).classes("mt-2")
+                        ui.button("Close", on_click=dialog.close).classes("mt-2")
                     dialog.open()
 
                 ui.button(
-                    "Correlated", icon="link", on_click=show_correlated,
+                    "Correlated",
+                    icon="link",
+                    on_click=show_correlated,
                 ).props("flat dense size=sm")
 
 
@@ -447,6 +576,7 @@ async def _show_allow_always_flow(parent_dialog, violation, service, daemon_name
     sub_type = blocked.get("secret_type", "")
 
     from ai_guardian.tui.pattern_editor import config_section_for_violation
+
     config_section = config_section_for_violation(vtype)
     if not config_section:
         ui.notify(f"No config section for type: {vtype}", type="warning")
@@ -462,7 +592,11 @@ async def _show_allow_always_flow(parent_dialog, violation, service, daemon_name
 
         result = await run.io_bound(
             service.get_violation_context,
-            target, file_path, line_number, vtype, sub_type,
+            target,
+            file_path,
+            line_number,
+            vtype,
+            sub_type,
         )
 
         if result is None:
@@ -522,7 +656,8 @@ def _extract_matched_from_violation(violation: dict) -> str:
         if not url:
             reason = blocked.get("reason", "")
             import re
-            m = re.search(r'https?://\S+', reason)
+
+            m = re.search(r"https?://\S+", reason)
             if m:
                 url = m.group(0)
         return url
@@ -530,8 +665,12 @@ def _extract_matched_from_violation(violation: dict) -> str:
     if vtype == "directory_blocking":
         return blocked.get("denied_directory", "") or blocked.get("file_path", "")
 
-    if vtype in ("prompt_injection", "jailbreak_detected",
-                 "context_poisoning", "supply_chain"):
+    if vtype in (
+        "prompt_injection",
+        "jailbreak_detected",
+        "context_poisoning",
+        "supply_chain",
+    ):
         return blocked.get("pattern", "")
 
     if vtype == "pii_detected":
@@ -550,10 +689,8 @@ def _show_pattern_editor_dialog(matched_text: str, config_section: str):
         generate_config_preview,
         suggest_pattern,
         get_pattern_type_for_section,
-        prepare_config_with_pattern,
         PATTERN_TYPES,
     )
-    from ai_guardian.tui.ask_dialog import _write_config_text
 
     ptype = get_pattern_type_for_section(config_section)
     ptype_label = PATTERN_TYPES.get(ptype, ptype)
@@ -566,9 +703,18 @@ def _show_pattern_editor_dialog(matched_text: str, config_section: str):
         ui.code(matched_text[:500]).classes("w-full")
 
         ui.label(f"Pattern ({ptype_label}):").classes("font-bold text-sm mt-2")
-        pattern_input = ui.input(
-            value=suggest_pattern(matched_text, config_section) if matched_text else "",
-        ).props("dense outlined").classes("w-full").style("font-family: monospace")
+        pattern_input = (
+            ui.input(
+                value=(
+                    suggest_pattern(matched_text, config_section)
+                    if matched_text
+                    else ""
+                ),
+            )
+            .props("dense outlined")
+            .classes("w-full")
+            .style("font-family: monospace")
+        )
 
         status_label = ui.label("").classes("text-sm")
         preview_code = ui.code("").classes("w-full")
@@ -579,15 +725,15 @@ def _show_pattern_editor_dialog(matched_text: str, config_section: str):
             if valid:
                 status_label.text = f"PASS: {msg}"
                 status_label.classes(replace="text-sm text-green")
-                preview_code.set_content(
-                    generate_config_preview(pat, config_section)
-                )
+                preview_code.set_content(generate_config_preview(pat, config_section))
             else:
                 status_label.text = f"FAIL: {msg}"
                 status_label.classes(replace="text-sm text-red")
 
         ui.button(
-            "Test Pattern", on_click=do_test, icon="play_arrow",
+            "Test Pattern",
+            on_click=do_test,
+            icon="play_arrow",
         ).props("dense")
         do_test()
         pattern_input.on_value_change(lambda _: do_test())
@@ -606,7 +752,8 @@ def _show_pattern_editor_dialog(matched_text: str, config_section: str):
                 _show_config_editor_dialog(pat, config_section)
 
             ui.button(
-                "Add to Allowlist", on_click=on_confirm,
+                "Add to Allowlist",
+                on_click=on_confirm,
             ).props("color=positive")
 
     dlg.open()
@@ -616,7 +763,8 @@ def _show_config_editor_dialog(save_pat: str, config_section: str):
     """Show config editor with pattern inserted for review and save."""
     import json as json_mod
     from ai_guardian.tui.pattern_editor import (
-        prepare_config_with_pattern, get_config_scope_options,
+        prepare_config_with_pattern,
+        get_config_scope_options,
     )
     from ai_guardian.tui.ask_dialog import _write_config_text
 
@@ -625,11 +773,15 @@ def _show_config_editor_dialog(save_pat: str, config_section: str):
     selected = {"path": scope_options[0][1]}
 
     json_text, _line_number = prepare_config_with_pattern(
-        save_pat, config_section, config_path=selected["path"],
+        save_pat,
+        config_section,
+        config_path=selected["path"],
     )
 
-    with ui.dialog().props("persistent maximized") as editor_dlg, \
-            ui.card().classes("w-full h-full"):
+    with (
+        ui.dialog().props("persistent maximized") as editor_dlg,
+        ui.card().classes("w-full h-full"),
+    ):
         ui.label("Config Editor — ai-guardian.json").classes("text-lg font-bold")
         ui.label(
             "Review the config with the inserted pattern. "
@@ -640,21 +792,31 @@ def _show_config_editor_dialog(save_pat: str, config_section: str):
         if len(scope_options) > 1:
             ui.label("Save to:").classes("font-bold text-sm")
             scope_radio = ui.radio(
-                scope_map, value=scope_options[0][0],
+                scope_map,
+                value=scope_options[0][0],
             ).props("dense")
 
             def on_scope_change(e):
                 selected["path"] = scope_map[e.value]
                 new_text, _ = prepare_config_with_pattern(
-                    save_pat, config_section, config_path=selected["path"],
+                    save_pat,
+                    config_section,
+                    config_path=selected["path"],
                 )
                 editor.value = new_text
 
             scope_radio.on_value_change(on_scope_change)
 
-        editor = ui.codemirror(
-            json_text, language="JSON", theme="dracula", line_wrapping=True,
-        ).classes("w-full flex-grow").style("min-height: 400px")
+        editor = (
+            ui.codemirror(
+                json_text,
+                language="JSON",
+                theme="dracula",
+                line_wrapping=True,
+            )
+            .classes("w-full flex-grow")
+            .style("min-height: 400px")
+        )
 
         editor_status = ui.label("Valid JSON").classes("text-sm text-green")
 
@@ -698,11 +860,16 @@ def _show_config_editor_dialog(save_pat: str, config_section: str):
 def _show_suppress_in_source_flow(violation):
     """Show source annotation preview for a violation."""
     from nicegui import ui
-    from ai_guardian.tui.source_annotator import prepare_annotation, write_annotated_source
+    from ai_guardian.tui.source_annotator import (
+        prepare_annotation,
+        write_annotated_source,
+    )
 
     blocked = violation.get("blocked", {})
     file_path = blocked.get("file_path", "") if isinstance(blocked, dict) else ""
-    line_number = (blocked.get("line_number", 1) or 1) if isinstance(blocked, dict) else 1
+    line_number = (
+        (blocked.get("line_number", 1) or 1) if isinstance(blocked, dict) else 1
+    )
 
     result = prepare_annotation(file_path, line_number)
     if result is None:
@@ -710,13 +877,20 @@ def _show_suppress_in_source_flow(violation):
         return
 
     modified_content, highlight_line, annotation_type = result
-    ann_label = "inline" if annotation_type == "inline" else "block (begin-allow/end-allow)"
+    ann_label = (
+        "inline" if annotation_type == "inline" else "block (begin-allow/end-allow)"
+    )
     line_info = f" — Line {line_number}" if line_number > 1 else ""
 
-    with ui.dialog().props("persistent maximized") as dlg, ui.card().classes("w-full h-full"):
+    with (
+        ui.dialog().props("persistent maximized") as dlg,
+        ui.card().classes("w-full h-full"),
+    ):
         ui.label(f"Suppress in Source — {ann_label}").classes("text-lg font-bold")
         ui.label(f"File: {file_path}{line_info}").classes("text-sm text-grey-6")
-        ui.label("Review the annotated source. Save to write the file.").classes("text-sm text-grey-6")
+        ui.label("Review the annotated source. Save to write the file.").classes(
+            "text-sm text-grey-6"
+        )
         ui.separator()
 
         lang = None
@@ -731,11 +905,16 @@ def _show_suppress_in_source_flow(violation):
         elif file_path.endswith(".json"):
             lang = "JSON"
 
-        editor = ui.codemirror(
-            modified_content,
-            language=lang,
-            theme="dracula", line_wrapping=False,
-        ).classes("w-full flex-grow").style("min-height: 400px")
+        editor = (
+            ui.codemirror(
+                modified_content,
+                language=lang,
+                theme="dracula",
+                line_wrapping=False,
+            )
+            .classes("w-full flex-grow")
+            .style("min-height: 400px")
+        )
 
         ui.add_css("""
             .cm-content .ai-guardian-annotation { color: #4EC9B0 !important; font-weight: bold; }
@@ -743,8 +922,7 @@ def _show_suppress_in_source_flow(violation):
 
         async def _scroll_to_line():
             if highlight_line > 1:
-                await ui.run_javascript(
-                    f'''
+                await ui.run_javascript(f"""
                     const editors = document.querySelectorAll('.cm-editor');
                     const cm = editors[editors.length - 1];
                     if (cm && cm.cmView && cm.cmView.view) {{
@@ -755,8 +933,8 @@ def _show_suppress_in_source_flow(violation):
                             scrollIntoView: true,
                         }});
                     }}
-                    '''
-                )
+                    """)
+
         ui.timer(0.5, _scroll_to_line, once=True)
 
         status = ui.label("").classes("text-sm")
@@ -781,9 +959,12 @@ def _show_ignore_file_flow(violation):
     """Show ignore file editor for a violation."""
     from nicegui import ui
     from ai_guardian.tui.ignore_file_editor import (
-        SCOPE_THIS_SCANNER, SCOPE_ALL_SCANNERS,
-        SCANNER_LABELS, resolve_scanner_types,
-        validate_ignore_path, suggest_ignore_path,
+        SCOPE_THIS_SCANNER,
+        SCOPE_ALL_SCANNERS,
+        SCANNER_LABELS,
+        resolve_scanner_types,
+        validate_ignore_path,
+        suggest_ignore_path,
     )
     from ai_guardian.tui.pattern_editor import config_section_for_violation
     from ai_guardian.aiguardignore import generate_aiguardignore_preview
@@ -806,7 +987,12 @@ def _show_ignore_file_flow(violation):
         ui.separator()
 
         ui.label("Path pattern (editable):").classes("font-bold text-sm mt-2")
-        path_input = ui.input(value=rel_path).props("dense outlined").classes("w-full").style("font-family: monospace")
+        path_input = (
+            ui.input(value=rel_path)
+            .props("dense outlined")
+            .classes("w-full")
+            .style("font-family: monospace")
+        )
         path_status = ui.label("").classes("text-sm")
 
         ui.label("Scope:").classes("font-bold text-sm mt-2")
@@ -830,7 +1016,9 @@ def _show_ignore_file_flow(violation):
                 return
             path_status.text = f"✅ {msg}"
             path_status.classes(replace="text-sm text-green")
-            scanner_types = resolve_scanner_types(scope_radio.value, config_section, None)
+            scanner_types = resolve_scanner_types(
+                scope_radio.value, config_section, None
+            )
             try:
                 toml_text, _ = generate_aiguardignore_preview(path, scanner_types)
                 preview_code.set_content(toml_text)
@@ -851,29 +1039,46 @@ def _show_ignore_file_flow(violation):
                     path_status.text = f"❌ {msg}"
                     path_status.classes(replace="text-sm text-red")
                     return
-                scanner_types = resolve_scanner_types(scope_radio.value, config_section, None)
+                scanner_types = resolve_scanner_types(
+                    scope_radio.value, config_section, None
+                )
                 dlg.close()
 
                 toml_text, _ln = generate_aiguardignore_preview(path, scanner_types)
-                with ui.dialog().props("persistent maximized") as editor_dlg, ui.card().classes("w-full h-full"):
-                    ui.label("Config Editor — .aiguardignore.toml").classes("text-lg font-bold")
+                with (
+                    ui.dialog().props("persistent maximized") as editor_dlg,
+                    ui.card().classes("w-full h-full"),
+                ):
+                    ui.label("Config Editor — .aiguardignore.toml").classes(
+                        "text-lg font-bold"
+                    )
                     ui.separator()
-                    toml_editor = ui.codemirror(toml_text, theme="dracula", line_wrapping=True).classes("w-full flex-grow").style("min-height: 400px")
+                    toml_editor = (
+                        ui.codemirror(toml_text, theme="dracula", line_wrapping=True)
+                        .classes("w-full flex-grow")
+                        .style("min-height: 400px")
+                    )
                     editor_status = ui.label("").classes("text-sm")
                     with ui.row().classes("w-full justify-end mt-2"):
                         ui.button("Cancel", on_click=editor_dlg.close).props("flat")
 
                         def on_save():
                             if _write_aiguardignore_text(toml_editor.value):
-                                ui.notify("Path saved to .aiguardignore.toml", type="positive")
+                                ui.notify(
+                                    "Path saved to .aiguardignore.toml", type="positive"
+                                )
                                 editor_dlg.close()
                             else:
-                                editor_status.text = "Failed to write .aiguardignore.toml"
+                                editor_status.text = (
+                                    "Failed to write .aiguardignore.toml"
+                                )
                                 editor_status.classes(replace="text-sm text-red")
 
                         ui.button("Save", on_click=on_save).props("color=positive")
                 editor_dlg.open()
 
-            ui.button("Add to .aiguardignore.toml", on_click=on_confirm).props("color=positive")
+            ui.button("Add to .aiguardignore.toml", on_click=on_confirm).props(
+                "color=positive"
+            )
 
     dlg.open()

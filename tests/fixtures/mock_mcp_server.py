@@ -5,7 +5,6 @@ Simulates NotebookLM and other MCP tool servers for testing AI Guardian
 protections without requiring actual external MCP servers.
 """
 
-import json
 from typing import Dict, Any, Optional, List
 
 
@@ -42,7 +41,9 @@ class MockMCPServer:
 
     # NotebookLM Tool Implementations
 
-    def notebook_create(self, title: str, sources: Optional[List[Dict]] = None) -> Dict[str, Any]:
+    def notebook_create(
+        self, title: str, sources: Optional[List[Dict]] = None
+    ) -> Dict[str, Any]:
         """
         Simulate notebook_create tool.
 
@@ -68,18 +69,19 @@ class MockMCPServer:
         self.notebooks[notebook_id] = {
             "title": title,
             "sources": sources or [],
-            "created": True
+            "created": True,
         }
 
-        return {
-            "notebook_id": notebook_id,
-            "title": title,
-            "status": "success"
-        }
+        return {"notebook_id": notebook_id, "title": title, "status": "success"}
 
-    def source_add(self, notebook_id: str, source_type: str,
-                   url: Optional[str] = None, text: Optional[str] = None,
-                   title: Optional[str] = None) -> Dict[str, Any]:
+    def source_add(
+        self,
+        notebook_id: str,
+        source_type: str,
+        url: Optional[str] = None,
+        text: Optional[str] = None,
+        title: Optional[str] = None,
+    ) -> Dict[str, Any]:
         """
         Simulate source_add tool.
 
@@ -111,7 +113,7 @@ class MockMCPServer:
         source = {
             "source_id": source_id,
             "type": source_type,
-            "title": title or f"Source {source_id}"
+            "title": title or f"Source {source_id}",
         }
 
         if source_type == "url":
@@ -121,11 +123,7 @@ class MockMCPServer:
 
         self.notebooks[notebook_id]["sources"].append(source)
 
-        return {
-            "source_id": source_id,
-            "notebook_id": notebook_id,
-            "status": "success"
-        }
+        return {"source_id": source_id, "notebook_id": notebook_id, "status": "success"}
 
     def notebook_query(self, notebook_id: str, query: str) -> Dict[str, Any]:
         """
@@ -154,7 +152,7 @@ class MockMCPServer:
         return {
             "answer": f"Mock answer for query: {query}",
             "sources": self.notebooks[notebook_id]["sources"],
-            "status": "success"
+            "status": "success",
         }
 
     def notebook_list(self) -> Dict[str, Any]:
@@ -177,16 +175,12 @@ class MockMCPServer:
             {
                 "notebook_id": nb_id,
                 "title": nb_data["title"],
-                "source_count": len(nb_data["sources"])
+                "source_count": len(nb_data["sources"]),
             }
             for nb_id, nb_data in self.notebooks.items()
         ]
 
-        return {
-            "notebooks": notebooks,
-            "count": len(notebooks),
-            "status": "success"
-        }
+        return {"notebooks": notebooks, "count": len(notebooks), "status": "success"}
 
     def notebook_delete(self, notebook_id: str) -> Dict[str, Any]:
         """
@@ -212,10 +206,7 @@ class MockMCPServer:
 
         del self.notebooks[notebook_id]
 
-        return {
-            "notebook_id": notebook_id,
-            "status": "success"
-        }
+        return {"notebook_id": notebook_id, "status": "success"}
 
     # Generic Tool Execution
 
@@ -252,19 +243,23 @@ class MockMCPServer:
             try:
                 return method(**params)
             except TypeError as e:
-                return {"error": f"Invalid parameters for {method_name}: {e}", "status": "error"}
+                return {
+                    "error": f"Invalid parameters for {method_name}: {e}",
+                    "status": "error",
+                }
 
         # Generic successful response for unknown tools
         return {
             "tool": tool_name,
             "params": params,
             "status": "success",
-            "result": "Mock execution successful"
+            "result": "Mock execution successful",
         }
 
 
-def create_hook_data(tool_name: str, tool_input: Dict[str, Any],
-                     hook_event: str = "PreToolUse") -> Dict[str, Any]:
+def create_hook_data(
+    tool_name: str, tool_input: Dict[str, Any], hook_event: str = "PreToolUse"
+) -> Dict[str, Any]:
     """
     Helper function to create hook data for testing.
 
@@ -307,5 +302,5 @@ def create_tool_response(tool_name: str, output: Any) -> Dict[str, Any]:
     return {
         "hook_event_name": "PostToolUse",
         "tool_name": tool_name,
-        "tool_response": output if isinstance(output, dict) else {"output": output}
+        "tool_response": output if isinstance(output, dict) else {"output": output},
     }

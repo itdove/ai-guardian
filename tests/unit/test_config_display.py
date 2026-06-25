@@ -5,7 +5,6 @@ Unit tests for configuration display functionality.
 Tests Issue #144: 'config show' command with rule labeling
 """
 
-import pytest
 from unittest.mock import patch, MagicMock
 
 from ai_guardian.config_display import ConfigDisplay
@@ -19,9 +18,7 @@ class TestConfigDisplay:
         config = {
             "permissions": {
                 "enabled": True,
-                "rules": [
-                    {"matcher": "Skill", "mode": "allow", "patterns": ["daf-*"]}
-                ]
+                "rules": [{"matcher": "Skill", "mode": "allow", "patterns": ["daf-*"]}],
             }
         }
 
@@ -39,8 +36,13 @@ class TestConfigDisplay:
                 "enabled": True,
                 "rules": [
                     {"matcher": "Skill", "mode": "allow", "patterns": ["daf-*"]},
-                    {"matcher": "Skill", "mode": "allow", "patterns": ["test-*"], "_generated": True}
-                ]
+                    {
+                        "matcher": "Skill",
+                        "mode": "allow",
+                        "patterns": ["test-*"],
+                        "_generated": True,
+                    },
+                ],
             }
         }
 
@@ -59,8 +61,13 @@ class TestConfigDisplay:
                 "enabled": True,
                 "rules": [
                     {"matcher": "Skill", "mode": "allow", "patterns": ["daf-*"]},
-                    {"matcher": "Skill", "mode": "allow", "patterns": ["test-*"], "_generated": True}
-                ]
+                    {
+                        "matcher": "Skill",
+                        "mode": "allow",
+                        "patterns": ["test-*"],
+                        "_generated": True,
+                    },
+                ],
             }
         }
 
@@ -81,7 +88,7 @@ class TestConfigDisplay:
                 "enabled": True,
                 "rules": [
                     {"matcher": "Skill", "mode": "allow", "patterns": ["my-skill"]}
-                ]
+                ],
             }
         }
 
@@ -96,8 +103,13 @@ class TestConfigDisplay:
             "permissions": {
                 "enabled": True,
                 "rules": [
-                    {"matcher": "Skill", "mode": "allow", "patterns": ["daf-*"], "_generated": True}
-                ]
+                    {
+                        "matcher": "Skill",
+                        "mode": "allow",
+                        "patterns": ["daf-*"],
+                        "_generated": True,
+                    }
+                ],
             }
         }
 
@@ -117,9 +129,9 @@ class TestConfigDisplay:
                         "mode": "deny",
                         "patterns": ["dangerous-*"],
                         "_immutable": True,
-                        "_source": "enterprise-policy.json"
+                        "_source": "enterprise-policy.json",
                     }
-                ]
+                ],
             }
         }
 
@@ -137,15 +149,19 @@ class TestConfigDisplay:
             "directory_rules": {
                 "action": "block",
                 "rules": [
-                    {"mode": "allow", "paths": ["~/.claude/skills/daf-git/**"], "_generated": True},
+                    {
+                        "mode": "allow",
+                        "paths": ["~/.claude/skills/daf-git/**"],
+                        "_generated": True,
+                    },
                     {"mode": "deny", "paths": ["~/.ssh/**"]},
                     {
                         "mode": "deny",
                         "paths": ["~/.aws/**"],
                         "_immutable": True,
-                        "_source": "enterprise.json"
-                    }
-                ]
+                        "_source": "enterprise.json",
+                    },
+                ],
             }
         }
 
@@ -162,7 +178,7 @@ class TestConfigDisplay:
         config = {
             "permissions": {"enabled": True},
             "secret_scanning": {"enabled": True},
-            "prompt_injection": {"enabled": False}
+            "prompt_injection": {"enabled": False},
         }
 
         display = ConfigDisplay(config)
@@ -173,21 +189,23 @@ class TestConfigDisplay:
         assert "Secret Scanning" not in output
         assert "Prompt Injection" not in output
 
-    @patch('ai_guardian.directory_rule_generator.DirectoryRuleGenerator')
+    @patch("ai_guardian.directory_rule_generator.DirectoryRuleGenerator")
     def test_preview_auto_rules(self, mock_generator_class):
         """Should preview auto-generated rules."""
         mock_generator = MagicMock()
         mock_generator.generate_directory_rules.return_value = [
-            {"mode": "allow", "paths": ["~/.claude/skills/daf-git/**"], "_generated": True}
+            {
+                "mode": "allow",
+                "paths": ["~/.claude/skills/daf-git/**"],
+                "_generated": True,
+            }
         ]
         mock_generator_class.return_value = mock_generator
 
         config = {
             "permissions": {
                 "auto_directory_rules": {"enabled": True},
-                "rules": [
-                    {"matcher": "Skill", "mode": "allow", "patterns": ["daf-*"]}
-                ]
+                "rules": [{"matcher": "Skill", "mode": "allow", "patterns": ["daf-*"]}],
             }
         }
 
@@ -199,11 +217,7 @@ class TestConfigDisplay:
 
     def test_preview_when_disabled(self):
         """Should show how to enable when previewing disabled auto-generation."""
-        config = {
-            "permissions": {
-                "auto_directory_rules": {"enabled": False}
-            }
-        }
+        config = {"permissions": {"auto_directory_rules": {"enabled": False}}}
 
         display = ConfigDisplay(config)
         output = display.show(preview_auto_rules=True)
@@ -218,7 +232,7 @@ class TestConfigDisplay:
             "matcher": "Skill",
             "mode": "allow",
             "patterns": ["daf-*", "gh-cli"],
-            "action": "block"
+            "action": "block",
         }
 
         display = ConfigDisplay({})
@@ -234,9 +248,9 @@ class TestConfigDisplay:
                 "rules": [
                     {
                         "mode": "allow",
-                        "paths": [f"~/.claude/skills/skill-{i}/**" for i in range(10)]
+                        "paths": [f"~/.claude/skills/skill-{i}/**" for i in range(10)],
                     }
-                ]
+                ],
             }
         }
 
@@ -251,11 +265,8 @@ class TestConfigDisplay:
         config = {
             "permissions": {
                 "enabled": True,
-                "auto_directory_rules": {
-                    "enabled": True,
-                    "skill_directories": "auto"
-                },
-                "rules": []
+                "auto_directory_rules": {"enabled": True, "skill_directories": "auto"},
+                "rules": [],
             }
         }
 
@@ -267,12 +278,7 @@ class TestConfigDisplay:
 
     def test_generic_section_formatting(self):
         """Should format generic sections correctly."""
-        config = {
-            "secret_scanning": {
-                "enabled": True,
-                "engines": ["gitleaks"]
-            }
-        }
+        config = {"secret_scanning": {"enabled": True, "engines": ["gitleaks"]}}
 
         display = ConfigDisplay(config)
         output = display.show()
@@ -285,8 +291,18 @@ class TestConfigDisplay:
             "permissions": {
                 "rules": [
                     {"matcher": "Skill", "mode": "allow", "patterns": ["user-*"]},
-                    {"matcher": "Skill", "mode": "allow", "patterns": ["gen-*"], "_generated": True},
-                    {"matcher": "Skill", "mode": "deny", "patterns": ["bad-*"], "_immutable": True}
+                    {
+                        "matcher": "Skill",
+                        "mode": "allow",
+                        "patterns": ["gen-*"],
+                        "_generated": True,
+                    },
+                    {
+                        "matcher": "Skill",
+                        "mode": "deny",
+                        "patterns": ["bad-*"],
+                        "_immutable": True,
+                    },
                 ]
             }
         }
@@ -300,7 +316,7 @@ class TestConfigDisplay:
         assert "[GENERATED]" in output
         assert "[IMMUTABLE]" in output
 
-    @patch('ai_guardian.config_display.Path.exists')
+    @patch("ai_guardian.config_display.Path.exists")
     def test_skill_directories_existence_in_preview(self, mock_exists):
         """Preview should show which directories exist."""
         mock_exists.return_value = True  # All exist
@@ -308,9 +324,7 @@ class TestConfigDisplay:
         config = {
             "permissions": {
                 "auto_directory_rules": {"enabled": True},
-                "rules": [
-                    {"matcher": "Skill", "mode": "allow", "patterns": ["*"]}
-                ]
+                "rules": [{"matcher": "Skill", "mode": "allow", "patterns": ["*"]}],
             }
         }
 
@@ -321,17 +335,21 @@ class TestConfigDisplay:
         # Should show checkmarks for existing directories
         assert "✓" in output or "✗" in output
 
-
     def test_json_output_includes_generated_rules(self):
         """JSON output should include generated rules with _generated marker."""
         import json
+
         config = {
             "directory_rules": {
                 "action": "block",
                 "rules": [
                     {"mode": "deny", "paths": ["~/.ssh/**"]},
-                    {"mode": "allow", "paths": ["~/.claude/skills/test/**"], "_generated": True}
-                ]
+                    {
+                        "mode": "allow",
+                        "paths": ["~/.claude/skills/test/**"],
+                        "_generated": True,
+                    },
+                ],
             }
         }
 
@@ -349,8 +367,13 @@ class TestConfigDisplay:
             "permissions": {
                 "enabled": True,
                 "rules": [
-                    {"matcher": "Skill", "mode": "allow", "patterns": ["gen-*"], "_generated": True}
-                ]
+                    {
+                        "matcher": "Skill",
+                        "mode": "allow",
+                        "patterns": ["gen-*"],
+                        "_generated": True,
+                    }
+                ],
             }
         }
 
@@ -364,13 +387,13 @@ class TestConfigDisplay:
 class TestMultiIDEDisplaySupport:
     """Test display of multi-IDE skill directories."""
 
-    @patch.dict('os.environ', {'CLAUDE_CONFIG_DIR': '/custom/claude'})
+    @patch.dict("os.environ", {"CLAUDE_CONFIG_DIR": "/custom/claude"})
     def test_claude_config_dir_in_preview(self):
         """Preview should show CLAUDE_CONFIG_DIR if set."""
         config = {
             "permissions": {
                 "auto_directory_rules": {"enabled": True, "skill_directories": "auto"},
-                "rules": []
+                "rules": [],
             }
         }
 
@@ -384,7 +407,7 @@ class TestMultiIDEDisplaySupport:
         config = {
             "permissions": {
                 "auto_directory_rules": {"enabled": True, "skill_directories": "auto"},
-                "rules": []
+                "rules": [],
             }
         }
 
@@ -424,7 +447,7 @@ class TestImmutableRuleVisibility:
                         "mode": "deny",
                         "patterns": ["debug-helper"],
                         "_immutable": True,
-                        "_source": "enterprise-policy.json"
+                        "_source": "enterprise-policy.json",
                     }
                 ]
             }
@@ -444,10 +467,14 @@ class TestImmutableRuleVisibility:
             "directory_rules": {
                 "action": "block",
                 "rules": [
-                    {"mode": "allow", "paths": ["~/.claude/skills/safe/**"], "_generated": True},
+                    {
+                        "mode": "allow",
+                        "paths": ["~/.claude/skills/safe/**"],
+                        "_generated": True,
+                    },
                     {"mode": "deny", "paths": ["~/.ssh/**"]},
-                    {"mode": "deny", "paths": ["~/.aws/**"], "_immutable": True}
-                ]
+                    {"mode": "deny", "paths": ["~/.aws/**"], "_immutable": True},
+                ],
             }
         }
 
@@ -470,7 +497,7 @@ class TestImmutableRuleVisibility:
                         "mode": "deny",
                         "patterns": ["*rm -rf /*"],
                         "_immutable": True,
-                        "_source": "security-baseline.json"
+                        "_source": "security-baseline.json",
                     }
                 ]
             }

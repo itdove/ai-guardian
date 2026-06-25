@@ -1,9 +1,7 @@
 """Tests that violation messages show original file path, not temp scan path (Issue #882)."""
 
-import json
 from unittest import mock
 
-import pytest
 
 from ai_guardian.hook_processing import (
     _build_secret_detected_message,
@@ -60,10 +58,17 @@ class TestCheckSecretsUsesOriginalPath:
     @mock.patch("ai_guardian.hook_processing.select_engine")
     @mock.patch("ai_guardian.hook_processing._load_secret_scanning_config")
     def test_strategy_path_uses_original_file_path(
-        self, mock_load_config, mock_select_engine, mock_get_strategy,
-        mock_select_all, mock_log_violation
+        self,
+        mock_load_config,
+        mock_select_engine,
+        mock_get_strategy,
+        mock_select_all,
+        mock_log_violation,
     ):
-        mock_load_config.return_value = ({"enabled": True, "engines": ["gitleaks"]}, None)
+        mock_load_config.return_value = (
+            {"enabled": True, "engines": ["gitleaks"]},
+            None,
+        )
 
         mock_engine = mock.MagicMock()
         mock_engine.type = "gitleaks"
@@ -104,10 +109,17 @@ class TestCheckSecretsUsesOriginalPath:
     @mock.patch("ai_guardian.hook_processing.select_engine")
     @mock.patch("ai_guardian.hook_processing._load_secret_scanning_config")
     def test_strategy_path_falls_back_to_filename(
-        self, mock_load_config, mock_select_engine, mock_get_strategy,
-        mock_select_all, mock_log_violation
+        self,
+        mock_load_config,
+        mock_select_engine,
+        mock_get_strategy,
+        mock_select_all,
+        mock_log_violation,
     ):
-        mock_load_config.return_value = ({"enabled": True, "engines": ["gitleaks"]}, None)
+        mock_load_config.return_value = (
+            {"enabled": True, "engines": ["gitleaks"]},
+            None,
+        )
 
         mock_engine = mock.MagicMock()
         mock_engine.type = "gitleaks"
@@ -148,10 +160,17 @@ class TestCheckSecretsUsesOriginalPath:
     @mock.patch("ai_guardian.hook_processing.select_engine")
     @mock.patch("ai_guardian.hook_processing._load_secret_scanning_config")
     def test_line_number_preserved_with_path_fix(
-        self, mock_load_config, mock_select_engine, mock_get_strategy,
-        mock_select_all, mock_log_violation
+        self,
+        mock_load_config,
+        mock_select_engine,
+        mock_get_strategy,
+        mock_select_all,
+        mock_log_violation,
     ):
-        mock_load_config.return_value = ({"enabled": True, "engines": ["betterleaks"]}, None)
+        mock_load_config.return_value = (
+            {"enabled": True, "engines": ["betterleaks"]},
+            None,
+        )
 
         mock_engine = mock.MagicMock()
         mock_engine.type = "betterleaks"
@@ -191,10 +210,17 @@ class TestCheckSecretsUsesOriginalPath:
     @mock.patch("ai_guardian.hook_processing.select_engine")
     @mock.patch("ai_guardian.hook_processing._load_secret_scanning_config")
     def test_violation_log_receives_original_path(
-        self, mock_load_config, mock_select_engine, mock_get_strategy,
-        mock_select_all, mock_log_violation
+        self,
+        mock_load_config,
+        mock_select_engine,
+        mock_get_strategy,
+        mock_select_all,
+        mock_log_violation,
     ):
-        mock_load_config.return_value = ({"enabled": True, "engines": ["gitleaks"]}, None)
+        mock_load_config.return_value = (
+            {"enabled": True, "engines": ["gitleaks"]},
+            None,
+        )
 
         mock_engine = mock.MagicMock()
         mock_engine.type = "gitleaks"

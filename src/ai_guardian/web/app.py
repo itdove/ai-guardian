@@ -23,6 +23,7 @@ logger = logging.getLogger(__name__)
 
 def _get_port_file():
     from ai_guardian.config_utils import get_state_dir
+
     return get_state_dir() / "web-console.port"
 
 
@@ -51,9 +52,7 @@ class WebConsole:
 
     def run(self, host: str = "127.0.0.1", port: int = 0, show: bool = True):
         if host != "127.0.0.1":
-            logger.warning(
-                "Web console binding to %s — exposed on network.", host
-            )
+            logger.warning("Web console binding to %s — exposed on network.", host)
 
         if port == 0:
             sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -83,6 +82,7 @@ class WebConsole:
 
         if show:
             from ai_guardian.desktop_utils import open_url
+
             url = f"http://{host}:{port}"
             app.on_startup(lambda: open_url(url))
             show = False
@@ -105,11 +105,13 @@ class WebConsole:
             from ai_guardian.web.pages.daemon_picker import (
                 create_daemon_picker_page,
             )
+
             create_daemon_picker_page(service)
 
         @ui.page("/{daemon_name}")
         def dashboard_page(daemon_name: str):
             from ai_guardian.web.pages.dashboard import create_dashboard_page
+
             create_dashboard_page(service, daemon_name)
 
         @ui.page("/{daemon_name}/settings")
@@ -117,6 +119,7 @@ class WebConsole:
             from ai_guardian.web.pages.global_settings import (
                 create_global_settings_page,
             )
+
             create_global_settings_page(service, daemon_name)
 
         @ui.page("/{daemon_name}/violations")
@@ -124,6 +127,7 @@ class WebConsole:
             from ai_guardian.web.pages.violations import (
                 create_violations_page,
             )
+
             create_violations_page(service, daemon_name)
 
         @ui.page("/{daemon_name}/violation-logging")
@@ -131,21 +135,25 @@ class WebConsole:
             from ai_guardian.web.pages.violation_logging import (
                 create_violation_logging_page,
             )
+
             create_violation_logging_page(service, daemon_name)
 
         @ui.page("/{daemon_name}/metrics")
         def metrics_page(daemon_name: str):
             from ai_guardian.web.pages.metrics import create_metrics_page
+
             create_metrics_page(service, daemon_name)
 
         @ui.page("/{daemon_name}/performance")
         def performance_page(daemon_name: str):
             from ai_guardian.web.pages.performance import create_performance_page
+
             create_performance_page(service, daemon_name)
 
         @ui.page("/{daemon_name}/logs")
         def logs_page(daemon_name: str):
             from ai_guardian.web.pages.logs import create_logs_page
+
             create_logs_page(service, daemon_name)
 
         @ui.page("/{daemon_name}/permission-rules")
@@ -153,11 +161,13 @@ class WebConsole:
             from ai_guardian.web.pages.permission_rules import (
                 create_permission_rules_page,
             )
+
             create_permission_rules_page(service, daemon_name)
 
         @ui.page("/{daemon_name}/skills")
         def skills_page(daemon_name: str):
             from ai_guardian.web.pages.skills import create_skills_page
+
             create_skills_page(service, daemon_name)
 
         @ui.page("/{daemon_name}/mcp-servers")
@@ -165,6 +175,7 @@ class WebConsole:
             from ai_guardian.web.pages.mcp_servers import (
                 create_mcp_servers_page,
             )
+
             create_mcp_servers_page(service, daemon_name)
 
         @ui.page("/{daemon_name}/mcp-security")
@@ -172,6 +183,7 @@ class WebConsole:
             from ai_guardian.web.pages.mcp_security import (
                 create_mcp_security_page,
             )
+
             create_mcp_security_page(service, daemon_name)
 
         @ui.page("/{daemon_name}/permissions-discovery")
@@ -179,6 +191,7 @@ class WebConsole:
             from ai_guardian.web.pages.permissions_discovery import (
                 create_permissions_discovery_page,
             )
+
             create_permissions_discovery_page(service, daemon_name)
 
         @ui.page("/{daemon_name}/auto-directory-rules")
@@ -186,6 +199,7 @@ class WebConsole:
             from ai_guardian.web.pages.auto_directory_rules import (
                 create_auto_directory_rules_page,
             )
+
             create_auto_directory_rules_page(service, daemon_name)
 
         @ui.page("/{daemon_name}/directory-rules")
@@ -193,11 +207,13 @@ class WebConsole:
             from ai_guardian.web.pages.directory_rules import (
                 create_directory_rules_page,
             )
+
             create_directory_rules_page(service, daemon_name)
 
         @ui.page("/{daemon_name}/secrets")
         def secrets_page(daemon_name: str):
             from ai_guardian.web.pages.secrets import create_secrets_page
+
             create_secrets_page(service, daemon_name)
 
         @ui.page("/{daemon_name}/secret-engines")
@@ -205,6 +221,7 @@ class WebConsole:
             from ai_guardian.web.pages.secret_engines import (
                 create_secret_engines_page,
             )
+
             create_secret_engines_page(service, daemon_name)
 
         @ui.page("/{daemon_name}/secret-redaction")
@@ -212,6 +229,7 @@ class WebConsole:
             from ai_guardian.web.pages.secret_redaction import (
                 create_secret_redaction_page,
             )
+
             create_secret_redaction_page(service, daemon_name)
 
         @ui.page("/{daemon_name}/pi-detection")
@@ -219,6 +237,7 @@ class WebConsole:
             from ai_guardian.web.pages.pi_detection import (
                 create_pi_detection_page,
             )
+
             create_pi_detection_page(service, daemon_name)
 
         @ui.page("/{daemon_name}/pi-ml-engines")
@@ -226,6 +245,7 @@ class WebConsole:
             from ai_guardian.web.pages.pi_ml_engines import (
                 create_pi_ml_engines_page,
             )
+
             create_pi_ml_engines_page(service, daemon_name)
 
         @ui.page("/{daemon_name}/pi-patterns")
@@ -233,6 +253,7 @@ class WebConsole:
             from ai_guardian.web.pages.pi_patterns import (
                 create_pi_patterns_page,
             )
+
             create_pi_patterns_page(service, daemon_name)
 
         @ui.page("/{daemon_name}/pi-jailbreak")
@@ -240,6 +261,7 @@ class WebConsole:
             from ai_guardian.web.pages.pi_jailbreak import (
                 create_pi_jailbreak_page,
             )
+
             create_pi_jailbreak_page(service, daemon_name)
 
         @ui.page("/{daemon_name}/pi-unicode")
@@ -247,6 +269,7 @@ class WebConsole:
             from ai_guardian.web.pages.pi_unicode import (
                 create_pi_unicode_page,
             )
+
             create_pi_unicode_page(service, daemon_name)
 
         @ui.page("/{daemon_name}/context-poisoning")
@@ -254,6 +277,7 @@ class WebConsole:
             from ai_guardian.web.pages.context_poisoning import (
                 create_context_poisoning_page,
             )
+
             create_context_poisoning_page(service, daemon_name)
 
         @ui.page("/{daemon_name}/supply-chain")
@@ -261,11 +285,13 @@ class WebConsole:
             from ai_guardian.web.pages.supply_chain import (
                 create_supply_chain_page,
             )
+
             create_supply_chain_page(service, daemon_name)
 
         @ui.page("/{daemon_name}/ssrf")
         def ssrf_page(daemon_name: str):
             from ai_guardian.web.pages.ssrf import create_ssrf_page
+
             create_ssrf_page(service, daemon_name)
 
         @ui.page("/{daemon_name}/config-scanner")
@@ -273,6 +299,7 @@ class WebConsole:
             from ai_guardian.web.pages.config_scanner import (
                 create_config_scanner_page,
             )
+
             create_config_scanner_page(service, daemon_name)
 
         @ui.page("/{daemon_name}/scan-pii")
@@ -280,6 +307,7 @@ class WebConsole:
             from ai_guardian.web.pages.scan_pii import (
                 create_scan_pii_page,
             )
+
             create_scan_pii_page(service, daemon_name)
 
         @ui.page("/{daemon_name}/annotations")
@@ -287,6 +315,7 @@ class WebConsole:
             from ai_guardian.web.pages.annotations import (
                 create_annotations_page,
             )
+
             create_annotations_page(service, daemon_name)
 
         @ui.page("/{daemon_name}/remote-configs")
@@ -294,6 +323,7 @@ class WebConsole:
             from ai_guardian.web.pages.remote_configs import (
                 create_remote_configs_page,
             )
+
             create_remote_configs_page(service, daemon_name)
 
         @ui.page("/{daemon_name}/config-file")
@@ -301,6 +331,7 @@ class WebConsole:
             from ai_guardian.web.pages.config_file import (
                 create_config_file_page,
             )
+
             create_config_file_page(service, daemon_name)
 
         @ui.page("/{daemon_name}/config-editor")
@@ -308,6 +339,7 @@ class WebConsole:
             from ai_guardian.web.pages.config_editor import (
                 create_config_editor_page,
             )
+
             create_config_editor_page(service, daemon_name)
 
         @ui.page("/{daemon_name}/console-settings")
@@ -315,6 +347,7 @@ class WebConsole:
             from ai_guardian.web.pages.console_settings import (
                 create_console_settings_page,
             )
+
             create_console_settings_page(service, daemon_name)
 
         @ui.page("/{daemon_name}/config-effective")
@@ -322,6 +355,7 @@ class WebConsole:
             from ai_guardian.web.pages.config_effective import (
                 create_config_effective_page,
             )
+
             create_config_effective_page(service, daemon_name)
 
         @ui.page("/{daemon_name}/detection-patterns")
@@ -329,6 +363,7 @@ class WebConsole:
             from ai_guardian.web.pages.detection_patterns import (
                 create_detection_patterns_page,
             )
+
             create_detection_patterns_page(service, daemon_name)
 
         @ui.page("/{daemon_name}/regex-tester")
@@ -336,6 +371,7 @@ class WebConsole:
             from ai_guardian.web.pages.regex_tester import (
                 create_regex_tester_page,
             )
+
             create_regex_tester_page(service, daemon_name)
 
         @ui.page("/{daemon_name}/hook-simulator")
@@ -343,6 +379,7 @@ class WebConsole:
             from ai_guardian.web.pages.hook_simulator import (
                 create_hook_simulator_page,
             )
+
             create_hook_simulator_page(service, daemon_name)
 
         @ui.page("/{daemon_name}/engine-tester")
@@ -350,6 +387,7 @@ class WebConsole:
             from ai_guardian.web.pages.engine_tester import (
                 create_engine_tester_page,
             )
+
             create_engine_tester_page(service, daemon_name)
 
         @ui.page("/{daemon_name}/directory-scan")
@@ -357,6 +395,7 @@ class WebConsole:
             from ai_guardian.web.pages.directory_scan import (
                 create_directory_scan_page,
             )
+
             create_directory_scan_page(service, daemon_name)
 
         @ui.page("/{daemon_name}/health-check")
@@ -364,6 +403,7 @@ class WebConsole:
             from ai_guardian.web.pages.health_check import (
                 create_health_check_page,
             )
+
             create_health_check_page(service, daemon_name)
 
         @ui.page("/{daemon_name}/cache-status")
@@ -371,6 +411,7 @@ class WebConsole:
             from ai_guardian.web.pages.cache_status import (
                 create_cache_status_page,
             )
+
             create_cache_status_page(service, daemon_name)
 
         @ui.page("/{daemon_name}/daemon")
@@ -378,4 +419,5 @@ class WebConsole:
             from ai_guardian.web.pages.daemon_detail import (
                 create_daemon_detail_page,
             )
+
             create_daemon_detail_page(service, daemon_name)

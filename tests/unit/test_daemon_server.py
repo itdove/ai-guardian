@@ -24,7 +24,6 @@ from ai_guardian.daemon.protocol import (
     make_shutdown,
     make_status_request,
 )
-from ai_guardian.daemon import get_pid_path, get_socket_path
 from ai_guardian.daemon.server import DaemonServer
 from ai_guardian.daemon.state import DaemonState
 
@@ -46,6 +45,7 @@ class TestDaemonServerLifecycle:
 
         # Wait for socket to appear
         from pathlib import Path
+
         sock_path = Path(short_state_dir) / "daemon.sock"
         for _ in range(20):
             if sock_path.exists():
@@ -58,6 +58,7 @@ class TestDaemonServerLifecycle:
 
     def test_server_creates_pid_file(self, short_state_dir, monkeypatch):
         from pathlib import Path
+
         server = DaemonServer(idle_timeout=5)
 
         thread = threading.Thread(target=server.start, daemon=True)
@@ -84,6 +85,7 @@ class TestDaemonServerLifecycle:
 
     def test_server_cleans_up_on_stop(self, short_state_dir, monkeypatch):
         from pathlib import Path
+
         server = DaemonServer(idle_timeout=5)
 
         thread = threading.Thread(target=server.start, daemon=True)
@@ -103,13 +105,12 @@ class TestDaemonServerLifecycle:
 
     def test_server_rejects_duplicate_start(self, short_state_dir, monkeypatch):
         from pathlib import Path
+
         pid_path = Path(short_state_dir) / "daemon.pid"
         pid_path.write_text(json.dumps({"pid": os.getpid()}))
 
         server = DaemonServer(idle_timeout=5)
-        with mock.patch.object(
-            server, "_is_old_daemon_responsive", return_value=True
-        ):
+        with mock.patch.object(server, "_is_old_daemon_responsive", return_value=True):
             with pytest.raises(RuntimeError, match="already running"):
                 server.start()
 
@@ -120,6 +121,7 @@ class TestDaemonServerLifecycle:
         socket connectivity, not just PID liveness.
         """
         from pathlib import Path
+
         pid_path = Path(short_state_dir) / "daemon.pid"
         # Use current process PID — it's alive but not a daemon
         pid_path.write_text(json.dumps({"pid": os.getpid()}))
@@ -133,6 +135,7 @@ class TestDaemonServerLifecycle:
     def test_server_cleans_stale_pid_with_dead_process(self, short_state_dir):
         """PID file references a dead process — straightforward stale case."""
         from pathlib import Path
+
         pid_path = Path(short_state_dir) / "daemon.pid"
         pid_path.write_text(json.dumps({"pid": 99999999}))
 
@@ -143,6 +146,7 @@ class TestDaemonServerLifecycle:
     def test_server_cleans_stale_socket_file(self, short_state_dir):
         """Stale socket file from crashed daemon is cleaned up."""
         from pathlib import Path
+
         sock_path = Path(short_state_dir) / "daemon.sock"
         sock_path.write_text("")  # Create a stale socket file
 
@@ -158,6 +162,7 @@ class TestDaemonServerLifecycle:
         thread.start()
 
         from pathlib import Path
+
         sock_path = Path(short_state_dir) / "daemon.sock"
         for _ in range(20):
             if sock_path.exists():
@@ -171,6 +176,7 @@ class TestDaemonServerLifecycle:
     def test_stop_cleans_lock_file(self, short_state_dir, monkeypatch):
         """Lock file is deleted when daemon stops."""
         from pathlib import Path
+
         server = DaemonServer(idle_timeout=5, enable_rest_api=False)
 
         thread = threading.Thread(target=server.start, daemon=True)
@@ -239,6 +245,7 @@ class TestDaemonServerProtocol:
     @pytest.fixture
     def running_server(self, monkeypatch):
         import tempfile
+
         d = tempfile.mkdtemp(prefix="ag")
         monkeypatch.setenv("AI_GUARDIAN_STATE_DIR", d)
         from pathlib import Path
@@ -258,6 +265,7 @@ class TestDaemonServerProtocol:
         server.stop()
         thread.join(timeout=3)
         import shutil
+
         shutil.rmtree(d, ignore_errors=True)
 
     def _connect(self, sock_path, timeout=2.0):
@@ -291,6 +299,7 @@ class TestDaemonServerProtocol:
 
     def test_shutdown_request(self, short_state_dir, monkeypatch):
         from pathlib import Path
+
         server = DaemonServer(idle_timeout=30, enable_rest_api=False)
 
         thread = threading.Thread(target=server.start, daemon=True)
@@ -383,15 +392,14 @@ class TestDaemonServerProtocol:
 
 class TestDaemonServerTCP:
     def test_tcp_mode_binds_localhost(self, short_state_dir, monkeypatch):
-        server = DaemonServer(
-            idle_timeout=5, use_tcp=True, enable_rest_api=False
-        )
+        server = DaemonServer(idle_timeout=5, use_tcp=True, enable_rest_api=False)
 
         thread = threading.Thread(target=server.start, daemon=True)
         thread.start()
 
         # Wait for PID file with port
         from pathlib import Path
+
         pid_path = Path(short_state_dir) / "daemon.pid"
         for _ in range(30):
             if pid_path.exists():
@@ -434,6 +442,7 @@ class TestDaemonServerCrossPlatform:
             server = DaemonServer(idle_timeout=5)
             assert server._use_tcp is False
 
+
 class TestDaemonServerPausedHook:
     """Test that paused daemon returns valid empty JSON to avoid Claude Code errors."""
 
@@ -441,11 +450,13 @@ class TestDaemonServerPausedHook:
         server = DaemonServer(idle_timeout=30, enable_rest_api=False)
         server.state.pause()
 
-        result = server._handle_hook_request({
-            "hook_event_name": "PreToolUse",
-            "tool_name": "Bash",
-            "tool_input": {"command": "ls"},
-        })
+        result = server._handle_hook_request(
+            {
+                "hook_event_name": "PreToolUse",
+                "tool_name": "Bash",
+                "tool_input": {"command": "ls"},
+            }
+        )
 
         assert result["output"] == "{}"
         assert result["exit_code"] == 0
@@ -454,10 +465,12 @@ class TestDaemonServerPausedHook:
         server = DaemonServer(idle_timeout=30, enable_rest_api=False)
         server.state.pause()
 
-        result = server._handle_hook_request({
-            "hook_event_name": "UserPromptSubmit",
-            "prompt": "test",
-        })
+        result = server._handle_hook_request(
+            {
+                "hook_event_name": "UserPromptSubmit",
+                "prompt": "test",
+            }
+        )
 
         parsed = json.loads(result["output"])
         assert isinstance(parsed, dict)
@@ -466,10 +479,12 @@ class TestDaemonServerPausedHook:
         server = DaemonServer(idle_timeout=30, enable_rest_api=False)
         assert not server.state.paused
 
-        result = server._handle_hook_request({
-            "hook_event_name": "UserPromptSubmit",
-            "prompt": "hello",
-        })
+        result = server._handle_hook_request(
+            {
+                "hook_event_name": "UserPromptSubmit",
+                "prompt": "hello",
+            }
+        )
 
         assert "exit_code" in result
 
@@ -480,6 +495,7 @@ class TestDaemonServerPauseResumeProtocol:
     @pytest.fixture
     def running_server(self, monkeypatch):
         import tempfile
+
         d = tempfile.mkdtemp(prefix="ag")
         monkeypatch.setenv("AI_GUARDIAN_STATE_DIR", d)
         from pathlib import Path
@@ -499,6 +515,7 @@ class TestDaemonServerPauseResumeProtocol:
         server.stop()
         thread.join(timeout=3)
         import shutil
+
         shutil.rmtree(d, ignore_errors=True)
 
     def _connect(self, sock_path, timeout=2.0):
@@ -571,11 +588,17 @@ class TestDaemonServerPauseResumeProtocol:
         # Hook request should be bypassed
         sock = self._connect(sock_path)
         try:
-            sock.sendall(encode_message(make_hook_request({
-                "hook_event_name": "PreToolUse",
-                "tool_name": "Bash",
-                "tool_input": {"command": "ls"},
-            })))
+            sock.sendall(
+                encode_message(
+                    make_hook_request(
+                        {
+                            "hook_event_name": "PreToolUse",
+                            "tool_name": "Bash",
+                            "tool_input": {"command": "ls"},
+                        }
+                    )
+                )
+            )
             response = decode_message(sock, timeout=5.0)
             assert response["data"]["output"] == "{}"
             assert response["data"]["exit_code"] == 0
@@ -598,10 +621,16 @@ class TestDaemonServerPauseResumeProtocol:
         # Hook should be processed normally
         sock = self._connect(sock_path)
         try:
-            sock.sendall(encode_message(make_hook_request({
-                "hook_event_name": "UserPromptSubmit",
-                "prompt": "hello",
-            })))
+            sock.sendall(
+                encode_message(
+                    make_hook_request(
+                        {
+                            "hook_event_name": "UserPromptSubmit",
+                            "prompt": "hello",
+                        }
+                    )
+                )
+            )
             response = decode_message(sock, timeout=5.0)
             assert "exit_code" in response["data"]
         finally:
@@ -614,6 +643,7 @@ class TestDaemonServerPerDirPauseProtocol:
     @pytest.fixture
     def running_server(self, monkeypatch):
         import tempfile
+
         d = tempfile.mkdtemp(prefix="ag")
         monkeypatch.setenv("AI_GUARDIAN_STATE_DIR", d)
         from pathlib import Path
@@ -633,6 +663,7 @@ class TestDaemonServerPerDirPauseProtocol:
         server.stop()
         thread.join(timeout=3)
         import shutil
+
         shutil.rmtree(d, ignore_errors=True)
 
     def _connect(self, sock_path, timeout=2.0):
@@ -645,8 +676,11 @@ class TestDaemonServerPerDirPauseProtocol:
         server, sock_path = running_server
         sock = self._connect(sock_path)
         try:
-            msg = {"version": 1, "type": "pause_dir",
-                   "data": {"dir": "/project/a", "minutes": 30}}
+            msg = {
+                "version": 1,
+                "type": "pause_dir",
+                "data": {"dir": "/project/a", "minutes": 30},
+            }
             sock.sendall(encode_message(msg))
             response = decode_message(sock, timeout=2.0)
             assert response["type"] == "response"
@@ -662,8 +696,7 @@ class TestDaemonServerPerDirPauseProtocol:
 
         sock = self._connect(sock_path)
         try:
-            msg = {"version": 1, "type": "resume_dir",
-                   "data": {"dir": "/project/a"}}
+            msg = {"version": 1, "type": "resume_dir", "data": {"dir": "/project/a"}}
             sock.sendall(encode_message(msg))
             response = decode_message(sock, timeout=2.0)
             assert response["type"] == "response"
@@ -754,6 +787,7 @@ class TestDaemonStateAskDialog:
 class TestDaemonServerIdleTimeout:
     def test_idle_timeout_stops_server(self, short_state_dir, monkeypatch):
         from pathlib import Path
+
         server = DaemonServer(idle_timeout=0.5, enable_rest_api=False)
 
         thread = threading.Thread(target=server.start, daemon=True)

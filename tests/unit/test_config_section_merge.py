@@ -4,10 +4,8 @@ When a user partially overrides a config section, their values should be
 merged with defaults — not replace them wholesale.
 """
 
-import json
 from unittest.mock import patch
 
-import pytest
 
 from ai_guardian.config_loaders import (
     _CONTEXT_POISONING_DEFAULTS,
@@ -41,21 +39,29 @@ class TestPartialOverrideMerge:
         assert section["pattern_server"] == _PII_DEFAULTS["pattern_server"]
 
     def test_image_scanning_partial_override(self):
-        user_config = {"image_scanning": {"max_processing_ms": 3000, "qr_scanning": True}}
+        user_config = {
+            "image_scanning": {"max_processing_ms": 3000, "qr_scanning": True}
+        }
         with _mock_config_file(user_config):
-            section, err = _load_config_section("image_scanning", defaults=_IMAGE_SCANNING_DEFAULTS)
+            section, err = _load_config_section(
+                "image_scanning", defaults=_IMAGE_SCANNING_DEFAULTS
+            )
         assert err is None
         assert section["max_processing_ms"] == 3000
         assert section["qr_scanning"] is True
         assert section["enabled"] == _IMAGE_SCANNING_DEFAULTS["enabled"]
         assert section["action"] == _IMAGE_SCANNING_DEFAULTS["action"]
         assert section["scan_types"] == _IMAGE_SCANNING_DEFAULTS["scan_types"]
-        assert section["redaction_method"] == _IMAGE_SCANNING_DEFAULTS["redaction_method"]
+        assert (
+            section["redaction_method"] == _IMAGE_SCANNING_DEFAULTS["redaction_method"]
+        )
 
     def test_context_poisoning_partial_override(self):
         user_config = {"context_poisoning": {"sensitivity": "high"}}
         with _mock_config_file(user_config):
-            section, err = _load_config_section("context_poisoning", defaults=_CONTEXT_POISONING_DEFAULTS)
+            section, err = _load_config_section(
+                "context_poisoning", defaults=_CONTEXT_POISONING_DEFAULTS
+            )
         assert err is None
         assert section["sensitivity"] == "high"
         assert section["enabled"] == _CONTEXT_POISONING_DEFAULTS["enabled"]
@@ -64,7 +70,9 @@ class TestPartialOverrideMerge:
     def test_supply_chain_partial_override(self):
         user_config = {"supply_chain": {"scan_plugins": False}}
         with _mock_config_file(user_config):
-            section, err = _load_config_section("supply_chain", defaults=_SUPPLY_CHAIN_DEFAULTS)
+            section, err = _load_config_section(
+                "supply_chain", defaults=_SUPPLY_CHAIN_DEFAULTS
+            )
         assert err is None
         assert section["scan_plugins"] is False
         assert section["enabled"] == _SUPPLY_CHAIN_DEFAULTS["enabled"]
@@ -75,7 +83,9 @@ class TestPartialOverrideMerge:
         defaults = {"enabled": True}
         user_config = {"transcript_scanning": {"enabled": False}}
         with _mock_config_file(user_config):
-            section, err = _load_config_section("transcript_scanning", defaults=defaults)
+            section, err = _load_config_section(
+                "transcript_scanning", defaults=defaults
+            )
         assert err is None
         assert section["enabled"] is False
 
@@ -120,7 +130,9 @@ class TestNoUserSection:
 
     def test_empty_config_returns_defaults(self):
         with _mock_config_file({}):
-            section, err = _load_config_section("image_scanning", defaults=_IMAGE_SCANNING_DEFAULTS)
+            section, err = _load_config_section(
+                "image_scanning", defaults=_IMAGE_SCANNING_DEFAULTS
+            )
         assert err is None
         assert section == _IMAGE_SCANNING_DEFAULTS
 
@@ -138,7 +150,9 @@ class TestArrayReplacement:
     def test_scan_types_replaced_not_appended(self):
         user_config = {"image_scanning": {"scan_types": ["pii"]}}
         with _mock_config_file(user_config):
-            section, err = _load_config_section("image_scanning", defaults=_IMAGE_SCANNING_DEFAULTS)
+            section, err = _load_config_section(
+                "image_scanning", defaults=_IMAGE_SCANNING_DEFAULTS
+            )
         assert err is None
         assert section["scan_types"] == ["pii"]
 
@@ -212,6 +226,7 @@ class TestDefaultsNotMutated:
 
     def test_defaults_unchanged_after_merge(self):
         import copy
+
         original = copy.deepcopy(_PII_DEFAULTS)
         user_config = {"scan_pii": {"pii_types": ["ssn"], "action": "warn"}}
         with _mock_config_file(user_config):

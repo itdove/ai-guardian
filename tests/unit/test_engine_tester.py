@@ -11,11 +11,9 @@ import types
 from io import StringIO
 from unittest.mock import MagicMock, patch
 
-import pytest
 
 from ai_guardian.engine_tester import (
     EngineTestResult,
-    StrategyVerdict,
     apply_strategy,
     engine_test_command,
     format_comparison,
@@ -27,10 +25,10 @@ from ai_guardian.engine_tester import (
 )
 from ai_guardian.scanners.strategies import ScanResult, SecretMatch
 
-
 # ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------
+
 
 def _make_secret(rule_id="generic-api-key", line=1, desc="API key detected"):
     return SecretMatch(
@@ -74,6 +72,7 @@ def _scan_result_error(engine="trufflehog", msg="Binary not found: trufflehog"):
 # get_available_engines
 # ---------------------------------------------------------------------------
 
+
 class TestGetAvailableEngines:
 
     @patch("ai_guardian._load_secret_scanning_config")
@@ -112,6 +111,7 @@ class TestGetAvailableEngines:
 # ---------------------------------------------------------------------------
 # test_engine
 # ---------------------------------------------------------------------------
+
 
 class TestTestEngine:
 
@@ -161,6 +161,7 @@ class TestTestEngine:
     @patch("ai_guardian.engine_tester._build_engine_config")
     def test_toml_patterns_engine(self, mock_build, mock_run):
         from ai_guardian.scanners.engine_builder import EngineConfig
+
         mock_scanner = MagicMock()
         mock_scanner.name = "toml-patterns"
         mock_build.return_value = EngineConfig(
@@ -179,6 +180,7 @@ class TestTestEngine:
 # ---------------------------------------------------------------------------
 # test_all_engines
 # ---------------------------------------------------------------------------
+
 
 class TestTestAllEngines:
 
@@ -204,6 +206,7 @@ class TestTestAllEngines:
 # ---------------------------------------------------------------------------
 # Formatting
 # ---------------------------------------------------------------------------
+
 
 class TestFormatResult:
 
@@ -248,6 +251,7 @@ class TestFormatComparison:
 # ---------------------------------------------------------------------------
 # CLI command
 # ---------------------------------------------------------------------------
+
 
 class TestEngineTestCommand:
 
@@ -320,6 +324,7 @@ class TestEngineTestCommand:
 # Strategy
 # ---------------------------------------------------------------------------
 
+
 class TestGetConfiguredStrategy:
 
     @patch("ai_guardian._load_secret_scanning_config")
@@ -343,7 +348,12 @@ class TestApplyStrategy:
     def _results(self, found_engines):
         """Create results where named engines found secrets."""
         return [
-            EngineTestResult(name, name in found_engines, [_make_secret()] if name in found_engines else [], 40)
+            EngineTestResult(
+                name,
+                name in found_engines,
+                [_make_secret()] if name in found_engines else [],
+                40,
+            )
             for name in ["gitleaks", "betterleaks", "leaktk"]
         ]
 

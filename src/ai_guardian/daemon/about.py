@@ -14,18 +14,25 @@ def get_about_info() -> dict:
     except ImportError:
         __version__ = "unknown"
 
-    py_ver = f"{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}"
+    py_ver = (
+        f"{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}"
+    )
 
     system = platform.system()
     if system == "Darwin":
         mac_ver = platform.mac_ver()[0]
-        plat_str = f"macOS {mac_ver} {platform.machine()}" if mac_ver else f"macOS {platform.machine()}"
+        plat_str = (
+            f"macOS {mac_ver} {platform.machine()}"
+            if mac_ver
+            else f"macOS {platform.machine()}"
+        )
     else:
         plat_str = f"{system} {platform.release()} {platform.machine()}"
 
     config_path = None
     try:
         from ai_guardian.config_utils import get_config_dir
+
         config_path = str(get_config_dir() / "ai-guardian.json")
     except Exception:
         pass  # intentionally silent — optional dependency
@@ -34,10 +41,13 @@ def get_about_info() -> dict:
     try:
         from ai_guardian.scanner_manager import ScannerManager
         from ai_guardian.config_loaders import _load_config_file
+
         cfg_for_scanners, _ = _load_config_file()
         sm = ScannerManager(config=cfg_for_scanners or {})
         for s in sm.list_configured():
-            scanners.append({"name": s.name, "version": s.version, "is_default": s.is_default})
+            scanners.append(
+                {"name": s.name, "version": s.version, "is_default": s.is_default}
+            )
     except Exception:
         pass  # intentionally silent — optional dependency
 
@@ -49,6 +59,7 @@ def get_about_info() -> dict:
     name = None
     try:
         from ai_guardian.config_loaders import _load_config_file
+
         cfg, _ = _load_config_file()
         if cfg:
             name = cfg.get("name")

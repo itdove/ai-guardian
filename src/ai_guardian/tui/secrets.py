@@ -13,11 +13,21 @@ from textual.app import ComposeResult
 from textual.containers import Container, Horizontal, VerticalScroll
 from textual.widgets import Static, Button, Input, Label, Checkbox, Select
 
-from ai_guardian.config_utils import get_cache_dir, get_config_dir, get_project_config_path
-from ai_guardian.tui.schema_defaults import (
-    SchemaDefaultsMixin, default_indicator, default_placeholder,
+from ai_guardian.config_utils import (
+    get_cache_dir,
+    get_config_dir,
+    get_project_config_path,
 )
-from ai_guardian.tui.widgets import TimeBasedToggle, sanitize_enabled_value, format_local_time
+from ai_guardian.tui.schema_defaults import (
+    SchemaDefaultsMixin,
+    default_indicator,
+    default_placeholder,
+)
+from ai_guardian.tui.widgets import (
+    TimeBasedToggle,
+    sanitize_enabled_value,
+    format_local_time,
+)
 
 
 class SecretsContent(SchemaDefaultsMixin, Container):
@@ -132,6 +142,7 @@ class SecretsContent(SchemaDefaultsMixin, Container):
             if project_path:
                 return project_path
             from ai_guardian.config_utils import _find_git_root
+
             root = _find_git_root() or Path.cwd()
             return root / ".ai-guardian" / "ai-guardian.json"
         return get_config_dir() / "ai-guardian.json"
@@ -160,7 +171,7 @@ class SecretsContent(SchemaDefaultsMixin, Container):
                     "  1. Pattern server: Organization patterns (if enabled below)\n"
                     "  2. Project-specific: .gitleaks.toml (if exists)\n"
                     "  3. Built-in: Gitleaks default rules (AWS, GitHub, SSH keys, etc.)[/dim]",
-                    id="gitleaks-config"
+                    id="gitleaks-config",
                 )
 
             # Action mode section
@@ -207,7 +218,9 @@ class SecretsContent(SchemaDefaultsMixin, Container):
 
             # False Positive Filtering section (Issue #1091)
             with Container(classes="section"):
-                yield Static("[bold]False Positive Filtering[/bold]", classes="section-title")
+                yield Static(
+                    "[bold]False Positive Filtering[/bold]", classes="section-title"
+                )
                 yield Static(
                     "[dim]Entropy and stopword filters to reduce false positives. "
                     "Higher entropy = more random = more likely a real secret.[/dim]",
@@ -275,17 +288,24 @@ class SecretsContent(SchemaDefaultsMixin, Container):
 
             # Pattern server settings section
             with Container(classes="section"):
-                yield Static("[bold]Pattern Server Settings[/bold]", classes="section-title")
+                yield Static(
+                    "[bold]Pattern Server Settings[/bold]", classes="section-title"
+                )
 
                 with Horizontal(classes="setting-row"):
                     yield Label("Server URL:")
-                    yield Input(placeholder="https://pattern-server.example.com", id="pattern-server-url")
+                    yield Input(
+                        placeholder="https://pattern-server.example.com",
+                        id="pattern-server-url",
+                    )
                     yield Static("[dim](Press Enter to save)[/dim]")
 
                 with Horizontal(classes="setting-row"):
                     yield Label("Patterns Endpoint:")
                     yield Input(
-                        placeholder=default_placeholder("secret_scanning.pattern_server.patterns_endpoint"),
+                        placeholder=default_placeholder(
+                            "secret_scanning.pattern_server.patterns_endpoint"
+                        ),
                         id="pattern-server-endpoint",
                     )
                     yield Static("[dim](Press Enter to save)[/dim]")
@@ -305,29 +325,44 @@ class SecretsContent(SchemaDefaultsMixin, Container):
 
                 with Horizontal(classes="setting-row"):
                     yield Label("Token Env Var:")
-                    yield Input(placeholder="AI_GUARDIAN_PATTERN_TOKEN", id="pattern-server-token-env")
+                    yield Input(
+                        placeholder="AI_GUARDIAN_PATTERN_TOKEN",
+                        id="pattern-server-token-env",
+                    )
                     yield Static("[dim](Press Enter to save)[/dim]")
 
                 with Horizontal(classes="setting-row"):
                     yield Label("Token File:")
-                    yield Input(placeholder="~/.config/ai-guardian/pattern-token", id="pattern-server-token-file")
+                    yield Input(
+                        placeholder="~/.config/ai-guardian/pattern-token",
+                        id="pattern-server-token-file",
+                    )
                     yield Static("[dim](Press Enter to save)[/dim]")
 
-                yield Static("[dim]Press 't' to test connection[/dim]", classes="setting-row")
+                yield Static(
+                    "[dim]Press 't' to test connection[/dim]", classes="setting-row"
+                )
 
             # Cache settings section
             with Container(classes="section"):
-                yield Static("[bold]Pattern Cache Settings[/bold]", classes="section-title")
+                yield Static(
+                    "[bold]Pattern Cache Settings[/bold]", classes="section-title"
+                )
 
                 with Horizontal(classes="setting-row"):
                     yield Label("Cache Path:")
-                    yield Input(placeholder=str(get_cache_dir() / "patterns.toml"), id="cache-path")
+                    yield Input(
+                        placeholder=str(get_cache_dir() / "patterns.toml"),
+                        id="cache-path",
+                    )
                     yield Static("[dim](Press Enter to save)[/dim]")
 
                 with Horizontal(classes="setting-row"):
                     yield Label("Refresh Interval:")
                     yield Input(
-                        placeholder=default_placeholder("secret_scanning.pattern_server.cache.refresh_interval_hours"),
+                        placeholder=default_placeholder(
+                            "secret_scanning.pattern_server.cache.refresh_interval_hours"
+                        ),
                         id="cache-refresh-interval",
                     )
                     yield Static(
@@ -338,7 +373,9 @@ class SecretsContent(SchemaDefaultsMixin, Container):
                 with Horizontal(classes="setting-row"):
                     yield Label("Expire After:")
                     yield Input(
-                        placeholder=default_placeholder("secret_scanning.pattern_server.cache.expire_after_hours"),
+                        placeholder=default_placeholder(
+                            "secret_scanning.pattern_server.cache.expire_after_hours"
+                        ),
                         id="cache-expire-after",
                     )
                     yield Static(
@@ -358,9 +395,7 @@ class SecretsContent(SchemaDefaultsMixin, Container):
 
                 with Horizontal(classes="setting-row"):
                     yield Label("Validate Secrets:")
-                    yield Checkbox(
-                        "", id="validate-secrets-checkbox", value=False
-                    )
+                    yield Checkbox("", id="validate-secrets-checkbox", value=False)
                     yield Static(
                         f"[dim]Enable secret liveness validation (opt-in)[/dim] "
                         f"{default_indicator('secret_scanning.validate_secrets')}"
@@ -374,7 +409,9 @@ class SecretsContent(SchemaDefaultsMixin, Container):
                 with Horizontal(classes="setting-row"):
                     yield Label("Timeout (ms):")
                     yield Input(
-                        placeholder=default_placeholder("secret_scanning.validation_timeout_ms"),
+                        placeholder=default_placeholder(
+                            "secret_scanning.validation_timeout_ms"
+                        ),
                         id="validation-timeout-ms",
                     )
                     yield Static(
@@ -396,7 +433,6 @@ class SecretsContent(SchemaDefaultsMixin, Container):
                         f"[dim]Action for revoked/expired secrets[/dim] "
                         f"{default_indicator('secret_scanning.on_inactive')}"
                     )
-
 
     def on_mount(self) -> None:
         """Load configuration when mounted."""
@@ -423,7 +459,7 @@ class SecretsContent(SchemaDefaultsMixin, Container):
         config = {}
         if config_path.exists():
             try:
-                with open(config_path, 'r', encoding='utf-8') as f:
+                with open(config_path, "r", encoding="utf-8") as f:
                     config = json.load(f)
             except Exception as e:
                 self.app.notify(f"Error loading config: {e}", severity="error")
@@ -468,7 +504,9 @@ class SecretsContent(SchemaDefaultsMixin, Container):
         # Load secret_scanning.enabled toggle
         scanning_enabled = secret_scanning.get("enabled", True)
         try:
-            ss_toggle = self.query_one("#secret_scanning_enabled_toggle", TimeBasedToggle)
+            ss_toggle = self.query_one(
+                "#secret_scanning_enabled_toggle", TimeBasedToggle
+            )
             ss_toggle.load_value(scanning_enabled)
         except Exception:
             pass
@@ -480,7 +518,9 @@ class SecretsContent(SchemaDefaultsMixin, Container):
 
             self.query_one("#pattern-server-url", Input).value = server_url
             self.query_one("#pattern-server-endpoint", Input).value = patterns_endpoint
-            self.query_one("#pattern-server-warn-on-failure", Checkbox).value = warn_on_failure
+            self.query_one("#pattern-server-warn-on-failure", Checkbox).value = (
+                warn_on_failure
+            )
             self.query_one("#pattern-server-auth-method", Input).value = auth_method
             self.query_one("#pattern-server-token-env", Input).value = token_env
             self.query_one("#pattern-server-token-file", Input).value = token_file
@@ -496,11 +536,16 @@ class SecretsContent(SchemaDefaultsMixin, Container):
 
         # Gitleaks status - check for project config
         from pathlib import Path
+
         project_config = Path.cwd() / ".gitleaks.toml"
         if project_config.exists():
-            gitleaks_status = f"[status-ok]✓[/status-ok] Using project config: {project_config}"
+            gitleaks_status = (
+                f"[status-ok]✓[/status-ok] Using project config: {project_config}"
+            )
         elif is_enabled:
-            gitleaks_status = "[status-ok]✓[/status-ok] Using pattern server (enhanced patterns)"
+            gitleaks_status = (
+                "[status-ok]✓[/status-ok] Using pattern server (enhanced patterns)"
+            )
         else:
             gitleaks_status = "[status-ok]✓[/status-ok] Using Gitleaks built-in rules"
 
@@ -516,15 +561,22 @@ class SecretsContent(SchemaDefaultsMixin, Container):
                     valid_until = pattern.get("valid_until", "")
                     if valid_until:
                         from datetime import datetime, timezone
+
                         try:
-                            expiry_dt = datetime.fromisoformat(valid_until.replace('Z', '+00:00'))
+                            expiry_dt = datetime.fromisoformat(
+                                valid_until.replace("Z", "+00:00")
+                            )
                             now = datetime.now(timezone.utc)
                             if expiry_dt <= now:
                                 pattern_lines.append(f"  {pattern_str} [EXPIRED]")
                             elif (expiry_dt - now).total_seconds() < 86400:
-                                pattern_lines.append(f"  {pattern_str} [expires {format_local_time(valid_until)}]")
+                                pattern_lines.append(
+                                    f"  {pattern_str} [expires {format_local_time(valid_until)}]"
+                                )
                             else:
-                                pattern_lines.append(f"  {pattern_str} [until {format_local_time(valid_until)}]")
+                                pattern_lines.append(
+                                    f"  {pattern_str} [until {format_local_time(valid_until)}]"
+                                )
                         except (ValueError, TypeError):
                             pattern_lines.append(f"  {pattern_str}")
                     else:
@@ -558,11 +610,13 @@ class SecretsContent(SchemaDefaultsMixin, Container):
             )
 
             from ai_guardian.patterns import BUNDLED_FILES
+
             bundled_path = BUNDLED_FILES.get("stopwords")
             bundled_count = 0
             if bundled_path and bundled_path.exists():
                 try:
                     import sys
+
                     if sys.version_info >= (3, 11):
                         import tomllib
                     else:
@@ -595,7 +649,9 @@ class SecretsContent(SchemaDefaultsMixin, Container):
                 ignore_files_text = "\n".join(f"  {f}" for f in ignore_files)
             else:
                 ignore_files_text = "[dim]No ignore patterns configured[/dim]"
-            self.query_one("#secret-ignore-files-list", Static).update(ignore_files_text)
+            self.query_one("#secret-ignore-files-list", Static).update(
+                ignore_files_text
+            )
         except Exception:
             pass
 
@@ -606,7 +662,9 @@ class SecretsContent(SchemaDefaultsMixin, Container):
                 ignore_tools_text = "\n".join(f"  {t}" for t in ignore_tools)
             else:
                 ignore_tools_text = "[dim]No ignored tools configured[/dim]"
-            self.query_one("#secret-ignore-tools-list", Static).update(ignore_tools_text)
+            self.query_one("#secret-ignore-tools-list", Static).update(
+                ignore_tools_text
+            )
         except Exception:
             pass
 
@@ -618,7 +676,9 @@ class SecretsContent(SchemaDefaultsMixin, Container):
 
         try:
             self.query_one("#cache-path", Input).value = cache_path
-            self.query_one("#cache-refresh-interval", Input).value = str(refresh_interval)
+            self.query_one("#cache-refresh-interval", Input).value = str(
+                refresh_interval
+            )
             self.query_one("#cache-expire-after", Input).value = str(expire_after)
         except Exception:
             pass  # Widgets may not be mounted yet
@@ -630,7 +690,9 @@ class SecretsContent(SchemaDefaultsMixin, Container):
         secret_action = secret_scanning.get("action", "block")
 
         try:
-            self.query_one("#validate-secrets-checkbox", Checkbox).value = bool(validate_on)
+            self.query_one("#validate-secrets-checkbox", Checkbox).value = bool(
+                validate_on
+            )
             self.query_one("#validation-timeout-ms", Input).value = str(timeout_ms)
             self.query_one("#secret-action-select", Select).value = secret_action
             self.query_one("#on-inactive-select", Select).value = on_inactive
@@ -663,7 +725,9 @@ class SecretsContent(SchemaDefaultsMixin, Container):
             self._save_secret_scanning_field("validate_secrets", event.value)
             # Update privacy warning visibility
             try:
-                warning_widget = self.query_one("#validate-secrets-privacy-warning", Static)
+                warning_widget = self.query_one(
+                    "#validate-secrets-privacy-warning", Static
+                )
                 if event.value:
                     warning_widget.update(
                         "[bold yellow]\u26a0 Privacy Warning:[/bold yellow] "
@@ -679,7 +743,7 @@ class SecretsContent(SchemaDefaultsMixin, Container):
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         """Handle button press in TimeBasedToggle - save immediately."""
-        if getattr(self, '_loading', False):
+        if getattr(self, "_loading", False):
             return
         bid = event.button.id
 
@@ -697,7 +761,7 @@ class SecretsContent(SchemaDefaultsMixin, Container):
 
     def on_input_submitted(self, event: Input.Submitted) -> None:
         """Handle Enter key in input fields - save the value."""
-        if getattr(self, '_loading', False):
+        if getattr(self, "_loading", False):
             return
         input_id = event.input.id
 
@@ -765,7 +829,9 @@ class SecretsContent(SchemaDefaultsMixin, Container):
                         return
                     self._save_secret_scanning_field("min_entropy", val)
                 except ValueError:
-                    self.app.notify("Entropy must be a number or empty to disable", severity="error")
+                    self.app.notify(
+                        "Entropy must be a number or empty to disable", severity="error"
+                    )
         elif event.input.id == "stopwords-input":
             self._add_stopword()
         elif event.input.id == "secret-ignore-file-input":
@@ -775,7 +841,7 @@ class SecretsContent(SchemaDefaultsMixin, Container):
 
     def on_select_changed(self, event: Select.Changed) -> None:
         """Handle select dropdown changes."""
-        if getattr(self, '_loading', False):
+        if getattr(self, "_loading", False):
             return
         if event.select.id == "secret-action-select":
             if event.value is not Select.BLANK:
@@ -799,18 +865,20 @@ class SecretsContent(SchemaDefaultsMixin, Container):
 
         try:
             if config_path.exists():
-                with open(config_path, 'r', encoding='utf-8') as f:
+                with open(config_path, "r", encoding="utf-8") as f:
                     config = json.load(f)
             else:
                 config = {}
 
-            if "secret_scanning" not in config or not isinstance(config["secret_scanning"], dict):
+            if "secret_scanning" not in config or not isinstance(
+                config["secret_scanning"], dict
+            ):
                 config["secret_scanning"] = {}
 
             value = sanitize_enabled_value(value)
             config["secret_scanning"]["enabled"] = value
 
-            with open(config_path, 'w', encoding='utf-8') as f:
+            with open(config_path, "w", encoding="utf-8") as f:
                 json.dump(config, f, indent=2)
 
             if isinstance(value, bool):
@@ -820,7 +888,7 @@ class SecretsContent(SchemaDefaultsMixin, Container):
                 if value.get("disabled_until"):
                     self.app.notify(
                         f"✓ Secret scanning temporarily disabled until {format_local_time(value['disabled_until'])}",
-                        severity="success"
+                        severity="success",
                     )
                 else:
                     self.app.notify("✓ Secret scanning disabled", severity="success")
@@ -834,17 +902,19 @@ class SecretsContent(SchemaDefaultsMixin, Container):
 
         try:
             if config_path.exists():
-                with open(config_path, 'r', encoding='utf-8') as f:
+                with open(config_path, "r", encoding="utf-8") as f:
                     config = json.load(f)
             else:
                 config = {}
 
-            if "secret_scanning" not in config or not isinstance(config["secret_scanning"], dict):
+            if "secret_scanning" not in config or not isinstance(
+                config["secret_scanning"], dict
+            ):
                 config["secret_scanning"] = {}
 
             config["secret_scanning"][field] = value
 
-            with open(config_path, 'w', encoding='utf-8') as f:
+            with open(config_path, "w", encoding="utf-8") as f:
                 json.dump(config, f, indent=2)
 
             self.app.notify(f"\u2713 Saved {field}", severity="success")
@@ -852,7 +922,9 @@ class SecretsContent(SchemaDefaultsMixin, Container):
         except Exception as e:
             self.app.notify(f"Error saving {field}: {e}", severity="error")
 
-    def save_pattern_server_enabled_value(self, value: Union[bool, Dict[str, Any]]) -> None:
+    def save_pattern_server_enabled_value(
+        self, value: Union[bool, Dict[str, Any]]
+    ) -> None:
         """Save pattern server enabled state to config (supports time-based format).
 
         Only writes the 'enabled' field — never modifies, deletes, or nullifies
@@ -862,7 +934,7 @@ class SecretsContent(SchemaDefaultsMixin, Container):
 
         try:
             if config_path.exists():
-                with open(config_path, 'r', encoding='utf-8') as f:
+                with open(config_path, "r", encoding="utf-8") as f:
                     config = json.load(f)
             else:
                 config = {}
@@ -875,7 +947,7 @@ class SecretsContent(SchemaDefaultsMixin, Container):
             self._ensure_pattern_server_section(config)
             config["secret_scanning"]["pattern_server"]["enabled"] = value
 
-            with open(config_path, 'w', encoding='utf-8') as f:
+            with open(config_path, "w", encoding="utf-8") as f:
                 json.dump(config, f, indent=2)
 
             # Show status message
@@ -886,7 +958,7 @@ class SecretsContent(SchemaDefaultsMixin, Container):
                 if value.get("disabled_until"):
                     self.app.notify(
                         f"✓ Pattern server temporarily disabled until {format_local_time(value['disabled_until'])}",
-                        severity="success"
+                        severity="success",
                     )
                 else:
                     self.app.notify("✓ Pattern server disabled", severity="success")
@@ -912,7 +984,7 @@ class SecretsContent(SchemaDefaultsMixin, Container):
 
         try:
             if config_path.exists():
-                with open(config_path, 'r', encoding='utf-8') as f:
+                with open(config_path, "r", encoding="utf-8") as f:
                     config = json.load(f)
             else:
                 config = {}
@@ -922,7 +994,7 @@ class SecretsContent(SchemaDefaultsMixin, Container):
             # Save to secret_scanning.pattern_server (new location)
             config["secret_scanning"]["pattern_server"][field] = value
 
-            with open(config_path, 'w', encoding='utf-8') as f:
+            with open(config_path, "w", encoding="utf-8") as f:
                 json.dump(config, f, indent=2)
 
             self.app.notify(f"✓ Saved {field}", severity="success")
@@ -936,7 +1008,7 @@ class SecretsContent(SchemaDefaultsMixin, Container):
 
         try:
             if config_path.exists():
-                with open(config_path, 'r', encoding='utf-8') as f:
+                with open(config_path, "r", encoding="utf-8") as f:
                     config = json.load(f)
             else:
                 config = {}
@@ -950,7 +1022,7 @@ class SecretsContent(SchemaDefaultsMixin, Container):
             # Save to secret_scanning.pattern_server.auth (new location)
             config["secret_scanning"]["pattern_server"]["auth"][field] = value
 
-            with open(config_path, 'w', encoding='utf-8') as f:
+            with open(config_path, "w", encoding="utf-8") as f:
                 json.dump(config, f, indent=2)
 
             self.app.notify(f"✓ Saved auth {field}", severity="success")
@@ -964,7 +1036,7 @@ class SecretsContent(SchemaDefaultsMixin, Container):
 
         try:
             if config_path.exists():
-                with open(config_path, 'r', encoding='utf-8') as f:
+                with open(config_path, "r", encoding="utf-8") as f:
                     config = json.load(f)
             else:
                 config = {}
@@ -978,7 +1050,7 @@ class SecretsContent(SchemaDefaultsMixin, Container):
             # Save to secret_scanning.pattern_server.cache (new location)
             config["secret_scanning"]["pattern_server"]["cache"][field] = value
 
-            with open(config_path, 'w', encoding='utf-8') as f:
+            with open(config_path, "w", encoding="utf-8") as f:
                 json.dump(config, f, indent=2)
 
             self.app.notify(f"✓ Saved cache {field}", severity="success")
@@ -996,6 +1068,7 @@ class SecretsContent(SchemaDefaultsMixin, Container):
             return
 
         import re
+
         try:
             re.compile(pattern)
         except re.error as e:
@@ -1007,7 +1080,7 @@ class SecretsContent(SchemaDefaultsMixin, Container):
         try:
             config = {}
             if config_path.exists():
-                with open(config_path, 'r', encoding='utf-8') as f:
+                with open(config_path, "r", encoding="utf-8") as f:
                     config = json.load(f)
 
             if "secret_scanning" not in config:
@@ -1021,7 +1094,7 @@ class SecretsContent(SchemaDefaultsMixin, Container):
 
             config["secret_scanning"]["allowlist_patterns"].append(pattern)
 
-            with open(config_path, 'w', encoding='utf-8') as f:
+            with open(config_path, "w", encoding="utf-8") as f:
                 json.dump(config, f, indent=2)
 
             input_widget.value = ""
@@ -1049,7 +1122,7 @@ class SecretsContent(SchemaDefaultsMixin, Container):
         try:
             config = {}
             if config_path.exists():
-                with open(config_path, 'r', encoding='utf-8') as f:
+                with open(config_path, "r", encoding="utf-8") as f:
                     config = json.load(f)
 
             if "secret_scanning" not in config:
@@ -1064,7 +1137,7 @@ class SecretsContent(SchemaDefaultsMixin, Container):
 
             config["secret_scanning"]["stopwords"].append(word)
 
-            with open(config_path, 'w', encoding='utf-8') as f:
+            with open(config_path, "w", encoding="utf-8") as f:
                 json.dump(config, f, indent=2)
 
             input_widget.value = ""
@@ -1085,7 +1158,7 @@ class SecretsContent(SchemaDefaultsMixin, Container):
         try:
             config = {}
             if config_path.exists():
-                with open(config_path, 'r', encoding='utf-8') as f:
+                with open(config_path, "r", encoding="utf-8") as f:
                     config = json.load(f)
 
             if "secret_scanning" not in config:
@@ -1099,7 +1172,7 @@ class SecretsContent(SchemaDefaultsMixin, Container):
 
             config["secret_scanning"][field].append(value)
 
-            with open(config_path, 'w', encoding='utf-8') as f:
+            with open(config_path, "w", encoding="utf-8") as f:
                 json.dump(config, f, indent=2)
 
             input_widget.value = ""
@@ -1119,12 +1192,23 @@ class SecretsContent(SchemaDefaultsMixin, Container):
 
         try:
             import requests
+
             response = requests.get(f"{server_url}/health", timeout=5)
             if response.status_code == 200:
-                self.app.notify(f"✓ Pattern server is reachable at {server_url}", severity="success")
+                self.app.notify(
+                    f"✓ Pattern server is reachable at {server_url}", severity="success"
+                )
             else:
-                self.app.notify(f"Pattern server returned status {response.status_code}", severity="warning")
+                self.app.notify(
+                    f"Pattern server returned status {response.status_code}",
+                    severity="warning",
+                )
         except ImportError:
-            self.app.notify("requests library not installed - cannot test connection", severity="error")
+            self.app.notify(
+                "requests library not installed - cannot test connection",
+                severity="error",
+            )
         except Exception as e:
-            self.app.notify(f"✗ Cannot connect to pattern server: {e}", severity="error")
+            self.app.notify(
+                f"✗ Cannot connect to pattern server: {e}", severity="error"
+            )

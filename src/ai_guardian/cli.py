@@ -13,21 +13,15 @@ from pathlib import Path
 
 from ai_guardian import __version__
 from ai_guardian.constants import ViolationType
-from ai_guardian.config_utils import get_config_dir
 
 from ai_guardian.config_loaders import (
     _load_config_file,
-    _load_pattern_server_config,
-    _load_secret_scanning_config,
 )
 
-from ai_guardian.response_format import format_response, IDEType
 
 from ai_guardian.hook_processing import (
     process_hook_data,
     process_hook_input,
-    check_secrets_with_gitleaks,
-    _scan_for_pii,
     HAS_VIOLATION_LOGGER,
 )
 from ai_guardian.cli_handlers import (
@@ -49,6 +43,7 @@ def _is_stop_requested():
     """
     try:
         from ai_guardian.daemon import get_state_dir
+
         marker = get_state_dir() / "daemon.stop-requested"
         return marker.exists()
     except Exception:
@@ -64,6 +59,7 @@ def _ensure_daemon_started():
             return
 
         from ai_guardian.daemon.client import is_daemon_running, start_daemon_background
+
         if not is_daemon_running():
             start_daemon_background()
     except Exception:
@@ -71,6 +67,7 @@ def _ensure_daemon_started():
 
     try:
         from ai_guardian.daemon.auto_setup import auto_setup_tray
+
         auto_setup_tray()
     except Exception:
         pass  # intentionally silent — best-effort operation
@@ -86,13 +83,15 @@ def _handle_ml_command(args, ml_parser):
 
     if cmd == "download":
         from ai_guardian.ml_detection import is_ml_available, download_model
+
         if not is_ml_available():
-            print("Error: ML dependencies not available (onnxruntime required).", file=sys.stderr)
+            print(
+                "Error: ML dependencies not available (onnxruntime required).",
+                file=sys.stderr,
+            )
             return 1
         try:
-            model_dir = download_model(
-                model_name=args.model, force=args.force
-            )
+            model_dir = download_model(model_name=args.model, force=args.force)
             print(f"Model downloaded to: {model_dir}")
             return 0
         except Exception as e:
@@ -101,6 +100,7 @@ def _handle_ml_command(args, ml_parser):
 
     elif cmd == "list":
         from ai_guardian.ml_detection import is_ml_available, list_registered_models
+
         print("ML Dependencies:", "installed" if is_ml_available() else "NOT installed")
         print()
         models = list_registered_models()
@@ -117,7 +117,12 @@ def _handle_ml_command(args, ml_parser):
         return 0
 
     elif cmd == "status":
-        from ai_guardian.ml_detection import is_ml_available, verify_model, get_models_dir
+        from ai_guardian.ml_detection import (
+            is_ml_available,
+            verify_model,
+            get_models_dir,
+        )
+
         print(f"ML dependencies installed: {is_ml_available()}")
         print(f"Models directory: {get_models_dir()}")
         is_valid, msg = verify_model()
@@ -126,10 +131,13 @@ def _handle_ml_command(args, ml_parser):
 
         try:
             from ai_guardian.daemon.client import is_daemon_running, send_status_request
+
             if is_daemon_running():
                 status = send_status_request()
                 if status:
-                    print(f"\nDaemon ML model loaded: {status.get('ml_model_loaded', False)}")
+                    print(
+                        f"\nDaemon ML model loaded: {status.get('ml_model_loaded', False)}"
+                    )
                     ml_err = status.get("ml_load_error")
                     if ml_err:
                         print(f"  Load error: {ml_err}")
@@ -141,6 +149,7 @@ def _handle_ml_command(args, ml_parser):
 
     elif cmd == "verify":
         from ai_guardian.ml_detection import verify_model
+
         is_valid, msg = verify_model(args.model)
         print(msg)
         return 0 if is_valid else 1
@@ -173,8 +182,23 @@ def main():
         )
         parser.add_argument(
             "--ide",
-            choices=["claude", "cursor", "copilot", "codex", "windsurf", "gemini", "cline", "zoocode", "augment", "kiro", "junie", "aiderdesk", "openclaw", "opencode"],
-            help="Specify IDE adapter for hook processing (auto-detected if not provided)"
+            choices=[
+                "claude",
+                "cursor",
+                "copilot",
+                "codex",
+                "windsurf",
+                "gemini",
+                "cline",
+                "zoocode",
+                "augment",
+                "kiro",
+                "junie",
+                "aiderdesk",
+                "openclaw",
+                "opencode",
+            ],
+            help="Specify IDE adapter for hook processing (auto-detected if not provided)",
         )
 
         # Add subcommands
@@ -182,704 +206,667 @@ def main():
 
         # Setup subcommand
         setup_parser = subparsers.add_parser(
-            "setup",
-            help="Setup IDE hooks with optional remote config"
+            "setup", help="Setup IDE hooks with optional remote config"
         )
         setup_parser.add_argument(
             "--ide",
-            choices=["claude", "cursor", "copilot", "codex", "windsurf", "gemini", "cline", "zoocode", "augment", "kiro", "junie", "aiderdesk", "openclaw", "opencode"],
-            help="Specify IDE type (auto-detected if not provided)"
+            choices=[
+                "claude",
+                "cursor",
+                "copilot",
+                "codex",
+                "windsurf",
+                "gemini",
+                "cline",
+                "zoocode",
+                "augment",
+                "kiro",
+                "junie",
+                "aiderdesk",
+                "openclaw",
+                "opencode",
+            ],
+            help="Specify IDE type (auto-detected if not provided)",
         )
         setup_parser.add_argument(
-            "--remote-config-url",
-            metavar="URL",
-            help="Remote configuration URL to add"
+            "--remote-config-url", metavar="URL", help="Remote configuration URL to add"
         )
         setup_parser.add_argument(
             "--migrate-pattern-server",
             action="store_true",
-            help="Migrate pattern_server config to per-engine format (moves global to engines[].pattern_server)"
+            help="Migrate pattern_server config to per-engine format (moves global to engines[].pattern_server)",
         )
         setup_parser.add_argument(
             "--dry-run",
             action="store_true",
-            help="Show what would be changed without applying"
+            help="Show what would be changed without applying",
         )
         setup_parser.add_argument(
-            "--force",
-            action="store_true",
-            help="Overwrite existing hooks and config"
+            "--force", action="store_true", help="Overwrite existing hooks and config"
         )
         setup_parser.add_argument(
-            "--yes",
-            "-y",
-            action="store_true",
-            help="Skip confirmation prompts"
+            "--yes", "-y", action="store_true", help="Skip confirmation prompts"
         )
         setup_parser.add_argument(
             "--create-config",
             action="store_true",
-            help="Create default ai-guardian.json config file"
+            help="Create default ai-guardian.json config file",
         )
         setup_parser.add_argument(
             "--permissive",
             action="store_true",
-            help="Use permissive config (permissions disabled, all tools allowed)"
+            help="Use permissive config (permissions disabled, all tools allowed)",
         )
         setup_parser.add_argument(
             "--pre-commit",
             action="store_true",
-            help="Install pre-commit hooks for git workflow"
+            help="Install pre-commit hooks for git workflow",
         )
         setup_parser.add_argument(
             "--auto-install-hooks",
             action="store_true",
-            help="Allow automatic hook installation (default: show instructions only)"
+            help="Allow automatic hook installation (default: show instructions only)",
         )
         setup_parser.add_argument(
             "--uninstall-hooks",
             action="store_true",
-            help="Remove AI Guardian pre-commit hooks"
+            help="Remove AI Guardian pre-commit hooks",
         )
         setup_parser.add_argument(
             "--install-scanner",
             nargs="*",
             choices=["gitleaks", "betterleaks", "leaktk"],
             help="Install scanner engine(s) (default: gitleaks). "
-                 "Accepts multiple: --install-scanner gitleaks betterleaks"
+            "Accepts multiple: --install-scanner gitleaks betterleaks",
         )
         setup_parser.add_argument(
             "--use-pinned",
             action="store_true",
-            help="Install pinned scanner version from pyproject.toml (use with --install-scanner)"
+            help="Install pinned scanner version from pyproject.toml (use with --install-scanner)",
         )
         setup_parser.add_argument(
             "--json",
             action="store_true",
             dest="json_output",
-            help="Output only raw JSON config (use with --create-config)"
+            help="Output only raw JSON config (use with --create-config)",
         )
         setup_parser.add_argument(
             "--profile",
             metavar="PROFILE",
-            help="Security profile to apply: @minimal, @standard, @strict, custom name, or file path (use with --create-config)"
+            help="Security profile to apply: @minimal, @standard, @strict, custom name, or file path (use with --create-config)",
         )
         setup_parser.add_argument(
             "--save-profile",
             metavar="NAME",
-            help="Save current config as a named custom profile"
+            help="Save current config as a named custom profile",
         )
         setup_parser.add_argument(
             "--list-profiles",
             action="store_true",
-            help="List available security profiles (built-in and custom)"
+            help="List available security profiles (built-in and custom)",
         )
         setup_parser.add_argument(
             "--mcp",
             action="store_true",
             default=None,
-            help="Install MCP server (default, accepted for backward compatibility)"
+            help="Install MCP server (default, accepted for backward compatibility)",
         )
         setup_parser.add_argument(
             "--no-mcp",
             action="store_true",
             default=None,
-            help="Skip MCP server installation (MCP is installed by default)"
+            help="Skip MCP server installation (MCP is installed by default)",
         )
         setup_parser.add_argument(
             "--rules",
             action="store_true",
             default=None,
-            help="Install AI guidelines/rules file instructing the agent to use ai-guardian MCP tools"
+            help="Install AI guidelines/rules file instructing the agent to use ai-guardian MCP tools",
         )
 
         # Violations subcommand
         violations_parser = subparsers.add_parser(
-            "violations",
-            help="View and manage violation log"
+            "violations", help="View and manage violation log"
         )
         violations_parser.add_argument(
-            "--type",
-            choices=list(ViolationType),
-            help="Filter by violation type"
+            "--type", choices=list(ViolationType), help="Filter by violation type"
         )
         violations_parser.add_argument(
             "--limit",
             type=int,
             default=10,
-            help="Number of violations to show (default: 10)"
+            help="Number of violations to show (default: 10)",
         )
         violations_parser.add_argument(
-            "--clear",
+            "--clear", action="store_true", help="Clear all violations from log"
+        )
+        violations_parser.add_argument(
+            "--export", metavar="FILE", help="Export violations to JSON file"
+        )
+        violations_parser.add_argument(
+            "--yes",
+            "-y",
             action="store_true",
-            help="Clear all violations from log"
-        )
-        violations_parser.add_argument(
-            "--export",
-            metavar="FILE",
-            help="Export violations to JSON file"
-        )
-        violations_parser.add_argument(
-            "--yes", "-y",
-            action="store_true",
-            help="Skip confirmation prompt (for non-interactive use)"
+            help="Skip confirmation prompt (for non-interactive use)",
         )
 
         # Metrics subcommand (Issue #469, #476)
         metrics_parser = subparsers.add_parser(
-            "metrics",
-            help="Show violation statistics, trends, and compliance audit"
+            "metrics", help="Show violation statistics, trends, and compliance audit"
         )
         metrics_parser.add_argument(
-            "--json",
-            action="store_true",
-            help="Output as JSON"
+            "--json", action="store_true", help="Output as JSON"
         )
         metrics_parser.add_argument(
-            "--csv",
-            action="store_true",
-            help="Export filtered violations as CSV"
+            "--csv", action="store_true", help="Export filtered violations as CSV"
         )
         metrics_parser.add_argument(
             "--html",
             action="store_true",
-            help="Output self-contained HTML audit report"
+            help="Output self-contained HTML audit report",
         )
         metrics_parser.add_argument(
             "--since",
             default="30d",
-            help="Time range start: Nd for days (e.g. 30d) or ISO date (e.g. 2026-05-01). Default: 30d"
+            help="Time range start: Nd for days (e.g. 30d) or ISO date (e.g. 2026-05-01). Default: 30d",
         )
         metrics_parser.add_argument(
-            "--until",
-            default=None,
-            help="Time range end: Nd or ISO date. Default: now"
+            "--until", default=None, help="Time range end: Nd or ISO date. Default: now"
         )
         metrics_parser.add_argument(
-            "--type",
-            choices=list(ViolationType),
-            help="Filter by violation type"
+            "--type", choices=list(ViolationType), help="Filter by violation type"
         )
         metrics_parser.add_argument(
             "--severity",
             choices=["warning", "high", "critical"],
-            help="Filter by severity level"
+            help="Filter by severity level",
         )
         metrics_parser.add_argument(
             "--latency",
             action="store_true",
-            help="Show hook latency statistics (avg, stddev, P95, min, max)"
+            help="Show hook latency statistics (avg, stddev, P95, min, max)",
         )
         metrics_parser.add_argument(
             "--reset",
             action="store_true",
-            help="Reset cumulative counters to current log file counts"
+            help="Reset cumulative counters to current log file counts",
         )
         metrics_parser.add_argument(
-            "--yes", "-y",
+            "--yes",
+            "-y",
             action="store_true",
             dest="metrics_yes",
-            help="Skip confirmation prompt for --reset"
+            help="Skip confirmation prompt for --reset",
         )
 
         # Console subcommand (primary)
         console_parser = subparsers.add_parser(
-            "console",
-            help="Launch interactive console for configuration management"
+            "console", help="Launch interactive console for configuration management"
         )
         console_parser.add_argument(
             "--panel",
-            help="Open a specific panel (e.g., 'panel-violations', 'panel-daemon')"
+            help="Open a specific panel (e.g., 'panel-violations', 'panel-daemon')",
         )
         console_parser.add_argument(
             "--web",
             action="store_true",
-            help="Launch web console in browser instead of TUI (requires Python >= 3.10)"
+            help="Launch web console in browser instead of TUI (requires Python >= 3.10)",
         )
         console_parser.add_argument(
             "--port",
             type=int,
             default=0,
-            help="Port for web console (default: auto-assign, only used with --web)"
+            help="Port for web console (default: auto-assign, only used with --web)",
         )
         console_parser.add_argument(
             "--no-open",
             action="store_true",
-            help="Don't open browser automatically (only used with --web)"
+            help="Don't open browser automatically (only used with --web)",
         )
 
         # TUI subcommand (alias for console, kept for backward compatibility)
         tui_parser = subparsers.add_parser(
-            "tui",
-            help="Launch interactive console (alias for ai-guardian console)"
+            "tui", help="Launch interactive console (alias for ai-guardian console)"
         )
         tui_parser.add_argument(
             "--panel",
-            help="Open a specific panel (e.g., 'panel-violations', 'panel-daemon')"
+            help="Open a specific panel (e.g., 'panel-violations', 'panel-daemon')",
         )
         tui_parser.add_argument(
             "--web",
             action="store_true",
-            help="Launch web console in browser instead of TUI (requires Python >= 3.10)"
+            help="Launch web console in browser instead of TUI (requires Python >= 3.10)",
         )
         tui_parser.add_argument(
             "--port",
             type=int,
             default=0,
-            help="Port for web console (default: auto-assign, only used with --web)"
+            help="Port for web console (default: auto-assign, only used with --web)",
         )
         tui_parser.add_argument(
             "--no-open",
             action="store_true",
-            help="Don't open browser automatically (only used with --web)"
+            help="Don't open browser automatically (only used with --web)",
         )
 
         # Scan subcommand
         scan_parser = subparsers.add_parser(
-            "scan",
-            help="Scan repository files for security issues"
+            "scan", help="Scan repository files for security issues"
         )
         scan_parser.add_argument(
             "path",
             nargs="?",
             default=None,
-            help="Path to scan (file or directory, default: current directory). Use '--' to read from stdin."
+            help="Path to scan (file or directory, default: current directory). Use '--' to read from stdin.",
         )
         scan_parser.add_argument(
             "--text",
             metavar="STRING",
-            help="Scan inline text string for security issues"
+            help="Scan inline text string for security issues",
         )
         scan_parser.add_argument(
-            "--config",
-            metavar="FILE",
-            help="Path to ai-guardian.json config file"
+            "--config", metavar="FILE", help="Path to ai-guardian.json config file"
         )
         scan_parser.add_argument(
             "--include",
             action="append",
             metavar="PATTERN",
-            help="File patterns to include (glob style, can be specified multiple times)"
+            help="File patterns to include (glob style, can be specified multiple times)",
         )
         scan_parser.add_argument(
             "--exclude",
             action="append",
             metavar="PATTERN",
-            help="File patterns to exclude (glob style, can be specified multiple times)"
+            help="File patterns to exclude (glob style, can be specified multiple times)",
         )
         scan_parser.add_argument(
             "--config-only",
             action="store_true",
-            help="Only scan AI config files (CLAUDE.md, AGENTS.md, etc.)"
+            help="Only scan AI config files (CLAUDE.md, AGENTS.md, etc.)",
         )
         scan_parser.add_argument(
             "--agent-configs",
             action="store_true",
-            help="Scan agent configuration files for supply chain threats (~/.claude/settings.json, ~/.cursor/hooks.json, etc.)"
+            help="Scan agent configuration files for supply chain threats (~/.claude/settings.json, ~/.cursor/hooks.json, etc.)",
         )
         scan_parser.add_argument(
             "--sarif-output",
             metavar="FILE",
-            help="Write SARIF format output to file (for CI/CD integration)"
+            help="Write SARIF format output to file (for CI/CD integration)",
         )
         scan_parser.add_argument(
-            "--json-output",
-            metavar="FILE",
-            help="Write JSON format output to file"
+            "--json-output", metavar="FILE", help="Write JSON format output to file"
         )
         scan_parser.add_argument(
             "--exit-code",
             action="store_true",
-            help="Exit with code 1 if security issues found (for CI/CD)"
+            help="Exit with code 1 if security issues found (for CI/CD)",
         )
         scan_parser.add_argument(
-            "--verbose",
-            "-v",
-            action="store_true",
-            help="Enable verbose output"
+            "--verbose", "-v", action="store_true", help="Enable verbose output"
         )
         scan_parser.add_argument(
             "--diff",
             action="store_true",
-            help="Scan only files changed between base branch and HEAD"
+            help="Scan only files changed between base branch and HEAD",
         )
         scan_parser.add_argument(
             "--base",
             metavar="REF",
-            help="Base ref for --diff (default: auto-detect default branch)"
+            help="Base ref for --diff (default: auto-detect default branch)",
         )
         scan_parser.add_argument(
             "--staged",
             action="store_true",
-            help="With --diff, scan only staged changes (git diff --cached)"
+            help="With --diff, scan only staged changes (git diff --cached)",
         )
         scan_parser.add_argument(
             "--pr",
             metavar="N_OR_URL",
-            help="Scan files changed in GitHub PR (number or URL, requires gh CLI)"
+            help="Scan files changed in GitHub PR (number or URL, requires gh CLI)",
         )
         scan_parser.add_argument(
             "--mr",
             metavar="N_OR_URL",
-            help="Scan files changed in GitLab MR (number or URL, requires glab CLI)"
+            help="Scan files changed in GitLab MR (number or URL, requires glab CLI)",
         )
         scan_parser.add_argument(
             "--stdin-diff",
             action="store_true",
-            help="Read unified diff from stdin and scan changed files"
+            help="Read unified diff from stdin and scan changed files",
         )
         scan_parser.add_argument(
             "--changed-lines-only",
             action="store_true",
-            help="Filter findings to only lines changed in the diff"
+            help="Filter findings to only lines changed in the diff",
         )
 
         # Show-config subcommand (NEW in v1.5.0)
         show_config_parser = subparsers.add_parser(
             "show-config",
-            help="Display effective configuration with source attribution"
+            help="Display effective configuration with source attribution",
         )
         show_config_parser.add_argument(
             "--feature",
             choices=["ssrf", "secrets", "unicode", "config-scanner", "all"],
             default="all",
-            help="Which feature to show (default: all)"
+            help="Which feature to show (default: all)",
         )
         show_config_parser.add_argument(
             "--show-sources",
             action="store_true",
-            help="Show source attribution (IMMUTABLE, SERVER, DEFAULT, LOCAL_CONFIG)"
+            help="Show source attribution (IMMUTABLE, SERVER, DEFAULT, LOCAL_CONFIG)",
         )
         show_config_parser.add_argument(
-            "--json",
-            action="store_true",
-            help="Output as JSON"
+            "--json", action="store_true", help="Output as JSON"
         )
         show_config_parser.add_argument(
             "--config",
             metavar="FILE",
-            help="Path to ai-guardian.json config file (default: auto-detect)"
+            help="Path to ai-guardian.json config file (default: auto-detect)",
         )
 
         # Config subcommand (NEW in v1.8.0, Issue #144)
         config_parser = subparsers.add_parser(
             "config",
-            help="Configuration management (show merged config, preview auto-rules)"
+            help="Configuration management (show merged config, preview auto-rules)",
         )
-        config_sub = config_parser.add_subparsers(dest="config_command", help="Config commands")
+        config_sub = config_parser.add_subparsers(
+            dest="config_command", help="Config commands"
+        )
 
         # config show
-        config_show_parser = config_sub.add_parser("show", help="Display merged configuration")
+        config_show_parser = config_sub.add_parser(
+            "show", help="Display merged configuration"
+        )
         config_show_parser.add_argument(
             "--all",
             action="store_true",
-            help="Include auto-generated rules marked [GENERATED]"
+            help="Include auto-generated rules marked [GENERATED]",
         )
         config_show_parser.add_argument(
             "--section",
             metavar="NAME",
-            help="Show specific section only (e.g., permissions, directory_rules)"
+            help="Show specific section only (e.g., permissions, directory_rules)",
         )
         config_show_parser.add_argument(
             "--preview-auto-rules",
             action="store_true",
-            help="Preview what auto-generation would create (without enabling)"
+            help="Preview what auto-generation would create (without enabling)",
         )
         config_show_parser.add_argument(
-            "--json",
-            action="store_true",
-            help="Output configuration as JSON"
+            "--json", action="store_true", help="Output configuration as JSON"
         )
 
         # Scanner subcommand (NEW in v1.6.0)
         scanner_parser = subparsers.add_parser(
-            "scanner",
-            help="Manage scanner engines (install, list, info)"
+            "scanner", help="Manage scanner engines (install, list, info)"
         )
-        scanner_sub = scanner_parser.add_subparsers(dest="scanner_command", help="Scanner commands")
+        scanner_sub = scanner_parser.add_subparsers(
+            dest="scanner_command", help="Scanner commands"
+        )
 
         # scanner list
-        scanner_list_parser = scanner_sub.add_parser("list", help="List installed scanners")
-        scanner_list_parser.add_argument(
-            "--verbose",
-            "-v",
-            action="store_true",
-            help="Show installation paths"
+        scanner_list_parser = scanner_sub.add_parser(
+            "list", help="List installed scanners"
         )
         scanner_list_parser.add_argument(
-            "--json",
-            action="store_true",
-            help="Output as JSON"
+            "--verbose", "-v", action="store_true", help="Show installation paths"
+        )
+        scanner_list_parser.add_argument(
+            "--json", action="store_true", help="Output as JSON"
         )
 
         # scanner install
-        scanner_install_parser = scanner_sub.add_parser("install", help="Install a scanner")
-        scanner_install_parser.add_argument(
-            "name",
-            choices=["gitleaks", "betterleaks", "leaktk", "trufflehog", "detect-secrets"],
-            help="Scanner to install"
+        scanner_install_parser = scanner_sub.add_parser(
+            "install", help="Install a scanner"
         )
         scanner_install_parser.add_argument(
-            "--version",
-            help="Install specific version (e.g., 8.30.1)"
+            "name",
+            choices=[
+                "gitleaks",
+                "betterleaks",
+                "leaktk",
+                "trufflehog",
+                "detect-secrets",
+            ],
+            help="Scanner to install",
+        )
+        scanner_install_parser.add_argument(
+            "--version", help="Install specific version (e.g., 8.30.1)"
         )
         scanner_install_parser.add_argument(
             "--use-pinned",
             action="store_true",
-            help="Use version from pyproject.toml (tested with this ai-guardian release)"
+            help="Use version from pyproject.toml (tested with this ai-guardian release)",
         )
         scanner_install_parser.add_argument(
             "--path",
             type=Path,
-            help="Custom installation directory (default: /usr/local/bin, fallback: ~/.local/bin)"
+            help="Custom installation directory (default: /usr/local/bin, fallback: ~/.local/bin)",
         )
 
         # scanner info
-        scanner_info_parser = scanner_sub.add_parser("info", help="Show scanner details")
-        scanner_info_parser.add_argument(
-            "name",
-            choices=["gitleaks", "betterleaks", "leaktk", "trufflehog", "detect-secrets"],
-            help="Scanner to show info for"
+        scanner_info_parser = scanner_sub.add_parser(
+            "info", help="Show scanner details"
         )
         scanner_info_parser.add_argument(
-            "--json",
-            action="store_true",
-            help="Output as JSON"
+            "name",
+            choices=[
+                "gitleaks",
+                "betterleaks",
+                "leaktk",
+                "trufflehog",
+                "detect-secrets",
+            ],
+            help="Scanner to show info for",
+        )
+        scanner_info_parser.add_argument(
+            "--json", action="store_true", help="Output as JSON"
         )
 
         # scanner supported
         scanner_supported_parser = scanner_sub.add_parser(
-            "supported",
-            help="List all supported scanners with versions and repos"
+            "supported", help="List all supported scanners with versions and repos"
         )
         scanner_supported_parser.add_argument(
-            "--json",
-            action="store_true",
-            help="Output as JSON"
+            "--json", action="store_true", help="Output as JSON"
         )
 
         # ML model management subcommand (#185)
         ml_parser = subparsers.add_parser(
-            "ml",
-            help="Manage ML models for prompt injection detection"
+            "ml", help="Manage ML models for prompt injection detection"
         )
-        ml_sub = ml_parser.add_subparsers(
-            dest="ml_command",
-            help="ML model commands"
-        )
+        ml_sub = ml_parser.add_subparsers(dest="ml_command", help="ML model commands")
 
         ml_download_parser = ml_sub.add_parser(
-            "download",
-            help="Download ML model from HuggingFace"
+            "download", help="Download ML model from HuggingFace"
         )
         ml_download_parser.add_argument(
             "model",
             nargs="?",
             default="protectai/deberta-v3-base-prompt-injection-v2",
-            help="Model name from registry (default: protectai/deberta-v3-base-prompt-injection-v2)"
+            help="Model name from registry (default: protectai/deberta-v3-base-prompt-injection-v2)",
         )
         ml_download_parser.add_argument(
             "--force",
             action="store_true",
-            help="Re-download even if model already exists"
+            help="Re-download even if model already exists",
         )
 
         ml_sub.add_parser("list", help="List available and downloaded models")
         ml_sub.add_parser("status", help="Show ML detection status")
 
-        ml_verify_parser = ml_sub.add_parser(
-            "verify",
-            help="Verify ML model integrity"
-        )
+        ml_verify_parser = ml_sub.add_parser("verify", help="Verify ML model integrity")
         ml_verify_parser.add_argument(
             "model",
             nargs="?",
             default="protectai/deberta-v3-base-prompt-injection-v2",
-            help="Model name to verify"
+            help="Model name to verify",
         )
 
         # Pattern-servers subcommand
         pattern_servers_parser = subparsers.add_parser(
-            "pattern-servers",
-            help="Pattern server management"
+            "pattern-servers", help="Pattern server management"
         )
         pattern_servers_sub = pattern_servers_parser.add_subparsers(
-            dest="pattern_servers_command",
-            help="Pattern server commands"
+            dest="pattern_servers_command", help="Pattern server commands"
         )
 
         # pattern-servers supported
         ps_supported_parser = pattern_servers_sub.add_parser(
-            "supported",
-            help="List all supported pattern servers"
+            "supported", help="List all supported pattern servers"
         )
         ps_supported_parser.add_argument(
-            "--json",
-            action="store_true",
-            help="Output as JSON"
+            "--json", action="store_true", help="Output as JSON"
         )
 
         # Patterns subcommand (NEW in v1.9.0, Issue #337)
         patterns_parser = subparsers.add_parser(
-            "patterns",
-            help="List detection patterns across the system"
+            "patterns", help="List detection patterns across the system"
         )
         patterns_sub = patterns_parser.add_subparsers(
-            dest="patterns_command",
-            help="Pattern commands"
+            dest="patterns_command", help="Pattern commands"
         )
 
         # patterns list
         patterns_list_parser = patterns_sub.add_parser(
-            "list",
-            help="List all detection pattern categories"
+            "list", help="List all detection pattern categories"
         )
         patterns_list_parser.add_argument(
-            "--verbose", "-v",
+            "--verbose",
+            "-v",
             action="store_true",
-            help="Show individual pattern breakdowns"
+            help="Show individual pattern breakdowns",
         )
         patterns_list_parser.add_argument(
             "--category",
             metavar="NAME",
-            help="Filter by category name (e.g., prompt_injection, scan_pii, ssrf)"
+            help="Filter by category name (e.g., prompt_injection, scan_pii, ssrf)",
         )
         patterns_list_parser.add_argument(
-            "--json",
-            action="store_true",
-            help="Output as JSON"
+            "--json", action="store_true", help="Output as JSON"
         )
 
         # Sanitize subcommand (Issue #443)
         sanitize_parser = subparsers.add_parser(
-            "sanitize",
-            help="Redact secrets, PII, and threats from text"
+            "sanitize", help="Redact secrets, PII, and threats from text"
         )
         sanitize_parser.add_argument(
-            "input",
-            nargs="?",
-            help="File to sanitize (reads stdin if omitted)"
+            "input", nargs="?", help="File to sanitize (reads stdin if omitted)"
         )
         sanitize_parser.add_argument(
-            "-o", "--output",
-            help="Write output to file instead of stdout (required for image files)"
+            "-o",
+            "--output",
+            help="Write output to file instead of stdout (required for image files)",
         )
         sanitize_parser.add_argument(
-            "--no-secrets",
-            action="store_true",
-            help="Skip secret redaction"
+            "--no-secrets", action="store_true", help="Skip secret redaction"
         )
         sanitize_parser.add_argument(
-            "--no-pii",
-            action="store_true",
-            help="Skip PII redaction"
+            "--no-pii", action="store_true", help="Skip PII redaction"
         )
         sanitize_parser.add_argument(
             "--no-threats",
             action="store_true",
-            help="Skip prompt injection and unicode attack neutralization"
+            help="Skip prompt injection and unicode attack neutralization",
         )
         sanitize_parser.add_argument(
-            "--summary",
-            action="store_true",
-            help="Print redaction summary to stderr"
+            "--summary", action="store_true", help="Print redaction summary to stderr"
         )
         sanitize_parser.add_argument(
             "--exit-code",
             action="store_true",
-            help="Exit with code 1 if redactions were made (for CI/CD)"
+            help="Exit with code 1 if redactions were made (for CI/CD)",
         )
         sanitize_parser.add_argument(
             "--output-dir",
-            help="Output directory for sanitized files (required when input is a directory)"
+            help="Output directory for sanitized files (required when input is a directory)",
         )
         sanitize_parser.add_argument(
             "--include",
             action="append",
             default=None,
-            help="Glob pattern for files to include (repeatable; e.g., --include '*.py')"
+            help="Glob pattern for files to include (repeatable; e.g., --include '*.py')",
         )
         sanitize_parser.add_argument(
             "--exclude",
             action="append",
             default=None,
-            help="Glob pattern for files to exclude (repeatable; e.g., --exclude '*.log')"
+            help="Glob pattern for files to exclude (repeatable; e.g., --exclude '*.log')",
         )
         sanitize_parser.add_argument(
             "--no-images",
             action="store_true",
-            help="Skip image OCR processing (copy images as-is)"
+            help="Skip image OCR processing (copy images as-is)",
         )
         sanitize_parser.add_argument(
             "--redact-strategy",
             choices=["blur", "blackout", "pixelate"],
             default="blackout",
-            help="Image redaction method (default: blackout)"
+            help="Image redaction method (default: blackout)",
         )
         sanitize_parser.add_argument(
             "--force",
             action="store_true",
-            help="Allow writing to an existing output directory"
+            help="Allow writing to an existing output directory",
         )
 
         # Doctor subcommand (Issue #475)
         doctor_parser = subparsers.add_parser(
-            "doctor",
-            help="Check ai-guardian installation health"
+            "doctor", help="Check ai-guardian installation health"
         )
         doctor_parser.add_argument(
-            "--json",
-            action="store_true",
-            help="Output results as JSON"
+            "--json", action="store_true", help="Output results as JSON"
         )
         doctor_parser.add_argument(
             "--fix",
             action="store_true",
-            help="Auto-fix issues that can be safely fixed"
+            help="Auto-fix issues that can be safely fixed",
         )
         doctor_parser.add_argument(
             "--quiet",
             action="store_true",
-            help="Exit codes only (0=ok, 1=warnings, 2=errors)"
+            help="Exit codes only (0=ok, 1=warnings, 2=errors)",
         )
         doctor_parser.add_argument(
             "--check-connectivity",
             action="store_true",
-            help="Include network connectivity checks (pattern server)"
+            help="Include network connectivity checks (pattern server)",
         )
 
         # Daemon subcommand
         daemon_parser = subparsers.add_parser(
-            "daemon",
-            help="Manage the background daemon service"
+            "daemon", help="Manage the background daemon service"
         )
         daemon_sub = daemon_parser.add_subparsers(
             dest="daemon_command", help="Daemon commands"
         )
-        daemon_start_parser = daemon_sub.add_parser(
-            "start", help="Start daemon"
-        )
+        daemon_start_parser = daemon_sub.add_parser("start", help="Start daemon")
         daemon_start_parser.add_argument(
-            "--background", "-b",
+            "--background",
+            "-b",
             action="store_true",
-            help="Start daemon in background (detached)"
+            help="Start daemon in background (detached)",
         )
         daemon_start_parser.add_argument(
             "--idle-timeout",
             type=int,
             default=None,
-            help="Idle timeout in minutes (0 = disabled, default: 0)"
+            help="Idle timeout in minutes (0 = disabled, default: 0)",
         )
         daemon_start_parser.add_argument(
             "--no-tray",
             action="store_true",
-            help="Deprecated: daemon is always headless. Use 'ai-guardian tray' for system tray."
+            help="Deprecated: daemon is always headless. Use 'ai-guardian tray' for system tray.",
         )
         daemon_sub.add_parser("stop", help="Stop running daemon")
         daemon_sub.add_parser("status", help="Show daemon status")
         daemon_sub.add_parser("restart", help="Restart daemon")
         daemon_sub.add_parser("reload", help="Force config reload without restart")
-        daemon_sub.add_parser("reset", help="Kill daemon and clean up state files for recovery")
+        daemon_sub.add_parser(
+            "reset", help="Kill daemon and clean up state files for recovery"
+        )
 
         # Per-directory pause/resume (#958)
         daemon_pause_parser = daemon_sub.add_parser(
@@ -889,13 +876,13 @@ def main():
             "--dir",
             type=str,
             default=None,
-            help="Project directory to pause (default: global pause)"
+            help="Project directory to pause (default: global pause)",
         )
         daemon_pause_parser.add_argument(
             "--minutes",
             type=int,
             default=0,
-            help="Pause duration in minutes (default: indefinite)"
+            help="Pause duration in minutes (default: indefinite)",
         )
         daemon_resume_parser = daemon_sub.add_parser(
             "resume", help="Resume scanning (global or per-directory)"
@@ -904,154 +891,168 @@ def main():
             "--dir",
             type=str,
             default=None,
-            help="Project directory to resume (default: global resume)"
+            help="Project directory to resume (default: global resume)",
         )
 
         # Standalone tray subcommand (Issue #527)
         tray_parser = subparsers.add_parser(
-            "tray",
-            help="Manage standalone multi-daemon tray client"
+            "tray", help="Manage standalone multi-daemon tray client"
         )
-        tray_sub = tray_parser.add_subparsers(
-            dest="tray_command", help="Tray commands"
-        )
+        tray_sub = tray_parser.add_subparsers(dest="tray_command", help="Tray commands")
         tray_start_parser = tray_sub.add_parser(
             "start", help="Start standalone tray (default)"
         )
         tray_start_parser.add_argument(
-            "--background", "-b",
+            "--background",
+            "-b",
             action="store_true",
-            help="Start tray in background (detached)"
+            help="Start tray in background (detached)",
         )
         tray_start_parser.add_argument(
             "--no-discover",
             action="store_true",
-            help="Disable auto-discovery (manual targets only)"
+            help="Disable auto-discovery (manual targets only)",
         )
         tray_sub.add_parser("stop", help="Stop running standalone tray")
         tray_sub.add_parser("restart", help="Restart standalone tray")
         tray_parser.add_argument(
-            "--install",
-            action="store_true",
-            help="Create desktop shortcut for tray"
+            "--install", action="store_true", help="Create desktop shortcut for tray"
         )
         tray_parser.add_argument(
             "--autostart",
             action="store_true",
-            help="Enable launch on login (use with --install)"
+            help="Enable launch on login (use with --install)",
         )
         tray_parser.add_argument(
             "--uninstall",
             action="store_true",
-            help="Remove desktop shortcut and autostart"
+            help="Remove desktop shortcut and autostart",
         )
 
         # Unified prompt subcommand (Issue #1143, replaces tray-prompt and ask-prompt)
         prompt_parser = subparsers.add_parser(
             "prompt",
-            help="Show interactive prompt dialog (parameter form or violation ask)"
+            help="Show interactive prompt dialog (parameter form or violation ask)",
         )
         prompt_parser.add_argument(
             "--mode",
             required=True,
             choices=["params", "ask"],
-            help="Dialog mode: 'params' for tray plugin parameter form, 'ask' for violation decision"
+            help="Dialog mode: 'params' for tray plugin parameter form, 'ask' for violation decision",
         )
         prompt_parser.add_argument(
             "--output-file",
             default=None,
-            help="Write result to this file instead of stdout"
+            help="Write result to this file instead of stdout",
         )
         # params mode arguments
         prompt_parser.add_argument(
             "--params",
             default=None,
-            help="JSON array of parameter definitions (mode=params)"
+            help="JSON array of parameter definitions (mode=params)",
         )
         prompt_parser.add_argument(
             "--template",
             default=None,
-            help="Command template with {param} placeholders (mode=params)"
+            help="Command template with {param} placeholders (mode=params)",
         )
         prompt_parser.add_argument(
             "--type",
             default="terminal",
             choices=["terminal", "background", "notification", "clipboard", "modal"],
-            help="Command execution type (mode=params)"
+            help="Command execution type (mode=params)",
         )
         prompt_parser.add_argument(
             "--extra-vars",
             default=None,
-            help="JSON dict of extra variables for resolving param defaults (mode=params)"
+            help="JSON dict of extra variables for resolving param defaults (mode=params)",
         )
         prompt_parser.add_argument(
             "--title",
             default=None,
-            help="Window title for the parameter form (mode=params)"
+            help="Window title for the parameter form (mode=params)",
         )
         # ask mode arguments
         prompt_parser.add_argument(
             "--violation",
             default=None,
-            help="JSON object with violation details (mode=ask)"
+            help="JSON object with violation details (mode=ask)",
         )
         prompt_parser.add_argument(
             "--fallback",
             default="block",
-            help="Fallback action when no dialog available (mode=ask, block/warn/log-only)"
+            help="Fallback action when no dialog available (mode=ask, block/warn/log-only)",
         )
         prompt_parser.add_argument(
             "--timeout",
             default="300",
-            help="Auto-dismiss timeout in seconds (mode=ask)"
+            help="Auto-dismiss timeout in seconds (mode=ask)",
         )
 
         # Tray target selector subcommand (Issue #760)
         tray_target_parser = subparsers.add_parser(
             "tray-target-select",
-            help="Show multi-select target picker for tray plugin commands"
+            help="Show multi-select target picker for tray plugin commands",
         )
         tray_target_parser.add_argument(
             "--targets",
             required=True,
-            help="JSON array of target dicts (name, runtime, container_name, etc.)"
+            help="JSON array of target dicts (name, runtime, container_name, etc.)",
         )
         tray_target_parser.add_argument(
             "--output-file",
             default=None,
-            help="Write selected target indices (JSON array) to this file"
+            help="Write selected target indices (JSON array) to this file",
         )
 
         # MCP server subcommand (Issue #477)
         subparsers.add_parser(
-            "mcp-server",
-            help="Start MCP security advisor server (stdio transport)"
+            "mcp-server", help="Start MCP security advisor server (stdio transport)"
         )
 
         # MCP security scanning subcommand (Issue #468)
         mcp_parser = subparsers.add_parser(
             "mcp",
-            help="MCP server security: audit configs, scan source code, list servers"
+            help="MCP server security: audit configs, scan source code, list servers",
         )
         mcp_sub = mcp_parser.add_subparsers(dest="mcp_command", help="MCP commands")
 
-        mcp_list_parser = mcp_sub.add_parser("list", help="List MCP servers with trust status")
-        mcp_list_parser.add_argument("--verbose", "-v", action="store_true", help="Show env vars and args")
-        mcp_list_parser.add_argument("--json", action="store_true", help="Output as JSON")
+        mcp_list_parser = mcp_sub.add_parser(
+            "list", help="List MCP servers with trust status"
+        )
+        mcp_list_parser.add_argument(
+            "--verbose", "-v", action="store_true", help="Show env vars and args"
+        )
+        mcp_list_parser.add_argument(
+            "--json", action="store_true", help="Output as JSON"
+        )
 
-        mcp_audit_parser = mcp_sub.add_parser("audit", help="Audit MCP server configurations (fast)")
-        mcp_audit_parser.add_argument("--json", action="store_true", help="Output as JSON")
-        mcp_audit_parser.add_argument("--exit-code", action="store_true", help="Exit 1 if findings found")
+        mcp_audit_parser = mcp_sub.add_parser(
+            "audit", help="Audit MCP server configurations (fast)"
+        )
+        mcp_audit_parser.add_argument(
+            "--json", action="store_true", help="Output as JSON"
+        )
+        mcp_audit_parser.add_argument(
+            "--exit-code", action="store_true", help="Exit 1 if findings found"
+        )
 
-        mcp_scan_parser = mcp_sub.add_parser("scan", help="Deep scan MCP server source code")
-        mcp_scan_parser.add_argument("server", nargs="?", help="Server name to scan (default: all)")
-        mcp_scan_parser.add_argument("--json", action="store_true", help="Output as JSON")
-        mcp_scan_parser.add_argument("--exit-code", action="store_true", help="Exit 1 if findings found")
+        mcp_scan_parser = mcp_sub.add_parser(
+            "scan", help="Deep scan MCP server source code"
+        )
+        mcp_scan_parser.add_argument(
+            "server", nargs="?", help="Server name to scan (default: all)"
+        )
+        mcp_scan_parser.add_argument(
+            "--json", action="store_true", help="Output as JSON"
+        )
+        mcp_scan_parser.add_argument(
+            "--exit-code", action="store_true", help="Exit 1 if findings found"
+        )
 
         # Support bundle subcommand (Issue #511)
         support_parser = subparsers.add_parser(
-            "support",
-            help="Manage support bundles for troubleshooting"
+            "support", help="Manage support bundles for troubleshooting"
         )
         support_sub = support_parser.add_subparsers(
             dest="support_command", help="Support commands"
@@ -1059,127 +1060,117 @@ def main():
 
         # support prepare
         support_prepare_parser = support_sub.add_parser(
-            "prepare",
-            help="Prepare a sanitized support bundle for review"
+            "prepare", help="Prepare a sanitized support bundle for review"
         )
         support_prepare_parser.add_argument(
-            "--output", "-o",
+            "--output",
+            "-o",
             metavar="PATH",
-            help="Save bundle to this directory instead of a temp directory"
+            help="Save bundle to this directory instead of a temp directory",
         )
         support_prepare_parser.add_argument(
             "--no-log",
             action="store_true",
-            help="Exclude the ai-guardian.log file from the bundle"
+            help="Exclude the ai-guardian.log file from the bundle",
         )
         support_prepare_parser.add_argument(
             "--no-violations",
             action="store_true",
-            help="Exclude the violations.json file from the bundle"
+            help="Exclude the violations.json file from the bundle",
         )
         support_prepare_parser.add_argument(
-            "--json",
-            action="store_true",
-            help="Output bundle info as JSON"
+            "--json", action="store_true", help="Output bundle info as JSON"
         )
 
         # support send
         support_send_parser = support_sub.add_parser(
-            "send",
-            help="Send a prepared support bundle to the configured destination"
+            "send", help="Send a prepared support bundle to the configured destination"
         )
         support_send_parser.add_argument(
             "--prepare",
             action="store_true",
-            help="Prepare and send in one step (with confirmation unless --yes)"
+            help="Prepare and send in one step (with confirmation unless --yes)",
         )
         support_send_parser.add_argument(
-            "--yes", "-y",
-            action="store_true",
-            help="Skip confirmation prompt"
+            "--yes", "-y", action="store_true", help="Skip confirmation prompt"
         )
         support_send_parser.add_argument(
             "--bundle",
             metavar="PATH",
-            help="Path to a previously prepared bundle directory"
+            help="Path to a previously prepared bundle directory",
         )
         support_send_parser.add_argument(
-            "--json",
-            action="store_true",
-            help="Output result as JSON"
+            "--json", action="store_true", help="Output result as JSON"
         )
 
         # support status
         support_status_parser = support_sub.add_parser(
-            "status",
-            help="Show support bundle configuration and pending bundles"
+            "status", help="Show support bundle configuration and pending bundles"
         )
         support_status_parser.add_argument(
-            "--json",
-            action="store_true",
-            help="Output as JSON"
+            "--json", action="store_true", help="Output as JSON"
         )
 
         # Engine test subcommand (Issue #542)
         engine_test_parser = subparsers.add_parser(
-            "engine-test",
-            help="Test strings against scanner engines"
+            "engine-test", help="Test strings against scanner engines"
         )
         engine_test_parser.add_argument(
             "--engine",
             choices=[
-                "gitleaks", "betterleaks", "leaktk", "trufflehog",
-                "detect-secrets", "secretlint", "gitguardian",
+                "gitleaks",
+                "betterleaks",
+                "leaktk",
+                "trufflehog",
+                "detect-secrets",
+                "secretlint",
+                "gitguardian",
             ],
-            help="Test against a specific engine"
+            help="Test against a specific engine",
         )
         engine_test_parser.add_argument(
             "--all",
             action="store_true",
             dest="all_engines",
-            help="Test against all installed engines"
+            help="Test against all installed engines",
         )
         engine_test_parser.add_argument(
             "--compare",
             action="store_true",
-            help="Show comparison table across all engines"
+            help="Show comparison table across all engines",
         )
         engine_test_parser.add_argument(
             "--pattern-server",
             action="store_true",
-            help="Use pattern server configuration (if configured)"
+            help="Use pattern server configuration (if configured)",
         )
         engine_test_parser.add_argument(
-            "--json",
-            action="store_true",
-            help="Output results as JSON"
+            "--json", action="store_true", help="Output results as JSON"
         )
 
         # init-project subcommand (Issue #608)
         init_project_parser = subparsers.add_parser(
             "init-project",
-            help="Auto-detect project languages and generate prompt injection allowlist"
+            help="Auto-detect project languages and generate prompt injection allowlist",
         )
         init_project_parser.add_argument(
             "--dry-run",
             action="store_true",
-            help="Show what would be generated without writing files"
+            help="Show what would be generated without writing files",
         )
         init_project_parser.add_argument(
             "--force",
             action="store_true",
-            help="Overwrite existing .ai-guardian/ai-guardian.json (creates backup)"
+            help="Overwrite existing .ai-guardian/ai-guardian.json (creates backup)",
         )
         init_project_parser.add_argument(
-            "--json",
-            action="store_true",
-            help="Output results as JSON"
+            "--json", action="store_true", help="Output results as JSON"
         )
         init_project_parser.add_argument(
             "--dir",
             metavar="PATH",
             default=".",
-            help="Project directory to scan (default: current directory)"
+            help="Project directory to scan (default: current directory)",
         )
 
         args = parser.parse_args()
@@ -1192,6 +1183,7 @@ def main():
         # Handle setup command
         if args.command == "setup":
             from ai_guardian.setup import setup_hooks
+
             install_scanner = args.install_scanner
             if install_scanner is not None and len(install_scanner) == 0:
                 install_scanner = ["gitleaks"]
@@ -1231,6 +1223,7 @@ def main():
         if args.command == "metrics":
             try:
                 from ai_guardian.metrics import metrics_command
+
                 return metrics_command(args)
             except ImportError as e:
                 print(f"Error: Metrics module not available: {e}", file=sys.stderr)
@@ -1238,6 +1231,7 @@ def main():
             except Exception as e:
                 print(f"Error running metrics: {e}", file=sys.stderr)
                 import traceback
+
                 traceback.print_exc()
                 return 1
 
@@ -1246,15 +1240,22 @@ def main():
             if getattr(args, "web", False):
                 try:
                     from ai_guardian.web import WebConsole, HAS_NICEGUI
+
                     if not HAS_NICEGUI:
-                        print("Error: Web console requires NiceGUI (Python >= 3.10).", file=sys.stderr)
+                        print(
+                            "Error: Web console requires NiceGUI (Python >= 3.10).",
+                            file=sys.stderr,
+                        )
                         return 1
                     console = WebConsole()
                     show = not getattr(args, "no_open", False)
                     console.run(port=getattr(args, "port", 0), show=show)
                     return 0
                 except ImportError as e:
-                    print(f"Error: Web console dependencies not available: {e}", file=sys.stderr)
+                    print(
+                        f"Error: Web console dependencies not available: {e}",
+                        file=sys.stderr,
+                    )
                     print("Requires Python >= 3.10 with NiceGUI.", file=sys.stderr)
                     return 1
                 except Exception as e:
@@ -1262,11 +1263,17 @@ def main():
                     return 1
 
             if not sys.stdin.isatty():
-                print("Error: Console requires an interactive terminal.", file=sys.stderr)
-                print("Run 'ai-guardian console' directly in your terminal.", file=sys.stderr)
+                print(
+                    "Error: Console requires an interactive terminal.", file=sys.stderr
+                )
+                print(
+                    "Run 'ai-guardian console' directly in your terminal.",
+                    file=sys.stderr,
+                )
                 return 1
             try:
                 from ai_guardian.tui import AIGuardianTUI
+
                 app = AIGuardianTUI()
                 initial_panel = getattr(args, "panel", None)
                 if initial_panel:
@@ -1285,6 +1292,7 @@ def main():
         if args.command == "scan":
             try:
                 from ai_guardian.scanner import scan_command
+
                 return scan_command(args)
             except ImportError as e:
                 print(f"Error: Scanner module not available: {e}", file=sys.stderr)
@@ -1292,6 +1300,7 @@ def main():
             except Exception as e:
                 print(f"Error running scan: {e}", file=sys.stderr)
                 import traceback
+
                 traceback.print_exc()
                 return 1
 
@@ -1306,7 +1315,10 @@ def main():
                     if config_path.exists():
                         config = json.loads(config_path.read_text())
                     else:
-                        print(f"Error: Config file not found: {config_path}", file=sys.stderr)
+                        print(
+                            f"Error: Config file not found: {config_path}",
+                            file=sys.stderr,
+                        )
                         return 1
                 else:
                     config, config_error = _load_config_file()
@@ -1323,23 +1335,39 @@ def main():
                 else:
                     # Display specific feature or all
                     if args.feature == "ssrf":
-                        print(inspector.show_ssrf_config(show_sources=args.show_sources))
+                        print(
+                            inspector.show_ssrf_config(show_sources=args.show_sources)
+                        )
                     elif args.feature == "secrets":
-                        print(inspector.show_secret_config(show_sources=args.show_sources))
+                        print(
+                            inspector.show_secret_config(show_sources=args.show_sources)
+                        )
                     elif args.feature == "unicode":
-                        print(inspector.show_unicode_config(show_sources=args.show_sources))
+                        print(
+                            inspector.show_unicode_config(
+                                show_sources=args.show_sources
+                            )
+                        )
                     elif args.feature == "config-scanner":
-                        print(inspector.show_config_scanner_config(show_sources=args.show_sources))
+                        print(
+                            inspector.show_config_scanner_config(
+                                show_sources=args.show_sources
+                            )
+                        )
                     else:  # all
                         print(inspector.show_all(show_sources=args.show_sources))
 
                 return 0
             except ImportError as e:
-                print(f"Error: Config inspector module not available: {e}", file=sys.stderr)
+                print(
+                    f"Error: Config inspector module not available: {e}",
+                    file=sys.stderr,
+                )
                 return 1
             except Exception as e:
                 print(f"Error displaying configuration: {e}", file=sys.stderr)
                 import traceback
+
                 traceback.print_exc()
                 return 1
 
@@ -1358,20 +1386,26 @@ def main():
                         show_all=args.all,
                         section=args.section,
                         preview_auto_rules=args.preview_auto_rules,
-                        output_json=args.json
+                        output_json=args.json,
                     )
                     print(output)
                     return 0
                 else:
-                    print(f"Unknown config command: {args.config_command}", file=sys.stderr)
+                    print(
+                        f"Unknown config command: {args.config_command}",
+                        file=sys.stderr,
+                    )
                     return 1
 
             except ImportError as e:
-                print(f"Error: Config display module not available: {e}", file=sys.stderr)
+                print(
+                    f"Error: Config display module not available: {e}", file=sys.stderr
+                )
                 return 1
             except Exception as e:
                 print(f"Error displaying configuration: {e}", file=sys.stderr)
                 import traceback
+
                 traceback.print_exc()
                 return 1
 
@@ -1391,14 +1425,14 @@ def main():
 
                 elif args.scanner_command == "install":
                     # Create installer with custom path if provided
-                    install_dir = args.path if hasattr(args, 'path') and args.path else None
+                    install_dir = (
+                        args.path if hasattr(args, "path") and args.path else None
+                    )
                     installer = ScannerInstaller(install_dir=install_dir)
 
                     print(f"Installing {args.name}...")
                     success = installer.install(
-                        args.name,
-                        version=args.version,
-                        use_pinned=args.use_pinned
+                        args.name, version=args.version, use_pinned=args.use_pinned
                     )
 
                     if success:
@@ -1407,17 +1441,21 @@ def main():
                             print(f"\n✓ {args.name} is ready to use")
 
                             # Show suggestion to update config
-                            print(f"\nRecommended: Update your configuration to use {args.name}")
-                            print(f"\nAdd to ~/.config/ai-guardian/ai-guardian.json:")
-                            print('{')
+                            print(
+                                f"\nRecommended: Update your configuration to use {args.name}"
+                            )
+                            print("\nAdd to ~/.config/ai-guardian/ai-guardian.json:")
+                            print("{")
                             print('  "secret_scanning": {')
                             print('    "enabled": true,')
                             print(f'    "engines": ["{args.name}"]')
-                            print('  }')
-                            print('}')
+                            print("  }")
+                            print("}")
                         else:
-                            print(f"\n⚠ Installation completed but {args.name} verification failed")
-                            print(f"Make sure ~/.local/bin is in your PATH")
+                            print(
+                                f"\n⚠ Installation completed but {args.name} verification failed"
+                            )
+                            print("Make sure ~/.local/bin is in your PATH")
                             return 1
                         return 0
                     else:
@@ -1448,6 +1486,7 @@ def main():
             except Exception as e:
                 print(f"Error managing scanner: {e}", file=sys.stderr)
                 import traceback
+
                 traceback.print_exc()
                 return 1
 
@@ -1479,6 +1518,7 @@ def main():
             except Exception as e:
                 print(f"Error managing pattern servers: {e}", file=sys.stderr)
                 import traceback
+
                 traceback.print_exc()
                 return 1
 
@@ -1495,13 +1535,10 @@ def main():
                     config, _ = _load_config_file()
                     lister = PatternLister(config=config)
                     if args.json:
-                        print(lister.get_pattern_list_json(
-                            category=args.category
-                        ))
+                        print(lister.get_pattern_list_json(category=args.category))
                     else:
                         lister.print_pattern_list(
-                            verbose=args.verbose,
-                            category=args.category
+                            verbose=args.verbose, category=args.category
                         )
                     return 0
 
@@ -1512,6 +1549,7 @@ def main():
             except Exception as e:
                 print(f"Error listing patterns: {e}", file=sys.stderr)
                 import traceback
+
                 traceback.print_exc()
                 return 1
 
@@ -1519,6 +1557,7 @@ def main():
         if args.command == "sanitize":
             try:
                 from ai_guardian.sanitizer import sanitize_command
+
                 return sanitize_command(args)
             except ImportError as e:
                 print(f"Error: Sanitizer module not available: {e}", file=sys.stderr)
@@ -1526,6 +1565,7 @@ def main():
             except Exception as e:
                 print(f"Error running sanitize: {e}", file=sys.stderr)
                 import traceback
+
                 traceback.print_exc()
                 return 1
 
@@ -1533,6 +1573,7 @@ def main():
         if args.command == "doctor":
             try:
                 from ai_guardian.doctor import doctor_command
+
                 return doctor_command(args)
             except ImportError as e:
                 print(f"Error: Doctor module not available: {e}", file=sys.stderr)
@@ -1540,6 +1581,7 @@ def main():
             except Exception as e:
                 print(f"Error running doctor: {e}", file=sys.stderr)
                 import traceback
+
                 traceback.print_exc()
                 return 1
 
@@ -1562,6 +1604,7 @@ def main():
         if args.command == "mcp-server":
             try:
                 from ai_guardian.mcp_server import run_mcp_server
+
                 return run_mcp_server()
             except ImportError as e:
                 print(
@@ -1606,7 +1649,10 @@ def main():
                         targets = [s for s in servers if s.name == args.server]
                         if not targets:
                             print(f"Server not found: {args.server}", file=sys.stderr)
-                            print(f"Available servers: {', '.join(s.name for s in servers)}", file=sys.stderr)
+                            print(
+                                f"Available servers: {', '.join(s.name for s in servers)}",
+                                file=sys.stderr,
+                            )
                             return 1
 
                     all_reports = []
@@ -1615,10 +1661,15 @@ def main():
                         if report:
                             all_reports.append(report)
                         else:
-                            print(f"Source not found for '{server.name}' (command: {server.command})")
+                            print(
+                                f"Source not found for '{server.name}' (command: {server.command})"
+                            )
 
                     if args.json:
-                        json_data = [json.loads(auditor.get_scan_report_json(r)) for r in all_reports]
+                        json_data = [
+                            json.loads(auditor.get_scan_report_json(r))
+                            for r in all_reports
+                        ]
                         print(json.dumps(json_data, indent=2))
                     else:
                         for report in all_reports:
@@ -1631,6 +1682,7 @@ def main():
             except Exception as e:
                 print(f"Error running MCP command: {e}", file=sys.stderr)
                 import traceback
+
                 traceback.print_exc()
                 return 1
 
@@ -1638,13 +1690,17 @@ def main():
         if args.command == "support":
             try:
                 from ai_guardian.support_bundle import support_command
+
                 return support_command(args)
             except ImportError as e:
-                print(f"Error: Support bundle module not available: {e}", file=sys.stderr)
+                print(
+                    f"Error: Support bundle module not available: {e}", file=sys.stderr
+                )
                 return 1
             except Exception as e:
                 print(f"Error running support command: {e}", file=sys.stderr)
                 import traceback
+
                 traceback.print_exc()
                 return 1
 
@@ -1652,6 +1708,7 @@ def main():
         if args.command == "init-project":
             try:
                 from ai_guardian.project_init import init_project_command
+
                 return init_project_command(args)
             except ImportError as e:
                 print(f"Error: Project init module not available: {e}", file=sys.stderr)
@@ -1659,6 +1716,7 @@ def main():
             except Exception as e:
                 print(f"Error running init-project: {e}", file=sys.stderr)
                 import traceback
+
                 traceback.print_exc()
                 return 1
 
@@ -1666,19 +1724,22 @@ def main():
         if args.command == "engine-test":
             try:
                 from ai_guardian.engine_tester import engine_test_command
+
                 return engine_test_command(args)
             except ImportError as e:
-                print(f"Error: Engine tester module not available: {e}", file=sys.stderr)
+                print(
+                    f"Error: Engine tester module not available: {e}", file=sys.stderr
+                )
                 return 1
             except Exception as e:
                 print(f"Error running engine test: {e}", file=sys.stderr)
                 import traceback
+
                 traceback.print_exc()
                 return 1
 
-
         # If --ide specified but no subcommand, set env var and fall through to hook mode
-        if not args.command and getattr(args, 'ide', None):
+        if not args.command and getattr(args, "ide", None):
             os.environ["AI_GUARDIAN_IDE_TYPE"] = args.ide
         elif not args.command:
             # No subcommand, no --ide — version was already handled
@@ -1691,9 +1752,15 @@ def main():
         _hook_config, _ = _load_config_file()
     except Exception:
         pass  # intentionally silent — best-effort operation
+
     def _has_ask_action(config):
         """Check if any feature uses the ask action mode."""
-        for section in ("secret_scanning", "prompt_injection", "scan_pii", "context_poisoning"):
+        for section in (
+            "secret_scanning",
+            "prompt_injection",
+            "scan_pii",
+            "context_poisoning",
+        ):
             sect = config.get(section, {})
             if isinstance(sect, dict):
                 action = sect.get("action", "")
@@ -1751,6 +1818,7 @@ def main():
     if response is None:
         # Check persisted pause state before direct-mode fallback (#1319)
         from ai_guardian.daemon.state import DaemonState
+
         if DaemonState.is_paused_on_disk(cwd=os.getcwd()):
             logging.info("Scanning paused (persisted state), skipping direct fallback")
             response = {"output": "{}", "exit_code": 0}

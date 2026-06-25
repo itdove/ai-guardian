@@ -81,7 +81,9 @@ class DirectoryRuleGenerator:
         # Generate directory rules
         generated_rules = self._create_directory_rules(matching_skills)
 
-        logger.info(f"Generated {len(generated_rules)} directory rules from skill permissions")
+        logger.info(
+            f"Generated {len(generated_rules)} directory rules from skill permissions"
+        )
         return generated_rules
 
     def _get_allow_symlinks(self) -> bool:
@@ -185,7 +187,6 @@ class DirectoryRuleGenerator:
                 Path("./.cursor/skills"),
                 Path("./.vscode/skills"),
                 Path("./.windsurf/skills"),
-
                 # User home directories
                 Path.home() / ".claude" / "skills",
                 Path.home() / ".cursor" / "skills",
@@ -215,7 +216,9 @@ class DirectoryRuleGenerator:
             # Cursor (uses CURSOR_PROJECT_PATH for project root)
             cursor_project = os.environ.get("CURSOR_PROJECT_PATH")
             if cursor_project:
-                validated = self._validate_env_path("CURSOR_PROJECT_PATH", cursor_project)
+                validated = self._validate_env_path(
+                    "CURSOR_PROJECT_PATH", cursor_project
+                )
                 if validated:
                     candidate_dirs.append(validated / ".cursor" / "skills")
 
@@ -234,7 +237,9 @@ class DirectoryRuleGenerator:
         # Filter to existing directories
         existing_dirs = [d for d in candidate_dirs if d.exists() and d.is_dir()]
 
-        logger.debug(f"Scanning {len(existing_dirs)} skill directories: {existing_dirs}")
+        logger.debug(
+            f"Scanning {len(existing_dirs)} skill directories: {existing_dirs}"
+        )
         return existing_dirs
 
     def _discover_skills(self, skill_dirs: List[Path]) -> Dict[str, List[Path]]:
@@ -256,10 +261,14 @@ class DirectoryRuleGenerator:
                 for item in skill_dir.iterdir():
                     if item.is_symlink():
                         if not allow_symlinks:
-                            logger.warning(f"Skipping symlink in skill directory: {item}")
+                            logger.warning(
+                                f"Skipping symlink in skill directory: {item}"
+                            )
                             continue
                         if not item.resolve().is_dir():
-                            logger.warning(f"Skipping broken symlink in skill directory: {item}")
+                            logger.warning(
+                                f"Skipping broken symlink in skill directory: {item}"
+                            )
                             continue
 
                     if item.is_dir():
@@ -279,9 +288,7 @@ class DirectoryRuleGenerator:
         return skills
 
     def _match_skills(
-        self,
-        discovered_skills: Dict[str, List[Path]],
-        patterns: List[str]
+        self, discovered_skills: Dict[str, List[Path]], patterns: List[str]
     ) -> Set[str]:
         """
         Match discovered skills against permission patterns.
@@ -333,7 +340,7 @@ class DirectoryRuleGenerator:
                 "mode": "allow",
                 "paths": paths,
                 "_generated": True,
-                "_source": "permissions.rules[Skill]"
+                "_source": "permissions.rules[Skill]",
             }
             rules.append(rule)
 
@@ -384,10 +391,7 @@ class DirectoryRuleGenerator:
         return locations
 
 
-def insert_generated_rules(
-    config: Dict,
-    generated_rules: List[Dict]
-) -> Dict:
+def insert_generated_rules(config: Dict, generated_rules: List[Dict]) -> Dict:
     """
     Insert generated rules AFTER user rules but BEFORE immutable rules.
 
@@ -414,14 +418,18 @@ def insert_generated_rules(
         existing_rules = directory_rules.get("rules", [])
         # Find where immutable rules start
         immutable_start = next(
-            (i for i, r in enumerate(existing_rules) if isinstance(r, dict) and r.get("_immutable")),
-            len(existing_rules)
+            (
+                i
+                for i, r in enumerate(existing_rules)
+                if isinstance(r, dict) and r.get("_immutable")
+            ),
+            len(existing_rules),
         )
         # Insert generated rules after user rules, before immutable rules
         merged_rules = (
-            existing_rules[:immutable_start] +
-            generated_rules +
-            existing_rules[immutable_start:]
+            existing_rules[:immutable_start]
+            + generated_rules
+            + existing_rules[immutable_start:]
         )
         directory_rules["rules"] = merged_rules
         config["directory_rules"] = directory_rules
@@ -429,24 +437,24 @@ def insert_generated_rules(
         # Old array format - convert to new format
         # Find where immutable rules start
         immutable_start = next(
-            (i for i, r in enumerate(directory_rules) if isinstance(r, dict) and r.get("_immutable")),
-            len(directory_rules)
+            (
+                i
+                for i, r in enumerate(directory_rules)
+                if isinstance(r, dict) and r.get("_immutable")
+            ),
+            len(directory_rules),
         )
         merged_rules = (
-            directory_rules[:immutable_start] +
-            generated_rules +
-            directory_rules[immutable_start:]
+            directory_rules[:immutable_start]
+            + generated_rules
+            + directory_rules[immutable_start:]
         )
-        config["directory_rules"] = {
-            "action": "block",
-            "rules": merged_rules
-        }
+        config["directory_rules"] = {"action": "block", "rules": merged_rules}
     else:
         # Create new directory_rules section
-        config["directory_rules"] = {
-            "action": "block",
-            "rules": generated_rules
-        }
+        config["directory_rules"] = {"action": "block", "rules": generated_rules}
 
-    logger.info(f"Inserted {len(generated_rules)} generated rules after user rules in directory_rules")
+    logger.info(
+        f"Inserted {len(generated_rules)} generated rules after user rules in directory_rules"
+    )
     return config

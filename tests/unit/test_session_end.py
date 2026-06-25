@@ -1,7 +1,5 @@
 """Tests for Stop/SessionEnd/PostCompact hook handling (Issue #765, #1007)."""
 
-import json
-import os
 import time
 from pathlib import Path
 from unittest import TestCase
@@ -60,28 +58,34 @@ class TestClaudeCodeStopDetection(TestCase):
 
     def test_normalize_stop_event(self):
         adapter = ClaudeCodeAdapter()
-        normalized = adapter.normalize_input({
-            "hook_event_name": "Stop",
-            "session_id": "sess-123",
-        })
+        normalized = adapter.normalize_input(
+            {
+                "hook_event_name": "Stop",
+                "session_id": "sess-123",
+            }
+        )
         assert normalized.event == HookEvent.STOP
         assert normalized.session_id == "sess-123"
 
     def test_normalize_session_end_event(self):
         adapter = ClaudeCodeAdapter()
-        normalized = adapter.normalize_input({
-            "hook_event_name": "SessionEnd",
-            "session_id": "sess-456",
-        })
+        normalized = adapter.normalize_input(
+            {
+                "hook_event_name": "SessionEnd",
+                "session_id": "sess-456",
+            }
+        )
         assert normalized.event == HookEvent.SESSION_END
         assert normalized.session_id == "sess-456"
 
     def test_normalize_post_compact_event(self):
         adapter = ClaudeCodeAdapter()
-        normalized = adapter.normalize_input({
-            "hook_event_name": "PostCompact",
-            "session_id": "sess-789",
-        })
+        normalized = adapter.normalize_input(
+            {
+                "hook_event_name": "PostCompact",
+                "session_id": "sess-789",
+            }
+        )
         assert normalized.event == HookEvent.POST_COMPACT
         assert normalized.session_id == "sess-789"
 
@@ -94,93 +98,124 @@ class TestEventDetection(TestCase):
         assert result == HookEvent.STOP
 
     def test_session_idle_event(self):
-        result = HookAdapter._detect_event_from_all_formats({"hook_event_name": "session.idle"})
+        result = HookAdapter._detect_event_from_all_formats(
+            {"hook_event_name": "session.idle"}
+        )
         assert result == HookEvent.STOP
 
     def test_session_end_event_dot_format(self):
-        result = HookAdapter._detect_event_from_all_formats({"hook_event_name": "session.end"})
+        result = HookAdapter._detect_event_from_all_formats(
+            {"hook_event_name": "session.end"}
+        )
         assert result == HookEvent.STOP
 
     def test_sessionend_event(self):
-        result = HookAdapter._detect_event_from_all_formats({"hook_event_name": "SessionEnd"})
+        result = HookAdapter._detect_event_from_all_formats(
+            {"hook_event_name": "SessionEnd"}
+        )
         assert result == HookEvent.SESSION_END
 
     def test_postcompact_event(self):
-        result = HookAdapter._detect_event_from_all_formats({"hook_event_name": "PostCompact"})
+        result = HookAdapter._detect_event_from_all_formats(
+            {"hook_event_name": "PostCompact"}
+        )
         assert result == HookEvent.POST_COMPACT
 
     def test_existing_events_unchanged(self):
-        assert HookAdapter._detect_event_from_all_formats(
-            {"hook_event_name": "UserPromptSubmit"}
-        ) == HookEvent.PROMPT
-        assert HookAdapter._detect_event_from_all_formats(
-            {"hook_event_name": "PreToolUse"}
-        ) == HookEvent.PRE_TOOL_USE
-        assert HookAdapter._detect_event_from_all_formats(
-            {"hook_event_name": "PostToolUse"}
-        ) == HookEvent.POST_TOOL_USE
+        assert (
+            HookAdapter._detect_event_from_all_formats(
+                {"hook_event_name": "UserPromptSubmit"}
+            )
+            == HookEvent.PROMPT
+        )
+        assert (
+            HookAdapter._detect_event_from_all_formats(
+                {"hook_event_name": "PreToolUse"}
+            )
+            == HookEvent.PRE_TOOL_USE
+        )
+        assert (
+            HookAdapter._detect_event_from_all_formats(
+                {"hook_event_name": "PostToolUse"}
+            )
+            == HookEvent.POST_TOOL_USE
+        )
 
 
 class TestProcessHookDataStop(TestCase):
     """process_hook_data handles Stop event as no-op (Issue #1007)."""
 
-    @patch('ai_guardian.hook_processing._load_secret_redaction_config')
-    @patch('ai_guardian.hook_processing._load_pattern_server_config')
+    @patch("ai_guardian.hook_processing._load_secret_redaction_config")
+    @patch("ai_guardian.hook_processing._load_pattern_server_config")
     def test_stop_returns_allow(self, mock_pattern_config, mock_redaction_config):
         mock_pattern_config.return_value = None
         mock_redaction_config.return_value = (None, None)
 
         from ai_guardian.hook_processing import process_hook_data
-        result = process_hook_data({
-            "hook_event_name": "Stop",
-            "session_id": "test-session-123",
-        })
+
+        result = process_hook_data(
+            {
+                "hook_event_name": "Stop",
+                "session_id": "test-session-123",
+            }
+        )
 
         assert result["exit_code"] == 0
         assert result["output"] is None
 
-    @patch('ai_guardian.hook_processing._load_secret_redaction_config')
-    @patch('ai_guardian.hook_processing._load_pattern_server_config')
+    @patch("ai_guardian.hook_processing._load_secret_redaction_config")
+    @patch("ai_guardian.hook_processing._load_pattern_server_config")
     def test_stop_without_session_id(self, mock_pattern_config, mock_redaction_config):
         mock_pattern_config.return_value = None
         mock_redaction_config.return_value = (None, None)
 
         from ai_guardian.hook_processing import process_hook_data
+
         result = process_hook_data({"hook_event_name": "Stop"})
 
         assert result["exit_code"] == 0
         assert result["output"] is None
 
-    @patch('ai_guardian.hook_processing._load_secret_redaction_config')
-    @patch('ai_guardian.hook_processing._load_pattern_server_config')
-    @patch('ai_guardian.hook_processing._advance_transcript_position')
-    def test_stop_does_not_call_session_cleanup(self, mock_advance, mock_pattern_config, mock_redaction_config):
+    @patch("ai_guardian.hook_processing._load_secret_redaction_config")
+    @patch("ai_guardian.hook_processing._load_pattern_server_config")
+    @patch("ai_guardian.hook_processing._advance_transcript_position")
+    def test_stop_does_not_call_session_cleanup(
+        self, mock_advance, mock_pattern_config, mock_redaction_config
+    ):
         """Stop is per-turn — must NOT clean up session state (#1007)."""
         mock_pattern_config.return_value = None
         mock_redaction_config.return_value = (None, None)
 
         from ai_guardian.hook_processing import process_hook_data
-        result = process_hook_data({
-            "hook_event_name": "Stop",
-            "session_id": "test-session-123",
-        })
+
+        result = process_hook_data(
+            {
+                "hook_event_name": "Stop",
+                "session_id": "test-session-123",
+            }
+        )
 
         assert result["exit_code"] == 0
         mock_advance.assert_not_called()
 
-    @patch('ai_guardian.hook_processing._load_secret_redaction_config')
-    @patch('ai_guardian.hook_processing._load_pattern_server_config')
-    def test_stop_with_opencode_session_end(self, mock_pattern_config, mock_redaction_config):
+    @patch("ai_guardian.hook_processing._load_secret_redaction_config")
+    @patch("ai_guardian.hook_processing._load_pattern_server_config")
+    def test_stop_with_opencode_session_end(
+        self, mock_pattern_config, mock_redaction_config
+    ):
         mock_pattern_config.return_value = None
         mock_redaction_config.return_value = (None, None)
 
         from ai_guardian.hook_processing import process_hook_data
-        result = process_hook_data({
-            "hook_event_name": "session.end",
-            "opencode_version": "1.0.0",
-            "hook_source": "opencode",
-            "session_id": "oc-session-456",
-        })
+
+        result = process_hook_data(
+            {
+                "hook_event_name": "session.end",
+                "opencode_version": "1.0.0",
+                "hook_source": "opencode",
+                "session_id": "oc-session-456",
+            }
+        )
 
         assert result["exit_code"] == 0
         assert result["output"] is None
@@ -189,14 +224,17 @@ class TestProcessHookDataStop(TestCase):
 class TestProcessHookDataSessionEnd(TestCase):
     """process_hook_data handles SessionEnd event with cleanup (Issue #1007)."""
 
-    @patch('ai_guardian.hook_processing._load_secret_redaction_config')
-    @patch('ai_guardian.hook_processing._load_pattern_server_config')
-    @patch('ai_guardian.hook_processing._advance_transcript_position')
-    def test_session_end_calls_cleanup(self, mock_advance, mock_pattern_config, mock_redaction_config):
+    @patch("ai_guardian.hook_processing._load_secret_redaction_config")
+    @patch("ai_guardian.hook_processing._load_pattern_server_config")
+    @patch("ai_guardian.hook_processing._advance_transcript_position")
+    def test_session_end_calls_cleanup(
+        self, mock_advance, mock_pattern_config, mock_redaction_config
+    ):
         mock_pattern_config.return_value = None
         mock_redaction_config.return_value = (None, None)
 
         from ai_guardian.hook_processing import process_hook_data
+
         hook_data = {
             "hook_event_name": "SessionEnd",
             "session_id": "test-session",
@@ -207,18 +245,26 @@ class TestProcessHookDataSessionEnd(TestCase):
         assert result["exit_code"] == 0
         mock_advance.assert_called_once_with(hook_data)
 
-    @patch('ai_guardian.hook_processing._load_secret_redaction_config')
-    @patch('ai_guardian.hook_processing._load_pattern_server_config')
-    @patch('ai_guardian.hook_processing._advance_transcript_position', side_effect=OSError("disk full"))
-    def test_session_end_fail_open_on_error(self, mock_advance, mock_pattern_config, mock_redaction_config):
+    @patch("ai_guardian.hook_processing._load_secret_redaction_config")
+    @patch("ai_guardian.hook_processing._load_pattern_server_config")
+    @patch(
+        "ai_guardian.hook_processing._advance_transcript_position",
+        side_effect=OSError("disk full"),
+    )
+    def test_session_end_fail_open_on_error(
+        self, mock_advance, mock_pattern_config, mock_redaction_config
+    ):
         mock_pattern_config.return_value = None
         mock_redaction_config.return_value = (None, None)
 
         from ai_guardian.hook_processing import process_hook_data
-        result = process_hook_data({
-            "hook_event_name": "SessionEnd",
-            "session_id": "test-session",
-        })
+
+        result = process_hook_data(
+            {
+                "hook_event_name": "SessionEnd",
+                "session_id": "test-session",
+            }
+        )
 
         assert result["exit_code"] == 0
 
@@ -226,24 +272,31 @@ class TestProcessHookDataSessionEnd(TestCase):
 class TestProcessHookDataPostCompact(TestCase):
     """process_hook_data handles PostCompact event (Issue #1007)."""
 
-    @patch('ai_guardian.hook_processing._load_secret_redaction_config')
-    @patch('ai_guardian.hook_processing._load_pattern_server_config')
-    def test_post_compact_returns_allow(self, mock_pattern_config, mock_redaction_config):
+    @patch("ai_guardian.hook_processing._load_secret_redaction_config")
+    @patch("ai_guardian.hook_processing._load_pattern_server_config")
+    def test_post_compact_returns_allow(
+        self, mock_pattern_config, mock_redaction_config
+    ):
         mock_pattern_config.return_value = None
         mock_redaction_config.return_value = (None, None)
 
         from ai_guardian.hook_processing import process_hook_data
-        result = process_hook_data({
-            "hook_event_name": "PostCompact",
-            "session_id": "test-session-123",
-        })
+
+        result = process_hook_data(
+            {
+                "hook_event_name": "PostCompact",
+                "session_id": "test-session-123",
+            }
+        )
 
         assert result["exit_code"] == 0
         assert result["output"] is None
 
-    @patch('ai_guardian.hook_processing._load_secret_redaction_config')
-    @patch('ai_guardian.hook_processing._load_pattern_server_config')
-    def test_post_compact_flags_reinject(self, mock_pattern_config, mock_redaction_config):
+    @patch("ai_guardian.hook_processing._load_secret_redaction_config")
+    @patch("ai_guardian.hook_processing._load_pattern_server_config")
+    def test_post_compact_flags_reinject(
+        self, mock_pattern_config, mock_redaction_config
+    ):
         """PostCompact must flag session for security re-injection (#1007)."""
         mock_pattern_config.return_value = None
         mock_redaction_config.return_value = (None, None)
@@ -251,22 +304,29 @@ class TestProcessHookDataPostCompact(TestCase):
         from ai_guardian.hook_processing import process_hook_data
         from ai_guardian.session_state import SessionStateManager
 
-        with patch.object(SessionStateManager, 'mark_security_reinject') as mock_reinject:
-            result = process_hook_data({
-                "hook_event_name": "PostCompact",
-                "session_id": "compact-session-456",
-            })
+        with patch.object(
+            SessionStateManager, "mark_security_reinject"
+        ) as mock_reinject:
+            result = process_hook_data(
+                {
+                    "hook_event_name": "PostCompact",
+                    "session_id": "compact-session-456",
+                }
+            )
 
             assert result["exit_code"] == 0
             mock_reinject.assert_called_once_with("compact-session-456")
 
-    @patch('ai_guardian.hook_processing._load_secret_redaction_config')
-    @patch('ai_guardian.hook_processing._load_pattern_server_config')
-    def test_post_compact_without_session_id(self, mock_pattern_config, mock_redaction_config):
+    @patch("ai_guardian.hook_processing._load_secret_redaction_config")
+    @patch("ai_guardian.hook_processing._load_pattern_server_config")
+    def test_post_compact_without_session_id(
+        self, mock_pattern_config, mock_redaction_config
+    ):
         mock_pattern_config.return_value = None
         mock_redaction_config.return_value = (None, None)
 
         from ai_guardian.hook_processing import process_hook_data
+
         result = process_hook_data({"hook_event_name": "PostCompact"})
 
         assert result["exit_code"] == 0
@@ -317,7 +377,7 @@ class TestHandleSessionEnd(TestCase):
 
         assert result == {"output": None, "exit_code": 0}
 
-    @patch('ai_guardian.hook_processing._advance_transcript_position')
+    @patch("ai_guardian.hook_processing._advance_transcript_position")
     def test_calls_advance_transcript(self, mock_advance):
         from ai_guardian.hook_processing import _handle_session_end
 
@@ -345,8 +405,9 @@ class TestHookContextManagerCleanupSession(TestCase):
     def test_cleanup_session_file_mode(self, tmp_path=None):
         from ai_guardian.hook_context import HookContextManager
 
-        with patch('ai_guardian.hook_context.get_state_dir') as mock_dir:
+        with patch("ai_guardian.hook_context.get_state_dir") as mock_dir:
             import tempfile
+
             with tempfile.TemporaryDirectory() as tmpdir:
                 mock_dir.return_value = Path(tmpdir)
 
@@ -363,8 +424,9 @@ class TestHookContextManagerCleanupSession(TestCase):
     def test_cleanup_session_no_file(self):
         from ai_guardian.hook_context import HookContextManager
 
-        with patch('ai_guardian.hook_context.get_state_dir') as mock_dir:
+        with patch("ai_guardian.hook_context.get_state_dir") as mock_dir:
             import tempfile
+
             with tempfile.TemporaryDirectory() as tmpdir:
                 mock_dir.return_value = Path(tmpdir)
 
@@ -398,8 +460,9 @@ class TestSessionStateManagerCleanupSession(TestCase):
     def test_cleanup_session_file_mode(self):
         from ai_guardian.session_state import SessionStateManager
 
-        with patch('ai_guardian.session_state.get_state_dir') as mock_dir:
+        with patch("ai_guardian.session_state.get_state_dir") as mock_dir:
             import tempfile
+
             with tempfile.TemporaryDirectory() as tmpdir:
                 mock_dir.return_value = Path(tmpdir)
 
@@ -427,10 +490,13 @@ class TestDaemonStateCleanupSession(TestCase):
     def test_cleanup_session_contexts(self):
         from ai_guardian.daemon.state import DaemonState
 
-        with patch('ai_guardian.daemon.state.DaemonState._default_config_path', return_value=None):
-            with patch('ai_guardian.daemon.state.DaemonState._load_sessions'):
+        with patch(
+            "ai_guardian.daemon.state.DaemonState._default_config_path",
+            return_value=None,
+        ):
+            with patch("ai_guardian.daemon.state.DaemonState._load_sessions"):
                 state = DaemonState.__new__(DaemonState)
-                state._lock = __import__('threading').Lock()
+                state._lock = __import__("threading").Lock()
                 state._hook_contexts = {
                     "sess-1:tool-a": {"context": {}, "timestamp": time.monotonic()},
                     "sess-1:tool-b": {"context": {}, "timestamp": time.monotonic()},
@@ -446,10 +512,13 @@ class TestDaemonStateCleanupSession(TestCase):
     def test_cleanup_session_contexts_none(self):
         from ai_guardian.daemon.state import DaemonState
 
-        with patch('ai_guardian.daemon.state.DaemonState._default_config_path', return_value=None):
-            with patch('ai_guardian.daemon.state.DaemonState._load_sessions'):
+        with patch(
+            "ai_guardian.daemon.state.DaemonState._default_config_path",
+            return_value=None,
+        ):
+            with patch("ai_guardian.daemon.state.DaemonState._load_sessions"):
                 state = DaemonState.__new__(DaemonState)
-                state._lock = __import__('threading').Lock()
+                state._lock = __import__("threading").Lock()
                 state._hook_contexts = {}
 
                 count = state.cleanup_session_contexts("nonexistent")
@@ -459,11 +528,16 @@ class TestDaemonStateCleanupSession(TestCase):
     def test_cleanup_session_contexts_empty_session_id(self):
         from ai_guardian.daemon.state import DaemonState
 
-        with patch('ai_guardian.daemon.state.DaemonState._default_config_path', return_value=None):
-            with patch('ai_guardian.daemon.state.DaemonState._load_sessions'):
+        with patch(
+            "ai_guardian.daemon.state.DaemonState._default_config_path",
+            return_value=None,
+        ):
+            with patch("ai_guardian.daemon.state.DaemonState._load_sessions"):
                 state = DaemonState.__new__(DaemonState)
-                state._lock = __import__('threading').Lock()
-                state._hook_contexts = {"a:b": {"context": {}, "timestamp": time.monotonic()}}
+                state._lock = __import__("threading").Lock()
+                state._hook_contexts = {
+                    "a:b": {"context": {}, "timestamp": time.monotonic()}
+                }
 
                 count = state.cleanup_session_contexts("")
 
@@ -473,13 +547,19 @@ class TestDaemonStateCleanupSession(TestCase):
     def test_cleanup_session_state(self):
         from ai_guardian.daemon.state import DaemonState
 
-        with patch('ai_guardian.daemon.state.DaemonState._default_config_path', return_value=None):
-            with patch('ai_guardian.daemon.state.DaemonState._load_sessions'):
+        with patch(
+            "ai_guardian.daemon.state.DaemonState._default_config_path",
+            return_value=None,
+        ):
+            with patch("ai_guardian.daemon.state.DaemonState._load_sessions"):
                 state = DaemonState.__new__(DaemonState)
-                state._lock = __import__('threading').Lock()
+                state._lock = __import__("threading").Lock()
                 state._security_injected_sessions = {"sess-1", "sess-2"}
                 state._security_reinject_sessions = {"sess-1"}
-                state._session_last_activity = {"sess-1": time.time(), "sess-2": time.time()}
+                state._session_last_activity = {
+                    "sess-1": time.time(),
+                    "sess-2": time.time(),
+                }
                 state._sessions_dirty = False
                 state._debounce_timer = None
                 state._sessions_file = None
@@ -495,10 +575,13 @@ class TestDaemonStateCleanupSession(TestCase):
     def test_cleanup_session_state_empty_key(self):
         from ai_guardian.daemon.state import DaemonState
 
-        with patch('ai_guardian.daemon.state.DaemonState._default_config_path', return_value=None):
-            with patch('ai_guardian.daemon.state.DaemonState._load_sessions'):
+        with patch(
+            "ai_guardian.daemon.state.DaemonState._default_config_path",
+            return_value=None,
+        ):
+            with patch("ai_guardian.daemon.state.DaemonState._load_sessions"):
                 state = DaemonState.__new__(DaemonState)
-                state._lock = __import__('threading').Lock()
+                state._lock = __import__("threading").Lock()
                 state._security_injected_sessions = {"sess-1"}
                 state._security_reinject_sessions = set()
                 state._session_last_activity = {}

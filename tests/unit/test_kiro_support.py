@@ -1,10 +1,8 @@
 """Tests for Kiro (AWS) hook support (Issue #636)."""
 
-import json
 import os
 from unittest import mock
 
-import pytest
 
 from ai_guardian.response_format import (
     detect_ide_type,
@@ -201,6 +199,7 @@ class TestKiroMCPConfig:
 
     def test_kiro_in_mcp_ide_configs(self):
         from ai_guardian.setup import _MCP_IDE_CONFIGS
+
         assert "kiro" in _MCP_IDE_CONFIGS
         kiro_mcp = _MCP_IDE_CONFIGS["kiro"]
         assert kiro_mcp["config_file"] == "~/.kiro/settings.json"
@@ -213,6 +212,7 @@ class TestKiroSetupConfig:
 
     def test_kiro_in_ide_configs(self):
         from ai_guardian.setup import IDESetup
+
         assert "kiro" in IDESetup.IDE_CONFIGS
         kiro_config = IDESetup.IDE_CONFIGS["kiro"]
         assert kiro_config["name"] == "Kiro"
@@ -221,6 +221,7 @@ class TestKiroSetupConfig:
 
     def test_kiro_hook_scripts(self):
         from ai_guardian.setup import IDESetup
+
         kiro_config = IDESetup.IDE_CONFIGS["kiro"]
         assert "PreToolUse" in kiro_config["hook_scripts"]
         assert "PostToolUse" in kiro_config["hook_scripts"]
@@ -228,6 +229,7 @@ class TestKiroSetupConfig:
 
     def test_kiro_script_content(self):
         from ai_guardian.setup import IDESetup
+
         kiro_config = IDESetup.IDE_CONFIGS["kiro"]
         assert "ai-guardian" in kiro_config["script_content"]
         assert kiro_config["script_content"].startswith("#!/bin/sh")

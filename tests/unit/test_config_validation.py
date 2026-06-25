@@ -7,7 +7,6 @@ Tests that invalid configurations are rejected at load time with clear error mes
 import json
 import tempfile
 from pathlib import Path
-import pytest
 
 from ai_guardian.tool_policy import ToolPolicyChecker
 
@@ -18,16 +17,12 @@ def test_valid_config_loads_successfully():
         "permissions": {
             "enabled": True,
             "rules": [
-                {
-                    "matcher": "Skill",
-                    "mode": "allow",
-                    "patterns": ["daf-*", "gh-cli"]
-                }
-            ]
+                {"matcher": "Skill", "mode": "allow", "patterns": ["daf-*", "gh-cli"]}
+            ],
         }
     }
 
-    with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as f:
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
         json.dump(valid_config, f)
         temp_path = f.name
 
@@ -50,13 +45,13 @@ def test_invalid_mode_rejected_at_load():
                 {
                     "matcher": "Skill",
                     "mode": "invalid_mode",  # Invalid!
-                    "patterns": ["daf-*"]
+                    "patterns": ["daf-*"],
                 }
-            ]
+            ],
         }
     }
 
-    with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as f:
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
         json.dump(invalid_config, f)
         temp_path = f.name
 
@@ -71,13 +66,9 @@ def test_invalid_mode_rejected_at_load():
 
 def test_invalid_detector_rejected_at_load():
     """Test that invalid detector type is rejected at load time."""
-    invalid_config = {
-        "prompt_injection": {
-            "detector": "invalid_detector"  # Invalid!
-        }
-    }
+    invalid_config = {"prompt_injection": {"detector": "invalid_detector"}}  # Invalid!
 
-    with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as f:
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
         json.dump(invalid_config, f)
         temp_path = f.name
 
@@ -100,11 +91,11 @@ def test_missing_required_fields_rejected_at_load():
                     "matcher": "Skill",
                     # Missing "mode" and "patterns" (required)
                 }
-            ]
+            ],
         }
     }
 
-    with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as f:
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
         json.dump(invalid_config, f)
         temp_path = f.name
 
@@ -121,7 +112,7 @@ def test_empty_config_is_valid():
     """Test that an empty config (all fields optional) is valid."""
     empty_config = {}
 
-    with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as f:
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
         json.dump(empty_config, f)
         temp_path = f.name
 
@@ -141,7 +132,7 @@ def test_complex_valid_config_loads():
             "enabled": {
                 "value": False,
                 "disabled_until": "2026-04-13T18:00:00Z",
-                "reason": "Emergency debugging"
+                "reason": "Emergency debugging",
             },
             "rules": [
                 {
@@ -149,22 +140,19 @@ def test_complex_valid_config_loads():
                     "mode": "allow",
                     "patterns": [
                         "daf-*",
-                        {
-                            "pattern": "debug-*",
-                            "valid_until": "2026-04-13T12:00:00Z"
-                        }
-                    ]
+                        {"pattern": "debug-*", "valid_until": "2026-04-13T12:00:00Z"},
+                    ],
                 }
-            ]
+            ],
         },
         "prompt_injection": {
             "enabled": True,
             "detector": "heuristic",
-            "sensitivity": "medium"
-        }
+            "sensitivity": "medium",
+        },
     }
 
-    with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as f:
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
         json.dump(complex_config, f)
         temp_path = f.name
 
@@ -188,19 +176,19 @@ def test_immutable_field_in_permissions_is_valid():
                     "matcher": "Skill",
                     "mode": "allow",
                     "patterns": ["daf-*"],
-                    "immutable": True
+                    "immutable": True,
                 },
                 {
                     "matcher": "Bash",
                     "mode": "deny",
                     "patterns": ["*rm -rf*"],
-                    "immutable": False
-                }
-            ]
+                    "immutable": False,
+                },
+            ],
         }
     }
 
-    with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as f:
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
         json.dump(config_with_immutable, f)
         temp_path = f.name
 
@@ -217,23 +205,16 @@ def test_immutable_field_in_permissions_is_valid():
 def test_immutable_field_in_sections_is_valid():
     """Test that immutable field in top-level sections is valid (Issue #67)."""
     config_with_immutable_sections = {
-        "prompt_injection": {
-            "enabled": True,
-            "sensitivity": "high",
-            "immutable": True
-        },
+        "prompt_injection": {"enabled": True, "sensitivity": "high", "immutable": True},
         "pattern_server": {
             "enabled": True,
             "url": "https://company.com/patterns",
-            "immutable": True
+            "immutable": True,
         },
-        "secret_scanning": {
-            "enabled": True,
-            "immutable": False
-        }
+        "secret_scanning": {"enabled": True, "immutable": False},
     }
 
-    with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as f:
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
         json.dump(config_with_immutable_sections, f)
         temp_path = f.name
 
@@ -256,12 +237,12 @@ def test_invalid_immutable_type_rejected():
                 "matcher": "Skill",
                 "mode": "allow",
                 "patterns": ["daf-*"],
-                "immutable": "yes"  # Invalid: should be boolean
+                "immutable": "yes",  # Invalid: should be boolean
             }
         ]
     }
 
-    with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as f:
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
         json.dump(invalid_config, f)
         temp_path = f.name
 

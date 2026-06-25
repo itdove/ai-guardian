@@ -17,12 +17,9 @@ class TestDetectSecretsOutputParser(unittest.TestCase):
 
     def test_parse_empty_results(self):
         """Test parsing detect-secrets output with no secrets."""
-        baseline = {
-            "results": {},
-            "version": "1.0.0"
-        }
+        baseline = {"results": {}, "version": "1.0.0"}
 
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as f:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
             json.dump(baseline, f)
             temp_file = f.name
 
@@ -44,14 +41,14 @@ class TestDetectSecretsOutputParser(unittest.TestCase):
                     {
                         "type": "AWS Access Key",
                         "line_number": 5,
-                        "hashed_secret": "abc123def456"
+                        "hashed_secret": "abc123def456",
                     }
                 ]
             },
-            "version": "1.0.0"
+            "version": "1.0.0",
         }
 
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as f:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
             json.dump(baseline, f)
             temp_file = f.name
 
@@ -80,21 +77,21 @@ class TestDetectSecretsOutputParser(unittest.TestCase):
                     {
                         "type": "AWS Access Key",
                         "line_number": 5,
-                        "hashed_secret": "abc123"
+                        "hashed_secret": "abc123",
                     }
                 ],
                 "config.py": [
                     {
                         "type": "Secret Keyword",
                         "line_number": 10,
-                        "hashed_secret": "def456"
+                        "hashed_secret": "def456",
                     }
-                ]
+                ],
             },
-            "version": "1.0.0"
+            "version": "1.0.0",
         }
 
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as f:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
             json.dump(baseline, f)
             temp_file = f.name
 
@@ -120,24 +117,20 @@ class TestDetectSecretsOutputParser(unittest.TestCase):
                     {
                         "type": "AWS Access Key",
                         "line_number": 1,
-                        "hashed_secret": "aaa"
+                        "hashed_secret": "aaa",
                     },
                     {
                         "type": "Basic Auth Credentials",
                         "line_number": 5,
-                        "hashed_secret": "bbb"
+                        "hashed_secret": "bbb",
                     },
-                    {
-                        "type": "Private Key",
-                        "line_number": 10,
-                        "hashed_secret": "ccc"
-                    }
+                    {"type": "Private Key", "line_number": 10, "hashed_secret": "ccc"},
                 ]
             },
-            "version": "1.0.0"
+            "version": "1.0.0",
         }
 
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as f:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
             json.dump(baseline, f)
             temp_file = f.name
 
@@ -167,14 +160,14 @@ class TestDetectSecretsOutputParser(unittest.TestCase):
                     {
                         "type": "High Entropy String",
                         "line_number": 1,
-                        "hashed_secret": "xyz"
+                        "hashed_secret": "xyz",
                     }
                 ]
             },
-            "version": "1.0.0"
+            "version": "1.0.0",
         }
 
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as f:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
             json.dump(baseline, f)
             temp_file = f.name
 
@@ -194,7 +187,7 @@ class TestDetectSecretsOutputParser(unittest.TestCase):
 
     def test_parse_invalid_json(self):
         """Test parsing invalid JSON returns None."""
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as f:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
             f.write("not valid json")
             temp_file = f.name
 
@@ -211,15 +204,15 @@ class TestDetectSecretsOutputParser(unittest.TestCase):
                 "test.txt": [
                     {
                         "line_number": 5,
-                        "hashed_secret": "abc"
+                        "hashed_secret": "abc",
                         # Missing "type" field
                     }
                 ]
             },
-            "version": "1.0.0"
+            "version": "1.0.0",
         }
 
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as f:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
             json.dump(baseline, f)
             temp_file = f.name
 
@@ -240,15 +233,15 @@ class TestDetectSecretsOutputParser(unittest.TestCase):
                 "test.txt": [
                     {
                         "type": "AWS Access Key",
-                        "hashed_secret": "abc"
+                        "hashed_secret": "abc",
                         # Missing "line_number" field
                     }
                 ]
             },
-            "version": "1.0.0"
+            "version": "1.0.0",
         }
 
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as f:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
             json.dump(baseline, f)
             temp_file = f.name
 
@@ -262,5 +255,5 @@ class TestDetectSecretsOutputParser(unittest.TestCase):
             Path(temp_file).unlink()
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()

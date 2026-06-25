@@ -1,7 +1,5 @@
 """Tests for the local_time web component."""
 
-import sys
-
 import pytest
 
 pytest.importorskip("nicegui", reason="NiceGUI requires Python >= 3.10")
@@ -15,6 +13,7 @@ class TestLocalTimeModule:
             local_time_label,
             inject_local_time_js,
         )
+
         assert callable(local_time_label)
         assert callable(inject_local_time_js)
 
@@ -127,19 +126,23 @@ class TestConvertJsContent:
 
     def test_js_contains_utc_timestamp_selector(self):
         from ai_guardian.web.components.local_time import _CONVERT_JS
+
         assert "utc-timestamp" in _CONVERT_JS
 
     def test_js_contains_toLocaleString(self):
         from ai_guardian.web.components.local_time import _CONVERT_JS
+
         assert "toLocaleString" in _CONVERT_JS
 
     def test_js_reads_data_utc_attribute(self):
         from ai_guardian.web.components.local_time import _CONVERT_JS
+
         assert "data-utc" in _CONVERT_JS
 
     def test_js_handles_missing_z_suffix(self):
         """JS should append 'Z' if the timestamp doesn't end with it."""
         from ai_guardian.web.components.local_time import _CONVERT_JS
+
         assert "Z" in _CONVERT_JS
 
 

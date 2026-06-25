@@ -1,11 +1,8 @@
 """Tests for PatternCache — pre-compiled pattern store."""
 
-import ipaddress
-import re
-
 import pytest
 
-from ai_guardian.patterns.cache import PatternCache, ScanFinding
+from ai_guardian.patterns.cache import PatternCache
 
 
 @pytest.fixture
@@ -59,18 +56,18 @@ pii_type = "email"
 @pytest.fixture
 def unicode_toml(tmp_path):
     content = (
-        '[[rules]]\n'
+        "[[rules]]\n"
         'id = "homoglyph-cyrillic-a"\n'
         'match_type = "literal"\n'
         'source = "а"\n'
         'target = "a"\n'
         'script = "Cyrillic"\n'
-        '\n'
-        '[[rules]]\n'
+        "\n"
+        "[[rules]]\n"
         'id = "tag-chars"\n'
         'match_type = "range"\n'
-        'start = 917504\n'
-        'end = 917631\n'
+        "start = 917504\n"
+        "end = 917631\n"
         'description = "Unicode tag characters"\n'
     ).encode("utf-8")
     path = tmp_path / "unicode.toml"
@@ -271,25 +268,23 @@ validation = "env_not_file_path"
     def test_real_secret_still_detected(self, env_var_toml):
         cache = PatternCache()
         cache.load(env_var_toml)
-        findings = cache.scan(
-            "AWS_SECRET_KEY=wJalrXUtnFEMIK7MDENGEXAMPLEKEY"
-        )
+        findings = cache.scan("AWS_SECRET_KEY=wJalrXUtnFEMIK7MDENGEXAMPLEKEY")
         env_findings = [f for f in findings if f.rule_id == "env-variable"]
         assert len(env_findings) == 1
 
     def test_aws_key_with_slash_still_detected(self, env_var_toml):
         cache = PatternCache()
         cache.load(env_var_toml)
-        findings = cache.scan(
-            "AWS_SECRET_KEY=wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"
-        )
+        findings = cache.scan("AWS_SECRET_KEY=wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY")
         env_findings = [f for f in findings if f.rule_id == "env-variable"]
         assert len(env_findings) == 1
 
     def test_dockerfile_env_path_not_flagged(self, env_var_toml):
         cache = PatternCache()
         cache.load(env_var_toml)
-        dockerfile = "FROM ubi9\nENV PKGMGR=/usr/bin/microdnf\nRUN $PKGMGR install -y python3"
+        dockerfile = (
+            "FROM ubi9\nENV PKGMGR=/usr/bin/microdnf\nRUN $PKGMGR install -y python3"
+        )
         findings = cache.scan(dockerfile)
         assert len(findings) == 0
 
@@ -352,7 +347,9 @@ keywords = ["postgres://"]
     def test_real_password_flagged(self, connection_toml):
         cache = PatternCache()
         cache.load(connection_toml)
-        findings = cache.scan("mongodb://user:MySecretPass123@db.example.com:27017/mydb")
+        findings = cache.scan(
+            "mongodb://user:MySecretPass123@db.example.com:27017/mydb"
+        )
         assert len(findings) == 1
 
     def test_hidden_placeholder_not_flagged(self, connection_toml):
@@ -519,6 +516,7 @@ class TestPatternCachePerformance:
     def test_scan_under_5ms(self, secrets_toml, pii_toml):
         """Verify scan completes in under 5ms for moderate content."""
         import time
+
         cache = PatternCache()
         cache.load(secrets_toml, pii_toml)
         content = "Some text without secrets. " * 100

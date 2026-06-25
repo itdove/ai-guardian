@@ -11,9 +11,7 @@ def create_permissions_discovery_page(service, daemon_name: str):
     create_header(daemon_name)
 
     with ui.row().classes("w-full min-h-screen no-wrap"):
-        create_sidebar(
-            daemon_name, current=f"/{daemon_name}/permissions-discovery"
-        )
+        create_sidebar(daemon_name, current=f"/{daemon_name}/permissions-discovery")
 
         with ui.column().classes("flex-grow p-6 gap-4"):
             ui.label("Permissions Auto-Discovery").classes("text-2xl font-bold")
@@ -70,18 +68,14 @@ def create_permissions_discovery_page(service, daemon_name: str):
                         )
                         if allow_dirs:
                             for idx, entry in enumerate(allow_dirs):
-                                with ui.row().classes(
-                                    "items-center gap-2 w-full"
-                                ):
-                                    ui.badge("ALLOW", color="green").classes(
-                                        "text-xs"
+                                with ui.row().classes("items-center gap-2 w-full"):
+                                    ui.badge("ALLOW", color="green").classes("text-xs")
+                                    ui.label(entry.get("matcher", "")).classes(
+                                        "font-bold text-sm"
                                     )
-                                    ui.label(
-                                        entry.get("matcher", "")
-                                    ).classes("font-bold text-sm")
-                                    ui.label(
-                                        entry.get("url", "")
-                                    ).classes("flex-grow text-sm text-grey-4")
+                                    ui.label(entry.get("url", "")).classes(
+                                        "flex-grow text-sm text-grey-4"
+                                    )
                                     if entry.get("token_env"):
                                         ui.badge(
                                             f"token: {entry['token_env']}",
@@ -90,9 +84,7 @@ def create_permissions_discovery_page(service, daemon_name: str):
 
                                     async def remove_allow(i=idx):
                                         cfg = await run.io_bound(load_web_config)
-                                        dirs = cfg.get(
-                                            "permissions_directories", {}
-                                        )
+                                        dirs = cfg.get("permissions_directories", {})
                                         a = dirs.get("allow", [])
                                         if i < len(a):
                                             a.pop(i)
@@ -123,18 +115,14 @@ def create_permissions_discovery_page(service, daemon_name: str):
                         )
                         if deny_dirs:
                             for idx, entry in enumerate(deny_dirs):
-                                with ui.row().classes(
-                                    "items-center gap-2 w-full"
-                                ):
-                                    ui.badge("DENY", color="red").classes(
-                                        "text-xs"
+                                with ui.row().classes("items-center gap-2 w-full"):
+                                    ui.badge("DENY", color="red").classes("text-xs")
+                                    ui.label(entry.get("matcher", "")).classes(
+                                        "font-bold text-sm"
                                     )
-                                    ui.label(
-                                        entry.get("matcher", "")
-                                    ).classes("font-bold text-sm")
-                                    ui.label(
-                                        entry.get("url", "")
-                                    ).classes("flex-grow text-sm text-grey-4")
+                                    ui.label(entry.get("url", "")).classes(
+                                        "flex-grow text-sm text-grey-4"
+                                    )
                                     if entry.get("token_env"):
                                         ui.badge(
                                             f"token: {entry['token_env']}",
@@ -143,9 +131,7 @@ def create_permissions_discovery_page(service, daemon_name: str):
 
                                     async def remove_deny(i=idx):
                                         cfg = await run.io_bound(load_web_config)
-                                        dirs = cfg.get(
-                                            "permissions_directories", {}
-                                        )
+                                        dirs = cfg.get("permissions_directories", {})
                                         d = dirs.get("deny", [])
                                         if i < len(d):
                                             d.pop(i)
@@ -178,23 +164,35 @@ def create_permissions_discovery_page(service, daemon_name: str):
                                 options={"allow": "Allow", "deny": "Deny"},
                                 value="allow",
                             ).classes("w-48")
-                            matcher_input = ui.input(
-                                label="Matcher",
-                                placeholder='e.g., Skill, mcp__*',
-                            ).props("outlined dense").classes("w-full")
+                            matcher_input = (
+                                ui.input(
+                                    label="Matcher",
+                                    placeholder="e.g., Skill, mcp__*",
+                                )
+                                .props("outlined dense")
+                                .classes("w-full")
+                            )
                             mode_input = ui.select(
                                 label="Mode",
                                 options={"allow": "Allow", "deny": "Deny"},
                                 value="allow",
                             ).classes("w-48")
-                            url_input = ui.input(
-                                label="URL / Path",
-                                placeholder="/path/to/dir or https://github.com/...",
-                            ).props("outlined dense").classes("w-full")
-                            token_input = ui.input(
-                                label="Token Env Var (optional)",
-                                placeholder="GITHUB_TOKEN",
-                            ).props("outlined dense").classes("w-64")
+                            url_input = (
+                                ui.input(
+                                    label="URL / Path",
+                                    placeholder="/path/to/dir or https://github.com/...",
+                                )
+                                .props("outlined dense")
+                                .classes("w-full")
+                            )
+                            token_input = (
+                                ui.input(
+                                    label="Token Env Var (optional)",
+                                    placeholder="GITHUB_TOKEN",
+                                )
+                                .props("outlined dense")
+                                .classes("w-64")
+                            )
 
                             async def add_directory():
                                 matcher = matcher_input.value.strip()

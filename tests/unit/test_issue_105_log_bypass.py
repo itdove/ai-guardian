@@ -26,9 +26,9 @@ class Issue105LogBypassTest(unittest.TestCase):
         config = {
             "directory_rules": {
                 "action": "log",  # User wants log mode for directory blocking
-                "rules": []
+                "rules": [],
             },
-            "permissions": []
+            "permissions": [],
         }
 
         checker = ToolPolicyChecker(config=config)
@@ -41,25 +41,36 @@ class Issue105LogBypassTest(unittest.TestCase):
                 "input": {
                     "file_path": "/home/user/.config/ai-guardian/ai-guardian.json",
                     "old_string": '"secret_scanning": {"enabled": true}',
-                    "new_string": '"secret_scanning": {"enabled": false}'
-                }
-            }
+                    "new_string": '"secret_scanning": {"enabled": false}',
+                },
+            },
         }
 
         is_allowed, error_msg, tool_name = checker.check_tool_allowed(hook_data)
 
         # CRITICAL: Must be blocked, NOT allowed with warning
-        self.assertFalse(is_allowed,
-            "Self-protection MUST block config file edits, even with action=log")
+        self.assertFalse(
+            is_allowed,
+            "Self-protection MUST block config file edits, even with action=log",
+        )
         self.assertIsNotNone(error_msg, "Should provide error message")
-        self.assertIn("Protection:", error_msg,
-            "Error message should indicate critical file protection")
+        self.assertIn(
+            "Protection:",
+            error_msg,
+            "Error message should indicate critical file protection",
+        )
 
         # Verify it's not a log-mode warning
-        self.assertNotIn("log mode", error_msg.lower(),
-            "Should NOT be in log mode - must be hard blocked")
-        self.assertNotIn("allowed", error_msg.lower(),
-            "Error message should NOT say operation is allowed")
+        self.assertNotIn(
+            "log mode",
+            error_msg.lower(),
+            "Should NOT be in log mode - must be hard blocked",
+        )
+        self.assertNotIn(
+            "allowed",
+            error_msg.lower(),
+            "Error message should NOT say operation is allowed",
+        )
 
     def test_immutable_deny_ignores_permission_rule_with_log_action(self):
         """
@@ -78,7 +89,7 @@ class Issue105LogBypassTest(unittest.TestCase):
                     "matcher": "Edit",
                     "mode": "deny",
                     "patterns": ["*ai-guardian.json"],
-                    "action": "log"  # Attacker tries to use log mode to bypass
+                    "action": "log",  # Attacker tries to use log mode to bypass
                 }
             ]
         }
@@ -93,26 +104,24 @@ class Issue105LogBypassTest(unittest.TestCase):
                 "input": {
                     "file_path": "/home/user/.config/ai-guardian/ai-guardian.json",
                     "old_string": '"enabled": true',
-                    "new_string": '"enabled": false'
-                }
-            }
+                    "new_string": '"enabled": false',
+                },
+            },
         }
 
         is_allowed, error_msg, tool_name = checker.check_tool_allowed(hook_data)
 
         # CRITICAL: Must be blocked - immutable patterns override user rules
-        self.assertFalse(is_allowed,
-            "Immutable deny patterns MUST override user permission rules")
+        self.assertFalse(
+            is_allowed, "Immutable deny patterns MUST override user permission rules"
+        )
         self.assertIsNotNone(error_msg)
         self.assertIn("Protection:", error_msg)
         self.assertNotIn("log mode", error_msg.lower())
 
     def test_write_ai_guardian_config_always_blocked(self):
         """Write to ai-guardian config must ALWAYS be blocked (no log mode)"""
-        config = {
-            "directory_rules": {"action": "log"},
-            "permissions": []
-        }
+        config = {"directory_rules": {"action": "log"}, "permissions": []}
 
         checker = ToolPolicyChecker(config=config)
 
@@ -122,9 +131,9 @@ class Issue105LogBypassTest(unittest.TestCase):
                 "name": "Write",
                 "input": {
                     "file_path": "/home/user/.config/ai-guardian/ai-guardian.json",
-                    "content": "{}"
-                }
-            }
+                    "content": "{}",
+                },
+            },
         }
 
         is_allowed, error_msg, tool_name = checker.check_tool_allowed(hook_data)
@@ -134,10 +143,7 @@ class Issue105LogBypassTest(unittest.TestCase):
 
     def test_bash_rm_ai_guardian_config_always_blocked(self):
         """Bash rm of ai-guardian config must ALWAYS be blocked (no log mode)"""
-        config = {
-            "directory_rules": {"action": "log"},
-            "permissions": []
-        }
+        config = {"directory_rules": {"action": "log"}, "permissions": []}
 
         checker = ToolPolicyChecker(config=config)
 
@@ -145,10 +151,8 @@ class Issue105LogBypassTest(unittest.TestCase):
             "hook_event_name": "PreToolUse",
             "tool_use": {
                 "name": "Bash",
-                "input": {
-                    "command": "rm ~/.config/ai-guardian/ai-guardian.json"
-                }
-            }
+                "input": {"command": "rm ~/.config/ai-guardian/ai-guardian.json"},
+            },
         }
 
         is_allowed, error_msg, tool_name = checker.check_tool_allowed(hook_data)
@@ -158,10 +162,7 @@ class Issue105LogBypassTest(unittest.TestCase):
 
     def test_edit_claude_settings_always_blocked(self):
         """Edit of IDE hooks must ALWAYS be blocked (no log mode)"""
-        config = {
-            "directory_rules": {"action": "log"},
-            "permissions": []
-        }
+        config = {"directory_rules": {"action": "log"}, "permissions": []}
 
         checker = ToolPolicyChecker(config=config)
 
@@ -172,9 +173,9 @@ class Issue105LogBypassTest(unittest.TestCase):
                 "input": {
                     "file_path": "/home/user/.claude/settings.json",
                     "old_string": '"hooks": {"PreToolUse": []}',
-                    "new_string": '"hooks": {}'
-                }
-            }
+                    "new_string": '"hooks": {}',
+                },
+            },
         }
 
         is_allowed, error_msg, tool_name = checker.check_tool_allowed(hook_data)
@@ -184,10 +185,7 @@ class Issue105LogBypassTest(unittest.TestCase):
 
     def test_edit_ai_read_deny_marker_always_blocked(self):
         """Edit of .ai-read-deny markers must ALWAYS be blocked (no log mode)"""
-        config = {
-            "directory_rules": {"action": "log"},
-            "permissions": []
-        }
+        config = {"directory_rules": {"action": "log"}, "permissions": []}
 
         checker = ToolPolicyChecker(config=config)
 
@@ -198,9 +196,9 @@ class Issue105LogBypassTest(unittest.TestCase):
                 "input": {
                     "file_path": "/home/user/secrets/.ai-read-deny",
                     "old_string": "",
-                    "new_string": "test"
-                }
-            }
+                    "new_string": "test",
+                },
+            },
         }
 
         is_allowed, error_msg, tool_name = checker.check_tool_allowed(hook_data)

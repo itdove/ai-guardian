@@ -54,9 +54,9 @@ def _activate(delay: float) -> None:
 def _try_kdotool() -> bool:
     try:
         subprocess.run(
-            ["kdotool", "search", "--class", _BROWSER_CLASSES,
-             "windowactivate"],
-            capture_output=True, timeout=3,
+            ["kdotool", "search", "--class", _BROWSER_CLASSES, "windowactivate"],
+            capture_output=True,
+            timeout=3,
         )
         return True
     except (FileNotFoundError, subprocess.TimeoutExpired):
@@ -68,9 +68,17 @@ def _try_kdotool() -> bool:
 def _try_xdotool() -> bool:
     try:
         subprocess.run(
-            ["xdotool", "search", "--limit", "1",
-             "--class", _BROWSER_CLASSES, "windowactivate"],
-            capture_output=True, timeout=3,
+            [
+                "xdotool",
+                "search",
+                "--limit",
+                "1",
+                "--class",
+                _BROWSER_CLASSES,
+                "windowactivate",
+            ],
+            capture_output=True,
+            timeout=3,
         )
         return True
     except (FileNotFoundError, subprocess.TimeoutExpired):
@@ -84,7 +92,8 @@ def _try_wmctrl() -> bool:
         try:
             result = subprocess.run(
                 ["wmctrl", "-xa", name],
-                capture_output=True, timeout=3,
+                capture_output=True,
+                timeout=3,
             )
             if result.returncode == 0:
                 return True
@@ -102,7 +111,9 @@ def _get_default_browser() -> str | None:
     try:
         result = subprocess.run(
             ["xdg-settings", "get", "default-web-browser"],
-            capture_output=True, text=True, timeout=3,
+            capture_output=True,
+            text=True,
+            timeout=3,
         )
         desktop = result.stdout.strip()
         if not desktop.endswith(".desktop"):

@@ -4,8 +4,6 @@ Validates that all bundled TOML files parse correctly and contain
 the expected number of compiled rules.
 """
 
-from pathlib import Path
-
 import pytest
 
 from ai_guardian.patterns import DATA_DIR
@@ -35,9 +33,9 @@ class TestBundledTomlFiles:
         path = PATTERNS_DIR / filename
         category = filename.replace(".toml", "").replace("-", "_")
         rules = load_and_compile(path, category)
-        assert len(rules) == expected, (
-            f"{filename}: expected {expected} rules, got {len(rules)}"
-        )
+        assert (
+            len(rules) == expected
+        ), f"{filename}: expected {expected} rules, got {len(rules)}"
 
     @pytest.mark.parametrize("filename", list(EXPECTED_COUNTS.keys()))
     def test_all_rules_have_ids(self, filename):
@@ -52,9 +50,9 @@ class TestBundledTomlFiles:
         path = PATTERNS_DIR / filename
         raw_rules = load_toml_file(path)
         for rule in raw_rules:
-            assert "match_type" in rule, (
-                f"{filename} rule {rule.get('id', '?')}: missing 'match_type'"
-            )
+            assert (
+                "match_type" in rule
+            ), f"{filename} rule {rule.get('id', '?')}: missing 'match_type'"
 
     @pytest.mark.parametrize("filename", list(EXPECTED_COUNTS.keys()))
     def test_unique_ids(self, filename):
@@ -71,37 +69,33 @@ class TestBundledTomlFiles:
             category = filename.replace(".toml", "").replace("-", "_")
             rules = load_and_compile(path, category)
             total += len(rules)
-        assert total == sum(EXPECTED_COUNTS.values()), (
-            f"Total rules mismatch: {total} != {sum(EXPECTED_COUNTS.values())}"
-        )
+        assert total == sum(
+            EXPECTED_COUNTS.values()
+        ), f"Total rules mismatch: {total} != {sum(EXPECTED_COUNTS.values())}"
 
     def test_secrets_have_redaction_strategy(self):
         path = PATTERNS_DIR / "secrets.toml"
         rules = load_and_compile(path, "secrets")
         for rule in rules:
-            assert "redaction_strategy" in rule.metadata, (
-                f"Secret rule {rule.id}: missing redaction_strategy"
-            )
+            assert (
+                "redaction_strategy" in rule.metadata
+            ), f"Secret rule {rule.id}: missing redaction_strategy"
 
     def test_pii_have_pii_type(self):
         path = PATTERNS_DIR / "pii.toml"
         rules = load_and_compile(path, "pii")
         for rule in rules:
-            assert "pii_type" in rule.metadata, (
-                f"PII rule {rule.id}: missing pii_type"
-            )
+            assert "pii_type" in rule.metadata, f"PII rule {rule.id}: missing pii_type"
 
     def test_prompt_injection_have_group(self):
         path = PATTERNS_DIR / "prompt-injection.toml"
         rules = load_and_compile(path, "prompt_injection")
         valid_groups = {"critical", "documentation", "jailbreak", "suspicious"}
         for rule in rules:
-            assert "group" in rule.metadata, (
-                f"PI rule {rule.id}: missing group"
-            )
-            assert rule.metadata["group"] in valid_groups, (
-                f"PI rule {rule.id}: invalid group '{rule.metadata['group']}'"
-            )
+            assert "group" in rule.metadata, f"PI rule {rule.id}: missing group"
+            assert (
+                rule.metadata["group"] in valid_groups
+            ), f"PI rule {rule.id}: invalid group '{rule.metadata['group']}'"
 
     def test_prompt_injection_group_counts(self):
         path = PATTERNS_DIR / "prompt-injection.toml"

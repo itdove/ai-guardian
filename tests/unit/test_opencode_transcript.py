@@ -173,11 +173,26 @@ class TestReadOpenCodeTranscript(unittest.TestCase):
     def tearDown(self):
         self.conn.close()
         import shutil
+
         shutil.rmtree(self.tmpdir, ignore_errors=True)
 
     def test_reads_text_parts(self):
-        _insert_part(self.conn, "p1", "msg_1", "ses_1", {"type": "text", "text": "Hello"}, ts=2000)
-        _insert_part(self.conn, "p2", "msg_1", "ses_1", {"type": "text", "text": "World"}, ts=3000)
+        _insert_part(
+            self.conn,
+            "p1",
+            "msg_1",
+            "ses_1",
+            {"type": "text", "text": "Hello"},
+            ts=2000,
+        )
+        _insert_part(
+            self.conn,
+            "p2",
+            "msg_1",
+            "ses_1",
+            {"type": "text", "text": "World"},
+            ts=3000,
+        )
 
         text, ts = read_opencode_transcript(self.db_path, "ses_1", since_timestamp=0)
         self.assertIn("Hello", text)
@@ -186,8 +201,15 @@ class TestReadOpenCodeTranscript(unittest.TestCase):
 
     def test_reads_tool_output(self):
         _insert_part(
-            self.conn, "p1", "msg_1", "ses_1",
-            {"type": "tool", "tool": "bash", "state": {"output": "secret data", "input": {"command": "cat file"}}},
+            self.conn,
+            "p1",
+            "msg_1",
+            "ses_1",
+            {
+                "type": "tool",
+                "tool": "bash",
+                "state": {"output": "secret data", "input": {"command": "cat file"}},
+            },
             ts=2000,
         )
         text, ts = read_opencode_transcript(self.db_path, "ses_1", since_timestamp=0)
@@ -196,8 +218,12 @@ class TestReadOpenCodeTranscript(unittest.TestCase):
         self.assertEqual(ts, 2000)
 
     def test_incremental_cursor(self):
-        _insert_part(self.conn, "p1", "msg_1", "ses_1", {"type": "text", "text": "old"}, ts=1000)
-        _insert_part(self.conn, "p2", "msg_1", "ses_1", {"type": "text", "text": "new"}, ts=2000)
+        _insert_part(
+            self.conn, "p1", "msg_1", "ses_1", {"type": "text", "text": "old"}, ts=1000
+        )
+        _insert_part(
+            self.conn, "p2", "msg_1", "ses_1", {"type": "text", "text": "new"}, ts=2000
+        )
 
         text, ts = read_opencode_transcript(self.db_path, "ses_1", since_timestamp=1500)
         self.assertNotIn("old", text)
@@ -205,12 +231,16 @@ class TestReadOpenCodeTranscript(unittest.TestCase):
         self.assertEqual(ts, 2000)
 
     def test_empty_session(self):
-        text, ts = read_opencode_transcript(self.db_path, "ses_nonexistent", since_timestamp=0)
+        text, ts = read_opencode_transcript(
+            self.db_path, "ses_nonexistent", since_timestamp=0
+        )
         self.assertEqual(text, "")
         self.assertEqual(ts, 0)
 
     def test_nothing_new(self):
-        _insert_part(self.conn, "p1", "msg_1", "ses_1", {"type": "text", "text": "old"}, ts=1000)
+        _insert_part(
+            self.conn, "p1", "msg_1", "ses_1", {"type": "text", "text": "old"}, ts=1000
+        )
         text, ts = read_opencode_transcript(self.db_path, "ses_1", since_timestamp=5000)
         self.assertEqual(text, "")
         self.assertEqual(ts, 5000)
@@ -221,7 +251,14 @@ class TestReadOpenCodeTranscript(unittest.TestCase):
             "VALUES ('p_bad', 'msg_1', 'ses_1', 2000, 2000, 'not json')"
         )
         self.conn.commit()
-        _insert_part(self.conn, "p_good", "msg_1", "ses_1", {"type": "text", "text": "valid"}, ts=3000)
+        _insert_part(
+            self.conn,
+            "p_good",
+            "msg_1",
+            "ses_1",
+            {"type": "text", "text": "valid"},
+            ts=3000,
+        )
 
         text, ts = read_opencode_transcript(self.db_path, "ses_1", since_timestamp=0)
         self.assertIn("valid", text)
@@ -237,7 +274,9 @@ class TestReadOpenCodeTranscript(unittest.TestCase):
         self.assertEqual(text, "")
 
     def test_db_not_found(self):
-        text, ts = read_opencode_transcript("/nonexistent/db.db", "ses_1", since_timestamp=0)
+        text, ts = read_opencode_transcript(
+            "/nonexistent/db.db", "ses_1", since_timestamp=0
+        )
         self.assertEqual(text, "")
         self.assertEqual(ts, 0)
 
@@ -255,12 +294,19 @@ class TestGetOpenCodeLatestTimestamp(unittest.TestCase):
     def tearDown(self):
         self.conn.close()
         import shutil
+
         shutil.rmtree(self.tmpdir, ignore_errors=True)
 
     def test_returns_max_timestamp(self):
-        _insert_part(self.conn, "p1", "msg_1", "ses_1", {"type": "text", "text": "a"}, ts=1000)
-        _insert_part(self.conn, "p2", "msg_1", "ses_1", {"type": "text", "text": "b"}, ts=5000)
-        _insert_part(self.conn, "p3", "msg_1", "ses_1", {"type": "text", "text": "c"}, ts=3000)
+        _insert_part(
+            self.conn, "p1", "msg_1", "ses_1", {"type": "text", "text": "a"}, ts=1000
+        )
+        _insert_part(
+            self.conn, "p2", "msg_1", "ses_1", {"type": "text", "text": "b"}, ts=5000
+        )
+        _insert_part(
+            self.conn, "p3", "msg_1", "ses_1", {"type": "text", "text": "c"}, ts=3000
+        )
 
         result = get_opencode_latest_timestamp(self.db_path, "ses_1")
         self.assertEqual(result, 5000)
@@ -285,26 +331,38 @@ class TestScanOpenCodeTranscriptIncremental(unittest.TestCase):
         _insert_message(self.conn, "msg_1", "ses_scan1", ts=1000)
 
         self.state_dir = tempfile.mkdtemp()
-        self.env_patcher = mock.patch.dict(os.environ, {
-            "AI_GUARDIAN_STATE_DIR": self.state_dir,
-            "AI_GUARDIAN_CONFIG_DIR": self.tmpdir,
-        })
+        self.env_patcher = mock.patch.dict(
+            os.environ,
+            {
+                "AI_GUARDIAN_STATE_DIR": self.state_dir,
+                "AI_GUARDIAN_CONFIG_DIR": self.tmpdir,
+            },
+        )
         self.env_patcher.start()
 
     def tearDown(self):
         self.conn.close()
         self.env_patcher.stop()
         import shutil
+
         shutil.rmtree(self.tmpdir, ignore_errors=True)
         shutil.rmtree(self.state_dir, ignore_errors=True)
 
     def test_first_scan_skips_to_end(self):
         from ai_guardian.hook_processing import scan_opencode_transcript_incremental
 
-        _insert_part(self.conn, "p1", "msg_1", "ses_scan1", {"type": "text", "text": "existing"}, ts=1000)
+        _insert_part(
+            self.conn,
+            "p1",
+            "msg_1",
+            "ses_scan1",
+            {"type": "text", "text": "existing"},
+            ts=1000,
+        )
 
         result = scan_opencode_transcript_incremental(
-            self.db_path, "ses_scan1",
+            self.db_path,
+            "ses_scan1",
             secret_config={"enabled": False},
             pii_config={"enabled": False},
         )
@@ -313,26 +371,45 @@ class TestScanOpenCodeTranscriptIncremental(unittest.TestCase):
         positions_file = Path(self.state_dir) / "transcript_positions.json"
         self.assertTrue(positions_file.exists())
         import json
+
         positions = json.loads(positions_file.read_text())
         self.assertEqual(positions.get("opencode:ses_scan1"), 1000)
 
     def test_second_scan_reads_new_parts(self):
         from ai_guardian.hook_processing import scan_opencode_transcript_incremental
 
-        _insert_part(self.conn, "p1", "msg_1", "ses_scan1", {"type": "text", "text": "old text"}, ts=1000)
+        _insert_part(
+            self.conn,
+            "p1",
+            "msg_1",
+            "ses_scan1",
+            {"type": "text", "text": "old text"},
+            ts=1000,
+        )
 
         scan_opencode_transcript_incremental(
-            self.db_path, "ses_scan1",
+            self.db_path,
+            "ses_scan1",
             secret_config={"enabled": False},
             pii_config={"enabled": False},
         )
 
-        _insert_part(self.conn, "p2", "msg_1", "ses_scan1", {"type": "text", "text": "new text"}, ts=2000)
+        _insert_part(
+            self.conn,
+            "p2",
+            "msg_1",
+            "ses_scan1",
+            {"type": "text", "text": "new text"},
+            ts=2000,
+        )
 
-        with mock.patch("ai_guardian.hook_processing._scan_transcript_text") as mock_scan:
+        with mock.patch(
+            "ai_guardian.hook_processing._scan_transcript_text"
+        ) as mock_scan:
             mock_scan.return_value = []
             scan_opencode_transcript_incremental(
-                self.db_path, "ses_scan1",
+                self.db_path,
+                "ses_scan1",
                 secret_config={"enabled": False},
                 pii_config={"enabled": False},
             )
@@ -343,16 +420,25 @@ class TestScanOpenCodeTranscriptIncremental(unittest.TestCase):
     def test_nothing_new_returns_empty(self):
         from ai_guardian.hook_processing import scan_opencode_transcript_incremental
 
-        _insert_part(self.conn, "p1", "msg_1", "ses_scan1", {"type": "text", "text": "old"}, ts=1000)
+        _insert_part(
+            self.conn,
+            "p1",
+            "msg_1",
+            "ses_scan1",
+            {"type": "text", "text": "old"},
+            ts=1000,
+        )
 
         scan_opencode_transcript_incremental(
-            self.db_path, "ses_scan1",
+            self.db_path,
+            "ses_scan1",
             secret_config={"enabled": False},
             pii_config={"enabled": False},
         )
 
         result = scan_opencode_transcript_incremental(
-            self.db_path, "ses_scan1",
+            self.db_path,
+            "ses_scan1",
             secret_config={"enabled": False},
             pii_config={"enabled": False},
         )
@@ -364,22 +450,27 @@ class TestScanTranscriptText(unittest.TestCase):
 
     def setUp(self):
         self.state_dir = tempfile.mkdtemp()
-        self.env_patcher = mock.patch.dict(os.environ, {
-            "AI_GUARDIAN_STATE_DIR": self.state_dir,
-            "AI_GUARDIAN_CONFIG_DIR": self.state_dir,
-        })
+        self.env_patcher = mock.patch.dict(
+            os.environ,
+            {
+                "AI_GUARDIAN_STATE_DIR": self.state_dir,
+                "AI_GUARDIAN_CONFIG_DIR": self.state_dir,
+            },
+        )
         self.env_patcher.start()
 
     def tearDown(self):
         self.env_patcher.stop()
         import shutil
+
         shutil.rmtree(self.state_dir, ignore_errors=True)
 
     def test_both_disabled_returns_empty(self):
         from ai_guardian.hook_processing import _scan_transcript_text
 
         result = _scan_transcript_text(
-            "some text", "test_key",
+            "some text",
+            "test_key",
             secret_config={"enabled": False},
             pii_config={"enabled": False},
         )
@@ -389,7 +480,8 @@ class TestScanTranscriptText(unittest.TestCase):
         from ai_guardian.hook_processing import _scan_transcript_text
 
         result = _scan_transcript_text(
-            "", "test_key",
+            "",
+            "test_key",
             secret_config={"enabled": True},
             pii_config={"enabled": True},
         )
@@ -399,10 +491,14 @@ class TestScanTranscriptText(unittest.TestCase):
     def test_secret_detection(self, mock_gitleaks):
         from ai_guardian.hook_processing import _scan_transcript_text
 
-        mock_gitleaks.return_value = (True, "Secret Type: generic-api-key\nLine: api_key=abc123")
+        mock_gitleaks.return_value = (
+            True,
+            "Secret Type: generic-api-key\nLine: api_key=abc123",
+        )
 
         result = _scan_transcript_text(
-            "api_key=abc123", "test_key",
+            "api_key=abc123",
+            "test_key",
             secret_config={"enabled": True},
             pii_config={"enabled": False},
         )
@@ -413,17 +509,22 @@ class TestScanTranscriptText(unittest.TestCase):
     def test_dedup_same_secret(self, mock_gitleaks):
         from ai_guardian.hook_processing import _scan_transcript_text
 
-        mock_gitleaks.return_value = (True, "Secret Type: generic-api-key\nLine: key=xyz")
+        mock_gitleaks.return_value = (
+            True,
+            "Secret Type: generic-api-key\nLine: key=xyz",
+        )
 
         result1 = _scan_transcript_text(
-            "key=xyz", "opencode:ses_dedup",
+            "key=xyz",
+            "opencode:ses_dedup",
             secret_config={"enabled": True},
             pii_config={"enabled": False},
         )
         self.assertEqual(len(result1), 1)
 
         result2 = _scan_transcript_text(
-            "key=xyz", "opencode:ses_dedup",
+            "key=xyz",
+            "opencode:ses_dedup",
             secret_config={"enabled": True},
             pii_config={"enabled": False},
         )

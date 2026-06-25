@@ -19,11 +19,9 @@ pytestmark = pytest.mark.skipif(
 )
 
 from ai_guardian.mcp_server import (
-    _load_mcp_config,
     _validate_scan_path,
     create_server,
 )
-
 
 # ─── Security Check Tool Tests ────────────────────────────────
 
@@ -49,7 +47,11 @@ class TestCheckPath:
         denied_file = tmp_path / "secret.txt"
         denied_file.write_text("secret")
         mock_checker = MagicMock()
-        mock_checker.check_tool_allowed.return_value = (False, "Path is denied", "Write")
+        mock_checker.check_tool_allowed.return_value = (
+            False,
+            "Path is denied",
+            "Write",
+        )
         mock_checker_cls.return_value = mock_checker
 
         server = create_server()
@@ -159,7 +161,11 @@ class TestCheckPath:
         f = tmp_path / "ai-guardian.json"
         f.write_text("{}")
         mock_checker = MagicMock()
-        mock_checker.check_tool_allowed.return_value = (False, "Config protected", "Read")
+        mock_checker.check_tool_allowed.return_value = (
+            False,
+            "Config protected",
+            "Read",
+        )
         mock_checker_cls.return_value = mock_checker
 
         server = create_server()
@@ -173,7 +179,11 @@ class TestCheckPath:
         secret_file = tmp_path / "secret.txt"
         secret_file.write_text("secret")
         mock_checker = MagicMock()
-        mock_checker.check_tool_allowed.return_value = (False, "Denied by rule X", "Write")
+        mock_checker.check_tool_allowed.return_value = (
+            False,
+            "Denied by rule X",
+            "Write",
+        )
         mock_checker_cls.return_value = mock_checker
 
         server = create_server()
@@ -201,7 +211,11 @@ class TestCheckCommand:
     @patch("ai_guardian.tool_policy.ToolPolicyChecker")
     def test_blocked_with_reason(self, mock_checker_cls):
         mock_checker = MagicMock()
-        mock_checker.check_tool_allowed.return_value = (False, "Secret detected in command", "Bash")
+        mock_checker.check_tool_allowed.return_value = (
+            False,
+            "Secret detected in command",
+            "Bash",
+        )
         mock_checker_cls.return_value = mock_checker
 
         server = create_server()
@@ -213,7 +227,11 @@ class TestCheckCommand:
     @patch("ai_guardian.tool_policy.ToolPolicyChecker")
     def test_ssrf_reason(self, mock_checker_cls):
         mock_checker = MagicMock()
-        mock_checker.check_tool_allowed.return_value = (False, "SSRF protection blocked this URL", "Bash")
+        mock_checker.check_tool_allowed.return_value = (
+            False,
+            "SSRF protection blocked this URL",
+            "Bash",
+        )
         mock_checker_cls.return_value = mock_checker
 
         server = create_server()
@@ -250,7 +268,11 @@ class TestCheckPathHookDataFormat:
         secret_file.parent.mkdir()
         secret_file.write_text("private key")
         mock_checker = MagicMock()
-        mock_checker.check_tool_allowed.return_value = (False, "Directory denied", "Write")
+        mock_checker.check_tool_allowed.return_value = (
+            False,
+            "Directory denied",
+            "Write",
+        )
         mock_checker_cls.return_value = mock_checker
 
         server = create_server()
@@ -284,7 +306,9 @@ class TestCheckCommandHookDataFormat:
         """check_command returns blocked when command contains a secret."""
         mock_checker = MagicMock()
         mock_checker.check_tool_allowed.return_value = (
-            False, "Secret detected in command", "Bash"
+            False,
+            "Secret detected in command",
+            "Bash",
         )
         mock_checker_cls.return_value = mock_checker
 
@@ -294,7 +318,10 @@ class TestCheckCommandHookDataFormat:
         assert result["status"] == "blocked"
         assert result["reason"] == "secret_detected"
         hook_data = mock_checker.check_tool_allowed.call_args[0][0]
-        assert hook_data["tool_input"]["command"] == "curl -H 'Authorization: Bearer sk_live_xxx'"
+        assert (
+            hook_data["tool_input"]["command"]
+            == "curl -H 'Authorization: Bearer sk_live_xxx'"
+        )
 
 
 class TestCheckMCPTrustHookDataFormat:
@@ -321,7 +348,11 @@ class TestCheckMCPTrust:
     @patch("ai_guardian.tool_policy.ToolPolicyChecker")
     def test_trusted_server(self, mock_checker_cls):
         mock_checker = MagicMock()
-        mock_checker.check_tool_allowed.return_value = (True, None, "mcp__myserver__test")
+        mock_checker.check_tool_allowed.return_value = (
+            True,
+            None,
+            "mcp__myserver__test",
+        )
         mock_checker_cls.return_value = mock_checker
 
         server = create_server()
@@ -332,7 +363,11 @@ class TestCheckMCPTrust:
     @patch("ai_guardian.tool_policy.ToolPolicyChecker")
     def test_untrusted_server(self, mock_checker_cls):
         mock_checker = MagicMock()
-        mock_checker.check_tool_allowed.return_value = (False, "MCP server blocked", "mcp__evil__test")
+        mock_checker.check_tool_allowed.return_value = (
+            False,
+            "MCP server blocked",
+            "mcp__evil__test",
+        )
         mock_checker_cls.return_value = mock_checker
 
         server = create_server()
@@ -349,7 +384,13 @@ class TestSanitizeText:
         mock_sanitize.return_value = {
             "sanitized_text": "token is [REDACTED]",
             "redactions": [{"type": "api_key"}],
-            "stats": {"secrets": 1, "pii": 0, "prompt_injection": 0, "unicode": 0, "total": 1},
+            "stats": {
+                "secrets": 1,
+                "pii": 0,
+                "prompt_injection": 0,
+                "unicode": 0,
+                "total": 1,
+            },
         }
 
         server = create_server()
@@ -364,8 +405,16 @@ class TestSanitizeText:
         """Response must not expose what was redacted (only type counts)."""
         mock_sanitize.return_value = {
             "sanitized_text": "[REDACTED]",
-            "redactions": [{"type": "api_key", "original": "sk_live_xxx", "start": 0, "end": 10}],
-            "stats": {"secrets": 1, "pii": 0, "prompt_injection": 0, "unicode": 0, "total": 1},
+            "redactions": [
+                {"type": "api_key", "original": "sk_live_xxx", "start": 0, "end": 10}
+            ],
+            "stats": {
+                "secrets": 1,
+                "pii": 0,
+                "prompt_injection": 0,
+                "unicode": 0,
+                "total": 1,
+            },
         }
 
         server = create_server()
@@ -387,9 +436,19 @@ class TestSanitizeDirectory:
         (input_dir / "test.txt").write_text("hello")
 
         mock_sanitize_dir.return_value = {
-            "text_files": 1, "image_files": 0, "binary_files": 0,
-            "skipped_files": 0, "total_redactions": {"secrets": 0, "pii": 0, "prompt_injection": 0, "unicode": 0},
-            "total_redaction_count": 0, "file_details": [], "errors": [],
+            "text_files": 1,
+            "image_files": 0,
+            "binary_files": 0,
+            "skipped_files": 0,
+            "total_redactions": {
+                "secrets": 0,
+                "pii": 0,
+                "prompt_injection": 0,
+                "unicode": 0,
+            },
+            "total_redaction_count": 0,
+            "file_details": [],
+            "errors": [],
         }
 
         server = create_server()
@@ -400,16 +459,28 @@ class TestSanitizeDirectory:
         assert kwargs.get("redact_strategy") == "blackout"
 
     @patch("ai_guardian.sanitizer.sanitize_directory")
-    def test_invalid_redact_strategy_defaults_to_blackout(self, mock_sanitize_dir, tmp_path):
+    def test_invalid_redact_strategy_defaults_to_blackout(
+        self, mock_sanitize_dir, tmp_path
+    ):
         """Invalid redact_strategy should fall back to blackout."""
         input_dir = tmp_path / "src"
         input_dir.mkdir()
         (input_dir / "test.txt").write_text("hello")
 
         mock_sanitize_dir.return_value = {
-            "text_files": 1, "image_files": 0, "binary_files": 0,
-            "skipped_files": 0, "total_redactions": {"secrets": 0, "pii": 0, "prompt_injection": 0, "unicode": 0},
-            "total_redaction_count": 0, "file_details": [], "errors": [],
+            "text_files": 1,
+            "image_files": 0,
+            "binary_files": 0,
+            "skipped_files": 0,
+            "total_redactions": {
+                "secrets": 0,
+                "pii": 0,
+                "prompt_injection": 0,
+                "unicode": 0,
+            },
+            "total_redaction_count": 0,
+            "file_details": [],
+            "errors": [],
         }
 
         server = create_server()
@@ -508,9 +579,14 @@ class TestGetViolations:
     def test_violations_include_safe_suggestions(self, mock_vl_cls):
         """Each violation entry must include a safe-only fix suggestion."""
         violation_types = [
-            "secret_detected", "pii_detected", "directory_blocking",
-            "tool_permission", "prompt_injection", "ssrf_blocked",
-            "config_file_exfil", "jailbreak_detected",
+            "secret_detected",
+            "pii_detected",
+            "directory_blocking",
+            "tool_permission",
+            "prompt_injection",
+            "ssrf_blocked",
+            "config_file_exfil",
+            "jailbreak_detected",
         ]
         mock_vl = MagicMock()
         mock_vl.get_recent_violations.return_value = [
@@ -546,9 +622,15 @@ class TestGetViolations:
                 "context": {"tool_name": "Write"},
             }
             for vtype in [
-                "secret_detected", "pii_detected", "directory_blocking",
-                "tool_permission", "prompt_injection", "ssrf_blocked",
-                "config_file_exfil", "jailbreak_detected", "unknown_type",
+                "secret_detected",
+                "pii_detected",
+                "directory_blocking",
+                "tool_permission",
+                "prompt_injection",
+                "ssrf_blocked",
+                "config_file_exfil",
+                "jailbreak_detected",
+                "unknown_type",
             ]
         ]
         mock_vl_cls.return_value = mock_vl
@@ -617,9 +699,15 @@ class TestGetScannerStatus:
     @patch("ai_guardian.scanner_manager.ScannerManager")
     def test_returns_installed_scanners(self, mock_sm_cls):
         from ai_guardian.scanner_manager import InstalledScanner
+
         mock_sm = MagicMock()
         mock_sm.list_installed.return_value = [
-            InstalledScanner(name="gitleaks", version="8.30.1", path="/usr/bin/gitleaks", is_default=True),
+            InstalledScanner(
+                name="gitleaks",
+                version="8.30.1",
+                path="/usr/bin/gitleaks",
+                is_default=True,
+            ),
         ]
         mock_sm_cls.return_value = mock_sm
 
@@ -709,10 +797,17 @@ class TestDoctor:
     @patch("ai_guardian.doctor.Doctor")
     def test_returns_check_results(self, mock_doc_cls):
         from ai_guardian.doctor import CheckResult, CheckStatus, DoctorReport
+
         mock_report = DoctorReport(
             checks=[
-                CheckResult(name="config", status=CheckStatus.PASS, message="Config OK"),
-                CheckResult(name="scanner", status=CheckStatus.WARN, message="No scanner installed"),
+                CheckResult(
+                    name="config", status=CheckStatus.PASS, message="Config OK"
+                ),
+                CheckResult(
+                    name="scanner",
+                    status=CheckStatus.WARN,
+                    message="No scanner installed",
+                ),
             ],
             version="1.7.0-dev",
         )
@@ -787,8 +882,18 @@ class TestPrepareSupportBundle:
             "temp_path": "/tmp/ai-guardian-support-abc123",
             "destination": "~/support-bundles",
             "files": [
-                {"name": "config.json", "sanitized": True, "redactions": 3, "note": "3 sensitive values redacted"},
-                {"name": "metrics.json", "sanitized": False, "redactions": 0, "note": "Aggregate stats only"},
+                {
+                    "name": "config.json",
+                    "sanitized": True,
+                    "redactions": 3,
+                    "note": "3 sensitive values redacted",
+                },
+                {
+                    "name": "metrics.json",
+                    "sanitized": False,
+                    "redactions": 0,
+                    "note": "Aggregate stats only",
+                },
             ],
         }
 
@@ -853,13 +958,17 @@ class TestValidateScanPath:
         assert valid is False
         assert "not a directory" in err
 
-    @pytest.mark.skipif(sys.platform == "win32", reason="/etc does not exist on Windows")
+    @pytest.mark.skipif(
+        sys.platform == "win32", reason="/etc does not exist on Windows"
+    )
     def test_blocks_etc(self):
         valid, err, _ = _validate_scan_path("/etc")
         assert valid is False
         assert "not allowed" in err
 
-    @pytest.mark.skipif(sys.platform == "win32", reason="/dev does not exist on Windows")
+    @pytest.mark.skipif(
+        sys.platform == "win32", reason="/dev does not exist on Windows"
+    )
     def test_blocks_sys(self):
         valid, err, _ = _validate_scan_path("/dev")
         assert valid is False
@@ -914,7 +1023,9 @@ class TestScanDirectory:
     @patch("ai_guardian.scanner.FileScanner.scan_directory")
     @patch("ai_guardian.scanner.FileScanner._discover_files")
     @patch("ai_guardian.mcp_server._load_full_config")
-    def test_no_secret_values_exposed(self, mock_config, mock_discover, mock_scan, tmp_path):
+    def test_no_secret_values_exposed(
+        self, mock_config, mock_discover, mock_scan, tmp_path
+    ):
         """Response must not contain actual secret/snippet values or file paths."""
         mock_config.return_value = {}
         mock_discover.return_value = []
@@ -939,7 +1050,9 @@ class TestScanDirectory:
         assert "config.py" not in result_str
         assert "files_with_violations" not in result_str
 
-    @pytest.mark.skipif(sys.platform == "win32", reason="/etc does not exist on Windows")
+    @pytest.mark.skipif(
+        sys.platform == "win32", reason="/etc does not exist on Windows"
+    )
     def test_system_path_blocked(self):
         server = create_server()
         tool = server._tool_manager._tools["scan_directory"]
@@ -1012,7 +1125,9 @@ class TestScanDirectoryReport:
         assert "snippet" not in result_str
         assert "report_path" in result
 
-    @pytest.mark.skipif(sys.platform == "win32", reason="/etc does not exist on Windows")
+    @pytest.mark.skipif(
+        sys.platform == "win32", reason="/etc does not exist on Windows"
+    )
     def test_system_path_blocked(self):
         server = create_server()
         tool = server._tool_manager._tools["scan_directory_report"]
@@ -1042,15 +1157,27 @@ class TestServerCreation:
         server = create_server()
         tools = server._tool_manager._tools
         expected = {
-            "check_path", "check_command", "check_mcp_trust",
-            "sanitize_text", "sanitize_directory", "check_annotations",
-            "get_violations", "get_config", "get_scanner_status",
-            "get_scanner_supported", "get_patterns_list",
-            "get_metrics", "doctor",
-            "prepare_support_bundle", "send_support_bundle",
-            "scan_directory", "scan_directory_report",
+            "check_path",
+            "check_command",
+            "check_mcp_trust",
+            "sanitize_text",
+            "sanitize_directory",
+            "check_annotations",
+            "get_violations",
+            "get_config",
+            "get_scanner_status",
+            "get_scanner_supported",
+            "get_patterns_list",
+            "get_metrics",
+            "doctor",
+            "prepare_support_bundle",
+            "send_support_bundle",
+            "scan_directory",
+            "scan_directory_report",
         }
-        assert expected == set(tools.keys()), f"Missing: {expected - set(tools.keys())}, Extra: {set(tools.keys()) - expected}"
+        assert expected == set(
+            tools.keys()
+        ), f"Missing: {expected - set(tools.keys())}, Extra: {set(tools.keys()) - expected}"
 
     def test_skill_instructions_contain_violation_guidance(self):
         """Skill instructions must tell the AI to call get_violations() for block reasons."""
@@ -1077,4 +1204,6 @@ class TestServerCreation:
             "ai-guardian://protected-paths",
             "ai-guardian://recent-violations",
         }
-        assert expected_uris == set(resources.keys()), f"Missing: {expected_uris - set(resources.keys())}"
+        assert expected_uris == set(
+            resources.keys()
+        ), f"Missing: {expected_uris - set(resources.keys())}"

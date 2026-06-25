@@ -2,7 +2,6 @@
 
 from unittest import mock
 
-import pytest
 
 from ai_guardian.daemon.discovery import DaemonTarget
 from ai_guardian.daemon.multi_client import MultiDaemonClient
@@ -47,9 +46,7 @@ class TestLocalPauseResumeRouting:
         target = DaemonTarget(name="local", runtime="local")
         result = client.send_resume(target)
         assert result is True
-        mock_send.assert_called_once_with(
-            {"version": 1, "type": "resume"}
-        )
+        mock_send.assert_called_once_with({"version": 1, "type": "resume"})
 
     @mock.patch.object(MultiDaemonClient, "_local_socket_send", return_value=False)
     def test_pause_local_returns_false_on_failure(self, mock_send):
@@ -69,8 +66,11 @@ class TestLocalDirPauseResumeRouting:
         result = client.send_pause_dir(target, "/home/user/project", 5)
         assert result is True
         mock_send.assert_called_once_with(
-            {"version": 1, "type": "pause_dir",
-             "data": {"dir": "/home/user/project", "minutes": 5}}
+            {
+                "version": 1,
+                "type": "pause_dir",
+                "data": {"dir": "/home/user/project", "minutes": 5},
+            }
         )
 
     @mock.patch.object(MultiDaemonClient, "_local_socket_send", return_value=True)
@@ -80,43 +80,54 @@ class TestLocalDirPauseResumeRouting:
         result = client.send_resume_dir(target, "/home/user/project")
         assert result is True
         mock_send.assert_called_once_with(
-            {"version": 1, "type": "resume_dir",
-             "data": {"dir": "/home/user/project"}}
+            {"version": 1, "type": "resume_dir", "data": {"dir": "/home/user/project"}}
         )
 
     def test_pause_dir_remote_uses_rest(self):
         client = MultiDaemonClient()
         target = DaemonTarget(
-            name="test", runtime="container",
-            host="127.0.0.1", port=49200,
-            container_id="abc123def456abc123", container_engine="podman",
+            name="test",
+            runtime="container",
+            host="127.0.0.1",
+            port=49200,
+            container_id="abc123def456abc123",
+            container_engine="podman",
         )
         with mock.patch.object(
-            client, "_rest_request",
+            client,
+            "_rest_request",
             return_value={"status": "dir_paused"},
         ) as mock_rest:
             result = client.send_pause_dir(target, "/app/project", 30)
             assert result is True
             mock_rest.assert_called_once_with(
-                target, "POST", "/api/pause_dir",
+                target,
+                "POST",
+                "/api/pause_dir",
                 {"dir": "/app/project", "minutes": 30},
             )
 
     def test_resume_dir_remote_uses_rest(self):
         client = MultiDaemonClient()
         target = DaemonTarget(
-            name="test", runtime="container",
-            host="127.0.0.1", port=49200,
-            container_id="abc123def456abc123", container_engine="podman",
+            name="test",
+            runtime="container",
+            host="127.0.0.1",
+            port=49200,
+            container_id="abc123def456abc123",
+            container_engine="podman",
         )
         with mock.patch.object(
-            client, "_rest_request",
+            client,
+            "_rest_request",
             return_value={"status": "dir_resumed"},
         ) as mock_rest:
             result = client.send_resume_dir(target, "/app/project")
             assert result is True
             mock_rest.assert_called_once_with(
-                target, "POST", "/api/resume_dir",
+                target,
+                "POST",
+                "/api/resume_dir",
                 {"dir": "/app/project"},
             )
 
@@ -125,13 +136,15 @@ class TestContainerRouting:
     def test_status_via_rest(self):
         client = MultiDaemonClient()
         target = DaemonTarget(
-            name="test", runtime="container",
-            host="127.0.0.1", port=49200,
-            container_id="abc123def456abc123", container_engine="podman"
+            name="test",
+            runtime="container",
+            host="127.0.0.1",
+            port=49200,
+            container_id="abc123def456abc123",
+            container_engine="podman",
         )
         with mock.patch.object(
-            client, "_rest_request",
-            return_value={"request_count": 50}
+            client, "_rest_request", return_value={"request_count": 50}
         ):
             result = client.get_status(target)
             assert result == {"request_count": 50}
@@ -139,13 +152,15 @@ class TestContainerRouting:
     def test_pause_via_rest(self):
         client = MultiDaemonClient()
         target = DaemonTarget(
-            name="test", runtime="container",
-            host="127.0.0.1", port=49200,
-            container_id="abc123def456abc123", container_engine="podman"
+            name="test",
+            runtime="container",
+            host="127.0.0.1",
+            port=49200,
+            container_id="abc123def456abc123",
+            container_engine="podman",
         )
         with mock.patch.object(
-            client, "_rest_request",
-            return_value={"status": "paused"}
+            client, "_rest_request", return_value={"status": "paused"}
         ):
             result = client.send_pause(target, 15)
             assert result is True
@@ -155,8 +170,10 @@ class TestContainerRouting:
         mock_run.return_value = mock.MagicMock(returncode=0, stdout="ok", stderr="")
         client = MultiDaemonClient()
         target = DaemonTarget(
-            name="test", runtime="container",
-            container_id="abc123def456abc123", container_engine="podman"
+            name="test",
+            runtime="container",
+            container_id="abc123def456abc123",
+            container_engine="podman",
         )
         result = client.send_restart(target)
         assert result is True
@@ -173,8 +190,10 @@ class TestContainerRouting:
         )
         client = MultiDaemonClient()
         target = DaemonTarget(
-            name="test", runtime="container",
-            container_id="abc789def012abc789", container_engine="docker"
+            name="test",
+            runtime="container",
+            container_id="abc789def012abc789",
+            container_engine="docker",
         )
         result = client.export_support(target)
         assert result == "bundle ready"
@@ -187,8 +206,10 @@ class TestContainerRouting:
     def test_console_via_podman_exec(self, mock_which, mock_platform, mock_popen):
         client = MultiDaemonClient()
         target = DaemonTarget(
-            name="test", runtime="container",
-            container_id="abc123def456abc123", container_engine="podman"
+            name="test",
+            runtime="container",
+            container_id="abc123def456abc123",
+            container_engine="podman",
         )
         client.open_console(target)
         mock_popen.assert_called_once()
@@ -204,8 +225,10 @@ class TestKubernetesRouting:
         mock_run.return_value = mock.MagicMock(returncode=0, stdout="ok", stderr="")
         client = MultiDaemonClient()
         target = DaemonTarget(
-            name="test", runtime="kubernetes",
-            pod_name="guardian-abc", namespace="ai-sdlc"
+            name="test",
+            runtime="kubernetes",
+            pod_name="guardian-abc",
+            namespace="ai-sdlc",
         )
         result = client.send_restart(target)
         assert result is True
@@ -223,8 +246,10 @@ class TestKubernetesRouting:
         )
         client = MultiDaemonClient()
         target = DaemonTarget(
-            name="test", runtime="kubernetes",
-            pod_name="guardian-abc", namespace="default"
+            name="test",
+            runtime="kubernetes",
+            pod_name="guardian-abc",
+            namespace="default",
         )
         result = client.send_restart(target)
         assert result is False
@@ -242,8 +267,7 @@ class TestRestRequest:
         mock_urlopen.return_value = mock_resp
 
         target = DaemonTarget(
-            name="test", runtime="container",
-            host="127.0.0.1", port=49200
+            name="test", runtime="container", host="127.0.0.1", port=49200
         )
         result = MultiDaemonClient._rest_request(target, "GET", "/api/stats")
         assert result == response_data
@@ -257,15 +281,16 @@ class TestRestRequest:
     @mock.patch("ai_guardian.daemon.multi_client.urlopen")
     def test_auth_token_in_url_target(self, mock_urlopen, _mock_tcp):
         mock_resp = mock.MagicMock()
-        mock_resp.read.return_value = b'{}'
+        mock_resp.read.return_value = b"{}"
         mock_resp.__enter__ = mock.MagicMock(return_value=mock_resp)
         mock_resp.__exit__ = mock.MagicMock(return_value=False)
         mock_urlopen.return_value = mock_resp
 
         target = DaemonTarget(
-            name="test", runtime="manual",
+            name="test",
+            runtime="manual",
             url="https://guardian.co:63152",
-            auth_token="my-token"
+            auth_token="my-token",
         )
         MultiDaemonClient._rest_request(target, "GET", "/api/health")
         req = mock_urlopen.call_args[0][0]
@@ -299,6 +324,7 @@ class TestTcpReachable:
 
     def test_timeout_returns_false(self):
         import socket
+
         with mock.patch("socket.socket") as mock_socket_cls:
             mock_sock = mock.MagicMock()
             mock_sock.connect.side_effect = socket.timeout("timed out")
@@ -313,8 +339,10 @@ class TestRestRequestReachabilityCheck:
     @mock.patch("ai_guardian.daemon.multi_client.urlopen")
     def test_skips_request_on_unreachable_host(self, mock_urlopen, mock_reachable):
         target = DaemonTarget(
-            name="remote", runtime="manual",
-            host="10.0.0.99", port=63152,
+            name="remote",
+            runtime="manual",
+            host="10.0.0.99",
+            port=63152,
         )
         result = MultiDaemonClient._rest_request(target, "GET", "/api/status")
         assert result is None
@@ -330,8 +358,10 @@ class TestRestRequestReachabilityCheck:
         mock_urlopen.return_value = mock_resp
 
         target = DaemonTarget(
-            name="remote", runtime="manual",
-            host="10.0.0.99", port=63152,
+            name="remote",
+            runtime="manual",
+            host="10.0.0.99",
+            port=63152,
         )
         result = MultiDaemonClient._rest_request(target, "GET", "/api/status")
         assert result == {"status": "running"}
@@ -352,8 +382,10 @@ class TestOpenShellRouting:
     def test_container_routes_to_container_shell(self, mock_shell):
         client = MultiDaemonClient()
         target = DaemonTarget(
-            name="test", runtime="container",
-            container_id="abc123def456abc123", container_engine="podman"
+            name="test",
+            runtime="container",
+            container_id="abc123def456abc123",
+            container_engine="podman",
         )
         client.open_shell(target)
         mock_shell.assert_called_once_with(target)
@@ -362,8 +394,10 @@ class TestOpenShellRouting:
     def test_kubernetes_routes_to_kubectl_shell(self, mock_shell):
         client = MultiDaemonClient()
         target = DaemonTarget(
-            name="test", runtime="kubernetes",
-            pod_name="guardian-abc", namespace="ai-sdlc"
+            name="test",
+            runtime="kubernetes",
+            pod_name="guardian-abc",
+            namespace="ai-sdlc",
         )
         client.open_shell(target)
         mock_shell.assert_called_once_with(target)
@@ -378,7 +412,9 @@ class TestOpenShellRouting:
         with mock.patch.dict("os.environ", {"SHELL": "/bin/zsh"}):
             MultiDaemonClient._local_shell()
         mock_launch.assert_called_once_with(
-            ["/bin/zsh"], keep_open=True, cwd=None,
+            ["/bin/zsh"],
+            keep_open=True,
+            cwd=None,
         )
 
     @mock.patch("ai_guardian.daemon.multi_client._launch_in_terminal")
@@ -386,14 +422,18 @@ class TestOpenShellRouting:
         with mock.patch.dict("os.environ", {}, clear=True):
             MultiDaemonClient._local_shell()
         mock_launch.assert_called_once_with(
-            ["/bin/sh"], keep_open=True, cwd=None,
+            ["/bin/sh"],
+            keep_open=True,
+            cwd=None,
         )
 
     @mock.patch("ai_guardian.daemon.multi_client._launch_in_terminal")
     def test_container_shell_builds_exec_command(self, mock_launch):
         target = DaemonTarget(
-            name="test", runtime="container",
-            container_id="abc123def456abc123", container_engine="podman"
+            name="test",
+            runtime="container",
+            container_id="abc123def456abc123",
+            container_engine="podman",
         )
         MultiDaemonClient._container_shell(target)
         mock_launch.assert_called_once()
@@ -403,8 +443,10 @@ class TestOpenShellRouting:
     @mock.patch("ai_guardian.daemon.multi_client._launch_in_terminal")
     def test_container_shell_uses_docker_engine(self, mock_launch):
         target = DaemonTarget(
-            name="test", runtime="container",
-            container_id="abc123def456abc123", container_engine="docker"
+            name="test",
+            runtime="container",
+            container_id="abc123def456abc123",
+            container_engine="docker",
         )
         MultiDaemonClient._container_shell(target)
         cmd = mock_launch.call_args[0][0]
@@ -413,48 +455,59 @@ class TestOpenShellRouting:
     @mock.patch("ai_guardian.daemon.multi_client._launch_in_terminal")
     def test_kubectl_shell_builds_exec_command(self, mock_launch):
         target = DaemonTarget(
-            name="test", runtime="kubernetes",
-            pod_name="guardian-abc", namespace="ai-sdlc"
+            name="test",
+            runtime="kubernetes",
+            pod_name="guardian-abc",
+            namespace="ai-sdlc",
         )
         MultiDaemonClient._kubectl_shell(target)
         mock_launch.assert_called_once()
         cmd = mock_launch.call_args[0][0]
         assert cmd == [
-            "kubectl", "exec", "-it", "guardian-abc",
-            "-n", "ai-sdlc", "--", "/bin/sh",
+            "kubectl",
+            "exec",
+            "-it",
+            "guardian-abc",
+            "-n",
+            "ai-sdlc",
+            "--",
+            "/bin/sh",
         ]
 
     @mock.patch("ai_guardian.daemon.multi_client._launch_in_terminal")
     def test_kubectl_shell_defaults_namespace(self, mock_launch):
         target = DaemonTarget(
-            name="test", runtime="kubernetes",
-            pod_name="guardian-abc", namespace=None
+            name="test", runtime="kubernetes", pod_name="guardian-abc", namespace=None
         )
         MultiDaemonClient._kubectl_shell(target)
         cmd = mock_launch.call_args[0][0]
         assert "-n" in cmd
         assert cmd[cmd.index("-n") + 1] == "default"
 
-
     @mock.patch("ai_guardian.daemon.multi_client._launch_in_terminal")
     def test_local_shell_passes_working_dir_as_cwd(self, mock_launch):
         with mock.patch.dict("os.environ", {"SHELL": "/bin/bash"}):
             MultiDaemonClient._local_shell(cwd="/home/user/project")
         mock_launch.assert_called_once_with(
-            ["/bin/bash"], keep_open=True, cwd="/home/user/project",
+            ["/bin/bash"],
+            keep_open=True,
+            cwd="/home/user/project",
         )
 
     @mock.patch("ai_guardian.daemon.multi_client._launch_in_terminal")
     def test_open_shell_local_passes_working_dir(self, mock_launch):
         client = MultiDaemonClient()
         target = DaemonTarget(
-            name="local", runtime="local",
+            name="local",
+            runtime="local",
             working_dir="/home/user/dev",
         )
         with mock.patch.dict("os.environ", {"SHELL": "/bin/zsh"}):
             client.open_shell(target)
         mock_launch.assert_called_once_with(
-            ["/bin/zsh"], keep_open=True, cwd="/home/user/dev",
+            ["/bin/zsh"],
+            keep_open=True,
+            cwd="/home/user/dev",
         )
 
 
@@ -475,8 +528,10 @@ class TestOpenDoctorRouting:
     def test_container_routes_to_container_exec(self, mock_launch):
         client = MultiDaemonClient()
         target = DaemonTarget(
-            name="test", runtime="container",
-            container_id="abc123def456abc123", container_engine="podman"
+            name="test",
+            runtime="container",
+            container_id="abc123def456abc123",
+            container_engine="podman",
         )
         client.open_doctor(target)
         mock_launch.assert_called_once()
@@ -492,8 +547,10 @@ class TestOpenDoctorRouting:
     def test_container_uses_docker_engine(self, mock_launch):
         client = MultiDaemonClient()
         target = DaemonTarget(
-            name="test", runtime="container",
-            container_id="abc123def456abc123", container_engine="docker"
+            name="test",
+            runtime="container",
+            container_id="abc123def456abc123",
+            container_engine="docker",
         )
         client.open_doctor(target)
         cmd = mock_launch.call_args[0][0]
@@ -503,8 +560,10 @@ class TestOpenDoctorRouting:
     def test_kubernetes_routes_to_kubectl_exec(self, mock_launch):
         client = MultiDaemonClient()
         target = DaemonTarget(
-            name="test", runtime="kubernetes",
-            pod_name="guardian-abc", namespace="ai-sdlc"
+            name="test",
+            runtime="kubernetes",
+            pod_name="guardian-abc",
+            namespace="ai-sdlc",
         )
         client.open_doctor(target)
         mock_launch.assert_called_once()
@@ -522,8 +581,7 @@ class TestOpenDoctorRouting:
     def test_kubernetes_defaults_namespace(self, mock_launch):
         client = MultiDaemonClient()
         target = DaemonTarget(
-            name="test", runtime="kubernetes",
-            pod_name="guardian-abc", namespace=None
+            name="test", runtime="kubernetes", pod_name="guardian-abc", namespace=None
         )
         client.open_doctor(target)
         cmd = mock_launch.call_args[0][0]
@@ -552,9 +610,12 @@ class TestGetPlugins:
         mock_rest.return_value = {"plugins": []}
         client = MultiDaemonClient()
         target = DaemonTarget(
-            name="sandbox", runtime="container",
-            container_engine="podman", container_id="abc123def456",
-            host="127.0.0.1", port=63152,
+            name="sandbox",
+            runtime="container",
+            container_engine="podman",
+            container_id="abc123def456",
+            host="127.0.0.1",
+            port=63152,
         )
         result = client.get_plugins(target)
         mock_rest.assert_called_once_with(target, "GET", "/api/tray-plugins")
@@ -565,8 +626,10 @@ class TestGetPlugins:
         mock_rest.return_value = {"plugins": [{"name": "P", "items": []}]}
         client = MultiDaemonClient()
         target = DaemonTarget(
-            name="remote", runtime="manual",
-            host="10.0.0.1", port=63152,
+            name="remote",
+            runtime="manual",
+            host="10.0.0.1",
+            port=63152,
         )
         result = client.get_plugins(target)
         mock_rest.assert_called_once_with(target, "GET", "/api/tray-plugins")
@@ -574,7 +637,9 @@ class TestGetPlugins:
     @mock.patch.object(MultiDaemonClient, "_rest_request", return_value=None)
     def test_returns_none_on_network_failure(self, mock_rest):
         client = MultiDaemonClient()
-        target = DaemonTarget(name="remote", runtime="manual", host="10.0.0.1", port=63152)
+        target = DaemonTarget(
+            name="remote", runtime="manual", host="10.0.0.1", port=63152
+        )
         result = client.get_plugins(target)
         assert result is None
 
@@ -596,9 +661,12 @@ class TestGetAbout:
         mock_rest.return_value = {"version": "1.8.0"}
         client = MultiDaemonClient()
         target = DaemonTarget(
-            name="sandbox", runtime="container",
-            container_engine="podman", container_id="abc123def456",
-            host="127.0.0.1", port=63152,
+            name="sandbox",
+            runtime="container",
+            container_engine="podman",
+            container_id="abc123def456",
+            host="127.0.0.1",
+            port=63152,
         )
         result = client.get_about(target)
         mock_rest.assert_called_once_with(target, "GET", "/api/about")
@@ -617,6 +685,7 @@ class TestLaunchInTerminalErrorHandling:
     @mock.patch("shutil.which", return_value=None)
     def test_logs_warning_when_no_terminal_found(self, _mock_which, _mock_sys):
         from ai_guardian.daemon.multi_client import _launch_in_terminal
+
         with mock.patch("ai_guardian.daemon.multi_client.logger") as mock_logger:
             result = _launch_in_terminal(["echo", "hello"])
             assert result is False
@@ -628,6 +697,7 @@ class TestLaunchInTerminalErrorHandling:
     @mock.patch("subprocess.Popen", side_effect=OSError("Permission denied"))
     def test_logs_warning_on_popen_failure(self, _popen, _which, _sys):
         from ai_guardian.daemon.multi_client import _launch_in_terminal
+
         with mock.patch("ai_guardian.daemon.multi_client.logger") as mock_logger:
             result = _launch_in_terminal(["echo", "hello"])
             assert result is False
@@ -635,10 +705,14 @@ class TestLaunchInTerminalErrorHandling:
             assert "Failed to launch" in mock_logger.warning.call_args[0][0]
 
     @mock.patch("platform.system", return_value="Linux")
-    @mock.patch("shutil.which", side_effect=lambda x: "/usr/bin/konsole" if x == "konsole" else None)
+    @mock.patch(
+        "shutil.which",
+        side_effect=lambda x: "/usr/bin/konsole" if x == "konsole" else None,
+    )
     @mock.patch("subprocess.Popen")
     def test_returns_true_on_success(self, _popen, _which, _sys):
         from ai_guardian.daemon.multi_client import _launch_in_terminal
+
         result = _launch_in_terminal(["echo", "hello"])
         assert result is True
 
@@ -646,6 +720,7 @@ class TestLaunchInTerminalErrorHandling:
     @mock.patch("subprocess.Popen")
     def test_macos_returns_true(self, _popen, _sys):
         from ai_guardian.daemon.multi_client import _launch_in_terminal
+
         result = _launch_in_terminal(["echo", "hello"])
         assert result is True
 
@@ -653,6 +728,7 @@ class TestLaunchInTerminalErrorHandling:
     @mock.patch("subprocess.Popen")
     def test_windows_returns_true(self, _popen, _sys):
         from ai_guardian.daemon.multi_client import _launch_in_terminal
+
         result = _launch_in_terminal(["echo", "hello"])
         assert result is True
 
@@ -677,8 +753,11 @@ class TestUpgradeTransport:
     def test_check_pip_available_container(self):
         client = MultiDaemonClient()
         target = DaemonTarget(
-            name="c1", runtime="container", status="running",
-            container_id="abc123def456", container_engine="podman",
+            name="c1",
+            runtime="container",
+            status="running",
+            container_id="abc123def456",
+            container_engine="podman",
         )
         with mock.patch.object(
             MultiDaemonClient, "_container_exec", return_value="pip 24.0"
@@ -688,19 +767,23 @@ class TestUpgradeTransport:
     def test_check_pip_unavailable_container(self):
         client = MultiDaemonClient()
         target = DaemonTarget(
-            name="c1", runtime="container", status="running",
-            container_id="abc123def456", container_engine="podman",
+            name="c1",
+            runtime="container",
+            status="running",
+            container_id="abc123def456",
+            container_engine="podman",
         )
-        with mock.patch.object(
-            MultiDaemonClient, "_container_exec", return_value=None
-        ):
+        with mock.patch.object(MultiDaemonClient, "_container_exec", return_value=None):
             assert client.check_pip_available(target) is False
 
     def test_check_pip_available_kubernetes(self):
         client = MultiDaemonClient()
         target = DaemonTarget(
-            name="k1", runtime="kubernetes", status="running",
-            pod_name="guardian-pod", namespace="default",
+            name="k1",
+            runtime="kubernetes",
+            status="running",
+            pod_name="guardian-pod",
+            namespace="default",
         )
         with mock.patch.object(
             MultiDaemonClient, "_kubectl_exec", return_value="pip 24.0"
@@ -709,6 +792,7 @@ class TestUpgradeTransport:
 
     def test_check_pypi_version_success(self):
         import json
+
         fake_resp = mock.MagicMock()
         fake_resp.read.return_value = json.dumps(
             {"info": {"version": "2.0.0"}}
@@ -723,6 +807,7 @@ class TestUpgradeTransport:
 
     def test_check_pypi_version_network_error(self):
         from urllib.error import URLError
+
         with mock.patch(
             "ai_guardian.daemon.multi_client.urlopen",
             side_effect=URLError("no network"),
@@ -735,7 +820,9 @@ class TestUpgradeTransport:
         target = DaemonTarget(name="local", runtime="local")
         with mock.patch("subprocess.run") as mock_run:
             mock_run.return_value = mock.MagicMock(
-                returncode=0, stdout="Successfully installed", stderr="",
+                returncode=0,
+                stdout="Successfully installed",
+                stderr="",
             )
             success, output = client.run_pip_upgrade(target)
             assert success is True
@@ -748,7 +835,9 @@ class TestUpgradeTransport:
         target = DaemonTarget(name="local", runtime="local")
         with mock.patch("subprocess.run") as mock_run:
             mock_run.return_value = mock.MagicMock(
-                returncode=1, stdout="", stderr="Permission denied",
+                returncode=1,
+                stdout="",
+                stderr="Permission denied",
             )
             success, output = client.run_pip_upgrade(target)
             assert success is False
@@ -756,11 +845,15 @@ class TestUpgradeTransport:
     def test_run_pip_upgrade_container(self):
         client = MultiDaemonClient()
         target = DaemonTarget(
-            name="c1", runtime="container", status="running",
-            container_id="abc123def456", container_engine="podman",
+            name="c1",
+            runtime="container",
+            status="running",
+            container_id="abc123def456",
+            container_engine="podman",
         )
         with mock.patch.object(
-            MultiDaemonClient, "_container_exec",
+            MultiDaemonClient,
+            "_container_exec",
             return_value="Successfully installed",
         ) as mock_exec:
             success, output = client.run_pip_upgrade(target)
@@ -774,11 +867,15 @@ class TestUpgradeTransport:
     def test_run_pip_upgrade_kubernetes(self):
         client = MultiDaemonClient()
         target = DaemonTarget(
-            name="k1", runtime="kubernetes", status="running",
-            pod_name="guardian-pod", namespace="default",
+            name="k1",
+            runtime="kubernetes",
+            status="running",
+            pod_name="guardian-pod",
+            namespace="default",
         )
         with mock.patch.object(
-            MultiDaemonClient, "_kubectl_exec",
+            MultiDaemonClient,
+            "_kubectl_exec",
             return_value="Successfully installed",
         ) as mock_exec:
             success, output = client.run_pip_upgrade(target)
@@ -791,33 +888,44 @@ class TestUpgradeTransport:
 
     def test_run_pip_upgrade_timeout(self):
         import subprocess
+
         client = MultiDaemonClient()
         target = DaemonTarget(name="local", runtime="local")
-        with mock.patch("subprocess.run", side_effect=subprocess.TimeoutExpired("pip", 120)):
+        with mock.patch(
+            "subprocess.run", side_effect=subprocess.TimeoutExpired("pip", 120)
+        ):
             success, output = client.run_pip_upgrade(target)
             assert success is False
             assert "timed out" in output.lower()
 
     def test_container_exec_custom_timeout(self):
         target = DaemonTarget(
-            name="c1", runtime="container", status="running",
-            container_id="abc123def456", container_engine="podman",
+            name="c1",
+            runtime="container",
+            status="running",
+            container_id="abc123def456",
+            container_engine="podman",
         )
         with mock.patch("subprocess.run") as mock_run:
             mock_run.return_value = mock.MagicMock(
-                returncode=0, stdout="ok",
+                returncode=0,
+                stdout="ok",
             )
             MultiDaemonClient._container_exec(target, ["echo"], timeout=120)
             assert mock_run.call_args[1]["timeout"] == 120
 
     def test_kubectl_exec_custom_timeout(self):
         target = DaemonTarget(
-            name="k1", runtime="kubernetes", status="running",
-            pod_name="guardian-pod", namespace="default",
+            name="k1",
+            runtime="kubernetes",
+            status="running",
+            pod_name="guardian-pod",
+            namespace="default",
         )
         with mock.patch("subprocess.run") as mock_run:
             mock_run.return_value = mock.MagicMock(
-                returncode=0, stdout="ok",
+                returncode=0,
+                stdout="ok",
             )
             MultiDaemonClient._kubectl_exec(target, ["echo"], timeout=120)
             assert mock_run.call_args[1]["timeout"] == 120

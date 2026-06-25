@@ -1,7 +1,5 @@
 """Tests for violation copy buttons and markdown formatter."""
 
-import json
-
 import pytest
 
 pytest.importorskip("nicegui", reason="NiceGUI requires Python >= 3.10")

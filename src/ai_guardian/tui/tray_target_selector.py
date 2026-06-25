@@ -13,7 +13,11 @@ from textual.app import App, ComposeResult
 from textual.binding import Binding
 from textual.containers import Container, Horizontal
 from textual.widgets import (
-    Button, Footer, Header, SelectionList, Static,
+    Button,
+    Footer,
+    Header,
+    SelectionList,
+    Static,
 )
 
 

@@ -15,10 +15,10 @@ from ai_guardian.config_utils import is_expired, validate_regex_pattern
 logger = logging.getLogger(__name__)
 
 DANGEROUS_PATTERNS = [
-    r'.*',
-    r'.+',
-    r'[\s\S]*',
-    r'[\s\S]+',
+    r".*",
+    r".+",
+    r"[\s\S]*",
+    r"[\s\S]+",
 ]
 
 
@@ -117,9 +117,7 @@ def compile_allowlist(
     for entry in valid:
         pattern_str = extract_pattern_string(entry)
         try:
-            compiled.append(
-                re.compile(pattern_str, re.IGNORECASE | re.MULTILINE)
-            )
+            compiled.append(re.compile(pattern_str, re.IGNORECASE | re.MULTILINE))
         except re.error as e:
             logger.warning(f"Failed to compile allowlist pattern '{pattern_str}': {e}")
     return compiled

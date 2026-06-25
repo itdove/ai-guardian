@@ -28,8 +28,8 @@ class UserExperienceContractTests(TestCase):
     in Claude Code's PreToolUse hook.
     """
 
-    @patch('ai_guardian.hook_processing.check_secrets_with_gitleaks')
-    @patch('ai_guardian.hook_processing._load_secret_scanning_config')
+    @patch("ai_guardian.hook_processing.check_secrets_with_gitleaks")
+    @patch("ai_guardian.hook_processing._load_secret_scanning_config")
     def test_user_experience_read_with_secret(self, mock_config, mock_check_secrets):
         """
         USER EXPERIENCE: Read with secret → DENIED immediately, no prompt shown.
@@ -56,7 +56,8 @@ class UserExperienceContractTests(TestCase):
         mock_check_secrets.return_value = (True, "Secret detected: AWS access key")
 
         import tempfile
-        with tempfile.NamedTemporaryFile(mode='w', delete=False) as f:
+
+        with tempfile.NamedTemporaryFile(mode="w", delete=False) as f:
             f.write("aws_access_key_id = AKIAIOSFODNN7EXAMPLE")
             temp_path = f.name
 
@@ -65,28 +66,33 @@ class UserExperienceContractTests(TestCase):
             hook_data = create_hook_data(
                 tool_name="Read",
                 tool_input={"file_path": temp_path},
-                hook_event="PreToolUse"
+                hook_event="PreToolUse",
             )
 
-            with patch('sys.stdin', StringIO(json.dumps(hook_data))):
+            with patch("sys.stdin", StringIO(json.dumps(hook_data))):
                 result = ai_guardian.process_hook_input()
 
             # Verify ai-guardian's response
-            assert result['exit_code'] == 0  # JSON response format
+            assert result["exit_code"] == 0  # JSON response format
 
-            response = json.loads(result['output'])
+            response = json.loads(result["output"])
 
             # CONTRACT: Response MUST contain permissionDecision: deny
-            assert 'hookSpecificOutput' in response, \
-                "Response must include hookSpecificOutput for Claude Code"
-            assert response['hookSpecificOutput']['permissionDecision'] == 'deny', \
-                "Must return deny to block operation"
-            assert response['hookSpecificOutput']['hookEventName'] == 'PreToolUse', \
-                "Must identify hook event"
-            assert 'systemMessage' in response, \
-                "Must include error message to display to user"
-            assert 'secret' in response['systemMessage'].lower(), \
-                "Error message should mention secret"
+            assert (
+                "hookSpecificOutput" in response
+            ), "Response must include hookSpecificOutput for Claude Code"
+            assert (
+                response["hookSpecificOutput"]["permissionDecision"] == "deny"
+            ), "Must return deny to block operation"
+            assert (
+                response["hookSpecificOutput"]["hookEventName"] == "PreToolUse"
+            ), "Must identify hook event"
+            assert (
+                "systemMessage" in response
+            ), "Must include error message to display to user"
+            assert (
+                "secret" in response["systemMessage"].lower()
+            ), "Error message should mention secret"
 
             # USER SEES: Error message in Claude Code
             # USER DOES NOT SEE: Permission prompt (operation blocked before prompt)
@@ -94,11 +100,14 @@ class UserExperienceContractTests(TestCase):
 
         finally:
             import os
+
             os.unlink(temp_path)
 
-    @patch('ai_guardian.hook_processing._load_secret_redaction_config')
-    @patch('ai_guardian.hook_processing._load_pattern_server_config')
-    def test_user_experience_edit_without_secret(self, mock_pattern_config, mock_redaction_config):
+    @patch("ai_guardian.hook_processing._load_secret_redaction_config")
+    @patch("ai_guardian.hook_processing._load_pattern_server_config")
+    def test_user_experience_edit_without_secret(
+        self, mock_pattern_config, mock_redaction_config
+    ):
         """
         USER EXPERIENCE: Edit without secret → Permission prompt shown (if configured).
 
@@ -128,40 +137,47 @@ class UserExperienceContractTests(TestCase):
             tool_input={
                 "file_path": "/tmp/config.py",
                 "old_string": "DEBUG = False",
-                "new_string": "DEBUG = True"
+                "new_string": "DEBUG = True",
             },
-            hook_event="PreToolUse"
+            hook_event="PreToolUse",
         )
 
-        with patch('sys.stdin', StringIO(json.dumps(hook_data))):
+        with patch("sys.stdin", StringIO(json.dumps(hook_data))):
             result = ai_guardian.process_hook_input()
 
         # Verify ai-guardian's response
-        assert result['exit_code'] == 0  # Operation allowed to proceed
+        assert result["exit_code"] == 0  # Operation allowed to proceed
 
-        response = json.loads(result['output'])
+        response = json.loads(result["output"])
 
         # CONTRACT: Response MUST NOT contain permissionDecision
         # This allows Claude Code to use its own permission system
-        if 'hookSpecificOutput' in response:
-            assert 'permissionDecision' not in response['hookSpecificOutput'], \
-                "Must NOT return permissionDecision - this would bypass Claude Code's prompt"
+        if "hookSpecificOutput" in response:
+            assert (
+                "permissionDecision" not in response["hookSpecificOutput"]
+            ), "Must NOT return permissionDecision - this would bypass Claude Code's prompt"
 
         # Response should be empty or only contain warnings
-        assert response == {} or 'systemMessage' in response, \
-            f"Response should be empty (allows normal prompt), got: {response}"
+        assert (
+            response == {} or "systemMessage" in response
+        ), f"Response should be empty (allows normal prompt), got: {response}"
 
         # USER SEES: Claude Code permission prompt (because ai-guardian didn't auto-approve)
         # PROMPT SHOWS: "Claude wants to edit /tmp/config.py"
         # USER CHOOSES: Allow or Deny
         # OPERATION: Proceeds only if user approves
 
-    @patch('ai_guardian.hook_processing._load_secret_redaction_config')
-    @patch('ai_guardian.hook_processing._load_pattern_server_config')
-    @patch('ai_guardian.hook_processing.check_secrets_with_gitleaks')
-    @patch('ai_guardian.hook_processing._load_secret_scanning_config')
-    def test_user_experience_comparison_secret_vs_clean(self, mock_scan_config, mock_check_secrets,
-                                                        mock_pattern_config, mock_redaction_config):
+    @patch("ai_guardian.hook_processing._load_secret_redaction_config")
+    @patch("ai_guardian.hook_processing._load_pattern_server_config")
+    @patch("ai_guardian.hook_processing.check_secrets_with_gitleaks")
+    @patch("ai_guardian.hook_processing._load_secret_scanning_config")
+    def test_user_experience_comparison_secret_vs_clean(
+        self,
+        mock_scan_config,
+        mock_check_secrets,
+        mock_pattern_config,
+        mock_redaction_config,
+    ):
         """
         USER EXPERIENCE COMPARISON: Secret vs Clean operations.
 
@@ -196,27 +212,29 @@ class UserExperienceContractTests(TestCase):
             tool_input={
                 "file_path": "/tmp/config.py",
                 "old_string": "DEBUG = False",
-                "new_string": "DEBUG = True"
+                "new_string": "DEBUG = True",
             },
-            hook_event="PreToolUse"
+            hook_event="PreToolUse",
         )
 
-        with patch('sys.stdin', StringIO(json.dumps(clean_hook))):
+        with patch("sys.stdin", StringIO(json.dumps(clean_hook))):
             clean_result = ai_guardian.process_hook_input()
 
-        clean_response = json.loads(clean_result['output'])
+        clean_response = json.loads(clean_result["output"])
 
         # Scenario A verification: No auto-approve
-        assert clean_result['exit_code'] == 0, "Clean operation allowed to proceed"
-        if 'hookSpecificOutput' in clean_response:
-            assert 'permissionDecision' not in clean_response['hookSpecificOutput'], \
-                "Clean operation: Must NOT auto-approve"
+        assert clean_result["exit_code"] == 0, "Clean operation allowed to proceed"
+        if "hookSpecificOutput" in clean_response:
+            assert (
+                "permissionDecision" not in clean_response["hookSpecificOutput"]
+            ), "Clean operation: Must NOT auto-approve"
 
         # Scenario B: Operation with secret (Read tool scanning file with secret)
         mock_check_secrets.return_value = (True, "Secret detected: API key")
 
         import tempfile
-        with tempfile.NamedTemporaryFile(mode='w', delete=False) as f:
+
+        with tempfile.NamedTemporaryFile(mode="w", delete=False) as f:
             f.write("API_KEY = 'sk_live_abc123'")
             temp_path = f.name
 
@@ -224,23 +242,26 @@ class UserExperienceContractTests(TestCase):
             secret_hook = create_hook_data(
                 tool_name="Read",
                 tool_input={"file_path": temp_path},
-                hook_event="PreToolUse"
+                hook_event="PreToolUse",
             )
 
-            with patch('sys.stdin', StringIO(json.dumps(secret_hook))):
+            with patch("sys.stdin", StringIO(json.dumps(secret_hook))):
                 secret_result = ai_guardian.process_hook_input()
 
-            secret_response = json.loads(secret_result['output'])
+            secret_response = json.loads(secret_result["output"])
 
             # Scenario B verification: Immediate denial
-            assert secret_result['exit_code'] == 0  # JSON format
-            assert 'hookSpecificOutput' in secret_response, \
-                "Secret operation: Must include hookSpecificOutput"
-            assert secret_response['hookSpecificOutput']['permissionDecision'] == 'deny', \
-                "Secret operation: Must deny immediately"
+            assert secret_result["exit_code"] == 0  # JSON format
+            assert (
+                "hookSpecificOutput" in secret_response
+            ), "Secret operation: Must include hookSpecificOutput"
+            assert (
+                secret_response["hookSpecificOutput"]["permissionDecision"] == "deny"
+            ), "Secret operation: Must deny immediately"
 
         finally:
             import os
+
             os.unlink(temp_path)
 
         # SUMMARY: Different user experiences

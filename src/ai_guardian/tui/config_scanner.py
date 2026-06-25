@@ -12,11 +12,12 @@ from typing import Dict, Any
 
 from textual.app import ComposeResult
 from textual.containers import Container, Horizontal, VerticalScroll
-from textual.widgets import Static, Button, Input, Label, Select, Checkbox
+from textual.widgets import Static, Button, Input, Label, Select
 
 from ai_guardian.config_utils import get_config_dir, get_project_config_path
 from ai_guardian.tui.schema_defaults import (
-    SchemaDefaultsMixin, select_options_with_default,
+    SchemaDefaultsMixin,
+    select_options_with_default,
 )
 from ai_guardian.tui.widgets import TimeBasedToggle, sanitize_enabled_value
 
@@ -42,6 +43,7 @@ class ConfigScannerContent(SchemaDefaultsMixin, Container):
             if project_path:
                 return project_path
             from ai_guardian.config_utils import _find_git_root
+
             root = _find_git_root() or Path.cwd()
             return root / ".ai-guardian" / "ai-guardian.json"
         return get_config_dir() / "ai-guardian.json"
@@ -137,7 +139,9 @@ class ConfigScannerContent(SchemaDefaultsMixin, Container):
 
     def compose(self) -> ComposeResult:
         """Compose the config file scanner tab content."""
-        yield Static("[bold]Config File Scanner Settings[/bold]", id="config-scanner-header")
+        yield Static(
+            "[bold]Config File Scanner Settings[/bold]", id="config-scanner-header"
+        )
 
         with VerticalScroll():
             # Scanner toggle section (standalone)
@@ -151,7 +155,10 @@ class ConfigScannerContent(SchemaDefaultsMixin, Container):
 
             # Default scanned files info section
             with Container(classes="section"):
-                yield Static("[bold]Default Scanned Files (Immutable)[/bold]", classes="section-title")
+                yield Static(
+                    "[bold]Default Scanned Files (Immutable)[/bold]",
+                    classes="section-title",
+                )
                 yield Static(
                     "[dim]The following files are ALWAYS scanned:\n\n"
                     "AI Agent Configuration Files:\n"
@@ -167,12 +174,14 @@ class ConfigScannerContent(SchemaDefaultsMixin, Container):
                     "  • **/.agents/skills/**/*.md\n"
                     "  • **/skills/**/*.md\n\n"
                     "These files are scanned for credential exfiltration patterns.[/dim]",
-                    id="default-files"
+                    id="default-files",
                 )
 
             # Action mode section
             with Container(classes="section"):
-                yield Static("[bold]Action on Detection[/bold]", classes="section-title")
+                yield Static(
+                    "[bold]Action on Detection[/bold]", classes="section-title"
+                )
 
                 with Horizontal(classes="setting-row"):
                     yield Label("Action Mode:")
@@ -194,26 +203,42 @@ class ConfigScannerContent(SchemaDefaultsMixin, Container):
                     "[dim]  • Block: Prevents scanning these config files (recommended)\n"
                     "  • Warn: Logs violation and shows warning, but allows scanning\n"
                     "  • Log Only: Logs violation silently without user warning[/dim]",
-                    classes="setting-row"
+                    classes="setting-row",
                 )
 
             # Additional files section
             with Container(classes="section"):
-                yield Static("[bold]Additional Files to Scan[/bold]", classes="section-title")
-                yield Static("Additional config files to monitor:", classes="setting-row")
+                yield Static(
+                    "[bold]Additional Files to Scan[/bold]", classes="section-title"
+                )
+                yield Static(
+                    "Additional config files to monitor:", classes="setting-row"
+                )
                 with VerticalScroll(classes="list-scroll"):
                     yield Static("", id="additional-files-list")
-                yield Input(placeholder="Enter filename pattern (e.g., .myagent.conf)", id="new-additional-file-input")
-                yield Static("[dim]Press 'f' to add file pattern[/dim]", classes="setting-row")
+                yield Input(
+                    placeholder="Enter filename pattern (e.g., .myagent.conf)",
+                    id="new-additional-file-input",
+                )
+                yield Static(
+                    "[dim]Press 'f' to add file pattern[/dim]", classes="setting-row"
+                )
 
             # Ignore files section
             with Container(classes="section"):
                 yield Static("[bold]Ignore Files[/bold]", classes="section-title")
-                yield Static("File patterns to exclude from scanning:", classes="setting-row")
+                yield Static(
+                    "File patterns to exclude from scanning:", classes="setting-row"
+                )
                 with VerticalScroll(classes="list-scroll"):
                     yield Static("", id="ignore-files-list")
-                yield Input(placeholder="Enter ignore pattern (e.g., **/*.example.md)", id="new-ignore-file-input")
-                yield Static("[dim]Press 'g' to add ignore pattern[/dim]", classes="setting-row")
+                yield Input(
+                    placeholder="Enter ignore pattern (e.g., **/*.example.md)",
+                    id="new-ignore-file-input",
+                )
+                yield Static(
+                    "[dim]Press 'g' to add ignore pattern[/dim]", classes="setting-row"
+                )
 
             # Ignore tools section
             with Container(classes="section"):
@@ -231,16 +256,28 @@ class ConfigScannerContent(SchemaDefaultsMixin, Container):
 
             # Additional patterns section
             with Container(classes="section"):
-                yield Static("[bold]Additional Detection Patterns[/bold]", classes="section-title")
-                yield Static("Custom regex patterns to detect as credential exfiltration:", classes="setting-row")
+                yield Static(
+                    "[bold]Additional Detection Patterns[/bold]",
+                    classes="section-title",
+                )
+                yield Static(
+                    "Custom regex patterns to detect as credential exfiltration:",
+                    classes="setting-row",
+                )
                 with VerticalScroll(classes="list-scroll"):
                     yield Static("", id="additional-patterns-list")
-                yield Input(placeholder="Enter custom regex pattern", id="new-pattern-input")
-                yield Static("[dim]Press 'p' to add pattern[/dim]", classes="setting-row")
+                yield Input(
+                    placeholder="Enter custom regex pattern", id="new-pattern-input"
+                )
+                yield Static(
+                    "[dim]Press 'p' to add pattern[/dim]", classes="setting-row"
+                )
 
             # Statistics section
             with Container(classes="section"):
-                yield Static("[bold]Detection Statistics[/bold]", classes="section-title")
+                yield Static(
+                    "[bold]Detection Statistics[/bold]", classes="section-title"
+                )
                 yield Static("", id="scanner-stats")
 
     def on_mount(self) -> None:
@@ -268,7 +305,7 @@ class ConfigScannerContent(SchemaDefaultsMixin, Container):
         config = {}
         if config_path.exists():
             try:
-                with open(config_path, 'r', encoding='utf-8') as f:
+                with open(config_path, "r", encoding="utf-8") as f:
                     config = json.load(f)
             except Exception as e:
                 self.app.notify(f"Error loading config: {e}", severity="error")
@@ -283,7 +320,9 @@ class ConfigScannerContent(SchemaDefaultsMixin, Container):
 
         # Update widgets
         try:
-            toggle = self.query_one("#config_file_scanning_enabled_toggle", TimeBasedToggle)
+            toggle = self.query_one(
+                "#config_file_scanning_enabled_toggle", TimeBasedToggle
+            )
             toggle.load_value(enabled_value)
 
             self.query_one("#action-select", Select).value = action
@@ -311,13 +350,17 @@ class ConfigScannerContent(SchemaDefaultsMixin, Container):
                 ignore_tools_text = "\n".join(f"  {t}" for t in ignore_tools)
             else:
                 ignore_tools_text = "[dim]No ignored tools configured[/dim]"
-            self.query_one("#config-ignore-tools-list", Static).update(ignore_tools_text)
+            self.query_one("#config-ignore-tools-list", Static).update(
+                ignore_tools_text
+            )
         except Exception:
             pass
 
         # Update additional patterns list
         if additional_patterns:
-            patterns_text = "\n".join([f"  • {pattern}" for pattern in additional_patterns])
+            patterns_text = "\n".join(
+                [f"  • {pattern}" for pattern in additional_patterns]
+            )
         else:
             patterns_text = "[dim]No additional patterns configured[/dim]"
         self.query_one("#additional-patterns-list", Static).update(patterns_text)
@@ -341,16 +384,24 @@ class ConfigScannerContent(SchemaDefaultsMixin, Container):
 
             for v in recent:
                 reason = v.get("reason", "")
-                if "config" in reason.lower() or "CLAUDE.md" in reason or "AGENTS.md" in reason:
+                if (
+                    "config" in reason.lower()
+                    or "CLAUDE.md" in reason
+                    or "AGENTS.md" in reason
+                ):
                     scanner_count += 1
 
             stats_text = f"Total Config File Scanner Detections: {scanner_count}"
             self.query_one("#scanner-stats", Static).update(stats_text)
 
         except ImportError:
-            self.query_one("#scanner-stats", Static).update("[dim]Violation logging not available[/dim]")
+            self.query_one("#scanner-stats", Static).update(
+                "[dim]Violation logging not available[/dim]"
+            )
         except Exception as e:
-            self.query_one("#scanner-stats", Static).update(f"[dim]Error loading stats: {e}[/dim]")
+            self.query_one("#scanner-stats", Static).update(
+                f"[dim]Error loading stats: {e}[/dim]"
+            )
 
     def save_config(self, config_updates: Dict[str, Any]) -> bool:
         """
@@ -368,7 +419,7 @@ class ConfigScannerContent(SchemaDefaultsMixin, Container):
             # Load existing config
             config = {}
             if config_path.exists():
-                with open(config_path, 'r', encoding='utf-8') as f:
+                with open(config_path, "r", encoding="utf-8") as f:
                     config = json.load(f)
 
             # Ensure config_file_scanning section exists
@@ -376,15 +427,19 @@ class ConfigScannerContent(SchemaDefaultsMixin, Container):
                 config["config_file_scanning"] = {}
 
             if "enabled" in config_updates:
-                config_updates["enabled"] = sanitize_enabled_value(config_updates["enabled"])
+                config_updates["enabled"] = sanitize_enabled_value(
+                    config_updates["enabled"]
+                )
             config["config_file_scanning"].update(config_updates)
 
             # Save config
             config_path.parent.mkdir(parents=True, exist_ok=True)
-            with open(config_path, 'w', encoding='utf-8') as f:
+            with open(config_path, "w", encoding="utf-8") as f:
                 json.dump(config, f, indent=2)
 
-            self.app.notify("Config file scanner configuration saved", severity="information")
+            self.app.notify(
+                "Config file scanner configuration saved", severity="information"
+            )
             return True
 
         except Exception as e:
@@ -393,18 +448,20 @@ class ConfigScannerContent(SchemaDefaultsMixin, Container):
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         """Handle button press - save toggle state immediately."""
-        if getattr(self, '_loading', False):
+        if getattr(self, "_loading", False):
             return
         bid = event.button.id
         if bid and "config_file_scanning_enabled" in bid:
-            toggle = self.query_one("#config_file_scanning_enabled_toggle", TimeBasedToggle)
+            toggle = self.query_one(
+                "#config_file_scanning_enabled_toggle", TimeBasedToggle
+            )
             if toggle.current_mode == "temp_disabled":
                 return
             self.save_config({"enabled": toggle.get_value()})
 
     def on_select_changed(self, event) -> None:
         """Handle select changes - save immediately."""
-        if getattr(self, '_loading', False):
+        if getattr(self, "_loading", False):
             return
         select_id = event.select.id
 
@@ -413,13 +470,15 @@ class ConfigScannerContent(SchemaDefaultsMixin, Container):
 
     def on_input_submitted(self, event: Input.Submitted) -> None:
         """Handle Enter key in input fields."""
-        if getattr(self, '_loading', False):
+        if getattr(self, "_loading", False):
             return
         input_id = event.input.id
 
         # Handle TimeBasedToggle inputs
         if input_id and "config_file_scanning_enabled" in input_id:
-            toggle = self.query_one("#config_file_scanning_enabled_toggle", TimeBasedToggle)
+            toggle = self.query_one(
+                "#config_file_scanning_enabled_toggle", TimeBasedToggle
+            )
             value = toggle.get_value()
             self.save_config({"enabled": value})
         elif input_id == "new-additional-file-input":
@@ -451,7 +510,9 @@ class ConfigScannerContent(SchemaDefaultsMixin, Container):
     def action_refresh(self) -> None:
         """Refresh configuration (triggered by 'r' key)."""
         self.load_config()
-        self.app.notify("Config scanner configuration refreshed", severity="information")
+        self.app.notify(
+            "Config scanner configuration refreshed", severity="information"
+        )
 
     def add_additional_file(self) -> None:
         """Add a file pattern to the additional files list."""
@@ -466,7 +527,7 @@ class ConfigScannerContent(SchemaDefaultsMixin, Container):
 
         try:
             if config_path.exists():
-                with open(config_path, 'r', encoding='utf-8') as f:
+                with open(config_path, "r", encoding="utf-8") as f:
                     config = json.load(f)
             else:
                 config = {}
@@ -484,14 +545,16 @@ class ConfigScannerContent(SchemaDefaultsMixin, Container):
 
             config["config_file_scanning"]["additional_files"].append(file_value)
 
-            with open(config_path, 'w', encoding='utf-8') as f:
+            with open(config_path, "w", encoding="utf-8") as f:
                 json.dump(config, f, indent=2)
 
             # Clear input
             file_input.value = ""
 
             self.load_config()
-            self.app.notify(f"✓ Added {file_value} to additional files", severity="success")
+            self.app.notify(
+                f"✓ Added {file_value} to additional files", severity="success"
+            )
 
         except Exception as e:
             self.app.notify(f"Error adding file: {e}", severity="error")
@@ -509,7 +572,7 @@ class ConfigScannerContent(SchemaDefaultsMixin, Container):
 
         try:
             if config_path.exists():
-                with open(config_path, 'r', encoding='utf-8') as f:
+                with open(config_path, "r", encoding="utf-8") as f:
                     config = json.load(f)
             else:
                 config = {}
@@ -527,14 +590,16 @@ class ConfigScannerContent(SchemaDefaultsMixin, Container):
 
             config["config_file_scanning"]["ignore_files"].append(ignore_value)
 
-            with open(config_path, 'w', encoding='utf-8') as f:
+            with open(config_path, "w", encoding="utf-8") as f:
                 json.dump(config, f, indent=2)
 
             # Clear input
             ignore_input.value = ""
 
             self.load_config()
-            self.app.notify(f"✓ Added {ignore_value} to ignore patterns", severity="success")
+            self.app.notify(
+                f"✓ Added {ignore_value} to ignore patterns", severity="success"
+            )
 
         except Exception as e:
             self.app.notify(f"Error adding ignore pattern: {e}", severity="error")
@@ -553,7 +618,7 @@ class ConfigScannerContent(SchemaDefaultsMixin, Container):
         try:
             config = {}
             if config_path.exists():
-                with open(config_path, 'r', encoding='utf-8') as f:
+                with open(config_path, "r", encoding="utf-8") as f:
                     config = json.load(f)
 
             if "config_file_scanning" not in config:
@@ -567,7 +632,7 @@ class ConfigScannerContent(SchemaDefaultsMixin, Container):
 
             config["config_file_scanning"]["ignore_tools"].append(value)
 
-            with open(config_path, 'w', encoding='utf-8') as f:
+            with open(config_path, "w", encoding="utf-8") as f:
                 json.dump(config, f, indent=2)
 
             input_widget.value = ""
@@ -588,6 +653,7 @@ class ConfigScannerContent(SchemaDefaultsMixin, Container):
 
         # Try to compile as regex to validate
         import re
+
         try:
             re.compile(pattern_value)
         except re.error as e:
@@ -598,7 +664,7 @@ class ConfigScannerContent(SchemaDefaultsMixin, Container):
 
         try:
             if config_path.exists():
-                with open(config_path, 'r', encoding='utf-8') as f:
+                with open(config_path, "r", encoding="utf-8") as f:
                     config = json.load(f)
             else:
                 config = {}
@@ -616,14 +682,14 @@ class ConfigScannerContent(SchemaDefaultsMixin, Container):
 
             config["config_file_scanning"]["additional_patterns"].append(pattern_value)
 
-            with open(config_path, 'w', encoding='utf-8') as f:
+            with open(config_path, "w", encoding="utf-8") as f:
                 json.dump(config, f, indent=2)
 
             # Clear input
             pattern_input.value = ""
 
             self.load_config()
-            self.app.notify(f"✓ Added detection pattern", severity="success")
+            self.app.notify("✓ Added detection pattern", severity="success")
 
         except Exception as e:
             self.app.notify(f"Error adding pattern: {e}", severity="error")

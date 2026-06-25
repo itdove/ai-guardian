@@ -15,7 +15,7 @@ NEW in v1.9.0: Pattern server support for PII Detection.
 
 import logging
 from abc import ABC, abstractmethod
-from typing import Dict, Any, Optional, List
+from typing import Dict, Any, Optional
 
 from ai_guardian.pattern_server import PatternServerClient
 from ai_guardian.patterns import BUNDLED_FILES
@@ -92,7 +92,9 @@ class PatternLoader(ABC):
         pass
 
     def load_patterns(
-        self, pattern_server_config: Optional[Dict[str, Any]] = None, local_config: Optional[Dict[str, Any]] = None
+        self,
+        pattern_server_config: Optional[Dict[str, Any]] = None,
+        local_config: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
         """
         Load and merge patterns from all three tiers.
@@ -114,16 +116,24 @@ class PatternLoader(ABC):
         server_patterns = None
         if pattern_server_config:
             try:
-                client = PatternServerClient(pattern_server_config, pattern_type=self.pattern_type)
+                client = PatternServerClient(
+                    pattern_server_config, pattern_type=self.pattern_type
+                )
                 server_patterns = client.get_patterns()
 
                 if server_patterns:
-                    logger.info(f"{self.feature_name}: Loaded patterns from pattern server")
+                    logger.info(
+                        f"{self.feature_name}: Loaded patterns from pattern server"
+                    )
                     self._mark_sources(server_patterns, "SERVER")
                 else:
-                    logger.debug(f"{self.feature_name}: Pattern server unavailable, using defaults")
+                    logger.debug(
+                        f"{self.feature_name}: Pattern server unavailable, using defaults"
+                    )
             except Exception as e:
-                logger.warning(f"{self.feature_name}: Error loading from pattern server: {e}")
+                logger.warning(
+                    f"{self.feature_name}: Error loading from pattern server: {e}"
+                )
                 logger.info(f"{self.feature_name}: Falling back to default patterns")
 
         # If no server patterns, use defaults
@@ -142,7 +152,9 @@ class PatternLoader(ABC):
         # Store source attribution for show-config command
         final_patterns["_pattern_sources"] = self.pattern_sources
 
-        logger.debug(f"{self.feature_name}: Pattern loading complete (sources: {len(self.pattern_sources)} entries)")
+        logger.debug(
+            f"{self.feature_name}: Pattern loading complete (sources: {len(self.pattern_sources)} entries)"
+        )
 
         return final_patterns
 
@@ -185,15 +197,44 @@ class SSRFPatternLoader(PatternLoader):
         """
         return {
             "blocked_ip_ranges": [
-                {"cidr": "169.254.0.0/16", "description": "AWS/Azure metadata (link-local)", "immutable": True}
+                {
+                    "cidr": "169.254.0.0/16",
+                    "description": "AWS/Azure metadata (link-local)",
+                    "immutable": True,
+                }
             ],
             "blocked_domains": [
-                {"domain": "metadata.google.internal", "description": "GCP metadata", "immutable": True},
-                {"domain": "metadata.goog", "description": "GCP metadata (alt)", "immutable": True},
-                {"domain": "169.254.169.254", "description": "AWS/Azure metadata IP", "immutable": True},
-                {"domain": "fd00:ec2::254", "description": "AWS IPv6 metadata", "immutable": True},
+                {
+                    "domain": "metadata.google.internal",
+                    "description": "GCP metadata",
+                    "immutable": True,
+                },
+                {
+                    "domain": "metadata.goog",
+                    "description": "GCP metadata (alt)",
+                    "immutable": True,
+                },
+                {
+                    "domain": "169.254.169.254",
+                    "description": "AWS/Azure metadata IP",
+                    "immutable": True,
+                },
+                {
+                    "domain": "fd00:ec2::254",
+                    "description": "AWS IPv6 metadata",
+                    "immutable": True,
+                },
             ],
-            "dangerous_schemes": ["file", "gopher", "ftp", "ftps", "data", "dict", "ldap", "ldaps"],
+            "dangerous_schemes": [
+                "file",
+                "gopher",
+                "ftp",
+                "ftps",
+                "data",
+                "dict",
+                "ldap",
+                "ldaps",
+            ],
         }
 
     def get_default_patterns(self) -> Dict[str, Any]:
@@ -207,9 +248,18 @@ class SSRFPatternLoader(PatternLoader):
         """
         return {
             "blocked_ip_ranges": [
-                {"cidr": "10.0.0.0/8", "description": "Private network Class A (RFC 1918)"},
-                {"cidr": "172.16.0.0/12", "description": "Private network Class B (RFC 1918)"},
-                {"cidr": "192.168.0.0/16", "description": "Private network Class C (RFC 1918)"},
+                {
+                    "cidr": "10.0.0.0/8",
+                    "description": "Private network Class A (RFC 1918)",
+                },
+                {
+                    "cidr": "172.16.0.0/12",
+                    "description": "Private network Class B (RFC 1918)",
+                },
+                {
+                    "cidr": "192.168.0.0/16",
+                    "description": "Private network Class C (RFC 1918)",
+                },
                 {"cidr": "127.0.0.0/8", "description": "Loopback"},
                 {"cidr": "::1/128", "description": "IPv6 loopback"},
                 {"cidr": "fc00::/7", "description": "IPv6 private network"},
@@ -256,12 +306,16 @@ class SSRFPatternLoader(PatternLoader):
             # Handle additional_blocked_ips (legacy format)
             if "additional_blocked_ips" in local:
                 for ip in local["additional_blocked_ips"]:
-                    merged["blocked_ip_ranges"].append({"cidr": ip, "description": "Local config addition"})
+                    merged["blocked_ip_ranges"].append(
+                        {"cidr": ip, "description": "Local config addition"}
+                    )
 
             # Handle additional_blocked_domains (legacy format)
             if "additional_blocked_domains" in local:
                 for domain in local["additional_blocked_domains"]:
-                    merged["blocked_domains"].append({"domain": domain, "description": "Local config addition"})
+                    merged["blocked_domains"].append(
+                        {"domain": domain, "description": "Local config addition"}
+                    )
 
         return merged
 
@@ -415,7 +469,11 @@ class ConfigExfilPatternLoader(PatternLoader):
             for pattern in local["additional_patterns"]:
                 # Convert string pattern to dict format
                 if isinstance(pattern, str):
-                    pattern = {"name": "custom", "pattern": pattern, "description": "Local config addition"}
+                    pattern = {
+                        "name": "custom",
+                        "pattern": pattern,
+                        "description": "Local config addition",
+                    }
                 merged["patterns"].append(pattern)
 
         return merged
@@ -450,15 +508,21 @@ class SecretPatternLoader(PatternLoader):
         if toml_path and toml_path.exists():
             try:
                 from ai_guardian.patterns.toml_parser import load_toml_file
+
                 raw_rules = load_toml_file(toml_path)
-                return {"patterns": [
-                    {
-                        "regex": r.get("regex", ""),
-                        "strategy": r.get("redaction_strategy", "preserve_prefix_suffix"),
-                        "secret_type": r.get("description", ""),
-                    }
-                    for r in raw_rules if r.get("match_type", "regex") == "regex"
-                ]}
+                return {
+                    "patterns": [
+                        {
+                            "regex": r.get("regex", ""),
+                            "strategy": r.get(
+                                "redaction_strategy", "preserve_prefix_suffix"
+                            ),
+                            "secret_type": r.get("description", ""),
+                        }
+                        for r in raw_rules
+                        if r.get("match_type", "regex") == "regex"
+                    ]
+                }
             except Exception as e:
                 logger.error(f"Failed to load bundled secrets.toml: {e}")
         return {"patterns": []}
@@ -484,7 +548,9 @@ class SecretPatternLoader(PatternLoader):
         if override_mode == "replace" and server:
             # Replace mode: use only server patterns
             merged = {"patterns": server.get("patterns", [])}
-            logger.info(f"{self.feature_name}: Using pattern server patterns (replace mode)")
+            logger.info(
+                f"{self.feature_name}: Using pattern server patterns (replace mode)"
+            )
         else:
             # Extend mode: defaults + server + local
             default_patterns = self.get_default_patterns()
@@ -538,7 +604,9 @@ class PIIPatternLoader(PatternLoader):
 
         if override_mode == "replace" and server:
             merged = {"rules": list(server.get("rules", []))}
-            logger.info(f"{self.feature_name}: Using pattern server patterns (replace mode)")
+            logger.info(
+                f"{self.feature_name}: Using pattern server patterns (replace mode)"
+            )
         else:
             # Load defaults explicitly: the base class passes server data (not defaults)
             # as `server` when a pattern server is configured, so defaults must be loaded
@@ -552,7 +620,10 @@ class PIIPatternLoader(PatternLoader):
                 for rule in server_rules:
                     rule_id = rule.get("id")
                     if rule_id and rule_id in existing_ids:
-                        merged["rules"] = [r if r.get("id") != rule_id else rule for r in merged["rules"]]
+                        merged["rules"] = [
+                            r if r.get("id") != rule_id else rule
+                            for r in merged["rules"]
+                        ]
                     else:
                         merged["rules"].append(rule)
 

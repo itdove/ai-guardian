@@ -10,6 +10,7 @@ Part of Phase 4: Hermes Security Patterns Integration (Issue #197)
 NEW in v1.5.0: Optional pattern server support for enterprise secret pattern management.
 NEW in v1.6.0: PII detection for GDPR/CCPA compliance (Issue #262).
 """
+
 # ai-guardian:end-allow
 
 import re
@@ -18,8 +19,7 @@ from typing import List, Dict, Tuple, Optional
 
 from ai_guardian.config_utils import validate_regex_pattern, is_feature_enabled
 from ai_guardian import allowlist_utils
-from ai_guardian.patterns import BUNDLED_FILES, load_bundled_rules
-from ai_guardian.patterns.toml_parser import load_and_compile
+from ai_guardian.patterns import load_bundled_rules
 from ai_guardian.patterns.validators import luhn_check, iban_check, VALID_CC_PREFIXES
 
 logger = logging.getLogger(__name__)
@@ -50,7 +50,12 @@ class SecretRedactor:
             flags |= re.DOTALL
         return flags
 
-    def __init__(self, config: Optional[Dict] = None, pii_config: Optional[Dict] = None, pii_only: bool = False):
+    def __init__(
+        self,
+        config: Optional[Dict] = None,
+        pii_config: Optional[Dict] = None,
+        pii_only: bool = False,
+    ):
         """
         Initialize the SecretRedactor.
 
@@ -69,15 +74,15 @@ class SecretRedactor:
         """
         self.config = config or {}
         self.pii_config = pii_config or {}
-        self.enabled = self.config.get('enabled', True)
-        self.action = self.config.get('action', 'warn')
-        self.preserve_format = self.config.get('preserve_format', True)
-        self.log_redactions = self.config.get('log_redactions', True)
+        self.enabled = self.config.get("enabled", True)
+        self.action = self.config.get("action", "warn")
+        self.preserve_format = self.config.get("preserve_format", True)
+        self.log_redactions = self.config.get("log_redactions", True)
 
         self.pii_only = pii_only
 
         # Load patterns using pattern loader if pattern_server configured
-        pattern_server_config = self.config.get('pattern_server')
+        pattern_server_config = self.config.get("pattern_server")
         if pii_only:
             # Skip all secret patterns, only PII patterns will be loaded below
             patterns_to_use = []
@@ -97,32 +102,40 @@ class SecretRedactor:
                     pattern, strategy, secret_type = pattern_info
                     flags = re.IGNORECASE | re.MULTILINE
                 else:
-                    pattern = pattern_info.get('regex') or pattern_info.get('pattern')
-                    strategy = pattern_info.get('strategy', 'preserve_prefix_suffix')
-                    secret_type = pattern_info.get('secret_type', 'Unknown Secret')
+                    pattern = pattern_info.get("regex") or pattern_info.get("pattern")
+                    strategy = pattern_info.get("strategy", "preserve_prefix_suffix")
+                    secret_type = pattern_info.get("secret_type", "Unknown Secret")
                     flags = self._extract_regex_flags(pattern_info)
 
                 # Validate pattern before compilation (protects against ReDoS from pattern server)
                 if not validate_regex_pattern(pattern):
-                    logger.error(f"Pattern validation failed for {secret_type} (potential ReDoS or invalid syntax) - skipping")
+                    logger.error(
+                        f"Pattern validation failed for {secret_type} (potential ReDoS or invalid syntax) - skipping"
+                    )
                     continue
 
                 compiled = re.compile(pattern, flags)
                 self.compiled_patterns.append((compiled, strategy, secret_type))
             except (re.error, KeyError, TypeError) as e:
-                logger.warning(f"Failed to compile pattern for {secret_type if isinstance(pattern_info, tuple) else pattern_info.get('secret_type', 'unknown')}: {e}")
+                logger.warning(
+                    f"Failed to compile pattern for {secret_type if isinstance(pattern_info, tuple) else pattern_info.get('secret_type', 'unknown')}: {e}"
+                )
 
         # Add custom patterns from local config (always additive, skip in pii_only mode)
-        additional = [] if pii_only else self.config.get('additional_patterns', [])
+        additional = [] if pii_only else self.config.get("additional_patterns", [])
         for custom in additional:
             try:
-                pattern = custom.get('pattern') or custom.get('regex')
-                strategy = custom.get('strategy', 'preserve_prefix_suffix')
-                secret_type = custom.get('type') or custom.get('secret_type', 'Custom Secret')
+                pattern = custom.get("pattern") or custom.get("regex")
+                strategy = custom.get("strategy", "preserve_prefix_suffix")
+                secret_type = custom.get("type") or custom.get(
+                    "secret_type", "Custom Secret"
+                )
 
                 # Validate pattern before compilation (protects against ReDoS)
                 if not validate_regex_pattern(pattern):
-                    logger.error(f"Custom pattern validation failed for {secret_type} (potential ReDoS or invalid syntax) - skipping")
+                    logger.error(
+                        f"Custom pattern validation failed for {secret_type} (potential ReDoS or invalid syntax) - skipping"
+                    )
                     continue
 
                 compiled = re.compile(pattern, self._extract_regex_flags(custom))
@@ -132,10 +145,12 @@ class SecretRedactor:
                 logger.warning(f"Failed to compile custom pattern: {e}")
 
         # Load PII patterns if enabled (Issue #262, pattern server support #644)
-        if is_feature_enabled(self.pii_config.get('enabled'), default=False):
-            pii_types = self.pii_config.get('pii_types',
-                ['ssn', 'credit_card', 'phone', 'us_passport', 'iban', 'intl_phone'])
-            pii_pattern_server = self.pii_config.get('pattern_server')
+        if is_feature_enabled(self.pii_config.get("enabled"), default=False):
+            pii_types = self.pii_config.get(
+                "pii_types",
+                ["ssn", "credit_card", "phone", "us_passport", "iban", "intl_phone"],
+            )
+            pii_pattern_server = self.pii_config.get("pattern_server")
             if pii_pattern_server:
                 pii_patterns = self._load_pii_patterns_via_server(pii_pattern_server)
             else:
@@ -145,43 +160,52 @@ class SecretRedactor:
                     pattern, strategy, label = pii_patterns[pii_type]
                     try:
                         if not validate_regex_pattern(pattern):
-                            logger.error(f"PII pattern validation failed for {label} - skipping")
+                            logger.error(
+                                f"PII pattern validation failed for {label} - skipping"
+                            )
                             continue
                         compiled = re.compile(pattern)
                         self.compiled_patterns.append((compiled, strategy, label))
                         logger.debug(f"Added PII pattern: {label}")
                     except re.error as e:
-                        logger.warning(f"Failed to compile PII pattern for {label}: {e}")
+                        logger.warning(
+                            f"Failed to compile PII pattern for {label}: {e}"
+                        )
             logger.info(f"PII Detection: Loaded patterns for {pii_types}")
 
         # Compile PII allowlist patterns (Issue #357)
-        raw_allowlist = self.pii_config.get('allowlist_patterns', [])
+        raw_allowlist = self.pii_config.get("allowlist_patterns", [])
         self._compiled_pii_allowlist = allowlist_utils.compile_allowlist(raw_allowlist)
         if self._compiled_pii_allowlist:
-            logger.info(f"PII Allowlist: {len(self._compiled_pii_allowlist)} active patterns")
+            logger.info(
+                f"PII Allowlist: {len(self._compiled_pii_allowlist)} active patterns"
+            )
 
         logger.info(f"Secret Redaction: Loaded {len(self.compiled_patterns)} patterns")
 
     def _load_patterns_from_toml(self) -> List:
         """Load secret patterns from bundled TOML file (Issue #841)."""
+
         def _transform(raw_rules):
             return [
                 {
-                    'regex': raw.get("regex", ""),
-                    'strategy': raw.get("redaction_strategy", "preserve_prefix_suffix"),
-                    'secret_type': raw.get("description", ""),
-                    'flags': raw.get("flags", ""),
-                    'case_insensitive': raw.get("case_insensitive", False),
-                    'multiline': raw.get("multiline", False),
-                    'dotall': raw.get("dotall", False),
+                    "regex": raw.get("regex", ""),
+                    "strategy": raw.get("redaction_strategy", "preserve_prefix_suffix"),
+                    "secret_type": raw.get("description", ""),
+                    "flags": raw.get("flags", ""),
+                    "case_insensitive": raw.get("case_insensitive", False),
+                    "multiline": raw.get("multiline", False),
+                    "dotall": raw.get("dotall", False),
                 }
-                for raw in raw_rules if raw.get("match_type", "regex") == "regex"
+                for raw in raw_rules
+                if raw.get("match_type", "regex") == "regex"
             ]
-        return load_bundled_rules("secrets", _transform, [],
-                                 "Secret Redaction")
+
+        return load_bundled_rules("secrets", _transform, [], "Secret Redaction")
 
     def _load_pii_patterns(self) -> Dict:
         """Load PII patterns from bundled TOML file (Issue #841)."""
+
         def _transform(raw_rules):
             result = {}
             for raw in raw_rules:
@@ -193,8 +217,8 @@ class SecretRedactor:
                         raw.get("description", ""),
                     )
             return result
-        return load_bundled_rules("pii", _transform, {},
-                                 "PII Detection")
+
+        return load_bundled_rules("pii", _transform, {}, "PII Detection")
 
     def _load_pii_patterns_via_server(self, pattern_server_config: Dict) -> Dict:
         """Load PII patterns via pattern server with fallback to bundled TOML."""
@@ -219,14 +243,20 @@ class SecretRedactor:
                     )
 
             if result:
-                logger.info(f"PII Detection: Loaded {len(result)} patterns via pattern server")
+                logger.info(
+                    f"PII Detection: Loaded {len(result)} patterns via pattern server"
+                )
                 return result
 
-            logger.warning("PII pattern server returned no patterns, falling back to bundled TOML")
+            logger.warning(
+                "PII pattern server returned no patterns, falling back to bundled TOML"
+            )
             return self._load_pii_patterns()
 
         except ImportError:
-            logger.error("pattern_loader module not available, falling back to bundled TOML")
+            logger.error(
+                "pattern_loader module not available, falling back to bundled TOML"
+            )
             return self._load_pii_patterns()
         except Exception as e:
             logger.error(f"Error loading PII patterns from pattern server: {e}")
@@ -251,17 +281,23 @@ class SecretRedactor:
             )
 
             # Convert pattern loader format to list of dicts
-            server_patterns = merged_patterns.get('patterns', [])
+            server_patterns = merged_patterns.get("patterns", [])
 
             if server_patterns:
-                logger.info(f"Loaded {len(server_patterns)} patterns from pattern server/cache/defaults")
+                logger.info(
+                    f"Loaded {len(server_patterns)} patterns from pattern server/cache/defaults"
+                )
                 return server_patterns
             else:
-                logger.warning("Pattern server returned no patterns, falling back to bundled TOML")
+                logger.warning(
+                    "Pattern server returned no patterns, falling back to bundled TOML"
+                )
                 return self._load_patterns_from_toml()
 
         except ImportError:
-            logger.error("pattern_loader module not available, falling back to bundled TOML")
+            logger.error(
+                "pattern_loader module not available, falling back to bundled TOML"
+            )
             return self._load_patterns_from_toml()
         except Exception as e:
             logger.error(f"Error loading patterns from pattern server: {e}")
@@ -283,10 +319,10 @@ class SecretRedactor:
         """
         if not self.enabled or not text:
             return {
-                'redacted_text': text,
-                'redactions': [],
-                'original_length': len(text) if text else 0,
-                'redacted_length': len(text) if text else 0
+                "redacted_text": text,
+                "redactions": [],
+                "original_length": len(text) if text else 0,
+                "redacted_length": len(text) if text else 0,
             }
 
         redactions = []
@@ -304,8 +340,10 @@ class SecretRedactor:
             for match in matches:
                 start, end = match.span()
 
-                if any(start < r_end and r_start < end
-                       for r_start, r_end in claimed_regions):
+                if any(
+                    start < r_end and r_start < end
+                    for r_start, r_end in claimed_regions
+                ):
                     continue
 
                 original = match.group(0)
@@ -321,67 +359,89 @@ class SecretRedactor:
                 if redacted is None:
                     continue
 
-                all_pending.append((start, end, original, redacted, metadata, strategy, secret_type))
+                all_pending.append(
+                    (start, end, original, redacted, metadata, strategy, secret_type)
+                )
                 claimed_regions.append((start, end))
 
         # Phase 2: Record metadata with positions from original text
-        for start, end, original, redacted, metadata, strategy, secret_type in all_pending:
-            line_start = text.rfind('\n', 0, start) + 1
-            redactions.append({
-                'type': secret_type,
-                'position': start,
-                'line_number': text[:start].count('\n') + 1,
-                'column': start - line_start + 1,
-                'original_length': len(original),
-                'redacted_length': len(redacted),
-                'strategy': strategy,
-                **metadata
-            })
+        for (
+            start,
+            end,
+            original,
+            redacted,
+            metadata,
+            strategy,
+            secret_type,
+        ) in all_pending:
+            line_start = text.rfind("\n", 0, start) + 1
+            redactions.append(
+                {
+                    "type": secret_type,
+                    "position": start,
+                    "line_number": text[:start].count("\n") + 1,
+                    "column": start - line_start + 1,
+                    "original_length": len(original),
+                    "redacted_length": len(redacted),
+                    "strategy": strategy,
+                    **metadata,
+                }
+            )
 
             if self.log_redactions:
-                logging.info(f"Redacted {secret_type} at position {start} using {strategy}")
+                logging.info(
+                    f"Redacted {secret_type} at position {start} using {strategy}"
+                )
 
         # Phase 3: Build redacted text in a single forward pass
         segments = []
         pos = 0
-        for start, end, _original, redacted, _metadata, _strategy, _secret_type in sorted(
-            all_pending, key=lambda x: x[0]
-        ):
+        for (
+            start,
+            end,
+            _original,
+            redacted,
+            _metadata,
+            _strategy,
+            _secret_type,
+        ) in sorted(all_pending, key=lambda x: x[0]):
             segments.append(text[pos:start])
             segments.append(redacted)
             pos = end
         segments.append(text[pos:])
-        redacted_text = ''.join(segments)
+        redacted_text = "".join(segments)
 
         return {
-            'redacted_text': redacted_text,
-            'redactions': redactions,
-            'original_length': len(text),
-            'redacted_length': len(redacted_text)
+            "redacted_text": redacted_text,
+            "redactions": redactions,
+            "original_length": len(text),
+            "redacted_length": len(redacted_text),
         }
 
     _STRATEGY_DISPATCH = {
-        'env_assignment': '_redact_env_assignment',
-        'json_field': '_redact_json_field',
-        'auth_header': '_redact_auth_header',
-        'header_value': '_redact_header_value',
-        'connection_string': '_redact_connection_string',
-        'aws_secret': '_redact_aws_secret',
-        'yaml_password': '_redact_yaml_password',
-        'context_secret': '_redact_context_secret',
-        'credit_card': '_redact_credit_card',
-        'pii_email': '_redact_pii_email',
-        'iban': '_redact_iban',
-        'canada_sin': '_redact_canada_sin',
-        'aadhaar': '_redact_aadhaar',
+        "env_assignment": "_redact_env_assignment",
+        "json_field": "_redact_json_field",
+        "auth_header": "_redact_auth_header",
+        "header_value": "_redact_header_value",
+        "connection_string": "_redact_connection_string",
+        "aws_secret": "_redact_aws_secret",
+        "yaml_password": "_redact_yaml_password",
+        "context_secret": "_redact_context_secret",
+        "credit_card": "_redact_credit_card",
+        "pii_email": "_redact_pii_email",
+        "iban": "_redact_iban",
+        "canada_sin": "_redact_canada_sin",
+        "aadhaar": "_redact_aadhaar",
     }
 
-    def _apply_strategy(self, match: re.Match, strategy: str, secret_type: str) -> Tuple[str, Dict]:
+    def _apply_strategy(
+        self, match: re.Match, strategy: str, secret_type: str
+    ) -> Tuple[str, Dict]:
         """Apply a masking strategy to a matched secret."""
-        if strategy == 'full_redact':
+        if strategy == "full_redact":
             return self._full_redact(secret_type)
-        if strategy == 'private_key':
-            return ('[REDACTED PRIVATE KEY]', {'method': 'full'})
+        if strategy == "private_key":
+            return ("[REDACTED PRIVATE KEY]", {"method": "full"})
         method_name = self._STRATEGY_DISPATCH.get(strategy)
         if method_name:
             return getattr(self, method_name)(match)
@@ -394,20 +454,30 @@ class SecretRedactor:
         Returns (masked_string, was_short).
         """
         if len(secret) <= 18:
-            return '***', True
+            return "***", True
         prefix_len = min(6, len(secret) // 3)
         suffix_len = min(4, len(secret) // 4)
         return f"{secret[:prefix_len]}...{secret[-suffix_len:]}", False
 
     def _preserve_prefix_suffix(self, match: re.Match) -> Tuple[str, Dict]:
         """Preserve first 6 and last 4 characters, redact middle."""
-        secret = match.group(1) if match.lastindex and match.lastindex >= 1 else match.group(0)
+        secret = (
+            match.group(1)
+            if match.lastindex and match.lastindex >= 1
+            else match.group(0)
+        )
         redacted, was_short = self._truncate_secret(secret)
         if was_short:
-            return (redacted, {'method': 'short'})
+            return (redacted, {"method": "short"})
         prefix_len = min(6, len(secret) // 3)
         suffix_len = min(4, len(secret) // 4)
-        return (redacted, {'method': 'preserve_prefix_suffix', 'preserved_chars': prefix_len + suffix_len})
+        return (
+            redacted,
+            {
+                "method": "preserve_prefix_suffix",
+                "preserved_chars": prefix_len + suffix_len,
+            },
+        )
 
     def _full_redact(self, secret_type: str) -> Tuple[str, Dict]:
         """
@@ -417,7 +487,7 @@ class SecretRedactor:
                  -> [REDACTED AWS SECRET KEY]
         """
         placeholder = f"[HIDDEN {secret_type.upper()}]"
-        return (placeholder, {'method': 'full'})
+        return (placeholder, {"method": "full"})
 
     def _redact_env_assignment(self, match: re.Match) -> Tuple[str, Dict]:
         """
@@ -430,12 +500,12 @@ class SecretRedactor:
         # Check if there's a quote group
         if match.lastindex >= 3:
             # Has quote marks
-            quote = match.group(2) if match.group(2) else ''
+            quote = match.group(2) if match.group(2) else ""
             redacted = f"{var_name}={quote}[HIDDEN]{quote}"
         else:
             redacted = f"{var_name}=[HIDDEN]"
 
-        return (redacted, {'method': 'env_var', 'var_name': var_name})
+        return (redacted, {"method": "env_var", "var_name": var_name})
 
     def _redact_json_field(self, match: re.Match) -> Tuple[str, Dict]:
         """
@@ -447,7 +517,7 @@ class SecretRedactor:
         field_name = match.group(1)
         redacted = f'"{field_name}": "[HIDDEN]"'
 
-        return (redacted, {'method': 'json', 'field_name': field_name})
+        return (redacted, {"method": "json", "field_name": field_name})
 
     def _redact_auth_header(self, match: re.Match) -> Tuple[str, Dict]:
         """
@@ -467,7 +537,7 @@ class SecretRedactor:
 
         redacted = f"{header_prefix}{redacted_token}"
 
-        return (redacted, {'method': 'auth_header'})
+        return (redacted, {"method": "auth_header"})
 
     def _redact_header_value(self, match: re.Match) -> Tuple[str, Dict]:
         """
@@ -479,7 +549,7 @@ class SecretRedactor:
         header_name = match.group(1)
         redacted = f"{header_name}[HIDDEN]"
 
-        return (redacted, {'method': 'header'})
+        return (redacted, {"method": "header"})
 
     def _redact_connection_string(self, match: re.Match) -> Tuple[str, Dict]:
         """
@@ -494,7 +564,7 @@ class SecretRedactor:
 
         redacted = f"{prefix}[HIDDEN]{suffix}"
 
-        return (redacted, {'method': 'connection_string'})
+        return (redacted, {"method": "connection_string"})
 
     def _redact_aws_secret(self, match: re.Match) -> Tuple[str, Dict]:
         """
@@ -506,7 +576,7 @@ class SecretRedactor:
         prefix = match.group(1)  # "aws_secret_access_key = "
         redacted = f"{prefix}[HIDDEN]"
 
-        return (redacted, {'method': 'aws_secret'})
+        return (redacted, {"method": "aws_secret"})
 
     def _redact_yaml_password(self, match: re.Match) -> Tuple[str, Dict]:
         """
@@ -518,14 +588,17 @@ class SecretRedactor:
         prefix = match.group(1)  # "password: "
         redacted = f"{prefix}[HIDDEN]"
 
-        return (redacted, {'method': 'yaml_password'})
+        return (redacted, {"method": "yaml_password"})
 
     def _redact_context_secret(self, match: re.Match) -> Tuple[str, Dict]:
         """Redact secret with context keyword prefix, preserving prefix/suffix."""
         context_prefix = match.group(1)
         secret = match.group(2)
         redacted_secret, _ = self._truncate_secret(secret)
-        return (f"{context_prefix}{redacted_secret}", {'method': 'context_secret', 'context': context_prefix.strip()})
+        return (
+            f"{context_prefix}{redacted_secret}",
+            {"method": "context_secret", "context": context_prefix.strip()},
+        )
 
     def _redact_credit_card(self, match: re.Match) -> Tuple[str, Dict]:
         """
@@ -534,13 +607,16 @@ class SecretRedactor:
         Returns (None, None) if the number fails validation (not a real CC).
         """
         number = match.group(0)
-        digits_only = re.sub(r'[- ]', '', number)
+        digits_only = re.sub(r"[- ]", "", number)
         if not luhn_check(digits_only):
             return (None, None)
         if not digits_only.startswith(VALID_CC_PREFIXES):
             return (None, None)
         last_four = digits_only[-4:]
-        return (f"[HIDDEN CREDIT CARD ****{last_four}]", {'method': 'credit_card', 'last_four': last_four})
+        return (
+            f"[HIDDEN CREDIT CARD ****{last_four}]",
+            {"method": "credit_card", "last_four": last_four},
+        )
 
     def _redact_pii_email(self, match: re.Match) -> Tuple[str, Dict]:
         """
@@ -549,9 +625,9 @@ class SecretRedactor:
         Example: john.doe@example.com -> [HIDDEN]@example.com
         """
         email = match.group(0)
-        at_idx = email.rfind('@')
-        domain = email[at_idx + 1:]
-        return (f"[HIDDEN]@{domain}", {'method': 'pii_email', 'domain': domain})
+        at_idx = email.rfind("@")
+        domain = email[at_idx + 1 :]
+        return (f"[HIDDEN]@{domain}", {"method": "pii_email", "domain": domain})
 
     def _redact_iban(self, match: re.Match) -> Tuple[str, Dict]:
         """
@@ -564,7 +640,10 @@ class SecretRedactor:
             return (None, None)
         country = iban[:2]
         last_four = iban[-4:]
-        return (f"[HIDDEN IBAN {country}****{last_four}]", {'method': 'iban', 'country': country})
+        return (
+            f"[HIDDEN IBAN {country}****{last_four}]",
+            {"method": "iban", "country": country},
+        )
 
     def _redact_canada_sin(self, match: re.Match) -> Tuple[str, Dict]:
         """
@@ -575,7 +654,7 @@ class SecretRedactor:
         sin = match.group(0)
         if not luhn_check(sin, min_digits=9, max_digits=9):
             return (None, None)
-        return ('[HIDDEN Canadian SIN]', {'method': 'canada_sin'})
+        return ("[HIDDEN Canadian SIN]", {"method": "canada_sin"})
 
     def _redact_aadhaar(self, match: re.Match) -> Tuple[str, Dict]:
         """
@@ -585,9 +664,9 @@ class SecretRedactor:
         Real Aadhaar numbers start with 2-9 and aren't all-identical digits.
         """
         number = match.group(0)
-        digits = re.sub(r'[- ]', '', number)
-        if digits[0] in ('0', '1'):
+        digits = re.sub(r"[- ]", "", number)
+        if digits[0] in ("0", "1"):
             return (None, None)
         if len(set(digits)) == 1:
             return (None, None)
-        return (f'[REDACTED Indian Aadhaar Number]', {'method': 'full'})
+        return ("[REDACTED Indian Aadhaar Number]", {"method": "full"})

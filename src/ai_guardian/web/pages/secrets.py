@@ -58,8 +58,9 @@ def _parse_enabled(raw):
     return False, None, "", bool(raw)
 
 
-def _render_toggle(label, desc, is_temp, until_dt, reason, is_enabled,
-                   save_fn, refresh_fn):
+def _render_toggle(
+    label, desc, is_temp, until_dt, reason, is_enabled, save_fn, refresh_fn
+):
     """Render a toggle card with temp-disable support.
 
     save_fn(value) — called with bool or dict to persist.
@@ -71,7 +72,9 @@ def _render_toggle(label, desc, is_temp, until_dt, reason, is_enabled,
             with ui.row().classes("items-center gap-2 w-full"):
                 ui.icon("timer").classes("text-amber")
                 ui.label(label).classes("font-bold text-sm flex-grow")
-                ui.badge(f"TEMP DISABLED — {remaining}", color="amber").classes("text-xs")
+                ui.badge(f"TEMP DISABLED — {remaining}", color="amber").classes(
+                    "text-xs"
+                )
             ui.label(desc).classes("text-xs text-grey-6 ml-8")
             if reason:
                 ui.label(f"Reason: {reason}").classes("text-xs text-grey-7 ml-8")
@@ -81,8 +84,9 @@ def _render_toggle(label, desc, is_temp, until_dt, reason, is_enabled,
                 ui.notify(f"{label} re-enabled", type="positive")
                 await refresh_fn()
 
-            ui.button("Re-enable Now", icon="play_arrow", color="green",
-                      on_click=do_reenable).props("dense size=sm").classes("ml-8")
+            ui.button(
+                "Re-enable Now", icon="play_arrow", color="green", on_click=do_reenable
+            ).props("dense size=sm").classes("ml-8")
         else:
             with ui.row().classes("items-center gap-2 w-full"):
                 sw = ui.switch(label, value=bool(is_enabled)).classes("flex-grow")
@@ -98,24 +102,40 @@ def _render_toggle(label, desc, is_temp, until_dt, reason, is_enabled,
                 sw.on_value_change(on_toggle)
 
             with ui.row().classes("items-center gap-2 ml-8"):
-                dur = ui.input(placeholder="e.g. 30m, 2h, 1d").props("dense outlined").classes("w-32")
-                rsn = ui.input(placeholder="Reason").props("dense outlined").classes("w-40")
+                dur = (
+                    ui.input(placeholder="e.g. 30m, 2h, 1d")
+                    .props("dense outlined")
+                    .classes("w-32")
+                )
+                rsn = (
+                    ui.input(placeholder="Reason")
+                    .props("dense outlined")
+                    .classes("w-40")
+                )
 
                 async def do_temp(d=dur, r=rsn):
                     delta = _parse_duration(d.value or "30m")
                     if not delta:
-                        ui.notify("Invalid duration (e.g. 30m, 2h, 1d)", type="negative")
+                        ui.notify(
+                            "Invalid duration (e.g. 30m, 2h, 1d)", type="negative"
+                        )
                         return
-                    until_ts = (datetime.now(timezone.utc) + delta).strftime("%Y-%m-%dT%H:%M:%SZ")
+                    until_ts = (datetime.now(timezone.utc) + delta).strftime(
+                        "%Y-%m-%dT%H:%M:%SZ"
+                    )
                     entry = {"value": False, "disabled_until": until_ts}
                     rv = r.value.strip()
                     if rv:
                         entry["reason"] = rv
                     await run.io_bound(save_fn, entry)
-                    ui.notify(f"{label} temp disabled for {d.value or '30m'}", type="warning")
+                    ui.notify(
+                        f"{label} temp disabled for {d.value or '30m'}", type="warning"
+                    )
                     await refresh_fn()
 
-                ui.button("Temp Disable", icon="timer", on_click=do_temp).props("dense size=sm")
+                ui.button("Temp Disable", icon="timer", on_click=do_temp).props(
+                    "dense size=sm"
+                )
 
 
 def create_secrets_page(service, daemon_name: str):
@@ -159,16 +179,20 @@ def create_secrets_page(service, daemon_name: str):
                     _render_toggle(
                         "Secret Scanning",
                         "Scan for API keys, tokens, and credentials in tool inputs/outputs.",
-                        is_temp, until_dt, reason, is_enabled,
-                        save_scanning, refresh,
+                        is_temp,
+                        until_dt,
+                        reason,
+                        is_enabled,
+                        save_scanning,
+                        refresh,
                     )
 
                     # --- Action mode ---
                     with ui.card().classes("w-full"):
                         ui.label("Action Mode").classes("text-lg font-bold")
-                        ui.label(
-                            "What happens when secrets are detected."
-                        ).classes("text-xs text-grey-6")
+                        ui.label("What happens when secrets are detected.").classes(
+                            "text-xs text-grey-6"
+                        )
                         action = ss.get("action", "block")
                         action_sel = ui.select(
                             options={
@@ -221,19 +245,27 @@ def create_secrets_page(service, daemon_name: str):
                                             sect["allowlist_patterns"] = pats
                                             cfg["secret_scanning"] = sect
                                             await run.io_bound(save_web_config, cfg)
-                                            ui.notify("Pattern removed", type="positive")
+                                            ui.notify(
+                                                "Pattern removed", type="positive"
+                                            )
                                             await refresh()
 
                                     ui.button(
                                         icon="delete", on_click=remove_pat, color="red"
                                     ).props("flat dense size=sm")
                         else:
-                            ui.label("No allowlist patterns.").classes("text-grey-6 text-sm")
+                            ui.label("No allowlist patterns.").classes(
+                                "text-grey-6 text-sm"
+                            )
 
                         with ui.row().classes("items-center gap-2 mt-2"):
-                            al_input = ui.input(
-                                placeholder="Enter regex (e.g., pk_test_[A-Za-z0-9]{24,})"
-                            ).props("dense outlined").classes("flex-grow")
+                            al_input = (
+                                ui.input(
+                                    placeholder="Enter regex (e.g., pk_test_[A-Za-z0-9]{24,})"
+                                )
+                                .props("dense outlined")
+                                .classes("flex-grow")
+                            )
 
                             async def add_allowlist():
                                 pattern = al_input.value.strip()
@@ -261,11 +293,15 @@ def create_secrets_page(service, daemon_name: str):
                                 ui.notify(f"Added: {pattern}", type="positive")
                                 await refresh()
 
-                            ui.button("Add", icon="add", on_click=add_allowlist).props("dense")
+                            ui.button("Add", icon="add", on_click=add_allowlist).props(
+                                "dense"
+                            )
 
                     # --- False Positive Filtering: Entropy (Issue #1091) ---
                     with ui.card().classes("w-full"):
-                        ui.label("Minimum Entropy Threshold").classes("text-lg font-bold")
+                        ui.label("Minimum Entropy Threshold").classes(
+                            "text-lg font-bold"
+                        )
                         ui.label(
                             "Shannon entropy filter for secret detection. Matches below "
                             "this threshold are rejected as likely placeholders. "
@@ -274,13 +310,17 @@ def create_secrets_page(service, daemon_name: str):
                         ).classes("text-xs text-grey-6")
 
                         current_entropy = ss.get("min_entropy")
-                        entropy_input = ui.number(
-                            label="Min Entropy (empty = disabled)",
-                            value=current_entropy,
-                            min=0.0,
-                            max=8.0,
-                            step=0.1,
-                        ).props("dense outlined clearable").classes("w-48")
+                        entropy_input = (
+                            ui.number(
+                                label="Min Entropy (empty = disabled)",
+                                value=current_entropy,
+                                min=0.0,
+                                max=8.0,
+                                step=0.1,
+                            )
+                            .props("dense outlined clearable")
+                            .classes("w-48")
+                        )
 
                         ui.label(
                             "0.0 = identical (XXXX) · ~1.0 = two chars (abab) · "
@@ -312,9 +352,7 @@ def create_secrets_page(service, daemon_name: str):
                             cfg["secret_scanning"] = sect
                             await run.io_bound(save_web_config, cfg)
                             status = f"{val}" if val is not None else "disabled"
-                            ui.notify(
-                                f"Min entropy: {status}", type="positive"
-                            )
+                            ui.notify(f"Min entropy: {status}", type="positive")
 
                         entropy_input.on("blur", save_entropy)
 
@@ -331,9 +369,11 @@ def create_secrets_page(service, daemon_name: str):
                         bundled_count = 0
                         try:
                             from ai_guardian.patterns import BUNDLED_FILES
+
                             sw_path = BUNDLED_FILES.get("stopwords")
                             if sw_path and sw_path.exists():
                                 import sys as _sys
+
                                 if _sys.version_info >= (3, 11):
                                     import tomllib as _tomllib
                                 else:
@@ -352,9 +392,9 @@ def create_secrets_page(service, daemon_name: str):
 
                         user_sw = ss.get("stopwords", [])
                         if user_sw:
-                            ui.label(
-                                f"User-added: {len(user_sw)} words"
-                            ).classes("text-xs text-grey-5")
+                            ui.label(f"User-added: {len(user_sw)} words").classes(
+                                "text-xs text-grey-5"
+                            )
                             for idx, word in enumerate(user_sw):
                                 with ui.row().classes("items-center gap-2 w-full"):
                                     ui.icon("block").classes("text-orange")
@@ -383,14 +423,16 @@ def create_secrets_page(service, daemon_name: str):
                                         icon="delete", on_click=remove_sw, color="red"
                                     ).props("flat dense size=sm")
                         else:
-                            ui.label(
-                                "No user-added stopwords."
-                            ).classes("text-grey-6 text-sm")
+                            ui.label("No user-added stopwords.").classes(
+                                "text-grey-6 text-sm"
+                            )
 
                         with ui.row().classes("items-center gap-2 mt-2"):
-                            sw_input = ui.input(
-                                placeholder="Enter stopword (min 3 chars)"
-                            ).props("dense outlined").classes("flex-grow")
+                            sw_input = (
+                                ui.input(placeholder="Enter stopword (min 3 chars)")
+                                .props("dense outlined")
+                                .classes("flex-grow")
+                            )
 
                             async def add_stopword():
                                 word = sw_input.value.strip().lower()
@@ -409,9 +451,7 @@ def create_secrets_page(service, daemon_name: str):
                                     sect = {}
                                 words = sect.get("stopwords", [])
                                 if word in [w.lower() for w in words]:
-                                    ui.notify(
-                                        "Stopword already added", type="warning"
-                                    )
+                                    ui.notify("Stopword already added", type="warning")
                                     return
                                 words.append(word)
                                 sect["stopwords"] = words
@@ -421,9 +461,9 @@ def create_secrets_page(service, daemon_name: str):
                                 ui.notify(f"Added: {word}", type="positive")
                                 await refresh()
 
-                            ui.button(
-                                "Add", icon="add", on_click=add_stopword
-                            ).props("dense")
+                            ui.button("Add", icon="add", on_click=add_stopword).props(
+                                "dense"
+                            )
 
                     # --- Ignore files ---
                     with ui.card().classes("w-full"):
@@ -452,19 +492,29 @@ def create_secrets_page(service, daemon_name: str):
                                             sect["ignore_files"] = items
                                             cfg["secret_scanning"] = sect
                                             await run.io_bound(save_web_config, cfg)
-                                            ui.notify("File pattern removed", type="positive")
+                                            ui.notify(
+                                                "File pattern removed", type="positive"
+                                            )
                                             await refresh()
 
                                     ui.button(
-                                        icon="delete", on_click=remove_ignore_file, color="red"
+                                        icon="delete",
+                                        on_click=remove_ignore_file,
+                                        color="red",
                                     ).props("flat dense size=sm")
                         else:
-                            ui.label("No ignore file patterns.").classes("text-grey-6 text-sm")
+                            ui.label("No ignore file patterns.").classes(
+                                "text-grey-6 text-sm"
+                            )
 
                         with ui.row().classes("items-center gap-2 mt-2"):
-                            if_input = ui.input(
-                                placeholder="Enter glob pattern (e.g. **/tests/fixtures/**)"
-                            ).props("dense outlined").classes("flex-grow")
+                            if_input = (
+                                ui.input(
+                                    placeholder="Enter glob pattern (e.g. **/tests/fixtures/**)"
+                                )
+                                .props("dense outlined")
+                                .classes("flex-grow")
+                            )
 
                             async def add_ignore_file():
                                 val = if_input.value.strip()
@@ -487,7 +537,9 @@ def create_secrets_page(service, daemon_name: str):
                                 ui.notify(f"Added: {val}", type="positive")
                                 await refresh()
 
-                            ui.button("Add", icon="add", on_click=add_ignore_file).props("dense")
+                            ui.button(
+                                "Add", icon="add", on_click=add_ignore_file
+                            ).props("dense")
 
                     # --- Ignore tools ---
                     with ui.card().classes("w-full"):
@@ -516,19 +568,29 @@ def create_secrets_page(service, daemon_name: str):
                                             sect["ignore_tools"] = items
                                             cfg["secret_scanning"] = sect
                                             await run.io_bound(save_web_config, cfg)
-                                            ui.notify("Tool pattern removed", type="positive")
+                                            ui.notify(
+                                                "Tool pattern removed", type="positive"
+                                            )
                                             await refresh()
 
                                     ui.button(
-                                        icon="delete", on_click=remove_ignore_tool, color="red"
+                                        icon="delete",
+                                        on_click=remove_ignore_tool,
+                                        color="red",
                                     ).props("flat dense size=sm")
                         else:
-                            ui.label("No ignore tool patterns.").classes("text-grey-6 text-sm")
+                            ui.label("No ignore tool patterns.").classes(
+                                "text-grey-6 text-sm"
+                            )
 
                         with ui.row().classes("items-center gap-2 mt-2"):
-                            it_input = ui.input(
-                                placeholder="Enter tool name pattern (e.g. mcp__*)"
-                            ).props("dense outlined").classes("flex-grow")
+                            it_input = (
+                                ui.input(
+                                    placeholder="Enter tool name pattern (e.g. mcp__*)"
+                                )
+                                .props("dense outlined")
+                                .classes("flex-grow")
+                            )
 
                             async def add_ignore_tool():
                                 val = it_input.value.strip()
@@ -551,7 +613,9 @@ def create_secrets_page(service, daemon_name: str):
                                 ui.notify(f"Added: {val}", type="positive")
                                 await refresh()
 
-                            ui.button("Add", icon="add", on_click=add_ignore_tool).props("dense")
+                            ui.button(
+                                "Add", icon="add", on_click=add_ignore_tool
+                            ).props("dense")
 
                     # --- Pattern server toggle ---
                     ps = ss.get("pattern_server", {})
@@ -567,7 +631,9 @@ def create_secrets_page(service, daemon_name: str):
                         sect = cfg.get("secret_scanning", {})
                         if not isinstance(sect, dict):
                             sect = {}
-                        if "pattern_server" not in sect or not isinstance(sect["pattern_server"], dict):
+                        if "pattern_server" not in sect or not isinstance(
+                            sect["pattern_server"], dict
+                        ):
                             sect["pattern_server"] = {}
                         sect["pattern_server"]["enabled"] = value
                         cfg["secret_scanning"] = sect
@@ -576,40 +642,66 @@ def create_secrets_page(service, daemon_name: str):
                     _render_toggle(
                         "Pattern Server (Enhanced Patterns)",
                         "Enable remote pattern server for extended detection rules.",
-                        ps_temp, ps_until, ps_reason, ps_on,
-                        save_ps_enabled, refresh,
+                        ps_temp,
+                        ps_until,
+                        ps_reason,
+                        ps_on,
+                        save_ps_enabled,
+                        refresh,
                     )
 
                     # --- Pattern server settings ---
                     with ui.card().classes("w-full"):
                         ui.label("Pattern Server Settings").classes("text-lg font-bold")
-                        ps_url = ui.input(
-                            label="Server URL",
-                            value=ps.get("url", ""),
-                            placeholder="https://patterns.example.com",
-                        ).props("outlined dense").classes("w-full")
-                        ps_endpoint = ui.input(
-                            label="Patterns Endpoint",
-                            value=ps.get("patterns_endpoint", "/patterns/gitleaks/8.18.1"),
-                        ).props("outlined dense").classes("w-full")
+                        ps_url = (
+                            ui.input(
+                                label="Server URL",
+                                value=ps.get("url", ""),
+                                placeholder="https://patterns.example.com",
+                            )
+                            .props("outlined dense")
+                            .classes("w-full")
+                        )
+                        ps_endpoint = (
+                            ui.input(
+                                label="Patterns Endpoint",
+                                value=ps.get(
+                                    "patterns_endpoint", "/patterns/gitleaks/8.18.1"
+                                ),
+                            )
+                            .props("outlined dense")
+                            .classes("w-full")
+                        )
 
                         auth = ps.get("auth", {})
                         if not isinstance(auth, dict):
                             auth = {}
-                        ps_auth_method = ui.input(
-                            label="Auth Method",
-                            value=auth.get("method", ""),
-                            placeholder="bearer",
-                        ).props("outlined dense").classes("w-48")
-                        ps_token_env = ui.input(
-                            label="Token Env Var",
-                            value=auth.get("token_env", ""),
-                            placeholder="AI_GUARDIAN_PATTERN_TOKEN",
-                        ).props("outlined dense").classes("w-64")
-                        ps_token_file = ui.input(
-                            label="Token File",
-                            value=auth.get("token_file", ""),
-                        ).props("outlined dense").classes("w-full")
+                        ps_auth_method = (
+                            ui.input(
+                                label="Auth Method",
+                                value=auth.get("method", ""),
+                                placeholder="bearer",
+                            )
+                            .props("outlined dense")
+                            .classes("w-48")
+                        )
+                        ps_token_env = (
+                            ui.input(
+                                label="Token Env Var",
+                                value=auth.get("token_env", ""),
+                                placeholder="AI_GUARDIAN_PATTERN_TOKEN",
+                            )
+                            .props("outlined dense")
+                            .classes("w-64")
+                        )
+                        ps_token_file = (
+                            ui.input(
+                                label="Token File",
+                                value=auth.get("token_file", ""),
+                            )
+                            .props("outlined dense")
+                            .classes("w-full")
+                        )
 
                         ps_warn = ui.switch(
                             "Warn on Failure", value=ps.get("warn_on_failure", True)
@@ -620,7 +712,9 @@ def create_secrets_page(service, daemon_name: str):
                             sect = cfg.get("secret_scanning", {})
                             if not isinstance(sect, dict):
                                 sect = {}
-                            if "pattern_server" not in sect or not isinstance(sect["pattern_server"], dict):
+                            if "pattern_server" not in sect or not isinstance(
+                                sect["pattern_server"], dict
+                            ):
                                 sect["pattern_server"] = {}
                             psc = sect["pattern_server"]
                             psc["url"] = ps_url.value.strip()
@@ -645,30 +739,46 @@ def create_secrets_page(service, daemon_name: str):
                         cache = ps.get("cache", {})
                         if not isinstance(cache, dict):
                             cache = {}
-                        cache_path = ui.input(
-                            label="Cache Path",
-                            value=cache.get("path", ""),
-                            placeholder="~/.config/ai-guardian/pattern-cache.json",
-                        ).props("outlined dense").classes("w-full")
-                        cache_refresh = ui.input(
-                            label="Refresh Interval (hours)",
-                            value=str(cache.get("refresh_interval_hours", 12)),
-                        ).props("outlined dense").classes("w-48")
-                        cache_expire = ui.input(
-                            label="Expire After (hours)",
-                            value=str(cache.get("expire_after_hours", 168)),
-                        ).props("outlined dense").classes("w-48")
+                        cache_path = (
+                            ui.input(
+                                label="Cache Path",
+                                value=cache.get("path", ""),
+                                placeholder="~/.config/ai-guardian/pattern-cache.json",
+                            )
+                            .props("outlined dense")
+                            .classes("w-full")
+                        )
+                        cache_refresh = (
+                            ui.input(
+                                label="Refresh Interval (hours)",
+                                value=str(cache.get("refresh_interval_hours", 12)),
+                            )
+                            .props("outlined dense")
+                            .classes("w-48")
+                        )
+                        cache_expire = (
+                            ui.input(
+                                label="Expire After (hours)",
+                                value=str(cache.get("expire_after_hours", 168)),
+                            )
+                            .props("outlined dense")
+                            .classes("w-48")
+                        )
 
                         async def save_cache():
                             cfg = await run.io_bound(load_web_config)
                             sect = cfg.get("secret_scanning", {})
                             if not isinstance(sect, dict):
                                 sect = {}
-                            if "pattern_server" not in sect or not isinstance(sect["pattern_server"], dict):
+                            if "pattern_server" not in sect or not isinstance(
+                                sect["pattern_server"], dict
+                            ):
                                 sect["pattern_server"] = {}
                             sect["pattern_server"]["cache"] = {
                                 "path": cache_path.value.strip(),
-                                "refresh_interval_hours": int(cache_refresh.value or 12),
+                                "refresh_interval_hours": int(
+                                    cache_refresh.value or 12
+                                ),
                                 "expire_after_hours": int(cache_expire.value or 168),
                             }
                             cfg["secret_scanning"] = sect
@@ -695,9 +805,13 @@ def create_secrets_page(service, daemon_name: str):
                         )
 
                         # Privacy consent banner — visible only when enabled
-                        privacy_banner = ui.card().classes("w-full").style(
-                            "background-color: rgba(255, 152, 0, 0.1); "
-                            "border-left: 4px solid #ff9800"
+                        privacy_banner = (
+                            ui.card()
+                            .classes("w-full")
+                            .style(
+                                "background-color: rgba(255, 152, 0, 0.1); "
+                                "border-left: 4px solid #ff9800"
+                            )
                         )
                         privacy_banner.set_visibility(bool(validate_on))
 
@@ -741,13 +855,17 @@ def create_secrets_page(service, daemon_name: str):
                         ).classes("text-xs text-grey-6")
 
                         timeout_val = ss.get("validation_timeout_ms", 3000)
-                        timeout_input = ui.number(
-                            label="Timeout (ms)",
-                            value=timeout_val,
-                            min=500,
-                            max=30000,
-                            step=100,
-                        ).props("dense outlined").classes("w-48")
+                        timeout_input = (
+                            ui.number(
+                                label="Timeout (ms)",
+                                value=timeout_val,
+                                min=500,
+                                max=30000,
+                                step=100,
+                            )
+                            .props("dense outlined")
+                            .classes("w-48")
+                        )
 
                         async def save_timeout(e):
                             try:
@@ -759,9 +877,7 @@ def create_secrets_page(service, daemon_name: str):
                                     )
                                     return
                             except (ValueError, TypeError):
-                                ui.notify(
-                                    "Timeout must be a number", type="negative"
-                                )
+                                ui.notify("Timeout must be a number", type="negative")
                                 return
                             cfg = await run.io_bound(load_web_config)
                             sect = cfg.get("secret_scanning", {})
@@ -770,9 +886,7 @@ def create_secrets_page(service, daemon_name: str):
                             sect["validation_timeout_ms"] = val
                             cfg["secret_scanning"] = sect
                             await run.io_bound(save_web_config, cfg)
-                            ui.notify(
-                                f"Validation timeout: {val} ms", type="positive"
-                            )
+                            ui.notify(f"Validation timeout: {val} ms", type="positive")
 
                         timeout_input.on("blur", save_timeout)
 
@@ -802,9 +916,7 @@ def create_secrets_page(service, daemon_name: str):
                             sect["on_inactive"] = e.value
                             cfg["secret_scanning"] = sect
                             await run.io_bound(save_web_config, cfg)
-                            ui.notify(
-                                f"Inactive action: {e.value}", type="positive"
-                            )
+                            ui.notify(f"Inactive action: {e.value}", type="positive")
 
                         inactive_sel.on_value_change(save_on_inactive)
 

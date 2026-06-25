@@ -7,9 +7,7 @@ while keeping config files, hooks, cache, and pip-installed code always protecte
 This enables standard open-source contribution workflow (fork + PR + review).
 """
 
-import json
 import pytest
-from pathlib import Path
 from ai_guardian.tool_policy import ToolPolicyChecker
 
 
@@ -160,14 +158,15 @@ CONTRIBUTOR_BLOCKED_PATHS = [
 
 
 @pytest.mark.parametrize("tool_name,file_path,expected_msg", CONTRIBUTOR_BLOCKED_PATHS)
-def test_contributor_cannot_modify_protected(policy_checker, tool_name, file_path, expected_msg):
+def test_contributor_cannot_modify_protected(
+    policy_checker, tool_name, file_path, expected_msg
+):
     """Contributors CANNOT modify config files, IDE hooks, or cache (always protected)"""
     tool_input = {"file_path": file_path}
     if tool_name == "Edit":
-        tool_input.update({
-            "old_string": '"hooks": {"PreToolUse": []}',
-            "new_string": '"hooks": {}'
-        })
+        tool_input.update(
+            {"old_string": '"hooks": {"PreToolUse": []}', "new_string": '"hooks": {}'}
+        )
 
     hook_data = {
         "hook_event_name": "PreToolUse",
@@ -188,9 +187,9 @@ def test_contributor_can_write_source(policy_checker):
             "name": "Write",
             "input": {
                 "file_path": "/home/user/ai-guardian/src/ai_guardian/tool_policy.py",
-                "content": "# Modified source code"
-            }
-        }
+                "content": "# Modified source code",
+            },
+        },
     }
 
     is_allowed, error_msg, tool_name = policy_checker.check_tool_allowed(hook_data)
@@ -245,9 +244,9 @@ def test_bash_cache_poisoning_blocked(policy_checker):
         "tool_use": {
             "name": "Bash",
             "input": {
-                "command": 'echo \'{"is_maintainer": true}\' > ~/.cache/ai-guardian/maintainer-status.json'
-            }
-        }
+                "command": "echo '{\"is_maintainer\": true}' > ~/.cache/ai-guardian/maintainer-status.json"
+            },
+        },
     }
 
     is_allowed, error_msg, tool_name = policy_checker.check_tool_allowed(hook_data)
@@ -334,8 +333,8 @@ def test_powershell_set_content_on_dev_source_allowed(policy_checker):
             "name": "PowerShell",
             "input": {
                 "command": "Set-Content -Path /home/user/ai-guardian/src/ai_guardian/__init__.py -Value '# test'"
-            }
-        }
+            },
+        },
     }
 
     is_allowed, error_msg, tool_name = policy_checker.check_tool_allowed(hook_data)
@@ -344,5 +343,5 @@ def test_powershell_set_content_on_dev_source_allowed(policy_checker):
     assert error_msg is None
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     pytest.main([__file__])

@@ -11,7 +11,6 @@ Security model:
 """
 
 import unittest
-from unittest.mock import patch
 from ai_guardian.tool_policy import ToolPolicyChecker
 
 
@@ -35,14 +34,18 @@ class ContributorWorkflowTest(unittest.TestCase):
                 "input": {
                     "file_path": "/home/alice/ai-guardian/src/ai_guardian/tool_policy.py",
                     "old_string": "old code",
-                    "new_string": "new code"
-                }
-            }
+                    "new_string": "new code",
+                },
+            },
         }
 
-        is_allowed, error_msg, tool_name = self.policy_checker.check_tool_allowed(hook_data)
+        is_allowed, error_msg, tool_name = self.policy_checker.check_tool_allowed(
+            hook_data
+        )
 
-        self.assertTrue(is_allowed, "Contributors should be able to edit development source code")
+        self.assertTrue(
+            is_allowed, "Contributors should be able to edit development source code"
+        )
         self.assertIsNone(error_msg, "No error message for allowed operation")
 
     def test_contributor_can_edit_test_file(self):
@@ -54,12 +57,14 @@ class ContributorWorkflowTest(unittest.TestCase):
                 "input": {
                     "file_path": "/home/alice/ai-guardian/tests/test_self_protection.py",
                     "old_string": "def test_old()",
-                    "new_string": "def test_new()"
-                }
-            }
+                    "new_string": "def test_new()",
+                },
+            },
         }
 
-        is_allowed, error_msg, tool_name = self.policy_checker.check_tool_allowed(hook_data)
+        is_allowed, error_msg, tool_name = self.policy_checker.check_tool_allowed(
+            hook_data
+        )
 
         self.assertTrue(is_allowed, "Contributors should be able to edit test files")
         self.assertIsNone(error_msg)
@@ -73,12 +78,14 @@ class ContributorWorkflowTest(unittest.TestCase):
                 "input": {
                     "file_path": "/home/alice/ai-guardian/README.md",
                     "old_string": "## Old Heading",
-                    "new_string": "## New Heading"
-                }
-            }
+                    "new_string": "## New Heading",
+                },
+            },
         }
 
-        is_allowed, error_msg, tool_name = self.policy_checker.check_tool_allowed(hook_data)
+        is_allowed, error_msg, tool_name = self.policy_checker.check_tool_allowed(
+            hook_data
+        )
 
         self.assertTrue(is_allowed, "Contributors should be able to edit documentation")
         self.assertIsNone(error_msg)
@@ -91,14 +98,18 @@ class ContributorWorkflowTest(unittest.TestCase):
                 "name": "Write",
                 "input": {
                     "file_path": "/home/alice/ai-guardian/tests/test_new_feature.py",
-                    "content": "import unittest\n\nclass NewFeatureTest(unittest.TestCase):\n    pass"
-                }
-            }
+                    "content": "import unittest\n\nclass NewFeatureTest(unittest.TestCase):\n    pass",
+                },
+            },
         }
 
-        is_allowed, error_msg, tool_name = self.policy_checker.check_tool_allowed(hook_data)
+        is_allowed, error_msg, tool_name = self.policy_checker.check_tool_allowed(
+            hook_data
+        )
 
-        self.assertTrue(is_allowed, "Contributors should be able to create new test files")
+        self.assertTrue(
+            is_allowed, "Contributors should be able to create new test files"
+        )
 
     def test_contributor_can_edit_pyproject_toml(self):
         """Contributors can edit project configuration like pyproject.toml"""
@@ -109,14 +120,18 @@ class ContributorWorkflowTest(unittest.TestCase):
                 "input": {
                     "file_path": "/home/alice/ai-guardian/pyproject.toml",
                     "old_string": 'version = "1.0.0"',
-                    "new_string": 'version = "1.1.0"'
-                }
-            }
+                    "new_string": 'version = "1.1.0"',
+                },
+            },
         }
 
-        is_allowed, error_msg, tool_name = self.policy_checker.check_tool_allowed(hook_data)
+        is_allowed, error_msg, tool_name = self.policy_checker.check_tool_allowed(
+            hook_data
+        )
 
-        self.assertTrue(is_allowed, "Contributors should be able to edit pyproject.toml")
+        self.assertTrue(
+            is_allowed, "Contributors should be able to edit pyproject.toml"
+        )
 
     def test_contributor_can_edit_github_workflows(self):
         """Contributors can edit GitHub Actions workflows"""
@@ -127,14 +142,18 @@ class ContributorWorkflowTest(unittest.TestCase):
                 "input": {
                     "file_path": "/home/alice/ai-guardian/.github/workflows/test.yml",
                     "old_string": "python-version: 3.11",
-                    "new_string": "python-version: 3.12"
-                }
-            }
+                    "new_string": "python-version: 3.12",
+                },
+            },
         }
 
-        is_allowed, error_msg, tool_name = self.policy_checker.check_tool_allowed(hook_data)
+        is_allowed, error_msg, tool_name = self.policy_checker.check_tool_allowed(
+            hook_data
+        )
 
-        self.assertTrue(is_allowed, "Contributors should be able to edit GitHub workflows")
+        self.assertTrue(
+            is_allowed, "Contributors should be able to edit GitHub workflows"
+        )
 
     # ========================================================================
     # Test: Contributors CANNOT edit config/hooks/cache (security critical)
@@ -149,12 +168,14 @@ class ContributorWorkflowTest(unittest.TestCase):
                 "input": {
                     "file_path": "/home/alice/.config/ai-guardian/ai-guardian.json",
                     "old_string": '"enabled": true',
-                    "new_string": '"enabled": false'
-                }
-            }
+                    "new_string": '"enabled": false',
+                },
+            },
         }
 
-        is_allowed, error_msg, tool_name = self.policy_checker.check_tool_allowed(hook_data)
+        is_allowed, error_msg, tool_name = self.policy_checker.check_tool_allowed(
+            hook_data
+        )
 
         self.assertFalse(is_allowed, "Config files must be protected from contributors")
         self.assertIsNotNone(error_msg)
@@ -169,12 +190,14 @@ class ContributorWorkflowTest(unittest.TestCase):
                 "input": {
                     "file_path": "/home/alice/.claude/settings.json",
                     "old_string": '"hooks": {"PreToolUse": []}',
-                    "new_string": '"hooks": {}'
-                }
-            }
+                    "new_string": '"hooks": {}',
+                },
+            },
         }
 
-        is_allowed, error_msg, tool_name = self.policy_checker.check_tool_allowed(hook_data)
+        is_allowed, error_msg, tool_name = self.policy_checker.check_tool_allowed(
+            hook_data
+        )
 
         self.assertFalse(is_allowed, "IDE hooks must be protected from contributors")
         self.assertIn("Hook Protection", error_msg)
@@ -187,12 +210,14 @@ class ContributorWorkflowTest(unittest.TestCase):
                 "name": "Write",
                 "input": {
                     "file_path": "/home/alice/.cache/ai-guardian/maintainer-status.json",
-                    "content": '{"repositories": {}}'
-                }
-            }
+                    "content": '{"repositories": {}}',
+                },
+            },
         }
 
-        is_allowed, error_msg, tool_name = self.policy_checker.check_tool_allowed(hook_data)
+        is_allowed, error_msg, tool_name = self.policy_checker.check_tool_allowed(
+            hook_data
+        )
 
         self.assertFalse(is_allowed, "Cache files must be protected from contributors")
         self.assertIn("Protection:", error_msg)
@@ -205,14 +230,18 @@ class ContributorWorkflowTest(unittest.TestCase):
                 "name": "Write",
                 "input": {
                     "file_path": "/home/alice/secrets/.ai-read-deny",
-                    "content": ""
-                }
-            }
+                    "content": "",
+                },
+            },
         }
 
-        is_allowed, error_msg, tool_name = self.policy_checker.check_tool_allowed(hook_data)
+        is_allowed, error_msg, tool_name = self.policy_checker.check_tool_allowed(
+            hook_data
+        )
 
-        self.assertFalse(is_allowed, "Directory markers must be protected from contributors")
+        self.assertFalse(
+            is_allowed, "Directory markers must be protected from contributors"
+        )
         self.assertIn("Protection:", error_msg)
 
     # ========================================================================
@@ -228,14 +257,18 @@ class ContributorWorkflowTest(unittest.TestCase):
                 "input": {
                     "file_path": "/usr/lib/python3.12/site-packages/ai_guardian/tool_policy.py",
                     "old_string": "IMMUTABLE",
-                    "new_string": "DISABLED"
-                }
-            }
+                    "new_string": "DISABLED",
+                },
+            },
         }
 
-        is_allowed, error_msg, tool_name = self.policy_checker.check_tool_allowed(hook_data)
+        is_allowed, error_msg, tool_name = self.policy_checker.check_tool_allowed(
+            hook_data
+        )
 
-        self.assertFalse(is_allowed, "Pip-installed code must be protected from contributors")
+        self.assertFalse(
+            is_allowed, "Pip-installed code must be protected from contributors"
+        )
         self.assertIsNotNone(error_msg)
         self.assertIn("Protection:", error_msg)
         # Should provide helpful error message about pip-installed code
@@ -249,13 +282,17 @@ class ContributorWorkflowTest(unittest.TestCase):
                 "name": "Bash",
                 "input": {
                     "command": "sed -i 's/IMMUTABLE/DISABLED/' /usr/lib/python3.12/site-packages/ai_guardian/tool_policy.py"
-                }
-            }
+                },
+            },
         }
 
-        is_allowed, error_msg, tool_name = self.policy_checker.check_tool_allowed(hook_data)
+        is_allowed, error_msg, tool_name = self.policy_checker.check_tool_allowed(
+            hook_data
+        )
 
-        self.assertFalse(is_allowed, "Bash modifications of pip-installed code must be blocked")
+        self.assertFalse(
+            is_allowed, "Bash modifications of pip-installed code must be blocked"
+        )
 
     # ========================================================================
     # Test: Fork workflow (alice/ai-guardian)
@@ -271,14 +308,18 @@ class ContributorWorkflowTest(unittest.TestCase):
                     # Alice's fork at ~/forks/ai-guardian
                     "file_path": "/home/alice/forks/ai-guardian/src/ai_guardian/__init__.py",
                     "old_string": "version = '1.0.0'",
-                    "new_string": "version = '1.1.0'"
-                }
-            }
+                    "new_string": "version = '1.1.0'",
+                },
+            },
         }
 
-        is_allowed, error_msg, tool_name = self.policy_checker.check_tool_allowed(hook_data)
+        is_allowed, error_msg, tool_name = self.policy_checker.check_tool_allowed(
+            hook_data
+        )
 
-        self.assertTrue(is_allowed, "Fork owners should be able to edit source in their fork")
+        self.assertTrue(
+            is_allowed, "Fork owners should be able to edit source in their fork"
+        )
         self.assertIsNone(error_msg)
 
     # ========================================================================
@@ -294,12 +335,14 @@ class ContributorWorkflowTest(unittest.TestCase):
                 "input": {
                     "file_path": "/usr/lib/python3.12/site-packages/ai_guardian/tool_policy.py",
                     "old_string": "old",
-                    "new_string": "new"
-                }
-            }
+                    "new_string": "new",
+                },
+            },
         }
 
-        is_allowed, error_msg, tool_name = self.policy_checker.check_tool_allowed(hook_data)
+        is_allowed, error_msg, tool_name = self.policy_checker.check_tool_allowed(
+            hook_data
+        )
 
         self.assertFalse(is_allowed)
         # Should explain this is pip-installed code

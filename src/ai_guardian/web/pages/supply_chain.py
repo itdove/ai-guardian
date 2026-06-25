@@ -60,10 +60,9 @@ def _parse_enabled(raw):
 def _load_sc_stats():
     try:
         from ai_guardian.violation_logger import ViolationLogger
+
         vl = ViolationLogger()
-        violations = vl.get_recent_violations(
-            limit=1000, violation_type="supply_chain"
-        )
+        violations = vl.get_recent_violations(limit=1000, violation_type="supply_chain")
         if not violations:
             return 0
         return len(violations)
@@ -71,15 +70,18 @@ def _load_sc_stats():
         return None
 
 
-def _render_toggle(label, desc, is_temp, until_dt, reason, is_enabled,
-                   save_fn, refresh_fn):
+def _render_toggle(
+    label, desc, is_temp, until_dt, reason, is_enabled, save_fn, refresh_fn
+):
     with ui.card().classes("w-full"):
         if is_temp and until_dt:
             remaining = _format_remaining(until_dt)
             with ui.row().classes("items-center gap-2 w-full"):
                 ui.icon("timer").classes("text-amber")
                 ui.label(label).classes("font-bold text-sm flex-grow")
-                ui.badge(f"TEMP DISABLED — {remaining}", color="amber").classes("text-xs")
+                ui.badge(f"TEMP DISABLED — {remaining}", color="amber").classes(
+                    "text-xs"
+                )
             ui.label(desc).classes("text-xs text-grey-6 ml-8")
             if reason:
                 ui.label(f"Reason: {reason}").classes("text-xs text-grey-7 ml-8")
@@ -89,8 +91,9 @@ def _render_toggle(label, desc, is_temp, until_dt, reason, is_enabled,
                 ui.notify(f"{label} re-enabled", type="positive")
                 await refresh_fn()
 
-            ui.button("Re-enable Now", icon="play_arrow", color="green",
-                      on_click=do_reenable).props("dense size=sm").classes("ml-8")
+            ui.button(
+                "Re-enable Now", icon="play_arrow", color="green", on_click=do_reenable
+            ).props("dense size=sm").classes("ml-8")
         else:
             with ui.row().classes("items-center gap-2 w-full"):
                 sw = ui.switch(label, value=bool(is_enabled)).classes("flex-grow")
@@ -106,24 +109,40 @@ def _render_toggle(label, desc, is_temp, until_dt, reason, is_enabled,
                 sw.on_value_change(on_toggle)
 
             with ui.row().classes("items-center gap-2 ml-8"):
-                dur = ui.input(placeholder="e.g. 30m, 2h, 1d").props("dense outlined").classes("w-32")
-                rsn = ui.input(placeholder="Reason").props("dense outlined").classes("w-40")
+                dur = (
+                    ui.input(placeholder="e.g. 30m, 2h, 1d")
+                    .props("dense outlined")
+                    .classes("w-32")
+                )
+                rsn = (
+                    ui.input(placeholder="Reason")
+                    .props("dense outlined")
+                    .classes("w-40")
+                )
 
                 async def do_temp(d=dur, r=rsn):
                     delta = _parse_duration(d.value or "30m")
                     if not delta:
-                        ui.notify("Invalid duration (e.g. 30m, 2h, 1d)", type="negative")
+                        ui.notify(
+                            "Invalid duration (e.g. 30m, 2h, 1d)", type="negative"
+                        )
                         return
-                    until_ts = (datetime.now(timezone.utc) + delta).strftime("%Y-%m-%dT%H:%M:%SZ")
+                    until_ts = (datetime.now(timezone.utc) + delta).strftime(
+                        "%Y-%m-%dT%H:%M:%SZ"
+                    )
                     entry = {"value": False, "disabled_until": until_ts}
                     rv = r.value.strip()
                     if rv:
                         entry["reason"] = rv
                     await run.io_bound(save_fn, entry)
-                    ui.notify(f"{label} temp disabled for {d.value or '30m'}", type="warning")
+                    ui.notify(
+                        f"{label} temp disabled for {d.value or '30m'}", type="warning"
+                    )
                     await refresh_fn()
 
-                ui.button("Temp Disable", icon="timer", on_click=do_temp).props("dense size=sm")
+                ui.button("Temp Disable", icon="timer", on_click=do_temp).props(
+                    "dense size=sm"
+                )
 
 
 def create_supply_chain_page(service, daemon_name: str):
@@ -166,8 +185,12 @@ def create_supply_chain_page(service, daemon_name: str):
                     _render_toggle(
                         "Supply Chain Scanning",
                         "Scan agent configuration files for malicious commands and supply chain attacks.",
-                        is_temp, until_dt, reason, is_enabled,
-                        save_enabled, refresh,
+                        is_temp,
+                        until_dt,
+                        reason,
+                        is_enabled,
+                        save_enabled,
+                        refresh,
                     )
 
                     # Action mode
@@ -209,17 +232,28 @@ def create_supply_chain_page(service, daemon_name: str):
                         ).classes("text-xs text-grey-6")
 
                         scan_fields = [
-                            ("scan_hooks", "Scan Hooks",
-                             "Scan hook configuration files (hooks.json, settings.json)"),
-                            ("scan_mcp_configs", "Scan MCP Configs",
-                             "Scan MCP server command configurations for suspicious patterns"),
-                            ("scan_plugins", "Scan Plugins",
-                             "Scan plugin files (OpenCode .ts, AiderDesk extensions) for dangerous APIs"),
+                            (
+                                "scan_hooks",
+                                "Scan Hooks",
+                                "Scan hook configuration files (hooks.json, settings.json)",
+                            ),
+                            (
+                                "scan_mcp_configs",
+                                "Scan MCP Configs",
+                                "Scan MCP server command configurations for suspicious patterns",
+                            ),
+                            (
+                                "scan_plugins",
+                                "Scan Plugins",
+                                "Scan plugin files (OpenCode .ts, AiderDesk extensions) for dangerous APIs",
+                            ),
                         ]
 
                         for key, label, desc in scan_fields:
                             with ui.row().classes("items-center gap-2 w-full"):
-                                sw = ui.switch(label, value=sc.get(key, True)).classes("flex-grow")
+                                sw = ui.switch(label, value=sc.get(key, True)).classes(
+                                    "flex-grow"
+                                )
                                 ui.label(desc).classes("text-xs text-grey-6")
 
                                 async def on_scan_toggle(e, k=key):
@@ -272,12 +306,18 @@ def create_supply_chain_page(service, daemon_name: str):
                                         icon="delete", on_click=remove_path, color="red"
                                     ).props("flat dense size=sm")
                         else:
-                            ui.label("No allowlisted paths.").classes("text-grey-6 text-sm")
+                            ui.label("No allowlisted paths.").classes(
+                                "text-grey-6 text-sm"
+                            )
 
                         with ui.row().classes("items-center gap-2 mt-2"):
-                            path_input = ui.input(
-                                placeholder="e.g. ~/.cursor/hooks.json or ~/dev/**/*.ts"
-                            ).props("dense outlined").classes("flex-grow")
+                            path_input = (
+                                ui.input(
+                                    placeholder="e.g. ~/.cursor/hooks.json or ~/dev/**/*.ts"
+                                )
+                                .props("dense outlined")
+                                .classes("flex-grow")
+                            )
 
                             async def add_path():
                                 val = path_input.value.strip()
@@ -300,7 +340,9 @@ def create_supply_chain_page(service, daemon_name: str):
                                 ui.notify(f"Added: {val}", type="positive")
                                 await refresh()
 
-                            ui.button("Add", icon="add", on_click=add_path).props("dense")
+                            ui.button("Add", icon="add", on_click=add_path).props(
+                                "dense"
+                            )
 
                     # Detection statistics
                     with ui.card().classes("w-full"):
@@ -315,6 +357,8 @@ def create_supply_chain_page(service, daemon_name: str):
                                 "text-grey-6 text-sm"
                             )
                         else:
-                            ui.label(f"Total supply chain threats detected: {total}").classes("text-sm")
+                            ui.label(
+                                f"Total supply chain threats detected: {total}"
+                            ).classes("text-sm")
 
             ui.timer(0.1, refresh, once=True)

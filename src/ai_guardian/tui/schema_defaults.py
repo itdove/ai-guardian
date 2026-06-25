@@ -166,7 +166,11 @@ class SchemaDefaultsMixin:
         """Update CSS classes on widgets based on whether values differ from defaults."""
         schema = SchemaDefaults.get()
         for widget_id, field_name, _widget_type in self.SCHEMA_FIELDS:
-            path = f"{self.SCHEMA_SECTION}.{field_name}" if self.SCHEMA_SECTION else field_name
+            path = (
+                f"{self.SCHEMA_SECTION}.{field_name}"
+                if self.SCHEMA_SECTION
+                else field_name
+            )
             default_val = schema.get_default(path)
             if default_val is _MISSING:
                 continue
@@ -183,7 +187,9 @@ class SchemaDefaultsMixin:
 
     def _get_section_default(self, field_name: str) -> Any:
         """Get schema default for a field in this panel's section."""
-        path = f"{self.SCHEMA_SECTION}.{field_name}" if self.SCHEMA_SECTION else field_name
+        path = (
+            f"{self.SCHEMA_SECTION}.{field_name}" if self.SCHEMA_SECTION else field_name
+        )
         return SchemaDefaults.get().get_default(path)
 
     def _update_default_indicator(

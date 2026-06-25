@@ -157,19 +157,12 @@ class PolicyBlockedHeaderTest(unittest.TestCase):
 
         config = {
             "permissions": [
-                {
-                    "matcher": "Skill",
-                    "mode": "allow",
-                    "patterns": ["daf-*"]
-                }
+                {"matcher": "Skill", "mode": "allow", "patterns": ["daf-*"]}
             ]
         }
 
         policy_checker = ToolPolicyChecker(config=config)
-        hook_data = {
-            "tool_name": "Skill",
-            "tool_input": {"skill": "blocked-skill"}
-        }
+        hook_data = {"tool_name": "Skill", "tool_input": {"skill": "blocked-skill"}}
 
         allowed, error_msg, _ = policy_checker.check_tool_allowed(hook_data)
 
@@ -189,7 +182,7 @@ class PolicyBlockedHeaderTest(unittest.TestCase):
             "tool_name": "Edit",
             "tool_input": {
                 "file_path": "/home/user/.config/ai-guardian/ai-guardian.json"
-            }
+            },
         }
 
         allowed, error_msg, _ = policy_checker.check_tool_allowed(hook_data)

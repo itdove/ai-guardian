@@ -33,11 +33,22 @@ def _count_toml_rules(category: str, **filters) -> int:
     except Exception:
         return 0
 
+
 EXCLUDED_KEYS = {
-    "enabled", "action", "immutable", "detector", "sensitivity",
-    "max_score_threshold", "pattern_server", "allow_localhost",
-    "allow_rtl_languages", "allow_emoji", "preserve_format",
-    "log_redactions", "max_entries", "retention_days",
+    "enabled",
+    "action",
+    "immutable",
+    "detector",
+    "sensitivity",
+    "max_score_threshold",
+    "pattern_server",
+    "allow_localhost",
+    "allow_rtl_languages",
+    "allow_emoji",
+    "preserve_format",
+    "log_redactions",
+    "max_entries",
+    "retention_days",
 }
 
 CATEGORY_ALIASES = {
@@ -136,7 +147,9 @@ class PatternLister:
         if self._schema is not None:
             return self._schema
         try:
-            schema_path = Path(__file__).parent / "schemas" / "ai-guardian-config.schema.json"
+            schema_path = (
+                Path(__file__).parent / "schemas" / "ai-guardian-config.schema.json"
+            )
             with open(schema_path, "r") as f:
                 self._schema = json.load(f)
         except Exception as e:
@@ -182,7 +195,11 @@ class PatternLister:
         for key_name, prop in props.items():
             if key_name in EXCLUDED_KEYS:
                 continue
-            if isinstance(prop, dict) and prop.get("type") == "object" and key_name != "path_based_rules":
+            if (
+                isinstance(prop, dict)
+                and prop.get("type") == "object"
+                and key_name != "path_based_rules"
+            ):
                 continue
 
             value_type = self._infer_value_type(prop)
@@ -211,22 +228,40 @@ class PatternLister:
             else:
                 current_count = 0
 
-            keys.append(ConfigurableKey(
-                name=key_name,
-                description=prop.get("description", ""),
-                value_type=value_type,
-                default_value=default,
-                current_count=current_count,
-                enum_values=enum_values,
-            ))
+            keys.append(
+                ConfigurableKey(
+                    name=key_name,
+                    description=prop.get("description", ""),
+                    value_type=value_type,
+                    default_value=default,
+                    current_count=current_count,
+                    enum_values=enum_values,
+                )
+            )
         return keys
 
     def _build_prompt_injection_category(self) -> PatternCategory:
         groups = [
-            BuiltInGroup("CRITICAL_PATTERNS", _count_toml_rules("prompt_injection", group="critical"), "always checked"),
-            BuiltInGroup("DOCUMENTATION_PATTERNS", _count_toml_rules("prompt_injection", group="documentation"), "user prompts only"),
-            BuiltInGroup("JAILBREAK_PATTERNS", _count_toml_rules("prompt_injection", group="jailbreak"), "user prompts only"),
-            BuiltInGroup("SUSPICIOUS_PATTERNS", _count_toml_rules("prompt_injection", group="suspicious"), "medium/high sensitivity"),
+            BuiltInGroup(
+                "CRITICAL_PATTERNS",
+                _count_toml_rules("prompt_injection", group="critical"),
+                "always checked",
+            ),
+            BuiltInGroup(
+                "DOCUMENTATION_PATTERNS",
+                _count_toml_rules("prompt_injection", group="documentation"),
+                "user prompts only",
+            ),
+            BuiltInGroup(
+                "JAILBREAK_PATTERNS",
+                _count_toml_rules("prompt_injection", group="jailbreak"),
+                "user prompts only",
+            ),
+            BuiltInGroup(
+                "SUSPICIOUS_PATTERNS",
+                _count_toml_rules("prompt_injection", group="suspicious"),
+                "medium/high sensitivity",
+            ),
         ]
 
         schema = self._load_schema()
@@ -246,10 +281,26 @@ class PatternLister:
 
     def _build_unicode_detection_category(self) -> PatternCategory:
         groups = [
-            BuiltInGroup("Zero-width chars", _count_toml_rules("unicode", group="zero_width"), "invisible characters"),
-            BuiltInGroup("Bidi override chars", _count_toml_rules("unicode", group="bidi_override"), "visual deception"),
-            BuiltInGroup("Bidi formatting chars", _count_toml_rules("unicode", group="bidi_formatting"), "context-aware"),
-            BuiltInGroup("Homoglyph patterns", _count_toml_rules("unicode", group="homoglyph"), "look-alike pairs"),
+            BuiltInGroup(
+                "Zero-width chars",
+                _count_toml_rules("unicode", group="zero_width"),
+                "invisible characters",
+            ),
+            BuiltInGroup(
+                "Bidi override chars",
+                _count_toml_rules("unicode", group="bidi_override"),
+                "visual deception",
+            ),
+            BuiltInGroup(
+                "Bidi formatting chars",
+                _count_toml_rules("unicode", group="bidi_formatting"),
+                "context-aware",
+            ),
+            BuiltInGroup(
+                "Homoglyph patterns",
+                _count_toml_rules("unicode", group="homoglyph"),
+                "look-alike pairs",
+            ),
         ]
 
         schema = self._load_schema()
@@ -259,7 +310,9 @@ class PatternLister:
             .get("properties", {})
             .get("unicode_detection", {})
         )
-        unicode_config = self.config.get("prompt_injection", {}).get("unicode_detection", {})
+        unicode_config = self.config.get("prompt_injection", {}).get(
+            "unicode_detection", {}
+        )
         configurable = self._get_configurable_keys(unicode_schema, unicode_config)
 
         return PatternCategory(
@@ -288,9 +341,21 @@ class PatternLister:
 
     def _build_ssrf_category(self) -> PatternCategory:
         groups = [
-            BuiltInGroup("Blocked IP ranges", _count_toml_rules("ssrf", match_type="cidr"), "RFC 1918 + loopback"),
-            BuiltInGroup("Blocked domains", _count_toml_rules("ssrf", group="blocked_domain"), "cloud metadata"),
-            BuiltInGroup("Dangerous schemes", _count_toml_rules("ssrf", group="dangerous_scheme"), "file://, gopher://, etc."),
+            BuiltInGroup(
+                "Blocked IP ranges",
+                _count_toml_rules("ssrf", match_type="cidr"),
+                "RFC 1918 + loopback",
+            ),
+            BuiltInGroup(
+                "Blocked domains",
+                _count_toml_rules("ssrf", group="blocked_domain"),
+                "cloud metadata",
+            ),
+            BuiltInGroup(
+                "Dangerous schemes",
+                _count_toml_rules("ssrf", group="dangerous_scheme"),
+                "file://, gopher://, etc.",
+            ),
         ]
 
         schema = self._load_schema()
@@ -307,7 +372,11 @@ class PatternLister:
 
     def _build_config_scanning_category(self) -> PatternCategory:
         groups = [
-            BuiltInGroup("Exfiltration patterns", _count_toml_rules("config_exfil"), "credential theft"),
+            BuiltInGroup(
+                "Exfiltration patterns",
+                _count_toml_rules("config_exfil"),
+                "credential theft",
+            ),
         ]
 
         schema = self._load_schema()
@@ -324,7 +393,11 @@ class PatternLister:
 
     def _build_secret_redaction_category(self) -> PatternCategory:
         groups = [
-            BuiltInGroup("Secret patterns", _count_toml_rules("secrets"), "API keys, tokens, credentials"),
+            BuiltInGroup(
+                "Secret patterns",
+                _count_toml_rules("secrets"),
+                "API keys, tokens, credentials",
+            ),
         ]
 
         schema = self._load_schema()
@@ -341,8 +414,16 @@ class PatternLister:
 
     def _build_context_poisoning_category(self) -> PatternCategory:
         groups = [
-            BuiltInGroup("Persistence patterns", _count_toml_rules("context_poisoning", group="persistence"), "permanent instruction injection"),
-            BuiltInGroup("Dangerous action patterns", _count_toml_rules("context_poisoning", group="dangerous_action"), "risky automated actions"),
+            BuiltInGroup(
+                "Persistence patterns",
+                _count_toml_rules("context_poisoning", group="persistence"),
+                "permanent instruction injection",
+            ),
+            BuiltInGroup(
+                "Dangerous action patterns",
+                _count_toml_rules("context_poisoning", group="dangerous_action"),
+                "risky automated actions",
+            ),
         ]
 
         return PatternCategory(
@@ -353,8 +434,16 @@ class PatternLister:
 
     def _build_supply_chain_category(self) -> PatternCategory:
         groups = [
-            BuiltInGroup("Download & execute", _count_toml_rules("supply_chain", group="download_and_execute"), "curl|sh, wget|sh chains"),
-            BuiltInGroup("Malicious imports", _count_toml_rules("supply_chain", group="malicious_imports"), "suspicious pip/npm installs"),
+            BuiltInGroup(
+                "Download & execute",
+                _count_toml_rules("supply_chain", group="download_and_execute"),
+                "curl|sh, wget|sh chains",
+            ),
+            BuiltInGroup(
+                "Malicious imports",
+                _count_toml_rules("supply_chain", group="malicious_imports"),
+                "suspicious pip/npm installs",
+            ),
         ]
 
         return PatternCategory(
@@ -376,7 +465,9 @@ class PatternLister:
             configurable_keys=configurable,
         )
 
-    def get_categories(self, category_filter: Optional[str] = None) -> List[PatternCategory]:
+    def get_categories(
+        self, category_filter: Optional[str] = None
+    ) -> List[PatternCategory]:
         resolved = category_filter
         if resolved and resolved in CATEGORY_ALIASES:
             resolved = CATEGORY_ALIASES[resolved]
@@ -453,20 +544,24 @@ class PatternLister:
                     tags = raw.get("tags", [])
                     if tags:
                         group = ", ".join(tags[:2])
-                rules.append(DetectionRule(
-                    id=rule_id,
-                    pattern=pattern,
-                    match_type=match_type,
-                    source=source_label,
-                    category=cat_key,
-                    group=group,
-                    description=raw.get("description", ""),
-                    severity=raw.get("tier", raw.get("severity", "")),
-                ))
+                rules.append(
+                    DetectionRule(
+                        id=rule_id,
+                        pattern=pattern,
+                        match_type=match_type,
+                        source=source_label,
+                        category=cat_key,
+                        group=group,
+                        description=raw.get("description", ""),
+                        severity=raw.get("tier", raw.get("severity", "")),
+                    )
+                )
 
         return rules
 
-    def get_all_rules(self, category_filter: Optional[str] = None) -> List[DetectionRule]:
+    def get_all_rules(
+        self, category_filter: Optional[str] = None
+    ) -> List[DetectionRule]:
         """Return all detection rules from TOML files, pattern server cache, and hardcoded patterns."""
         rules: List[DetectionRule] = []
 
@@ -480,16 +575,18 @@ class PatternLister:
             except Exception:
                 continue
             for raw in raw_rules:
-                rules.append(DetectionRule(
-                    id=raw.get("id", ""),
-                    pattern=self._extract_pattern_text(raw),
-                    match_type=raw.get("match_type", "regex"),
-                    source="toml",
-                    category=cat_key,
-                    group=raw.get("group", raw.get("category", "")),
-                    description=raw.get("description", ""),
-                    severity=raw.get("tier", raw.get("severity", "")),
-                ))
+                rules.append(
+                    DetectionRule(
+                        id=raw.get("id", ""),
+                        pattern=self._extract_pattern_text(raw),
+                        match_type=raw.get("match_type", "regex"),
+                        source="toml",
+                        category=cat_key,
+                        group=raw.get("group", raw.get("category", "")),
+                        description=raw.get("description", ""),
+                        severity=raw.get("tier", raw.get("severity", "")),
+                    )
+                )
 
         bundled_ids = {r.id for r in rules}
         rules.extend(self._load_pattern_server_rules(bundled_ids, category_filter))
@@ -497,18 +594,21 @@ class PatternLister:
         if not category_filter or category_filter == "self_protection":
             try:
                 from ai_guardian.tool_policy import IMMUTABLE_DENY_PATTERNS
+
                 for tool_name, patterns in IMMUTABLE_DENY_PATTERNS.items():
                     for i, pat in enumerate(patterns):
-                        rules.append(DetectionRule(
-                            id=f"self-protect-{tool_name.lower()}-{i+1:03d}",
-                            pattern=pat,
-                            match_type="fnmatch",
-                            source="hardcoded",
-                            category="self_protection",
-                            group=tool_name,
-                            description=f"Self-protection: blocks {tool_name} on matching paths",
-                            severity="immutable",
-                        ))
+                        rules.append(
+                            DetectionRule(
+                                id=f"self-protect-{tool_name.lower()}-{i+1:03d}",
+                                pattern=pat,
+                                match_type="fnmatch",
+                                source="hardcoded",
+                                category="self_protection",
+                                group=tool_name,
+                                description=f"Self-protection: blocks {tool_name} on matching paths",
+                                severity="immutable",
+                            )
+                        )
             except ImportError:
                 pass  # intentionally silent — optional dependency
 
@@ -552,25 +652,47 @@ class PatternLister:
             if verbose:
                 for group in cat.built_in_groups:
                     note = f"  ({group.note})" if group.note else ""
-                    print(f"{prefix}    {group.name:<30s} {group.count:>3d} patterns{note}")
+                    print(
+                        f"{prefix}    {group.name:<30s} {group.count:>3d} patterns{note}"
+                    )
 
         if cat.configurable_keys:
             print(f"{prefix}  Configurable keys (use in ai-guardian.json):")
             for key in cat.configurable_keys:
                 if key.value_type == "bool":
-                    current_display = str(key.default_value).lower() if key.default_value is not None else "false"
+                    current_display = (
+                        str(key.default_value).lower()
+                        if key.default_value is not None
+                        else "false"
+                    )
                     configured = self.config
                     parts = cat.config_key.split(".")
                     for part in parts:
-                        configured = configured.get(part, {}) if isinstance(configured, dict) else {}
-                    if key.name in configured if isinstance(configured, dict) else False:
+                        configured = (
+                            configured.get(part, {})
+                            if isinstance(configured, dict)
+                            else {}
+                        )
+                    if (
+                        key.name in configured
+                        if isinstance(configured, dict)
+                        else False
+                    ):
                         current_display = str(configured[key.name]).lower()
-                    print(f"{prefix}    {key.name:<30s} {key.value_type:<14s} (current: {current_display})")
+                    print(
+                        f"{prefix}    {key.name:<30s} {key.value_type:<14s} (current: {current_display})"
+                    )
                 else:
-                    count_label = f"{key.current_count} configured" if key.current_count > 0 else "0 configured"
+                    count_label = (
+                        f"{key.current_count} configured"
+                        if key.current_count > 0
+                        else "0 configured"
+                    )
                     if key.enum_values and key.current_count > 0:
                         count_label = f"{key.current_count} active"
-                    print(f"{prefix}    {key.name:<30s} {key.value_type:<14s} ({count_label})")
+                    print(
+                        f"{prefix}    {key.name:<30s} {key.value_type:<14s} ({count_label})"
+                    )
                     if key.enum_values and verbose:
                         print(f"{prefix}      Values: {', '.join(key.enum_values)}")
 

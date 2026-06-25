@@ -26,6 +26,7 @@ class ClaudeCodeAdapter(HookAdapter):
     @property
     def ide_type(self):
         from ai_guardian.response_format import IDEType
+
         return IDEType.CLAUDE_CODE
 
     @property
@@ -35,8 +36,14 @@ class ClaudeCodeAdapter(HookAdapter):
     @classmethod
     def can_handle(cls, hook_data: Dict) -> bool:
         event = hook_data.get("hook_event_name", "")
-        return event in ("UserPromptSubmit", "PreToolUse", "PostToolUse", "Stop",
-                        "SessionEnd", "PostCompact")
+        return event in (
+            "UserPromptSubmit",
+            "PreToolUse",
+            "PostToolUse",
+            "Stop",
+            "SessionEnd",
+            "PostCompact",
+        )
 
     def normalize_input(self, hook_data: Dict) -> NormalizedHookInput:
         event = self._detect_event_from_all_formats(hook_data)
@@ -70,7 +77,11 @@ class ClaudeCodeAdapter(HookAdapter):
         violation_type: Optional[str] = None,
         security_message: Optional[str] = None,
     ) -> Dict:
-        final_error = self._combine_error_messages(error_message, warning_message) if has_secrets else None
+        final_error = (
+            self._combine_error_messages(error_message, warning_message)
+            if has_secrets
+            else None
+        )
 
         if hook_event == HookEvent.POST_TOOL_USE:
             if has_secrets:
@@ -86,13 +97,23 @@ class ClaudeCodeAdapter(HookAdapter):
                 if warning_message:
                     response["systemMessage"] = warning_message
                     if "hookSpecificOutput" not in response:
-                        response["hookSpecificOutput"] = {"hookEventName": "PostToolUse"}
-                    response["hookSpecificOutput"]["additionalContext"] = warning_message
+                        response["hookSpecificOutput"] = {
+                            "hookEventName": "PostToolUse"
+                        }
+                    response["hookSpecificOutput"][
+                        "additionalContext"
+                    ] = warning_message
                 if modified_output is not None:
                     if "hookSpecificOutput" not in response:
-                        response["hookSpecificOutput"] = {"hookEventName": "PostToolUse"}
-                    response["hookSpecificOutput"]["updatedToolOutput"] = modified_output
-                    response["hookSpecificOutput"]["updatedMCPToolOutput"] = modified_output
+                        response["hookSpecificOutput"] = {
+                            "hookEventName": "PostToolUse"
+                        }
+                    response["hookSpecificOutput"][
+                        "updatedToolOutput"
+                    ] = modified_output
+                    response["hookSpecificOutput"][
+                        "updatedMCPToolOutput"
+                    ] = modified_output
         elif hook_event == HookEvent.PROMPT:
             if has_secrets and error_message:
                 response = {
@@ -121,7 +142,9 @@ class ClaudeCodeAdapter(HookAdapter):
                     "hookSpecificOutput": {
                         "permissionDecision": "deny",
                         "hookEventName": "PreToolUse",
-                        "additionalContext": self._sanitize_block_reason(violation_type),
+                        "additionalContext": self._sanitize_block_reason(
+                            violation_type
+                        ),
                     },
                     "systemMessage": final_error,
                 }

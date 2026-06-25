@@ -42,9 +42,7 @@ def create_mcp_servers_page(service, daemon_name: str):
                 with content:
                     # Proactive Level
                     with ui.card().classes("w-full"):
-                        ui.label("Proactive Check Level").classes(
-                            "text-lg font-bold"
-                        )
+                        ui.label("Proactive Check Level").classes("text-lg font-bold")
                         ui.label(
                             "Controls how aggressively MCP tools "
                             "perform security checks."
@@ -81,9 +79,7 @@ def create_mcp_servers_page(service, daemon_name: str):
 
                     # Support Bundle
                     with ui.card().classes("w-full"):
-                        ui.label("Support Bundle Export").classes(
-                            "text-lg font-bold"
-                        )
+                        ui.label("Support Bundle Export").classes("text-lg font-bold")
                         support = config.get("support", {})
                         dest_val = (
                             support.get("export_destination", "")
@@ -121,23 +117,17 @@ def create_mcp_servers_page(service, daemon_name: str):
                                 cfg["support"], dict
                             ):
                                 cfg["support"] = {}
-                            cfg["support"]["export_destination"] = (
-                                dest.value.strip()
-                            )
+                            cfg["support"]["export_destination"] = dest.value.strip()
                             try:
-                                cfg["support"]["bundle_ttl_minutes"] = int(
-                                    ttl.value
-                                )
+                                cfg["support"]["bundle_ttl_minutes"] = int(ttl.value)
                             except (ValueError, TypeError):
                                 cfg["support"]["bundle_ttl_minutes"] = 30
                             await run.io_bound(save_web_config, cfg)
-                            ui.notify(
-                                "Support config saved", type="positive"
-                            )
+                            ui.notify("Support config saved", type="positive")
 
-                        ui.button(
-                            "Save", icon="save", on_click=save_support
-                        ).props("dense")
+                        ui.button("Save", icon="save", on_click=save_support).props(
+                            "dense"
+                        )
 
                     # Link to Permission Rules for MCP rule management
                     with ui.card().classes("w-full"):

@@ -6,7 +6,6 @@ import socket
 import sys
 import tempfile
 import threading
-import time
 from unittest import mock
 
 import pytest
@@ -18,8 +17,6 @@ _skip_no_unix_socket = pytest.mark.skipif(
 
 from ai_guardian.daemon.client import (
     _check_dev_source_restart,
-    get_pid_path,
-    get_socket_path,
     is_daemon_running,
     send_hook_request,
     send_reload_config,
@@ -30,7 +27,6 @@ from ai_guardian.daemon.client import (
 from ai_guardian.daemon.protocol import (
     decode_message,
     encode_message,
-    make_pong,
     make_response,
 )
 
@@ -200,9 +196,7 @@ class TestStartDaemonBackground:
             "ai_guardian.daemon.client._find_executable",
             return_value=["/nonexistent/ai-guardian"],
         ):
-            with mock.patch(
-                "subprocess.Popen", side_effect=OSError("not found")
-            ):
+            with mock.patch("subprocess.Popen", side_effect=OSError("not found")):
                 assert not start_daemon_background()
 
     def test_skips_when_stop_requested(self, tmp_path, monkeypatch):
@@ -221,46 +215,60 @@ class TestClientTimeout:
     def test_default_when_no_config(self):
         from ai_guardian import _get_client_timeout
 
-        with mock.patch("ai_guardian.cli_handlers._load_config_file", return_value=(None, None)):
+        with mock.patch(
+            "ai_guardian.cli_handlers._load_config_file", return_value=(None, None)
+        ):
             assert _get_client_timeout() == 2.0
 
     def test_reads_from_config(self):
         from ai_guardian import _get_client_timeout
 
         config = {"daemon": {"client_timeout_seconds": 5.0}}
-        with mock.patch("ai_guardian.cli_handlers._load_config_file", return_value=(config, None)):
+        with mock.patch(
+            "ai_guardian.cli_handlers._load_config_file", return_value=(config, None)
+        ):
             assert _get_client_timeout() == 5.0
 
     def test_clamped_low(self):
         from ai_guardian import _get_client_timeout
 
         config = {"daemon": {"client_timeout_seconds": 0.1}}
-        with mock.patch("ai_guardian.cli_handlers._load_config_file", return_value=(config, None)):
+        with mock.patch(
+            "ai_guardian.cli_handlers._load_config_file", return_value=(config, None)
+        ):
             assert _get_client_timeout() == 0.5
 
     def test_clamped_high(self):
         from ai_guardian import _get_client_timeout
 
         config = {"daemon": {"client_timeout_seconds": 99.0}}
-        with mock.patch("ai_guardian.cli_handlers._load_config_file", return_value=(config, None)):
+        with mock.patch(
+            "ai_guardian.cli_handlers._load_config_file", return_value=(config, None)
+        ):
             assert _get_client_timeout() == 10.0
 
     def test_invalid_type_returns_default(self):
         from ai_guardian import _get_client_timeout
 
         config = {"daemon": {"client_timeout_seconds": "not a number"}}
-        with mock.patch("ai_guardian.cli_handlers._load_config_file", return_value=(config, None)):
+        with mock.patch(
+            "ai_guardian.cli_handlers._load_config_file", return_value=(config, None)
+        ):
             assert _get_client_timeout() == 2.0
 
     def test_missing_daemon_section(self):
         from ai_guardian import _get_client_timeout
 
-        with mock.patch("ai_guardian.cli_handlers._load_config_file", return_value=({}, None)):
+        with mock.patch(
+            "ai_guardian.cli_handlers._load_config_file", return_value=({}, None)
+        ):
             assert _get_client_timeout() == 2.0
 
     def test_hook_forwarding_passes_config_timeout(self):
         config = {"daemon": {"client_timeout_seconds": 3.5, "mode": "auto"}}
-        with mock.patch("ai_guardian.cli_handlers._load_config_file", return_value=(config, None)):
+        with mock.patch(
+            "ai_guardian.cli_handlers._load_config_file", return_value=(config, None)
+        ):
             with mock.patch(
                 "ai_guardian.daemon.client.is_daemon_running", return_value=True
             ):
@@ -271,9 +279,7 @@ class TestClientTimeout:
                     from ai_guardian import _get_client_timeout
 
                     mock_send({"prompt": "test"}, timeout=_get_client_timeout())
-                    mock_send.assert_called_once_with(
-                        {"prompt": "test"}, timeout=3.5
-                    )
+                    mock_send.assert_called_once_with({"prompt": "test"}, timeout=3.5)
 
 
 class TestTCPConnection:
@@ -327,7 +333,9 @@ class TestIsPidAlive:
 
         assert not is_pid_alive(99999999)
 
-    @pytest.mark.skipif(sys.platform == "win32", reason="Windows uses ctypes, not os.kill")
+    @pytest.mark.skipif(
+        sys.platform == "win32", reason="Windows uses ctypes, not os.kill"
+    )
     def test_permission_error_means_alive(self):
         from ai_guardian.daemon import is_pid_alive
 
@@ -349,9 +357,7 @@ class TestStartDaemonBackgroundNoClientCleanup:
             "ai_guardian.daemon.client._find_executable",
             return_value=["/nonexistent/ai-guardian"],
         ):
-            with mock.patch(
-                "subprocess.Popen", side_effect=OSError("not found")
-            ):
+            with mock.patch("subprocess.Popen", side_effect=OSError("not found")):
                 start_daemon_background()
 
 
@@ -378,9 +384,14 @@ class TestDevSourceRestart:
     def test_skips_when_mtime_unchanged(self, tmp_path, monkeypatch):
         monkeypatch.setenv("AI_GUARDIAN_STATE_DIR", str(tmp_path))
         pid_path = tmp_path / "daemon.pid"
-        pid_path.write_text(json.dumps({
-            "pid": os.getpid(), "source_mtime": 99999999999.0,
-        }))
+        pid_path.write_text(
+            json.dumps(
+                {
+                    "pid": os.getpid(),
+                    "source_mtime": 99999999999.0,
+                }
+            )
+        )
         with mock.patch("ai_guardian.__version__", "1.12.0-dev"):
             with mock.patch(
                 "ai_guardian.daemon.state.DaemonState.get_package_max_mtime",
@@ -391,16 +402,22 @@ class TestDevSourceRestart:
     def test_restarts_when_source_changed(self, tmp_path, monkeypatch):
         monkeypatch.setenv("AI_GUARDIAN_STATE_DIR", str(tmp_path))
         pid_path = tmp_path / "daemon.pid"
-        pid_path.write_text(json.dumps({
-            "pid": os.getpid(), "source_mtime": 1000.0,
-        }))
+        pid_path.write_text(
+            json.dumps(
+                {
+                    "pid": os.getpid(),
+                    "source_mtime": 1000.0,
+                }
+            )
+        )
         with mock.patch("ai_guardian.__version__", "1.12.0-dev"):
             with mock.patch(
                 "ai_guardian.daemon.state.DaemonState.get_package_max_mtime",
                 return_value=2000.0,
             ):
                 with mock.patch(
-                    "ai_guardian.daemon.client.send_shutdown", return_value=True,
+                    "ai_guardian.daemon.client.send_shutdown",
+                    return_value=True,
                 ):
                     with mock.patch(
                         "ai_guardian.daemon.client.is_daemon_running",
@@ -421,6 +438,7 @@ class TestDevSourceRestart:
         pid_path.write_text("not-valid-json")
         with mock.patch("ai_guardian.__version__", "1.12.0-dev"):
             import logging
+
             with caplog.at_level(logging.ERROR, logger="ai_guardian.daemon.client"):
                 result = _check_dev_source_restart()
                 assert result is False
@@ -430,9 +448,14 @@ class TestDevSourceRestart:
         """Production versions never trigger auto-restart."""
         monkeypatch.setenv("AI_GUARDIAN_STATE_DIR", str(tmp_path))
         pid_path = tmp_path / "daemon.pid"
-        pid_path.write_text(json.dumps({
-            "pid": os.getpid(), "source_mtime": 1000.0,
-        }))
+        pid_path.write_text(
+            json.dumps(
+                {
+                    "pid": os.getpid(),
+                    "source_mtime": 1000.0,
+                }
+            )
+        )
         for version in ["1.12.0", "2.0.0", "1.12.0rc1"]:
             with mock.patch("ai_guardian.__version__", version):
                 assert _check_dev_source_restart() is False
@@ -443,16 +466,19 @@ class TestGetPackageMaxMtime:
 
     def test_returns_positive_mtime(self):
         from ai_guardian.daemon.state import DaemonState
+
         mtime = DaemonState.get_package_max_mtime()
         assert mtime > 0.0
 
     def test_returns_float(self):
         from ai_guardian.daemon.state import DaemonState
+
         mtime = DaemonState.get_package_max_mtime()
         assert isinstance(mtime, float)
 
     def test_record_source_mtime(self):
         from ai_guardian.daemon.state import DaemonState
+
         state = DaemonState(idle_timeout=0)
         assert state._source_mtime == 0.0
         state.record_source_mtime()

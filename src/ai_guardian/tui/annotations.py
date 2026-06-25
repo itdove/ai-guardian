@@ -37,6 +37,7 @@ class AnnotationsContent(SchemaDefaultsMixin, Container):
             if project_path:
                 return project_path
             from ai_guardian.config_utils import _find_git_root
+
             root = _find_git_root() or Path.cwd()
             return root / ".ai-guardian" / "ai-guardian.json"
         return get_config_dir() / "ai-guardian.json"
@@ -113,7 +114,9 @@ class AnnotationsContent(SchemaDefaultsMixin, Container):
     """
 
     def compose(self) -> ComposeResult:
-        yield Static("[bold]Annotation Suppression Settings[/bold]", id="annotations-header")
+        yield Static(
+            "[bold]Annotation Suppression Settings[/bold]", id="annotations-header"
+        )
 
         with VerticalScroll():
             yield TimeBasedToggle(
@@ -125,7 +128,10 @@ class AnnotationsContent(SchemaDefaultsMixin, Container):
             )
 
             with Container(classes="section"):
-                yield Static("[bold]Hardcoded Markers (always active)[/bold]", classes="section-title")
+                yield Static(
+                    "[bold]Hardcoded Markers (always active)[/bold]",
+                    classes="section-title",
+                )
                 yield Static(
                     "[dim]These markers are built-in and cannot be disabled:\n\n"
                     "Inline (secrets + PII):\n"
@@ -140,41 +146,69 @@ class AnnotationsContent(SchemaDefaultsMixin, Container):
 
             # Inline allow aliases (all violations)
             with Container(classes="section"):
-                yield Static("[bold]Inline Allow Aliases (secrets + PII)[/bold]", classes="section-title")
-                yield Static("[dim]Additional markers that suppress secrets and PII on a line. User config extends defaults.[/dim]")
+                yield Static(
+                    "[bold]Inline Allow Aliases (secrets + PII)[/bold]",
+                    classes="section-title",
+                )
+                yield Static(
+                    "[dim]Additional markers that suppress secrets and PII on a line. User config extends defaults.[/dim]"
+                )
                 yield Static("", id="inline-allow-list", classes="alias-list")
                 with Horizontal(classes="setting-row"):
                     yield Label("Add alias:")
                     yield Input(placeholder="e.g. nosec", id="inline-allow-input")
                     yield Button("Add", id="add-inline-allow", variant="primary")
-                    yield Button("Remove Last", id="remove-inline-allow", variant="error")
+                    yield Button(
+                        "Remove Last", id="remove-inline-allow", variant="error"
+                    )
 
             # Inline allow secrets aliases
             with Container(classes="section"):
-                yield Static("[bold]Inline Allow Secrets Aliases (secrets only)[/bold]", classes="section-title")
-                yield Static("[dim]Markers that suppress secret scanning only (not PII, prompt injection, etc.).[/dim]")
+                yield Static(
+                    "[bold]Inline Allow Secrets Aliases (secrets only)[/bold]",
+                    classes="section-title",
+                )
+                yield Static(
+                    "[dim]Markers that suppress secret scanning only (not PII, prompt injection, etc.).[/dim]"
+                )
                 yield Static("", id="inline-allow-secrets-list", classes="alias-list")
                 with Horizontal(classes="setting-row"):
                     yield Label("Add alias:")
-                    yield Input(placeholder="e.g. nosec", id="inline-allow-secrets-input")
-                    yield Button("Add", id="add-inline-allow-secrets", variant="primary")
-                    yield Button("Remove Last", id="remove-inline-allow-secrets", variant="error")
+                    yield Input(
+                        placeholder="e.g. nosec", id="inline-allow-secrets-input"
+                    )
+                    yield Button(
+                        "Add", id="add-inline-allow-secrets", variant="primary"
+                    )
+                    yield Button(
+                        "Remove Last", id="remove-inline-allow-secrets", variant="error"
+                    )
 
             # Block begin aliases
             with Container(classes="section"):
-                yield Static("[bold]Block Begin Aliases[/bold]", classes="section-title")
-                yield Static("[dim]Additional markers for block-begin suppression. Extends hardcoded ai-guardian:begin-allow.[/dim]")
+                yield Static(
+                    "[bold]Block Begin Aliases[/bold]", classes="section-title"
+                )
+                yield Static(
+                    "[dim]Additional markers for block-begin suppression. Extends hardcoded ai-guardian:begin-allow.[/dim]"
+                )
                 yield Static("", id="block-begin-list", classes="alias-list")
                 with Horizontal(classes="setting-row"):
                     yield Label("Add alias:")
-                    yield Input(placeholder="e.g. BEGIN-SUPPRESS", id="block-begin-input")
+                    yield Input(
+                        placeholder="e.g. BEGIN-SUPPRESS", id="block-begin-input"
+                    )
                     yield Button("Add", id="add-block-begin", variant="primary")
-                    yield Button("Remove Last", id="remove-block-begin", variant="error")
+                    yield Button(
+                        "Remove Last", id="remove-block-begin", variant="error"
+                    )
 
             # Block end aliases
             with Container(classes="section"):
                 yield Static("[bold]Block End Aliases[/bold]", classes="section-title")
-                yield Static("[dim]Additional markers for block-end suppression. Extends hardcoded ai-guardian:end-allow.[/dim]")
+                yield Static(
+                    "[dim]Additional markers for block-end suppression. Extends hardcoded ai-guardian:end-allow.[/dim]"
+                )
                 yield Static("", id="block-end-list", classes="alias-list")
                 with Horizontal(classes="setting-row"):
                     yield Label("Add alias:")
@@ -210,7 +244,10 @@ class AnnotationsContent(SchemaDefaultsMixin, Container):
 
         # Update alias lists
         self._update_alias_display("inline-allow-list", section.get("inline_allow", []))
-        self._update_alias_display("inline-allow-secrets-list", section.get("inline_allow_secrets", ["gitleaks:allow"]))
+        self._update_alias_display(
+            "inline-allow-secrets-list",
+            section.get("inline_allow_secrets", ["gitleaks:allow"]),
+        )
         self._update_alias_display("block-begin-list", section.get("block_begin", []))
         self._update_alias_display("block-end-list", section.get("block_end", []))
 
@@ -292,7 +329,11 @@ class AnnotationsContent(SchemaDefaultsMixin, Container):
         elif button_id == "remove-inline-allow":
             self._remove_last_alias("inline_allow", "inline-allow-list")
         elif button_id == "add-inline-allow-secrets":
-            self._add_alias("inline_allow_secrets", "inline-allow-secrets-input", "inline-allow-secrets-list")
+            self._add_alias(
+                "inline_allow_secrets",
+                "inline-allow-secrets-input",
+                "inline-allow-secrets-list",
+            )
         elif button_id == "remove-inline-allow-secrets":
             self._remove_last_alias("inline_allow_secrets", "inline-allow-secrets-list")
         elif button_id == "add-block-begin":

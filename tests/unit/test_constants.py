@@ -67,7 +67,15 @@ class TestHookEvent:
         assert HookEvent.PROMPT == "prompt"
 
     def test_all_hook_events(self):
-        assert set(ALL_HOOK_EVENTS) == {"prompt", "pretooluse", "posttooluse", "beforereadfile", "stop", "sessionend", "postcompact"}
+        assert set(ALL_HOOK_EVENTS) == {
+            "prompt",
+            "pretooluse",
+            "posttooluse",
+            "beforereadfile",
+            "stop",
+            "sessionend",
+            "postcompact",
+        }
 
     def test_usable_in_tuple_membership(self):
         events = (HookEvent.PRE_TOOL_USE, HookEvent.BEFORE_READ_FILE)

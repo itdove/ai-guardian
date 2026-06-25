@@ -27,8 +27,10 @@ class TestEngineConsent(unittest.TestCase):
     def test_consent_not_required_for_local_engine(self, mock_dir):
         mock_dir.return_value = self.config_dir
         config = EngineConfig(
-            type="gitleaks", binary="gitleaks",
-            command_template=["{binary}"], requires_consent=False,
+            type="gitleaks",
+            binary="gitleaks",
+            command_template=["{binary}"],
+            requires_consent=False,
         )
         self.assertTrue(check_engine_consent(config))
 
@@ -36,8 +38,10 @@ class TestEngineConsent(unittest.TestCase):
     def test_consent_required_not_granted(self, mock_dir):
         mock_dir.return_value = self.config_dir
         config = EngineConfig(
-            type="gitguardian", binary="ggshield",
-            command_template=["{binary}"], requires_consent=True,
+            type="gitguardian",
+            binary="ggshield",
+            command_template=["{binary}"],
+            requires_consent=True,
         )
         self.assertFalse(check_engine_consent(config))
 
@@ -46,8 +50,10 @@ class TestEngineConsent(unittest.TestCase):
         mock_dir.return_value = self.config_dir
         grant_engine_consent("gitguardian")
         config = EngineConfig(
-            type="gitguardian", binary="ggshield",
-            command_template=["{binary}"], requires_consent=True,
+            type="gitguardian",
+            binary="ggshield",
+            command_template=["{binary}"],
+            requires_consent=True,
         )
         self.assertTrue(check_engine_consent(config))
 

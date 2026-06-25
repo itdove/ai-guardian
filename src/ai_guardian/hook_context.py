@@ -11,6 +11,7 @@ and retrieving them during PostToolUse processing, enabling:
 
 try:
     import fcntl
+
     HAS_FCNTL = True
 except ImportError:
     HAS_FCNTL = False
@@ -20,7 +21,6 @@ import os
 import stat
 import tempfile
 import time
-from pathlib import Path
 from typing import Dict, Optional
 
 from ai_guardian.config_utils import get_state_dir
@@ -153,7 +153,8 @@ class HookContextManager:
 
             now = time.time()
             expired = [
-                k for k, v in data.items()
+                k
+                for k, v in data.items()
                 if now - v.get("timestamp", 0) > max_age_seconds
             ]
 

@@ -117,11 +117,11 @@ def _parse_enabled(raw):
     return False, None, "", bool(raw)
 
 
-
 def _load_redaction_stats():
     """Load redaction statistics from violation logger."""
     try:
         from ai_guardian.violation_logger import ViolationLogger
+
         vl = ViolationLogger()
         violations = vl.get_recent_violations(
             limit=1000, violation_type="secret_detected"
@@ -139,8 +139,9 @@ def _load_redaction_stats():
         return None, None
 
 
-def _render_toggle(label, desc, is_temp, until_dt, reason, is_enabled,
-                   save_fn, refresh_fn):
+def _render_toggle(
+    label, desc, is_temp, until_dt, reason, is_enabled, save_fn, refresh_fn
+):
     """Render a toggle card with temp-disable support."""
     with ui.card().classes("w-full"):
         if is_temp and until_dt:
@@ -148,7 +149,9 @@ def _render_toggle(label, desc, is_temp, until_dt, reason, is_enabled,
             with ui.row().classes("items-center gap-2 w-full"):
                 ui.icon("timer").classes("text-amber")
                 ui.label(label).classes("font-bold text-sm flex-grow")
-                ui.badge(f"TEMP DISABLED — {remaining}", color="amber").classes("text-xs")
+                ui.badge(f"TEMP DISABLED — {remaining}", color="amber").classes(
+                    "text-xs"
+                )
             ui.label(desc).classes("text-xs text-grey-6 ml-8")
             if reason:
                 ui.label(f"Reason: {reason}").classes("text-xs text-grey-7 ml-8")
@@ -158,8 +161,9 @@ def _render_toggle(label, desc, is_temp, until_dt, reason, is_enabled,
                 ui.notify(f"{label} re-enabled", type="positive")
                 await refresh_fn()
 
-            ui.button("Re-enable Now", icon="play_arrow", color="green",
-                      on_click=do_reenable).props("dense size=sm").classes("ml-8")
+            ui.button(
+                "Re-enable Now", icon="play_arrow", color="green", on_click=do_reenable
+            ).props("dense size=sm").classes("ml-8")
         else:
             with ui.row().classes("items-center gap-2 w-full"):
                 sw = ui.switch(label, value=bool(is_enabled)).classes("flex-grow")
@@ -175,24 +179,40 @@ def _render_toggle(label, desc, is_temp, until_dt, reason, is_enabled,
                 sw.on_value_change(on_toggle)
 
             with ui.row().classes("items-center gap-2 ml-8"):
-                dur = ui.input(placeholder="e.g. 30m, 2h, 1d").props("dense outlined").classes("w-32")
-                rsn = ui.input(placeholder="Reason").props("dense outlined").classes("w-40")
+                dur = (
+                    ui.input(placeholder="e.g. 30m, 2h, 1d")
+                    .props("dense outlined")
+                    .classes("w-32")
+                )
+                rsn = (
+                    ui.input(placeholder="Reason")
+                    .props("dense outlined")
+                    .classes("w-40")
+                )
 
                 async def do_temp(d=dur, r=rsn):
                     delta = _parse_duration(d.value or "30m")
                     if not delta:
-                        ui.notify("Invalid duration (e.g. 30m, 2h, 1d)", type="negative")
+                        ui.notify(
+                            "Invalid duration (e.g. 30m, 2h, 1d)", type="negative"
+                        )
                         return
-                    until_ts = (datetime.now(timezone.utc) + delta).strftime("%Y-%m-%dT%H:%M:%SZ")
+                    until_ts = (datetime.now(timezone.utc) + delta).strftime(
+                        "%Y-%m-%dT%H:%M:%SZ"
+                    )
                     entry = {"value": False, "disabled_until": until_ts}
                     rv = r.value.strip()
                     if rv:
                         entry["reason"] = rv
                     await run.io_bound(save_fn, entry)
-                    ui.notify(f"{label} temp disabled for {d.value or '30m'}", type="warning")
+                    ui.notify(
+                        f"{label} temp disabled for {d.value or '30m'}", type="warning"
+                    )
                     await refresh_fn()
 
-                ui.button("Temp Disable", icon="timer", on_click=do_temp).props("dense size=sm")
+                ui.button("Temp Disable", icon="timer", on_click=do_temp).props(
+                    "dense size=sm"
+                )
 
 
 def create_secret_redaction_page(service, daemon_name: str):
@@ -204,9 +224,9 @@ def create_secret_redaction_page(service, daemon_name: str):
 
         with ui.column().classes("flex-grow p-6 gap-4"):
             ui.label("Secret Redaction Settings").classes("text-2xl font-bold")
-            ui.label(
-                "Configure how secrets are redacted from tool outputs."
-            ).classes("text-xs text-grey-6")
+            ui.label("Configure how secrets are redacted from tool outputs.").classes(
+                "text-xs text-grey-6"
+            )
 
             content = ui.column().classes("w-full gap-4")
 
@@ -236,8 +256,12 @@ def create_secret_redaction_page(service, daemon_name: str):
                     _render_toggle(
                         "Secret Redaction",
                         "Redact detected secrets instead of blocking the operation.",
-                        is_temp, until_dt, reason, is_enabled,
-                        save_redaction, refresh,
+                        is_temp,
+                        until_dt,
+                        reason,
+                        is_enabled,
+                        save_redaction,
+                        refresh,
                     )
 
                     # --- Protected types with scrollbar ---
@@ -246,18 +270,18 @@ def create_secret_redaction_page(service, daemon_name: str):
                         ui.label(
                             f"Protected Secret Types ({total_patterns} patterns)"
                         ).classes("text-lg font-bold")
-                        with ui.scroll_area().classes("w-full").style(
-                            "max-height: 300px"
+                        with (
+                            ui.scroll_area()
+                            .classes("w-full")
+                            .style("max-height: 300px")
                         ):
                             for category, types in PROTECTED_TYPES.items():
-                                ui.label(category).classes(
-                                    "font-bold text-sm mt-2"
-                                )
+                                ui.label(category).classes("font-bold text-sm mt-2")
                                 for t in types:
                                     with ui.row().classes("items-center gap-1 ml-4"):
-                                        ui.icon("shield").classes(
-                                            "text-blue-4"
-                                        ).style("font-size: 14px")
+                                        ui.icon("shield").classes("text-blue-4").style(
+                                            "font-size: 14px"
+                                        )
                                         ui.label(t).classes("text-xs")
 
                     # --- Action mode ---
@@ -359,19 +383,25 @@ def create_secret_redaction_page(service, daemon_name: str):
                                             sect["additional_patterns"] = pats
                                             cfg["secret_redaction"] = sect
                                             await run.io_bound(save_web_config, cfg)
-                                            ui.notify("Pattern removed", type="positive")
+                                            ui.notify(
+                                                "Pattern removed", type="positive"
+                                            )
                                             await refresh()
 
                                     ui.button(
                                         icon="delete", on_click=remove_pat, color="red"
                                     ).props("flat dense size=sm")
                         else:
-                            ui.label("No custom patterns.").classes("text-grey-6 text-sm")
+                            ui.label("No custom patterns.").classes(
+                                "text-grey-6 text-sm"
+                            )
 
                         with ui.row().classes("items-center gap-2 mt-2"):
-                            pat_input = ui.input(
-                                placeholder="Enter custom regex pattern"
-                            ).props("dense outlined").classes("flex-grow")
+                            pat_input = (
+                                ui.input(placeholder="Enter custom regex pattern")
+                                .props("dense outlined")
+                                .classes("flex-grow")
+                            )
 
                             async def add_pattern():
                                 pattern = pat_input.value.strip()
@@ -399,7 +429,9 @@ def create_secret_redaction_page(service, daemon_name: str):
                                 ui.notify(f"Added: {pattern}", type="positive")
                                 await refresh()
 
-                            ui.button("Add", icon="add", on_click=add_pattern).props("dense")
+                            ui.button("Add", icon="add", on_click=add_pattern).props(
+                                "dense"
+                            )
 
                     # --- Statistics ---
                     with ui.card().classes("w-full"):
@@ -414,7 +446,9 @@ def create_secret_redaction_page(service, daemon_name: str):
                                 "text-grey-6 text-sm"
                             )
                         else:
-                            ui.label(f"Total secrets detected: {total}").classes("text-sm")
+                            ui.label(f"Total secrets detected: {total}").classes(
+                                "text-sm"
+                            )
                             if by_type:
                                 ui.label("Top secret types:").classes(
                                     "text-sm font-bold mt-2"
@@ -427,6 +461,8 @@ def create_secret_redaction_page(service, daemon_name: str):
                                         ui.label(f"{stype}:").classes(
                                             "text-sm text-grey-6 w-48"
                                         )
-                                        ui.label(str(count)).classes("text-sm font-bold")
+                                        ui.label(str(count)).classes(
+                                            "text-sm font-bold"
+                                        )
 
             ui.timer(0.1, refresh, once=True)

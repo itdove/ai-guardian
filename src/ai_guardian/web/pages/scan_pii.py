@@ -81,6 +81,7 @@ def _parse_enabled(raw):
 def _load_stats():
     try:
         from ai_guardian.violation_logger import ViolationLogger
+
         vl = ViolationLogger()
         violations = vl.get_recent_violations(limit=1000, violation_type="pii_detected")
         return len(violations) if violations else 0
@@ -107,15 +108,18 @@ def _get_pattern_text(entry):
     return str(entry)
 
 
-def _render_toggle(label, desc, is_temp, until_dt, reason, is_enabled,
-                   save_fn, refresh_fn):
+def _render_toggle(
+    label, desc, is_temp, until_dt, reason, is_enabled, save_fn, refresh_fn
+):
     with ui.card().classes("w-full"):
         if is_temp and until_dt:
             remaining = _format_remaining(until_dt)
             with ui.row().classes("items-center gap-2 w-full"):
                 ui.icon("timer").classes("text-amber")
                 ui.label(label).classes("font-bold text-sm flex-grow")
-                ui.badge(f"TEMP DISABLED — {remaining}", color="amber").classes("text-xs")
+                ui.badge(f"TEMP DISABLED — {remaining}", color="amber").classes(
+                    "text-xs"
+                )
             ui.label(desc).classes("text-xs text-grey-6 ml-8")
             if reason:
                 ui.label(f"Reason: {reason}").classes("text-xs text-grey-7 ml-8")
@@ -125,8 +129,9 @@ def _render_toggle(label, desc, is_temp, until_dt, reason, is_enabled,
                 ui.notify(f"{label} re-enabled", type="positive")
                 await refresh_fn()
 
-            ui.button("Re-enable Now", icon="play_arrow", color="green",
-                      on_click=do_reenable).props("dense size=sm").classes("ml-8")
+            ui.button(
+                "Re-enable Now", icon="play_arrow", color="green", on_click=do_reenable
+            ).props("dense size=sm").classes("ml-8")
         else:
             with ui.row().classes("items-center gap-2 w-full"):
                 sw = ui.switch(label, value=bool(is_enabled)).classes("flex-grow")
@@ -142,24 +147,40 @@ def _render_toggle(label, desc, is_temp, until_dt, reason, is_enabled,
                 sw.on_value_change(on_toggle)
 
             with ui.row().classes("items-center gap-2 ml-8"):
-                dur = ui.input(placeholder="e.g. 30m, 2h, 1d").props("dense outlined").classes("w-32")
-                rsn = ui.input(placeholder="Reason").props("dense outlined").classes("w-40")
+                dur = (
+                    ui.input(placeholder="e.g. 30m, 2h, 1d")
+                    .props("dense outlined")
+                    .classes("w-32")
+                )
+                rsn = (
+                    ui.input(placeholder="Reason")
+                    .props("dense outlined")
+                    .classes("w-40")
+                )
 
                 async def do_temp(d=dur, r=rsn):
                     delta = _parse_duration(d.value or "30m")
                     if not delta:
-                        ui.notify("Invalid duration (e.g. 30m, 2h, 1d)", type="negative")
+                        ui.notify(
+                            "Invalid duration (e.g. 30m, 2h, 1d)", type="negative"
+                        )
                         return
-                    until_ts = (datetime.now(timezone.utc) + delta).strftime("%Y-%m-%dT%H:%M:%SZ")
+                    until_ts = (datetime.now(timezone.utc) + delta).strftime(
+                        "%Y-%m-%dT%H:%M:%SZ"
+                    )
                     entry = {"value": False, "disabled_until": until_ts}
                     rv = r.value.strip()
                     if rv:
                         entry["reason"] = rv
                     await run.io_bound(save_fn, entry)
-                    ui.notify(f"{label} temp disabled for {d.value or '30m'}", type="warning")
+                    ui.notify(
+                        f"{label} temp disabled for {d.value or '30m'}", type="warning"
+                    )
                     await refresh_fn()
 
-                ui.button("Temp Disable", icon="timer", on_click=do_temp).props("dense size=sm")
+                ui.button("Temp Disable", icon="timer", on_click=do_temp).props(
+                    "dense size=sm"
+                )
 
 
 def create_scan_pii_page(service, daemon_name: str):
@@ -202,15 +223,19 @@ def create_scan_pii_page(service, daemon_name: str):
                     _render_toggle(
                         "PII Scanning",
                         "Detect personally identifiable information in tool inputs and outputs.",
-                        is_temp, until_dt, reason, is_enabled,
-                        save_enabled, refresh,
+                        is_temp,
+                        until_dt,
+                        reason,
+                        is_enabled,
+                        save_enabled,
+                        refresh,
                     )
 
                     with ui.card().classes("w-full"):
                         ui.label("Action Mode").classes("text-lg font-bold")
-                        ui.label(
-                            "What happens when PII is detected."
-                        ).classes("text-xs text-grey-6")
+                        ui.label("What happens when PII is detected.").classes(
+                            "text-xs text-grey-6"
+                        )
                         action = sp.get("action", "redact")
                         act_sel = ui.select(
                             options={
@@ -239,11 +264,13 @@ def create_scan_pii_page(service, daemon_name: str):
 
                     with ui.card().classes("w-full"):
                         ui.label("PII Types").classes("text-lg font-bold")
-                        ui.label(
-                            "Select which PII types to detect."
-                        ).classes("text-xs text-grey-6")
+                        ui.label("Select which PII types to detect.").classes(
+                            "text-xs text-grey-6"
+                        )
 
-                        enabled_types = sp.get("pii_types", [k for k, _ in ALL_PII_TYPES])
+                        enabled_types = sp.get(
+                            "pii_types", [k for k, _ in ALL_PII_TYPES]
+                        )
                         if not isinstance(enabled_types, list):
                             enabled_types = [k for k, _ in ALL_PII_TYPES]
 
@@ -251,16 +278,16 @@ def create_scan_pii_page(service, daemon_name: str):
                             "font-bold text-sm mt-2"
                         )
                         for key, label in PHASE1_PII_TYPES:
-                            cb = ui.checkbox(
-                                label, value=key in enabled_types
-                            )
+                            cb = ui.checkbox(label, value=key in enabled_types)
 
                             async def on_pii_change(e, k=key):
                                 cfg = await run.io_bound(load_web_config)
                                 sect = cfg.get("scan_pii", {})
                                 if not isinstance(sect, dict):
                                     sect = {}
-                                current = sect.get("pii_types", [t for t, _ in ALL_PII_TYPES])
+                                current = sect.get(
+                                    "pii_types", [t for t, _ in ALL_PII_TYPES]
+                                )
                                 if not isinstance(current, list):
                                     current = [t for t, _ in ALL_PII_TYPES]
                                 if e.value and k not in current:
@@ -278,16 +305,16 @@ def create_scan_pii_page(service, daemon_name: str):
                             "font-bold text-sm mt-2"
                         )
                         for key, label in PHASE2_PII_TYPES:
-                            cb = ui.checkbox(
-                                label, value=key in enabled_types
-                            )
+                            cb = ui.checkbox(label, value=key in enabled_types)
 
                             async def on_pii_change2(e, k=key):
                                 cfg = await run.io_bound(load_web_config)
                                 sect = cfg.get("scan_pii", {})
                                 if not isinstance(sect, dict):
                                     sect = {}
-                                current = sect.get("pii_types", [t for t, _ in ALL_PII_TYPES])
+                                current = sect.get(
+                                    "pii_types", [t for t, _ in ALL_PII_TYPES]
+                                )
                                 if not isinstance(current, list):
                                     current = [t for t, _ in ALL_PII_TYPES]
                                 if e.value and k not in current:
@@ -327,19 +354,27 @@ def create_scan_pii_page(service, daemon_name: str):
                                             sect["ignore_files"] = items
                                             cfg["scan_pii"] = sect
                                             await run.io_bound(save_web_config, cfg)
-                                            ui.notify("File pattern removed", type="positive")
+                                            ui.notify(
+                                                "File pattern removed", type="positive"
+                                            )
                                             await refresh()
 
                                     ui.button(
-                                        icon="delete", on_click=remove_ignore_file, color="red"
+                                        icon="delete",
+                                        on_click=remove_ignore_file,
+                                        color="red",
                                     ).props("flat dense size=sm")
                         else:
-                            ui.label("No ignore file patterns.").classes("text-grey-6 text-sm")
+                            ui.label("No ignore file patterns.").classes(
+                                "text-grey-6 text-sm"
+                            )
 
                         with ui.row().classes("items-center gap-2 mt-2"):
-                            if_input = ui.input(
-                                placeholder="Enter glob pattern (e.g. *.log)"
-                            ).props("dense outlined").classes("flex-grow")
+                            if_input = (
+                                ui.input(placeholder="Enter glob pattern (e.g. *.log)")
+                                .props("dense outlined")
+                                .classes("flex-grow")
+                            )
 
                             async def add_ignore_file():
                                 val = if_input.value.strip()
@@ -362,7 +397,9 @@ def create_scan_pii_page(service, daemon_name: str):
                                 ui.notify(f"Added: {val}", type="positive")
                                 await refresh()
 
-                            ui.button("Add", icon="add", on_click=add_ignore_file).props("dense")
+                            ui.button(
+                                "Add", icon="add", on_click=add_ignore_file
+                            ).props("dense")
 
                     with ui.card().classes("w-full"):
                         ui.label("Ignore Tools").classes("text-lg font-bold")
@@ -390,19 +427,29 @@ def create_scan_pii_page(service, daemon_name: str):
                                             sect["ignore_tools"] = items
                                             cfg["scan_pii"] = sect
                                             await run.io_bound(save_web_config, cfg)
-                                            ui.notify("Tool pattern removed", type="positive")
+                                            ui.notify(
+                                                "Tool pattern removed", type="positive"
+                                            )
                                             await refresh()
 
                                     ui.button(
-                                        icon="delete", on_click=remove_ignore_tool, color="red"
+                                        icon="delete",
+                                        on_click=remove_ignore_tool,
+                                        color="red",
                                     ).props("flat dense size=sm")
                         else:
-                            ui.label("No ignore tool patterns.").classes("text-grey-6 text-sm")
+                            ui.label("No ignore tool patterns.").classes(
+                                "text-grey-6 text-sm"
+                            )
 
                         with ui.row().classes("items-center gap-2 mt-2"):
-                            it_input = ui.input(
-                                placeholder="Enter tool name pattern (e.g. mcp__*)"
-                            ).props("dense outlined").classes("flex-grow")
+                            it_input = (
+                                ui.input(
+                                    placeholder="Enter tool name pattern (e.g. mcp__*)"
+                                )
+                                .props("dense outlined")
+                                .classes("flex-grow")
+                            )
 
                             async def add_ignore_tool():
                                 val = it_input.value.strip()
@@ -425,7 +472,9 @@ def create_scan_pii_page(service, daemon_name: str):
                                 ui.notify(f"Added: {val}", type="positive")
                                 await refresh()
 
-                            ui.button("Add", icon="add", on_click=add_ignore_tool).props("dense")
+                            ui.button(
+                                "Add", icon="add", on_click=add_ignore_tool
+                            ).props("dense")
 
                     with ui.card().classes("w-full"):
                         ui.label("Allowlist Patterns").classes("text-lg font-bold")
@@ -438,17 +487,23 @@ def create_scan_pii_page(service, daemon_name: str):
                         if allowlist:
                             for idx, entry in enumerate(allowlist):
                                 pat_text = _get_pattern_text(entry)
-                                valid_until = entry.get("valid_until") if isinstance(entry, dict) else None
+                                valid_until = (
+                                    entry.get("valid_until")
+                                    if isinstance(entry, dict)
+                                    else None
+                                )
                                 exp_info = _format_expiration(valid_until)
 
                                 with ui.row().classes("items-center gap-2 w-full"):
                                     ui.icon("check").classes("text-green")
-                                    ui.label(pat_text).classes("flex-grow text-sm").style(
-                                        "font-family: monospace"
-                                    )
+                                    ui.label(pat_text).classes(
+                                        "flex-grow text-sm"
+                                    ).style("font-family: monospace")
                                     if exp_info:
                                         exp_text, exp_color = exp_info
-                                        ui.badge(exp_text, color=exp_color).classes("text-xs")
+                                        ui.badge(exp_text, color=exp_color).classes(
+                                            "text-xs"
+                                        )
 
                                     async def remove_allowlist(i=idx):
                                         cfg = await run.io_bound(load_web_config)
@@ -461,22 +516,34 @@ def create_scan_pii_page(service, daemon_name: str):
                                             sect["allowlist_patterns"] = pats
                                             cfg["scan_pii"] = sect
                                             await run.io_bound(save_web_config, cfg)
-                                            ui.notify("Pattern removed", type="positive")
+                                            ui.notify(
+                                                "Pattern removed", type="positive"
+                                            )
                                             await refresh()
 
                                     ui.button(
-                                        icon="delete", on_click=remove_allowlist, color="red"
+                                        icon="delete",
+                                        on_click=remove_allowlist,
+                                        color="red",
                                     ).props("flat dense size=sm")
                         else:
-                            ui.label("No allowlist patterns.").classes("text-grey-6 text-sm")
+                            ui.label("No allowlist patterns.").classes(
+                                "text-grey-6 text-sm"
+                            )
 
                         with ui.row().classes("items-center gap-2 mt-2"):
-                            al_input = ui.input(
-                                placeholder="Enter regex pattern"
-                            ).props("dense outlined").classes("flex-grow")
-                            al_exp = ui.input(
-                                placeholder="valid_until (e.g. 2025-12-31T23:59:59Z)"
-                            ).props("dense outlined").classes("w-64")
+                            al_input = (
+                                ui.input(placeholder="Enter regex pattern")
+                                .props("dense outlined")
+                                .classes("flex-grow")
+                            )
+                            al_exp = (
+                                ui.input(
+                                    placeholder="valid_until (e.g. 2025-12-31T23:59:59Z)"
+                                )
+                                .props("dense outlined")
+                                .classes("w-64")
+                            )
 
                             async def add_allowlist_pat():
                                 pattern = al_input.value.strip()
@@ -500,11 +567,17 @@ def create_scan_pii_page(service, daemon_name: str):
                                 exp_val = al_exp.value.strip()
                                 if exp_val:
                                     try:
-                                        datetime.fromisoformat(exp_val.replace("Z", "+00:00"))
+                                        datetime.fromisoformat(
+                                            exp_val.replace("Z", "+00:00")
+                                        )
                                     except (ValueError, TypeError):
-                                        ui.notify("Invalid date format", type="negative")
+                                        ui.notify(
+                                            "Invalid date format", type="negative"
+                                        )
                                         return
-                                    pats.append({"pattern": pattern, "valid_until": exp_val})
+                                    pats.append(
+                                        {"pattern": pattern, "valid_until": exp_val}
+                                    )
                                 else:
                                     pats.append(pattern)
                                 sect["allowlist_patterns"] = pats
@@ -515,7 +588,9 @@ def create_scan_pii_page(service, daemon_name: str):
                                 ui.notify(f"Added: {pattern}", type="positive")
                                 await refresh()
 
-                            ui.button("Add", icon="add", on_click=add_allowlist_pat).props("dense")
+                            ui.button(
+                                "Add", icon="add", on_click=add_allowlist_pat
+                            ).props("dense")
 
                     with ui.card().classes("w-full"):
                         ui.label("PII Scanning Statistics").classes("text-lg font-bold")
@@ -529,6 +604,8 @@ def create_scan_pii_page(service, daemon_name: str):
                                 "text-grey-6 text-sm"
                             )
                         else:
-                            ui.label(f"Total PII detections: {total}").classes("text-sm")
+                            ui.label(f"Total PII detections: {total}").classes(
+                                "text-sm"
+                            )
 
             ui.timer(0.1, refresh, once=True)

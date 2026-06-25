@@ -8,7 +8,7 @@ Scans user prompts, file reads, and tool outputs for SSNs, credit cards, etc.
 
 import json
 from pathlib import Path
-from typing import Union, Dict, Any
+from typing import Dict, Any
 
 from textual.app import ComposeResult
 from textual.containers import Container, Horizontal, VerticalScroll
@@ -16,10 +16,14 @@ from textual.widgets import Static, Button, Input, Label, Select, Checkbox
 
 from ai_guardian.config_utils import get_config_dir, get_project_config_path
 from ai_guardian.tui.schema_defaults import (
-    SchemaDefaultsMixin, select_options_with_default,
+    SchemaDefaultsMixin,
+    select_options_with_default,
 )
-from ai_guardian.tui.widgets import TimeBasedToggle, sanitize_enabled_value, format_local_time
-
+from ai_guardian.tui.widgets import (
+    TimeBasedToggle,
+    sanitize_enabled_value,
+    format_local_time,
+)
 
 PHASE1_PII_TYPES = [
     ("ssn", "Social Security Numbers (XXX-XX-XXXX)"),
@@ -149,6 +153,7 @@ class ScanPIIContent(SchemaDefaultsMixin, Container):
             if project_path:
                 return project_path
             from ai_guardian.config_utils import _find_git_root
+
             root = _find_git_root() or Path.cwd()
             return root / ".ai-guardian" / "ai-guardian.json"
         return get_config_dir() / "ai-guardian.json"
@@ -166,7 +171,9 @@ class ScanPIIContent(SchemaDefaultsMixin, Container):
             )
 
             with Container(classes="section"):
-                yield Static("[bold]Action on PII Detection[/bold]", classes="section-title")
+                yield Static(
+                    "[bold]Action on PII Detection[/bold]", classes="section-title"
+                )
 
                 with Horizontal(classes="setting-row"):
                     yield Label("Action Mode:")
@@ -197,7 +204,9 @@ class ScanPIIContent(SchemaDefaultsMixin, Container):
                 )
 
             with Container(classes="section"):
-                yield Static("[bold]PII Types to Detect[/bold]", classes="section-title")
+                yield Static(
+                    "[bold]PII Types to Detect[/bold]", classes="section-title"
+                )
                 yield Static(
                     "[dim]Uncheck types to disable detection for specific PII categories.[/dim]",
                     classes="section-title",
@@ -212,7 +221,9 @@ class ScanPIIContent(SchemaDefaultsMixin, Container):
                     )
 
             with Container(classes="section"):
-                yield Static("[bold]Phase 2 PII Types (opt-in)[/bold]", classes="section-title")
+                yield Static(
+                    "[bold]Phase 2 PII Types (opt-in)[/bold]", classes="section-title"
+                )
                 yield Static(
                     "[dim]Advanced types — not enabled by default. Add to pii_types to enable.[/dim]",
                     classes="section-title",
@@ -296,7 +307,7 @@ class ScanPIIContent(SchemaDefaultsMixin, Container):
         config = {}
         if config_path.exists():
             try:
-                with open(config_path, 'r', encoding='utf-8') as f:
+                with open(config_path, "r", encoding="utf-8") as f:
                     config = json.load(f)
             except Exception as e:
                 self.app.notify(f"Error loading config: {e}", severity="error")
@@ -353,15 +364,22 @@ class ScanPIIContent(SchemaDefaultsMixin, Container):
                     valid_until = pattern.get("valid_until", "")
                     if valid_until:
                         from datetime import datetime, timezone
+
                         try:
-                            expiry_dt = datetime.fromisoformat(valid_until.replace('Z', '+00:00'))
+                            expiry_dt = datetime.fromisoformat(
+                                valid_until.replace("Z", "+00:00")
+                            )
                             now = datetime.now(timezone.utc)
                             if expiry_dt <= now:
                                 pattern_lines.append(f"  {pattern_str} [EXPIRED]")
                             elif (expiry_dt - now).total_seconds() < 86400:
-                                pattern_lines.append(f"  {pattern_str} [expires {format_local_time(valid_until)}]")
+                                pattern_lines.append(
+                                    f"  {pattern_str} [expires {format_local_time(valid_until)}]"
+                                )
                             else:
-                                pattern_lines.append(f"  {pattern_str} [until {format_local_time(valid_until)}]")
+                                pattern_lines.append(
+                                    f"  {pattern_str} [until {format_local_time(valid_until)}]"
+                                )
                         except (ValueError, TypeError):
                             pattern_lines.append(f"  {pattern_str}")
                     else:
@@ -384,7 +402,7 @@ class ScanPIIContent(SchemaDefaultsMixin, Container):
         try:
             config = {}
             if config_path.exists():
-                with open(config_path, 'r', encoding='utf-8') as f:
+                with open(config_path, "r", encoding="utf-8") as f:
                     config = json.load(f)
 
             if "scan_pii" not in config:
@@ -395,7 +413,7 @@ class ScanPIIContent(SchemaDefaultsMixin, Container):
             config["scan_pii"].update(updates)
 
             config_path.parent.mkdir(parents=True, exist_ok=True)
-            with open(config_path, 'w', encoding='utf-8') as f:
+            with open(config_path, "w", encoding="utf-8") as f:
                 json.dump(config, f, indent=2)
 
             return True
@@ -404,7 +422,7 @@ class ScanPIIContent(SchemaDefaultsMixin, Container):
             return False
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
-        if getattr(self, '_loading', False):
+        if getattr(self, "_loading", False):
             return
         bid = event.button.id
         if bid and "scan_pii_enabled" in bid:
@@ -414,14 +432,14 @@ class ScanPIIContent(SchemaDefaultsMixin, Container):
             self._save_config({"enabled": toggle.get_value()})
 
     def on_select_changed(self, event) -> None:
-        if getattr(self, '_loading', False):
+        if getattr(self, "_loading", False):
             return
         if event.select.id == "pii-action-select":
             self._save_config({"action": event.value})
             self.app.notify(f"PII action set to: {event.value}", severity="information")
 
     def on_checkbox_changed(self, event: Checkbox.Changed) -> None:
-        if getattr(self, '_loading', False):
+        if getattr(self, "_loading", False):
             return
         checkbox_id = event.checkbox.id
         if not checkbox_id:
@@ -437,10 +455,13 @@ class ScanPIIContent(SchemaDefaultsMixin, Container):
                 except Exception:
                     pass
             self._save_config({"pii_types": enabled_types})
-            self.app.notify(f"PII types updated ({len(enabled_types)} enabled)", severity="information")
+            self.app.notify(
+                f"PII types updated ({len(enabled_types)} enabled)",
+                severity="information",
+            )
 
     def on_input_submitted(self, event: Input.Submitted) -> None:
-        if getattr(self, '_loading', False):
+        if getattr(self, "_loading", False):
             return
         if event.input.id == "pii-ignore-file-input":
             self._add_ignore_file()
@@ -466,7 +487,7 @@ class ScanPIIContent(SchemaDefaultsMixin, Container):
         try:
             config = {}
             if config_path.exists():
-                with open(config_path, 'r', encoding='utf-8') as f:
+                with open(config_path, "r", encoding="utf-8") as f:
                     config = json.load(f)
 
             if "scan_pii" not in config:
@@ -480,7 +501,7 @@ class ScanPIIContent(SchemaDefaultsMixin, Container):
 
             config["scan_pii"]["ignore_files"].append(pattern)
 
-            with open(config_path, 'w', encoding='utf-8') as f:
+            with open(config_path, "w", encoding="utf-8") as f:
                 json.dump(config, f, indent=2)
 
             input_widget.value = ""
@@ -503,7 +524,7 @@ class ScanPIIContent(SchemaDefaultsMixin, Container):
         try:
             config = {}
             if config_path.exists():
-                with open(config_path, 'r', encoding='utf-8') as f:
+                with open(config_path, "r", encoding="utf-8") as f:
                     config = json.load(f)
 
             if "scan_pii" not in config:
@@ -517,7 +538,7 @@ class ScanPIIContent(SchemaDefaultsMixin, Container):
 
             config["scan_pii"]["ignore_tools"].append(pattern)
 
-            with open(config_path, 'w', encoding='utf-8') as f:
+            with open(config_path, "w", encoding="utf-8") as f:
                 json.dump(config, f, indent=2)
 
             input_widget.value = ""
@@ -536,6 +557,7 @@ class ScanPIIContent(SchemaDefaultsMixin, Container):
             return
 
         import re
+
         try:
             re.compile(pattern)
         except re.error as e:
@@ -547,7 +569,7 @@ class ScanPIIContent(SchemaDefaultsMixin, Container):
         try:
             config = {}
             if config_path.exists():
-                with open(config_path, 'r', encoding='utf-8') as f:
+                with open(config_path, "r", encoding="utf-8") as f:
                     config = json.load(f)
 
             if "scan_pii" not in config:
@@ -561,7 +583,7 @@ class ScanPIIContent(SchemaDefaultsMixin, Container):
 
             config["scan_pii"]["allowlist_patterns"].append(pattern)
 
-            with open(config_path, 'w', encoding='utf-8') as f:
+            with open(config_path, "w", encoding="utf-8") as f:
                 json.dump(config, f, indent=2)
 
             input_widget.value = ""

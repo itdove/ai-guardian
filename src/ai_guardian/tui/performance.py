@@ -1,7 +1,6 @@
 """Performance (Hook Latency) panel for the TUI console."""
 
 import json
-from pathlib import Path
 from typing import Any, Dict
 
 from textual.app import ComposeResult
@@ -86,6 +85,7 @@ class PerformanceContent(Container):
     def _get_retention_days() -> int:
         try:
             from ai_guardian.violation_logger import ViolationLogger
+
             vl = ViolationLogger()
             return vl.config.get("retention_days", 30)
         except Exception:
@@ -128,17 +128,23 @@ class PerformanceContent(Container):
                     )
 
                 with Horizontal(id="perf-config-buttons"):
-                    yield Button("Save Settings", id="perf-save-settings", variant="primary")
+                    yield Button(
+                        "Save Settings", id="perf-save-settings", variant="primary"
+                    )
                     yield Button("Clear Log", id="perf-clear-log", variant="warning")
 
             # Range buttons
             with Horizontal(id="perf-range-buttons"):
                 yield Button("7 days", id="perf-7d", variant="default")
-                yield Button("30 days", id="perf-30d",
-                             variant="primary" if self._retention_days >= 30 else "default",
-                             disabled=self._retention_days < 30)
-                yield Button(f"All ({self._retention_days}d)", id="perf-all",
-                             variant="default")
+                yield Button(
+                    "30 days",
+                    id="perf-30d",
+                    variant="primary" if self._retention_days >= 30 else "default",
+                    disabled=self._retention_days < 30,
+                )
+                yield Button(
+                    f"All ({self._retention_days}d)", id="perf-all", variant="default"
+                )
                 yield Button("Refresh", id="perf-refresh", variant="success")
 
             with Container(classes="section"):
@@ -146,11 +152,15 @@ class PerformanceContent(Container):
                 yield Static("Loading...", id="perf-invocations")
 
             with Container(classes="section"):
-                yield Static("[bold]Hook Latency Overview[/bold]", classes="section-title")
+                yield Static(
+                    "[bold]Hook Latency Overview[/bold]", classes="section-title"
+                )
                 yield Static("", id="perf-hook-table")
 
             with Container(classes="section"):
-                yield Static("[bold]Per-Check Breakdown[/bold]", classes="section-title")
+                yield Static(
+                    "[bold]Per-Check Breakdown[/bold]", classes="section-title"
+                )
                 yield Static("", id="perf-check-table")
 
     def on_mount(self) -> None:
@@ -164,6 +174,7 @@ class PerformanceContent(Container):
     def _load_config_ui(self):
         try:
             from ai_guardian.latency_logger import LatencyLogger
+
             cfg = LatencyLogger().config
         except Exception:
             cfg = {"enabled": False, "max_entries": 5000, "retention_days": 30}
@@ -175,11 +186,15 @@ class PerformanceContent(Container):
             pass  # intentionally silent — optional dependency
 
         try:
-            self.query_one("#perf-max-entries", Input).value = str(cfg.get("max_entries", 5000))
+            self.query_one("#perf-max-entries", Input).value = str(
+                cfg.get("max_entries", 5000)
+            )
         except Exception:
             pass  # intentionally silent — optional dependency
         try:
-            self.query_one("#perf-retention-days", Input).value = str(cfg.get("retention_days", 30))
+            self.query_one("#perf-retention-days", Input).value = str(
+                cfg.get("retention_days", 30)
+            )
         except Exception:
             pass
 
@@ -243,6 +258,7 @@ class PerformanceContent(Container):
     def _clear_log(self):
         try:
             from ai_guardian.latency_logger import LatencyLogger
+
             LatencyLogger().clear_log()
             self.app.notify("Latency log cleared", severity="warning")
             self._load_data()
@@ -271,6 +287,7 @@ class PerformanceContent(Container):
     def _load_data(self):
         try:
             from ai_guardian.latency_logger import LatencyComputer
+
             computer = LatencyComputer(since_days=self._since_days)
             report = computer.compute()
         except Exception as e:

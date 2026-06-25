@@ -1,8 +1,6 @@
 """Tests for daemon REST API."""
 
 import json
-import threading
-import time
 from unittest import mock
 from urllib.request import Request, urlopen
 
@@ -189,6 +187,7 @@ class TestRestAPIEndpoints:
         api, port, state = rest_api
         url = f"http://127.0.0.1:{port}/api/nonexistent"
         from urllib.error import HTTPError
+
         with pytest.raises(HTTPError) as exc_info:
             urlopen(url, timeout=5)
         assert exc_info.value.code == 404
@@ -337,12 +336,15 @@ class TestMetricsEndpoint:
         mock_report.cumulative_total = 0
         mock_report.cumulative_by_type = {}
         mock_report.cumulative_since = ""
-        with mock.patch(
-            "ai_guardian.metrics.MetricsComputer.__init__",
-            return_value=None,
-        ) as mock_init, mock.patch(
-            "ai_guardian.metrics.MetricsComputer.compute",
-            return_value=mock_report,
+        with (
+            mock.patch(
+                "ai_guardian.metrics.MetricsComputer.__init__",
+                return_value=None,
+            ) as mock_init,
+            mock.patch(
+                "ai_guardian.metrics.MetricsComputer.compute",
+                return_value=mock_report,
+            ),
         ):
             url = f"http://127.0.0.1:{port}/api/metrics?since_days=7"
             with urlopen(url, timeout=5) as resp:
@@ -356,14 +358,24 @@ class TestTrayPluginsEndpoint:
         api, port, state = rest_api
         plugins_dir = tmp_path / "tray-plugins"
         plugins_dir.mkdir()
-        (plugins_dir / "test.json").write_text(json.dumps({
-            "name": "TestPlugin",
-            "items": [{"label": "Hello", "command": "echo hi", "type": "background"}]
-        }))
-        with mock.patch("ai_guardian.daemon.get_tray_plugins_dir",
-                         return_value=plugins_dir), \
-             mock.patch("ai_guardian.daemon.tray_plugins._load_bundled_plugins",
-                         return_value=[]):
+        (plugins_dir / "test.json").write_text(
+            json.dumps(
+                {
+                    "name": "TestPlugin",
+                    "items": [
+                        {"label": "Hello", "command": "echo hi", "type": "background"}
+                    ],
+                }
+            )
+        )
+        with (
+            mock.patch(
+                "ai_guardian.daemon.get_tray_plugins_dir", return_value=plugins_dir
+            ),
+            mock.patch(
+                "ai_guardian.daemon.tray_plugins._load_bundled_plugins", return_value=[]
+            ),
+        ):
             url = f"http://127.0.0.1:{port}/api/tray-plugins"
             with urlopen(url, timeout=5) as resp:
                 data = json.loads(resp.read())
@@ -373,10 +385,15 @@ class TestTrayPluginsEndpoint:
 
     def test_get_tray_plugins_returns_empty_when_no_dir(self, rest_api, tmp_path):
         api, port, state = rest_api
-        with mock.patch("ai_guardian.daemon.get_tray_plugins_dir",
-                         return_value=tmp_path / "nonexistent"), \
-             mock.patch("ai_guardian.daemon.tray_plugins._load_bundled_plugins",
-                         return_value=[]):
+        with (
+            mock.patch(
+                "ai_guardian.daemon.get_tray_plugins_dir",
+                return_value=tmp_path / "nonexistent",
+            ),
+            mock.patch(
+                "ai_guardian.daemon.tray_plugins._load_bundled_plugins", return_value=[]
+            ),
+        ):
             url = f"http://127.0.0.1:{port}/api/tray-plugins"
             with urlopen(url, timeout=5) as resp:
                 data = json.loads(resp.read())
@@ -387,14 +404,22 @@ class TestTrayPluginsEndpoint:
         plugins_dir = tmp_path / "tray-plugins"
         plugins_dir.mkdir()
         for i in range(2):
-            (plugins_dir / f"p{i}.json").write_text(json.dumps({
-                "name": f"Plugin{i}",
-                "items": [{"label": f"Item{i}", "command": f"cmd{i}"}]
-            }))
-        with mock.patch("ai_guardian.daemon.get_tray_plugins_dir",
-                         return_value=plugins_dir), \
-             mock.patch("ai_guardian.daemon.tray_plugins._load_bundled_plugins",
-                         return_value=[]):
+            (plugins_dir / f"p{i}.json").write_text(
+                json.dumps(
+                    {
+                        "name": f"Plugin{i}",
+                        "items": [{"label": f"Item{i}", "command": f"cmd{i}"}],
+                    }
+                )
+            )
+        with (
+            mock.patch(
+                "ai_guardian.daemon.get_tray_plugins_dir", return_value=plugins_dir
+            ),
+            mock.patch(
+                "ai_guardian.daemon.tray_plugins._load_bundled_plugins", return_value=[]
+            ),
+        ):
             url = f"http://127.0.0.1:{port}/api/tray-plugins"
             with urlopen(url, timeout=5) as resp:
                 data = json.loads(resp.read())
@@ -446,6 +471,7 @@ class TestCheckEndpoint:
         req = Request(url, data=body, method="POST")
         req.add_header("Content-Type", "application/json")
         from urllib.error import HTTPError
+
         with pytest.raises(HTTPError) as exc_info:
             urlopen(req, timeout=5)
         assert exc_info.value.code == 400
@@ -453,12 +479,16 @@ class TestCheckEndpoint:
     def test_post_check_invalid_checks(self, rest_api):
         api, port, state = rest_api
         url = f"http://127.0.0.1:{port}/api/check"
-        body = json.dumps({
-            "content": "test", "checks": ["invalid_check"],
-        }).encode("utf-8")
+        body = json.dumps(
+            {
+                "content": "test",
+                "checks": ["invalid_check"],
+            }
+        ).encode("utf-8")
         req = Request(url, data=body, method="POST")
         req.add_header("Content-Type", "application/json")
         from urllib.error import HTTPError
+
         with pytest.raises(HTTPError) as exc_info:
             urlopen(req, timeout=5)
         assert exc_info.value.code == 400
@@ -466,12 +496,16 @@ class TestCheckEndpoint:
     def test_post_check_invalid_action(self, rest_api):
         api, port, state = rest_api
         url = f"http://127.0.0.1:{port}/api/check"
-        body = json.dumps({
-            "content": "test", "action": "invalid",
-        }).encode("utf-8")
+        body = json.dumps(
+            {
+                "content": "test",
+                "action": "invalid",
+            }
+        ).encode("utf-8")
         req = Request(url, data=body, method="POST")
         req.add_header("Content-Type", "application/json")
         from urllib.error import HTTPError
+
         with pytest.raises(HTTPError) as exc_info:
             urlopen(req, timeout=5)
         assert exc_info.value.code == 400
@@ -490,9 +524,12 @@ class TestCheckEndpoint:
     def test_post_check_specific_checks(self, rest_api):
         api, port, state = rest_api
         url = f"http://127.0.0.1:{port}/api/check"
-        body = json.dumps({
-            "content": "test", "checks": ["secrets"],
-        }).encode("utf-8")
+        body = json.dumps(
+            {
+                "content": "test",
+                "checks": ["secrets"],
+            }
+        ).encode("utf-8")
         req = Request(url, data=body, method="POST")
         req.add_header("Content-Type", "application/json")
         with urlopen(req, timeout=5) as resp:
@@ -537,9 +574,11 @@ class TestRedactEndpoint:
                 "stats": {"total": 1},
             },
         ):
-            body = json.dumps({
-                "content": "my token is ghp_abc123",
-            }).encode("utf-8")
+            body = json.dumps(
+                {
+                    "content": "my token is ghp_abc123",
+                }
+            ).encode("utf-8")
             req = Request(url, data=body, method="POST")
             req.add_header("Content-Type", "application/json")
             with urlopen(req, timeout=5) as resp:
@@ -565,6 +604,7 @@ class TestRedactEndpoint:
         req = Request(url, data=body, method="POST")
         req.add_header("Content-Type", "application/json")
         from urllib.error import HTTPError
+
         with pytest.raises(HTTPError) as exc_info:
             urlopen(req, timeout=5)
         assert exc_info.value.code == 400

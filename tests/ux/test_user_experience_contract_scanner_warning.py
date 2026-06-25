@@ -11,7 +11,7 @@ Issue #343: Display warning instead of blocking when default scanner is not inst
 import json
 from io import StringIO
 from unittest import TestCase
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch
 
 import ai_guardian
 from tests.fixtures.mock_mcp_server import create_hook_data
@@ -27,9 +27,11 @@ class ScannerNotInstalledWarningTests(TestCase):
     - Include the scanner name and install command in the warning
     """
 
-    @patch('ai_guardian.hook_processing.select_engine')
-    @patch('ai_guardian.hook_processing._load_secret_scanning_config')
-    def test_pretooluse_warns_when_scanner_not_installed(self, mock_config, mock_select_engine):
+    @patch("ai_guardian.hook_processing.select_engine")
+    @patch("ai_guardian.hook_processing._load_secret_scanning_config")
+    def test_pretooluse_warns_when_scanner_not_installed(
+        self, mock_config, mock_select_engine
+    ):
         """
         USER EXPERIENCE: Read file with no scanner installed → WARNING shown, operation ALLOWED.
 
@@ -50,7 +52,8 @@ class ScannerNotInstalledWarningTests(TestCase):
 
         import tempfile
         import os
-        with tempfile.NamedTemporaryFile(mode='w', delete=False) as f:
+
+        with tempfile.NamedTemporaryFile(mode="w", delete=False) as f:
             f.write("some file content")
             temp_path = f.name
 
@@ -58,38 +61,42 @@ class ScannerNotInstalledWarningTests(TestCase):
             hook_data = create_hook_data(
                 tool_name="Read",
                 tool_input={"file_path": temp_path},
-                hook_event="PreToolUse"
+                hook_event="PreToolUse",
             )
 
-            with patch('sys.stdin', StringIO(json.dumps(hook_data))):
+            with patch("sys.stdin", StringIO(json.dumps(hook_data))):
                 result = ai_guardian.process_hook_input()
 
-            assert result['exit_code'] == 0
+            assert result["exit_code"] == 0
 
-            response = json.loads(result['output'])
+            response = json.loads(result["output"])
 
             # CONTRACT: Operation is NOT blocked
-            assert 'hookSpecificOutput' not in response or \
-                response.get('hookSpecificOutput', {}).get('permissionDecision') != 'deny', \
-                "Must NOT deny when scanner is not installed (Issue #343)"
+            assert (
+                "hookSpecificOutput" not in response
+                or response.get("hookSpecificOutput", {}).get("permissionDecision")
+                != "deny"
+            ), "Must NOT deny when scanner is not installed (Issue #343)"
 
             # CONTRACT: Warning is shown via systemMessage
-            assert 'systemMessage' in response, \
-                "Must include warning via systemMessage"
-            warning = response['systemMessage']
-            assert 'WARNING' in warning, \
-                "Warning should contain WARNING indicator"
-            assert 'ai-guardian scanner install gitleaks' in warning, \
-                "Warning should contain install command with scanner name"
-            assert 'you may leak secrets' in warning, \
-                "Warning should mention risk of leaking secrets"
+            assert "systemMessage" in response, "Must include warning via systemMessage"
+            warning = response["systemMessage"]
+            assert "WARNING" in warning, "Warning should contain WARNING indicator"
+            assert (
+                "ai-guardian scanner install gitleaks" in warning
+            ), "Warning should contain install command with scanner name"
+            assert (
+                "you may leak secrets" in warning
+            ), "Warning should mention risk of leaking secrets"
 
         finally:
             os.unlink(temp_path)
 
-    @patch('ai_guardian.hook_processing.select_engine')
-    @patch('ai_guardian.hook_processing._load_secret_scanning_config')
-    def test_posttooluse_warns_when_scanner_not_installed(self, mock_config, mock_select_engine):
+    @patch("ai_guardian.hook_processing.select_engine")
+    @patch("ai_guardian.hook_processing._load_secret_scanning_config")
+    def test_posttooluse_warns_when_scanner_not_installed(
+        self, mock_config, mock_select_engine
+    ):
         """
         USER EXPERIENCE: Tool output with no scanner installed → WARNING shown, output ALLOWED.
 
@@ -112,29 +119,33 @@ class ScannerNotInstalledWarningTests(TestCase):
             "tool_response": {"stdout": "some command output", "stderr": ""},
         }
 
-        with patch('sys.stdin', StringIO(json.dumps(hook_data))):
+        with patch("sys.stdin", StringIO(json.dumps(hook_data))):
             result = ai_guardian.process_hook_input()
 
-        assert result['exit_code'] == 0
+        assert result["exit_code"] == 0
 
-        response = json.loads(result['output'])
+        response = json.loads(result["output"])
 
         # CONTRACT: Operation is NOT blocked
-        assert response.get('decision') != 'block', \
-            "Must NOT block PostToolUse when scanner is not installed"
+        assert (
+            response.get("decision") != "block"
+        ), "Must NOT block PostToolUse when scanner is not installed"
 
         # CONTRACT: Warning is shown via systemMessage
-        assert 'systemMessage' in response, \
-            "Must include warning via systemMessage for PostToolUse"
-        warning = response['systemMessage']
-        assert 'ai-guardian scanner install gitleaks' in warning, \
-            "Warning should contain install command"
-        assert 'you may leak secrets' in warning, \
-            "Warning should mention risk"
+        assert (
+            "systemMessage" in response
+        ), "Must include warning via systemMessage for PostToolUse"
+        warning = response["systemMessage"]
+        assert (
+            "ai-guardian scanner install gitleaks" in warning
+        ), "Warning should contain install command"
+        assert "you may leak secrets" in warning, "Warning should mention risk"
 
-    @patch('ai_guardian.hook_processing.select_engine')
-    @patch('ai_guardian.hook_processing._load_secret_scanning_config')
-    def test_prompt_warns_when_scanner_not_installed(self, mock_config, mock_select_engine):
+    @patch("ai_guardian.hook_processing.select_engine")
+    @patch("ai_guardian.hook_processing._load_secret_scanning_config")
+    def test_prompt_warns_when_scanner_not_installed(
+        self, mock_config, mock_select_engine
+    ):
         """
         USER EXPERIENCE: User prompt with no scanner installed → WARNING shown, prompt ALLOWED.
 
@@ -156,29 +167,33 @@ class ScannerNotInstalledWarningTests(TestCase):
             "prompt": "Please read the database config",
         }
 
-        with patch('sys.stdin', StringIO(json.dumps(hook_data))):
+        with patch("sys.stdin", StringIO(json.dumps(hook_data))):
             result = ai_guardian.process_hook_input()
 
-        assert result['exit_code'] == 0
+        assert result["exit_code"] == 0
 
-        response = json.loads(result['output'])
+        response = json.loads(result["output"])
 
         # CONTRACT: Prompt is NOT blocked
-        assert response.get('decision') != 'block', \
-            "Must NOT block prompt when scanner is not installed"
+        assert (
+            response.get("decision") != "block"
+        ), "Must NOT block prompt when scanner is not installed"
 
         # CONTRACT: Warning is shown via systemMessage
-        assert 'systemMessage' in response, \
-            "Must include warning via systemMessage for UserPromptSubmit"
-        warning = response['systemMessage']
-        assert 'ai-guardian scanner install gitleaks' in warning, \
-            "Warning should contain install command"
-        assert 'you may leak secrets' in warning, \
-            "Warning should mention risk"
+        assert (
+            "systemMessage" in response
+        ), "Must include warning via systemMessage for UserPromptSubmit"
+        warning = response["systemMessage"]
+        assert (
+            "ai-guardian scanner install gitleaks" in warning
+        ), "Warning should contain install command"
+        assert "you may leak secrets" in warning, "Warning should mention risk"
 
-    @patch('ai_guardian.hook_processing.select_engine')
-    @patch('ai_guardian.hook_processing._load_secret_scanning_config')
-    def test_warning_uses_configured_scanner_name(self, mock_config, mock_select_engine):
+    @patch("ai_guardian.hook_processing.select_engine")
+    @patch("ai_guardian.hook_processing._load_secret_scanning_config")
+    def test_warning_uses_configured_scanner_name(
+        self, mock_config, mock_select_engine
+    ):
         """
         USER EXPERIENCE: Warning dynamically uses the configured default scanner name.
 
@@ -193,18 +208,21 @@ class ScannerNotInstalledWarningTests(TestCase):
             "prompt": "test prompt",
         }
 
-        with patch('sys.stdin', StringIO(json.dumps(hook_data))):
+        with patch("sys.stdin", StringIO(json.dumps(hook_data))):
             result = ai_guardian.process_hook_input()
 
-        response = json.loads(result['output'])
-        warning = response.get('systemMessage', '')
+        response = json.loads(result["output"])
+        warning = response.get("systemMessage", "")
 
-        assert 'ai-guardian scanner install betterleaks' in warning, \
-            "Warning should suggest the configured default scanner (betterleaks), not hardcoded gitleaks"
+        assert (
+            "ai-guardian scanner install betterleaks" in warning
+        ), "Warning should suggest the configured default scanner (betterleaks), not hardcoded gitleaks"
 
-    @patch('ai_guardian.hook_processing.select_engine')
-    @patch('ai_guardian.hook_processing._load_secret_scanning_config')
-    def test_warning_defaults_to_toml_patterns_when_no_config(self, mock_config, mock_select_engine):
+    @patch("ai_guardian.hook_processing.select_engine")
+    @patch("ai_guardian.hook_processing._load_secret_scanning_config")
+    def test_warning_defaults_to_toml_patterns_when_no_config(
+        self, mock_config, mock_select_engine
+    ):
         """
         USER EXPERIENCE: Warning defaults to toml-patterns + gitleaks when no scanner config exists.
 
@@ -221,11 +239,12 @@ class ScannerNotInstalledWarningTests(TestCase):
             "prompt": "test prompt",
         }
 
-        with patch('sys.stdin', StringIO(json.dumps(hook_data))):
+        with patch("sys.stdin", StringIO(json.dumps(hook_data))):
             result = ai_guardian.process_hook_input()
 
-        response = json.loads(result['output'])
-        warning = response.get('systemMessage', '')
+        response = json.loads(result["output"])
+        warning = response.get("systemMessage", "")
 
-        assert 'scanner' in warning.lower(), \
-            "Warning should mention scanner when no engine is available"
+        assert (
+            "scanner" in warning.lower()
+        ), "Warning should mention scanner when no engine is available"

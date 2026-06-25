@@ -16,6 +16,7 @@ def _get_current_scope() -> str:
     """Get the current config scope from NiceGUI session state."""
     try:
         from nicegui import app
+
         return app.storage.user.get("config_scope", "global")
     except Exception:
         return "global"
@@ -25,6 +26,7 @@ def _get_project_dir() -> Optional[str]:
     """Get the project directory from NiceGUI session state."""
     try:
         from nicegui import app
+
         return app.storage.user.get("project_dir")
     except Exception:
         return None
@@ -48,6 +50,7 @@ def load_web_config() -> dict:
         project_cfg = _load_json_file(project_path)
         if project_cfg:
             from ai_guardian.config_utils import deep_merge
+
             return deep_merge(global_cfg, project_cfg)
 
     return global_cfg
@@ -60,11 +63,13 @@ def load_web_config_global() -> dict:
     """
     try:
         from ai_guardian.config_writer import load_scoped_config
+
         return load_scoped_config("global")
     except Exception:
         pass  # intentionally silent — optional dependency
 
     from ai_guardian.config_utils import get_config_dir
+
     path = get_config_dir() / "ai-guardian.json"
     if path.exists():
         try:
@@ -85,7 +90,11 @@ def save_web_config(config: dict) -> None:
     project_dir = _get_project_dir()
 
     try:
-        from ai_guardian.config_writer import _resolve_config_path, _atomic_config_update
+        from ai_guardian.config_writer import (
+            _resolve_config_path,
+            _atomic_config_update,
+        )
+
         config_path = _resolve_config_path(scope, project_dir)
 
         def updater(existing_config):
@@ -100,6 +109,7 @@ def save_web_config(config: dict) -> None:
         pass  # intentionally silent — optional dependency
 
     from ai_guardian.config_utils import get_config_dir
+
     path = get_config_dir() / "ai-guardian.json"
     path.parent.mkdir(parents=True, exist_ok=True)
     with open(path, "w", encoding="utf-8") as f:
@@ -112,6 +122,7 @@ def _invalidate_config_cache_after_save(scope: str, project_dir: Optional[str]) 
     """Invalidate the daemon config cache after a web console save."""
     try:
         from ai_guardian.config_loaders import _clear_config_cache
+
         if scope == "project" and project_dir:
             _clear_config_cache(project_key=project_dir)
         else:
@@ -124,6 +135,7 @@ def get_web_config_provenance() -> dict:
     """Get provenance information for the current config."""
     try:
         from ai_guardian.config_writer import compute_provenance
+
         return compute_provenance(_get_project_dir())
     except Exception:
         return {}

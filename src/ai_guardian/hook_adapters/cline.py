@@ -22,6 +22,7 @@ class ClineAdapter(HookAdapter):
     @property
     def ide_type(self):
         from ai_guardian.response_format import IDEType
+
         return IDEType.CLINE
 
     @property
@@ -34,8 +35,7 @@ class ClineAdapter(HookAdapter):
 
     def normalize_input(self, hook_data: Dict) -> NormalizedHookInput:
         event_name = (
-            hook_data.get("hook_event_name", "")
-            or hook_data.get("hookName", "")
+            hook_data.get("hook_event_name", "") or hook_data.get("hookName", "")
         ).lower()
 
         if event_name in ("userpromptsubmit",):

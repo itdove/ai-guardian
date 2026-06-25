@@ -8,6 +8,7 @@ mode (file-based). Used for security rule injection tracking (#584).
 
 try:
     import fcntl
+
     HAS_FCNTL = True
 except ImportError:
     HAS_FCNTL = False
@@ -124,7 +125,9 @@ class SessionStateManager:
                 if data and session_key in data.get("sessions", {}):
                     del data["sessions"][session_key]
                     self._write_file(data)
-                    logger.debug(f"Session cleanup: removed state for {session_key[:16]}...")
+                    logger.debug(
+                        f"Session cleanup: removed state for {session_key[:16]}..."
+                    )
             finally:
                 if HAS_FCNTL:
                     fcntl.flock(lock_fd, fcntl.LOCK_UN)
@@ -144,8 +147,12 @@ class SessionStateManager:
             return True
         return not entry.get("security_injected", False)
 
-    def _update_file(self, session_key: str, injected: Optional[bool] = None,
-                     reinject: Optional[bool] = None) -> None:
+    def _update_file(
+        self,
+        session_key: str,
+        injected: Optional[bool] = None,
+        reinject: Optional[bool] = None,
+    ) -> None:
         if not self._state_file:
             return
 
@@ -162,7 +169,8 @@ class SessionStateManager:
                 # Auto-prune sessions older than 24h
                 now = time.time()
                 expired = [
-                    k for k, v in sessions.items()
+                    k
+                    for k, v in sessions.items()
                     if now - v.get("last_activity", 0) > SESSION_TTL
                 ]
                 for k in expired:

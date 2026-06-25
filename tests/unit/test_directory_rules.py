@@ -124,13 +124,11 @@ class DirectoryRulesWithMarkersTest(unittest.TestCase):
             self.assertTrue(is_denied, "Should be denied by .ai-read-deny marker")
 
             # With allow rule: should be allowed (rule overrides marker)
-            config = {
-                "directory_rules": [
-                    {"mode": "allow", "paths": [tmpdir]}
-                ]
-            }
+            config = {"directory_rules": [{"mode": "allow", "paths": [tmpdir]}]}
             is_denied, _, _, _ = check_directory_denied(str(test_file), config)
-            self.assertFalse(is_denied, "Allow rule should override .ai-read-deny marker")
+            self.assertFalse(
+                is_denied, "Allow rule should override .ai-read-deny marker"
+            )
 
     def test_deny_marker_without_allow_rule(self):
         """Without allow rule, .ai-read-deny marker should block"""
@@ -140,14 +138,12 @@ class DirectoryRulesWithMarkersTest(unittest.TestCase):
             test_file = Path(tmpdir) / "test.txt"
             test_file.touch()
 
-            config = {
-                "directory_rules": [
-                    {"mode": "deny", "paths": ["/other/path"]}
-                ]
-            }
+            config = {"directory_rules": [{"mode": "deny", "paths": ["/other/path"]}]}
 
             is_denied, _, _, _ = check_directory_denied(str(test_file), config)
-            self.assertTrue(is_denied, ".ai-read-deny should block when no allow rule matches")
+            self.assertTrue(
+                is_denied, ".ai-read-deny should block when no allow rule matches"
+            )
 
     def test_deny_rule_without_marker(self):
         """Deny rule should block even without .ai-read-deny marker"""
@@ -156,11 +152,7 @@ class DirectoryRulesWithMarkersTest(unittest.TestCase):
             test_file = Path(tmpdir) / "test.txt"
             test_file.touch()
 
-            config = {
-                "directory_rules": [
-                    {"mode": "deny", "paths": [tmpdir]}
-                ]
-            }
+            config = {"directory_rules": [{"mode": "deny", "paths": [tmpdir]}]}
 
             is_denied, _, _, _ = check_directory_denied(str(test_file), config)
             self.assertTrue(is_denied, "Deny rule should block even without marker")
@@ -171,11 +163,7 @@ class DirectoryRulesWildcardsTest(unittest.TestCase):
 
     def test_recursive_wildcard(self):
         """** should match all subdirectories recursively"""
-        config = {
-            "directory_rules": [
-                {"mode": "deny", "paths": ["/tmp/skills/**"]}
-            ]
-        }
+        config = {"directory_rules": [{"mode": "deny", "paths": ["/tmp/skills/**"]}]}
 
         # Should match at any depth
         is_denied, _, _, _ = check_directory_denied("/tmp/skills/file.txt", config)
@@ -184,7 +172,9 @@ class DirectoryRulesWildcardsTest(unittest.TestCase):
         is_denied, _, _, _ = check_directory_denied("/tmp/skills/sub/file.txt", config)
         self.assertTrue(is_denied)
 
-        is_denied, _, _, _ = check_directory_denied("/tmp/skills/sub/deep/file.txt", config)
+        is_denied, _, _, _ = check_directory_denied(
+            "/tmp/skills/sub/deep/file.txt", config
+        )
         self.assertTrue(is_denied)
 
         # Should not match outside directory
@@ -195,9 +185,7 @@ class DirectoryRulesWildcardsTest(unittest.TestCase):
         """~ should expand to home directory"""
         home = os.path.expanduser("~")
         config = {
-            "directory_rules": [
-                {"mode": "deny", "paths": ["~/.claude/skills/**"]}
-            ]
+            "directory_rules": [{"mode": "deny", "paths": ["~/.claude/skills/**"]}]
         }
 
         # Should expand ~ and match
@@ -218,15 +206,12 @@ class BackwardCompatibilityTest(unittest.TestCase):
             test_file.touch()
 
             # Old format
-            config = {
-                "directory_exclusions": {
-                    "enabled": True,
-                    "paths": [tmpdir]
-                }
-            }
+            config = {"directory_exclusions": {"enabled": True, "paths": [tmpdir]}}
 
             is_denied, _, _, _ = check_directory_denied(str(test_file), config)
-            self.assertFalse(is_denied, "directory_exclusions should work as allow rules")
+            self.assertFalse(
+                is_denied, "directory_exclusions should work as allow rules"
+            )
 
     def test_exclusions_have_lower_priority_than_explicit_rules(self):
         """directory_exclusions should have lower priority than directory_rules"""
@@ -236,17 +221,14 @@ class BackwardCompatibilityTest(unittest.TestCase):
 
             # Exclusions say allow, but explicit rule says deny
             config = {
-                "directory_exclusions": {
-                    "enabled": True,
-                    "paths": [tmpdir]
-                },
-                "directory_rules": [
-                    {"mode": "deny", "paths": [tmpdir]}
-                ]
+                "directory_exclusions": {"enabled": True, "paths": [tmpdir]},
+                "directory_rules": [{"mode": "deny", "paths": [tmpdir]}],
             }
 
             is_denied, _, _, _ = check_directory_denied(str(test_file), config)
-            self.assertTrue(is_denied, "Explicit deny rule should override backward compat allow")
+            self.assertTrue(
+                is_denied, "Explicit deny rule should override backward compat allow"
+            )
 
 
 class SkillAllowlistExampleTest(unittest.TestCase):
@@ -262,11 +244,14 @@ class SkillAllowlistExampleTest(unittest.TestCase):
                 # First: deny all skills
                 {"mode": "deny", "paths": [f"{skills_dir}/**"]},
                 # Then: allow approved skills (wins because it's last)
-                {"mode": "allow", "paths": [
-                    f"{skills_dir}/bugfix-workflow/**",
-                    f"{skills_dir}/code-review/**",
-                    f"{skills_dir}/epic-breakdown-workflow/**"
-                ]}
+                {
+                    "mode": "allow",
+                    "paths": [
+                        f"{skills_dir}/bugfix-workflow/**",
+                        f"{skills_dir}/code-review/**",
+                        f"{skills_dir}/epic-breakdown-workflow/**",
+                    ],
+                },
             ]
         }
 
@@ -300,23 +285,18 @@ def test_directory_blocking():
         blocked_file = os.path.join(denied_dir, "blocked_file.txt")
         deeply_blocked_file = os.path.join(denied_subdir, "deeply_blocked_file.txt")
 
-        with open(allowed_file, 'w') as f:
+        with open(allowed_file, "w") as f:
             f.write("This file should be accessible")
-        with open(blocked_file, 'w') as f:
+        with open(blocked_file, "w") as f:
             f.write("This file should be blocked")
-        with open(deeply_blocked_file, 'w') as f:
+        with open(deeply_blocked_file, "w") as f:
             f.write("This nested file should also be blocked")
 
         deny_marker = os.path.join(denied_dir, ".ai-read-deny")
-        with open(deny_marker, 'w') as f:
+        with open(deny_marker, "w") as f:
             f.write("")
 
-        test_config = {
-            "directory_rules": {
-                "action": "block",
-                "rules": []
-            }
-        }
+        test_config = {"directory_rules": {"action": "block", "rules": []}}
 
         is_denied, denied_path, _, _ = check_directory_denied(allowed_file, test_config)
         assert not is_denied, "Allowed file was blocked"
@@ -326,7 +306,9 @@ def test_directory_blocking():
         assert is_denied, "Denied file was not blocked"
         assert denied_path == os.path.realpath(denied_dir)
 
-        is_denied, denied_path, _, _ = check_directory_denied(deeply_blocked_file, test_config)
+        is_denied, denied_path, _, _ = check_directory_denied(
+            deeply_blocked_file, test_config
+        )
         assert is_denied, "Nested file in denied directory was not blocked"
         assert denied_path == os.path.realpath(denied_dir)
 
@@ -354,14 +336,17 @@ class DirectoryRulesLogModeBugTest(unittest.TestCase):
             config = {
                 "directory_rules": {
                     "action": "warn",
-                    "rules": [
-                        {"mode": "deny", "paths": ["/some/other/path"]}
-                    ]
+                    "rules": [{"mode": "deny", "paths": ["/some/other/path"]}],
                 }
             }
 
-            is_denied, denied_dir, warn_msg, _ = check_directory_denied(test_file, config)
-            self.assertFalse(is_denied, "Warn mode should allow access even with .ai-read-deny marker")
+            is_denied, denied_dir, warn_msg, _ = check_directory_denied(
+                test_file, config
+            )
+            self.assertFalse(
+                is_denied,
+                "Warn mode should allow access even with .ai-read-deny marker",
+            )
             self.assertIsNone(denied_dir, "Should not be denied when action=warn")
             self.assertIsNotNone(warn_msg, "Should return warning message in warn mode")
             self.assertIn("warn mode", warn_msg.lower())
@@ -374,14 +359,11 @@ class DirectoryRulesLogModeBugTest(unittest.TestCase):
             test_file = os.path.join(tmpdir, "test.txt")
             Path(test_file).touch()
 
-            config = {
-                "directory_rules": {
-                    "action": "warn",
-                    "rules": []
-                }
-            }
+            config = {"directory_rules": {"action": "warn", "rules": []}}
 
-            is_denied, denied_dir, warn_msg, _ = check_directory_denied(test_file, config)
+            is_denied, denied_dir, warn_msg, _ = check_directory_denied(
+                test_file, config
+            )
             self.assertFalse(is_denied, "Warn mode should allow access")
             self.assertIsNone(denied_dir)
             self.assertIsNotNone(warn_msg, "Should return warning message in warn mode")
@@ -394,15 +376,14 @@ class DirectoryRulesLogModeBugTest(unittest.TestCase):
             test_file = os.path.join(tmpdir, "test.txt")
             Path(test_file).touch()
 
-            config = {
-                "directory_rules": {
-                    "action": "block",
-                    "rules": []
-                }
-            }
+            config = {"directory_rules": {"action": "block", "rules": []}}
 
-            is_denied, denied_dir, warn_msg, _ = check_directory_denied(test_file, config)
-            self.assertTrue(is_denied, "Block mode should deny access with .ai-read-deny marker")
+            is_denied, denied_dir, warn_msg, _ = check_directory_denied(
+                test_file, config
+            )
+            self.assertTrue(
+                is_denied, "Block mode should deny access with .ai-read-deny marker"
+            )
             self.assertIsNotNone(denied_dir)
             self.assertIsNone(warn_msg)
 
@@ -420,13 +401,10 @@ class DirectoryExclusionsTest(unittest.TestCase):
             allowed_dir = os.path.join(test_dir, "workspace")
             os.makedirs(allowed_dir)
             allowed_file = os.path.join(allowed_dir, "file.txt")
-            with open(allowed_file, 'w') as f:
+            with open(allowed_file, "w") as f:
                 f.write("test content")
             config = {
-                "directory_exclusions": {
-                    "enabled": True,
-                    "paths": [test_dir + "/**"]
-                }
+                "directory_exclusions": {"enabled": True, "paths": [test_dir + "/**"]}
             }
             is_denied, denied_dir, _, _ = check_directory_denied(allowed_file, config)
             self.assertFalse(is_denied, "Excluded directory should allow access")
@@ -441,19 +419,18 @@ class DirectoryExclusionsTest(unittest.TestCase):
             excluded_dir = os.path.join(test_dir, "workspace")
             os.makedirs(excluded_dir)
             deny_marker = os.path.join(excluded_dir, ".ai-read-deny")
-            with open(deny_marker, 'w') as f:
+            with open(deny_marker, "w") as f:
                 f.write("")
             blocked_file = os.path.join(excluded_dir, "file.txt")
-            with open(blocked_file, 'w') as f:
+            with open(blocked_file, "w") as f:
                 f.write("secret content")
             config = {
-                "directory_exclusions": {
-                    "enabled": True,
-                    "paths": [test_dir + "/**"]
-                }
+                "directory_exclusions": {"enabled": True, "paths": [test_dir + "/**"]}
             }
             is_denied, _, _, _ = check_directory_denied(blocked_file, config)
-            self.assertFalse(is_denied, "directory_exclusions should override .ai-read-deny")
+            self.assertFalse(
+                is_denied, "directory_exclusions should override .ai-read-deny"
+            )
         finally:
             shutil.rmtree(test_dir, ignore_errors=True)
 
@@ -465,24 +442,26 @@ class DirectoryExclusionsTest(unittest.TestCase):
             secrets_dir = os.path.join(excluded_dir, "secrets")
             os.makedirs(secrets_dir)
             deny_marker = os.path.join(secrets_dir, ".ai-read-deny")
-            with open(deny_marker, 'w') as f:
+            with open(deny_marker, "w") as f:
                 f.write("")
             allowed_file = os.path.join(excluded_dir, "public.txt")
             blocked_file = os.path.join(secrets_dir, "secret.txt")
-            with open(allowed_file, 'w') as f:
+            with open(allowed_file, "w") as f:
                 f.write("public content")
-            with open(blocked_file, 'w') as f:
+            with open(blocked_file, "w") as f:
                 f.write("secret content")
             config = {
                 "directory_exclusions": {
                     "enabled": True,
-                    "paths": [excluded_dir + "/**"]
+                    "paths": [excluded_dir + "/**"],
                 }
             }
             is_denied, _, _, _ = check_directory_denied(allowed_file, config)
             self.assertFalse(is_denied)
             is_denied, _, _, _ = check_directory_denied(blocked_file, config)
-            self.assertFalse(is_denied, "Parent exclusion should override subdirectory .ai-read-deny")
+            self.assertFalse(
+                is_denied, "Parent exclusion should override subdirectory .ai-read-deny"
+            )
         finally:
             shutil.rmtree(test_dir, ignore_errors=True)
 
@@ -493,12 +472,12 @@ class DirectoryExclusionsTest(unittest.TestCase):
         os.makedirs(test_dir, exist_ok=True)
         try:
             test_file = os.path.join(test_dir, "file.txt")
-            with open(test_file, 'w') as f:
+            with open(test_file, "w") as f:
                 f.write("test content")
             config = {
                 "directory_exclusions": {
                     "enabled": True,
-                    "paths": ["~/.ai_exclusion_test_tilde/**"]
+                    "paths": ["~/.ai_exclusion_test_tilde/**"],
                 }
             }
             is_denied, _, _, _ = check_directory_denied(test_file, config)
@@ -513,12 +492,12 @@ class DirectoryExclusionsTest(unittest.TestCase):
             deep_dir = os.path.join(test_dir, "repos", "public", "proj1", "src")
             os.makedirs(deep_dir)
             deep_file = os.path.join(deep_dir, "file.txt")
-            with open(deep_file, 'w') as f:
+            with open(deep_file, "w") as f:
                 f.write("test content")
             config = {
                 "directory_exclusions": {
                     "enabled": True,
-                    "paths": [os.path.join(test_dir, "repos", "**")]
+                    "paths": [os.path.join(test_dir, "repos", "**")],
                 }
             }
             is_denied, _, _, _ = check_directory_denied(deep_file, config)
@@ -531,13 +510,10 @@ class DirectoryExclusionsTest(unittest.TestCase):
         test_dir = tempfile.mkdtemp(prefix="ai_exclusion_test_")
         try:
             test_file = os.path.join(test_dir, "file.txt")
-            with open(test_file, 'w') as f:
+            with open(test_file, "w") as f:
                 f.write("test content")
             config = {
-                "directory_exclusions": {
-                    "enabled": False,
-                    "paths": [test_dir + "/**"]
-                }
+                "directory_exclusions": {"enabled": False, "paths": [test_dir + "/**"]}
             }
             is_denied, _, _, _ = check_directory_denied(test_file, config)
             self.assertFalse(is_denied, "Should allow (no marker, exclusions disabled)")
@@ -549,7 +525,7 @@ class DirectoryExclusionsTest(unittest.TestCase):
         test_dir = tempfile.mkdtemp(prefix="ai_exclusion_test_")
         try:
             test_file = os.path.join(test_dir, "file.txt")
-            with open(test_file, 'w') as f:
+            with open(test_file, "w") as f:
                 f.write("test content")
             config = {"permissions": []}
             is_denied, _, _, _ = check_directory_denied(test_file, config)
@@ -562,17 +538,12 @@ class DirectoryExclusionsTest(unittest.TestCase):
         test_dir = tempfile.mkdtemp(prefix="ai_exclusion_test_")
         try:
             test_file = os.path.join(test_dir, "file.txt")
-            with open(test_file, 'w') as f:
+            with open(test_file, "w") as f:
                 f.write("test content")
             config = {
                 "directory_exclusions": {
                     "enabled": True,
-                    "paths": [
-                        "/nonexistent/path/**",
-                        123,
-                        None,
-                        test_dir + "/**"
-                    ]
+                    "paths": ["/nonexistent/path/**", 123, None, test_dir + "/**"],
                 }
             }
             is_denied, _, _, _ = check_directory_denied(test_file, config)
@@ -585,14 +556,9 @@ class DirectoryExclusionsTest(unittest.TestCase):
         test_dir = tempfile.mkdtemp(prefix="ai_exclusion_test_")
         try:
             test_file = os.path.join(test_dir, "file.txt")
-            with open(test_file, 'w') as f:
+            with open(test_file, "w") as f:
                 f.write("test content")
-            config = {
-                "directory_exclusions": {
-                    "enabled": True,
-                    "paths": [test_dir]
-                }
-            }
+            config = {"directory_exclusions": {"enabled": True, "paths": [test_dir]}}
             is_denied, _, _, _ = check_directory_denied(test_file, config)
             self.assertFalse(is_denied, "Absolute path should work")
         finally:
@@ -603,7 +569,7 @@ class DirectoryExclusionsTest(unittest.TestCase):
         test_dir = tempfile.mkdtemp(prefix="ai_exclusion_test_")
         try:
             test_file = os.path.join(test_dir, "file.txt")
-            with open(test_file, 'w') as f:
+            with open(test_file, "w") as f:
                 f.write("test content")
             is_denied, _, _, _ = check_directory_denied(test_file, None)
             self.assertFalse(is_denied, "Should allow (no marker, no config)")

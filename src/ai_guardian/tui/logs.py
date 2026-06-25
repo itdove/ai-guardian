@@ -10,7 +10,7 @@ from pathlib import Path
 from typing import List, Tuple, Optional
 
 from textual.app import ComposeResult
-from textual.containers import Container, Horizontal, VerticalScroll, Vertical
+from textual.containers import Container, Horizontal, VerticalScroll
 from textual.widgets import Button, Static
 from textual.screen import ModalScreen
 from textual.binding import Binding
@@ -67,7 +67,7 @@ class ConfirmClearModal(ModalScreen):
             yield Static(
                 "This will permanently delete all log entries.\n"
                 "This action cannot be undone.",
-                id="modal-content"
+                id="modal-content",
             )
             with Horizontal(id="modal-actions"):
                 yield Button("Clear Log", id="confirm-clear", variant="error")
@@ -88,7 +88,9 @@ class ConfirmClearModal(ModalScreen):
 class LogEntry(Static):
     """Display a single log entry with color coding."""
 
-    def __init__(self, timestamp: str, module: str, level: str, message: str, *args, **kwargs):
+    def __init__(
+        self, timestamp: str, module: str, level: str, message: str, *args, **kwargs
+    ):
         """Initialize log entry."""
         self.timestamp = timestamp
         self.module = module
@@ -101,7 +103,7 @@ class LogEntry(Static):
             "INFO": "green",
             "WARNING": "yellow",
             "ERROR": "red",
-            "CRITICAL": "red bold"
+            "CRITICAL": "red bold",
         }
         level_color = level_colors.get(level, "")
 
@@ -165,13 +167,13 @@ class LogsContent(Container):
             Tuple of (timestamp, module, level, message) or None if parsing fails
         """
         # Format with version: timestamp - version - module - LEVEL - message
-        pattern_v = r'^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}) - [^ ]+ - ([^ ]+) - ([A-Z]+) - (.+)$'
+        pattern_v = r"^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}) - [^ ]+ - ([^ ]+) - ([A-Z]+) - (.+)$"
         match = re.match(pattern_v, line)
         if match:
             return match.groups()
 
         # Legacy format without version: timestamp - module - LEVEL - message
-        pattern = r'^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}) - ([^ ]+) - ([A-Z]+) - (.+)$'
+        pattern = r"^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}) - ([^ ]+) - ([A-Z]+) - (.+)$"
         match = re.match(pattern, line)
         if match:
             return match.groups()
@@ -195,7 +197,7 @@ class LogsContent(Container):
             "INFO": 20,
             "WARNING": 30,
             "ERROR": 40,
-            "CRITICAL": 50
+            "CRITICAL": 50,
         }
 
         entry_priority = level_priority.get(level, 0)
@@ -220,14 +222,18 @@ class LogsContent(Container):
         logs_display = self.query_one("#logs-display", Static)
 
         if not self.log_file.exists():
-            logs_display.update("No log file found.\n[dim]The log file will be created when ai-guardian runs.[/dim]")
+            logs_display.update(
+                "No log file found.\n[dim]The log file will be created when ai-guardian runs.[/dim]"
+            )
             return
 
         try:
             lines = self._read_last_n_lines(self.log_file, 500)
 
             if not lines:
-                logs_display.update("Log file is empty.\n[dim]Log entries will appear here when ai-guardian runs.[/dim]")
+                logs_display.update(
+                    "Log file is empty.\n[dim]Log entries will appear here when ai-guardian runs.[/dim]"
+                )
                 return
 
             log_entries = []
@@ -240,7 +246,9 @@ class LogsContent(Container):
                     log_entries.append((timestamp, module, level, message))
 
             if not log_entries:
-                logs_display.update(f"No log entries at {filter_level} level or above.\n[dim]Try a lower severity level.[/dim]")
+                logs_display.update(
+                    f"No log entries at {filter_level} level or above.\n[dim]Try a lower severity level.[/dim]"
+                )
                 return
 
             level_colors = {
@@ -273,7 +281,7 @@ class LogsContent(Container):
             List of lines (oldest first)
         """
         try:
-            with open(file_path, 'r', encoding='utf-8') as f:
+            with open(file_path, "r", encoding="utf-8") as f:
                 # Read all lines (for files under 5MB, this is fine)
                 lines = f.readlines()
                 return lines[-n:] if len(lines) > n else lines
@@ -289,24 +297,43 @@ class LogsContent(Container):
     ]
 
     def action_cycle_filter(self) -> None:
-        idx = self.FILTER_LEVELS.index(self.current_filter) if self.current_filter in self.FILTER_LEVELS else 0
+        idx = (
+            self.FILTER_LEVELS.index(self.current_filter)
+            if self.current_filter in self.FILTER_LEVELS
+            else 0
+        )
         self.current_filter = self.FILTER_LEVELS[(idx + 1) % len(self.FILTER_LEVELS)]
         self.load_logs(filter_level=self.current_filter)
-        labels = {"DEBUG": "ALL", "INFO": "INFO+", "WARNING": "WARN+", "ERROR": "ERROR+", "CRITICAL": "CRIT"}
-        self.app.notify(f"Filter: {labels[self.current_filter]}", severity="information")
+        labels = {
+            "DEBUG": "ALL",
+            "INFO": "INFO+",
+            "WARNING": "WARN+",
+            "ERROR": "ERROR+",
+            "CRITICAL": "CRIT",
+        }
+        self.app.notify(
+            f"Filter: {labels[self.current_filter]}", severity="information"
+        )
         self._update_header()
 
     def action_log_clear(self) -> None:
         def handle_clear(confirmed: bool) -> None:
             if confirmed:
                 self.clear_log_file()
+
         self.app.push_screen(ConfirmClearModal(), handle_clear)
 
     def action_log_open(self) -> None:
         self.open_log_file()
 
     def _update_header(self) -> None:
-        labels = {"DEBUG": "ALL", "INFO": "INFO+", "WARNING": "WARN+", "ERROR": "ERROR+", "CRITICAL": "CRIT"}
+        labels = {
+            "DEBUG": "ALL",
+            "INFO": "INFO+",
+            "WARNING": "WARN+",
+            "ERROR": "ERROR+",
+            "CRITICAL": "CRIT",
+        }
         label = labels.get(self.current_filter, "ALL")
         try:
             self.query_one("#logs-header", Static).update(
@@ -322,7 +349,7 @@ class LogsContent(Container):
         try:
             if self.log_file.exists():
                 # Clear the file by truncating it
-                with open(self.log_file, 'w', encoding='utf-8') as f:
+                with open(self.log_file, "w", encoding="utf-8") as f:
                     pass
 
                 self.load_logs()
@@ -353,4 +380,6 @@ class LogsContent(Container):
                 raise OSError("Unknown platform")
             self.app.notify(f"Opened: {self.log_file}", severity="information")
         except Exception:
-            self.app.notify(f"Log file: {self.log_file}", severity="information", timeout=10)
+            self.app.notify(
+                f"Log file: {self.log_file}", severity="information", timeout=10
+            )

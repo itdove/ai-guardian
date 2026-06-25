@@ -113,9 +113,7 @@ def test_engine(
                 global_path = client.get_patterns_path()
             else:
                 global_path = None
-            config_path = resolve_engine_config_path(
-                engine_config, global_path
-            )
+            config_path = resolve_engine_config_path(engine_config, global_path)
         except Exception as exc:
             logging.warning("Pattern server resolution failed: %s", exc)
 
@@ -200,6 +198,7 @@ def apply_strategy(
     elif strategy_name == "consensus":
         try:
             from ai_guardian import _load_secret_scanning_config
+
             cfg, _ = _load_secret_scanning_config()
             threshold = (cfg or {}).get("consensus_threshold", 2)
         except Exception:
@@ -226,6 +225,7 @@ def apply_strategy(
 # ---------------------------------------------------------------------------
 # Formatting helpers
 # ---------------------------------------------------------------------------
+
 
 def format_result(result: EngineTestResult) -> str:
     """Human-readable output for a single engine result."""
@@ -282,6 +282,7 @@ def format_comparison(results: List[EngineTestResult]) -> str:
 # ---------------------------------------------------------------------------
 # CLI entry-point
 # ---------------------------------------------------------------------------
+
 
 def engine_test_command(args) -> int:
     """CLI handler for ``ai-guardian engine-test``."""

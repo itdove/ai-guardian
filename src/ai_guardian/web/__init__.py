@@ -9,6 +9,7 @@ Requires NiceGUI (Python >= 3.10).
 
 try:
     from ai_guardian.web.app import WebConsole
+
     HAS_NICEGUI = True
 except ImportError:
     HAS_NICEGUI = False

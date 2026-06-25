@@ -65,7 +65,10 @@ class TestSecretlintOutputParser(unittest.TestCase):
                     {
                         "ruleId": "@secretlint/secretlint-rule-aws",
                         "message": "AWS key",
-                        "loc": {"start": {"line": 1, "column": 0}, "end": {"line": 1, "column": 20}},
+                        "loc": {
+                            "start": {"line": 1, "column": 0},
+                            "end": {"line": 1, "column": 20},
+                        },
                         "severity": "error",
                     }
                 ],
@@ -76,7 +79,10 @@ class TestSecretlintOutputParser(unittest.TestCase):
                     {
                         "ruleId": "@secretlint/secretlint-rule-github",
                         "message": "GitHub token",
-                        "loc": {"start": {"line": 5, "column": 0}, "end": {"line": 5, "column": 40}},
+                        "loc": {
+                            "start": {"line": 5, "column": 0},
+                            "end": {"line": 5, "column": 40},
+                        },
                         "severity": "error",
                     }
                 ],
@@ -90,21 +96,28 @@ class TestSecretlintOutputParser(unittest.TestCase):
 
     def test_parse_newline_delimited(self):
         lines = [
-            json.dumps({
-                "filePath": "/tmp/test.py",
-                "messages": [
-                    {
-                        "ruleId": "rule-aws",
-                        "message": "AWS key",
-                        "loc": {"start": {"line": 1, "column": 0}, "end": {"line": 1, "column": 20}},
-                        "severity": "error",
-                    }
-                ],
-            }),
-            json.dumps({
-                "filePath": "/tmp/test2.py",
-                "messages": [],
-            }),
+            json.dumps(
+                {
+                    "filePath": "/tmp/test.py",
+                    "messages": [
+                        {
+                            "ruleId": "rule-aws",
+                            "message": "AWS key",
+                            "loc": {
+                                "start": {"line": 1, "column": 0},
+                                "end": {"line": 1, "column": 20},
+                            },
+                            "severity": "error",
+                        }
+                    ],
+                }
+            ),
+            json.dumps(
+                {
+                    "filePath": "/tmp/test2.py",
+                    "messages": [],
+                }
+            ),
         ]
         path = self._write_output("\n".join(lines))
         result = self.parser.parse(path)
@@ -120,7 +133,9 @@ class TestSecretlintOutputParser(unittest.TestCase):
             "aws",
         )
         self.assertEqual(
-            SecretlintOutputParser._normalize_rule_id("@secretlint/secretlint-rule-github"),
+            SecretlintOutputParser._normalize_rule_id(
+                "@secretlint/secretlint-rule-github"
+            ),
             "github",
         )
         self.assertEqual(
