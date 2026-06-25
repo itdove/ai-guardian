@@ -454,6 +454,36 @@ class MultiDaemonClient:
             body["project_dir"] = project_dir
         return self._rest_request(target, "DELETE", "/api/config", body)
 
+    def write_config_bulk(
+        self,
+        target: DaemonTarget,
+        scope: str,
+        config: dict,
+        project_dir: Optional[str] = None,
+    ) -> Optional[dict]:
+        """Write an entire config dict to the specified scope."""
+        if target.runtime == "local":
+            from ai_guardian.config_writer import (
+                _resolve_config_path,
+                _atomic_config_update,
+            )
+
+            config_path = _resolve_config_path(scope, project_dir)
+
+            def updater(existing):
+                existing.clear()
+                existing.update(config)
+                return False, f"Bulk write [{scope}]"
+
+            _atomic_config_update(config_path, updater)
+            return {"status": "ok"}
+        body: dict = {"scope": scope, "config": config}
+        if project_dir:
+            body["project_dir"] = project_dir
+        return self._rest_request(
+            target, "POST", "/api/config/bulk", body, timeout=10.0
+        )
+
     def get_cache_status(self, target: DaemonTarget) -> Optional[dict]:
         """Get per-project config cache status from a daemon."""
         return self._rest_request(target, "GET", "/api/cache-status")

@@ -212,34 +212,29 @@ def _categorize_violation(reason):
 
 
 def _load_recent_violations():
-    try:
-        from ai_guardian.violation_logger import ViolationLogger
+    from ai_guardian.web.config_helpers import load_web_violations
 
-        vl = ViolationLogger()
-        violations = vl.get_recent_violations(limit=100)
-        now = datetime.now(timezone.utc)
-        recent = []
-        for v in violations:
-            ts = v.get("timestamp", "")
-            try:
-                dt = datetime.fromisoformat(ts.replace("Z", "+00:00"))
-                if (now - dt).total_seconds() <= 86400:
-                    recent.append(v)
-            except (ValueError, TypeError):
-                pass  # intentionally silent — best-effort operation
-        return recent
-    except Exception:
-        return []
+    result = load_web_violations(limit=100)
+    violations = result.get("violations", []) if result else []
+    now = datetime.now(timezone.utc)
+    recent = []
+    for v in violations:
+        ts = v.get("timestamp", "")
+        try:
+            dt = datetime.fromisoformat(ts.replace("Z", "+00:00"))
+            if (now - dt).total_seconds() <= 86400:
+                recent.append(v)
+        except (ValueError, TypeError):
+            pass  # intentionally silent — best-effort operation
+    return recent
 
 
 def _load_total_violation_count():
-    try:
-        from ai_guardian.violation_logger import ViolationLogger
+    from ai_guardian.web.config_helpers import load_web_violations
 
-        vl = ViolationLogger()
-        return len(vl.get_recent_violations(limit=1000))
-    except Exception:
-        return 0
+    result = load_web_violations()
+    violations = result.get("violations", []) if result else []
+    return len(violations)
 
 
 def _fmt_remaining(seconds):

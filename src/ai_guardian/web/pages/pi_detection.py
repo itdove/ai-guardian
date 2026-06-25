@@ -58,24 +58,18 @@ def _parse_enabled(raw):
 
 
 def _load_pi_stats():
-    try:
-        from ai_guardian.violation_logger import ViolationLogger
+    from ai_guardian.web.config_helpers import load_web_violations
 
-        vl = ViolationLogger()
-        violations = vl.get_recent_violations(
-            limit=1000, violation_type="prompt_injection"
-        )
-        if not violations:
-            return 0, {}
-        total = len(violations)
-        by_detector = {}
-        for v in violations:
-            blocked = v.get("blocked", {}) or {}
-            det = blocked.get("detector", "unknown")
-            by_detector[det] = by_detector.get(det, 0) + 1
-        return total, by_detector
-    except Exception:
-        return None, None
+    result = load_web_violations(violation_type="prompt_injection")
+    violations = result.get("violations", []) if result else []
+    if not violations:
+        return 0, {}
+    by_detector = {}
+    for v in violations:
+        blocked = v.get("blocked", {}) or {}
+        det = blocked.get("detector", "unknown")
+        by_detector[det] = by_detector.get(det, 0) + 1
+    return len(violations), by_detector
 
 
 def _render_toggle(

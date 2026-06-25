@@ -5,10 +5,45 @@ import json
 from nicegui import run, ui
 
 from ai_guardian.web.components.header import create_header, create_sidebar
+from ai_guardian.web.config_helpers import (
+    _get_current_target,
+    _is_remote_target,
+    _daemon_service,
+)
 
 
 def _load_config_files():
-    """Load both global and project config file info."""
+    """Load both global and project config file info.
+
+    For remote daemons, fetches config via REST API instead of local filesystem.
+    """
+    target = _get_current_target()
+    if _is_remote_target(target):
+        return _load_remote_config_files(target)
+    return _load_local_config_files()
+
+
+def _load_remote_config_files(target):
+    """Load config from a remote daemon via REST API."""
+    result = {
+        "global_path": f"(remote: {target.name})",
+        "global_exists": False,
+        "global_content": None,
+        "project_path": None,
+        "project_exists": False,
+        "project_content": None,
+    }
+
+    global_cfg = _daemon_service.get_config_scoped(target, "global")
+    if global_cfg is not None:
+        result["global_exists"] = True
+        result["global_content"] = json.dumps(global_cfg, indent=2)
+
+    return result
+
+
+def _load_local_config_files():
+    """Load config from local filesystem."""
     from ai_guardian.config_utils import get_config_dir, get_project_config_path
 
     global_path = get_config_dir() / "ai-guardian.json"

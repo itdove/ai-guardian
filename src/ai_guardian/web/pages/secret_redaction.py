@@ -119,24 +119,18 @@ def _parse_enabled(raw):
 
 def _load_redaction_stats():
     """Load redaction statistics from violation logger."""
-    try:
-        from ai_guardian.violation_logger import ViolationLogger
+    from ai_guardian.web.config_helpers import load_web_violations
 
-        vl = ViolationLogger()
-        violations = vl.get_recent_violations(
-            limit=1000, violation_type="secret_detected"
-        )
-        if not violations:
-            return 0, {}
-        total = len(violations)
-        by_type = {}
-        for v in violations:
-            blocked = v.get("blocked", {}) or {}
-            stype = blocked.get("secret_type", "unknown")
-            by_type[stype] = by_type.get(stype, 0) + 1
-        return total, by_type
-    except Exception:
-        return None, None
+    result = load_web_violations(violation_type="secret_detected")
+    violations = result.get("violations", []) if result else []
+    if not violations:
+        return 0, {}
+    by_type = {}
+    for v in violations:
+        blocked = v.get("blocked", {}) or {}
+        stype = blocked.get("secret_type", "unknown")
+        by_type[stype] = by_type.get(stype, 0) + 1
+    return len(violations), by_type
 
 
 def _render_toggle(

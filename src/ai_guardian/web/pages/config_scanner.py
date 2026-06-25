@@ -75,16 +75,12 @@ def _parse_enabled(raw):
 
 
 def _load_stats():
-    try:
-        from ai_guardian.violation_logger import ViolationLogger
+    from ai_guardian.web.config_helpers import load_web_violations
 
-        vl = ViolationLogger()
-        violations = vl.get_recent_violations(
-            limit=1000, violation_type="config_file_exfil"
-        )
-        return len(violations) if violations else 0
-    except Exception:
-        return None
+    result = load_web_violations(violation_type="config_file_exfil")
+    if result and result.get("violations"):
+        return len(result["violations"])
+    return 0
 
 
 def _render_toggle(

@@ -169,6 +169,14 @@ def create_logs_page(service, daemon_name: str):
 
             async def load_logs():
                 content.clear()
+                from ai_guardian.web.config_helpers import is_remote_daemon
+
+                if is_remote_daemon():
+                    with content:
+                        ui.label(
+                            "Log viewer is not available for remote daemons."
+                        ).classes("text-grey-6")
+                    return
                 log_path = _get_log_path()
                 log_path_label.text = f"File: {log_path}"
 

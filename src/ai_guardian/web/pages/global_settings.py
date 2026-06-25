@@ -291,10 +291,21 @@ def create_global_settings_page(service, daemon_name: str):
 
                 with content:
                     with ui.row().classes("items-center gap-2"):
-                        from ai_guardian.config_utils import get_config_dir
+                        from ai_guardian.web.config_helpers import (
+                            _get_current_target,
+                            _is_remote_target,
+                        )
 
-                        path = get_config_dir() / "ai-guardian.json"
-                        ui.label(f"Config: {path}").classes("text-xs text-grey-6")
+                        _target = _get_current_target()
+                        if _is_remote_target(_target):
+                            path_label = f"Config: (remote: {_target.name})"
+                        else:
+                            from ai_guardian.config_utils import get_config_dir
+
+                            path_label = (
+                                f"Config: {get_config_dir() / 'ai-guardian.json'}"
+                            )
+                        ui.label(path_label).classes("text-xs text-grey-6")
                         ui.badge(
                             scope_label,
                             color="green" if scope_label == "Global" else "blue",

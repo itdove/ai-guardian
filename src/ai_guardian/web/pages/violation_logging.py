@@ -49,35 +49,25 @@ def _parse_duration(text):
 
 
 def _save_vlog_config(updates):
-    from ai_guardian.config_utils import get_config_dir
+    from ai_guardian.web.config_helpers import load_web_config, save_web_config
 
-    path = get_config_dir() / "ai-guardian.json"
-    path.parent.mkdir(parents=True, exist_ok=True)
-    config = {}
-    if path.exists():
-        try:
-            with open(path, "r", encoding="utf-8") as f:
-                config = json.load(f)
-        except Exception as e:
-            logging.warning("Failed to read config: %s", e)
+    config = load_web_config()
     if "violation_logging" not in config:
         config["violation_logging"] = {}
     config["violation_logging"].update(updates)
-    with open(path, "w", encoding="utf-8") as f:
-        json.dump(config, f, indent=2)
-        f.write("\n")
+    save_web_config(config)
 
 
 def _load_local_stats():
-    from ai_guardian.violation_logger import ViolationLogger
+    from ai_guardian.web.config_helpers import load_web_violations
 
-    vl = ViolationLogger()
-    recent = vl.get_recent_violations(limit=1000)
+    result = load_web_violations()
+    violations = result.get("violations", []) if result else []
     type_counts = {}
-    for v in recent:
+    for v in violations:
         vtype = v.get("violation_type", v.get("type", "unknown"))
         type_counts[vtype] = type_counts.get(vtype, 0) + 1
-    return {"total": len(recent), "by_type": type_counts}
+    return {"total": len(violations), "by_type": type_counts}
 
 
 def _format_remaining(dt):

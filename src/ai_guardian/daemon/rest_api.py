@@ -52,12 +52,17 @@ class _RestHandler(BaseHTTPRequestHandler):
             self._send_json(self._get_tray_plugins())
         elif path == "/api/config":
             qs = urllib.parse.parse_qs(parsed.query)
-            scope = qs.get("scope", ["merged"])[0]
             project_dir = qs.get("project_dir", [None])[0]
-            if scope in ("global", "project", "merged"):
-                self._send_json(self._get_config_scoped(scope, project_dir))
+            if "scope" not in qs:
+                self._send_json(self._get_config())
             else:
-                self._send_error(400, "scope must be 'global', 'project', or 'merged'")
+                scope = qs["scope"][0]
+                if scope in ("global", "project", "merged"):
+                    self._send_json(self._get_config_scoped(scope, project_dir))
+                else:
+                    self._send_error(
+                        400, "scope must be 'global', 'project', or 'merged'"
+                    )
         elif path == "/api/config/provenance":
             qs = urllib.parse.parse_qs(parsed.query)
             project_dir = qs.get("project_dir", [None])[0]
@@ -195,6 +200,11 @@ class _RestHandler(BaseHTTPRequestHandler):
             if body is None:
                 return
             self._handle_config_write(body)
+        elif self.path == "/api/config/bulk":
+            body = self._read_body(max_size=self._MAX_CONTENT_SIZE)
+            if body is None:
+                return
+            self._handle_config_bulk_write(body)
         elif self.path == "/api/scan":
             body = self._read_body()
             if body is None:
@@ -300,14 +310,14 @@ class _RestHandler(BaseHTTPRequestHandler):
 
     @staticmethod
     def _get_config_scoped(scope, project_dir=None):
-        if scope == "merged":
-            return _RestHandler._get_config()
         try:
             from ai_guardian.config_writer import load_scoped_config
 
             return load_scoped_config(scope, project_dir)
         except Exception as e:
             logger.debug("Failed to get scoped config: %s", e)
+            if scope == "merged":
+                return _RestHandler._get_config()
             return {}
 
     @staticmethod
@@ -370,6 +380,38 @@ class _RestHandler(BaseHTTPRequestHandler):
                 self._send_error(400, msg)
         except Exception as e:
             logger.error("Config delete failed: %s", e)
+            self._send_error(500, "Internal error")
+
+    def _handle_config_bulk_write(self, body):
+        """Handle POST /api/config/bulk — write entire config dict."""
+        scope = body.get("scope")
+        if scope not in ("global", "project"):
+            self._send_error(400, "scope must be 'global' or 'project'")
+            return
+        config = body.get("config")
+        if not isinstance(config, dict):
+            self._send_error(400, "config must be a dict")
+            return
+        project_dir = body.get("project_dir")
+
+        try:
+            from ai_guardian.config_writer import (
+                _resolve_config_path,
+                _atomic_config_update,
+            )
+
+            config_path = _resolve_config_path(scope, project_dir)
+
+            def updater(existing_config):
+                existing_config.clear()
+                existing_config.update(config)
+                return False, f"Bulk config write [{scope}]"
+
+            _atomic_config_update(config_path, updater)
+            self.server.daemon_state.force_reload_config()
+            self._send_json({"status": "ok", "scope": scope})
+        except Exception as e:
+            logger.error("Bulk config write failed: %s", e)
             self._send_error(500, "Internal error")
 
     @staticmethod
