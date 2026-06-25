@@ -6,7 +6,6 @@ in tool permission checking.
 """
 
 from unittest import TestCase
-from unittest.mock import patch
 
 from ai_guardian.tool_policy import ToolPolicyChecker
 from tests.fixtures.mock_mcp_server import create_hook_data
@@ -22,19 +21,15 @@ class ToolPolicyRuleMatchingTests(TestCase):
             "permissions": {
                 "enabled": True,
                 "rules": [
-                    {
-                        "matcher": "tool_name",
-                        "mode": "deny",
-                        "patterns": ["mcp__*"]
-                    }
-                ]
+                    {"matcher": "tool_name", "mode": "deny", "patterns": ["mcp__*"]}
+                ],
             }
         }
 
         policy_checker = ToolPolicyChecker(config=config)
         hook_data = create_hook_data(
             tool_name=attack_constants.MCP_TOOL_NOTEBOOKLM_CREATE,
-            tool_input={"title": "Test"}
+            tool_input={"title": "Test"},
         )
 
         allowed, error_msg, _ = policy_checker.check_tool_allowed(hook_data)
@@ -46,12 +41,8 @@ class ToolPolicyRuleMatchingTests(TestCase):
             "permissions": {
                 "enabled": True,
                 "rules": [
-                    {
-                        "matcher": "tool_name",
-                        "mode": "deny",
-                        "patterns": ["bash"]
-                    }
-                ]
+                    {"matcher": "tool_name", "mode": "deny", "patterns": ["bash"]}
+                ],
             }
         }
 
@@ -72,17 +63,9 @@ class ToolPolicyRuleOrderingTests(TestCase):
             "permissions": {
                 "enabled": True,
                 "rules": [
-                    {
-                        "matcher": "Bash",
-                        "mode": "deny",
-                        "patterns": ["*"]
-                    },
-                    {
-                        "matcher": "Bash",
-                        "mode": "allow",
-                        "patterns": ["*"]
-                    }
-                ]
+                    {"matcher": "Bash", "mode": "deny", "patterns": ["*"]},
+                    {"matcher": "Bash", "mode": "allow", "patterns": ["*"]},
+                ],
             }
         }
 
@@ -97,13 +80,7 @@ class ToolPolicyRuleOrderingTests(TestCase):
         config = {
             "permissions": {
                 "enabled": True,
-                "rules": [
-                    {
-                        "matcher": "Bash",
-                        "mode": "deny",
-                        "patterns": ["*"]
-                    }
-                ]
+                "rules": [{"matcher": "Bash", "mode": "deny", "patterns": ["*"]}],
             }
         }
         policy_checker = ToolPolicyChecker(config=config)
@@ -114,7 +91,9 @@ class ToolPolicyRuleOrderingTests(TestCase):
         assert not allowed, "MCP tool with no matching rule should be blocked"
 
         # Built-in tools without matching rules are allowed
-        hook_data = create_hook_data(tool_name="Read", tool_input={"file_path": "/tmp/test"})
+        hook_data = create_hook_data(
+            tool_name="Read", tool_input={"file_path": "/tmp/test"}
+        )
         allowed, error_msg, _ = policy_checker.check_tool_allowed(hook_data)
         assert allowed, "Built-in tool with no matching rule should be allowed"
 
@@ -127,13 +106,7 @@ class ToolPolicyConfigVariationsTests(TestCase):
         config = {
             "permissions": {
                 "enabled": False,
-                "rules": [
-                    {
-                        "matcher": "tool_name",
-                        "mode": "deny",
-                        "patterns": ["*"]
-                    }
-                ]
+                "rules": [{"matcher": "tool_name", "mode": "deny", "patterns": ["*"]}],
             }
         }
 
@@ -145,12 +118,7 @@ class ToolPolicyConfigVariationsTests(TestCase):
 
     def test_empty_rules_list(self):
         """Test configuration with empty rules list — built-in tools still allowed"""
-        config = {
-            "permissions": {
-                "enabled": True,
-                "rules": []
-            }
-        }
+        config = {"permissions": {"enabled": True, "rules": []}}
 
         policy_checker = ToolPolicyChecker(config=config)
         hook_data = create_hook_data(tool_name="Bash", tool_input={"command": "ls"})
@@ -179,7 +147,7 @@ class ToolPolicyConfigVariationsTests(TestCase):
                         # Missing matcher and mode
                         "patterns": ["Bash"]
                     }
-                ]
+                ],
             }
         }
 
@@ -203,13 +171,7 @@ class ToolPolicyEdgeCasesTests(TestCase):
         config = {
             "permissions": {
                 "enabled": True,
-                "rules": [
-                    {
-                        "matcher": "tool_name",
-                        "mode": "deny",
-                        "patterns": ["*"]
-                    }
-                ]
+                "rules": [{"matcher": "tool_name", "mode": "deny", "patterns": ["*"]}],
             }
         }
 
@@ -228,13 +190,7 @@ class ToolPolicyEdgeCasesTests(TestCase):
         config = {
             "permissions": {
                 "enabled": True,
-                "rules": [
-                    {
-                        "matcher": "tool_name",
-                        "mode": "deny",
-                        "patterns": ["*"]
-                    }
-                ]
+                "rules": [{"matcher": "tool_name", "mode": "deny", "patterns": ["*"]}],
             }
         }
 
@@ -253,13 +209,7 @@ class ToolPolicyEdgeCasesTests(TestCase):
         config = {
             "permissions": {
                 "enabled": True,
-                "rules": [
-                    {
-                        "matcher": "tool_name",
-                        "mode": "deny",
-                        "patterns": ["*"]
-                    }
-                ]
+                "rules": [{"matcher": "tool_name", "mode": "deny", "patterns": ["*"]}],
             }
         }
 

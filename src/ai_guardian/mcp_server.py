@@ -20,7 +20,7 @@ import sys
 import tempfile
 import time
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, Optional, Tuple
 
 logger = logging.getLogger(__name__)
 
@@ -61,7 +61,6 @@ def _load_mcp_config() -> Dict:
         return {}
 
 
-
 def _load_full_config() -> Optional[Dict]:
     """Load full ai-guardian.json config."""
     from ai_guardian.config_utils import get_config_dir
@@ -76,7 +75,6 @@ def _load_full_config() -> Optional[Dict]:
             return json.load(f)
     except Exception:
         return None
-
 
 
 def _load_skill_instructions() -> str:
@@ -105,7 +103,12 @@ def _load_skill_instructions() -> str:
 
 
 _BLOCKED_SYSTEM_DIRS = (
-    "/etc", "/sys", "/proc", "/dev", "/boot", "/sbin",
+    "/etc",
+    "/sys",
+    "/proc",
+    "/dev",
+    "/boot",
+    "/sbin",
     "/private/etc",
 )
 
@@ -144,7 +147,6 @@ def create_server() -> "FastMCP":
     _OPERATION_TO_TOOL = {"read": "Read", "write": "Write", "edit": "Edit"}
 
     @server.tool()
-
     def check_path(path: str, operation: str = "read") -> Dict[str, str]:
         """Check if a file path is protected by directory rules. Call before Read/Write/Edit on unfamiliar paths. Returns allowed/denied/not_found so you can distinguish between protected paths and missing files.
 
@@ -174,7 +176,6 @@ def create_server() -> "FastMCP":
             return {"status": "error", "message": "Unable to check path"}
 
     @server.tool()
-
     def check_command(command: str) -> Dict[str, str]:
         """Check if a Bash command would be blocked. Call before running commands with URLs or file paths. Results are advisory — hooks provide enforcement."""
         try:
@@ -205,7 +206,6 @@ def create_server() -> "FastMCP":
             return {"status": "error", "message": "Unable to check command"}
 
     @server.tool()
-
     def check_mcp_trust(server_name: str) -> Dict[str, str]:
         """Check if an MCP server is trusted based on permission rules. Call before suggesting MCP server usage."""
         try:
@@ -225,7 +225,6 @@ def create_server() -> "FastMCP":
             return {"status": "error", "message": "Unable to check MCP trust"}
 
     @server.tool()
-
     def sanitize_text(text: str) -> Dict[str, Any]:
         """Redact secrets and PII from text. Call before outputting potentially sensitive content."""
         try:
@@ -246,7 +245,6 @@ def create_server() -> "FastMCP":
             return {"sanitized_text": text, "redaction_count": 0, "types": []}
 
     @server.tool()
-
     def sanitize_directory(
         path: str,
         output_path: Optional[str] = None,
@@ -267,7 +265,10 @@ def create_server() -> "FastMCP":
                 out_dir = Path(output_path).resolve()
                 try:
                     out_dir.relative_to(resolved)
-                    return {"status": "error", "message": "Output directory cannot be inside source directory"}
+                    return {
+                        "status": "error",
+                        "message": "Output directory cannot be inside source directory",
+                    }
                 except ValueError:
                     pass  # intentionally silent — best-effort operation
             else:
@@ -276,8 +277,14 @@ def create_server() -> "FastMCP":
 
             from ai_guardian.sanitizer import sanitize_directory as _sanitize_dir
 
-            strategy = redact_strategy if redact_strategy in ("blur", "blackout", "pixelate") else "blackout"
-            result = _sanitize_dir(input_dir=resolved, output_dir=out_dir, redact_strategy=strategy)
+            strategy = (
+                redact_strategy
+                if redact_strategy in ("blur", "blackout", "pixelate")
+                else "blackout"
+            )
+            result = _sanitize_dir(
+                input_dir=resolved, output_dir=out_dir, redact_strategy=strategy
+            )
 
             return {
                 "output_path": str(out_dir),
@@ -295,7 +302,6 @@ def create_server() -> "FastMCP":
             return {"status": "error", "message": "Unable to sanitize directory"}
 
     @server.tool()
-
     def check_annotations(file_path: str) -> Dict[str, Any]:
         """Verify ai-guardian annotation pairs are matched in a file. Results are advisory — hooks provide enforcement."""
         try:
@@ -305,7 +311,12 @@ def create_server() -> "FastMCP":
             if not path.exists():
                 return {"valid": False, "warnings": [f"File not found: {file_path}"]}
             resolved = path.resolve()
-            from ai_guardian.config_utils import get_config_dir, get_state_dir, get_cache_dir
+            from ai_guardian.config_utils import (
+                get_config_dir,
+                get_state_dir,
+                get_cache_dir,
+            )
+
             protected_dirs = (get_config_dir(), get_state_dir(), get_cache_dir())
             for pdir in protected_dirs:
                 try:
@@ -326,7 +337,6 @@ def create_server() -> "FastMCP":
     # ─── Information Tools (query) ────────────────────────────────
 
     @server.tool()
-
     def get_violations(
         violation_type: Optional[str] = None,
         limit: int = 20,
@@ -373,7 +383,6 @@ def create_server() -> "FastMCP":
             return {"violations": [], "count": 0}
 
     @server.tool()
-
     def get_config() -> Dict[str, Any]:
         """Get current security posture summary. Returns feature enabled/disabled status only — no security rule details. Re-reads config on every call to reflect changes."""
         try:
@@ -405,8 +414,12 @@ def create_server() -> "FastMCP":
 
             si_section = config.get("security_instructions", {})
             features["security_instructions"] = is_feature_enabled(
-                si_section.get("inject_on_prompt") if isinstance(si_section, dict) else None,
-                default=True
+                (
+                    si_section.get("inject_on_prompt")
+                    if isinstance(si_section, dict)
+                    else None
+                ),
+                default=True,
             )
 
             action = config.get("action", "block")
@@ -417,6 +430,7 @@ def create_server() -> "FastMCP":
             features["proactive_level"] = mcp_section.get("proactive_level", "low")
 
             from ai_guardian.config_utils import get_project_config_path
+
             project_path = get_project_config_path()
             features["project_config"] = str(project_path) if project_path else None
 
@@ -426,7 +440,6 @@ def create_server() -> "FastMCP":
             return {"features": {}}
 
     @server.tool()
-
     def get_scanner_status() -> Dict[str, Any]:
         """Get installed scanner engines and their versions."""
         try:
@@ -448,7 +461,6 @@ def create_server() -> "FastMCP":
             return {"scanners": [], "count": 0}
 
     @server.tool()
-
     def get_scanner_supported() -> Dict[str, Any]:
         """Get all supported scanner engines that can be installed."""
         try:
@@ -460,7 +472,6 @@ def create_server() -> "FastMCP":
             return {"scanners": []}
 
     @server.tool()
-
     def get_patterns_list() -> Dict[str, Any]:
         """Get active detection pattern categories and counts. Returns category names and pattern counts only — no regex patterns."""
         try:
@@ -479,7 +490,6 @@ def create_server() -> "FastMCP":
             return {"categories": {}}
 
     @server.tool()
-
     def get_metrics(since_days: Optional[int] = None) -> Dict[str, Any]:
         """Get violation statistics and trends. Optionally filter to last N days."""
         try:
@@ -502,7 +512,6 @@ def create_server() -> "FastMCP":
             return {"total_violations": 0, "by_type": {}, "by_severity": {}}
 
     @server.tool()
-
     def doctor() -> Dict[str, Any]:
         """Run health check on ai-guardian setup. Returns check results with pass/warn/fail status."""
         try:
@@ -536,7 +545,6 @@ def create_server() -> "FastMCP":
     # ─── Support Bundle Tools ─────────────────────────────────────
 
     @server.tool()
-
     def prepare_support_bundle() -> Dict[str, Any]:
         """Prepare a sanitized support bundle for review. Creates a protected temp directory with sanitized copies of config, violations, metrics, doctor results, system info, and log. IMPORTANT: After calling this, you MUST (1) show the temp_path so the user can review and delete unwanted files, (2) present the file list with redaction counts, and (3) wait for the user to confirm before calling send_support_bundle. Only the user can access the temp directory — do not try to read or delete files in it."""
         try:
@@ -548,7 +556,6 @@ def create_server() -> "FastMCP":
             return {"status": "error", "message": f"Failed to prepare bundle: {e}"}
 
     @server.tool()
-
     def send_support_bundle(bundle_id: str) -> Dict[str, Any]:
         """Send a previously prepared support bundle to the preconfigured destination. Only call after the user has reviewed the temp directory, deleted any unwanted files, and explicitly approved sending. After sending, tell the user to contact support and give them the bundle_id as their reference number."""
         try:
@@ -562,7 +569,6 @@ def create_server() -> "FastMCP":
     # ─── Scanning Tools ──────────────────────────────────────────
 
     @server.tool()
-
     def scan_directory(path: str = ".", recursive: bool = True) -> Dict[str, Any]:
         """Scan a directory for secrets, PII, and security issues.
         Returns summary only — no actual secret/PII values."""
@@ -585,9 +591,11 @@ def create_server() -> "FastMCP":
                 rule = f.get("rule_id", "unknown")
                 by_type[rule] = by_type.get(rule, 0) + 1
 
-            file_count = len(scanner._discover_files(
-                resolved, None, None, False
-            )) if resolved.is_dir() else 1
+            file_count = (
+                len(scanner._discover_files(resolved, None, None, False))
+                if resolved.is_dir()
+                else 1
+            )
 
             return {
                 "scanned_files": file_count,
@@ -600,10 +608,7 @@ def create_server() -> "FastMCP":
             return {"status": "error", "message": "Unable to scan directory"}
 
     @server.tool()
-
-    def scan_directory_report(
-        path: str = ".", format: str = "json"
-    ) -> Dict[str, Any]:
+    def scan_directory_report(path: str = ".", format: str = "json") -> Dict[str, Any]:
         """Generate a detailed scan report in a temp directory for user review.
 
         Args:
@@ -680,7 +685,6 @@ def create_server() -> "FastMCP":
     def protected_paths() -> str:
         """List of protected directories (paths only, no rules)."""
         try:
-            from ai_guardian.config_utils import get_config_dir
             import os
 
             cwd = Path.cwd()

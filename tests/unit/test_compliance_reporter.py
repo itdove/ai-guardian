@@ -24,8 +24,10 @@ class TestComplianceReporter(unittest.TestCase):
     def _log_scans(self, count=5, engine="gitleaks", has_secrets=False):
         for i in range(count):
             result = ScanResult(
-                has_secrets=has_secrets, secrets=[],
-                engine=engine, scan_time_ms=50.0,
+                has_secrets=has_secrets,
+                secrets=[],
+                engine=engine,
+                scan_time_ms=50.0,
             )
             self.audit.log_scan(result, f"file{i}.py", strategy="first-match")
 

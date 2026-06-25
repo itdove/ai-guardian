@@ -22,13 +22,20 @@ class TestScanAuditLogger(unittest.TestCase):
     def _sample_result(self, has_secrets=False):
         secrets = []
         if has_secrets:
-            secrets.append(SecretMatch(
-                rule_id="test-key", description="Test key",
-                file="test.py", line_number=1, engine="gitleaks",
-            ))
+            secrets.append(
+                SecretMatch(
+                    rule_id="test-key",
+                    description="Test key",
+                    file="test.py",
+                    line_number=1,
+                    engine="gitleaks",
+                )
+            )
         return ScanResult(
-            has_secrets=has_secrets, secrets=secrets,
-            engine="gitleaks", scan_time_ms=50.0,
+            has_secrets=has_secrets,
+            secrets=secrets,
+            engine="gitleaks",
+            scan_time_ms=50.0,
         )
 
     def test_log_scan_creates_entry(self):
@@ -57,8 +64,12 @@ class TestScanAuditLogger(unittest.TestCase):
         self.assertEqual(len(entries), 3)
 
     def test_engine_filter(self):
-        r1 = ScanResult(has_secrets=False, secrets=[], engine="gitleaks", scan_time_ms=10)
-        r2 = ScanResult(has_secrets=False, secrets=[], engine="trufflehog", scan_time_ms=20)
+        r1 = ScanResult(
+            has_secrets=False, secrets=[], engine="gitleaks", scan_time_ms=10
+        )
+        r2 = ScanResult(
+            has_secrets=False, secrets=[], engine="trufflehog", scan_time_ms=20
+        )
         self.logger.log_scan(r1, "a.py")
         self.logger.log_scan(r2, "b.py")
         entries = self.logger.get_recent_entries(engine_filter="gitleaks")
@@ -74,7 +85,8 @@ class TestScanAuditLogger(unittest.TestCase):
 
     def test_scan_with_context(self):
         self.logger.log_scan(
-            self._sample_result(), "test.py",
+            self._sample_result(),
+            "test.py",
             strategy="any-match",
             context={"ide_type": "claude-code"},
         )

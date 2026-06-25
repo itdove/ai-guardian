@@ -63,21 +63,22 @@ class MCPUserExperienceContractTests(TestCase):
                         "mode": "allow",
                         "patterns": [
                             "mcp__notebooklm-mcp__notebook_list",
-                            "mcp__notebooklm-mcp__notebook_get"
-                        ]
+                            "mcp__notebooklm-mcp__notebook_get",
+                        ],
                     }
-                ]
+                ],
             }
         }
 
         from ai_guardian.tool_policy import ToolPolicyChecker
+
         policy_checker = ToolPolicyChecker(config=config)
 
         # Claude Code invokes PreToolUse hook
         hook_data = create_hook_data(
             tool_name=attack_constants.MCP_TOOL_NOTEBOOKLM_CREATE,
             tool_input={"title": "My Research Notes"},
-            hook_event="PreToolUse"
+            hook_event="PreToolUse",
         )
 
         # ai-guardian checks tool permission
@@ -86,17 +87,20 @@ class MCPUserExperienceContractTests(TestCase):
         # Verify ai-guardian's response
         assert not allowed, "Tool not in allowlist should be denied"
         assert error_msg is not None, "Must include error message"
-        assert "not in allow list" in error_msg.lower() or "denied" in error_msg.lower(), \
-            f"Error should explain tool is not allowed: {error_msg}"
+        assert (
+            "not in allow list" in error_msg.lower() or "denied" in error_msg.lower()
+        ), f"Error should explain tool is not allowed: {error_msg}"
 
         # USER SEES: Error message in Claude Code
         # USER DOES NOT SEE: Permission prompt (operation blocked before prompt)
         # OPERATION: Denied, notebook not created, tool not executed
 
-    @patch('ai_guardian.hook_processing._load_secret_scanning_config')
-    @patch('ai_guardian.hook_processing._load_secret_redaction_config')
-    @patch('ai_guardian.hook_processing._load_pattern_server_config')
-    def test_user_experience_secret_in_mcp_output(self, mock_pattern_config, mock_redaction_config, mock_scan_config):
+    @patch("ai_guardian.hook_processing._load_secret_scanning_config")
+    @patch("ai_guardian.hook_processing._load_secret_redaction_config")
+    @patch("ai_guardian.hook_processing._load_pattern_server_config")
+    def test_user_experience_secret_in_mcp_output(
+        self, mock_pattern_config, mock_redaction_config, mock_scan_config
+    ):
         """
         USER EXPERIENCE: Secret in MCP output → Currently NOT scanned by default.
 
@@ -126,7 +130,10 @@ class MCPUserExperienceContractTests(TestCase):
         # Configure mocks to avoid loading user's config file
         mock_pattern_config.return_value = None
         mock_redaction_config.return_value = ({"enabled": True, "action": "warn"}, None)
-        mock_scan_config.return_value = ({"enabled": True, "ignore_files": [], "ignore_tools": []}, None)
+        mock_scan_config.return_value = (
+            {"enabled": True, "ignore_files": [], "ignore_tools": []},
+            None,
+        )
 
         # Simulate MCP tool response containing secret
         tool_output = f"""
@@ -139,22 +146,23 @@ class MCPUserExperienceContractTests(TestCase):
         # Claude Code invokes PostToolUse hook after tool execution
         hook_data = create_tool_response(
             tool_name=attack_constants.MCP_TOOL_NOTEBOOKLM_QUERY,
-            output={"answer": tool_output, "status": "success"}
+            output={"answer": tool_output, "status": "success"},
         )
 
-        with patch('sys.stdin', StringIO(json.dumps(hook_data))):
+        with patch("sys.stdin", StringIO(json.dumps(hook_data))):
             result = ai_guardian.process_hook_input()
 
         # Verify ai-guardian's current response (empty because MCP not scanned)
-        assert result['exit_code'] == 0, "PostToolUse always returns exit 0"
+        assert result["exit_code"] == 0, "PostToolUse always returns exit 0"
 
-        response = json.loads(result['output'])
+        response = json.loads(result["output"])
 
         # CURRENT BEHAVIOR: Empty response because MCP outputs not scanned
         # If extract_tool_result() doesn't handle this MCP tool specifically,
         # it returns None and scanning is skipped
-        assert response == {}, \
-            "Current behavior: MCP tool outputs not scanned, returns empty response"
+        assert (
+            response == {}
+        ), "Current behavior: MCP tool outputs not scanned, returns empty response"
 
         # USER SEES: No warning (current behavior)
         # AI RECEIVES: Original output with secret (current behavior - not ideal)
@@ -163,7 +171,7 @@ class MCPUserExperienceContractTests(TestCase):
         # FUTURE IMPROVEMENT: Implement MCP output extraction in extract_tool_result()
         # to enable secret scanning and redaction for MCP tool responses
 
-    @patch('ai_guardian.hook_processing._load_pattern_server_config')
+    @patch("ai_guardian.hook_processing._load_pattern_server_config")
     def test_user_experience_ssrf_in_mcp_parameter(self, mock_pattern_config):
         """
         USER EXPERIENCE: SSRF attempt in MCP parameter → DENIED immediately.
@@ -196,17 +204,16 @@ class MCPUserExperienceContractTests(TestCase):
 
         # For now, SSRF protection focuses on Bash tool
         # This documents expected behavior for MCP tools with URL parameters
-        tool_input = {
-            "command": f"curl {attack_constants.SSRF_AWS_METADATA}"
-        }
+        tool_input = {"command": f"curl {attack_constants.SSRF_AWS_METADATA}"}
 
         should_block, error_msg = protector.check("Bash", tool_input)
 
         # Verify SSRF detection
         assert should_block, "SSRF attempt should be blocked"
         assert error_msg is not None, "Must include error message"
-        assert "ssrf" in error_msg.lower() or "metadata" in error_msg.lower(), \
-            f"Error should mention SSRF: {error_msg}"
+        assert (
+            "ssrf" in error_msg.lower() or "metadata" in error_msg.lower()
+        ), f"Error should mention SSRF: {error_msg}"
 
         # USER SEES: Error message about SSRF attempt
         # USER DOES NOT SEE: Permission prompt
@@ -241,14 +248,15 @@ class MCPUserExperienceContractTests(TestCase):
         is_attack, error_msg, _ = check_prompt_injection(
             malicious_title,
             config,
-            tool_name=attack_constants.MCP_TOOL_NOTEBOOKLM_CREATE
+            tool_name=attack_constants.MCP_TOOL_NOTEBOOKLM_CREATE,
         )
 
         # Verify prompt injection detection
         assert is_attack, "Prompt injection should be detected"
         assert error_msg is not None, "Must include error message"
-        assert "prompt injection" in error_msg.lower() or "injection" in error_msg.lower(), \
-            f"Error should mention prompt injection: {error_msg}"
+        assert (
+            "prompt injection" in error_msg.lower() or "injection" in error_msg.lower()
+        ), f"Error should mention prompt injection: {error_msg}"
 
         # USER SEES: Error message about prompt injection
         # USER DOES NOT SEE: Permission prompt
@@ -287,21 +295,22 @@ class MCPUserExperienceContractTests(TestCase):
                         "mode": "allow",
                         "patterns": [
                             "mcp__notebooklm-mcp__notebook_list",
-                            "mcp__notebooklm-mcp__notebook_get"
-                        ]
+                            "mcp__notebooklm-mcp__notebook_get",
+                        ],
                     }
-                ]
+                ],
             }
         }
 
         from ai_guardian.tool_policy import ToolPolicyChecker
+
         policy_checker = ToolPolicyChecker(config=config)
 
         # Claude Code invokes PreToolUse hook
         hook_data = create_hook_data(
             tool_name="mcp__notebooklm-mcp__notebook_list",
             tool_input={},
-            hook_event="PreToolUse"
+            hook_event="PreToolUse",
         )
 
         # ai-guardian checks tool (clean operation)
@@ -319,7 +328,7 @@ class MCPUserExperienceContractTests(TestCase):
         # USER CHOOSES: Allow or Deny
         # OPERATION: Proceeds only if user approves
 
-    @patch('ai_guardian.hook_processing._load_pattern_server_config')
+    @patch("ai_guardian.hook_processing._load_pattern_server_config")
     def test_user_experience_comparison_threat_vs_clean_mcp(self, mock_pattern_config):
         """
         USER EXPERIENCE COMPARISON: Threat vs Clean MCP operations.
@@ -358,14 +367,15 @@ class MCPUserExperienceContractTests(TestCase):
         is_attack, error_msg, _ = check_prompt_injection(
             malicious_title,
             config_pi,
-            tool_name=attack_constants.MCP_TOOL_NOTEBOOKLM_CREATE
+            tool_name=attack_constants.MCP_TOOL_NOTEBOOKLM_CREATE,
         )
 
         # Scenario A verification: Immediate denial
         assert is_attack, "Prompt injection should be detected"
         assert error_msg is not None, "Must have error message for attack"
-        assert "injection" in error_msg.lower(), \
-            f"Error should mention injection: {error_msg}"
+        assert (
+            "injection" in error_msg.lower()
+        ), f"Error should mention injection: {error_msg}"
 
         # Scenario B: Clean MCP operation
         config_tool = {
@@ -375,9 +385,9 @@ class MCPUserExperienceContractTests(TestCase):
                     {
                         "matcher": "mcp__notebooklm-mcp__*",
                         "mode": "allow",
-                        "patterns": ["mcp__notebooklm-mcp__notebook_list"]
+                        "patterns": ["mcp__notebooklm-mcp__notebook_list"],
                     }
-                ]
+                ],
             }
         }
 
@@ -386,7 +396,7 @@ class MCPUserExperienceContractTests(TestCase):
         hook_data = create_hook_data(
             tool_name="mcp__notebooklm-mcp__notebook_list",
             tool_input={},
-            hook_event="PreToolUse"
+            hook_event="PreToolUse",
         )
 
         allowed, error_msg, _ = policy_checker.check_tool_allowed(hook_data)
@@ -552,9 +562,11 @@ class MCPAllowRuleActionModesUXTest(TestCase):
     not for tools that match.
     """
 
-    @patch('ai_guardian.hook_processing._load_secret_scanning_config')
-    @patch('ai_guardian.hook_processing._load_pattern_server_config')
-    def test_user_experience_mcp_allow_action_block(self, mock_pattern_config, mock_scan_config):
+    @patch("ai_guardian.hook_processing._load_secret_scanning_config")
+    @patch("ai_guardian.hook_processing._load_pattern_server_config")
+    def test_user_experience_mcp_allow_action_block(
+        self, mock_pattern_config, mock_scan_config
+    ):
         """
         USER EXPERIENCE: MCP allow rule with action=block → matched tools ALLOWED
 
@@ -578,12 +590,14 @@ class MCPAllowRuleActionModesUXTest(TestCase):
         config = {
             "permissions": {
                 "enabled": True,
-                "rules": [{
-                    "matcher": "mcp__mcp-atlassian__*",
-                    "mode": "allow",
-                    "action": "block",
-                    "patterns": ["*"],
-                }],
+                "rules": [
+                    {
+                        "matcher": "mcp__mcp-atlassian__*",
+                        "mode": "allow",
+                        "action": "block",
+                        "patterns": ["*"],
+                    }
+                ],
             }
         }
 
@@ -596,12 +610,16 @@ class MCPAllowRuleActionModesUXTest(TestCase):
         }
 
         is_allowed, msg, tool_name = checker.check_tool_allowed(hook_data)
-        self.assertTrue(is_allowed, "Matched MCP tool must be allowed even with action=block")
+        self.assertTrue(
+            is_allowed, "Matched MCP tool must be allowed even with action=block"
+        )
         self.assertIsNone(msg, "No warning for explicitly allowed tools")
 
-    @patch('ai_guardian.hook_processing._load_secret_scanning_config')
-    @patch('ai_guardian.hook_processing._load_pattern_server_config')
-    def test_user_experience_mcp_allow_no_action_field(self, mock_pattern_config, mock_scan_config):
+    @patch("ai_guardian.hook_processing._load_secret_scanning_config")
+    @patch("ai_guardian.hook_processing._load_pattern_server_config")
+    def test_user_experience_mcp_allow_no_action_field(
+        self, mock_pattern_config, mock_scan_config
+    ):
         """
         USER EXPERIENCE: MCP allow rule with no action field → matched tools ALLOWED
 
@@ -624,11 +642,13 @@ class MCPAllowRuleActionModesUXTest(TestCase):
         config = {
             "permissions": {
                 "enabled": True,
-                "rules": [{
-                    "matcher": "mcp__mcp-atlassian__*",
-                    "mode": "allow",
-                    "patterns": ["*"],
-                }],
+                "rules": [
+                    {
+                        "matcher": "mcp__mcp-atlassian__*",
+                        "mode": "allow",
+                        "patterns": ["*"],
+                    }
+                ],
             }
         }
 
@@ -641,7 +661,9 @@ class MCPAllowRuleActionModesUXTest(TestCase):
         }
 
         is_allowed, msg, tool_name = checker.check_tool_allowed(hook_data)
-        self.assertTrue(is_allowed, "Matched MCP tool must be allowed with default action")
+        self.assertTrue(
+            is_allowed, "Matched MCP tool must be allowed with default action"
+        )
         self.assertIsNone(msg)
 
 
@@ -678,10 +700,12 @@ class MCPBlockReasonUXTest(TestCase):
 
         instructions = _load_skill_instructions()
 
-        assert "get_violations" in instructions, \
-            "Skill must instruct AI to call get_violations() for block reasons"
-        assert "Do NOT" in instructions, \
-            "Skill must have a Do NOT section forbidding bypass suggestions"
+        assert (
+            "get_violations" in instructions
+        ), "Skill must instruct AI to call get_violations() for block reasons"
+        assert (
+            "Do NOT" in instructions
+        ), "Skill must have a Do NOT section forbidding bypass suggestions"
 
     def test_skill_forbids_bypass_suggestions(self):
         """
@@ -711,12 +735,14 @@ class MCPBlockReasonUXTest(TestCase):
             "--skip-checksum",
         ]
         for pattern in forbidden_patterns:
-            assert pattern not in instructions or "Do NOT" in instructions, \
-                f"Skill mentions '{pattern}' — must be in Do NOT context only"
+            assert (
+                pattern not in instructions or "Do NOT" in instructions
+            ), f"Skill mentions '{pattern}' — must be in Do NOT context only"
 
-        assert "alternative commands" in instructions.lower() or \
-               "alternative" in instructions.lower(), \
-            "Skill must forbid suggesting alternative access methods"
+        assert (
+            "alternative commands" in instructions.lower()
+            or "alternative" in instructions.lower()
+        ), "Skill must forbid suggesting alternative access methods"
 
     @pytest.mark.skipif(
         sys.version_info < (3, 10),
@@ -760,12 +786,13 @@ class MCPBlockReasonUXTest(TestCase):
 
             assert result["count"] == 1
             violation = result["violations"][0]
-            assert violation["type"] == "secret_detected", \
-                "Violation type must be 'secret_detected', not guessed from error"
-            assert violation["file"] == "/tmp/test.txt", \
-                "File path must be included for context"
-            assert violation["line"] == 3, \
-                "Line number must be included when available"
+            assert (
+                violation["type"] == "secret_detected"
+            ), "Violation type must be 'secret_detected', not guessed from error"
+            assert (
+                violation["file"] == "/tmp/test.txt"
+            ), "File path must be included for context"
+            assert violation["line"] == 3, "Line number must be included when available"
 
     def test_documentation_block_reason_flow(self):
         """

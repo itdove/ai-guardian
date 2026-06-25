@@ -20,7 +20,9 @@ import logging
 import os
 
 from ai_guardian.tui.display import (
-    _tkinter_available, _nicegui_available, get_preferred_ui,
+    _tkinter_available,
+    _nicegui_available,
+    get_preferred_ui,
 )
 
 logger = logging.getLogger(__name__)
@@ -28,11 +30,18 @@ logger = logging.getLogger(__name__)
 
 # -- tkinter implementation --------------------------------------------------
 
+
 class _TkinterPromptApp:
     """Native tkinter parameter form (no terminal window)."""
 
-    def __init__(self, params, command_template, command_type="terminal",
-                 extra_vars=None, title=None):
+    def __init__(
+        self,
+        params,
+        command_template,
+        command_type="terminal",
+        extra_vars=None,
+        title=None,
+    ):
         self._params = params
         self._command_template = command_template
         self._command_type = command_type
@@ -49,6 +58,7 @@ class _TkinterPromptApp:
 
         if not os.environ.get("TCL_LIBRARY"):
             import pathlib
+
             real_exe = pathlib.Path(sys.executable).resolve()
             tcl_lib = real_exe.parent.parent / "lib" / "tcl8.6"
             if (tcl_lib / "init.tcl").exists():
@@ -63,6 +73,7 @@ class _TkinterPromptApp:
         if platform.system() == "Darwin":
             try:
                 from AppKit import NSApplication
+
                 NSApplication.sharedApplication().activateIgnoringOtherApps_(True)
             except Exception:
                 pass  # intentionally silent — optional dependency
@@ -83,7 +94,10 @@ class _TkinterPromptApp:
                 label_text += f"  ({hint})"
 
             ttk.Label(frame, text=label_text).grid(
-                row=i, column=0, sticky="w", pady=(8, 2),
+                row=i,
+                column=0,
+                sticky="w",
+                pady=(8, 2),
             )
 
             ptype = param.get("type", "string")
@@ -95,9 +109,7 @@ class _TkinterPromptApp:
                 widget.grid(row=i, column=1, sticky="w", pady=(8, 2))
                 self._widgets[param["name"]] = ("boolean", var)
 
-            elif ptype == "choice" or (
-                ptype == "string" and param.get("options")
-            ):
+            elif ptype == "choice" or (ptype == "string" and param.get("options")):
                 options = param.get("options", [])
                 if not default and options:
                     default = options[0]
@@ -109,7 +121,9 @@ class _TkinterPromptApp:
             elif ptype == "combobox" and param.get("options"):
                 var = tk.StringVar(value=default)
                 widget = ttk.Combobox(
-                    frame, textvariable=var, values=param["options"],
+                    frame,
+                    textvariable=var,
+                    values=param["options"],
                 )
                 widget.grid(row=i, column=1, sticky="ew", pady=(8, 2))
                 self._widgets[param["name"]] = ("combobox", var)
@@ -125,7 +139,10 @@ class _TkinterPromptApp:
                     kwargs["to"] = float(p_max)
                 if kwargs:
                     widget = ttk.Spinbox(
-                        frame, textvariable=var, width=20, **kwargs,
+                        frame,
+                        textvariable=var,
+                        width=20,
+                        **kwargs,
                     )
                 else:
                     widget = ttk.Entry(frame, textvariable=var, width=30)
@@ -139,7 +156,8 @@ class _TkinterPromptApp:
                 entry = ttk.Entry(path_frame, textvariable=var, width=25)
                 entry.pack(side="left", fill="x", expand=True)
                 browse_btn = ttk.Button(
-                    path_frame, text="Browse…",
+                    path_frame,
+                    text="Browse…",
                     command=self._make_browse_callback(var, ptype),
                 )
                 browse_btn.pack(side="left", padx=(4, 0))
@@ -155,11 +173,15 @@ class _TkinterPromptApp:
 
         btn_frame = ttk.Frame(frame)
         btn_frame.grid(
-            row=len(self._params), column=0, columnspan=2,
-            pady=(16, 0), sticky="e",
+            row=len(self._params),
+            column=0,
+            columnspan=2,
+            pady=(16, 0),
+            sticky="e",
         )
         ttk.Button(btn_frame, text="Cancel", command=self._cancel).pack(
-            side="left", padx=(0, 8),
+            side="left",
+            padx=(0, 8),
         )
         ttk.Button(btn_frame, text="OK", command=self._submit).pack(
             side="left",
@@ -186,11 +208,13 @@ class _TkinterPromptApp:
         if not value or not self._extra_vars or "{" not in str(value):
             return value
         from ai_guardian.daemon.tray_plugins import substitute_params
+
         return substitute_params(str(value), self._extra_vars)
 
     def _make_browse_callback(self, var, ptype):
         def _browse():
             from tkinter import filedialog
+
             initial = var.get() or None
             if ptype == "path-dir":
                 path = filedialog.askdirectory(
@@ -204,12 +228,15 @@ class _TkinterPromptApp:
                 )
             if path:
                 var.set(path)
+
         return _browse
 
     def _submit(self):
         import shlex
         from ai_guardian.daemon.tray_plugins import (
-            PluginParam, substitute_params, validate_param_value,
+            PluginParam,
+            substitute_params,
+            validate_param_value,
         )
 
         values = {}
@@ -237,7 +264,9 @@ class _TkinterPromptApp:
             valid, err = validate_param_value(pp, values.get(param["name"], ""))
             if not valid:
                 self._messagebox.showerror(
-                    "Validation Error", err, parent=self._root,
+                    "Validation Error",
+                    err,
+                    parent=self._root,
                 )
                 return
 
@@ -253,11 +282,18 @@ class _TkinterPromptApp:
 
 # -- Textual fallback --------------------------------------------------------
 
+
 class _TextualPromptApp:
     """Textual TUI fallback (requires a terminal window)."""
 
-    def __init__(self, params, command_template, command_type="terminal",
-                 extra_vars=None, title=None):
+    def __init__(
+        self,
+        params,
+        command_template,
+        command_type="terminal",
+        extra_vars=None,
+        title=None,
+    ):
         self._params = params
         self._command_template = command_template
         self._command_type = command_type
@@ -269,7 +305,14 @@ class _TextualPromptApp:
         from textual.binding import Binding
         from textual.containers import Container, Horizontal
         from textual.widgets import (
-            Button, Checkbox, Footer, Header, Input, Label, Select, Static,
+            Button,
+            Checkbox,
+            Footer,
+            Header,
+            Input,
+            Label,
+            Select,
+            Static,
         )
 
         params = self._params
@@ -298,9 +341,7 @@ class _TextualPromptApp:
                             if param.get("required", True):
                                 label_text = "* " + label_text
                             if param.get("hint"):
-                                label_text += (
-                                    f"  [dim]({param['hint']})[/dim]"
-                                )
+                                label_text += f"  [dim]({param['hint']})[/dim]"
                             yield Label(label_text)
 
                             ptype = param.get("type", "string")
@@ -308,7 +349,8 @@ class _TextualPromptApp:
 
                             if ptype == "boolean":
                                 dv = _resolve(
-                                    param.get("default", "false"), extra_vars,
+                                    param.get("default", "false"),
+                                    extra_vars,
                                 )
                                 yield Checkbox(
                                     "",
@@ -318,17 +360,18 @@ class _TextualPromptApp:
                             elif ptype == "choice" or (
                                 ptype == "string" and param.get("options")
                             ):
-                                options = [
-                                    (o, o) for o in param["options"]
-                                ]
+                                options = [(o, o) for o in param["options"]]
                                 default = _resolve(
                                     param.get(
-                                        "default", param["options"][0],
+                                        "default",
+                                        param["options"][0],
                                     ),
                                     extra_vars,
                                 )
                                 yield Select(
-                                    options, value=default, id=widget_id,
+                                    options,
+                                    value=default,
+                                    id=widget_id,
                                 )
                             else:
                                 placeholder = param.get("hint", "")
@@ -346,14 +389,10 @@ class _TextualPromptApp:
                                         if placeholder
                                         else "Enter directory path"
                                     )
-                                elif (
-                                    ptype == "combobox"
-                                    and param.get("options")
-                                ):
+                                elif ptype == "combobox" and param.get("options"):
                                     sug = ", ".join(param["options"])
                                     placeholder = (
-                                        f"{placeholder} [{sug}]"
-                                        if placeholder else sug
+                                        f"{placeholder} [{sug}]" if placeholder else sug
                                     )
                                 yield Input(
                                     value=_resolve(
@@ -365,7 +404,9 @@ class _TextualPromptApp:
                                 )
                     with Horizontal(id="button-row"):
                         yield Button(
-                            "Submit", id="submit-btn", variant="primary",
+                            "Submit",
+                            id="submit-btn",
+                            variant="primary",
                         )
                         yield Button("Cancel", id="cancel-btn")
                 yield Footer()
@@ -382,8 +423,11 @@ class _TextualPromptApp:
             def _do_submit(self_inner):
                 import shlex
                 from ai_guardian.daemon.tray_plugins import (
-                    PluginParam, substitute_params, validate_param_value,
+                    PluginParam,
+                    substitute_params,
+                    validate_param_value,
                 )
+
                 values = {}
                 for param in params:
                     wid = f"param-{param['name']}"
@@ -393,9 +437,7 @@ class _TextualPromptApp:
                         values[param["name"]] = param.get("default", "")
                         continue
                     if isinstance(widget, Checkbox):
-                        values[param["name"]] = (
-                            "true" if widget.value else "false"
-                        )
+                        values[param["name"]] = "true" if widget.value else "false"
                     elif isinstance(widget, Select):
                         val = widget.value
                         values[param["name"]] = (
@@ -413,15 +455,18 @@ class _TextualPromptApp:
                         options=param.get("options"),
                         min=(
                             float(param["min"])
-                            if param.get("min") is not None else None
+                            if param.get("min") is not None
+                            else None
                         ),
                         max=(
                             float(param["max"])
-                            if param.get("max") is not None else None
+                            if param.get("max") is not None
+                            else None
                         ),
                     )
                     valid, err = validate_param_value(
-                        pp, values.get(param["name"], ""),
+                        pp,
+                        values.get(param["name"], ""),
                     )
                     if not valid:
                         self_inner.notify(err, severity="error")
@@ -443,14 +488,17 @@ def _resolve(value, extra_vars):
     if not value or not extra_vars or "{" not in value:
         return value
     from ai_guardian.daemon.tray_plugins import substitute_params
+
     return substitute_params(value, extra_vars)
 
 
 # -- NiceGUI fallback -------------------------------------------------------
 
+
 def _find_free_port():
     """Find an available TCP port."""
     import socket
+
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
         s.bind(("127.0.0.1", 0))
         return s.getsockname()[1]
@@ -460,14 +508,17 @@ def _native_file_picker(pick_directory=False):
     """Open a platform-native file/directory picker, return selected path or None."""
     import platform
     import subprocess
+
     system = platform.system()
     try:
         if system == "Darwin":
             kind = "folder" if pick_directory else "file"
-            script = f'POSIX path of (choose {kind})'
+            script = f"POSIX path of (choose {kind})"
             result = subprocess.run(
                 ["osascript", "-e", script],
-                capture_output=True, text=True, timeout=120,
+                capture_output=True,
+                text=True,
+                timeout=120,
             )
             if result.returncode == 0:
                 return result.stdout.strip()
@@ -476,7 +527,10 @@ def _native_file_picker(pick_directory=False):
             if pick_directory:
                 cmd.append("--directory")
             result = subprocess.run(
-                cmd, capture_output=True, text=True, timeout=120,
+                cmd,
+                capture_output=True,
+                text=True,
+                timeout=120,
             )
             if result.returncode == 0:
                 return result.stdout.strip()
@@ -495,7 +549,9 @@ def _native_file_picker(pick_directory=False):
                 )
             result = subprocess.run(
                 ["powershell", "-Command", ps],
-                capture_output=True, text=True, timeout=120,
+                capture_output=True,
+                text=True,
+                timeout=120,
             )
             if result.returncode == 0 and result.stdout.strip():
                 return result.stdout.strip()
@@ -507,8 +563,14 @@ def _native_file_picker(pick_directory=False):
 class _NiceGuiPromptApp:
     """Browser-based parameter form using NiceGUI (Python >= 3.10)."""
 
-    def __init__(self, params, command_template, command_type="terminal",
-                 extra_vars=None, title=None):
+    def __init__(
+        self,
+        params,
+        command_template,
+        command_type="terminal",
+        extra_vars=None,
+        title=None,
+    ):
         self._params = params
         self._command_template = command_template
         self._command_type = command_type
@@ -530,8 +592,10 @@ class _NiceGuiPromptApp:
         def _form_page():
             ui.query("body").style("background: #1a1a2e")
 
-            with ui.card().classes("mx-auto mt-8").style(
-                "min-width: 400px; max-width: 600px"
+            with (
+                ui.card()
+                .classes("mx-auto mt-8")
+                .style("min-width: 400px; max-width: 600px")
             ):
                 ui.label(form_title).classes("text-xl font-bold")
                 ui.separator()
@@ -544,7 +608,8 @@ class _NiceGuiPromptApp:
 
                     ptype = param.get("type", "string")
                     default = _resolve(
-                        param.get("default", ""), extra_vars,
+                        param.get("default", ""),
+                        extra_vars,
                     )
 
                     if ptype == "boolean":
@@ -564,7 +629,8 @@ class _NiceGuiPromptApp:
                         if hint:
                             ui.label(hint).classes("text-xs text-grey-6")
                         w = ui.select(
-                            options=options, value=default,
+                            options=options,
+                            value=default,
                         ).classes("w-full")
                         widgets[param["name"]] = ("choice", w)
 
@@ -596,13 +662,15 @@ class _NiceGuiPromptApp:
                             except (ValueError, TypeError):
                                 pass  # intentionally silent — invalid value uses default
                         w = ui.number(
-                            value=num_val, **kwargs,
+                            value=num_val,
+                            **kwargs,
                         ).classes("w-full")
                         widgets[param["name"]] = ("number", w)
 
                     elif ptype in ("path-file", "path-dir"):
                         placeholder = hint or (
-                            "Enter file path" if ptype == "path-file"
+                            "Enter file path"
+                            if ptype == "path-file"
                             else "Enter directory path"
                         )
                         ui.label(label_text).classes("text-sm mt-2")
@@ -614,17 +682,21 @@ class _NiceGuiPromptApp:
                             pick_dir = ptype == "path-dir"
 
                             async def _browse(
-                                inp=w, is_dir=pick_dir,
+                                inp=w,
+                                is_dir=pick_dir,
                             ):
                                 from nicegui import run as ng_run
+
                                 path = await ng_run.io_bound(
-                                    _native_file_picker, is_dir,
+                                    _native_file_picker,
+                                    is_dir,
                                 )
                                 if path:
                                     inp.set_value(path)
 
                             ui.button(
-                                "Browse…", on_click=_browse,
+                                "Browse…",
+                                on_click=_browse,
                             ).props("flat dense")
                         widgets[param["name"]] = ("entry", w)
 
@@ -640,10 +712,12 @@ class _NiceGuiPromptApp:
                 ui.separator()
                 with ui.row().classes("w-full justify-end"):
                     ui.button(
-                        "Cancel", on_click=lambda: _cancel(),
+                        "Cancel",
+                        on_click=lambda: _cancel(),
                     ).props("flat")
                     ui.button(
-                        "OK", on_click=lambda: _submit(),
+                        "OK",
+                        on_click=lambda: _submit(),
                         color="primary",
                     )
 
@@ -661,7 +735,9 @@ class _NiceGuiPromptApp:
         def _submit():
             import shlex
             from ai_guardian.daemon.tray_plugins import (
-                PluginParam, substitute_params, validate_param_value,
+                PluginParam,
+                substitute_params,
+                validate_param_value,
             )
 
             values = {}
@@ -685,20 +761,16 @@ class _NiceGuiPromptApp:
                     required=param.get("required", True),
                     pattern=param.get("pattern"),
                     options=param.get("options"),
-                    min=(
-                        float(param["min"])
-                        if param.get("min") is not None else None
-                    ),
-                    max=(
-                        float(param["max"])
-                        if param.get("max") is not None else None
-                    ),
+                    min=(float(param["min"]) if param.get("min") is not None else None),
+                    max=(float(param["max"]) if param.get("max") is not None else None),
                 )
                 valid, err = validate_param_value(
-                    pp, values.get(param["name"], ""),
+                    pp,
+                    values.get(param["name"], ""),
                 )
                 if not valid:
                     from nicegui import ui as _ui
+
                     _ui.notify(err, type="negative")
                     return
 
@@ -709,7 +781,8 @@ class _NiceGuiPromptApp:
                     values[name] = shlex.quote(values[name])
 
             result_holder["value"] = substitute_params(
-                command_template, values,
+                command_template,
+                values,
             )
             _close_and_shutdown()
 
@@ -722,6 +795,7 @@ class _NiceGuiPromptApp:
         port = _find_free_port()
 
         from ai_guardian.desktop_utils import open_url
+
         url = f"http://127.0.0.1:{port}"
         app.on_startup(lambda: open_url(url))
 
@@ -738,6 +812,7 @@ class _NiceGuiPromptApp:
 
 # -- Public API --------------------------------------------------------------
 
+
 class TrayPromptApp:
     """Parameter form: tkinter → NiceGUI (browser) → Textual (terminal).
 
@@ -746,8 +821,14 @@ class TrayPromptApp:
     subprocess.  Both tkinter and NiceGUI run without a terminal.
     """
 
-    def __init__(self, params, command_template, command_type="terminal",
-                 extra_vars=None, title=None):
+    def __init__(
+        self,
+        params,
+        command_template,
+        command_type="terminal",
+        extra_vars=None,
+        title=None,
+    ):
         self._params = params
         self._command_template = command_template
         self._command_type = command_type
@@ -762,14 +843,15 @@ class TrayPromptApp:
         elif preferred in ("tkinter", "nicegui"):
             self.needs_terminal = False
         else:
-            self.needs_terminal = (
-                not _tkinter_available() and not _nicegui_available()
-            )
+            self.needs_terminal = not _tkinter_available() and not _nicegui_available()
 
     def run(self):
         args = (
-            self._params, self._command_template,
-            self._command_type, self._extra_vars, self._title,
+            self._params,
+            self._command_template,
+            self._command_type,
+            self._extra_vars,
+            self._title,
         )
         preferred = get_preferred_ui()
 

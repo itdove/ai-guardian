@@ -361,9 +361,7 @@ class TestGetPRDiff:
 
     @mock.patch("ai_guardian.diff_provider.subprocess.run")
     def test_gh_error(self, mock_run):
-        mock_run.return_value = mock.Mock(
-            returncode=1, stdout="", stderr="not found"
-        )
+        mock_run.return_value = mock.Mock(returncode=1, stdout="", stderr="not found")
         with pytest.raises(DiffProviderError, match="gh pr diff failed"):
             get_pr_diff("999")
 
@@ -396,8 +394,12 @@ class TestGetMRDiff:
         assert result == "mr diff from url\n"
         cmd = mock_run.call_args[0][0]
         assert cmd == [
-            "glab", "mr", "diff", "127",
-            "--repo", "https://gitlab.cee.redhat.com/atat/harness",
+            "glab",
+            "mr",
+            "diff",
+            "127",
+            "--repo",
+            "https://gitlab.cee.redhat.com/atat/harness",
         ]
 
     @mock.patch("ai_guardian.diff_provider.subprocess.run")
@@ -408,9 +410,7 @@ class TestGetMRDiff:
 
     @mock.patch("ai_guardian.diff_provider.subprocess.run")
     def test_glab_error(self, mock_run):
-        mock_run.return_value = mock.Mock(
-            returncode=1, stdout="", stderr="error"
-        )
+        mock_run.return_value = mock.Mock(returncode=1, stdout="", stderr="error")
         with pytest.raises(DiffProviderError, match="glab mr diff failed"):
             get_mr_diff("42")
 

@@ -12,10 +12,9 @@ import importlib
 import importlib.metadata
 import importlib.util
 import logging
-import os
 import sys
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Type
+from typing import Any, Dict, Type
 
 from ai_guardian.scanners.sdk import Scanner
 
@@ -25,21 +24,15 @@ logger = logging.getLogger(__name__)
 def _validate_path(path_str: str) -> None:
     """Validate a file path for security (no path traversal)."""
     if ".." in Path(path_str).parts:
-        raise ValueError(
-            f"Path traversal detected in scanner path: {path_str}"
-        )
+        raise ValueError(f"Path traversal detected in scanner path: {path_str}")
 
 
 def _validate_scanner_class(cls: Any, source: str) -> Type[Scanner]:
     """Validate that a loaded class is a Scanner subclass."""
     if not isinstance(cls, type) or not issubclass(cls, Scanner):
-        raise TypeError(
-            f"Loaded class {cls} from {source} is not a Scanner subclass"
-        )
+        raise TypeError(f"Loaded class {cls} from {source} is not a Scanner subclass")
     if cls is Scanner:
-        raise TypeError(
-            f"Cannot use Scanner base class directly from {source}"
-        )
+        raise TypeError(f"Cannot use Scanner base class directly from {source}")
     return cls
 
 

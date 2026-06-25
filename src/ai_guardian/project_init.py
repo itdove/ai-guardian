@@ -18,7 +18,6 @@ import os
 import shutil
 import sys
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
 from pathlib import Path
 from typing import Dict, List, Optional, Set, Tuple
 
@@ -99,7 +98,8 @@ class ProjectInitializer:
                 continue
 
             dirnames[:] = [
-                d for d in dirnames
+                d
+                for d in dirnames
                 if d not in SKIP_DIRS and not d.endswith(".egg-info")
             ]
 
@@ -315,7 +315,9 @@ def _print_result(result: InitResult) -> None:
         if count:
             parts.append(f"{count} allowlist pattern{'s' if count != 1 else ''}")
         if ignore_count:
-            parts.append(f"{ignore_count} ignore_files entr{'ies' if ignore_count != 1 else 'y'}")
+            parts.append(
+                f"{ignore_count} ignore_files entr{'ies' if ignore_count != 1 else 'y'}"
+            )
         print(f"  {', '.join(parts)}")
 
 

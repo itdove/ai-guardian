@@ -38,8 +38,7 @@ def _run_generator(config):
         # Discover skills
         discovered = gen._discover_skills(skill_dirs) if skill_dirs else {}
         discovered_strs = {
-            name: [str(p) for p in paths]
-            for name, paths in discovered.items()
+            name: [str(p) for p in paths] for name, paths in discovered.items()
         }
 
         # Match skills
@@ -197,25 +196,17 @@ def create_auto_directory_rules_page(service, daemon_name: str):
                         with ui.row().classes("items-center gap-2"):
                             if is_enabled and n_rules > 0:
                                 ui.icon("check_circle").classes("text-green")
-                                ui.label("ACTIVE").classes(
-                                    "font-bold text-green"
-                                )
+                                ui.label("ACTIVE").classes("font-bold text-green")
                             elif is_enabled:
                                 ui.icon("info").classes("text-amber")
-                                ui.label("ENABLED").classes(
-                                    "font-bold text-amber"
-                                )
+                                ui.label("ENABLED").classes("font-bold text-amber")
                             else:
                                 ui.icon("cancel").classes("text-grey-6")
-                                ui.label("DISABLED").classes(
-                                    "font-bold text-grey-6"
-                                )
+                                ui.label("DISABLED").classes("font-bold text-grey-6")
 
                         with ui.row().classes("gap-6 ml-8 mt-2"):
                             with ui.column().classes("gap-0"):
-                                ui.label(str(n_dirs)).classes(
-                                    "text-2xl font-bold"
-                                )
+                                ui.label(str(n_dirs)).classes("text-2xl font-bold")
                                 ui.label("Directories scanned").classes(
                                     "text-xs text-grey-6"
                                 )
@@ -227,16 +218,12 @@ def create_auto_directory_rules_page(service, daemon_name: str):
                                     "text-xs text-grey-6"
                                 )
                             with ui.column().classes("gap-0"):
-                                ui.label(str(n_matched)).classes(
-                                    "text-2xl font-bold"
-                                )
+                                ui.label(str(n_matched)).classes("text-2xl font-bold")
                                 ui.label("Skills matched").classes(
                                     "text-xs text-grey-6"
                                 )
                             with ui.column().classes("gap-0"):
-                                ui.label(str(n_rules)).classes(
-                                    "text-2xl font-bold"
-                                )
+                                ui.label(str(n_rules)).classes("text-2xl font-bold")
                                 ui.label("Rules generated").classes(
                                     "text-xs text-grey-6"
                                 )
@@ -252,19 +239,12 @@ def create_auto_directory_rules_page(service, daemon_name: str):
                         ).classes("text-xs text-grey-6")
                         if discovery["skill_patterns"]:
                             for pat in discovery["skill_patterns"]:
-                                with ui.row().classes(
-                                    "items-center gap-2"
-                                ):
-                                    ui.icon("pattern").classes(
-                                        "text-blue text-sm"
-                                    )
-                                    ui.label(pat).classes(
-                                        "text-sm font-mono"
-                                    )
+                                with ui.row().classes("items-center gap-2"):
+                                    ui.icon("pattern").classes("text-blue text-sm")
+                                    ui.label(pat).classes("text-sm font-mono")
                         else:
                             ui.label(
-                                "No Skill allow patterns found in "
-                                "permission rules."
+                                "No Skill allow patterns found in " "permission rules."
                             ).classes("text-grey-6 text-sm")
                             ui.label(
                                 "Add a permission rule with matcher='Skill' "
@@ -274,56 +254,37 @@ def create_auto_directory_rules_page(service, daemon_name: str):
 
                     # --- Scanned directories card ---
                     with ui.card().classes("w-full"):
-                        ui.label("Scanned Directories").classes(
-                            "text-sm font-bold"
+                        ui.label("Scanned Directories").classes("text-sm font-bold")
+                        ui.label("Directories checked for installed skills.").classes(
+                            "text-xs text-grey-6"
                         )
-                        ui.label(
-                            "Directories checked for installed skills."
-                        ).classes("text-xs text-grey-6")
                         if discovery["skill_dirs"]:
                             for d in discovery["skill_dirs"]:
-                                with ui.row().classes(
-                                    "items-center gap-2"
-                                ):
-                                    ui.icon("folder").classes(
-                                        "text-amber text-sm"
-                                    )
-                                    ui.label(d).classes(
-                                        "text-sm font-mono"
-                                    )
+                                with ui.row().classes("items-center gap-2"):
+                                    ui.icon("folder").classes("text-amber text-sm")
+                                    ui.label(d).classes("text-sm font-mono")
                         else:
-                            ui.label(
-                                "No skill directories found."
-                            ).classes("text-grey-6 text-sm")
+                            ui.label("No skill directories found.").classes(
+                                "text-grey-6 text-sm"
+                            )
 
                     # --- Discovered skills card ---
                     with ui.card().classes("w-full"):
                         with ui.row().classes("items-center gap-2"):
-                            ui.label("Discovered Skills").classes(
-                                "text-sm font-bold"
-                            )
+                            ui.label("Discovered Skills").classes("text-sm font-bold")
                             ui.label(
-                                f"({n_discovered} total, "
-                                f"{n_matched} matched)"
+                                f"({n_discovered} total, " f"{n_matched} matched)"
                             ).classes("text-xs text-grey-6")
 
                         if discovery["discovered_skills"]:
-                            for name in sorted(
-                                discovery["discovered_skills"].keys()
-                            ):
+                            for name in sorted(discovery["discovered_skills"].keys()):
                                 paths = discovery["discovered_skills"][name]
                                 is_match = name in discovery["matched_skills"]
-                                with ui.row().classes(
-                                    "items-center gap-2"
-                                ):
+                                with ui.row().classes("items-center gap-2"):
                                     if is_match:
-                                        ui.icon("check").classes(
-                                            "text-green text-sm"
-                                        )
+                                        ui.icon("check").classes("text-green text-sm")
                                     else:
-                                        ui.icon("close").classes(
-                                            "text-grey-6 text-sm"
-                                        )
+                                        ui.icon("close").classes("text-grey-6 text-sm")
                                     ui.label(name).classes(
                                         "text-sm font-bold"
                                         + (
@@ -344,12 +305,10 @@ def create_auto_directory_rules_page(service, daemon_name: str):
                     # --- Generated rules card ---
                     with ui.card().classes("w-full"):
                         with ui.row().classes("items-center gap-2"):
-                            ui.label("Generated Rules").classes(
-                                "text-sm font-bold"
-                            )
-                            ui.badge(
-                                "read-only", color="blue-grey"
-                            ).classes("text-xs").props("outline")
+                            ui.label("Generated Rules").classes("text-sm font-bold")
+                            ui.badge("read-only", color="blue-grey").classes(
+                                "text-xs"
+                            ).props("outline")
 
                         ui.label(
                             "These directory rules are auto-generated when "
@@ -358,18 +317,16 @@ def create_auto_directory_rules_page(service, daemon_name: str):
                         ).classes("text-xs text-grey-6")
 
                         if discovery["generated_rules"]:
-                            for idx, rule in enumerate(
-                                discovery["generated_rules"]
-                            ):
-                                with ui.card().classes("w-full").style(
-                                    "border-left: 3px solid #4caf50"
+                            for idx, rule in enumerate(discovery["generated_rules"]):
+                                with (
+                                    ui.card()
+                                    .classes("w-full")
+                                    .style("border-left: 3px solid #4caf50")
                                 ):
-                                    with ui.row().classes(
-                                        "items-center gap-2"
-                                    ):
-                                        ui.badge(
-                                            str(idx), color="blue-grey"
-                                        ).classes("text-xs").props("outline")
+                                    with ui.row().classes("items-center gap-2"):
+                                        ui.badge(str(idx), color="blue-grey").classes(
+                                            "text-xs"
+                                        ).props("outline")
                                         ui.badge(
                                             rule.get("mode", "allow").upper(),
                                             color="green",
@@ -386,16 +343,17 @@ def create_auto_directory_rules_page(service, daemon_name: str):
 
                                     paths = rule.get("paths", [])
                                     if paths:
-                                        with ui.expansion(
-                                            f"Paths ({len(paths)})",
-                                            value=len(paths) <= 10,
-                                        ).classes(
-                                            "ml-4 w-full text-xs"
-                                        ).props("dense"):
+                                        with (
+                                            ui.expansion(
+                                                f"Paths ({len(paths)})",
+                                                value=len(paths) <= 10,
+                                            )
+                                            .classes("ml-4 w-full text-xs")
+                                            .props("dense")
+                                        ):
                                             for p in paths:
                                                 ui.label(p).classes(
-                                                    "text-xs text-grey-4 "
-                                                    "font-mono"
+                                                    "text-xs text-grey-4 " "font-mono"
                                                 )
                         else:
                             if not is_enabled:
@@ -414,9 +372,9 @@ def create_auto_directory_rules_page(service, daemon_name: str):
                                     "permission patterns."
                                 ).classes("text-grey-6 text-sm")
                             else:
-                                ui.label(
-                                    "No rules generated."
-                                ).classes("text-grey-6 text-sm")
+                                ui.label("No rules generated.").classes(
+                                    "text-grey-6 text-sm"
+                                )
 
                     # --- Info card ---
                     with ui.card().classes("w-full"):

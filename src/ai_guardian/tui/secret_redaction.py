@@ -16,7 +16,9 @@ from textual.widgets import Static, Button, Input, Label, Select, Checkbox
 
 from ai_guardian.config_utils import get_config_dir, get_project_config_path
 from ai_guardian.tui.schema_defaults import (
-    SchemaDefaultsMixin, default_indicator, select_options_with_default,
+    SchemaDefaultsMixin,
+    default_indicator,
+    select_options_with_default,
 )
 from ai_guardian.tui.widgets import TimeBasedToggle
 
@@ -44,6 +46,7 @@ class SecretRedactionContent(SchemaDefaultsMixin, Container):
             if project_path:
                 return project_path
             from ai_guardian.config_utils import _find_git_root
+
             root = _find_git_root() or Path.cwd()
             return root / ".ai-guardian" / "ai-guardian.json"
         return get_config_dir() / "ai-guardian.json"
@@ -143,7 +146,9 @@ class SecretRedactionContent(SchemaDefaultsMixin, Container):
 
     def compose(self) -> ComposeResult:
         """Compose the secret redaction tab content."""
-        yield Static("[bold]Secret Redaction Settings[/bold]", id="secret-redaction-header")
+        yield Static(
+            "[bold]Secret Redaction Settings[/bold]", id="secret-redaction-header"
+        )
 
         with VerticalScroll():
             # Redaction toggle section (standalone)
@@ -157,7 +162,10 @@ class SecretRedactionContent(SchemaDefaultsMixin, Container):
 
             # Default protected secret types info section
             with Container(classes="section"):
-                yield Static("[bold]Protected Secret Types (35+ patterns)[/bold]", classes="section-title")
+                yield Static(
+                    "[bold]Protected Secret Types (35+ patterns)[/bold]",
+                    classes="section-title",
+                )
                 yield Static(
                     "[dim]The following secret types are automatically detected and redacted:\n\n"
                     "API Keys & Tokens:\n"
@@ -181,10 +189,13 @@ class SecretRedactionContent(SchemaDefaultsMixin, Container):
                     "  • Environment Variables\n"
                     "  • JSON/YAML passwords\n"
                     "  • HTTP Authorization headers[/dim]",
-                    id="default-patterns")
+                    id="default-patterns",
+                )
             # Action mode section
             with Container(classes="section"):
-                yield Static("[bold]Action on Secret Detection[/bold]", classes="section-title")
+                yield Static(
+                    "[bold]Action on Secret Detection[/bold]", classes="section-title"
+                )
 
                 with Horizontal(classes="setting-row"):
                     yield Label("Action Mode:")
@@ -204,7 +215,8 @@ class SecretRedactionContent(SchemaDefaultsMixin, Container):
                 yield Static(
                     "[dim]  • Log Only: Redacts secrets silently, logs to violation log\n"
                     "  • Warn: Redacts secrets and shows warning notification (default)[/dim]",
-                    classes="setting-row")
+                    classes="setting-row",
+                )
             # Redaction options section
             with Container(classes="section"):
                 yield Static("[bold]Redaction Options[/bold]", classes="section-title")
@@ -227,16 +239,28 @@ class SecretRedactionContent(SchemaDefaultsMixin, Container):
 
             # Additional patterns section
             with Container(classes="section"):
-                yield Static("[bold]Additional Redaction Patterns[/bold]", classes="section-title")
-                yield Static("Custom regex patterns to detect and redact:", classes="setting-row")
+                yield Static(
+                    "[bold]Additional Redaction Patterns[/bold]",
+                    classes="section-title",
+                )
+                yield Static(
+                    "Custom regex patterns to detect and redact:", classes="setting-row"
+                )
                 with VerticalScroll(classes="list-scroll"):
                     yield Static("", id="additional-patterns-list")
-                yield Input(placeholder="Enter custom regex pattern (e.g., MY_SECRET_[A-Z0-9]+)", id="new-pattern-input")
-                yield Static("[dim]Press 'p' to add pattern[/dim]", classes="setting-row")
+                yield Input(
+                    placeholder="Enter custom regex pattern (e.g., MY_SECRET_[A-Z0-9]+)",
+                    id="new-pattern-input",
+                )
+                yield Static(
+                    "[dim]Press 'p' to add pattern[/dim]", classes="setting-row"
+                )
 
             # Statistics section
             with Container(classes="section"):
-                yield Static("[bold]Redaction Statistics[/bold]", classes="section-title")
+                yield Static(
+                    "[bold]Redaction Statistics[/bold]", classes="section-title"
+                )
                 yield Static("", id="redaction-stats")
 
     def on_mount(self) -> None:
@@ -255,7 +279,7 @@ class SecretRedactionContent(SchemaDefaultsMixin, Container):
         config = {}
         if config_path.exists():
             try:
-                with open(config_path, 'r', encoding='utf-8') as f:
+                with open(config_path, "r", encoding="utf-8") as f:
                     config = json.load(f)
             except Exception as e:
                 self.app.notify(f"Error loading config: {e}", severity="error")
@@ -274,14 +298,18 @@ class SecretRedactionContent(SchemaDefaultsMixin, Container):
             toggle.load_value(enabled_value)
 
             self.query_one("#action-select", Select).value = action
-            self.query_one("#preserve-format-checkbox", Checkbox).value = preserve_format
+            self.query_one("#preserve-format-checkbox", Checkbox).value = (
+                preserve_format
+            )
             self.query_one("#log-redactions-checkbox", Checkbox).value = log_redactions
         except Exception:
             pass  # Widgets may not be fully mounted yet
 
         # Update additional patterns list
         if additional_patterns:
-            patterns_text = "\n".join([f"  • {pattern}" for pattern in additional_patterns])
+            patterns_text = "\n".join(
+                [f"  • {pattern}" for pattern in additional_patterns]
+            )
         else:
             patterns_text = "[dim]No additional patterns configured[/dim]"
         self.query_one("#additional-patterns-list", Static).update(patterns_text)
@@ -318,16 +346,22 @@ class SecretRedactionContent(SchemaDefaultsMixin, Container):
 
             if secret_types:
                 stats_text += "\nTop Secret Types:\n"
-                sorted_types = sorted(secret_types.items(), key=lambda x: x[1], reverse=True)[:5]
+                sorted_types = sorted(
+                    secret_types.items(), key=lambda x: x[1], reverse=True
+                )[:5]
                 for secret_type, count in sorted_types:
                     stats_text += f"  • {secret_type}: {count}\n"
 
             self.query_one("#redaction-stats", Static).update(stats_text.strip())
 
         except ImportError:
-            self.query_one("#redaction-stats", Static).update("[dim]Violation logging not available[/dim]")
+            self.query_one("#redaction-stats", Static).update(
+                "[dim]Violation logging not available[/dim]"
+            )
         except Exception as e:
-            self.query_one("#redaction-stats", Static).update(f"[dim]Error loading stats: {e}[/dim]")
+            self.query_one("#redaction-stats", Static).update(
+                f"[dim]Error loading stats: {e}[/dim]"
+            )
 
     def save_config(self, config_updates: Dict[str, Any]) -> bool:
         """
@@ -345,7 +379,7 @@ class SecretRedactionContent(SchemaDefaultsMixin, Container):
             # Load existing config
             config = {}
             if config_path.exists():
-                with open(config_path, 'r', encoding='utf-8') as f:
+                with open(config_path, "r", encoding="utf-8") as f:
                     config = json.load(f)
 
             # Ensure secret_redaction section exists
@@ -357,10 +391,12 @@ class SecretRedactionContent(SchemaDefaultsMixin, Container):
 
             # Save config
             config_path.parent.mkdir(parents=True, exist_ok=True)
-            with open(config_path, 'w', encoding='utf-8') as f:
+            with open(config_path, "w", encoding="utf-8") as f:
                 json.dump(config, f, indent=2)
 
-            self.app.notify("Secret redaction configuration saved", severity="information")
+            self.app.notify(
+                "Secret redaction configuration saved", severity="information"
+            )
             return True
 
         except Exception as e:
@@ -416,7 +452,9 @@ class SecretRedactionContent(SchemaDefaultsMixin, Container):
     def action_refresh(self) -> None:
         """Refresh configuration (triggered by 'r' key)."""
         self.load_config()
-        self.app.notify("Secret redaction configuration refreshed", severity="information")
+        self.app.notify(
+            "Secret redaction configuration refreshed", severity="information"
+        )
 
     def add_pattern(self) -> None:
         """Add a custom redaction pattern."""
@@ -429,6 +467,7 @@ class SecretRedactionContent(SchemaDefaultsMixin, Container):
 
         # Try to compile as regex to validate
         import re
+
         try:
             re.compile(pattern_value)
         except re.error as e:
@@ -439,7 +478,7 @@ class SecretRedactionContent(SchemaDefaultsMixin, Container):
 
         try:
             if config_path.exists():
-                with open(config_path, 'r', encoding='utf-8') as f:
+                with open(config_path, "r", encoding="utf-8") as f:
                     config = json.load(f)
             else:
                 config = {}
@@ -457,14 +496,14 @@ class SecretRedactionContent(SchemaDefaultsMixin, Container):
 
             config["secret_redaction"]["additional_patterns"].append(pattern_value)
 
-            with open(config_path, 'w', encoding='utf-8') as f:
+            with open(config_path, "w", encoding="utf-8") as f:
                 json.dump(config, f, indent=2)
 
             # Clear input
             pattern_input.value = ""
 
             self.load_config()
-            self.app.notify(f"✓ Added redaction pattern", severity="success")
+            self.app.notify("✓ Added redaction pattern", severity="success")
 
         except Exception as e:
             self.app.notify(f"Error adding pattern: {e}", severity="error")

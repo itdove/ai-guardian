@@ -19,6 +19,7 @@ logger = logging.getLogger(__name__)
 def _get_tray_lock_path():
     """Get the tray lock file path."""
     from ai_guardian.config_utils import get_state_dir
+
     return get_state_dir() / "tray.lock"
 
 
@@ -84,6 +85,7 @@ def _remove_tray_lock():
     except (ValueError, OSError):
         pass  # intentionally silent — stale lock cleanup
 
+
 def _ensure_system_gi():
     """Make system GObject Introspection visible in isolated environments.
 
@@ -92,19 +94,26 @@ def _ensure_system_gi():
     add its parent directory to sys.path so pystray can use AppIndicator.
     """
     import platform
+
     if platform.system() != "Linux":
         return
     try:
         import gi  # noqa: F401
+
         return
     except ImportError:
         pass  # intentionally silent — optional dependency
     for python in ("/usr/bin/python3", "/usr/bin/python", "python3", "python"):
         try:
             result = subprocess.run(
-                [python, "-c",
-                 "import gi; import os; print(os.path.dirname(gi.__path__[0]))"],
-                capture_output=True, text=True, timeout=5,
+                [
+                    python,
+                    "-c",
+                    "import gi; import os; print(os.path.dirname(gi.__path__[0]))",
+                ],
+                capture_output=True,
+                text=True,
+                timeout=5,
             )
             if result.returncode == 0 and result.stdout.strip():
                 site_dir = result.stdout.strip()
@@ -112,6 +121,7 @@ def _ensure_system_gi():
                     sys.path.insert(0, site_dir)
                     try:
                         import gi  # noqa: F401
+
                         logger.info("System gi found at %s", site_dir)
                         return
                     except ImportError:
@@ -134,10 +144,12 @@ except Exception:
 def _suppress_gtk_stderr():
     """Redirect stderr fd to suppress C-level GTK warnings during init."""
     import platform
+
     if platform.system() != "Linux":
         return None
     try:
         import os
+
         devnull_fd = os.open(os.devnull, os.O_WRONLY)
         saved_fd = os.dup(2)
         os.dup2(devnull_fd, 2)
@@ -152,6 +164,7 @@ def _restore_stderr(saved_fd):
     if saved_fd is not None:
         try:
             import os
+
             os.dup2(saved_fd, 2)
             os.close(saved_fd)
         except OSError:
@@ -166,6 +179,7 @@ def _check_gi_available():
     """
     try:
         import gi  # noqa: F401
+
         return True
     except ImportError:
         return False
@@ -177,6 +191,7 @@ def is_tray_available():
         return False
     import os
     import platform
+
     if os.environ.get("DISPLAY") is None and os.environ.get("WAYLAND_DISPLAY") is None:
         if platform.system() == "Linux":
             return False
@@ -213,7 +228,9 @@ def _check_gnome_appindicator():
     try:
         result = subprocess.run(
             ["gnome-extensions", "list", "--enabled"],
-            capture_output=True, text=True, timeout=5,
+            capture_output=True,
+            text=True,
+            timeout=5,
         )
         if "appindicatorsupport@rgcjonas.gmail.com" in result.stdout:
             return True
@@ -235,8 +252,15 @@ class DaemonTray:
 
     _has_web_console = sys.version_info >= (3, 10)
 
-    def __init__(self, get_stats_callback, stop_callback, pause_callback,
-                 discovery=None, multi_client=None, standalone=False):
+    def __init__(
+        self,
+        get_stats_callback,
+        stop_callback,
+        pause_callback,
+        discovery=None,
+        multi_client=None,
+        standalone=False,
+    ):
         """Initialize tray icon.
 
         Args:
@@ -303,9 +327,7 @@ class DaemonTray:
 
         _write_tray_lock()
 
-        self._thread = threading.Thread(
-            target=self._run, daemon=True, name="tray-icon"
-        )
+        self._thread = threading.Thread(target=self._run, daemon=True, name="tray-icon")
         self._thread.start()
         return True
 
@@ -321,7 +343,10 @@ class DaemonTray:
 
         existing_pid = _is_tray_running()
         if existing_pid:
-            logger.info("System tray already running (pid %s in tray.lock), skipping", existing_pid)
+            logger.info(
+                "System tray already running (pid %s in tray.lock), skipping",
+                existing_pid,
+            )
             return False
 
         _write_tray_lock()
@@ -345,7 +370,7 @@ class DaemonTray:
 
     def _stop_web_console(self):
         """Stop the web console subprocess if we started it."""
-        proc = getattr(self, '_web_proc', None)
+        proc = getattr(self, "_web_proc", None)
         if proc and proc.poll() is None:
             proc.terminate()
             try:
@@ -353,6 +378,7 @@ class DaemonTray:
             except subprocess.TimeoutExpired:
                 proc.kill()
         from ai_guardian.config_utils import get_state_dir
+
         port_file = get_state_dir() / "web-console.port"
         try:
             port_file.unlink(missing_ok=True)
@@ -371,6 +397,7 @@ class DaemonTray:
             return False
         try:
             from ai_guardian.config_utils import get_state_dir
+
             marker = get_state_dir() / "daemon.stop-requested"
             return not marker.exists()
         except Exception:
@@ -389,6 +416,7 @@ class DaemonTray:
             return True
         try:
             from ai_guardian.daemon.client import is_daemon_running
+
             if is_daemon_running():
                 return True
         except Exception:
@@ -399,6 +427,7 @@ class DaemonTray:
         self._last_autostart_attempt = now
         try:
             from ai_guardian.daemon.client import start_daemon_background
+
             if start_daemon_background():
                 logger.info("Auto-started daemon from tray interaction")
                 self._request_discovery_refresh(wait=False)
@@ -418,7 +447,7 @@ class DaemonTray:
         self._invalidate_discovery_frames()
         if self._icon:
             self._dispatch_to_main(
-                lambda: setattr(self._icon, 'icon', self._create_icon())
+                lambda: setattr(self._icon, "icon", self._create_icon())
             )
         if status == "paused" and prev != "paused":
             self._start_pause_timer()
@@ -443,24 +472,27 @@ class DaemonTray:
         instead of the generic Python icon (issue #769).
         """
         import platform
+
         if platform.system() != "Darwin":
             return
         try:
             import AppKit
             import Foundation
+
             info = Foundation.NSBundle.mainBundle().infoDictionary()
             if info.get("CFBundleIdentifier") is None:
                 info["CFBundleIdentifier"] = "com.itdove.ai-guardian.tray"
                 info["CFBundleName"] = "AI Guardian Tray"
             app = AppKit.NSApplication.sharedApplication()
-            app.setActivationPolicy_(
-                AppKit.NSApplicationActivationPolicyAccessory
-            )
+            app.setActivationPolicy_(AppKit.NSApplicationActivationPolicyAccessory)
             try:
                 from ai_guardian.daemon.tray_plugins import _find_icon
+
                 icns_path = _find_icon("ai-guardian.icns")
                 if icns_path:
-                    icon_image = AppKit.NSImage.alloc().initWithContentsOfFile_(icns_path)
+                    icon_image = AppKit.NSImage.alloc().initWithContentsOfFile_(
+                        icns_path
+                    )
                     if icon_image:
                         app.setApplicationIconImage_(icon_image)
             except Exception:
@@ -482,14 +514,14 @@ class DaemonTray:
             pystray.MenuItem("Restart", self._on_restart_tray),
             pystray.MenuItem("Quit", self._on_quit),
             pystray.Menu.SEPARATOR,
-            pystray.MenuItem(self._about_label, self._on_about,
-                             enabled=lambda _: (
-                                 any(
-                                     t.status in ("running", "paused")
-                                     for t in self._targets
-                                 )
-                                 or self._can_autostart_daemon()
-                             )),
+            pystray.MenuItem(
+                self._about_label,
+                self._on_about,
+                enabled=lambda _: (
+                    any(t.status in ("running", "paused") for t in self._targets)
+                    or self._can_autostart_daemon()
+                ),
+            ),
         )
         self._icon = pystray.Icon(
             "ai-guardian", self._create_icon(), "AI Guardian Tray", menu
@@ -503,6 +535,7 @@ class DaemonTray:
         self._start_web_console()
         self._register_wake_handler()
         import platform
+
         if platform.system() == "Linux":
             saved_fd = _suppress_gtk_stderr()
             threading.Timer(0.5, _restore_stderr, args=[saved_fd]).start()
@@ -535,18 +568,22 @@ class DaemonTray:
         the default white icon invisible.
         """
         import platform
+
         if platform.system() != "Linux":
             return False
         import os
+
         desktop = os.environ.get("XDG_CURRENT_DESKTOP", "")
         if "GNOME" not in desktop.upper():
             return False
         try:
             import subprocess
+
             result = subprocess.run(
-                ["gsettings", "get", "org.gnome.desktop.interface",
-                 "color-scheme"],
-                capture_output=True, text=True, timeout=3,
+                ["gsettings", "get", "org.gnome.desktop.interface", "color-scheme"],
+                capture_output=True,
+                text=True,
+                timeout=3,
             )
             scheme = result.stdout.strip().strip("'\"")
             return scheme != "prefer-dark"
@@ -559,6 +596,7 @@ class DaemonTray:
         img = img.copy()
         r, g, b, a = img.split()
         from PIL import ImageOps
+
         r = ImageOps.invert(r)
         g = ImageOps.invert(g)
         b = ImageOps.invert(b)
@@ -577,6 +615,7 @@ class DaemonTray:
     def _get_tray_icon_size():
         """Return the preferred tray icon size for the current platform."""
         import platform
+
         system = platform.system()
         if system == "Darwin":
             return None  # macOS uses Template naming, not size suffix
@@ -609,8 +648,7 @@ class DaemonTray:
         # (editable install or unpacked wheel), use it directly.
         for name in names:
             try:
-                ref = (importlib.resources.files("ai_guardian")
-                       / "images" / name)
+                ref = importlib.resources.files("ai_guardian") / "images" / name
                 if isinstance(ref, Path) and ref.exists():
                     return str(ref)
             except Exception:
@@ -620,12 +658,12 @@ class DaemonTray:
         # a persistent temp directory so the path survives context exit.
         for name in names:
             try:
-                ref = (importlib.resources.files("ai_guardian")
-                       / "images" / name)
+                ref = importlib.resources.files("ai_guardian") / "images" / name
                 with importlib.resources.as_file(ref) as p:
                     if p.exists():
                         import shutil
                         import tempfile
+
                         persistent_dir = (
                             Path(tempfile.gettempdir()) / "ai-guardian-icons"
                         )
@@ -705,7 +743,8 @@ class DaemonTray:
         self._discovery_animating = True
         thread = threading.Thread(
             target=self._animate_discovery_loop,
-            daemon=True, name="discovery-anim",
+            daemon=True,
+            name="discovery-anim",
         )
         thread.start()
 
@@ -754,6 +793,7 @@ class DaemonTray:
         initial discovery at startup.
         """
         import time
+
         now = time.monotonic()
         if now - self._last_discovery_refresh < 15.0:
             return
@@ -822,6 +862,7 @@ class DaemonTray:
     def _is_mcp_installed():
         """Check if ai-guardian MCP server is configured in any supported IDE."""
         from ai_guardian.daemon import is_mcp_installed
+
         return is_mcp_installed()
 
     def _is_mcp_for_current_target(self):
@@ -892,9 +933,9 @@ class DaemonTray:
         import shlex
 
         is_remote = (
-            run_on_target and target
-            and getattr(target, "runtime", "local")
-            in ("container", "kubernetes")
+            run_on_target
+            and target
+            and getattr(target, "runtime", "local") in ("container", "kubernetes")
         )
         if is_remote:
             return command_str
@@ -903,7 +944,7 @@ class DaemonTray:
         if stripped == "ai-guardian" or stripped.startswith("ai-guardian "):
             python_exe = DaemonTray._get_python_executable()
             resolved = shlex.quote(python_exe) + " -m ai_guardian"
-            return resolved + stripped[len("ai-guardian"):]
+            return resolved + stripped[len("ai-guardian") :]
         return command_str
 
     @staticmethod
@@ -919,6 +960,7 @@ class DaemonTray:
     def _start_web_console(self):
         """Start the web console server as a subprocess."""
         from ai_guardian.config_utils import get_state_dir
+
         port_file = get_state_dir() / "web-console.port"
         if port_file.exists():
             if self._is_web_console_alive(port_file):
@@ -937,18 +979,25 @@ class DaemonTray:
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.DEVNULL,
             )
-            logger.info("Web console started (pid %d, cmd: %s)", self._web_proc.pid, cmd[0])
+            logger.info(
+                "Web console started (pid %d, cmd: %s)", self._web_proc.pid, cmd[0]
+            )
             threading.Thread(
                 target=self._notify_web_console_ready,
                 daemon=True,
                 name="web-console-notify",
             ).start()
         except Exception as e:
-            logger.error("Web console failed to start: %s (cmd: %s)", e, cmd if 'cmd' in locals() else 'N/A')
+            logger.error(
+                "Web console failed to start: %s (cmd: %s)",
+                e,
+                cmd if "cmd" in locals() else "N/A",
+            )
 
     def _notify_web_console_ready(self):
         """Wait for web console to be ready, update menu, then notify."""
         from ai_guardian.config_utils import get_state_dir
+
         port_file = get_state_dir() / "web-console.port"
         for _ in range(30):
             if port_file.exists() and self._is_web_console_alive(port_file):
@@ -969,20 +1018,28 @@ class DaemonTray:
     def _show_notification(title, message):
         """Show a desktop notification."""
         import platform
+
         system = platform.system()
         try:
             if system == "Darwin":
                 safe_title = title.replace("\\", "\\\\").replace('"', '\\"')
                 safe_msg = message.replace("\\", "\\\\").replace('"', '\\"')
-                subprocess.Popen([
-                    "osascript", "-e",
-                    f'display notification "{safe_msg}" with title "{safe_title}"',
-                ])
+                subprocess.Popen(
+                    [
+                        "osascript",
+                        "-e",
+                        f'display notification "{safe_msg}" with title "{safe_title}"',
+                    ]
+                )
             elif system == "Linux":
                 subprocess.Popen(["notify-send", title, message])
             elif system == "Windows":
-                safe_title = title.replace("'", "''").replace("`", "``").replace("$", "`$")
-                safe_msg = message.replace("'", "''").replace("`", "``").replace("$", "`$")
+                safe_title = (
+                    title.replace("'", "''").replace("`", "``").replace("$", "`$")
+                )
+                safe_msg = (
+                    message.replace("'", "''").replace("`", "``").replace("$", "`$")
+                )
                 ps = (
                     "[System.Reflection.Assembly]::LoadWithPartialName('System.Windows.Forms') | Out-Null; "
                     "[System.Reflection.Assembly]::LoadWithPartialName('System.Drawing') | Out-Null; "
@@ -999,6 +1056,7 @@ class DaemonTray:
     def _is_web_console_alive(port_file):
         """Check if the web console at the port file is reachable."""
         import socket
+
         try:
             port = int(port_file.read_text().strip())
             sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -1013,6 +1071,7 @@ class DaemonTray:
     def _is_web_console_ready():
         """Check if web console is running and reachable."""
         from ai_guardian.config_utils import get_state_dir
+
         port_file = get_state_dir() / "web-console.port"
         if not port_file.exists():
             return False
@@ -1029,6 +1088,7 @@ class DaemonTray:
         """Open the web console for a specific daemon and optional page."""
         from ai_guardian.config_utils import get_state_dir
         from ai_guardian.desktop_utils import open_url
+
         port_file = get_state_dir() / "web-console.port"
         try:
             port = int(port_file.read_text().strip())
@@ -1046,6 +1106,7 @@ class DaemonTray:
 
         import os
         import platform as _plat
+
         if _plat.system() == "Windows":
             shell = os.environ.get("COMSPEC", "cmd.exe")
         else:
@@ -1064,6 +1125,7 @@ class DaemonTray:
         """Build About menu label with tray version."""
         try:
             from ai_guardian import __version__
+
             return f"About — v{__version__}"
         except ImportError:
             return "About"
@@ -1072,23 +1134,28 @@ class DaemonTray:
     def _build_about_text():
         """Build the About dialog text with tray process info."""
         from ai_guardian.daemon.about import get_about_info, format_about_text
+
         return format_about_text(get_about_info())
 
     def _on_about(self, icon, item):
         """Show About info via OS dialog."""
+
         def _show():
             try:
                 from ai_guardian.daemon.tray_plugins import show_dialog
+
                 text = self._build_about_text()
                 if self._is_multi_daemon():
                     text += self._format_daemon_list()
                 show_dialog("About AI Guardian", text)
             except Exception:
                 pass  # intentionally silent — optional dependency
+
         threading.Thread(target=_show, daemon=True, name="about-dialog").start()
 
     def _daemon_about_label(self, slot):
         """Build About menu label with daemon version for a specific slot."""
+
         def _label(_item=None):
             if slot >= len(self._targets):
                 return "About"
@@ -1098,17 +1165,21 @@ class DaemonTray:
             if version:
                 return f"About — v{version}"
             return "About"
+
         return _label
 
     def _on_daemon_about(self, slot):
         """Show About info for a specific daemon via OS dialog."""
+
         def action(_, __):
             if slot >= len(self._targets):
                 return
             target = self._targets[slot]
+
             def _show():
                 try:
                     from ai_guardian.daemon.tray_plugins import show_dialog
+
                     info = self._daemon_about_cache.get(slot)
                     if info is None and self._multi_client:
                         info = self._multi_client.get_about(target)
@@ -1116,13 +1187,18 @@ class DaemonTray:
                             self._daemon_about_cache[slot] = info
                     if info:
                         from ai_guardian.daemon.about import format_about_text
+
                         text = format_about_text(info)
                     else:
                         text = self._build_about_text()
                     show_dialog(f"About {target.name}", text)
                 except Exception:
                     pass  # intentionally silent — optional dependency
-            threading.Thread(target=_show, daemon=True, name="daemon-about-dialog").start()
+
+            threading.Thread(
+                target=_show, daemon=True, name="daemon-about-dialog"
+            ).start()
+
         return action
 
     def _format_daemon_list(self):
@@ -1162,6 +1238,7 @@ class DaemonTray:
 
         def _tick():
             import time
+
             while self._pause_timer_running and self._status == "paused":
                 stats = self._get_stats()
                 remaining = stats.get("pause_remaining_seconds", 0)
@@ -1189,14 +1266,17 @@ class DaemonTray:
         """
         try:
             from PyObjCTools.AppHelper import callAfter
+
             callAfter(func)
             return
         except ImportError:
             pass  # intentionally silent — optional dependency
         try:
             import platform
+
             if platform.system() == "Linux":
                 from gi.repository import GLib
+
                 GLib.idle_add(func)
                 return
         except (ImportError, ValueError):
@@ -1241,9 +1321,7 @@ class DaemonTray:
                 stats.get("config_error"),
                 self._status,
                 len(self._targets),
-                tuple(
-                    (t.name, t.status) for t in self._targets
-                ),
+                tuple((t.name, t.status) for t in self._targets),
             )
         except Exception:
             return None
@@ -1307,6 +1385,7 @@ class DaemonTray:
         """Send config error OS notification (runs in background thread)."""
         try:
             from ai_guardian.daemon.tray_plugins import send_notification
+
             send_notification(
                 "AI Guardian",
                 "Config error detected — run Doctor from tray menu for details",
@@ -1322,9 +1401,10 @@ class DaemonTray:
         Returns None if parsing fails.
         """
         import re
+
         if not version_str or version_str == "unknown":
             return None
-        match = re.match(r'v?(\d+)\.(\d+)\.(\d+)', version_str)
+        match = re.match(r"v?(\d+)\.(\d+)\.(\d+)", version_str)
         if match:
             return (int(match.group(1)), int(match.group(2)), int(match.group(3)))
         return None
@@ -1377,6 +1457,7 @@ class DaemonTray:
         """Send version mismatch OS notification (runs in background thread)."""
         try:
             from ai_guardian.daemon.tray_plugins import send_notification
+
             send_notification(
                 "AI Guardian",
                 f"Daemon '{daemon_name}' is running v{daemon_version} — "
@@ -1388,12 +1469,14 @@ class DaemonTray:
     def _check_pypi_version(self):
         """Fetch latest version from PyPI (throttled to every 300s)."""
         import time as _time
+
         now = _time.monotonic()
         if now - self._pypi_last_check < 300:
             return
         self._pypi_last_check = now
         try:
             from ai_guardian.daemon.multi_client import MultiDaemonClient
+
             version = MultiDaemonClient.check_pypi_version()
             if version:
                 self._pypi_latest = version
@@ -1408,10 +1491,13 @@ class DaemonTray:
                 available = self._multi_client.check_pip_available(target)
             else:
                 import subprocess as _sp
+
                 python_exe = DaemonTray._get_python_executable()
                 result = _sp.run(
                     [python_exe, "-m", "pip", "--version"],
-                    capture_output=True, text=True, timeout=10,
+                    capture_output=True,
+                    text=True,
+                    timeout=10,
                 )
                 available = result.returncode == 0
             self._pip_available[key] = available
@@ -1429,6 +1515,7 @@ class DaemonTray:
         # Don't offer upgrade if tray is running a dev version (not on PyPI)
         try:
             from ai_guardian import __version__ as tray_version
+
             if "-dev" in tray_version or "dev" in tray_version.lower():
                 return False
         except ImportError:
@@ -1447,6 +1534,7 @@ class DaemonTray:
                 return "Syncing…"
         try:
             from ai_guardian import __version__ as tray_version
+
             return f"Match Tray v{tray_version}"
         except ImportError:
             return "Match Tray Version"
@@ -1465,10 +1553,14 @@ class DaemonTray:
 
         try:
             from ai_guardian.daemon.tray_plugins import send_notification
+
             send_notification(
                 "AI Guardian",
-                f"Syncing ai-guardian on '{target.name}' to v{tray_version}…" if tray_version
-                else f"Syncing ai-guardian on '{target.name}'…",
+                (
+                    f"Syncing ai-guardian on '{target.name}' to v{tray_version}…"
+                    if tray_version
+                    else f"Syncing ai-guardian on '{target.name}'…"
+                ),
             )
         except Exception:
             pass  # intentionally silent — optional dependency
@@ -1477,15 +1569,31 @@ class DaemonTray:
         output = ""
         try:
             if self._multi_client:
-                success, output = self._multi_client.run_pip_upgrade(target, tray_version)
+                success, output = self._multi_client.run_pip_upgrade(
+                    target, tray_version
+                )
             else:
                 import subprocess as _sp
+
                 python_exe = DaemonTray._get_python_executable()
                 # Install specific version to match tray
                 if tray_version:
-                    cmd = [python_exe, "-m", "pip", "install", f"ai-guardian=={tray_version}"]
+                    cmd = [
+                        python_exe,
+                        "-m",
+                        "pip",
+                        "install",
+                        f"ai-guardian=={tray_version}",
+                    ]
                 else:
-                    cmd = [python_exe, "-m", "pip", "install", "--upgrade", "ai-guardian"]
+                    cmd = [
+                        python_exe,
+                        "-m",
+                        "pip",
+                        "install",
+                        "--upgrade",
+                        "ai-guardian",
+                    ]
                 result = _sp.run(cmd, capture_output=True, text=True, timeout=120)
                 success = result.returncode == 0
                 output = result.stdout + result.stderr
@@ -1494,6 +1602,7 @@ class DaemonTray:
 
         try:
             from ai_guardian.daemon.tray_plugins import send_notification
+
             if success:
                 send_notification(
                     "AI Guardian",
@@ -1505,7 +1614,9 @@ class DaemonTray:
                 self._daemon_versions.pop(key, None)
                 self._pip_available.pop(key, None)
             else:
-                first_line = output.strip().split("\n")[-1][:120] if output else "unknown error"
+                first_line = (
+                    output.strip().split("\n")[-1][:120] if output else "unknown error"
+                )
                 send_notification(
                     "AI Guardian",
                     f"Version sync failed on '{target.name}': {first_line}",
@@ -1529,6 +1640,7 @@ class DaemonTray:
 
     def _mk_upgrade(self, slot):
         """Factory returning a click handler for multi-daemon Upgrade item."""
+
         def action(_, __):
             if slot < len(self._targets):
                 target = self._targets[slot]
@@ -1538,6 +1650,7 @@ class DaemonTray:
                     daemon=True,
                     name=f"daemon-upgrade-{slot}",
                 ).start()
+
         return action
 
     def _update_global_pause_status(self):
@@ -1571,6 +1684,7 @@ class DaemonTray:
         detection in _start_stats_refresh().
         """
         import platform
+
         self._wake_observer = None
         if platform.system() != "Darwin":
             return
@@ -1584,7 +1698,10 @@ class DaemonTray:
                 self._dispatch_to_main(self._rebuild_tray)
 
             token = center.addObserverForName_object_queue_usingBlock_(
-                "NSWorkspaceDidWakeNotification", None, None, _on_wake,
+                "NSWorkspaceDidWakeNotification",
+                None,
+                None,
+                _on_wake,
             )
             self._wake_observer = (center, token)
             logger.debug("Registered macOS wake notification handler")
@@ -1631,9 +1748,7 @@ class DaemonTray:
                     self._request_discovery_refresh(wait=False)
                     self._dispatch_to_main(self._refresh_menu_if_changed)
 
-        thread = threading.Thread(
-            target=_refresh, daemon=True, name="stats-refresh"
-        )
+        thread = threading.Thread(target=_refresh, daemon=True, name="stats-refresh")
         thread.start()
 
     def _pause_menu_label(self):
@@ -1647,7 +1762,6 @@ class DaemonTray:
             secs = int(remaining % 60)
             return f"Resume ({mins}m {secs}s left)"
         return "Resume (paused)"
-
 
     def _get_merged_dir_list(self, stats):
         """Merge active project dirs and paused dirs into a sorted list."""
@@ -1670,20 +1784,27 @@ class DaemonTray:
 
     def _mk_multi_pause_dir(self, slot):
         """Create a pause_dir callback for a multi-daemon slot."""
+
         def pause_dir_fn(directory, minutes):
             if slot < len(self._targets) and self._multi_client:
                 self._multi_client.send_pause_dir(
-                    self._targets[slot], directory, minutes,
+                    self._targets[slot],
+                    directory,
+                    minutes,
                 )
+
         return pause_dir_fn
 
     def _mk_multi_resume_dir(self, slot):
         """Create a resume_dir callback for a multi-daemon slot."""
+
         def resume_dir_fn(directory):
             if slot < len(self._targets) and self._multi_client:
                 self._multi_client.send_resume_dir(
-                    self._targets[slot], directory,
+                    self._targets[slot],
+                    directory,
                 )
+
         return resume_dir_fn
 
     def _build_dir_pause_items(self, get_stats_fn, pause_dir_fn, resume_dir_fn):
@@ -1747,6 +1868,7 @@ class DaemonTray:
                     d = _dir_at(None, stats, slot)
                     if d:
                         pause_dir_fn(d, minutes)
+
                 return action
 
             def _mk_dir_resume(slot=slot):
@@ -1755,6 +1877,7 @@ class DaemonTray:
                     d = _dir_at(None, stats, slot)
                     if d:
                         resume_dir_fn(d)
+
                 return action
 
             def _full_path_label(_item, slot=slot):
@@ -1767,31 +1890,39 @@ class DaemonTray:
                     _label,
                     pystray.Menu(
                         pystray.MenuItem(
-                            _full_path_label, None, enabled=False,
+                            _full_path_label,
+                            None,
+                            enabled=False,
                         ),
                         pystray.Menu.SEPARATOR,
                         pystray.MenuItem(
-                            "5 minutes", _mk_dir_pause(5),
+                            "5 minutes",
+                            _mk_dir_pause(5),
                             visible=_is_active,
                         ),
                         pystray.MenuItem(
-                            "15 minutes", _mk_dir_pause(15),
+                            "15 minutes",
+                            _mk_dir_pause(15),
                             visible=_is_active,
                         ),
                         pystray.MenuItem(
-                            "30 minutes", _mk_dir_pause(30),
+                            "30 minutes",
+                            _mk_dir_pause(30),
                             visible=_is_active,
                         ),
                         pystray.MenuItem(
-                            "1 hour", _mk_dir_pause(60),
+                            "1 hour",
+                            _mk_dir_pause(60),
                             visible=_is_active,
                         ),
                         pystray.MenuItem(
-                            "Until resume", _mk_dir_pause(0),
+                            "Until resume",
+                            _mk_dir_pause(0),
                             visible=_is_active,
                         ),
                         pystray.MenuItem(
-                            "Resume", _mk_dir_resume(),
+                            "Resume",
+                            _mk_dir_resume(),
                             visible=_is_paused,
                         ),
                     ),
@@ -1820,11 +1951,12 @@ class DaemonTray:
 
         Prefers: current selection (if still running) > running local > first running.
         """
-        if (self._active_target
-                and self._active_target.status in ("running", "paused")):
+        if self._active_target and self._active_target.status in ("running", "paused"):
             for t in self._targets:
-                if (t.name == self._active_target.name
-                        and t.runtime == self._active_target.runtime):
+                if (
+                    t.name == self._active_target.name
+                    and t.runtime == self._active_target.runtime
+                ):
                     self._active_target = t
                     return
 
@@ -1849,8 +1981,11 @@ class DaemonTray:
         Also updates the target name from the REST API response if
         the daemon reports a configured name.
         """
-        if (self._multi_client and self._active_target
-                and self._active_target.runtime != "local"):
+        if (
+            self._multi_client
+            and self._active_target
+            and self._active_target.runtime != "local"
+        ):
             result = self._multi_client.get_status(self._active_target)
             if result and result.get("name"):
                 self._active_target.name = result["name"]
@@ -1878,8 +2013,12 @@ class DaemonTray:
         from ai_guardian.daemon.working_dir import shorten_path
 
         status_icon = {
-            "running": "●", "paused": "☾", "starting": "◌",
-            "stopped": "⚠", "error": "✗", "unknown": "○",
+            "running": "●",
+            "paused": "☾",
+            "starting": "◌",
+            "stopped": "⚠",
+            "error": "✗",
+            "unknown": "○",
         }.get(target.status, "○")
         if target.runtime == "container" and target.container_engine:
             runtime = f" ({target.container_engine})"
@@ -1912,6 +2051,7 @@ class DaemonTray:
     def _working_dir_menu_label(self, slot):
         """Format the Working Dir menu item label for a daemon slot."""
         from ai_guardian.daemon.working_dir import shorten_path
+
         if slot < len(self._targets):
             wd = getattr(self._targets[slot], "working_dir", None)
             if wd:
@@ -1923,6 +2063,7 @@ class DaemonTray:
 
     def _mk_change_working_dir(self, slot):
         """Create a click handler that opens a directory picker for a slot."""
+
         def action(_, __):
             if slot >= len(self._targets):
                 return
@@ -1934,11 +2075,13 @@ class DaemonTray:
                 daemon=True,
                 name="working-dir-picker",
             ).start()
+
         return action
 
     def _pick_working_dir(self, target, current):
         """Run directory picker in background thread and persist result."""
         from ai_guardian.daemon.working_dir import choose_directory, set_working_dir
+
         chosen = choose_directory(current)
         if chosen:
             target.working_dir = chosen
@@ -1948,6 +2091,7 @@ class DaemonTray:
     def _apply_working_dirs(self):
         """Populate target.working_dir from persisted state after discovery."""
         from ai_guardian.daemon.working_dir import get_working_dir
+
         for t in self._targets:
             if not getattr(t, "working_dir", None):
                 t.working_dir = get_working_dir(t.name)
@@ -1958,6 +2102,7 @@ class DaemonTray:
         When exactly one daemon is discovered, all submenu items are
         promoted to the top level. Visible only when len(targets) == 1.
         """
+
         def _single_vis(_item):
             return self._is_single_daemon()
 
@@ -1972,8 +2117,10 @@ class DaemonTray:
             return self._can_autostart_daemon()
 
         def _single_not_running(_item):
-            return (self._is_single_daemon()
-                    and self._targets[0].status not in ("running", "paused"))
+            return self._is_single_daemon() and self._targets[0].status not in (
+                "running",
+                "paused",
+            )
 
         def _header_label(_item):
             if not self._targets:
@@ -1996,6 +2143,7 @@ class DaemonTray:
                         self._multi_client.open_console(t, panel)
                     else:
                         self._launch_console(panel)
+
             return action
 
         def _open_shell():
@@ -2009,6 +2157,7 @@ class DaemonTray:
                         self._launch_shell(
                             cwd=getattr(t, "working_dir", None),
                         )
+
             return action
 
         def _open_doctor():
@@ -2020,6 +2169,7 @@ class DaemonTray:
                         self._multi_client.open_doctor(t)
                     else:
                         self._launch_doctor()
+
             return action
 
         def _pause_action(minutes):
@@ -2032,6 +2182,7 @@ class DaemonTray:
                     else:
                         self._pause(minutes)
                     self.update_status("paused")
+
             return action
 
         def _resume_action(_, __):
@@ -2056,6 +2207,7 @@ class DaemonTray:
 
         def _get_stats(_item):
             import time as time_mod
+
             now = time_mod.monotonic()
             if now - _cache["time"] < 2.0:
                 return _cache["stats"]
@@ -2085,8 +2237,8 @@ class DaemonTray:
 
         def _s_blocked(_item):
             s = _get_stats(_item)
-            b = s.get('blocked_count', 0)
-            t = s.get('request_count', 0)
+            b = s.get("blocked_count", 0)
+            t = s.get("request_count", 0)
             if t > 0:
                 return f"Blocked: {b:,} ({b/t*100:.1f}%)"
             return f"Blocked: {b:,}"
@@ -2113,27 +2265,27 @@ class DaemonTray:
 
         def _s_last_block(_item):
             s = _get_stats(_item)
-            bt = s.get('last_block_type')
-            ba = s.get('last_block_seconds_ago')
+            bt = s.get("last_block_type")
+            ba = s.get("last_block_seconds_ago")
             if bt is None:
                 return "Last block: none"
             return f"Last block: {bt} {self._format_time_ago(ba)}"
 
         def _s_ask_dialogs(_item):
             s = _get_stats(_item)
-            count = s.get('ask_dialog_count', 0)
-            total_ms = s.get('ask_dialog_total_ms', 0)
+            count = s.get("ask_dialog_count", 0)
+            total_ms = s.get("ask_dialog_total_ms", 0)
             if total_ms >= 1000:
                 return f"Ask dialogs: {count:,} (wait: {total_ms / 1000:.1f}s)"
             return f"Ask dialogs: {count:,} (wait: {total_ms:.0f}ms)"
 
         def _s_ask_dialogs_visible(_item):
             s = _get_stats(_item)
-            return s.get('ask_dialog_count', 0) > 0
+            return s.get("ask_dialog_count", 0) > 0
 
         def _s_config_reload(_item):
             s = _get_stats(_item)
-            ago = s.get('last_config_reload_seconds_ago')
+            ago = s.get("last_config_reload_seconds_ago")
             if ago is not None:
                 return f"Config reloaded: {self._format_time_ago(ago)}"
             return "Config: loaded"
@@ -2151,13 +2303,24 @@ class DaemonTray:
         return [
             pystray.MenuItem(_header_label, None, visible=_single_vis_refresh),
             pystray.Menu.SEPARATOR,
-            pystray.MenuItem("Console",
-                             _open_panel(None),  # None means main console page
-                             visible=_single_vis, enabled=_single_running),
-            pystray.MenuItem("Violations", _open_panel("panel-violations"),
-                             visible=_single_vis, enabled=_single_running),
-            pystray.MenuItem("Metrics & Audit", _open_panel("panel-metrics"),
-                             visible=_single_vis, enabled=_single_running),
+            pystray.MenuItem(
+                "Console",
+                _open_panel(None),  # None means main console page
+                visible=_single_vis,
+                enabled=_single_running,
+            ),
+            pystray.MenuItem(
+                "Violations",
+                _open_panel("panel-violations"),
+                visible=_single_vis,
+                enabled=_single_running,
+            ),
+            pystray.MenuItem(
+                "Metrics & Audit",
+                _open_panel("panel-metrics"),
+                visible=_single_vis,
+                enabled=_single_running,
+            ),
             pystray.MenuItem(
                 "Statistics",
                 pystray.Menu(
@@ -2172,8 +2335,9 @@ class DaemonTray:
                     pystray.Menu.SEPARATOR,
                     pystray.MenuItem(_s_last_block, None),
                     pystray.Menu.SEPARATOR,
-                    pystray.MenuItem(_s_ask_dialogs, None,
-                                     visible=_s_ask_dialogs_visible),
+                    pystray.MenuItem(
+                        _s_ask_dialogs, None, visible=_s_ask_dialogs_visible
+                    ),
                     pystray.Menu.SEPARATOR,
                     pystray.MenuItem(_s_config_reload, None),
                 ),
@@ -2251,17 +2415,22 @@ class DaemonTray:
         def _pause_dir_action(directory, minutes):
             if self._targets and self._multi_client:
                 self._multi_client.send_pause_dir(
-                    self._targets[0], directory, minutes,
+                    self._targets[0],
+                    directory,
+                    minutes,
                 )
 
         def _resume_dir_action(directory):
             if self._targets and self._multi_client:
                 self._multi_client.send_resume_dir(
-                    self._targets[0], directory,
+                    self._targets[0],
+                    directory,
                 )
 
         dir_pause_items = self._build_dir_pause_items(
-            _get_stats, _pause_dir_action, _resume_dir_action,
+            _get_stats,
+            _pause_dir_action,
+            _resume_dir_action,
         )
 
         def _has_dirs(_item):
@@ -2277,27 +2446,33 @@ class DaemonTray:
                         _global_pause_label,
                         pystray.Menu(
                             pystray.MenuItem(
-                                "5 minutes", _pause_action(5),
+                                "5 minutes",
+                                _pause_action(5),
                                 visible=_global_is_active,
                             ),
                             pystray.MenuItem(
-                                "15 minutes", _pause_action(15),
+                                "15 minutes",
+                                _pause_action(15),
                                 visible=_global_is_active,
                             ),
                             pystray.MenuItem(
-                                "30 minutes", _pause_action(30),
+                                "30 minutes",
+                                _pause_action(30),
                                 visible=_global_is_active,
                             ),
                             pystray.MenuItem(
-                                "1 hour", _pause_action(60),
+                                "1 hour",
+                                _pause_action(60),
                                 visible=_global_is_active,
                             ),
                             pystray.MenuItem(
-                                "Until resume", _pause_action(0),
+                                "Until resume",
+                                _pause_action(0),
                                 visible=_global_is_active,
                             ),
                             pystray.MenuItem(
-                                "Resume", _resume_action,
+                                "Resume",
+                                _resume_action,
                                 visible=_global_is_paused,
                             ),
                         ),
@@ -2307,8 +2482,9 @@ class DaemonTray:
                 ),
                 visible=_single_running,
             ),
-            pystray.MenuItem("Start daemon", _restart_action,
-                             visible=_single_not_running),
+            pystray.MenuItem(
+                "Start daemon", _restart_action, visible=_single_not_running
+            ),
             pystray.MenuItem(
                 lambda _: self._upgrade_label(
                     self._targets[0] if self._targets else None,
@@ -2348,7 +2524,11 @@ class DaemonTray:
                     self._check_and_autostart_daemon()
                     if panel and self._has_web_console and self._is_web_console_ready():
                         web_page = self._PANEL_TO_WEB_PATH.get(panel, "")
-                        daemon_name = self._targets[slot].name if slot < len(self._targets) else ""
+                        daemon_name = (
+                            self._targets[slot].name
+                            if slot < len(self._targets)
+                            else ""
+                        )
                         self._open_web_console(daemon_name, web_page)
                         return
                     if slot < len(self._targets):
@@ -2357,6 +2537,7 @@ class DaemonTray:
                             self._multi_client.open_console(t, panel)
                         else:
                             self._launch_console(panel)
+
                 return action
 
             def _mk_web_console_action(slot=idx):
@@ -2364,13 +2545,17 @@ class DaemonTray:
                     self._check_and_autostart_daemon()
                     if slot < len(self._targets):
                         self._open_web_console(self._targets[slot].name)
+
                 return action
 
             def _mk_web_console_visible(slot=idx):
                 def check(_):
-                    return (self._has_web_console
-                            and slot < len(self._targets)
-                            and self._is_web_console_ready())
+                    return (
+                        self._has_web_console
+                        and slot < len(self._targets)
+                        and self._is_web_console_ready()
+                    )
+
                 return check
 
             def _mk_open_shell(slot=idx):
@@ -2384,6 +2569,7 @@ class DaemonTray:
                             self._launch_shell(
                                 cwd=getattr(t, "working_dir", None),
                             )
+
                 return action
 
             def _mk_doctor(slot=idx):
@@ -2395,6 +2581,7 @@ class DaemonTray:
                             self._multi_client.open_doctor(t)
                         else:
                             self._launch_doctor()
+
                 return action
 
             def _mk_pause(minutes, slot=idx):
@@ -2407,6 +2594,7 @@ class DaemonTray:
                         else:
                             self._pause(minutes)
                         self._update_global_pause_status()
+
                 return action
 
             def _mk_resume(slot=idx):
@@ -2419,6 +2607,7 @@ class DaemonTray:
                         else:
                             self._pause(0)
                         self._update_global_pause_status()
+
                 return action
 
             def _mk_stop(slot=idx):
@@ -2427,6 +2616,7 @@ class DaemonTray:
                         t = self._targets[slot]
                         if self._multi_client:
                             self._multi_client.send_stop(t)
+
                 return action
 
             def _mk_restart(slot=idx):
@@ -2435,6 +2625,7 @@ class DaemonTray:
                         t = self._targets[slot]
                         if self._multi_client:
                             self._multi_client.send_restart(t)
+
                 return action
 
             def _mk_stats(slot=idx):
@@ -2442,6 +2633,7 @@ class DaemonTray:
 
                 def _get(_item):
                     import time as time_mod
+
                     now = time_mod.monotonic()
                     if now - _cache["time"] < 2.0:
                         return _cache["stats"]
@@ -2471,8 +2663,8 @@ class DaemonTray:
 
                 def blocked(_item):
                     s = _get(_item)
-                    b = s.get('blocked_count', 0)
-                    t = s.get('request_count', 0)
+                    b = s.get("blocked_count", 0)
+                    t = s.get("request_count", 0)
                     if t > 0:
                         return f"Blocked: {b:,} ({b/t*100:.1f}%)"
                     return f"Blocked: {b:,}"
@@ -2499,29 +2691,29 @@ class DaemonTray:
 
                 def last_block(_item):
                     s = _get(_item)
-                    bt = s.get('last_block_type')
-                    ba = s.get('last_block_seconds_ago')
+                    bt = s.get("last_block_type")
+                    ba = s.get("last_block_seconds_ago")
                     if bt is None:
                         return "Last block: none"
                     return f"Last block: {bt} {self._format_time_ago(ba)}"
 
                 def ask_dialogs(_item):
                     s = _get(_item)
-                    count = s.get('ask_dialog_count', 0)
-                    total_ms = s.get('ask_dialog_total_ms', 0)
+                    count = s.get("ask_dialog_count", 0)
+                    total_ms = s.get("ask_dialog_total_ms", 0)
                     if total_ms >= 1000:
                         return f"Ask dialogs: {count:,} (wait: {total_ms / 1000:.1f}s)"
                     return f"Ask dialogs: {count:,} (wait: {total_ms:.0f}ms)"
 
                 def ask_dialogs_visible(_item):
                     try:
-                        return int(_get(_item).get('ask_dialog_count', 0)) > 0
+                        return int(_get(_item).get("ask_dialog_count", 0)) > 0
                     except (TypeError, ValueError):
                         return False
 
                 def config_reload(_item):
                     s = _get(_item)
-                    ago = s.get('last_config_reload_seconds_ago')
+                    ago = s.get("last_config_reload_seconds_ago")
                     if ago is not None:
                         return f"Config reloaded: {self._format_time_ago(ago)}"
                     return "Config: loaded"
@@ -2538,11 +2730,22 @@ class DaemonTray:
                         return f"Resume ({mins}m {secs}s left)"
                     return "Resume (paused)"
 
-                return (requests, blocked, warned, logged,
-                        violations, critical, warning_sev,
-                        last_block, ask_dialogs, ask_dialogs_visible,
-                        config_reload,
-                        is_paused, resume_label, _get)
+                return (
+                    requests,
+                    blocked,
+                    warned,
+                    logged,
+                    violations,
+                    critical,
+                    warning_sev,
+                    last_block,
+                    ask_dialogs,
+                    ask_dialogs_visible,
+                    config_reload,
+                    is_paused,
+                    resume_label,
+                    _get,
+                )
 
             stats_fns = _mk_stats()
 
@@ -2559,16 +2762,22 @@ class DaemonTray:
                 pystray.MenuItem(
                     make_label,
                     pystray.Menu(
-                        pystray.MenuItem("Console",
-                                         _mk_web_console_action(idx),
-                                         visible=_mk_web_console_visible(idx),
-                                         enabled=_is_slot_running),
-                        pystray.MenuItem("Violations",
-                                         _mk_open_panel("panel-violations"),
-                                         enabled=_is_slot_running),
-                        pystray.MenuItem("Metrics & Audit",
-                                         _mk_open_panel("panel-metrics"),
-                                         enabled=_is_slot_running),
+                        pystray.MenuItem(
+                            "Console",
+                            _mk_web_console_action(idx),
+                            visible=_mk_web_console_visible(idx),
+                            enabled=_is_slot_running,
+                        ),
+                        pystray.MenuItem(
+                            "Violations",
+                            _mk_open_panel("panel-violations"),
+                            enabled=_is_slot_running,
+                        ),
+                        pystray.MenuItem(
+                            "Metrics & Audit",
+                            _mk_open_panel("panel-metrics"),
+                            enabled=_is_slot_running,
+                        ),
                         pystray.MenuItem(
                             "Statistics",
                             pystray.Menu(
@@ -2583,8 +2792,9 @@ class DaemonTray:
                                 pystray.Menu.SEPARATOR,
                                 pystray.MenuItem(stats_fns[7], None),
                                 pystray.Menu.SEPARATOR,
-                                pystray.MenuItem(stats_fns[8], None,
-                                                 visible=stats_fns[9]),
+                                pystray.MenuItem(
+                                    stats_fns[8], None, visible=stats_fns[9]
+                                ),
                                 pystray.Menu.SEPARATOR,
                                 pystray.MenuItem(stats_fns[10], None),
                             ),
@@ -2634,37 +2844,43 @@ class DaemonTray:
                                     ),
                                     pystray.Menu(
                                         pystray.MenuItem(
-                                            "5 minutes", _mk_pause(5),
+                                            "5 minutes",
+                                            _mk_pause(5),
                                             visible=lambda _i, _sf=stats_fns: (
                                                 not _sf[11](_i)
                                             ),
                                         ),
                                         pystray.MenuItem(
-                                            "15 minutes", _mk_pause(15),
+                                            "15 minutes",
+                                            _mk_pause(15),
                                             visible=lambda _i, _sf=stats_fns: (
                                                 not _sf[11](_i)
                                             ),
                                         ),
                                         pystray.MenuItem(
-                                            "30 minutes", _mk_pause(30),
+                                            "30 minutes",
+                                            _mk_pause(30),
                                             visible=lambda _i, _sf=stats_fns: (
                                                 not _sf[11](_i)
                                             ),
                                         ),
                                         pystray.MenuItem(
-                                            "1 hour", _mk_pause(60),
+                                            "1 hour",
+                                            _mk_pause(60),
                                             visible=lambda _i, _sf=stats_fns: (
                                                 not _sf[11](_i)
                                             ),
                                         ),
                                         pystray.MenuItem(
-                                            "Until resume", _mk_pause(0),
+                                            "Until resume",
+                                            _mk_pause(0),
                                             visible=lambda _i, _sf=stats_fns: (
                                                 not _sf[11](_i)
                                             ),
                                         ),
                                         pystray.MenuItem(
-                                            "Resume", _mk_resume(),
+                                            "Resume",
+                                            _mk_resume(),
                                             visible=lambda _i, _sf=stats_fns: (
                                                 _sf[11](_i)
                                             ),
@@ -2681,30 +2897,29 @@ class DaemonTray:
                             visible=_is_slot_running,
                         ),
                         pystray.MenuItem(
-                            "Start daemon", _mk_restart(),
+                            "Start daemon",
+                            _mk_restart(),
                             visible=lambda _i, s=idx: (
                                 s < len(self._targets)
-                                and self._targets[s].status not in (
-                                    "running", "paused"
-                                )
+                                and self._targets[s].status not in ("running", "paused")
                             ),
                         ),
                         pystray.MenuItem(
                             lambda _i, s=idx: self._upgrade_label(
-                                self._targets[s]
-                                if s < len(self._targets) else None,
+                                self._targets[s] if s < len(self._targets) else None,
                             ),
                             self._mk_upgrade(idx),
                             visible=lambda _i, s=idx: (
                                 s < len(self._targets)
-                                and self._is_upgrade_available(
-                                    self._targets[s]
-                                )
+                                and self._is_upgrade_available(self._targets[s])
                             ),
                         ),
                         pystray.Menu.SEPARATOR,
-                        pystray.MenuItem(self._daemon_about_label(idx), self._on_daemon_about(idx),
-                                         enabled=_is_slot_running),
+                        pystray.MenuItem(
+                            self._daemon_about_label(idx),
+                            self._on_daemon_about(idx),
+                            enabled=_is_slot_running,
+                        ),
                     ),
                     visible=make_visible,
                 )
@@ -2720,6 +2935,7 @@ class DaemonTray:
         global plugins disappear.
         """
         import json as json_mod
+
         collected_globals = []
         seen_global_names = set()
         reachable_slots = set()
@@ -2738,7 +2954,11 @@ class DaemonTray:
                     else:
                         continue
                 else:
-                    from ai_guardian.daemon.tray_plugins import load_merged_plugins, plugins_to_dict
+                    from ai_guardian.daemon.tray_plugins import (
+                        load_merged_plugins,
+                        plugins_to_dict,
+                    )
+
                     data = plugins_to_dict(load_merged_plugins(wd))
                 if data:
                     data_hash = json_mod.dumps(data, sort_keys=True)
@@ -2747,12 +2967,15 @@ class DaemonTray:
                     combined_hash = data_hash + tag_hash
                     if self._last_plugins_hash.get(i) != combined_hash:
                         from ai_guardian.daemon.tray_plugins import (
-                            dict_to_plugins, filter_plugins_by_tags,
+                            dict_to_plugins,
+                            filter_plugins_by_tags,
                         )
+
                         plugins = dict_to_plugins(data)
                         daemon_only = [p for p in plugins if p.scope != "global"]
                         self._daemon_plugins[i] = filter_plugins_by_tags(
-                            daemon_only, daemon_tags,
+                            daemon_only,
+                            daemon_tags,
                         )
                         self._last_plugins_hash[i] = combined_hash
                         self._daemon_global_plugins[i] = [
@@ -2775,6 +2998,7 @@ class DaemonTray:
         """Get menu_tags for a daemon target."""
         if target.runtime == "local":
             from ai_guardian.daemon import get_local_menu_tags
+
             return get_local_menu_tags()
         if self._multi_client:
             status = self._multi_client.get_status(target)
@@ -2795,6 +3019,7 @@ class DaemonTray:
         """
         import shutil
         import time
+
         elapsed = 0.0
         while elapsed < timeout:
             if os.path.exists(output_path):
@@ -2812,7 +3037,10 @@ class DaemonTray:
 
     @staticmethod
     def _execute_plugin_command(
-        command_str, item_type, target=None, run_on_target=False,
+        command_str,
+        item_type,
+        target=None,
+        run_on_target=False,
         label=None,
     ):
         """Execute a plugin command with optional target context."""
@@ -2830,11 +3058,14 @@ class DaemonTray:
         command_str = substitute_target_vars(command_str, target)
         if target and getattr(target, "working_dir", None):
             command_str = substitute_params(
-                command_str, {"working_dir": target.working_dir},
+                command_str,
+                {"working_dir": target.working_dir},
             )
 
         command_str = DaemonTray._resolve_plugin_ai_guardian(
-            command_str, run_on_target, target,
+            command_str,
+            run_on_target,
+            target,
         )
 
         if _needs_shell(command_str):
@@ -2848,13 +3079,15 @@ class DaemonTray:
 
         if run_on_target and target:
             cmd_parts = wrap_for_target(
-                cmd_parts, target, interactive=(item_type == "terminal"),
+                cmd_parts,
+                target,
+                interactive=(item_type == "terminal"),
             )
 
         is_remote = (
-            run_on_target and target
-            and getattr(target, "runtime", "local")
-            in ("container", "kubernetes")
+            run_on_target
+            and target
+            and getattr(target, "runtime", "local") in ("container", "kubernetes")
         )
         if item_type != "terminal" and not is_remote:
             shell = os.environ.get("SHELL", "/bin/bash")
@@ -2865,30 +3098,44 @@ class DaemonTray:
                 _launch_in_terminal(cmd_parts, keep_open=True)
             elif item_type == "notification":
                 result = subprocess.run(
-                    cmd_parts, capture_output=True, text=True, timeout=60,
+                    cmd_parts,
+                    capture_output=True,
+                    text=True,
+                    timeout=60,
                 )
                 from ai_guardian.daemon.tray_plugins import send_notification
+
                 send_notification("AI Guardian", result.stdout.strip() or "(no output)")
             elif item_type == "clipboard":
                 result = subprocess.run(
-                    cmd_parts, capture_output=True, text=True, timeout=60,
+                    cmd_parts,
+                    capture_output=True,
+                    text=True,
+                    timeout=60,
                 )
                 from ai_guardian.daemon.tray_plugins import copy_to_clipboard
+
                 copy_to_clipboard(result.stdout.strip())
             elif item_type == "modal":
                 result = subprocess.run(
-                    cmd_parts, capture_output=True, text=True, timeout=60,
+                    cmd_parts,
+                    capture_output=True,
+                    text=True,
+                    timeout=60,
                 )
                 output = result.stdout.strip()
                 err = result.stderr.strip()
                 if err:
                     if result.returncode != 0:
-                        output = err if not output else (
-                            output + "\n\n--- stderr ---\n" + err
+                        output = (
+                            err
+                            if not output
+                            else (output + "\n\n--- stderr ---\n" + err)
                         )
                     else:
                         output = (output + "\n" + err).strip() if output else err
                 from ai_guardian.daemon.tray_plugins import show_dialog
+
                 show_dialog(label or "AI Guardian", output or "(no output)")
             else:
                 subprocess.run(cmd_parts, timeout=60)
@@ -2909,7 +3156,10 @@ class DaemonTray:
         import subprocess
         import tempfile
         import threading
-        from ai_guardian.daemon.tray_plugins import resolve_command, substitute_target_vars
+        from ai_guardian.daemon.tray_plugins import (
+            resolve_command,
+            substitute_target_vars,
+        )
 
         resolved_cmd = resolve_command(plugin_item_dict["command"])
         if resolved_cmd is None:
@@ -2927,7 +3177,8 @@ class DaemonTray:
         params = plugin_item_dict.get("params", [])
 
         from ai_guardian.tui.display import (
-            _nicegui_available, _tkinter_available,
+            _nicegui_available,
+            _tkinter_available,
         )
 
         if _tkinter_available():
@@ -2937,11 +3188,17 @@ class DaemonTray:
 
             params_json = json_mod.dumps(params)
             prompt_cmd = self._resolve_cli_cmd(
-                "prompt", "--mode", "params",
-                "--params", params_json,
-                "--template", resolved_cmd,
-                "--type", item_type,
-                "--output-file", output_path,
+                "prompt",
+                "--mode",
+                "params",
+                "--params",
+                params_json,
+                "--template",
+                resolved_cmd,
+                "--type",
+                item_type,
+                "--output-file",
+                output_path,
             )
             if extra_vars:
                 prompt_cmd += ["--extra-vars", json_mod.dumps(extra_vars)]
@@ -2954,18 +3211,24 @@ class DaemonTray:
                 command = DaemonTray._poll_output_file(output_path, tmpdir)
                 if command:
                     DaemonTray._execute_plugin_command(
-                        command, item_type, target=target,
-                        run_on_target=run_on_target, label=label,
+                        command,
+                        item_type,
+                        target=target,
+                        run_on_target=run_on_target,
+                        label=label,
                     )
 
             threading.Thread(
-                target=_watch_and_dispatch, daemon=True,
+                target=_watch_and_dispatch,
+                daemon=True,
                 name="plugin-prompt-watch",
             ).start()
         elif _nicegui_available():
+
             def _run_prompt_and_dispatch():
                 try:
                     from ai_guardian.tui.tray_prompt import TrayPromptApp
+
                     app = TrayPromptApp(
                         params=params,
                         command_template=resolved_cmd,
@@ -2979,12 +3242,16 @@ class DaemonTray:
                     command = None
                 if command:
                     DaemonTray._execute_plugin_command(
-                        command, item_type, target=target,
-                        run_on_target=run_on_target, label=label,
+                        command,
+                        item_type,
+                        target=target,
+                        run_on_target=run_on_target,
+                        label=label,
                     )
 
             threading.Thread(
-                target=_run_prompt_and_dispatch, daemon=True,
+                target=_run_prompt_and_dispatch,
+                daemon=True,
                 name="plugin-prompt",
             ).start()
         else:
@@ -2993,11 +3260,17 @@ class DaemonTray:
 
             params_json = json_mod.dumps(params)
             prompt_cmd = self._resolve_cli_cmd(
-                "prompt", "--mode", "params",
-                "--params", params_json,
-                "--template", resolved_cmd,
-                "--type", item_type,
-                "--output-file", output_path,
+                "prompt",
+                "--mode",
+                "params",
+                "--params",
+                params_json,
+                "--template",
+                resolved_cmd,
+                "--type",
+                item_type,
+                "--output-file",
+                output_path,
             )
             if extra_vars:
                 prompt_cmd += ["--extra-vars", json_mod.dumps(extra_vars)]
@@ -3005,18 +3278,23 @@ class DaemonTray:
                 prompt_cmd += ["--title", label]
 
             from ai_guardian.daemon.multi_client import _launch_in_terminal
+
             _launch_in_terminal(prompt_cmd, keep_open=False, clear=True)
 
             def _watch_and_dispatch():
                 command = DaemonTray._poll_output_file(output_path, tmpdir)
                 if command:
                     DaemonTray._execute_plugin_command(
-                        command, item_type, target=target,
-                        run_on_target=run_on_target, label=label,
+                        command,
+                        item_type,
+                        target=target,
+                        run_on_target=run_on_target,
+                        label=label,
                     )
 
             threading.Thread(
-                target=_watch_and_dispatch, daemon=True,
+                target=_watch_and_dispatch,
+                daemon=True,
                 name="plugin-prompt-watch",
             ).start()
 
@@ -3029,13 +3307,21 @@ class DaemonTray:
         return []
 
     def _execute_multi_target_command(
-        self, targets, command_str, item_type, run_on_target=False, label=None,
+        self,
+        targets,
+        command_str,
+        item_type,
+        run_on_target=False,
+        label=None,
     ):
         """Execute the same command on multiple targets sequentially."""
         for target in targets:
             self._execute_plugin_command(
-                command_str, item_type, target=target,
-                run_on_target=run_on_target, label=label,
+                command_str,
+                item_type,
+                target=target,
+                run_on_target=run_on_target,
+                label=label,
             )
 
     def _serialize_targets_for_selector(self):
@@ -3067,7 +3353,8 @@ class DaemonTray:
         import tempfile
         import threading
         from ai_guardian.daemon.tray_plugins import (
-            _item_to_dict, resolve_command,
+            _item_to_dict,
+            resolve_command,
         )
 
         item_dict = _item_to_dict(plugin_item)
@@ -3081,7 +3368,8 @@ class DaemonTray:
         params = item_dict.get("params", [])
 
         from ai_guardian.tui.display import (
-            _nicegui_available, _tkinter_available,
+            _nicegui_available,
+            _tkinter_available,
         )
 
         if _tkinter_available():
@@ -3090,11 +3378,17 @@ class DaemonTray:
 
             params_json = json_mod.dumps(params)
             prompt_cmd = self._resolve_cli_cmd(
-                "prompt", "--mode", "params",
-                "--params", params_json,
-                "--template", resolved_cmd,
-                "--type", item_type,
-                "--output-file", output_path,
+                "prompt",
+                "--mode",
+                "params",
+                "--params",
+                params_json,
+                "--template",
+                resolved_cmd,
+                "--type",
+                item_type,
+                "--output-file",
+                output_path,
             )
             if label:
                 prompt_cmd += ["--title", label]
@@ -3105,18 +3399,24 @@ class DaemonTray:
                 command = DaemonTray._poll_output_file(output_path, tmpdir)
                 if command:
                     self._execute_multi_target_command(
-                        targets, command, item_type,
-                        run_on_target=run_on_target, label=label,
+                        targets,
+                        command,
+                        item_type,
+                        run_on_target=run_on_target,
+                        label=label,
                     )
 
             threading.Thread(
-                target=_watch_and_dispatch, daemon=True,
+                target=_watch_and_dispatch,
+                daemon=True,
                 name="multi-plugin-prompt-watch",
             ).start()
         elif _nicegui_available():
+
             def _run_prompt_and_dispatch():
                 try:
                     from ai_guardian.tui.tray_prompt import TrayPromptApp
+
                     app = TrayPromptApp(
                         params=params,
                         command_template=resolved_cmd,
@@ -3129,12 +3429,16 @@ class DaemonTray:
                     command = None
                 if command:
                     self._execute_multi_target_command(
-                        targets, command, item_type,
-                        run_on_target=run_on_target, label=label,
+                        targets,
+                        command,
+                        item_type,
+                        run_on_target=run_on_target,
+                        label=label,
                     )
 
             threading.Thread(
-                target=_run_prompt_and_dispatch, daemon=True,
+                target=_run_prompt_and_dispatch,
+                daemon=True,
                 name="multi-plugin-prompt",
             ).start()
         else:
@@ -3143,28 +3447,39 @@ class DaemonTray:
 
             params_json = json_mod.dumps(params)
             prompt_cmd = self._resolve_cli_cmd(
-                "prompt", "--mode", "params",
-                "--params", params_json,
-                "--template", resolved_cmd,
-                "--type", item_type,
-                "--output-file", output_path,
+                "prompt",
+                "--mode",
+                "params",
+                "--params",
+                params_json,
+                "--template",
+                resolved_cmd,
+                "--type",
+                item_type,
+                "--output-file",
+                output_path,
             )
             if label:
                 prompt_cmd += ["--title", label]
 
             from ai_guardian.daemon.multi_client import _launch_in_terminal
+
             _launch_in_terminal(prompt_cmd, keep_open=False, clear=True)
 
             def _watch_and_dispatch():
                 command = DaemonTray._poll_output_file(output_path, tmpdir)
                 if command:
                     self._execute_multi_target_command(
-                        targets, command, item_type,
-                        run_on_target=run_on_target, label=label,
+                        targets,
+                        command,
+                        item_type,
+                        run_on_target=run_on_target,
+                        label=label,
                     )
 
             threading.Thread(
-                target=_watch_and_dispatch, daemon=True,
+                target=_watch_and_dispatch,
+                daemon=True,
                 name="multi-plugin-prompt-watch",
             ).start()
 
@@ -3175,7 +3490,7 @@ class DaemonTray:
         import tempfile
         import threading
         from ai_guardian.daemon.tray_plugins import (
-            _item_to_dict, resolve_command,
+            resolve_command,
         )
         from ai_guardian.daemon.multi_client import _launch_in_terminal
 
@@ -3185,8 +3500,10 @@ class DaemonTray:
 
         select_cmd = self._resolve_cli_cmd(
             "tray-target-select",
-            "--targets", targets_json,
-            "--output-file", output_path,
+            "--targets",
+            targets_json,
+            "--output-file",
+            output_path,
         )
         _launch_in_terminal(select_cmd, keep_open=False, clear=True)
 
@@ -3210,13 +3527,16 @@ class DaemonTray:
 
             if plugin_item.params:
                 self._execute_multi_target_with_params(
-                    plugin_item, selected,
+                    plugin_item,
+                    selected,
                 )
             else:
                 cmd = resolve_command(plugin_item.command)
                 if cmd:
                     self._execute_multi_target_command(
-                        selected, cmd, plugin_item.type,
+                        selected,
+                        cmd,
+                        plugin_item.type,
                         run_on_target=plugin_item.run_on_target,
                         label=plugin_item.label,
                     )
@@ -3235,20 +3555,23 @@ class DaemonTray:
         """
         get_plugins = lambda: self._get_daemon_plugins(daemon_slot)
         get_target = lambda: (
-            self._targets[daemon_slot]
-            if daemon_slot < len(self._targets)
-            else None
+            self._targets[daemon_slot] if daemon_slot < len(self._targets) else None
         )
         return self._build_plugin_slots(
-            get_plugins, get_target,
+            get_plugins,
+            get_target,
             max_plugins=self._MAX_PLUGIN_SLOTS,
             max_items=self._MAX_ITEMS_PER_PLUGIN,
             visibility_guard=visibility_guard,
         )
 
     def _build_plugin_slots(
-        self, get_plugins_fn, get_target_fn,
-        max_plugins, max_items, visibility_guard=None,
+        self,
+        get_plugins_fn,
+        get_target_fn,
+        max_plugins,
+        max_items,
+        visibility_guard=None,
     ):
         """Build pre-allocated plugin menu item slots.
 
@@ -3283,18 +3606,26 @@ class DaemonTray:
                 return []
 
             sub_items = self._build_nested_item_slots(
-                _get_item_list, get_target_fn, max_items, depth=0,
+                _get_item_list,
+                get_target_fn,
+                max_items,
+                depth=0,
             )
 
             items.append(
-                pystray.MenuItem(_plugin_name, pystray.Menu(*sub_items),
-                                 visible=_plugin_visible)
+                pystray.MenuItem(
+                    _plugin_name, pystray.Menu(*sub_items), visible=_plugin_visible
+                )
             )
 
         return items
 
     def _build_nested_item_slots(
-        self, get_items_fn, get_target_fn, max_items, depth,
+        self,
+        get_items_fn,
+        get_target_fn,
+        max_items,
+        depth,
     ):
         """Build pre-allocated slots for items that may contain submenus.
 
@@ -3327,6 +3658,7 @@ class DaemonTray:
                 if item.items:
                     return False
                 from ai_guardian.daemon.tray_plugins import resolve_command
+
                 return resolve_command(item.command) is not None
 
             def _cmd_action(ix=i_slot):
@@ -3341,18 +3673,22 @@ class DaemonTray:
 
                     if item.target in ("all", "containers"):
                         from ai_guardian.daemon.tray_plugins import resolve_command
+
                         targets = self._resolve_target_list(item.target)
                         if not targets:
                             return
                         if item.params:
                             self._execute_multi_target_with_params(
-                                item, targets,
+                                item,
+                                targets,
                             )
                         else:
                             cmd = resolve_command(item.command)
                             if cmd:
                                 self._execute_multi_target_command(
-                                    targets, cmd, item.type,
+                                    targets,
+                                    cmd,
+                                    item.type,
                                     run_on_target=item.run_on_target,
                                     label=item.label,
                                 )
@@ -3360,19 +3696,24 @@ class DaemonTray:
                         self._execute_plugin_with_target_select(item)
                     elif item.params:
                         from ai_guardian.daemon.tray_plugins import _item_to_dict
+
                         self._execute_plugin_command_with_params(
-                            _item_to_dict(item), target=target,
+                            _item_to_dict(item),
+                            target=target,
                         )
                     else:
                         from ai_guardian.daemon.tray_plugins import resolve_command
+
                         cmd = resolve_command(item.command)
                         if cmd:
                             self._execute_plugin_command(
-                                cmd, item.type,
+                                cmd,
+                                item.type,
                                 target=target,
                                 run_on_target=item.run_on_target,
                                 label=item.label,
                             )
+
                 return action
 
             def _cmd_enabled(_item, ix=i_slot):
@@ -3388,11 +3729,16 @@ class DaemonTray:
                 return target.status in ("running", "paused")
 
             slots.append(
-                pystray.MenuItem(_cmd_label, _cmd_action(),
-                                 visible=_cmd_visible, enabled=_cmd_enabled)
+                pystray.MenuItem(
+                    _cmd_label,
+                    _cmd_action(),
+                    visible=_cmd_visible,
+                    enabled=_cmd_enabled,
+                )
             )
 
             if depth < self._MAX_SUBMENU_DEPTH:
+
                 def _sub_label(_item, ix=i_slot):
                     items_list = get_items_fn()
                     if ix < len(items_list):
@@ -3412,13 +3758,16 @@ class DaemonTray:
                     return []
 
                 child_slots = self._build_nested_item_slots(
-                    _get_children, get_target_fn,
-                    self._MAX_SUBMENU_ITEMS, depth + 1,
+                    _get_children,
+                    get_target_fn,
+                    self._MAX_SUBMENU_ITEMS,
+                    depth + 1,
                 )
 
                 slots.append(
                     pystray.MenuItem(
-                        _sub_label, pystray.Menu(*child_slots),
+                        _sub_label,
+                        pystray.Menu(*child_slots),
                         visible=_sub_visible,
                     )
                 )
@@ -3432,13 +3781,14 @@ class DaemonTray:
         for pystray macOS compatibility. Only visible when exactly one
         daemon is discovered and that daemon has plugins.
         """
+
         def _has_plugins(_item):
             return self._is_single_daemon() and len(self._get_daemon_plugins(0)) > 0
 
         guard = lambda _item: self._is_single_daemon()
-        items = [pystray.MenuItem("", None, visible=lambda _: (
-            _has_plugins(_) and False
-        ))]
+        items = [
+            pystray.MenuItem("", None, visible=lambda _: (_has_plugins(_) and False))
+        ]
         items.extend(self._build_plugin_slots_for_daemon(0, visibility_guard=guard))
         return items
 
@@ -3486,6 +3836,7 @@ class DaemonTray:
         def _mk_ide_action(k):
             def action(_, __):
                 self._launch_ide_setup(k)
+
             return action
 
         ide_items = [
@@ -3495,14 +3846,16 @@ class DaemonTray:
             ide_items.append(
                 pystray.MenuItem(f"  {ide_cfg['name']}", _mk_ide_action(ide_key))
             )
-        ide_items.extend([
-            pystray.Menu.SEPARATOR,
-            pystray.MenuItem("Configuration", None),
-            pystray.MenuItem(
-                "  Create Config...",
-                lambda _, __: self._launch_create_config(),
-            ),
-        ])
+        ide_items.extend(
+            [
+                pystray.Menu.SEPARATOR,
+                pystray.MenuItem("Configuration", None),
+                pystray.MenuItem(
+                    "  Create Config...",
+                    lambda _, __: self._launch_create_config(),
+                ),
+            ]
+        )
 
         return [
             pystray.MenuItem(

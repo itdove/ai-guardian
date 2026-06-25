@@ -26,8 +26,10 @@ def _get_config_path(scope):
     """Get the config file path for the given scope."""
     if scope == "project":
         from ai_guardian.config_utils import get_project_config_path
+
         return get_project_config_path()
     from ai_guardian.config_utils import get_config_dir
+
     return get_config_dir() / "ai-guardian.json"
 
 
@@ -73,9 +75,9 @@ def create_config_editor_page(service, daemon_name: str):
 
         with ui.column().classes("flex-grow p-6 gap-4"):
             ui.label("Config Editor").classes("text-2xl font-bold")
-            ui.label(
-                "Edit configuration files with JSON validation."
-            ).classes("text-xs text-grey-6")
+            ui.label("Edit configuration files with JSON validation.").classes(
+                "text-xs text-grey-6"
+            )
 
             state = {"scope": "global", "path": None}
 
@@ -85,9 +87,11 @@ def create_config_editor_page(service, daemon_name: str):
                     options={"global": "Global", "project": "Project"},
                     value="global",
                 ).classes("w-48")
-                path_label = ui.label("").classes(
-                    "text-sm text-grey-4"
-                ).style("font-family: monospace")
+                path_label = (
+                    ui.label("")
+                    .classes("text-sm text-grey-4")
+                    .style("font-family: monospace")
+                )
 
             with ui.card().classes("w-full"):
                 ui.label("Editor").classes("text-lg font-bold")
@@ -100,14 +104,21 @@ def create_config_editor_page(service, daemon_name: str):
                 async def init_editor():
                     nonlocal editor
                     with editor_container:
-                        editor = ui.codemirror(
-                            "", language="JSON", theme="dracula",
-                            line_wrapping=True,
-                        ).classes("w-full").style("min-height: 500px")
+                        editor = (
+                            ui.codemirror(
+                                "",
+                                language="JSON",
+                                theme="dracula",
+                                line_wrapping=True,
+                            )
+                            .classes("w-full")
+                            .style("min-height: 500px")
+                        )
                         editor.on_value_change(on_editor_change)
                     return editor
 
             with ui.row().classes("gap-2"):
+
                 async def do_save():
                     nonlocal editor
                     if editor is None:
@@ -119,13 +130,12 @@ def create_config_editor_page(service, daemon_name: str):
                             "This will create a backup (.json.bak) and "
                             "overwrite the config file."
                         ).classes("text-sm")
-                        ui.label(
-                            f"File: {state['path']}"
-                        ).classes("text-xs text-grey-6").style(
-                            "font-family: monospace"
-                        )
+                        ui.label(f"File: {state['path']}").classes(
+                            "text-xs text-grey-6"
+                        ).style("font-family: monospace")
 
                         with ui.row().classes("gap-2 mt-2"):
+
                             async def confirm_save():
                                 err = await run.io_bound(
                                     _save_config_with_backup,
@@ -134,23 +144,18 @@ def create_config_editor_page(service, daemon_name: str):
                                 )
                                 dlg.close()
                                 if err:
-                                    ui.notify(f"Error: {err}",
-                                              type="negative")
+                                    ui.notify(f"Error: {err}", type="negative")
                                 else:
                                     ui.notify("Saved", type="positive")
 
                             ui.button(
                                 "Save", on_click=confirm_save, color="green"
                             ).props("dense")
-                            ui.button(
-                                "Cancel", on_click=dlg.close
-                            ).props("dense flat")
+                            ui.button("Cancel", on_click=dlg.close).props("dense flat")
 
                     dlg.open()
 
-                ui.button("Save", icon="save", on_click=do_save).props(
-                    "dense"
-                )
+                ui.button("Save", icon="save", on_click=do_save).props("dense")
 
                 async def do_reload():
                     nonlocal editor
@@ -166,9 +171,7 @@ def create_config_editor_page(service, daemon_name: str):
                     _update_validation(text)
                     ui.notify("Reloaded from disk", type="positive")
 
-                ui.button(
-                    "Reload", icon="refresh", on_click=do_reload
-                ).props("dense")
+                ui.button("Reload", icon="refresh", on_click=do_reload).props("dense")
 
             def _update_validation(text):
                 _, err = _validate_json(text)
@@ -189,9 +192,7 @@ def create_config_editor_page(service, daemon_name: str):
 
                 sc = scope_val if scope_val else scope_sel.value
                 state["scope"] = sc
-                text, path_str = await run.io_bound(
-                    _load_config_by_scope, sc
-                )
+                text, path_str = await run.io_bound(_load_config_by_scope, sc)
                 state["path"] = path_str
                 path_label.text = f"File: {path_str or 'N/A'}"
                 editor.value = text

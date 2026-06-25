@@ -5,7 +5,6 @@ Verifies that permission rules are evaluated in order with last match winning,
 consistent with directory_rules evaluation in hook_processing.py.
 """
 
-import logging
 from unittest import TestCase
 from unittest.mock import patch
 
@@ -24,13 +23,12 @@ class LastMatchWinsBasicTests(TestCase):
                 "rules": [
                     {"matcher": "mcp__*", "mode": "allow", "patterns": ["*"]},
                     {"matcher": "mcp__*", "mode": "deny", "patterns": ["*"]},
-                ]
+                ],
             }
         }
         policy = ToolPolicyChecker(config=config)
         hook_data = create_hook_data(
-            tool_name="mcp__notebooklm-mcp__notebook_list",
-            tool_input={}
+            tool_name="mcp__notebooklm-mcp__notebook_list", tool_input={}
         )
         allowed, error_msg, _ = policy.check_tool_allowed(hook_data)
         assert not allowed, "Last rule (deny) should win"
@@ -43,29 +41,22 @@ class LastMatchWinsBasicTests(TestCase):
                 "rules": [
                     {"matcher": "mcp__*", "mode": "deny", "patterns": ["*"]},
                     {"matcher": "mcp__*", "mode": "allow", "patterns": ["*"]},
-                ]
+                ],
             }
         }
         policy = ToolPolicyChecker(config=config)
         hook_data = create_hook_data(
-            tool_name="mcp__notebooklm-mcp__notebook_list",
-            tool_input={}
+            tool_name="mcp__notebooklm-mcp__notebook_list", tool_input={}
         )
         allowed, error_msg, _ = policy.check_tool_allowed(hook_data)
         assert allowed, "Last rule (allow) should win"
 
     def test_no_rules_blocks_by_default(self):
         """No matching rules should block (secure by default)."""
-        config = {
-            "permissions": {
-                "enabled": True,
-                "rules": []
-            }
-        }
+        config = {"permissions": {"enabled": True, "rules": []}}
         policy = ToolPolicyChecker(config=config)
         hook_data = create_hook_data(
-            tool_name="mcp__notebooklm-mcp__notebook_list",
-            tool_input={}
+            tool_name="mcp__notebooklm-mcp__notebook_list", tool_input={}
         )
         allowed, error_msg, _ = policy.check_tool_allowed(hook_data)
         assert not allowed, "No rules should block by default"
@@ -77,7 +68,7 @@ class LastMatchWinsBasicTests(TestCase):
                 "enabled": True,
                 "rules": [
                     {"matcher": "*", "mode": "allow", "patterns": ["*"]},
-                ]
+                ],
             }
         }
         policy = ToolPolicyChecker(config=config)
@@ -105,10 +96,24 @@ class LastMatchWinsLayeredPolicyTests(TestCase):
                 "enabled": True,
                 "rules": [
                     {"matcher": "*", "mode": "allow", "patterns": ["*"]},
-                    {"matcher": "mcp__*", "mode": "deny", "patterns": ["*"], "action": "warn"},
-                    {"matcher": "mcp__ai-guardian__*", "mode": "allow", "patterns": ["*"]},
-                    {"matcher": "Skill", "mode": "deny", "patterns": ["*"], "action": "warn"},
-                ]
+                    {
+                        "matcher": "mcp__*",
+                        "mode": "deny",
+                        "patterns": ["*"],
+                        "action": "warn",
+                    },
+                    {
+                        "matcher": "mcp__ai-guardian__*",
+                        "mode": "allow",
+                        "patterns": ["*"],
+                    },
+                    {
+                        "matcher": "Skill",
+                        "mode": "deny",
+                        "patterns": ["*"],
+                        "action": "warn",
+                    },
+                ],
             }
         }
 
@@ -117,8 +122,7 @@ class LastMatchWinsLayeredPolicyTests(TestCase):
         config = self._standard_profile_config()
         policy = ToolPolicyChecker(config=config)
         hook_data = create_hook_data(
-            tool_name="mcp__new-server__some_tool",
-            tool_input={}
+            tool_name="mcp__new-server__some_tool", tool_input={}
         )
         allowed, warn_msg, _ = policy.check_tool_allowed(hook_data)
         assert allowed, "Unlisted MCP server should be allowed (warn mode)"
@@ -130,8 +134,7 @@ class LastMatchWinsLayeredPolicyTests(TestCase):
         config = self._standard_profile_config()
         policy = ToolPolicyChecker(config=config)
         hook_data = create_hook_data(
-            tool_name="mcp__ai-guardian__check_path",
-            tool_input={}
+            tool_name="mcp__ai-guardian__check_path", tool_input={}
         )
         allowed, warn_msg, _ = policy.check_tool_allowed(hook_data)
         assert allowed, "ai-guardian MCP should be allowed"
@@ -157,8 +160,7 @@ class LastMatchWinsLayeredPolicyTests(TestCase):
         config = self._standard_profile_config()
         policy = ToolPolicyChecker(config=config)
         hook_data = create_hook_data(
-            tool_name="Skill",
-            tool_input={"skill": "unknown-skill"}
+            tool_name="Skill", tool_input={"skill": "unknown-skill"}
         )
         allowed, warn_msg, _ = policy.check_tool_allowed(hook_data)
         assert allowed, "Unknown skill should be allowed (warn mode)"
@@ -172,22 +174,24 @@ class LastMatchWinsLayeredPolicyTests(TestCase):
                 "rules": [
                     {"matcher": "*", "mode": "allow", "patterns": ["*"]},
                     {"matcher": "mcp__*", "mode": "deny", "patterns": ["*"]},
-                    {"matcher": "mcp__mcp-atlassian__*", "mode": "allow", "patterns": ["*"]},
-                ]
+                    {
+                        "matcher": "mcp__mcp-atlassian__*",
+                        "mode": "allow",
+                        "patterns": ["*"],
+                    },
+                ],
             }
         }
         policy = ToolPolicyChecker(config=config)
 
         hook_data = create_hook_data(
-            tool_name="mcp__mcp-atlassian__jira_search",
-            tool_input={}
+            tool_name="mcp__mcp-atlassian__jira_search", tool_input={}
         )
         allowed, _, _ = policy.check_tool_allowed(hook_data)
         assert allowed, "Atlassian MCP should be allowed by specific rule"
 
         hook_data = create_hook_data(
-            tool_name="mcp__unknown-server__some_tool",
-            tool_input={}
+            tool_name="mcp__unknown-server__some_tool", tool_input={}
         )
         allowed, _, _ = policy.check_tool_allowed(hook_data)
         assert not allowed, "Unknown MCP should be blocked by mcp__* deny"
@@ -199,37 +203,71 @@ class LastMatchWinsLayeredPolicyTests(TestCase):
                 "enabled": True,
                 "rules": [
                     {"matcher": "*", "mode": "allow", "patterns": ["*"]},
-                    {"matcher": "mcp__*", "mode": "deny", "patterns": ["*"], "action": "warn"},
-                    {"matcher": "mcp__mcp-atlassian__*", "mode": "allow", "patterns": ["*"]},
-                    {"matcher": "mcp__notebooklm-mcp__*", "mode": "allow", "patterns": ["*"]},
-                    {"matcher": "Skill", "mode": "deny", "patterns": ["*"], "action": "warn"},
-                    {"matcher": "Skill", "mode": "allow", "patterns": ["feedback", "daf-jira"]},
-                ]
+                    {
+                        "matcher": "mcp__*",
+                        "mode": "deny",
+                        "patterns": ["*"],
+                        "action": "warn",
+                    },
+                    {
+                        "matcher": "mcp__mcp-atlassian__*",
+                        "mode": "allow",
+                        "patterns": ["*"],
+                    },
+                    {
+                        "matcher": "mcp__notebooklm-mcp__*",
+                        "mode": "allow",
+                        "patterns": ["*"],
+                    },
+                    {
+                        "matcher": "Skill",
+                        "mode": "deny",
+                        "patterns": ["*"],
+                        "action": "warn",
+                    },
+                    {
+                        "matcher": "Skill",
+                        "mode": "allow",
+                        "patterns": ["feedback", "daf-jira"],
+                    },
+                ],
             }
         }
         policy = ToolPolicyChecker(config=config)
 
-        hook_data = create_hook_data(tool_name="mcp__mcp-atlassian__jira_search", tool_input={})
+        hook_data = create_hook_data(
+            tool_name="mcp__mcp-atlassian__jira_search", tool_input={}
+        )
         allowed, warn_msg, _ = policy.check_tool_allowed(hook_data)
         assert allowed and warn_msg is None, "Atlassian MCP: allowed, no warning"
 
-        hook_data = create_hook_data(tool_name="mcp__notebooklm-mcp__notebook_list", tool_input={})
+        hook_data = create_hook_data(
+            tool_name="mcp__notebooklm-mcp__notebook_list", tool_input={}
+        )
         allowed, warn_msg, _ = policy.check_tool_allowed(hook_data)
         assert allowed and warn_msg is None, "NotebookLM MCP: allowed, no warning"
 
-        hook_data = create_hook_data(tool_name="mcp__new-sdlc-mcp__some_tool", tool_input={})
+        hook_data = create_hook_data(
+            tool_name="mcp__new-sdlc-mcp__some_tool", tool_input={}
+        )
         allowed, warn_msg, _ = policy.check_tool_allowed(hook_data)
         assert allowed and warn_msg is not None, "New MCP: allowed with warning"
 
-        hook_data = create_hook_data(tool_name="Skill", tool_input={"skill": "feedback"})
+        hook_data = create_hook_data(
+            tool_name="Skill", tool_input={"skill": "feedback"}
+        )
         allowed, warn_msg, _ = policy.check_tool_allowed(hook_data)
         assert allowed and warn_msg is None, "feedback skill: allowed, no warning"
 
-        hook_data = create_hook_data(tool_name="Skill", tool_input={"skill": "daf-jira"})
+        hook_data = create_hook_data(
+            tool_name="Skill", tool_input={"skill": "daf-jira"}
+        )
         allowed, warn_msg, _ = policy.check_tool_allowed(hook_data)
         assert allowed and warn_msg is None, "daf-jira skill: allowed, no warning"
 
-        hook_data = create_hook_data(tool_name="Skill", tool_input={"skill": "unknown-skill"})
+        hook_data = create_hook_data(
+            tool_name="Skill", tool_input={"skill": "unknown-skill"}
+        )
         allowed, warn_msg, _ = policy.check_tool_allowed(hook_data)
         assert allowed and warn_msg is not None, "Unknown skill: allowed with warning"
 
@@ -247,8 +285,13 @@ class DenyActionModesTests(TestCase):
             "permissions": {
                 "enabled": True,
                 "rules": [
-                    {"matcher": "mcp__*", "mode": "deny", "patterns": ["*"], "action": "block"},
-                ]
+                    {
+                        "matcher": "mcp__*",
+                        "mode": "deny",
+                        "patterns": ["*"],
+                        "action": "block",
+                    },
+                ],
             }
         }
         policy = ToolPolicyChecker(config=config)
@@ -263,8 +306,13 @@ class DenyActionModesTests(TestCase):
             "permissions": {
                 "enabled": True,
                 "rules": [
-                    {"matcher": "mcp__*", "mode": "deny", "patterns": ["*"], "action": "warn"},
-                ]
+                    {
+                        "matcher": "mcp__*",
+                        "mode": "deny",
+                        "patterns": ["*"],
+                        "action": "warn",
+                    },
+                ],
             }
         }
         policy = ToolPolicyChecker(config=config)
@@ -279,8 +327,13 @@ class DenyActionModesTests(TestCase):
             "permissions": {
                 "enabled": True,
                 "rules": [
-                    {"matcher": "mcp__*", "mode": "deny", "patterns": ["*"], "action": "log-only"},
-                ]
+                    {
+                        "matcher": "mcp__*",
+                        "mode": "deny",
+                        "patterns": ["*"],
+                        "action": "log-only",
+                    },
+                ],
             }
         }
         policy = ToolPolicyChecker(config=config)
@@ -296,7 +349,7 @@ class DenyActionModesTests(TestCase):
                 "enabled": True,
                 "rules": [
                     {"matcher": "mcp__*", "mode": "deny", "patterns": ["*"]},
-                ]
+                ],
             }
         }
         policy = ToolPolicyChecker(config=config)
@@ -318,23 +371,21 @@ class BackwardCompatibilityTests(TestCase):
                         "matcher": "mcp__notebooklm-mcp__*",
                         "mode": "allow",
                         "patterns": ["mcp__notebooklm-mcp__notebook_list"],
-                        "action": "warn"
+                        "action": "warn",
                     },
-                ]
+                ],
             }
         }
         policy = ToolPolicyChecker(config=config)
 
         hook_data = create_hook_data(
-            tool_name="mcp__notebooklm-mcp__notebook_list",
-            tool_input={}
+            tool_name="mcp__notebooklm-mcp__notebook_list", tool_input={}
         )
         allowed, warn_msg, _ = policy.check_tool_allowed(hook_data)
         assert allowed, "Listed tool should be allowed"
 
         hook_data = create_hook_data(
-            tool_name="mcp__notebooklm-mcp__notebook_create",
-            tool_input={}
+            tool_name="mcp__notebooklm-mcp__notebook_create", tool_input={}
         )
         allowed, warn_msg, _ = policy.check_tool_allowed(hook_data)
         assert allowed, "Unlisted tool should be allowed (warn mode from expanded deny)"
@@ -351,9 +402,9 @@ class BackwardCompatibilityTests(TestCase):
                         "matcher": "mcp__*",
                         "mode": "allow",
                         "patterns": ["*"],
-                        "action": "warn"
+                        "action": "warn",
                     },
-                ]
+                ],
             }
         }
         policy = ToolPolicyChecker(config=config)
@@ -370,12 +421,7 @@ class StrictProfileTests(TestCase):
 
     def test_strict_profile_blocks_mcp(self):
         """Empty rules should block MCP tools."""
-        config = {
-            "permissions": {
-                "enabled": True,
-                "rules": []
-            }
-        }
+        config = {"permissions": {"enabled": True, "rules": []}}
         policy = ToolPolicyChecker(config=config)
         hook_data = create_hook_data(tool_name="mcp__test__tool", tool_input={})
         allowed, _, _ = policy.check_tool_allowed(hook_data)
@@ -383,12 +429,7 @@ class StrictProfileTests(TestCase):
 
     def test_strict_profile_blocks_skills(self):
         """Empty rules should block Skills."""
-        config = {
-            "permissions": {
-                "enabled": True,
-                "rules": []
-            }
-        }
+        config = {"permissions": {"enabled": True, "rules": []}}
         policy = ToolPolicyChecker(config=config)
         hook_data = create_hook_data(tool_name="Skill", tool_input={"skill": "test"})
         allowed, _, _ = policy.check_tool_allowed(hook_data)
@@ -396,12 +437,7 @@ class StrictProfileTests(TestCase):
 
     def test_strict_profile_allows_builtin_tools_by_default(self):
         """Empty rules should still allow built-in tools (backward compat)."""
-        config = {
-            "permissions": {
-                "enabled": True,
-                "rules": []
-            }
-        }
+        config = {"permissions": {"enabled": True, "rules": []}}
         policy = ToolPolicyChecker(config=config)
         hook_data = create_hook_data(tool_name="Bash", tool_input={"command": "ls"})
         allowed, _, _ = policy.check_tool_allowed(hook_data)
@@ -414,8 +450,12 @@ class StrictProfileTests(TestCase):
                 "enabled": True,
                 "rules": [
                     {"matcher": "Bash", "mode": "allow", "patterns": ["*"]},
-                    {"matcher": "mcp__ai-guardian__*", "mode": "allow", "patterns": ["*"]},
-                ]
+                    {
+                        "matcher": "mcp__ai-guardian__*",
+                        "mode": "allow",
+                        "patterns": ["*"],
+                    },
+                ],
             }
         }
         policy = ToolPolicyChecker(config=config)
@@ -424,7 +464,9 @@ class StrictProfileTests(TestCase):
         allowed, _, _ = policy.check_tool_allowed(hook_data)
         assert allowed, "Explicitly allowed Bash should work"
 
-        hook_data = create_hook_data(tool_name="mcp__ai-guardian__check_path", tool_input={})
+        hook_data = create_hook_data(
+            tool_name="mcp__ai-guardian__check_path", tool_input={}
+        )
         allowed, _, _ = policy.check_tool_allowed(hook_data)
         assert allowed, "Explicitly allowed MCP should work"
 
@@ -443,7 +485,7 @@ class PermissionsDisabledTests(TestCase):
                 "enabled": False,
                 "rules": [
                     {"matcher": "*", "mode": "deny", "patterns": ["*"]},
-                ]
+                ],
             }
         }
         policy = ToolPolicyChecker(config=config)

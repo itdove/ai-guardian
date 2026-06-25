@@ -10,7 +10,8 @@ logger = logging.getLogger(__name__)
 
 
 def open_in_editor(
-    file_path: str, line_number: Optional[int] = None,
+    file_path: str,
+    line_number: Optional[int] = None,
 ) -> Tuple[bool, str]:
     """Open a file in the preferred editor, optionally at a specific line.
 
@@ -36,7 +37,8 @@ def open_in_editor(
 
 
 def _build_editor_command(
-    file_path: str, line_number: Optional[int] = None,
+    file_path: str,
+    line_number: Optional[int] = None,
 ) -> Tuple[list, str]:
     """Build the command to open a file in the best available editor."""
     line = line_number or 1

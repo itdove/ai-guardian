@@ -12,7 +12,6 @@ import platform
 import shlex
 import shutil
 import subprocess
-import sys
 from typing import List, Optional
 from urllib.request import Request, urlopen
 from urllib.error import URLError
@@ -49,25 +48,25 @@ def _launch_in_terminal(cmd_parts, keep_open=False, clear=False, cwd=None):
                 auto_close = ""
             else:
                 auto_close = (
-                    '    repeat\n'
-                    '        delay 1\n'
-                    '        if not busy of currentTab then\n'
-                    '            close (every window whose tabs contains '
-                    'currentTab)\n'
-                    '            exit repeat\n'
-                    '        end if\n'
-                    '    end repeat\n'
+                    "    repeat\n"
+                    "        delay 1\n"
+                    "        if not busy of currentTab then\n"
+                    "            close (every window whose tabs contains "
+                    "currentTab)\n"
+                    "            exit repeat\n"
+                    "        end if\n"
+                    "    end repeat\n"
                 )
             cmd_escaped = cmd_str.replace("\\", "\\\\").replace('"', '\\"')
             script = (
                 'tell application "Terminal"\n'
                 '    set currentTab to do script ""\n'
-                '    delay 2\n'
+                "    delay 2\n"
                 f'    do script "{cmd_escaped}" in currentTab\n'
-                '    activate\n'
-                '    set zoomed of front window to true\n'
-                f'{auto_close}'
-                'end tell'
+                "    activate\n"
+                "    set zoomed of front window to true\n"
+                f"{auto_close}"
+                "end tell"
             )
             subprocess.Popen(["osascript", "-e", script])
             return True
@@ -118,9 +117,7 @@ class MultiDaemonClient:
         """Pause daemon scanning."""
         if target.runtime == "local":
             return self._local_pause(target, minutes)
-        result = self._rest_request(
-            target, "POST", "/api/pause", {"minutes": minutes}
-        )
+        result = self._rest_request(target, "POST", "/api/pause", {"minutes": minutes})
         return result is not None
 
     def send_resume(self, target: DaemonTarget) -> bool:
@@ -131,16 +128,24 @@ class MultiDaemonClient:
         return result is not None
 
     def send_pause_dir(
-        self, target: DaemonTarget, directory: str, minutes: int,
+        self,
+        target: DaemonTarget,
+        directory: str,
+        minutes: int,
     ) -> bool:
         """Pause scanning for a specific directory."""
         if target.runtime == "local":
             return MultiDaemonClient._local_socket_send(
-                {"version": 1, "type": "pause_dir",
-                 "data": {"dir": directory, "minutes": minutes}}
+                {
+                    "version": 1,
+                    "type": "pause_dir",
+                    "data": {"dir": directory, "minutes": minutes},
+                }
             )
         result = self._rest_request(
-            target, "POST", "/api/pause_dir",
+            target,
+            "POST",
+            "/api/pause_dir",
             {"dir": directory, "minutes": minutes},
         )
         return result is not None
@@ -149,11 +154,13 @@ class MultiDaemonClient:
         """Resume scanning for a specific directory."""
         if target.runtime == "local":
             return MultiDaemonClient._local_socket_send(
-                {"version": 1, "type": "resume_dir",
-                 "data": {"dir": directory}}
+                {"version": 1, "type": "resume_dir", "data": {"dir": directory}}
             )
         result = self._rest_request(
-            target, "POST", "/api/resume_dir", {"dir": directory},
+            target,
+            "POST",
+            "/api/resume_dir",
+            {"dir": directory},
         )
         return result is not None
 
@@ -161,6 +168,7 @@ class MultiDaemonClient:
         """Stop daemon."""
         if target.runtime == "local":
             from ai_guardian.daemon.client import send_shutdown
+
             return send_shutdown()
         return self._send_daemon_command(target, "stop")
 
@@ -178,7 +186,9 @@ class MultiDaemonClient:
             if target.runtime == "local":
                 result = subprocess.run(
                     ["python", "-m", "pip", "--version"],
-                    capture_output=True, text=True, timeout=10,
+                    capture_output=True,
+                    text=True,
+                    timeout=10,
                 )
                 return result.returncode == 0
             cmd = ["pip", "--version"]
@@ -223,14 +233,18 @@ class MultiDaemonClient:
                 pkg_spec = "ai-guardian"
 
             if target.runtime == "local":
-                python_exe = shutil.which("python") or shutil.which("python3") or "python"
+                python_exe = (
+                    shutil.which("python") or shutil.which("python3") or "python"
+                )
                 cmd = [python_exe, "-m", "pip", "install"]
                 if not version:
                     cmd.append("--upgrade")
                 cmd.append(pkg_spec)
                 result = subprocess.run(
                     cmd,
-                    capture_output=True, text=True, timeout=timeout,
+                    capture_output=True,
+                    text=True,
+                    timeout=timeout,
                 )
                 output = result.stdout + result.stderr
                 return (result.returncode == 0, output)
@@ -288,6 +302,7 @@ class MultiDaemonClient:
         cmd = ["ai-guardian", "doctor"]
         if target.runtime == "local":
             from ai_guardian.daemon import get_executable_command
+
             cmd_parts = get_executable_command() + cmd[1:]
             _launch_in_terminal(cmd_parts, keep_open=True)
         elif target.runtime == "container":
@@ -296,8 +311,12 @@ class MultiDaemonClient:
             _launch_in_terminal(exec_cmd, keep_open=True)
         elif target.runtime == "kubernetes":
             exec_cmd = [
-                "kubectl", "exec", "-it", target.pod_name,
-                "-n", target.namespace or "default",
+                "kubectl",
+                "exec",
+                "-it",
+                target.pod_name,
+                "-n",
+                target.namespace or "default",
                 "--",
             ] + cmd
             _launch_in_terminal(exec_cmd, keep_open=True)
@@ -313,6 +332,7 @@ class MultiDaemonClient:
     @staticmethod
     def _local_plugins(working_dir: Optional[str] = None) -> dict:
         from ai_guardian.daemon.tray_plugins import load_merged_plugins, plugins_to_dict
+
         return plugins_to_dict(load_merged_plugins(working_dir))
 
     def get_about(self, target: DaemonTarget) -> Optional[dict]:
@@ -324,6 +344,7 @@ class MultiDaemonClient:
     @staticmethod
     def _local_about() -> dict:
         from ai_guardian.daemon.about import get_about_info
+
         return get_about_info()
 
     def get_config(self, target: DaemonTarget) -> Optional[dict]:
@@ -336,14 +357,18 @@ class MultiDaemonClient:
     def _local_config() -> dict:
         from ai_guardian.config_loaders import _load_config_file
         from ai_guardian.config_utils import get_feature_flags, is_feature_enabled
+
         cfg, _ = _load_config_file()
         if not cfg:
             cfg = {}
         features = get_feature_flags(cfg)
         si_section = cfg.get("security_instructions")
         features["security_instructions"] = is_feature_enabled(
-            si_section.get("inject_on_prompt")
-            if isinstance(si_section, dict) else None,
+            (
+                si_section.get("inject_on_prompt")
+                if isinstance(si_section, dict)
+                else None
+            ),
             default=True,
         )
         mcp_cfg = cfg.get("mcp_server", {})
@@ -367,6 +392,7 @@ class MultiDaemonClient:
         """Get config for a specific scope."""
         if target.runtime == "local":
             from ai_guardian.config_writer import load_scoped_config
+
             return load_scoped_config(scope, project_dir)
         params = f"?scope={scope}"
         if project_dir:
@@ -381,6 +407,7 @@ class MultiDaemonClient:
         """Get per-key provenance information."""
         if target.runtime == "local":
             from ai_guardian.config_writer import compute_provenance
+
             return compute_provenance(project_dir)
         params = f"?project_dir={project_dir}" if project_dir else ""
         return self._rest_request(target, "GET", f"/api/config/provenance{params}")
@@ -397,6 +424,7 @@ class MultiDaemonClient:
         """Write a config value to the specified scope."""
         if target.runtime == "local":
             from ai_guardian.config_writer import write_scoped_config
+
             success, msg = write_scoped_config(scope, section, key, value, project_dir)
             return {"status": "ok" if success else "error", "message": msg}
         body = {"scope": scope, "section": section, "value": value}
@@ -416,6 +444,7 @@ class MultiDaemonClient:
         """Delete a project config override."""
         if target.runtime == "local":
             from ai_guardian.config_writer import delete_project_override
+
             success, msg = delete_project_override(section, key, project_dir)
             return {"status": "ok" if success else "error", "message": msg}
         body: dict = {"section": section}
@@ -433,25 +462,28 @@ class MultiDaemonClient:
     def _local_cache_status() -> dict:
         import time as _time
         from ai_guardian.config_loaders import _caches
+
         now = _time.monotonic()
         projects = []
         for cache_key, entry in sorted(_caches.items()):
             gp = entry.global_path
             pp = entry.project_path
-            projects.append({
-                "project_dir": cache_key if cache_key != "__global__" else None,
-                "config_path": str(pp) if pp else None,
-                "config_mtime": entry.project_mtime,
-                "last_seen_seconds_ago": round(now - entry.last_accessed, 1),
-                "has_project_override": pp is not None,
-                "global_config_path": str(gp) if gp else None,
-                "global_config_mtime": entry.global_mtime,
-                "cached_project_path": str(pp) if pp else None,
-                "cached_project_mtime": entry.project_mtime,
-                "cache_last_accessed_seconds_ago": round(
-                    now - entry.last_accessed, 1
-                ),
-            })
+            projects.append(
+                {
+                    "project_dir": cache_key if cache_key != "__global__" else None,
+                    "config_path": str(pp) if pp else None,
+                    "config_mtime": entry.project_mtime,
+                    "last_seen_seconds_ago": round(now - entry.last_accessed, 1),
+                    "has_project_override": pp is not None,
+                    "global_config_path": str(gp) if gp else None,
+                    "global_config_mtime": entry.global_mtime,
+                    "cached_project_path": str(pp) if pp else None,
+                    "cached_project_mtime": entry.project_mtime,
+                    "cache_last_accessed_seconds_ago": round(
+                        now - entry.last_accessed, 1
+                    ),
+                }
+            )
         return {
             "projects": projects,
             "total_tracked": len(projects),
@@ -476,10 +508,9 @@ class MultiDaemonClient:
     @staticmethod
     def _local_violations(limit: int, violation_type: Optional[str]) -> dict:
         from ai_guardian.violation_logger import ViolationLogger
+
         vl = ViolationLogger()
-        entries = vl.get_recent_violations(
-            limit=limit, violation_type=violation_type
-        )
+        entries = vl.get_recent_violations(limit=limit, violation_type=violation_type)
         violations = []
         for entry in entries:
             ctx = entry.get("context", {})
@@ -514,6 +545,7 @@ class MultiDaemonClient:
         """Rescan a file on the daemon to get matched text for allowlisting."""
         if target.runtime == "local":
             from ai_guardian.daemon.violation_rescan import rescan_violation
+
             return rescan_violation(
                 file_path=file_path,
                 line_number=line_number,
@@ -537,8 +569,11 @@ class MultiDaemonClient:
         if target.runtime == "local":
             return self._local_scan(path)
         return self._rest_request(
-            target, "POST", "/api/scan",
-            body={"path": path}, timeout=120.0,
+            target,
+            "POST",
+            "/api/scan",
+            body={"path": path},
+            timeout=120.0,
         )
 
     @staticmethod
@@ -560,9 +595,7 @@ class MultiDaemonClient:
 
         base = resolved if resolved.is_dir() else resolved.parent
         for f in findings:
-            f["config_section"] = config_section_for_rule_id(
-                f.get("rule_id", "")
-            )
+            f["config_section"] = config_section_for_rule_id(f.get("rule_id", ""))
             fp = f.get("file_path", "")
             if fp and not _Path(fp).is_absolute():
                 f["file_path"] = str(base / fp)
@@ -587,6 +620,7 @@ class MultiDaemonClient:
     @staticmethod
     def _local_metrics(since_days: Optional[int]) -> dict:
         from ai_guardian.metrics import MetricsComputer
+
         mc = MetricsComputer(since_days=since_days)
         report = mc.compute()
         return {
@@ -629,9 +663,12 @@ class MultiDaemonClient:
     ) -> dict:
         import json as _json
         from ai_guardian.audit import AuditComputer, format_audit_json
+
         computer = AuditComputer(
-            since=since, until=until,
-            violation_type=violation_type, severity=severity,
+            since=since,
+            until=until,
+            violation_type=violation_type,
+            severity=severity,
         )
         report = computer.compute()
         return _json.loads(format_audit_json(report))
@@ -652,6 +689,7 @@ class MultiDaemonClient:
     @staticmethod
     def _local_status(target: DaemonTarget) -> Optional[dict]:
         from ai_guardian.daemon.client import send_status_request
+
         return send_status_request()
 
     @staticmethod
@@ -679,13 +717,12 @@ class MultiDaemonClient:
 
     @staticmethod
     def _local_resume(target: DaemonTarget) -> bool:
-        return MultiDaemonClient._local_socket_send(
-            {"version": 1, "type": "resume"}
-        )
+        return MultiDaemonClient._local_socket_send({"version": 1, "type": "resume"})
 
     @staticmethod
     def _local_restart() -> bool:
         from ai_guardian.daemon import get_executable_command
+
         cmd = get_executable_command() + ["daemon", "restart"]
         try:
             subprocess.Popen(
@@ -702,6 +739,7 @@ class MultiDaemonClient:
     def _local_console(cmd: List[str]):
         """Launch console locally in a new terminal window."""
         from ai_guardian.daemon import get_executable_command
+
         cmd_parts = get_executable_command() + cmd[1:]
         _launch_in_terminal(cmd_parts)
 
@@ -714,6 +752,7 @@ class MultiDaemonClient:
     @staticmethod
     def _local_exec(cmd: List[str]) -> Optional[str]:
         from ai_guardian.daemon import get_executable_command
+
         full_cmd = get_executable_command() + cmd[1:]
         try:
             result = subprocess.run(
@@ -729,6 +768,7 @@ class MultiDaemonClient:
     def _tcp_reachable(host: str, port: int, timeout: float = 2.0) -> bool:
         """Fast TCP connect check. Returns True if host:port accepts connections."""
         import socket
+
         try:
             sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             sock.settimeout(timeout)
@@ -755,15 +795,19 @@ class MultiDaemonClient:
             return None
 
         from urllib.parse import urlparse
+
         parsed = urlparse(base)
         check_host = parsed.hostname or target.host
         check_port = parsed.port or target.port
-        if check_host and check_port and not MultiDaemonClient._tcp_reachable(
-            check_host, check_port
+        if (
+            check_host
+            and check_port
+            and not MultiDaemonClient._tcp_reachable(check_host, check_port)
         ):
             logger.debug(
                 "TCP unreachable (%s:%s), skipping REST request",
-                check_host, check_port,
+                check_host,
+                check_port,
             )
             return None
 
@@ -790,7 +834,10 @@ class MultiDaemonClient:
     ) -> Optional[str]:
         """Execute command inside container (non-interactive)."""
         import re
-        if not target.container_id or not re.match(r'^[a-fA-F0-9]{12,64}$', target.container_id):
+
+        if not target.container_id or not re.match(
+            r"^[a-fA-F0-9]{12,64}$", target.container_id
+        ):
             logger.warning("Refusing exec: invalid container ID format")
             return None
         engine = target.container_engine or "podman"
@@ -829,8 +876,11 @@ class MultiDaemonClient:
     ) -> Optional[str]:
         """Execute command inside K8s pod (non-interactive)."""
         full_cmd = [
-            "kubectl", "exec", target.pod_name,
-            "-n", target.namespace or "default",
+            "kubectl",
+            "exec",
+            target.pod_name,
+            "-n",
+            target.namespace or "default",
             "--",
         ] + cmd
         try:
@@ -849,8 +899,12 @@ class MultiDaemonClient:
     def _kubectl_console(target: DaemonTarget, cmd: List[str]):
         """Open interactive console inside K8s pod in a new terminal."""
         exec_cmd = [
-            "kubectl", "exec", "-it", target.pod_name,
-            "-n", target.namespace or "default",
+            "kubectl",
+            "exec",
+            "-it",
+            target.pod_name,
+            "-n",
+            target.namespace or "default",
             "--",
         ] + cmd
         _launch_in_terminal(exec_cmd)
@@ -859,8 +913,13 @@ class MultiDaemonClient:
     def _kubectl_shell(target: DaemonTarget):
         """Open interactive shell inside K8s pod in a new terminal."""
         exec_cmd = [
-            "kubectl", "exec", "-it", target.pod_name,
-            "-n", target.namespace or "default",
-            "--", "/bin/sh",
+            "kubectl",
+            "exec",
+            "-it",
+            target.pod_name,
+            "-n",
+            target.namespace or "default",
+            "--",
+            "/bin/sh",
         ]
         _launch_in_terminal(exec_cmd, keep_open=True)

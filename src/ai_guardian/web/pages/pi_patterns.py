@@ -57,7 +57,6 @@ def _parse_enabled(raw):
     return False, None, "", bool(raw)
 
 
-
 def _format_expiration(valid_until):
     if not valid_until:
         return None
@@ -77,15 +76,18 @@ def _get_pattern_text(entry):
     return str(entry)
 
 
-def _render_toggle(label, desc, is_temp, until_dt, reason, is_enabled,
-                   save_fn, refresh_fn):
+def _render_toggle(
+    label, desc, is_temp, until_dt, reason, is_enabled, save_fn, refresh_fn
+):
     with ui.card().classes("w-full"):
         if is_temp and until_dt:
             remaining = _format_remaining(until_dt)
             with ui.row().classes("items-center gap-2 w-full"):
                 ui.icon("timer").classes("text-amber")
                 ui.label(label).classes("font-bold text-sm flex-grow")
-                ui.badge(f"TEMP DISABLED — {remaining}", color="amber").classes("text-xs")
+                ui.badge(f"TEMP DISABLED — {remaining}", color="amber").classes(
+                    "text-xs"
+                )
             ui.label(desc).classes("text-xs text-grey-6 ml-8")
             if reason:
                 ui.label(f"Reason: {reason}").classes("text-xs text-grey-7 ml-8")
@@ -95,8 +97,9 @@ def _render_toggle(label, desc, is_temp, until_dt, reason, is_enabled,
                 ui.notify(f"{label} re-enabled", type="positive")
                 await refresh_fn()
 
-            ui.button("Re-enable Now", icon="play_arrow", color="green",
-                      on_click=do_reenable).props("dense size=sm").classes("ml-8")
+            ui.button(
+                "Re-enable Now", icon="play_arrow", color="green", on_click=do_reenable
+            ).props("dense size=sm").classes("ml-8")
         else:
             with ui.row().classes("items-center gap-2 w-full"):
                 sw = ui.switch(label, value=bool(is_enabled)).classes("flex-grow")
@@ -112,24 +115,40 @@ def _render_toggle(label, desc, is_temp, until_dt, reason, is_enabled,
                 sw.on_value_change(on_toggle)
 
             with ui.row().classes("items-center gap-2 ml-8"):
-                dur = ui.input(placeholder="e.g. 30m, 2h, 1d").props("dense outlined").classes("w-32")
-                rsn = ui.input(placeholder="Reason").props("dense outlined").classes("w-40")
+                dur = (
+                    ui.input(placeholder="e.g. 30m, 2h, 1d")
+                    .props("dense outlined")
+                    .classes("w-32")
+                )
+                rsn = (
+                    ui.input(placeholder="Reason")
+                    .props("dense outlined")
+                    .classes("w-40")
+                )
 
                 async def do_temp(d=dur, r=rsn):
                     delta = _parse_duration(d.value or "30m")
                     if not delta:
-                        ui.notify("Invalid duration (e.g. 30m, 2h, 1d)", type="negative")
+                        ui.notify(
+                            "Invalid duration (e.g. 30m, 2h, 1d)", type="negative"
+                        )
                         return
-                    until_ts = (datetime.now(timezone.utc) + delta).strftime("%Y-%m-%dT%H:%M:%SZ")
+                    until_ts = (datetime.now(timezone.utc) + delta).strftime(
+                        "%Y-%m-%dT%H:%M:%SZ"
+                    )
                     entry = {"value": False, "disabled_until": until_ts}
                     rv = r.value.strip()
                     if rv:
                         entry["reason"] = rv
                     await run.io_bound(save_fn, entry)
-                    ui.notify(f"{label} temp disabled for {d.value or '30m'}", type="warning")
+                    ui.notify(
+                        f"{label} temp disabled for {d.value or '30m'}", type="warning"
+                    )
                     await refresh_fn()
 
-                ui.button("Temp Disable", icon="timer", on_click=do_temp).props("dense size=sm")
+                ui.button("Temp Disable", icon="timer", on_click=do_temp).props(
+                    "dense size=sm"
+                )
 
 
 def create_pi_patterns_page(service, daemon_name: str):
@@ -169,17 +188,23 @@ def create_pi_patterns_page(service, daemon_name: str):
                                 pat_text = _get_pattern_text(entry)
                                 with ui.row().classes("items-center gap-2 w-full"):
                                     ui.icon("code").classes("text-blue-4")
-                                    ui.label(pat_text).classes("flex-grow text-sm").style(
-                                        "font-family: monospace"
-                                    )
+                                    ui.label(pat_text).classes(
+                                        "flex-grow text-sm"
+                                    ).style("font-family: monospace")
                                     if isinstance(entry, dict):
-                                        exp_info = _format_expiration(entry.get("valid_until"))
+                                        exp_info = _format_expiration(
+                                            entry.get("valid_until")
+                                        )
                                         if exp_info:
                                             badge_text, badge_color = exp_info
-                                            ui.badge(f"[{badge_text}]", color=badge_color).classes("text-xs")
+                                            ui.badge(
+                                                f"[{badge_text}]", color=badge_color
+                                            ).classes("text-xs")
                                         elif entry.get("valid_until"):
                                             vu = entry["valid_until"][:10]
-                                            ui.badge(f"[until {vu}]", color="blue").classes("text-xs")
+                                            ui.badge(
+                                                f"[until {vu}]", color="blue"
+                                            ).classes("text-xs")
 
                                     async def remove_allow(i=idx):
                                         cfg = await run.io_bound(load_web_config)
@@ -192,19 +217,27 @@ def create_pi_patterns_page(service, daemon_name: str):
                                             sect["allowlist_patterns"] = pats
                                             cfg["prompt_injection"] = sect
                                             await run.io_bound(save_web_config, cfg)
-                                            ui.notify("Pattern removed", type="positive")
+                                            ui.notify(
+                                                "Pattern removed", type="positive"
+                                            )
                                             await refresh()
 
                                     ui.button(
-                                        icon="delete", on_click=remove_allow, color="red"
+                                        icon="delete",
+                                        on_click=remove_allow,
+                                        color="red",
                                     ).props("flat dense size=sm")
                         else:
-                            ui.label("No allowlist patterns.").classes("text-grey-6 text-sm")
+                            ui.label("No allowlist patterns.").classes(
+                                "text-grey-6 text-sm"
+                            )
 
                         with ui.row().classes("items-center gap-2 mt-2"):
-                            allow_input = ui.input(
-                                placeholder="Enter allowlist regex pattern"
-                            ).props("dense outlined").classes("flex-grow")
+                            allow_input = (
+                                ui.input(placeholder="Enter allowlist regex pattern")
+                                .props("dense outlined")
+                                .classes("flex-grow")
+                            )
 
                             async def add_allow():
                                 pattern = allow_input.value.strip()
@@ -233,10 +266,14 @@ def create_pi_patterns_page(service, daemon_name: str):
                                 ui.notify(f"Added: {pattern}", type="positive")
                                 await refresh()
 
-                            ui.button("Add", icon="add", on_click=add_allow).props("dense")
+                            ui.button("Add", icon="add", on_click=add_allow).props(
+                                "dense"
+                            )
 
                     with ui.card().classes("w-full"):
-                        ui.label("Custom Detection Patterns").classes("text-lg font-bold")
+                        ui.label("Custom Detection Patterns").classes(
+                            "text-lg font-bold"
+                        )
                         ui.label(
                             "Custom regex patterns to detect additional injection attempts."
                         ).classes("text-xs text-grey-6")
@@ -261,19 +298,27 @@ def create_pi_patterns_page(service, daemon_name: str):
                                             sect["custom_patterns"] = pats
                                             cfg["prompt_injection"] = sect
                                             await run.io_bound(save_web_config, cfg)
-                                            ui.notify("Pattern removed", type="positive")
+                                            ui.notify(
+                                                "Pattern removed", type="positive"
+                                            )
                                             await refresh()
 
                                     ui.button(
-                                        icon="delete", on_click=remove_custom, color="red"
+                                        icon="delete",
+                                        on_click=remove_custom,
+                                        color="red",
                                     ).props("flat dense size=sm")
                         else:
-                            ui.label("No custom patterns.").classes("text-grey-6 text-sm")
+                            ui.label("No custom patterns.").classes(
+                                "text-grey-6 text-sm"
+                            )
 
                         with ui.row().classes("items-center gap-2 mt-2"):
-                            custom_input = ui.input(
-                                placeholder="Enter custom regex pattern"
-                            ).props("dense outlined").classes("flex-grow")
+                            custom_input = (
+                                ui.input(placeholder="Enter custom regex pattern")
+                                .props("dense outlined")
+                                .classes("flex-grow")
+                            )
 
                             async def add_custom():
                                 pattern = custom_input.value.strip()
@@ -301,6 +346,8 @@ def create_pi_patterns_page(service, daemon_name: str):
                                 ui.notify(f"Added: {pattern}", type="positive")
                                 await refresh()
 
-                            ui.button("Add", icon="add", on_click=add_custom).props("dense")
+                            ui.button("Add", icon="add", on_click=add_custom).props(
+                                "dense"
+                            )
 
             ui.timer(0.1, refresh, once=True)

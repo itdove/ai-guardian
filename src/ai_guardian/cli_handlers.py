@@ -11,7 +11,6 @@ import os
 import sys
 from pathlib import Path
 
-from ai_guardian.config_utils import get_config_dir
 from ai_guardian.config_loaders import _load_config_file
 from ai_guardian.constants import ViolationType
 
@@ -55,7 +54,7 @@ def _handle_violations_command(args):
             confirm = "y"
         else:
             confirm = input("Are you sure you want to clear all violations? [y/N] ")
-        if confirm.lower() == 'y':
+        if confirm.lower() == "y":
             if violation_logger.clear_log():
                 print("Violations log cleared successfully")
                 return 0
@@ -73,14 +72,16 @@ def _handle_violations_command(args):
             print(f"Violations exported to {export_path}")
             return 0
         else:
-            print(f"Error: Failed to export violations to {export_path}", file=sys.stderr)
+            print(
+                f"Error: Failed to export violations to {export_path}", file=sys.stderr
+            )
             return 1
 
     # Display violations
     violations = violation_logger.get_recent_violations(
         limit=args.limit,
         violation_type=args.type,
-        resolved=False  # Only show unresolved violations by default
+        resolved=False,  # Only show unresolved violations by default
     )
 
     if not violations:
@@ -98,11 +99,9 @@ def _handle_violations_command(args):
         suggestion = v.get("suggestion", {})
 
         # Format severity with color indicators
-        severity_indicator = {
-            "WARNING": "⚠",
-            "HIGH": "🔴",
-            "CRITICAL": "🔒"
-        }.get(severity, "•")
+        severity_indicator = {"WARNING": "⚠", "HIGH": "🔴", "CRITICAL": "🔒"}.get(
+            severity, "•"
+        )
 
         print(f"[{timestamp}] {severity_indicator} {vtype} ({severity.lower()})")
 
@@ -141,13 +140,19 @@ def _handle_violations_command(args):
             else:
                 print(f"  Source: {source}")
             from ai_guardian.secret_type_names import get_secret_type_display
+
             secret_type = blocked.get("secret_type", "Unknown")
             print(f"  Secret type: {get_secret_type_display(secret_type)}")
 
-        elif v.get("violation_type") in (ViolationType.PROMPT_INJECTION, ViolationType.JAILBREAK_DETECTED):
+        elif v.get("violation_type") in (
+            ViolationType.PROMPT_INJECTION,
+            ViolationType.JAILBREAK_DETECTED,
+        ):
             source = blocked.get("source", "unknown")
             pattern = blocked.get("pattern", "Unknown")
-            print(f"  Type: {'Jailbreak' if v.get('violation_type') == ViolationType.JAILBREAK_DETECTED else 'Injection'}")
+            print(
+                f"  Type: {'Jailbreak' if v.get('violation_type') == ViolationType.JAILBREAK_DETECTED else 'Injection'}"
+            )
             if blocked.get("file_path"):
                 print(f"  File: {blocked['file_path']}")
             else:
@@ -216,6 +221,7 @@ def _handle_daemon_command(args):
         # Clear stop-requested marker so auto-start resumes (#775)
         try:
             from ai_guardian.daemon import get_state_dir
+
             marker = get_state_dir() / "daemon.stop-requested"
             if marker.exists():
                 marker.unlink(missing_ok=True)
@@ -235,7 +241,9 @@ def _handle_daemon_command(args):
         else:
             from ai_guardian.daemon.server import DaemonServer
 
-            idle_timeout = (args.idle_timeout if args.idle_timeout is not None else 0) * 60
+            idle_timeout = (
+                args.idle_timeout if args.idle_timeout is not None else 0
+            ) * 60
             server = DaemonServer(
                 idle_timeout=idle_timeout,
             )
@@ -287,7 +295,9 @@ def _handle_daemon_command(args):
                     pid_info = json.loads(pid_path.read_text())
                     pid = pid_info.get("pid", 0)
                     if pid and is_pid_alive(pid):
-                        print(f"ai-guardian daemon: process alive (pid {pid}) but not responsive")
+                        print(
+                            f"ai-guardian daemon: process alive (pid {pid}) but not responsive"
+                        )
                         return 1
                 except (json.JSONDecodeError, OSError) as e:
                     logger.warning("Failed to read config: %s", e)
@@ -343,7 +353,9 @@ def _handle_daemon_command(args):
             project_reload_ago = stats.get("last_project_config_reload_seconds_ago")
             if project_count > 0:
                 if project_reload_ago is not None:
-                    print(f"Project configs tracked: {project_count} (last reload: {_format_duration_ago(project_reload_ago)})")
+                    print(
+                        f"Project configs tracked: {project_count} (last reload: {_format_duration_ago(project_reload_ago)})"
+                    )
                 else:
                     print(f"Project configs tracked: {project_count}")
 
@@ -371,6 +383,7 @@ def _handle_daemon_command(args):
         if is_daemon_running():
             send_shutdown(timeout=_get_client_timeout())
             import time
+
             time.sleep(0.5)
 
         args.daemon_command = "start"
@@ -420,13 +433,17 @@ def _handle_daemon_command(args):
             from ai_guardian.daemon.protocol import encode_message, PROTOCOL_VERSION
             from ai_guardian.daemon.client import _connect
             from ai_guardian.daemon.protocol import decode_message
+
             try:
                 sock = _connect(timeout=_get_client_timeout())
                 if sock is None:
                     print("Failed to connect to daemon", file=sys.stderr)
                     return 1
-                msg = {"version": PROTOCOL_VERSION, "type": "pause",
-                       "data": {"minutes": minutes}}
+                msg = {
+                    "version": PROTOCOL_VERSION,
+                    "type": "pause",
+                    "data": {"minutes": minutes},
+                }
                 sock.sendall(encode_message(msg))
                 response = decode_message(sock, timeout=_get_client_timeout())
                 sock.close()
@@ -462,6 +479,7 @@ def _handle_daemon_command(args):
             from ai_guardian.daemon.protocol import encode_message, PROTOCOL_VERSION
             from ai_guardian.daemon.client import _connect
             from ai_guardian.daemon.protocol import decode_message
+
             try:
                 sock = _connect(timeout=_get_client_timeout())
                 if sock is None:
@@ -483,7 +501,12 @@ def _handle_daemon_command(args):
         import signal
         import time
 
-        from ai_guardian.daemon import get_pid_path, get_socket_path, get_state_dir, is_pid_alive
+        from ai_guardian.daemon import (
+            get_pid_path,
+            get_socket_path,
+            get_state_dir,
+            is_pid_alive,
+        )
 
         state_dir = get_state_dir()
         pid_path = get_pid_path()
@@ -522,7 +545,9 @@ def _handle_daemon_command(args):
                 except (ProcessLookupError, PermissionError, OSError):
                     pass  # intentionally silent — process may have exited
                 time.sleep(0.5)
-                actions.append(f"Stopping daemon process (pid {pid})... killed (SIGKILL)")
+                actions.append(
+                    f"Stopping daemon process (pid {pid})... killed (SIGKILL)"
+                )
             else:
                 actions.append(f"Stopping daemon process (pid {pid})... stopped")
 
@@ -547,11 +572,15 @@ def _handle_daemon_command(args):
         else:
             for a in actions:
                 print(a)
-            print("Daemon reset complete. Start again with: ai-guardian daemon start -b")
+            print(
+                "Daemon reset complete. Start again with: ai-guardian daemon start -b"
+            )
         return 0
 
     else:
-        print("Usage: ai-guardian daemon {start|stop|status|restart|reload|pause|resume|reset}")
+        print(
+            "Usage: ai-guardian daemon {start|stop|status|restart|reload|pause|resume|reset}"
+        )
         return 1
 
 
@@ -677,10 +706,12 @@ def _handle_tray_start(args):
     import subprocess
 
     from ai_guardian.daemon.path_env import ensure_scanner_path
+
     ensure_scanner_path()
 
     if getattr(args, "background", False):
         from ai_guardian.daemon import get_executable_command
+
         cmd = get_executable_command() + ["tray", "start"]
         if getattr(args, "no_discover", False):
             cmd.append("--no-discover")
@@ -704,6 +735,7 @@ def _handle_tray_start(args):
 
     if not is_tray_available():
         import platform
+
         msg = "System tray not available."
         if platform.system() == "Linux":
             try:
@@ -724,7 +756,11 @@ def _handle_tray_start(args):
 
             desktop = get_desktop_integration()
             if not desktop.shortcut_exists():
-                answer = input("No desktop shortcut found. Create one? [Y/n] ").strip().lower()
+                answer = (
+                    input("No desktop shortcut found. Create one? [Y/n] ")
+                    .strip()
+                    .lower()
+                )
                 if answer in ("", "y", "yes"):
                     if desktop.install_shortcut():
                         print("Created AI Guardian shortcut in Applications menu.")
@@ -757,9 +793,11 @@ def _handle_tray_start(args):
     multi_client = MultiDaemonClient()
 
     from ai_guardian.daemon.client import send_status_request
+
     get_stats = lambda: send_status_request() or {}
 
     from ai_guardian.daemon.discovery import DaemonTarget
+
     _local_target = DaemonTarget("local", "local")
 
     def _pause_callback(mins):
@@ -898,12 +936,16 @@ def _handle_prompt_ask(args):
     try:
         from ai_guardian.tui.ask_dialog import (
             AskViolationInfo,
-            _TkinterAskDialog, _NiceGuiAskDialog, _TextualAskDialog,
+            _TkinterAskDialog,
+            _NiceGuiAskDialog,
+            _TextualAskDialog,
             _map_fallback_to_decision,
             AskResult,
         )
         from ai_guardian.tui.display import (
-            _tkinter_available, _nicegui_available, get_preferred_ui,
+            _tkinter_available,
+            _nicegui_available,
+            get_preferred_ui,
         )
     except ImportError as e:
         prompt_logger.error("UI dependencies not available: %s", e)
@@ -976,14 +1018,18 @@ def _handle_prompt_ask(args):
         decision = _map_fallback_to_decision(fallback)
         result = AskResult(decision=decision)
 
-    output = json.dumps({
-        "decision": result.decision.value,
-        "allowlist_pattern": result.allowlist_pattern,
-        "config_saved": getattr(result, 'config_saved', False),
-        "source_annotation_saved": getattr(result, 'source_annotation_saved', False),
-        "ignore_path": getattr(result, 'ignore_path', None),
-        "ignore_scanner_types": getattr(result, 'ignore_scanner_types', None),
-    })
+    output = json.dumps(
+        {
+            "decision": result.decision.value,
+            "allowlist_pattern": result.allowlist_pattern,
+            "config_saved": getattr(result, "config_saved", False),
+            "source_annotation_saved": getattr(
+                result, "source_annotation_saved", False
+            ),
+            "ignore_path": getattr(result, "ignore_path", None),
+            "ignore_scanner_types": getattr(result, "ignore_scanner_types", None),
+        }
+    )
 
     output_file = getattr(args, "output_file", None)
     if output_file:

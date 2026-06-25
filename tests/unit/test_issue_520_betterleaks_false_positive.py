@@ -12,14 +12,14 @@ pattern server:
 
 import json
 import os
-import subprocess
 import tempfile
 import unittest
 from pathlib import Path
-from unittest.mock import patch, MagicMock, PropertyMock
+from unittest.mock import patch, MagicMock
 
 from ai_guardian.scanners.engine_builder import (
-    EngineConfig, ENGINE_PRESETS, build_scanner_command
+    ENGINE_PRESETS,
+    build_scanner_command,
 )
 from ai_guardian.scanners.executor import run_single_engine
 
@@ -31,8 +31,7 @@ class TestGitleaksConfigNotPassedToBetterleaks(unittest.TestCase):
         """Gitleaks should receive the --config flag when config_path is set."""
         config = ENGINE_PRESETS["gitleaks"]
         cmd = build_scanner_command(
-            config, "/tmp/src.txt", "/tmp/report.json",
-            config_path="/tmp/patterns.toml"
+            config, "/tmp/src.txt", "/tmp/report.json", config_path="/tmp/patterns.toml"
         )
         self.assertIn("--config", cmd)
         self.assertIn("/tmp/patterns.toml", cmd)
@@ -46,8 +45,7 @@ class TestGitleaksConfigNotPassedToBetterleaks(unittest.TestCase):
         """
         config = ENGINE_PRESETS["betterleaks"]
         cmd = build_scanner_command(
-            config, "/tmp/src.txt", "/tmp/report.json",
-            config_path="/tmp/patterns.toml"
+            config, "/tmp/src.txt", "/tmp/report.json", config_path="/tmp/patterns.toml"
         )
         self.assertIn("--config", cmd)
 
@@ -55,8 +53,7 @@ class TestGitleaksConfigNotPassedToBetterleaks(unittest.TestCase):
         """Betterleaks command works without --config flag."""
         config = ENGINE_PRESETS["betterleaks"]
         cmd = build_scanner_command(
-            config, "/tmp/src.txt", "/tmp/report.json",
-            config_path=None
+            config, "/tmp/src.txt", "/tmp/report.json", config_path=None
         )
         self.assertNotIn("--config", cmd)
         self.assertIn("betterleaks", cmd)
@@ -66,8 +63,7 @@ class TestGitleaksConfigNotPassedToBetterleaks(unittest.TestCase):
         """LeakTK has no config_flag — config_path should not appear."""
         config = ENGINE_PRESETS["leaktk"]
         cmd = build_scanner_command(
-            config, "/tmp/src.txt", "/tmp/report.json",
-            config_path="/tmp/patterns.toml"
+            config, "/tmp/src.txt", "/tmp/report.json", config_path="/tmp/patterns.toml"
         )
         self.assertNotIn("--config", cmd)
         self.assertNotIn("/tmp/patterns.toml", cmd)
@@ -77,14 +73,14 @@ class TestExitCode1WithNoFindings(unittest.TestCase):
     """Verify exit code 1 with no parsed findings does not false-positive."""
 
     def _make_report_file(self, content=None):
-        fd, path = tempfile.mkstemp(suffix='.json')
+        fd, path = tempfile.mkstemp(suffix=".json")
         os.close(fd)
         if content is not None:
-            with open(path, 'w') as f:
+            with open(path, "w") as f:
                 json.dump(content, f)
         return path
 
-    @patch('ai_guardian.scanners.executor.subprocess.run')
+    @patch("ai_guardian.scanners.executor.subprocess.run")
     def test_betterleaks_compilation_error_returns_clean(self, mock_run):
         """Betterleaks CEL compilation error (exit 1) should not block.
 
@@ -93,8 +89,9 @@ class TestExitCode1WithNoFindings(unittest.TestCase):
         """
         report = self._make_report_file(content=[])
         mock_run.return_value = MagicMock(
-            returncode=1, stdout='',
-            stderr='FTL failed to compile CEL filters error="compiling rule gpfGmO3HH64 filter: ...'
+            returncode=1,
+            stdout="",
+            stderr='FTL failed to compile CEL filters error="compiling rule gpfGmO3HH64 filter: ...',
         )
 
         config = ENGINE_PRESETS["betterleaks"]
@@ -104,16 +101,21 @@ class TestExitCode1WithNoFindings(unittest.TestCase):
         self.assertEqual(len(result.secrets), 0)
         os.unlink(report)
 
-    @patch('ai_guardian.scanners.executor.subprocess.run')
+    @patch("ai_guardian.scanners.executor.subprocess.run")
     def test_betterleaks_exit_1_with_real_findings_still_blocks(self, mock_run):
         """Betterleaks exit 1 with actual findings should still detect secrets."""
-        report = self._make_report_file(content=[
-            {"RuleID": "generic-api-key", "File": "app.py",
-             "StartLine": 10, "EndLine": 10, "Description": "API Key"}
-        ])
-        mock_run.return_value = MagicMock(
-            returncode=1, stdout='', stderr=''
+        report = self._make_report_file(
+            content=[
+                {
+                    "RuleID": "generic-api-key",
+                    "File": "app.py",
+                    "StartLine": 10,
+                    "EndLine": 10,
+                    "Description": "API Key",
+                }
+            ]
         )
+        mock_run.return_value = MagicMock(returncode=1, stdout="", stderr="")
 
         config = ENGINE_PRESETS["betterleaks"]
         result = run_single_engine(config, "/tmp/test.txt", report)
@@ -123,16 +125,21 @@ class TestExitCode1WithNoFindings(unittest.TestCase):
         self.assertEqual(result.secrets[0].rule_id, "generic-api-key")
         os.unlink(report)
 
-    @patch('ai_guardian.scanners.executor.subprocess.run')
+    @patch("ai_guardian.scanners.executor.subprocess.run")
     def test_gitleaks_exit_1_with_real_findings_still_blocks(self, mock_run):
         """Gitleaks exit 1 with actual findings should still detect secrets."""
-        report = self._make_report_file(content=[
-            {"RuleID": "aws-access-token", "File": "creds.py",
-             "StartLine": 3, "EndLine": 3, "Description": "AWS Key"}
-        ])
-        mock_run.return_value = MagicMock(
-            returncode=1, stdout='', stderr=''
+        report = self._make_report_file(
+            content=[
+                {
+                    "RuleID": "aws-access-token",
+                    "File": "creds.py",
+                    "StartLine": 3,
+                    "EndLine": 3,
+                    "Description": "AWS Key",
+                }
+            ]
         )
+        mock_run.return_value = MagicMock(returncode=1, stdout="", stderr="")
 
         config = ENGINE_PRESETS["gitleaks"]
         result = run_single_engine(config, "/tmp/test.txt", report)
@@ -155,7 +162,11 @@ class TestCallerFilteringConfigPath(unittest.TestCase):
         gitleaks_config_path = "/tmp/patterns.toml"
         config_path = (
             str(Path(gitleaks_config_path).absolute())
-            if (gitleaks_config_path and engine_config and engine_config.type in ("gitleaks", "leaktk"))
+            if (
+                gitleaks_config_path
+                and engine_config
+                and engine_config.type in ("gitleaks", "leaktk")
+            )
             else None
         )
         self.assertIsNotNone(config_path)
@@ -166,7 +177,11 @@ class TestCallerFilteringConfigPath(unittest.TestCase):
         gitleaks_config_path = "/tmp/patterns.toml"
         config_path = (
             str(Path(gitleaks_config_path).absolute())
-            if (gitleaks_config_path and engine_config and engine_config.type in ("gitleaks", "leaktk"))
+            if (
+                gitleaks_config_path
+                and engine_config
+                and engine_config.type in ("gitleaks", "leaktk")
+            )
             else None
         )
         self.assertIsNone(config_path)
@@ -177,7 +192,11 @@ class TestCallerFilteringConfigPath(unittest.TestCase):
         gitleaks_config_path = "/tmp/patterns.toml"
         config_path = (
             str(Path(gitleaks_config_path).absolute())
-            if (gitleaks_config_path and engine_config and engine_config.type in ("gitleaks", "leaktk"))
+            if (
+                gitleaks_config_path
+                and engine_config
+                and engine_config.type in ("gitleaks", "leaktk")
+            )
             else None
         )
         self.assertIsNotNone(config_path)
@@ -188,7 +207,11 @@ class TestCallerFilteringConfigPath(unittest.TestCase):
         gitleaks_config_path = "/tmp/patterns.toml"
         config_path = (
             str(Path(gitleaks_config_path).absolute())
-            if (gitleaks_config_path and engine_config and engine_config.type in ("gitleaks", "leaktk"))
+            if (
+                gitleaks_config_path
+                and engine_config
+                and engine_config.type in ("gitleaks", "leaktk")
+            )
             else None
         )
         self.assertIsNone(config_path)
@@ -199,11 +222,15 @@ class TestCallerFilteringConfigPath(unittest.TestCase):
         gitleaks_config_path = None
         config_path = (
             str(Path(gitleaks_config_path).absolute())
-            if (gitleaks_config_path and engine_config and engine_config.type in ("gitleaks", "leaktk"))
+            if (
+                gitleaks_config_path
+                and engine_config
+                and engine_config.type in ("gitleaks", "leaktk")
+            )
             else None
         )
         self.assertIsNone(config_path)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()

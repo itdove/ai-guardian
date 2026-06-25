@@ -1,7 +1,5 @@
 """Tests for human-readable secret type display names."""
 
-import pytest
-
 from ai_guardian.secret_type_names import SECRET_TYPE_NAMES, get_secret_type_display
 
 
@@ -10,7 +8,9 @@ class TestSecretTypeNames:
 
     def test_known_secret_types(self):
         assert get_secret_type_display("openai-api-key") == "OpenAI API Key"
-        assert get_secret_type_display("github-personal-token") == "GitHub Personal Token"
+        assert (
+            get_secret_type_display("github-personal-token") == "GitHub Personal Token"
+        )
         assert get_secret_type_display("anthropic-api-key") == "Anthropic API Key"
         assert get_secret_type_display("env-variable") == "Environment Variable"
         assert get_secret_type_display("private-key") == "Private Key"
@@ -62,7 +62,9 @@ class TestBuildSecretDetectedMessage:
             "file": "config.py",
             "line_number": 42,
         }
-        msg = _build_secret_detected_message("gitleaks", secret_details, "built-in rules")
+        msg = _build_secret_detected_message(
+            "gitleaks", secret_details, "built-in rules"
+        )
         assert "OpenAI API Key" in msg
         assert "openai-api-key" not in msg
 
@@ -73,7 +75,9 @@ class TestBuildSecretDetectedMessage:
             "rule_id": "some-new-scanner-rule",
             "file": "test.py",
         }
-        msg = _build_secret_detected_message("gitleaks", secret_details, "built-in rules")
+        msg = _build_secret_detected_message(
+            "gitleaks", secret_details, "built-in rules"
+        )
         assert "Some New Scanner Rule" in msg
 
     def test_block_message_no_details(self):

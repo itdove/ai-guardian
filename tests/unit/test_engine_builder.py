@@ -67,9 +67,10 @@ class TestEnginePresets(unittest.TestCase):
 class TestSelectEngine(unittest.TestCase):
     """Tests for engine selection logic."""
 
-    @patch('ai_guardian.scanners.engine_builder.shutil.which')
+    @patch("ai_guardian.scanners.engine_builder.shutil.which")
     def test_select_first_available_engine(self, mock_which):
         """Test that first available engine is selected."""
+
         # Mock: betterleaks not found, gitleaks found
         def which_side_effect(binary):
             return "/usr/bin/gitleaks" if binary == "gitleaks" else None
@@ -79,9 +80,10 @@ class TestSelectEngine(unittest.TestCase):
         config = select_engine(["betterleaks", "gitleaks"])
         self.assertEqual(config.type, "gitleaks")
 
-    @patch('ai_guardian.scanners.engine_builder.shutil.which')
+    @patch("ai_guardian.scanners.engine_builder.shutil.which")
     def test_select_betterleaks_when_available(self, mock_which):
         """Test that betterleaks is selected when available."""
+
         # Mock: betterleaks found
         def which_side_effect(binary):
             return f"/usr/bin/{binary}" if binary == "betterleaks" else None
@@ -91,7 +93,7 @@ class TestSelectEngine(unittest.TestCase):
         config = select_engine(["betterleaks", "gitleaks"])
         self.assertEqual(config.type, "betterleaks")
 
-    @patch('ai_guardian.scanners.engine_builder.shutil.which')
+    @patch("ai_guardian.scanners.engine_builder.shutil.which")
     def test_select_engine_no_scanner_found(self, mock_which):
         """Test that RuntimeError is raised when no scanner is found."""
         # Mock: no scanner found
@@ -104,36 +106,34 @@ class TestSelectEngine(unittest.TestCase):
         self.assertIn("Gitleaks", str(cm.exception))
         self.assertIn("BetterLeaks", str(cm.exception))
 
-    @patch('ai_guardian.scanners.engine_builder.shutil.which')
+    @patch("ai_guardian.scanners.engine_builder.shutil.which")
     def test_select_engine_with_custom_binary_path(self, mock_which):
         """Test engine selection with custom binary path override."""
+
         # Mock: custom path exists
         def which_side_effect(binary):
             return binary if binary == "/custom/path/betterleaks" else None
 
         mock_which.side_effect = which_side_effect
 
-        engine_spec = {
-            "type": "betterleaks",
-            "binary": "/custom/path/betterleaks"
-        }
+        engine_spec = {"type": "betterleaks", "binary": "/custom/path/betterleaks"}
         config = select_engine([engine_spec])
         self.assertEqual(config.type, "betterleaks")
         self.assertEqual(config.binary, "/custom/path/betterleaks")
 
-    @patch('ai_guardian.scanners.engine_builder.shutil.which')
+    @patch("ai_guardian.scanners.engine_builder.shutil.which")
     def test_select_engine_with_extra_flags(self, mock_which):
         """Test engine selection with extra flags override."""
         mock_which.return_value = "/usr/bin/betterleaks"
 
         engine_spec = {
             "type": "betterleaks",
-            "extra_flags": ["--regex-engine=re2", "--verbose"]
+            "extra_flags": ["--regex-engine=re2", "--verbose"],
         }
         config = select_engine([engine_spec])
         self.assertEqual(config.extra_flags, ["--regex-engine=re2", "--verbose"])
 
-    @patch('ai_guardian.scanners.engine_builder.shutil.which')
+    @patch("ai_guardian.scanners.engine_builder.shutil.which")
     def test_select_custom_engine(self, mock_which):
         """Test selection of fully custom engine."""
         mock_which.return_value = "/usr/bin/my-scanner"
@@ -144,7 +144,7 @@ class TestSelectEngine(unittest.TestCase):
             "command_template": ["{binary}", "scan", "{source_file}"],
             "success_exit_code": 0,
             "secrets_found_exit_code": 2,
-            "output_format": "gitleaks-compatible"
+            "output_format": "gitleaks-compatible",
         }
         config = select_engine([engine_spec])
         self.assertEqual(config.type, "custom")
@@ -152,7 +152,7 @@ class TestSelectEngine(unittest.TestCase):
         self.assertEqual(config.secrets_found_exit_code, 2)
         self.assertEqual(config.output_parser, "gitleaks-compatible")
 
-    @patch('ai_guardian.scanners.engine_builder.shutil.which')
+    @patch("ai_guardian.scanners.engine_builder.shutil.which")
     def test_select_engine_unknown_preset(self, mock_which):
         """Test that unknown presets are skipped."""
         mock_which.return_value = "/usr/bin/gitleaks"
@@ -170,7 +170,7 @@ class TestBuildScannerCommand(unittest.TestCase):
         cmd = build_scanner_command(
             engine_config=config,
             source_file="/tmp/test.txt",
-            report_file="/tmp/report.json"
+            report_file="/tmp/report.json",
         )
 
         self.assertIn("gitleaks", cmd)
@@ -187,7 +187,7 @@ class TestBuildScannerCommand(unittest.TestCase):
             engine_config=config,
             source_file="/tmp/test.txt",
             report_file="/tmp/report.json",
-            config_path="/home/user/.gitleaks.toml"
+            config_path="/home/user/.gitleaks.toml",
         )
 
         self.assertIn("--config", cmd)
@@ -199,7 +199,7 @@ class TestBuildScannerCommand(unittest.TestCase):
         cmd = build_scanner_command(
             engine_config=config,
             source_file="/tmp/test.txt",
-            report_file="/tmp/report.json"
+            report_file="/tmp/report.json",
         )
 
         self.assertIn("betterleaks", cmd)
@@ -213,7 +213,7 @@ class TestBuildScannerCommand(unittest.TestCase):
         cmd = build_scanner_command(
             engine_config=config,
             source_file="/tmp/test.txt",
-            report_file="/tmp/report.json"
+            report_file="/tmp/report.json",
         )
 
         self.assertIn("leaktk", cmd)
@@ -230,7 +230,7 @@ class TestBuildScannerCommand(unittest.TestCase):
         cmd = build_scanner_command(
             engine_config=config,
             source_file="/tmp/test.txt",
-            report_file="/tmp/report.json"
+            report_file="/tmp/report.json",
         )
 
         self.assertIn("--verbose", cmd)
@@ -242,18 +242,22 @@ class TestBuildScannerCommand(unittest.TestCase):
             type="custom",
             binary="my-scanner",
             command_template=[
-                "{binary}", "analyze",
-                "--input", "{source_file}",
-                "--output", "{report_file}",
-                "--format", "json"
+                "{binary}",
+                "analyze",
+                "--input",
+                "{source_file}",
+                "--output",
+                "{report_file}",
+                "--format",
+                "json",
             ],
-            output_parser="gitleaks"
+            output_parser="gitleaks",
         )
 
         cmd = build_scanner_command(
             engine_config=config,
             source_file="/tmp/test.txt",
-            report_file="/tmp/report.json"
+            report_file="/tmp/report.json",
         )
 
         self.assertEqual(cmd[0], "my-scanner")
@@ -268,21 +272,16 @@ class TestBuildScannerCommand(unittest.TestCase):
         config = EngineConfig(
             type="test",
             binary="test-scanner",
-            command_template=[
-                "{binary}",
-                "scan",
-                "{source_file}",
-                "{report_file}"
-            ],
+            command_template=["{binary}", "scan", "{source_file}", "{report_file}"],
             config_flag=["--config", "{config_path}"],
-            output_parser="gitleaks"
+            output_parser="gitleaks",
         )
 
         cmd = build_scanner_command(
             engine_config=config,
             source_file="/tmp/source.txt",
             report_file="/tmp/report.json",
-            config_path="/home/user/config.toml"
+            config_path="/home/user/config.toml",
         )
 
         # No placeholders should remain
@@ -300,8 +299,9 @@ class TestPatternServerSentinel(unittest.TestCase):
         """Built-in engine presets should have PATTERN_SERVER_UNSET as default."""
         for name, config in ENGINE_PRESETS.items():
             self.assertIs(
-                config.pattern_server, PATTERN_SERVER_UNSET,
-                f"Preset '{name}' should have PATTERN_SERVER_UNSET default"
+                config.pattern_server,
+                PATTERN_SERVER_UNSET,
+                f"Preset '{name}' should have PATTERN_SERVER_UNSET default",
             )
 
     def test_string_engine_spec_has_unset_sentinel(self):
@@ -311,27 +311,20 @@ class TestPatternServerSentinel(unittest.TestCase):
 
     def test_dict_engine_with_null_pattern_server(self):
         """Dict engine with pattern_server: null should have None."""
-        config = _build_engine_config({
-            "type": "betterleaks",
-            "pattern_server": None
-        })
+        config = _build_engine_config({"type": "betterleaks", "pattern_server": None})
         self.assertIsNone(config.pattern_server)
 
     def test_dict_engine_with_pattern_server_url(self):
         """Dict engine with pattern_server URL should preserve the config."""
         ps_config = {"url": "https://patterns.example.com"}
-        config = _build_engine_config({
-            "type": "gitleaks",
-            "pattern_server": ps_config
-        })
+        config = _build_engine_config({"type": "gitleaks", "pattern_server": ps_config})
         self.assertEqual(config.pattern_server, ps_config)
 
     def test_dict_engine_without_pattern_server_key(self):
         """Dict engine without pattern_server key should keep UNSET."""
-        config = _build_engine_config({
-            "type": "betterleaks",
-            "extra_flags": ["--verbose"]
-        })
+        config = _build_engine_config(
+            {"type": "betterleaks", "extra_flags": ["--verbose"]}
+        )
         self.assertIs(config.pattern_server, PATTERN_SERVER_UNSET)
 
 
@@ -365,46 +358,44 @@ class TestResolveEngineConfigPath(unittest.TestCase):
 
     def test_null_pattern_server_disables_config(self):
         """Explicit null pattern_server should return None regardless of global."""
-        config = _build_engine_config({
-            "type": "gitleaks",
-            "pattern_server": None
-        })
+        config = _build_engine_config({"type": "gitleaks", "pattern_server": None})
         result = resolve_engine_config_path(config, "/tmp/patterns.toml")
         self.assertIsNone(result)
 
     def test_null_pattern_server_betterleaks(self):
         """Betterleaks with explicit null → None."""
-        config = _build_engine_config({
-            "type": "betterleaks",
-            "pattern_server": None
-        })
+        config = _build_engine_config({"type": "betterleaks", "pattern_server": None})
         result = resolve_engine_config_path(config, "/tmp/patterns.toml")
         self.assertIsNone(result)
 
-    @patch('ai_guardian.pattern_server.PatternServerClient')
+    @patch("ai_guardian.pattern_server.PatternServerClient")
     def test_per_engine_pattern_server_url(self, mock_client_cls):
         """Per-engine pattern_server with URL should fetch engine-specific patterns."""
         mock_client = MagicMock()
         mock_client.get_patterns_path.return_value = "/tmp/engine_patterns.toml"
         mock_client_cls.return_value = mock_client
 
-        config = _build_engine_config({
-            "type": "gitleaks",
-            "pattern_server": {"url": "https://patterns.example.com"}
-        })
+        config = _build_engine_config(
+            {
+                "type": "gitleaks",
+                "pattern_server": {"url": "https://patterns.example.com"},
+            }
+        )
         result = resolve_engine_config_path(config, "/tmp/global_patterns.toml")
         self.assertIn("engine_patterns.toml", result)
         mock_client_cls.assert_called_once_with({"url": "https://patterns.example.com"})
 
-    @patch('ai_guardian.pattern_server.PatternServerClient')
+    @patch("ai_guardian.pattern_server.PatternServerClient")
     def test_per_engine_pattern_server_fetch_fails(self, mock_client_cls):
         """Per-engine pattern_server fetch failure should return None."""
         mock_client_cls.side_effect = Exception("Connection refused")
 
-        config = _build_engine_config({
-            "type": "gitleaks",
-            "pattern_server": {"url": "https://unreachable.example.com"}
-        })
+        config = _build_engine_config(
+            {
+                "type": "gitleaks",
+                "pattern_server": {"url": "https://unreachable.example.com"},
+            }
+        )
         result = resolve_engine_config_path(config, "/tmp/global.toml")
         self.assertIsNone(result)
 
@@ -416,10 +407,9 @@ class TestResolveEngineConfigPath(unittest.TestCase):
 
     def test_empty_pattern_server_dict_no_url(self):
         """Per-engine pattern_server dict without url key → None."""
-        config = _build_engine_config({
-            "type": "gitleaks",
-            "pattern_server": {"cache_hours": 24}
-        })
+        config = _build_engine_config(
+            {"type": "gitleaks", "pattern_server": {"cache_hours": 24}}
+        )
         result = resolve_engine_config_path(config, "/tmp/global.toml")
         self.assertIsNone(result)
 
@@ -429,6 +419,7 @@ class TestParentConfigPassthrough(unittest.TestCase):
 
     def test_build_python_preset_with_parent_config(self):
         from ai_guardian.scanners.engine_builder import _build_python_preset
+
         parent = {
             "allowlist_patterns": ["test-pattern"],
             "ignore_files": ["**/fixtures/**"],
@@ -459,6 +450,7 @@ class TestParentConfigPassthrough(unittest.TestCase):
 
     def test_scanner_config_overrides_parent_config(self):
         from ai_guardian.scanners.engine_builder import _build_python_preset
+
         parent = {"ignore_files": ["parent-pattern"]}
         scanner_cfg = {"ignore_files": ["engine-pattern"]}
         config = _build_python_preset(
@@ -483,5 +475,5 @@ class TestParentConfigPassthrough(unittest.TestCase):
         self.assertIsNone(config.python_scanner)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()

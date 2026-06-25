@@ -59,6 +59,7 @@ class TestSessionStateManagerLocal(TestCase):
     def tearDown(self):
         self.patcher.stop()
         import shutil
+
         shutil.rmtree(self.tmpdir, ignore_errors=True)
 
     def test_first_prompt_should_inject(self):
@@ -196,10 +197,12 @@ class TestDaemonStateSecurityInjection(TestCase):
         config_path.write_text("{}")
 
         from ai_guardian.daemon.state import DaemonState
+
         self.state = DaemonState(config_path=config_path)
 
     def tearDown(self):
         import shutil
+
         shutil.rmtree(self.tmpdir, ignore_errors=True)
 
     def test_first_call_returns_true(self):

@@ -10,15 +10,27 @@ from ai_guardian.web.config_helpers import load_web_config, save_web_config
 
 CORE_PROTECTIONS = {
     "Private IP Ranges": [
-        "10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16",
-        "127.0.0.0/8", "169.254.0.0/16",
-        "::1/128", "fc00::/7", "fe80::/10",
+        "10.0.0.0/8",
+        "172.16.0.0/12",
+        "192.168.0.0/16",
+        "127.0.0.0/8",
+        "169.254.0.0/16",
+        "::1/128",
+        "fc00::/7",
+        "fe80::/10",
     ],
     "Cloud Metadata Endpoints": [
-        "169.254.169.254", "metadata.google.internal", "fd00:ec2::254",
+        "169.254.169.254",
+        "metadata.google.internal",
+        "fd00:ec2::254",
     ],
     "Dangerous URL Schemes": [
-        "file://", "gopher://", "ftp://", "data://", "dict://", "ldap://",
+        "file://",
+        "gopher://",
+        "ftp://",
+        "data://",
+        "dict://",
+        "ldap://",
     ],
 }
 
@@ -71,10 +83,10 @@ def _parse_enabled(raw):
     return False, None, "", bool(raw)
 
 
-
 def _load_stats():
     try:
         from ai_guardian.violation_logger import ViolationLogger
+
         vl = ViolationLogger()
         violations = vl.get_recent_violations(limit=1000, violation_type="ssrf_blocked")
         return len(violations) if violations else 0
@@ -82,15 +94,18 @@ def _load_stats():
         return None
 
 
-def _render_toggle(label, desc, is_temp, until_dt, reason, is_enabled,
-                   save_fn, refresh_fn):
+def _render_toggle(
+    label, desc, is_temp, until_dt, reason, is_enabled, save_fn, refresh_fn
+):
     with ui.card().classes("w-full"):
         if is_temp and until_dt:
             remaining = _format_remaining(until_dt)
             with ui.row().classes("items-center gap-2 w-full"):
                 ui.icon("timer").classes("text-amber")
                 ui.label(label).classes("font-bold text-sm flex-grow")
-                ui.badge(f"TEMP DISABLED — {remaining}", color="amber").classes("text-xs")
+                ui.badge(f"TEMP DISABLED — {remaining}", color="amber").classes(
+                    "text-xs"
+                )
             ui.label(desc).classes("text-xs text-grey-6 ml-8")
             if reason:
                 ui.label(f"Reason: {reason}").classes("text-xs text-grey-7 ml-8")
@@ -100,8 +115,9 @@ def _render_toggle(label, desc, is_temp, until_dt, reason, is_enabled,
                 ui.notify(f"{label} re-enabled", type="positive")
                 await refresh_fn()
 
-            ui.button("Re-enable Now", icon="play_arrow", color="green",
-                      on_click=do_reenable).props("dense size=sm").classes("ml-8")
+            ui.button(
+                "Re-enable Now", icon="play_arrow", color="green", on_click=do_reenable
+            ).props("dense size=sm").classes("ml-8")
         else:
             with ui.row().classes("items-center gap-2 w-full"):
                 sw = ui.switch(label, value=bool(is_enabled)).classes("flex-grow")
@@ -117,24 +133,40 @@ def _render_toggle(label, desc, is_temp, until_dt, reason, is_enabled,
                 sw.on_value_change(on_toggle)
 
             with ui.row().classes("items-center gap-2 ml-8"):
-                dur = ui.input(placeholder="e.g. 30m, 2h, 1d").props("dense outlined").classes("w-32")
-                rsn = ui.input(placeholder="Reason").props("dense outlined").classes("w-40")
+                dur = (
+                    ui.input(placeholder="e.g. 30m, 2h, 1d")
+                    .props("dense outlined")
+                    .classes("w-32")
+                )
+                rsn = (
+                    ui.input(placeholder="Reason")
+                    .props("dense outlined")
+                    .classes("w-40")
+                )
 
                 async def do_temp(d=dur, r=rsn):
                     delta = _parse_duration(d.value or "30m")
                     if not delta:
-                        ui.notify("Invalid duration (e.g. 30m, 2h, 1d)", type="negative")
+                        ui.notify(
+                            "Invalid duration (e.g. 30m, 2h, 1d)", type="negative"
+                        )
                         return
-                    until_ts = (datetime.now(timezone.utc) + delta).strftime("%Y-%m-%dT%H:%M:%SZ")
+                    until_ts = (datetime.now(timezone.utc) + delta).strftime(
+                        "%Y-%m-%dT%H:%M:%SZ"
+                    )
                     entry = {"value": False, "disabled_until": until_ts}
                     rv = r.value.strip()
                     if rv:
                         entry["reason"] = rv
                     await run.io_bound(save_fn, entry)
-                    ui.notify(f"{label} temp disabled for {d.value or '30m'}", type="warning")
+                    ui.notify(
+                        f"{label} temp disabled for {d.value or '30m'}", type="warning"
+                    )
                     await refresh_fn()
 
-                ui.button("Temp Disable", icon="timer", on_click=do_temp).props("dense size=sm")
+                ui.button("Temp Disable", icon="timer", on_click=do_temp).props(
+                    "dense size=sm"
+                )
 
 
 def create_ssrf_page(service, daemon_name: str):
@@ -177,8 +209,12 @@ def create_ssrf_page(service, daemon_name: str):
                     _render_toggle(
                         "SSRF Protection",
                         "Block requests to private networks, cloud metadata, and dangerous schemes.",
-                        is_temp, until_dt, reason, is_enabled,
-                        save_enabled, refresh,
+                        is_temp,
+                        until_dt,
+                        reason,
+                        is_enabled,
+                        save_enabled,
+                        refresh,
                     )
 
                     total_items = sum(len(v) for v in CORE_PROTECTIONS.values())
@@ -189,18 +225,18 @@ def create_ssrf_page(service, daemon_name: str):
                         ui.label(
                             "These protections are always active and cannot be overridden."
                         ).classes("text-xs text-grey-6")
-                        with ui.scroll_area().classes("w-full").style(
-                            "max-height: 300px"
+                        with (
+                            ui.scroll_area()
+                            .classes("w-full")
+                            .style("max-height: 300px")
                         ):
                             for category, items in CORE_PROTECTIONS.items():
-                                ui.label(category).classes(
-                                    "font-bold text-sm mt-2"
-                                )
+                                ui.label(category).classes("font-bold text-sm mt-2")
                                 for item in items:
                                     with ui.row().classes("items-center gap-1 ml-4"):
-                                        ui.icon("shield").classes(
-                                            "text-blue-4"
-                                        ).style("font-size: 14px")
+                                        ui.icon("shield").classes("text-blue-4").style(
+                                            "font-size: 14px"
+                                        )
                                         ui.label(item).classes("text-xs")
 
                     with ui.card().classes("w-full"):
@@ -288,12 +324,18 @@ def create_ssrf_page(service, daemon_name: str):
                                         icon="delete", on_click=remove_ip, color="red"
                                     ).props("flat dense size=sm")
                         else:
-                            ui.label("No additional blocked IPs.").classes("text-grey-6 text-sm")
+                            ui.label("No additional blocked IPs.").classes(
+                                "text-grey-6 text-sm"
+                            )
 
                         with ui.row().classes("items-center gap-2 mt-2"):
-                            ip_input = ui.input(
-                                placeholder="Enter IP or CIDR (e.g. 10.20.0.0/16)"
-                            ).props("dense outlined").classes("flex-grow")
+                            ip_input = (
+                                ui.input(
+                                    placeholder="Enter IP or CIDR (e.g. 10.20.0.0/16)"
+                                )
+                                .props("dense outlined")
+                                .classes("flex-grow")
+                            )
 
                             async def add_ip():
                                 val = ip_input.value.strip()
@@ -319,10 +361,12 @@ def create_ssrf_page(service, daemon_name: str):
                             ui.button("Add", icon="add", on_click=add_ip).props("dense")
 
                     with ui.card().classes("w-full"):
-                        ui.label("Additional Blocked Domains").classes("text-lg font-bold")
-                        ui.label(
-                            "Custom domain names to block."
-                        ).classes("text-xs text-grey-6")
+                        ui.label("Additional Blocked Domains").classes(
+                            "text-lg font-bold"
+                        )
+                        ui.label("Custom domain names to block.").classes(
+                            "text-xs text-grey-6"
+                        )
 
                         blocked_domains = sp.get("additional_blocked_domains", [])
                         if blocked_domains:
@@ -338,7 +382,9 @@ def create_ssrf_page(service, daemon_name: str):
                                         sect = cfg.get("ssrf_protection", {})
                                         if not isinstance(sect, dict):
                                             return
-                                        items = sect.get("additional_blocked_domains", [])
+                                        items = sect.get(
+                                            "additional_blocked_domains", []
+                                        )
                                         if i < len(items):
                                             items.pop(i)
                                             sect["additional_blocked_domains"] = items
@@ -348,15 +394,23 @@ def create_ssrf_page(service, daemon_name: str):
                                             await refresh()
 
                                     ui.button(
-                                        icon="delete", on_click=remove_domain, color="red"
+                                        icon="delete",
+                                        on_click=remove_domain,
+                                        color="red",
                                     ).props("flat dense size=sm")
                         else:
-                            ui.label("No additional blocked domains.").classes("text-grey-6 text-sm")
+                            ui.label("No additional blocked domains.").classes(
+                                "text-grey-6 text-sm"
+                            )
 
                         with ui.row().classes("items-center gap-2 mt-2"):
-                            dom_input = ui.input(
-                                placeholder="Enter domain (e.g. evil.example.com)"
-                            ).props("dense outlined").classes("flex-grow")
+                            dom_input = (
+                                ui.input(
+                                    placeholder="Enter domain (e.g. evil.example.com)"
+                                )
+                                .props("dense outlined")
+                                .classes("flex-grow")
+                            )
 
                             async def add_domain():
                                 val = dom_input.value.strip()
@@ -379,7 +433,9 @@ def create_ssrf_page(service, daemon_name: str):
                                 ui.notify(f"Added: {val}", type="positive")
                                 await refresh()
 
-                            ui.button("Add", icon="add", on_click=add_domain).props("dense")
+                            ui.button("Add", icon="add", on_click=add_domain).props(
+                                "dense"
+                            )
 
                     with ui.card().classes("w-full"):
                         ui.label("Allowed Domains").classes("text-lg font-bold")
@@ -412,15 +468,23 @@ def create_ssrf_page(service, daemon_name: str):
                                             await refresh()
 
                                     ui.button(
-                                        icon="delete", on_click=remove_allowed, color="red"
+                                        icon="delete",
+                                        on_click=remove_allowed,
+                                        color="red",
                                     ).props("flat dense size=sm")
                         else:
-                            ui.label("No allowed domains.").classes("text-grey-6 text-sm")
+                            ui.label("No allowed domains.").classes(
+                                "text-grey-6 text-sm"
+                            )
 
                         with ui.row().classes("items-center gap-2 mt-2"):
-                            allow_input = ui.input(
-                                placeholder="Enter domain (e.g. api.example.com)"
-                            ).props("dense outlined").classes("flex-grow")
+                            allow_input = (
+                                ui.input(
+                                    placeholder="Enter domain (e.g. api.example.com)"
+                                )
+                                .props("dense outlined")
+                                .classes("flex-grow")
+                            )
 
                             async def add_allowed():
                                 val = allow_input.value.strip()
@@ -443,7 +507,9 @@ def create_ssrf_page(service, daemon_name: str):
                                 ui.notify(f"Added: {val}", type="positive")
                                 await refresh()
 
-                            ui.button("Add", icon="add", on_click=add_allowed).props("dense")
+                            ui.button("Add", icon="add", on_click=add_allowed).props(
+                                "dense"
+                            )
 
                     # --- Ignore files ---
                     with ui.card().classes("w-full"):
@@ -472,19 +538,29 @@ def create_ssrf_page(service, daemon_name: str):
                                             sect["ignore_files"] = items
                                             cfg["ssrf_protection"] = sect
                                             await run.io_bound(save_web_config, cfg)
-                                            ui.notify("File pattern removed", type="positive")
+                                            ui.notify(
+                                                "File pattern removed", type="positive"
+                                            )
                                             await refresh()
 
                                     ui.button(
-                                        icon="delete", on_click=remove_ignore_file, color="red"
+                                        icon="delete",
+                                        on_click=remove_ignore_file,
+                                        color="red",
                                     ).props("flat dense size=sm")
                         else:
-                            ui.label("No ignore file patterns.").classes("text-grey-6 text-sm")
+                            ui.label("No ignore file patterns.").classes(
+                                "text-grey-6 text-sm"
+                            )
 
                         with ui.row().classes("items-center gap-2 mt-2"):
-                            if_input = ui.input(
-                                placeholder="Enter glob pattern (e.g. **/tests/**)"
-                            ).props("dense outlined").classes("flex-grow")
+                            if_input = (
+                                ui.input(
+                                    placeholder="Enter glob pattern (e.g. **/tests/**)"
+                                )
+                                .props("dense outlined")
+                                .classes("flex-grow")
+                            )
 
                             async def add_ignore_file():
                                 val = if_input.value.strip()
@@ -507,7 +583,9 @@ def create_ssrf_page(service, daemon_name: str):
                                 ui.notify(f"Added: {val}", type="positive")
                                 await refresh()
 
-                            ui.button("Add", icon="add", on_click=add_ignore_file).props("dense")
+                            ui.button(
+                                "Add", icon="add", on_click=add_ignore_file
+                            ).props("dense")
 
                     # --- Ignore tools ---
                     with ui.card().classes("w-full"):
@@ -536,19 +614,29 @@ def create_ssrf_page(service, daemon_name: str):
                                             sect["ignore_tools"] = items
                                             cfg["ssrf_protection"] = sect
                                             await run.io_bound(save_web_config, cfg)
-                                            ui.notify("Tool pattern removed", type="positive")
+                                            ui.notify(
+                                                "Tool pattern removed", type="positive"
+                                            )
                                             await refresh()
 
                                     ui.button(
-                                        icon="delete", on_click=remove_ignore_tool, color="red"
+                                        icon="delete",
+                                        on_click=remove_ignore_tool,
+                                        color="red",
                                     ).props("flat dense size=sm")
                         else:
-                            ui.label("No ignore tool patterns.").classes("text-grey-6 text-sm")
+                            ui.label("No ignore tool patterns.").classes(
+                                "text-grey-6 text-sm"
+                            )
 
                         with ui.row().classes("items-center gap-2 mt-2"):
-                            it_input = ui.input(
-                                placeholder="Enter tool name pattern (e.g. mcp__*)"
-                            ).props("dense outlined").classes("flex-grow")
+                            it_input = (
+                                ui.input(
+                                    placeholder="Enter tool name pattern (e.g. mcp__*)"
+                                )
+                                .props("dense outlined")
+                                .classes("flex-grow")
+                            )
 
                             async def add_ignore_tool():
                                 val = it_input.value.strip()
@@ -571,7 +659,9 @@ def create_ssrf_page(service, daemon_name: str):
                                 ui.notify(f"Added: {val}", type="positive")
                                 await refresh()
 
-                            ui.button("Add", icon="add", on_click=add_ignore_tool).props("dense")
+                            ui.button(
+                                "Add", icon="add", on_click=add_ignore_tool
+                            ).props("dense")
 
                     with ui.card().classes("w-full"):
                         ui.label("SSRF Statistics").classes("text-lg font-bold")
@@ -585,6 +675,8 @@ def create_ssrf_page(service, daemon_name: str):
                                 "text-grey-6 text-sm"
                             )
                         else:
-                            ui.label(f"Total SSRF attempts blocked: {total}").classes("text-sm")
+                            ui.label(f"Total SSRF attempts blocked: {total}").classes(
+                                "text-sm"
+                            )
 
             ui.timer(0.1, refresh, once=True)

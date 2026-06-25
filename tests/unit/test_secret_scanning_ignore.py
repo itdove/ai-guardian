@@ -24,9 +24,7 @@ class TestSecretScanningIgnoreTools(unittest.TestCase):
         # Without tool_name - should detect (if gitleaks is available)
         # This test documents behavior, actual detection depends on gitleaks binary
         is_secret, error_msg = check_secrets_with_gitleaks(
-            secret_content,
-            filename="test.txt",
-            ignore_tools=ignore_tools
+            secret_content, filename="test.txt", ignore_tools=ignore_tools
         )
         # Without tool_name specified, should scan normally
 
@@ -35,7 +33,7 @@ class TestSecretScanningIgnoreTools(unittest.TestCase):
             secret_content,
             filename="test.txt",
             tool_name="Read",
-            ignore_tools=ignore_tools
+            ignore_tools=ignore_tools,
         )
         self.assertFalse(is_secret, "Read tool should be ignored")
         self.assertIsNone(error_msg)
@@ -46,13 +44,15 @@ class TestSecretScanningIgnoreTools(unittest.TestCase):
             secret_content,
             filename="test.txt",
             tool_name="Bash",
-            ignore_tools=ignore_tools
+            ignore_tools=ignore_tools,
         )
         # Bash tool should not be ignored
 
     def test_ignore_tools_wildcard_pattern(self):
         """Test that wildcard patterns work."""
-        secret_content = "github_token=ghp_1234567890abcdefghijklmnopqrstuvwxyz"  # notsecret
+        secret_content = (
+            "github_token=ghp_1234567890abcdefghijklmnopqrstuvwxyz"  # notsecret
+        )
         ignore_tools = ["mcp__*"]
 
         # MCP tools should be ignored
@@ -60,7 +60,7 @@ class TestSecretScanningIgnoreTools(unittest.TestCase):
             secret_content,
             filename="test.txt",
             tool_name="mcp__notebooklm__notebook_list",
-            ignore_tools=ignore_tools
+            ignore_tools=ignore_tools,
         )
         self.assertFalse(is_secret, "MCP tool should be ignored")
         self.assertIsNone(error_msg)
@@ -70,7 +70,7 @@ class TestSecretScanningIgnoreTools(unittest.TestCase):
             secret_content,
             filename="test.txt",
             tool_name="Read",
-            ignore_tools=ignore_tools
+            ignore_tools=ignore_tools,
         )
         # Read tool should not be ignored (depends on gitleaks)
 
@@ -84,7 +84,7 @@ class TestSecretScanningIgnoreTools(unittest.TestCase):
             secret_content,
             filename="test.txt",
             tool_name=None,
-            ignore_tools=ignore_tools
+            ignore_tools=ignore_tools,
         )
         # Should scan normally (no tool specified)
 
@@ -98,7 +98,7 @@ class TestSecretScanningIgnoreTools(unittest.TestCase):
             secret_content,
             filename="test.txt",
             tool_name="Read",
-            ignore_tools=ignore_tools
+            ignore_tools=ignore_tools,
         )
         # Empty list means scan all tools
 
@@ -106,17 +106,19 @@ class TestSecretScanningIgnoreTools(unittest.TestCase):
 class TestSecretScanningIgnoreFiles(unittest.TestCase):
     """Tests for ignore_files configuration in secret scanning."""
 
-    @unittest.skipIf(sys.platform == "win32", "Unix-style absolute paths not valid on Windows")
+    @unittest.skipIf(
+        sys.platform == "win32", "Unix-style absolute paths not valid on Windows"
+    )
     def test_ignore_files_exact_match(self):
         """Test that exact file path matching works."""
-        secret_content = "aws_secret_access_key=wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"
+        secret_content = (
+            "aws_secret_access_key=wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"
+        )
         ignore_files = ["/tmp/test-fixture.json"]
 
         # Without file_path - should scan normally
         is_secret, error_msg = check_secrets_with_gitleaks(
-            secret_content,
-            filename="test.json",
-            ignore_files=ignore_files
+            secret_content, filename="test.json", ignore_files=ignore_files
         )
         # No file_path specified, should scan
 
@@ -125,7 +127,7 @@ class TestSecretScanningIgnoreFiles(unittest.TestCase):
             secret_content,
             filename="test-fixture.json",
             file_path="/tmp/test-fixture.json",
-            ignore_files=ignore_files
+            ignore_files=ignore_files,
         )
         self.assertFalse(is_secret, "Ignored file should skip scanning")
         self.assertIsNone(error_msg)
@@ -135,7 +137,7 @@ class TestSecretScanningIgnoreFiles(unittest.TestCase):
             secret_content,
             filename="production.json",
             file_path="/etc/production.json",
-            ignore_files=ignore_files
+            ignore_files=ignore_files,
         )
         # Different path should scan normally
 
@@ -145,7 +147,7 @@ class TestSecretScanningIgnoreFiles(unittest.TestCase):
         ignore_files = [
             "**/tests/fixtures/**",
             "**/examples/**/*.example.*",
-            "**/.gitleaks.toml"
+            "**/.gitleaks.toml",
         ]
 
         # Test fixtures should be ignored
@@ -153,7 +155,7 @@ class TestSecretScanningIgnoreFiles(unittest.TestCase):
             secret_content,
             filename="credentials.json",
             file_path="/home/user/project/tests/fixtures/credentials.json",
-            ignore_files=ignore_files
+            ignore_files=ignore_files,
         )
         self.assertFalse(is_secret, "Test fixture should be ignored")
 
@@ -162,7 +164,7 @@ class TestSecretScanningIgnoreFiles(unittest.TestCase):
             secret_content,
             filename="config.example.json",
             file_path="/home/user/project/examples/config/config.example.json",
-            ignore_files=ignore_files
+            ignore_files=ignore_files,
         )
         self.assertFalse(is_secret, "Example file should be ignored")
 
@@ -171,7 +173,7 @@ class TestSecretScanningIgnoreFiles(unittest.TestCase):
             secret_content,
             filename=".gitleaks.toml",
             file_path="/home/user/project/.gitleaks.toml",
-            ignore_files=ignore_files
+            ignore_files=ignore_files,
         )
         self.assertFalse(is_secret, ".gitleaks.toml should be ignored")
 
@@ -180,13 +182,12 @@ class TestSecretScanningIgnoreFiles(unittest.TestCase):
             secret_content,
             filename="config.json",
             file_path="/home/user/project/config.json",
-            ignore_files=ignore_files
+            ignore_files=ignore_files,
         )
         # Regular file should scan
 
     def test_ignore_files_tilde_expansion(self):
         """Test that ~ expansion works in file paths."""
-        import os
         from pathlib import Path
 
         secret_content = "token=abc123"
@@ -201,7 +202,7 @@ class TestSecretScanningIgnoreFiles(unittest.TestCase):
             secret_content,
             filename="fixture.json",
             file_path=expanded_path,
-            ignore_files=ignore_files
+            ignore_files=ignore_files,
         )
         self.assertFalse(is_secret, "Path with ~ should match expanded path")
 
@@ -211,8 +212,8 @@ class TestSecretScanningIgnoreFiles(unittest.TestCase):
 
         secret_content = "aws_access_key_id=AKIAIOSFODNN7EXAMPLE"
         ignore_files = [
-            "~/.claude/skills/code-*/**",      # Combined: single-level + recursive
-            "**/skills/daf-*/**",              # Leading ** + combined pattern
+            "~/.claude/skills/code-*/**",  # Combined: single-level + recursive
+            "**/skills/daf-*/**",  # Leading ** + combined pattern
         ]
 
         home = str(Path.home())
@@ -222,7 +223,7 @@ class TestSecretScanningIgnoreFiles(unittest.TestCase):
             secret_content,
             filename="SKILL.md",
             file_path=f"{home}/.claude/skills/code-review/SKILL.md",
-            ignore_files=ignore_files
+            ignore_files=ignore_files,
         )
         self.assertFalse(is_secret, "Combined pattern should match code-* skills")
 
@@ -231,7 +232,7 @@ class TestSecretScanningIgnoreFiles(unittest.TestCase):
             secret_content,
             filename="config.json",
             file_path=f"{home}/.claude/skills/code-analysis/config.json",
-            ignore_files=ignore_files
+            ignore_files=ignore_files,
         )
         self.assertFalse(is_secret, "Combined pattern should match code-analysis")
 
@@ -240,25 +241,29 @@ class TestSecretScanningIgnoreFiles(unittest.TestCase):
             secret_content,
             filename="SKILL.md",
             file_path="/project/.daf-sessions/.claude/skills/daf-jira/SKILL.md",
-            ignore_files=ignore_files
+            ignore_files=ignore_files,
         )
-        self.assertFalse(is_secret, "Leading ** + combined pattern should match daf-jira anywhere")
+        self.assertFalse(
+            is_secret, "Leading ** + combined pattern should match daf-jira anywhere"
+        )
 
         # Should match daf-config in different location
         is_secret, error_msg = check_secrets_with_gitleaks(
             secret_content,
             filename="helper.py",
             file_path=f"{home}/.daf-sessions/.claude/skills/daf-config/helper.py",
-            ignore_files=ignore_files
+            ignore_files=ignore_files,
         )
-        self.assertFalse(is_secret, "Leading ** should match daf-config in .daf-sessions")
+        self.assertFalse(
+            is_secret, "Leading ** should match daf-config in .daf-sessions"
+        )
 
         # Should NOT match non-matching patterns
         is_secret, error_msg = check_secrets_with_gitleaks(
             secret_content,
             filename="SKILL.md",
             file_path=f"{home}/.claude/skills/database-migration/SKILL.md",
-            ignore_files=ignore_files
+            ignore_files=ignore_files,
         )
         # database-migration doesn't match code-* or daf-*, so should scan
         # (Actual detection depends on gitleaks availability)
@@ -267,7 +272,9 @@ class TestSecretScanningIgnoreFiles(unittest.TestCase):
         """Test leading ** patterns work in ignore_files (issue #172)"""
         from pathlib import Path
 
-        secret_content = "github_token=ghp_1234567890abcdefghijklmnopqrstuvwxyz"  # notsecret
+        secret_content = (
+            "github_token=ghp_1234567890abcdefghijklmnopqrstuvwxyz"  # notsecret
+        )
         ignore_files = [
             "**/.claude/skills/approved-*/**",  # Leading ** + combined pattern
             "**/tool-results/**",  # Leading ** pattern
@@ -280,7 +287,7 @@ class TestSecretScanningIgnoreFiles(unittest.TestCase):
             secret_content,
             filename="SKILL.md",
             file_path=f"{home}/.claude/skills/approved-skill/SKILL.md",
-            ignore_files=ignore_files
+            ignore_files=ignore_files,
         )
         self.assertFalse(is_secret, "Leading ** should match approved-* skills in home")
 
@@ -289,27 +296,33 @@ class TestSecretScanningIgnoreFiles(unittest.TestCase):
             secret_content,
             filename="config.json",
             file_path="/projects/myapp/.claude/skills/approved-workflow/config.json",
-            ignore_files=ignore_files
+            ignore_files=ignore_files,
         )
-        self.assertFalse(is_secret, "Leading ** should match approved-* skills in project")
+        self.assertFalse(
+            is_secret, "Leading ** should match approved-* skills in project"
+        )
 
         # Should match tool-results anywhere
         is_secret, error_msg = check_secrets_with_gitleaks(
             secret_content,
             filename="output.json",
             file_path=f"{home}/.claude/projects/session-abc/tool-results/bash/output.json",
-            ignore_files=ignore_files
+            ignore_files=ignore_files,
         )
-        self.assertFalse(is_secret, "**/tool-results/** should match tool-results anywhere")
+        self.assertFalse(
+            is_secret, "**/tool-results/** should match tool-results anywhere"
+        )
 
         # Should match nested tool-results
         is_secret, error_msg = check_secrets_with_gitleaks(
             secret_content,
             filename="data.txt",
             file_path="/project/deep/nested/path/tool-results/read/data.txt",
-            ignore_files=ignore_files
+            ignore_files=ignore_files,
         )
-        self.assertFalse(is_secret, "**/tool-results/** should match deeply nested tool-results")
+        self.assertFalse(
+            is_secret, "**/tool-results/** should match deeply nested tool-results"
+        )
 
 
 class TestSecretScanningIgnoreBoth(unittest.TestCase):
@@ -328,7 +341,7 @@ class TestSecretScanningIgnoreBoth(unittest.TestCase):
             tool_name="Read",
             file_path="/home/user/project/src/data.json",
             ignore_tools=ignore_tools,
-            ignore_files=ignore_files
+            ignore_files=ignore_files,
         )
         self.assertFalse(is_secret, "Should be ignored by tool name")
 
@@ -339,7 +352,7 @@ class TestSecretScanningIgnoreBoth(unittest.TestCase):
             tool_name="Bash",
             file_path="/home/user/project/tests/fixtures/fixture.json",
             ignore_tools=ignore_tools,
-            ignore_files=ignore_files
+            ignore_files=ignore_files,
         )
         self.assertFalse(is_secret, "Should be ignored by file path")
 
@@ -350,7 +363,7 @@ class TestSecretScanningIgnoreBoth(unittest.TestCase):
             tool_name="Read",
             file_path="/home/user/project/tests/fixtures/fixture.json",
             ignore_tools=ignore_tools,
-            ignore_files=ignore_files
+            ignore_files=ignore_files,
         )
         self.assertFalse(is_secret, "Should be ignored by either condition")
 
@@ -361,7 +374,7 @@ class TestSecretScanningIgnoreBoth(unittest.TestCase):
             tool_name="Bash",
             file_path="/etc/production.json",
             ignore_tools=ignore_tools,
-            ignore_files=ignore_files
+            ignore_files=ignore_files,
         )
         # Should scan normally
 
@@ -378,7 +391,7 @@ class TestSecretScanningIgnoreBoth(unittest.TestCase):
         ignore_files = [
             "**/tests/**/*.fixture.json",
             "**/tests/fixtures/**",
-            "**/examples/**"
+            "**/examples/**",
         ]
 
         # Test fixture should be ignored
@@ -386,7 +399,7 @@ class TestSecretScanningIgnoreBoth(unittest.TestCase):
             test_fixture_content,
             filename="auth.fixture.json",
             file_path="/home/user/project/tests/fixtures/auth.fixture.json",
-            ignore_files=ignore_files
+            ignore_files=ignore_files,
         )
         self.assertFalse(is_secret, "Test fixture with fake AWS keys should be ignored")
 
@@ -395,7 +408,7 @@ class TestSecretScanningIgnoreBoth(unittest.TestCase):
             test_fixture_content,
             filename="production.json",
             file_path="/etc/app/production.json",
-            ignore_files=ignore_files
+            ignore_files=ignore_files,
         )
         # Production file should scan (depends on gitleaks availability)
 
@@ -409,7 +422,7 @@ class TestSecretScanningAllowlistPatterns(unittest.TestCase):
         is_secret, error_msg = check_secrets_with_gitleaks(
             safe_content,
             filename="test.txt",
-            allowlist_patterns=[r"pk_test_[A-Za-z0-9]+"]
+            allowlist_patterns=[r"pk_test_[A-Za-z0-9]+"],
         )
         self.assertFalse(is_secret)
 
@@ -421,7 +434,7 @@ class TestSecretScanningAllowlistPatterns(unittest.TestCase):
             filename="test.txt",
             tool_name="Read",
             ignore_tools=["Read"],
-            allowlist_patterns=[r"pk_test_[A-Za-z0-9]+"]
+            allowlist_patterns=[r"pk_test_[A-Za-z0-9]+"],
         )
         self.assertFalse(is_secret, "Ignored tool should not be scanned")
 
@@ -429,9 +442,7 @@ class TestSecretScanningAllowlistPatterns(unittest.TestCase):
         """Empty allowlist_patterns list should not change behavior."""
         safe_content = "no secrets here"
         is_secret, error_msg = check_secrets_with_gitleaks(
-            safe_content,
-            filename="test.txt",
-            allowlist_patterns=[]
+            safe_content, filename="test.txt", allowlist_patterns=[]
         )
         self.assertFalse(is_secret)
 
@@ -439,9 +450,7 @@ class TestSecretScanningAllowlistPatterns(unittest.TestCase):
         """None value for allowlist_patterns should be handled gracefully."""
         safe_content = "no secrets here"
         is_secret, error_msg = check_secrets_with_gitleaks(
-            safe_content,
-            filename="test.txt",
-            allowlist_patterns=None
+            safe_content, filename="test.txt", allowlist_patterns=None
         )
         self.assertFalse(is_secret)
 
@@ -449,9 +458,7 @@ class TestSecretScanningAllowlistPatterns(unittest.TestCase):
         """Catch-all patterns like .* should be rejected."""
         safe_content = "no secrets here"
         is_secret, error_msg = check_secrets_with_gitleaks(
-            safe_content,
-            filename="test.txt",
-            allowlist_patterns=[".*"]
+            safe_content, filename="test.txt", allowlist_patterns=[".*"]
         )
         # Should work without error; dangerous pattern is just ignored
         self.assertFalse(is_secret)

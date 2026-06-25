@@ -2,13 +2,10 @@
 """Tests for text/stdin scanning (Issue #1260)."""
 
 import json
-import sys
 from argparse import Namespace
 from io import StringIO
-from pathlib import Path
 from unittest import mock
 
-import pytest
 
 from ai_guardian.scanner import FileScanner, scan_command
 
@@ -18,7 +15,10 @@ class TestScanText:
 
     @mock.patch("ai_guardian.scanner.check_secrets_with_gitleaks")
     def test_detects_secrets(self, mock_gitleaks):
-        mock_gitleaks.return_value = (True, "Secret Type: generic-api-key\nLocation: file:1")
+        mock_gitleaks.return_value = (
+            True,
+            "Secret Type: generic-api-key\nLocation: file:1",
+        )
 
         scanner = FileScanner(config={"secret_scanning": {"enabled": True}})
         findings = scanner.scan_text("api_key = 'sk-1234567890abcdef'")
@@ -73,6 +73,7 @@ class TestScanText:
 
         import glob
         import tempfile
+
         remaining = glob.glob(f"{tempfile.gettempdir()}/ai-guardian-text-*")
         assert len(remaining) == 0
 
@@ -141,7 +142,9 @@ class TestScanCommandText:
 
         result = scan_command(args)
 
-        mock_scan_text.assert_called_once_with("some test content", source_label="inline")
+        mock_scan_text.assert_called_once_with(
+            "some test content", source_label="inline"
+        )
         assert result == 0
 
     @mock.patch("ai_guardian.scanner.FileScanner.scan_text")

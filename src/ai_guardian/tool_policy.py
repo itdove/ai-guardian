@@ -25,6 +25,7 @@ from ai_guardian.constants import AUGMENT_TOOL_MAP
 
 try:
     from jsonschema import Draft7Validator, ValidationError as JsonSchemaValidationError
+
     HAS_JSONSCHEMA = True
 except ImportError:
     HAS_JSONSCHEMA = False
@@ -43,6 +44,7 @@ from ai_guardian.constants import ViolationType
 # Import violation logger
 try:
     from ai_guardian.violation_logger import ViolationLogger
+
     HAS_VIOLATION_LOGGER = True
 except ImportError:
     HAS_VIOLATION_LOGGER = False
@@ -51,6 +53,7 @@ except ImportError:
 # Import SSRF protector
 try:
     from ai_guardian.ssrf_protector import SSRFProtector
+
     HAS_SSRF_PROTECTOR = True
 except ImportError:
     HAS_SSRF_PROTECTOR = False
@@ -59,6 +62,7 @@ except ImportError:
 # Import config exfiltration scanner
 try:
     from ai_guardian.config_scanner import ConfigFileScanner
+
     HAS_CONFIG_SCANNER = True
 except ImportError:
     HAS_CONFIG_SCANNER = False
@@ -83,212 +87,196 @@ IMMUTABLE_DENY_PATTERNS = {
         "*ai-guardian.json",
         "*/.config/ai-guardian/*",
         "*/.ai-guardian.json",
-
         # Cache files - ALWAYS protected (prevents cache poisoning)
         "*/.cache/ai-guardian/*",
-
         # IDE hooks - ALWAYS protected (prevents disabling ai-guardian)
         # Note: */.claude/settings.json removed — handled by content-aware check (Issue #807)
         "*/.claude/hooks.json",
         "*/.cursor/hooks.json",
-        "*/Cursor/hooks.json",        # Windows
-        "*/.github/hooks/hooks.json",         # GitHub Copilot
-        "*/.codex/hooks.json",                # OpenAI Codex
-        "*/.codeium/windsurf/hooks.json",     # Windsurf
-
+        "*/Cursor/hooks.json",  # Windows
+        "*/.github/hooks/hooks.json",  # GitHub Copilot
+        "*/.codex/hooks.json",  # OpenAI Codex
+        "*/.codeium/windsurf/hooks.json",  # Windsurf
         # Script-based hooks - ALWAYS protected (prevents disabling ai-guardian)
-        "*/.clinerules/hooks/*",              # Cline / ZooCode
-        "*/.kiro/hooks/*",                    # Kiro
-
+        "*/.clinerules/hooks/*",  # Cline / ZooCode
+        "*/.kiro/hooks/*",  # Kiro
         # Extension/plugin hooks - ALWAYS protected (prevents disabling ai-guardian)
         "*/.aider-desk/extensions/ai-guardian/*",  # AiderDesk
-        "*/.openclaw/plugins/ai-guardian/*",        # OpenClaw
-
+        "*/.openclaw/plugins/ai-guardian/*",  # OpenClaw
         # Pip-installed package code - ALWAYS protected (no git/PR review for installed packages)
         "*/site-packages/ai_guardian/*",
-
         # Directory markers - ALWAYS protected (prevents bypass of directory rules)
         "*/.ai-read-deny",
         "**/.ai-read-deny",
     ],
-
     "Edit": [
         # Config files - ALWAYS protected (even for repo owners)
         "*ai-guardian.json",
         "*/.config/ai-guardian/*",
         "*/.ai-guardian.json",
-
         # Cache files - ALWAYS protected (prevents cache poisoning)
         "*/.cache/ai-guardian/*",
-
         # IDE hooks - ALWAYS protected (prevents disabling ai-guardian)
         # Note: */.claude/settings.json removed — handled by content-aware check (Issue #807)
         "*/.claude/hooks.json",
         "*/.cursor/hooks.json",
         "*/Cursor/hooks.json",
-        "*/.github/hooks/hooks.json",         # GitHub Copilot
-        "*/.codex/hooks.json",                # OpenAI Codex
-        "*/.codeium/windsurf/hooks.json",     # Windsurf
-
+        "*/.github/hooks/hooks.json",  # GitHub Copilot
+        "*/.codex/hooks.json",  # OpenAI Codex
+        "*/.codeium/windsurf/hooks.json",  # Windsurf
         # Script-based hooks - ALWAYS protected (prevents disabling ai-guardian)
-        "*/.clinerules/hooks/*",              # Cline / ZooCode
-        "*/.kiro/hooks/*",                    # Kiro
-
+        "*/.clinerules/hooks/*",  # Cline / ZooCode
+        "*/.kiro/hooks/*",  # Kiro
         # Extension/plugin hooks - ALWAYS protected (prevents disabling ai-guardian)
         "*/.aider-desk/extensions/ai-guardian/*",  # AiderDesk
-        "*/.openclaw/plugins/ai-guardian/*",        # OpenClaw
-
+        "*/.openclaw/plugins/ai-guardian/*",  # OpenClaw
         # Pip-installed package code - ALWAYS protected (no git/PR review for installed packages)
         "*/site-packages/ai_guardian/*",
-
         # Directory markers - ALWAYS protected (prevents bypass of directory rules)
         "*/.ai-read-deny",
         "**/.ai-read-deny",
     ],
-
     "Read": [
         # Config files - block reading security rules, patterns, allowlists (Issue #512)
         "*ai-guardian.json",
         "*/.config/ai-guardian/*",
         "*/.ai-guardian.json",
-
         # State files - block reading violations, logs, scanning state (Issue #512)
         "*/.local/state/ai-guardian/*",
-
         # Cache files - block reading cached patterns and regex (Issue #512)
         "*/.cache/ai-guardian/*",
     ],
-
     "Bash": [
         # Block commands that could modify protected files
         # Dev source patterns removed (Issue #369) - redundant with git/PR workflow
         # Patterns are path-specific to avoid blocking legitimate content mentioning "ai-guardian" (Issue #188)
-
         # sed protection - specific paths only
-        "*sed*ai-guardian.json*", "*sed*.ai-guardian.json*",  # Config files
+        "*sed*ai-guardian.json*",
+        "*sed*.ai-guardian.json*",  # Config files
         "*sed*.config/ai-guardian/*",  # Config directory
         "*sed*site-packages/ai_guardian*",  # Pip-installed package
         "*sed*.claude/settings.json*",
         "*sed*.gemini/settings.json*",
         "*sed*.augment/settings.json*",
         "*sed*.cursor/hooks.json*",
-        "*sed*.github/hooks/hooks.json*",     # Copilot
-        "*sed*.codex/hooks.json*",            # Codex
-        "*sed*.codeium/windsurf/hooks.json*", # Windsurf
-        "*sed*.clinerules/hooks/*",           # Cline / ZooCode
-        "*sed*.kiro/hooks/*",                 # Kiro
+        "*sed*.github/hooks/hooks.json*",  # Copilot
+        "*sed*.codex/hooks.json*",  # Codex
+        "*sed*.codeium/windsurf/hooks.json*",  # Windsurf
+        "*sed*.clinerules/hooks/*",  # Cline / ZooCode
+        "*sed*.kiro/hooks/*",  # Kiro
         "*sed*.aider-desk/extensions/ai-guardian*",  # AiderDesk
-        "*sed*.openclaw/plugins/ai-guardian*",       # OpenClaw
-
+        "*sed*.openclaw/plugins/ai-guardian*",  # OpenClaw
         # awk protection - specific paths only
-        "*awk*ai-guardian.json*", "*awk*.ai-guardian.json*",  # Config files
+        "*awk*ai-guardian.json*",
+        "*awk*.ai-guardian.json*",  # Config files
         "*awk*.config/ai-guardian/*",  # Config directory
         "*awk*site-packages/ai_guardian*",  # Pip-installed package
         "*awk*.claude/settings.json*",
         "*awk*.gemini/settings.json*",
         "*awk*.augment/settings.json*",
         "*awk*.cursor/hooks.json*",
-        "*awk*.github/hooks/hooks.json*",     # Copilot
-        "*awk*.codex/hooks.json*",            # Codex
-        "*awk*.codeium/windsurf/hooks.json*", # Windsurf
-        "*awk*.clinerules/hooks/*",           # Cline / ZooCode
-        "*awk*.kiro/hooks/*",                 # Kiro
+        "*awk*.github/hooks/hooks.json*",  # Copilot
+        "*awk*.codex/hooks.json*",  # Codex
+        "*awk*.codeium/windsurf/hooks.json*",  # Windsurf
+        "*awk*.clinerules/hooks/*",  # Cline / ZooCode
+        "*awk*.kiro/hooks/*",  # Kiro
         "*awk*.aider-desk/extensions/ai-guardian*",  # AiderDesk
-        "*awk*.openclaw/plugins/ai-guardian*",       # OpenClaw
-
+        "*awk*.openclaw/plugins/ai-guardian*",  # OpenClaw
         # vim/nano protection - specific paths only
-        "*vim*ai-guardian.json*", "*vim*.ai-guardian.json*",  # Config files
+        "*vim*ai-guardian.json*",
+        "*vim*.ai-guardian.json*",  # Config files
         "*vim*.config/ai-guardian/*",  # Config directory
         "*vim*.claude/settings.json*",
         "*vim*.gemini/settings.json*",
         "*vim*.augment/settings.json*",
         "*vim*.cursor/hooks.json*",
-        "*vim*.github/hooks/hooks.json*",     # Copilot
-        "*vim*.codex/hooks.json*",            # Codex
-        "*vim*.codeium/windsurf/hooks.json*", # Windsurf
-        "*vim*.clinerules/hooks/*",           # Cline / ZooCode
-        "*vim*.kiro/hooks/*",                 # Kiro
-        "*nano*ai-guardian.json*", "*nano*.ai-guardian.json*",  # Config files
+        "*vim*.github/hooks/hooks.json*",  # Copilot
+        "*vim*.codex/hooks.json*",  # Codex
+        "*vim*.codeium/windsurf/hooks.json*",  # Windsurf
+        "*vim*.clinerules/hooks/*",  # Cline / ZooCode
+        "*vim*.kiro/hooks/*",  # Kiro
+        "*nano*ai-guardian.json*",
+        "*nano*.ai-guardian.json*",  # Config files
         "*nano*.config/ai-guardian/*",  # Config directory
         "*nano*.claude/settings.json*",
         "*nano*.gemini/settings.json*",
         "*nano*.augment/settings.json*",
         "*nano*.cursor/hooks.json*",
-        "*nano*.github/hooks/hooks.json*",     # Copilot
-        "*nano*.codex/hooks.json*",            # Codex
-        "*nano*.codeium/windsurf/hooks.json*", # Windsurf
-        "*nano*.clinerules/hooks/*",           # Cline / ZooCode
-        "*nano*.kiro/hooks/*",                 # Kiro
-
+        "*nano*.github/hooks/hooks.json*",  # Copilot
+        "*nano*.codex/hooks.json*",  # Codex
+        "*nano*.codeium/windsurf/hooks.json*",  # Windsurf
+        "*nano*.clinerules/hooks/*",  # Cline / ZooCode
+        "*nano*.kiro/hooks/*",  # Kiro
         # chmod protection - specific paths only
-        "*chmod*ai-guardian.json*", "*chmod*.ai-guardian.json*",  # Config files
+        "*chmod*ai-guardian.json*",
+        "*chmod*.ai-guardian.json*",  # Config files
         "*chmod*.config/ai-guardian/*",  # Config directory
         "*chmod*site-packages/ai_guardian*",  # Pip-installed package
         "*chmod*.claude/settings.json*",
         "*chmod*.gemini/settings.json*",
         "*chmod*.augment/settings.json*",
         "*chmod*.cursor/hooks.json*",
-        "*chmod*.github/hooks/hooks.json*",     # Copilot
-        "*chmod*.codex/hooks.json*",            # Codex
-        "*chmod*.codeium/windsurf/hooks.json*", # Windsurf
-        "*chmod*.clinerules/hooks/*",           # Cline / ZooCode
-        "*chmod*.kiro/hooks/*",                 # Kiro
+        "*chmod*.github/hooks/hooks.json*",  # Copilot
+        "*chmod*.codex/hooks.json*",  # Codex
+        "*chmod*.codeium/windsurf/hooks.json*",  # Windsurf
+        "*chmod*.clinerules/hooks/*",  # Cline / ZooCode
+        "*chmod*.kiro/hooks/*",  # Kiro
         "*chmod*.aider-desk/extensions/ai-guardian*",  # AiderDesk
-        "*chmod*.openclaw/plugins/ai-guardian*",       # OpenClaw
-
+        "*chmod*.openclaw/plugins/ai-guardian*",  # OpenClaw
         # chattr protection - specific paths only
-        "*chattr*ai-guardian.json*", "*chattr*.ai-guardian.json*",  # Config files
+        "*chattr*ai-guardian.json*",
+        "*chattr*.ai-guardian.json*",  # Config files
         "*chattr*.config/ai-guardian/*",  # Config directory
-        "*chattr*.claude*", "*chattr*.cursor*",
-        "*chattr*.gemini*", "*chattr*.augment*",
-        "*chattr*.github/hooks*",             # Copilot
-        "*chattr*.codex*",                    # Codex
-        "*chattr*.codeium*",                  # Windsurf
-        "*chattr*.clinerules*",               # Cline / ZooCode
-        "*chattr*.kiro*",                     # Kiro
-
+        "*chattr*.claude*",
+        "*chattr*.cursor*",
+        "*chattr*.gemini*",
+        "*chattr*.augment*",
+        "*chattr*.github/hooks*",  # Copilot
+        "*chattr*.codex*",  # Codex
+        "*chattr*.codeium*",  # Windsurf
+        "*chattr*.clinerules*",  # Cline / ZooCode
+        "*chattr*.kiro*",  # Kiro
         # Redirect protection - specific paths only
-        "*>*ai-guardian.json*", "*>*.ai-guardian.json*",  # Config files
+        "*>*ai-guardian.json*",
+        "*>*.ai-guardian.json*",  # Config files
         "*>*.config/ai-guardian/*",  # Config directory
         "*>*site-packages/ai_guardian*",  # Pip-installed package
         "*>*.claude/settings.json*",
         "*>*.gemini/settings.json*",
         "*>*.augment/settings.json*",
         "*>*.cursor/hooks.json*",
-        "*>*.github/hooks/hooks.json*",     # Copilot
-        "*>*.codex/hooks.json*",            # Codex
-        "*>*.codeium/windsurf/hooks.json*", # Windsurf
-        "*>*.clinerules/hooks/*",           # Cline / ZooCode
-        "*>*.kiro/hooks/*",                 # Kiro
+        "*>*.github/hooks/hooks.json*",  # Copilot
+        "*>*.codex/hooks.json*",  # Codex
+        "*>*.codeium/windsurf/hooks.json*",  # Windsurf
+        "*>*.clinerules/hooks/*",  # Cline / ZooCode
+        "*>*.kiro/hooks/*",  # Kiro
         "*>*.aider-desk/extensions/ai-guardian*",  # AiderDesk
-        "*>*.openclaw/plugins/ai-guardian*",       # OpenClaw
-
+        "*>*.openclaw/plugins/ai-guardian*",  # OpenClaw
         # rm/mv protection - specific paths only
         "*rm*ai-guardian.json*",
         "*rm*.claude/settings.json*",
         "*rm*.gemini/settings.json*",
         "*rm*.augment/settings.json*",
         "*rm*.cursor/hooks.json*",
-        "*rm*.github/hooks/hooks.json*",     # Copilot
-        "*rm*.codex/hooks.json*",            # Codex
-        "*rm*.codeium/windsurf/hooks.json*", # Windsurf
-        "*rm*.clinerules/hooks*",            # Cline / ZooCode
-        "*rm*.kiro/hooks*",                  # Kiro
+        "*rm*.github/hooks/hooks.json*",  # Copilot
+        "*rm*.codex/hooks.json*",  # Codex
+        "*rm*.codeium/windsurf/hooks.json*",  # Windsurf
+        "*rm*.clinerules/hooks*",  # Cline / ZooCode
+        "*rm*.kiro/hooks*",  # Kiro
         "*rm*.aider-desk/extensions/ai-guardian*",  # AiderDesk
-        "*rm*.openclaw/plugins/ai-guardian*",       # OpenClaw
+        "*rm*.openclaw/plugins/ai-guardian*",  # OpenClaw
         "*mv*ai-guardian.json*",
         "*mv*.claude/settings.json*",
         "*mv*.gemini/settings.json*",
         "*mv*.augment/settings.json*",
         "*mv*.cursor/hooks.json*",
-        "*mv*.github/hooks/hooks.json*",     # Copilot
-        "*mv*.codex/hooks.json*",            # Codex
-        "*mv*.codeium/windsurf/hooks.json*", # Windsurf
-        "*mv*.clinerules/hooks*",            # Cline / ZooCode
-        "*mv*.kiro/hooks*",                  # Kiro
+        "*mv*.github/hooks/hooks.json*",  # Copilot
+        "*mv*.codex/hooks.json*",  # Codex
+        "*mv*.codeium/windsurf/hooks.json*",  # Windsurf
+        "*mv*.clinerules/hooks*",  # Cline / ZooCode
+        "*mv*.kiro/hooks*",  # Kiro
         "*mv*.aider-desk/extensions/ai-guardian*",  # AiderDesk
-        "*mv*.openclaw/plugins/ai-guardian*",       # OpenClaw
-
+        "*mv*.openclaw/plugins/ai-guardian*",  # OpenClaw
         # Protect ai-guardian cache from manipulation (prevents cache poisoning)
         "*rm*.cache/ai-guardian/*",
         "*mv*.cache/ai-guardian/*",
@@ -299,19 +287,17 @@ IMMUTABLE_DENY_PATTERNS = {
         "*chattr*.cache/ai-guardian/*",
         "*vim*.cache/ai-guardian/*",
         "*nano*.cache/ai-guardian/*",
-
         # Protect .ai-read-deny marker files from bash manipulation
-        "*rm*.ai-read-deny*",          # Block: rm .ai-read-deny
-        "*rm*/.ai-read-deny*",         # Block: rm /path/.ai-read-deny
-        "*mv*.ai-read-deny*",          # Block: mv .ai-read-deny
-        "*sed*.ai-read-deny*",         # Block: sed on .ai-read-deny
-        "*awk*.ai-read-deny*",         # Block: awk on .ai-read-deny
-        "*>*.ai-read-deny*",           # Block: echo > .ai-read-deny
-        "*chmod*.ai-read-deny*",       # Block: chmod .ai-read-deny
-        "*chattr*.ai-read-deny*",      # Block: chattr .ai-read-deny
-        "*vim*.ai-read-deny*",         # Block: vim .ai-read-deny
-        "*nano*.ai-read-deny*",        # Block: nano .ai-read-deny
-
+        "*rm*.ai-read-deny*",  # Block: rm .ai-read-deny
+        "*rm*/.ai-read-deny*",  # Block: rm /path/.ai-read-deny
+        "*mv*.ai-read-deny*",  # Block: mv .ai-read-deny
+        "*sed*.ai-read-deny*",  # Block: sed on .ai-read-deny
+        "*awk*.ai-read-deny*",  # Block: awk on .ai-read-deny
+        "*>*.ai-read-deny*",  # Block: echo > .ai-read-deny
+        "*chmod*.ai-read-deny*",  # Block: chmod .ai-read-deny
+        "*chattr*.ai-read-deny*",  # Block: chattr .ai-read-deny
+        "*vim*.ai-read-deny*",  # Block: vim .ai-read-deny
+        "*nano*.ai-read-deny*",  # Block: nano .ai-read-deny
         # Block reading ai-guardian config/state/cache via Bash (Issue #512)
         # Prevents agent from reading security rules, patterns, violations, logs
         "*cat*/.config/ai-guardian/*",
@@ -338,7 +324,6 @@ IMMUTABLE_DENY_PATTERNS = {
         "*tee*/.config/ai-guardian/*",
         "*tee*ai-guardian.json*",
         "*curl*file://*ai-guardian*",
-
         # Self-protection: agent must NEVER pause/stop/disable ai-guardian
         "*ai-guardian*pause*",
         "*ai-guardian*resume*",
@@ -348,77 +333,120 @@ IMMUTABLE_DENY_PATTERNS = {
         "*ai-guardian*daemon*stop*",
         "*ai-guardian*tray*stop*",
     ],
-
     "PowerShell": [
         # Dev source patterns removed (Issue #369) - redundant with git/PR workflow
         # Patterns are path-specific to avoid blocking legitimate content mentioning "ai-guardian" (Issue #188)
-
         # Protect ai-guardian config files - specific paths only
-        "*Remove-Item*ai-guardian.json*", "*Remove-Item*.ai-guardian.json*",
-        "*Remove-Item*.config/ai-guardian/*", "*Remove-Item*.config\\ai-guardian\\*",
-        "*Move-Item*ai-guardian.json*", "*Move-Item*.ai-guardian.json*",
-        "*Move-Item*.config/ai-guardian/*", "*Move-Item*.config\\ai-guardian\\*",
-        "*Rename-Item*ai-guardian.json*", "*Rename-Item*.ai-guardian.json*",
-        "*Rename-Item*.config/ai-guardian/*", "*Rename-Item*.config\\ai-guardian\\*",
-        "*Set-Content*ai-guardian.json*", "*Set-Content*.ai-guardian.json*",
-        "*Set-Content*.config/ai-guardian/*", "*Set-Content*.config\\ai-guardian\\*",
-        "*Clear-Content*ai-guardian.json*", "*Clear-Content*.ai-guardian.json*",
-        "*Clear-Content*.config/ai-guardian/*", "*Clear-Content*.config\\ai-guardian\\*",
-        "*Out-File*ai-guardian.json*", "*Out-File*.ai-guardian.json*",
-        "*Out-File*.config/ai-guardian/*", "*Out-File*.config\\ai-guardian\\*",
-        "*Copy-Item*ai-guardian.json*", "*Copy-Item*.ai-guardian.json*",
-        "*Copy-Item*.config/ai-guardian/*", "*Copy-Item*.config\\ai-guardian\\*",
-
+        "*Remove-Item*ai-guardian.json*",
+        "*Remove-Item*.ai-guardian.json*",
+        "*Remove-Item*.config/ai-guardian/*",
+        "*Remove-Item*.config\\ai-guardian\\*",
+        "*Move-Item*ai-guardian.json*",
+        "*Move-Item*.ai-guardian.json*",
+        "*Move-Item*.config/ai-guardian/*",
+        "*Move-Item*.config\\ai-guardian\\*",
+        "*Rename-Item*ai-guardian.json*",
+        "*Rename-Item*.ai-guardian.json*",
+        "*Rename-Item*.config/ai-guardian/*",
+        "*Rename-Item*.config\\ai-guardian\\*",
+        "*Set-Content*ai-guardian.json*",
+        "*Set-Content*.ai-guardian.json*",
+        "*Set-Content*.config/ai-guardian/*",
+        "*Set-Content*.config\\ai-guardian\\*",
+        "*Clear-Content*ai-guardian.json*",
+        "*Clear-Content*.ai-guardian.json*",
+        "*Clear-Content*.config/ai-guardian/*",
+        "*Clear-Content*.config\\ai-guardian\\*",
+        "*Out-File*ai-guardian.json*",
+        "*Out-File*.ai-guardian.json*",
+        "*Out-File*.config/ai-guardian/*",
+        "*Out-File*.config\\ai-guardian\\*",
+        "*Copy-Item*ai-guardian.json*",
+        "*Copy-Item*.ai-guardian.json*",
+        "*Copy-Item*.config/ai-guardian/*",
+        "*Copy-Item*.config\\ai-guardian\\*",
         # Protect ai-guardian cache (prevents cache poisoning)
-        "*Remove-Item*.cache/ai-guardian/*", "*Remove-Item*.cache\\ai-guardian\\*",
-        "*Move-Item*.cache/ai-guardian/*", "*Move-Item*.cache\\ai-guardian\\*",
-        "*Set-Content*.cache/ai-guardian/*", "*Set-Content*.cache\\ai-guardian\\*",
-        "*Clear-Content*.cache/ai-guardian/*", "*Clear-Content*.cache\\ai-guardian\\*",
-        "*Out-File*.cache/ai-guardian/*", "*Out-File*.cache\\ai-guardian\\*",
-        "*>*.cache/ai-guardian/*", "*>*.cache\\ai-guardian\\*",
-
+        "*Remove-Item*.cache/ai-guardian/*",
+        "*Remove-Item*.cache\\ai-guardian\\*",
+        "*Move-Item*.cache/ai-guardian/*",
+        "*Move-Item*.cache\\ai-guardian\\*",
+        "*Set-Content*.cache/ai-guardian/*",
+        "*Set-Content*.cache\\ai-guardian\\*",
+        "*Clear-Content*.cache/ai-guardian/*",
+        "*Clear-Content*.cache\\ai-guardian\\*",
+        "*Out-File*.cache/ai-guardian/*",
+        "*Out-File*.cache\\ai-guardian\\*",
+        "*>*.cache/ai-guardian/*",
+        "*>*.cache\\ai-guardian\\*",
         # Protect IDE settings/hook files (Unix paths)
-        "*Remove-Item*.claude/settings.json*", "*Remove-Item*.cursor/hooks.json*",
-        "*Remove-Item*Claude/settings.json*", "*Remove-Item*Cursor/hooks.json*",
-        "*Remove-Item*.gemini/settings.json*", "*Remove-Item*.augment/settings.json*",
-        "*Move-Item*.claude/settings.json*", "*Move-Item*.cursor/hooks.json*",
-        "*Move-Item*Claude/settings.json*", "*Move-Item*Cursor/hooks.json*",
-        "*Move-Item*.gemini/settings.json*", "*Move-Item*.augment/settings.json*",
-        "*Rename-Item*.claude/settings.json*", "*Rename-Item*.cursor/hooks.json*",
-        "*Rename-Item*Claude/settings.json*", "*Rename-Item*Cursor/hooks.json*",
-        "*Rename-Item*.gemini/settings.json*", "*Rename-Item*.augment/settings.json*",
-        "*Set-Content*.claude/settings.json*", "*Set-Content*.cursor/hooks.json*",
-        "*Set-Content*Claude/settings.json*", "*Set-Content*Cursor/hooks.json*",
-        "*Set-Content*.gemini/settings.json*", "*Set-Content*.augment/settings.json*",
-        "*Clear-Content*.claude/settings.json*", "*Clear-Content*.cursor/hooks.json*",
-        "*Clear-Content*Claude/settings.json*", "*Clear-Content*Cursor/hooks.json*",
-        "*Clear-Content*.gemini/settings.json*", "*Clear-Content*.augment/settings.json*",
-        "*Out-File*.claude/settings.json*", "*Out-File*.cursor/hooks.json*",
-        "*Out-File*Claude/settings.json*", "*Out-File*Cursor/hooks.json*",
-        "*Out-File*.gemini/settings.json*", "*Out-File*.augment/settings.json*",
-
+        "*Remove-Item*.claude/settings.json*",
+        "*Remove-Item*.cursor/hooks.json*",
+        "*Remove-Item*Claude/settings.json*",
+        "*Remove-Item*Cursor/hooks.json*",
+        "*Remove-Item*.gemini/settings.json*",
+        "*Remove-Item*.augment/settings.json*",
+        "*Move-Item*.claude/settings.json*",
+        "*Move-Item*.cursor/hooks.json*",
+        "*Move-Item*Claude/settings.json*",
+        "*Move-Item*Cursor/hooks.json*",
+        "*Move-Item*.gemini/settings.json*",
+        "*Move-Item*.augment/settings.json*",
+        "*Rename-Item*.claude/settings.json*",
+        "*Rename-Item*.cursor/hooks.json*",
+        "*Rename-Item*Claude/settings.json*",
+        "*Rename-Item*Cursor/hooks.json*",
+        "*Rename-Item*.gemini/settings.json*",
+        "*Rename-Item*.augment/settings.json*",
+        "*Set-Content*.claude/settings.json*",
+        "*Set-Content*.cursor/hooks.json*",
+        "*Set-Content*Claude/settings.json*",
+        "*Set-Content*Cursor/hooks.json*",
+        "*Set-Content*.gemini/settings.json*",
+        "*Set-Content*.augment/settings.json*",
+        "*Clear-Content*.claude/settings.json*",
+        "*Clear-Content*.cursor/hooks.json*",
+        "*Clear-Content*Claude/settings.json*",
+        "*Clear-Content*Cursor/hooks.json*",
+        "*Clear-Content*.gemini/settings.json*",
+        "*Clear-Content*.augment/settings.json*",
+        "*Out-File*.claude/settings.json*",
+        "*Out-File*.cursor/hooks.json*",
+        "*Out-File*Claude/settings.json*",
+        "*Out-File*Cursor/hooks.json*",
+        "*Out-File*.gemini/settings.json*",
+        "*Out-File*.augment/settings.json*",
         # Protect additional IDE hook files (Copilot, Codex, Windsurf)
-        "*Remove-Item*.github/hooks/hooks.json*", "*Remove-Item*.codex/hooks.json*",
+        "*Remove-Item*.github/hooks/hooks.json*",
+        "*Remove-Item*.codex/hooks.json*",
         "*Remove-Item*.codeium/windsurf/hooks.json*",
-        "*Move-Item*.github/hooks/hooks.json*", "*Move-Item*.codex/hooks.json*",
+        "*Move-Item*.github/hooks/hooks.json*",
+        "*Move-Item*.codex/hooks.json*",
         "*Move-Item*.codeium/windsurf/hooks.json*",
-        "*Rename-Item*.github/hooks/hooks.json*", "*Rename-Item*.codex/hooks.json*",
+        "*Rename-Item*.github/hooks/hooks.json*",
+        "*Rename-Item*.codex/hooks.json*",
         "*Rename-Item*.codeium/windsurf/hooks.json*",
-        "*Set-Content*.github/hooks/hooks.json*", "*Set-Content*.codex/hooks.json*",
+        "*Set-Content*.github/hooks/hooks.json*",
+        "*Set-Content*.codex/hooks.json*",
         "*Set-Content*.codeium/windsurf/hooks.json*",
-        "*Clear-Content*.github/hooks/hooks.json*", "*Clear-Content*.codex/hooks.json*",
+        "*Clear-Content*.github/hooks/hooks.json*",
+        "*Clear-Content*.codex/hooks.json*",
         "*Clear-Content*.codeium/windsurf/hooks.json*",
-        "*Out-File*.github/hooks/hooks.json*", "*Out-File*.codex/hooks.json*",
+        "*Out-File*.github/hooks/hooks.json*",
+        "*Out-File*.codex/hooks.json*",
         "*Out-File*.codeium/windsurf/hooks.json*",
-
         # Protect script-based hook directories (Cline/ZooCode, Kiro)
-        "*Remove-Item*.clinerules/hooks*", "*Remove-Item*.kiro/hooks*",
-        "*Move-Item*.clinerules/hooks*", "*Move-Item*.kiro/hooks*",
-        "*Rename-Item*.clinerules/hooks*", "*Rename-Item*.kiro/hooks*",
-        "*Set-Content*.clinerules/hooks*", "*Set-Content*.kiro/hooks*",
-        "*Clear-Content*.clinerules/hooks*", "*Clear-Content*.kiro/hooks*",
-        "*Out-File*.clinerules/hooks*", "*Out-File*.kiro/hooks*",
-
+        "*Remove-Item*.clinerules/hooks*",
+        "*Remove-Item*.kiro/hooks*",
+        "*Move-Item*.clinerules/hooks*",
+        "*Move-Item*.kiro/hooks*",
+        "*Rename-Item*.clinerules/hooks*",
+        "*Rename-Item*.kiro/hooks*",
+        "*Set-Content*.clinerules/hooks*",
+        "*Set-Content*.kiro/hooks*",
+        "*Clear-Content*.clinerules/hooks*",
+        "*Clear-Content*.kiro/hooks*",
+        "*Out-File*.clinerules/hooks*",
+        "*Out-File*.kiro/hooks*",
         # Protect extension/plugin hooks (AiderDesk, OpenClaw)
         "*Remove-Item*.aider-desk/extensions/ai-guardian*",
         "*Remove-Item*.openclaw/plugins/ai-guardian*",
@@ -430,35 +458,50 @@ IMMUTABLE_DENY_PATTERNS = {
         "*Clear-Content*.openclaw/plugins/ai-guardian*",
         "*Out-File*.aider-desk/extensions/ai-guardian*",
         "*Out-File*.openclaw/plugins/ai-guardian*",
-
         # Protect IDE hook files (Windows backslash paths)
-        "*Remove-Item*Claude\\settings.json*", "*Remove-Item*Cursor\\hooks.json*",
-        "*Move-Item*Claude\\settings.json*", "*Move-Item*Cursor\\hooks.json*",
-        "*Rename-Item*Claude\\settings.json*", "*Rename-Item*Cursor\\hooks.json*",
-        "*Set-Content*Claude\\settings.json*", "*Set-Content*Cursor\\settings.json*",
-        "*Clear-Content*Claude\\settings.json*", "*Clear-Content*Cursor\\hooks.json*",
-        "*Out-File*Claude\\settings.json*", "*Out-File*Cursor\\hooks.json*",
-
+        "*Remove-Item*Claude\\settings.json*",
+        "*Remove-Item*Cursor\\hooks.json*",
+        "*Move-Item*Claude\\settings.json*",
+        "*Move-Item*Cursor\\hooks.json*",
+        "*Rename-Item*Claude\\settings.json*",
+        "*Rename-Item*Cursor\\hooks.json*",
+        "*Set-Content*Claude\\settings.json*",
+        "*Set-Content*Cursor\\settings.json*",
+        "*Clear-Content*Claude\\settings.json*",
+        "*Clear-Content*Cursor\\hooks.json*",
+        "*Out-File*Claude\\settings.json*",
+        "*Out-File*Cursor\\hooks.json*",
         # Protect pip-installed package (no git/PR review for installed packages)
-        "*Remove-Item*site-packages/ai_guardian/*", "*Remove-Item*site-packages\\ai_guardian\\*",
-        "*Set-Content*site-packages/ai_guardian/*", "*Set-Content*site-packages\\ai_guardian\\*",
-        "*Clear-Content*site-packages/ai_guardian/*", "*Clear-Content*site-packages\\ai_guardian\\*",
-        "*Out-File*site-packages/ai_guardian/*", "*Out-File*site-packages\\ai_guardian\\*",
-
+        "*Remove-Item*site-packages/ai_guardian/*",
+        "*Remove-Item*site-packages\\ai_guardian\\*",
+        "*Set-Content*site-packages/ai_guardian/*",
+        "*Set-Content*site-packages\\ai_guardian\\*",
+        "*Clear-Content*site-packages/ai_guardian/*",
+        "*Clear-Content*site-packages\\ai_guardian\\*",
+        "*Out-File*site-packages/ai_guardian/*",
+        "*Out-File*site-packages\\ai_guardian\\*",
         # Protect against PowerShell redirections - specific paths only
-        "*>*ai-guardian.json*", "*>*.ai-guardian.json*",
-        "*>*.config/ai-guardian/*", "*>*.config\\ai-guardian\\*",
-        "*>>*ai-guardian.json*", "*>>*.ai-guardian.json*",
-        "*>>*.config/ai-guardian/*", "*>>*.config\\ai-guardian\\*",
-        "*>*.claude/settings.json*", "*>*.cursor/hooks.json*",
-        "*>*Claude/settings.json*", "*>*Cursor/hooks.json*",
-        "*>*.gemini/settings.json*", "*>*.augment/settings.json*",
-        "*>*.github/hooks/hooks.json*", "*>*.codex/hooks.json*",
+        "*>*ai-guardian.json*",
+        "*>*.ai-guardian.json*",
+        "*>*.config/ai-guardian/*",
+        "*>*.config\\ai-guardian\\*",
+        "*>>*ai-guardian.json*",
+        "*>>*.ai-guardian.json*",
+        "*>>*.config/ai-guardian/*",
+        "*>>*.config\\ai-guardian\\*",
+        "*>*.claude/settings.json*",
+        "*>*.cursor/hooks.json*",
+        "*>*Claude/settings.json*",
+        "*>*Cursor/hooks.json*",
+        "*>*.gemini/settings.json*",
+        "*>*.augment/settings.json*",
+        "*>*.github/hooks/hooks.json*",
+        "*>*.codex/hooks.json*",
         "*>*.codeium/windsurf/hooks.json*",
-        "*>*.clinerules/hooks*", "*>*.kiro/hooks*",
+        "*>*.clinerules/hooks*",
+        "*>*.kiro/hooks*",
         "*>*.aider-desk/extensions/ai-guardian*",
         "*>*.openclaw/plugins/ai-guardian*",
-
         # Protect .ai-read-deny marker files from PowerShell manipulation
         "*Remove-Item*.ai-read-deny*",
         "*Move-Item*.ai-read-deny*",
@@ -468,39 +511,79 @@ IMMUTABLE_DENY_PATTERNS = {
         "*Out-File*.ai-read-deny*",
         "*Copy-Item*.ai-read-deny*",
         "*>*.ai-read-deny*",
-
         # PowerShell aliases (del, erase, rm, mv, etc.) - specific paths only
-        "*del *ai-guardian.json*", "*del *.ai-guardian.json*", "*del *.config/ai-guardian/*", "*del *.config\\ai-guardian\\*",
-        "*erase *ai-guardian.json*", "*erase *.ai-guardian.json*", "*erase *.config/ai-guardian/*", "*erase *.config\\ai-guardian\\*",
-        "*rm *ai-guardian.json*", "*rm *.ai-guardian.json*", "*rm *.config/ai-guardian/*", "*rm *.config\\ai-guardian\\*",
-        "*rmdir *ai-guardian.json*", "*rmdir *.ai-guardian.json*", "*rmdir *.config/ai-guardian/*", "*rmdir *.config\\ai-guardian\\*",
-        "*mv *ai-guardian.json*", "*mv *.ai-guardian.json*", "*mv *.config/ai-guardian/*", "*mv *.config\\ai-guardian\\*",
-        "*move *ai-guardian.json*", "*move *.ai-guardian.json*", "*move *.config/ai-guardian/*", "*move *.config\\ai-guardian\\*",
-        "*ren *ai-guardian.json*", "*ren *.ai-guardian.json*", "*ren *.config/ai-guardian/*", "*ren *.config\\ai-guardian\\*",
-        "*copy *ai-guardian.json*", "*copy *.ai-guardian.json*", "*copy *.config/ai-guardian/*", "*copy *.config\\ai-guardian\\*",
-        "*rm *.claude/settings.json*", "*del *.claude/settings.json*",
-        "*rm *.gemini/settings.json*", "*del *.gemini/settings.json*",
-        "*rm *.augment/settings.json*", "*del *.augment/settings.json*",
-        "*rm *.cursor/hooks.json*", "*del *.cursor/hooks.json*",
-        "*rm *.github/hooks/hooks.json*", "*del *.github/hooks/hooks.json*",
-        "*rm *.codex/hooks.json*", "*del *.codex/hooks.json*",
-        "*rm *.codeium/windsurf/hooks.json*", "*del *.codeium/windsurf/hooks.json*",
-        "*rm *.clinerules/hooks*", "*del *.clinerules/hooks*",
-        "*rm *.kiro/hooks*", "*del *.kiro/hooks*",
-        "*rm *.aider-desk/extensions/ai-guardian*", "*del *.aider-desk/extensions/ai-guardian*",
-        "*rm *.openclaw/plugins/ai-guardian*", "*del *.openclaw/plugins/ai-guardian*",
-        "*rm *.ai-read-deny*", "*del *.ai-read-deny*",
-        "*mv *.ai-read-deny*", "*move *.ai-read-deny*",
-
+        "*del *ai-guardian.json*",
+        "*del *.ai-guardian.json*",
+        "*del *.config/ai-guardian/*",
+        "*del *.config\\ai-guardian\\*",
+        "*erase *ai-guardian.json*",
+        "*erase *.ai-guardian.json*",
+        "*erase *.config/ai-guardian/*",
+        "*erase *.config\\ai-guardian\\*",
+        "*rm *ai-guardian.json*",
+        "*rm *.ai-guardian.json*",
+        "*rm *.config/ai-guardian/*",
+        "*rm *.config\\ai-guardian\\*",
+        "*rmdir *ai-guardian.json*",
+        "*rmdir *.ai-guardian.json*",
+        "*rmdir *.config/ai-guardian/*",
+        "*rmdir *.config\\ai-guardian\\*",
+        "*mv *ai-guardian.json*",
+        "*mv *.ai-guardian.json*",
+        "*mv *.config/ai-guardian/*",
+        "*mv *.config\\ai-guardian\\*",
+        "*move *ai-guardian.json*",
+        "*move *.ai-guardian.json*",
+        "*move *.config/ai-guardian/*",
+        "*move *.config\\ai-guardian\\*",
+        "*ren *ai-guardian.json*",
+        "*ren *.ai-guardian.json*",
+        "*ren *.config/ai-guardian/*",
+        "*ren *.config\\ai-guardian\\*",
+        "*copy *ai-guardian.json*",
+        "*copy *.ai-guardian.json*",
+        "*copy *.config/ai-guardian/*",
+        "*copy *.config\\ai-guardian\\*",
+        "*rm *.claude/settings.json*",
+        "*del *.claude/settings.json*",
+        "*rm *.gemini/settings.json*",
+        "*del *.gemini/settings.json*",
+        "*rm *.augment/settings.json*",
+        "*del *.augment/settings.json*",
+        "*rm *.cursor/hooks.json*",
+        "*del *.cursor/hooks.json*",
+        "*rm *.github/hooks/hooks.json*",
+        "*del *.github/hooks/hooks.json*",
+        "*rm *.codex/hooks.json*",
+        "*del *.codex/hooks.json*",
+        "*rm *.codeium/windsurf/hooks.json*",
+        "*del *.codeium/windsurf/hooks.json*",
+        "*rm *.clinerules/hooks*",
+        "*del *.clinerules/hooks*",
+        "*rm *.kiro/hooks*",
+        "*del *.kiro/hooks*",
+        "*rm *.aider-desk/extensions/ai-guardian*",
+        "*del *.aider-desk/extensions/ai-guardian*",
+        "*rm *.openclaw/plugins/ai-guardian*",
+        "*del *.openclaw/plugins/ai-guardian*",
+        "*rm *.ai-read-deny*",
+        "*del *.ai-read-deny*",
+        "*mv *.ai-read-deny*",
+        "*move *.ai-read-deny*",
         # Block reading ai-guardian config/state/cache via PowerShell (Issue #512)
-        "*Get-Content*/.config/ai-guardian/*", "*Get-Content*.config\\ai-guardian\\*",
-        "*Get-Content*/.local/state/ai-guardian/*", "*Get-Content*.local\\state\\ai-guardian\\*",
-        "*Get-Content*/.cache/ai-guardian/*", "*Get-Content*.cache\\ai-guardian\\*",
+        "*Get-Content*/.config/ai-guardian/*",
+        "*Get-Content*.config\\ai-guardian\\*",
+        "*Get-Content*/.local/state/ai-guardian/*",
+        "*Get-Content*.local\\state\\ai-guardian\\*",
+        "*Get-Content*/.cache/ai-guardian/*",
+        "*Get-Content*.cache\\ai-guardian\\*",
         "*Get-Content*ai-guardian.json*",
-        "*Select-String*/.config/ai-guardian/*", "*Select-String*.config\\ai-guardian\\*",
-        "*Select-String*/.local/state/ai-guardian/*", "*Select-String*.local\\state\\ai-guardian\\*",
+        "*Select-String*/.config/ai-guardian/*",
+        "*Select-String*.config\\ai-guardian\\*",
+        "*Select-String*/.local/state/ai-guardian/*",
+        "*Select-String*.local\\state\\ai-guardian\\*",
         "*type*ai-guardian.json*",
-    ]
+    ],
 }
 
 # Mixed-settings files: contain BOTH hooks AND user preferences (Issue #807).
@@ -508,7 +591,7 @@ IMMUTABLE_DENY_PATTERNS = {
 # Bash/PowerShell still block the entire file (can't do content-aware checks).
 MIXED_SETTINGS_PATTERNS = [
     "*/.claude/settings.json",
-    "*/Claude/settings.json",       # Windows
+    "*/Claude/settings.json",  # Windows
     "*/.gemini/settings.json",
     "*/.augment/settings.json",
 ]
@@ -527,8 +610,8 @@ HOOK_INDICATOR_KEYS = {
 
 # Regex matching hook-related JSON keys (e.g. "hooks": or 'PreToolUse':)
 _HOOK_KEY_PATTERN = re.compile(
-    r'["\'](' + '|'.join(re.escape(k) for k in sorted(HOOK_INDICATOR_KEYS)) + r')["\']'
-    r'\s*:',
+    r'["\'](' + "|".join(re.escape(k) for k in sorted(HOOK_INDICATOR_KEYS)) + r')["\']'
+    r"\s*:",
 )
 
 
@@ -556,15 +639,14 @@ def _strip_bash_heredoc_content(command: str) -> str:
         Input:  cat <<'EOF'\\nrm ai-guardian.json\\nEOF
         Output: cat <<'EOF'\\nEOF
     """
-    if not command or '<<' not in command:
+    if not command or "<<" not in command:
         return command
 
     # Pattern to match heredoc start
     # Groups: (1) optional dash, (2) quote if quoted, (3) delimiter if quoted, (4) delimiter if unquoted
     # Updated to support hyphenated delimiters (e.g., END-OF-FILE, MY-DELIMITER)
     heredoc_start_pattern = re.compile(
-        r"<<(-)?(?:(['\"])([\w-]+)\2|([\w-]+))",
-        re.MULTILINE
+        r"<<(-)?(?:(['\"])([\w-]+)\2|([\w-]+))", re.MULTILINE
     )
 
     # Find all heredocs and their positions
@@ -577,7 +659,7 @@ def _strip_bash_heredoc_content(command: str) -> str:
 
         # Find the first newline after the heredoc delimiter
         # The heredoc content starts AFTER this newline (commands can follow on same line)
-        first_newline = command.find('\n', heredoc_start)
+        first_newline = command.find("\n", heredoc_start)
         if first_newline == -1:
             # No newline found, no heredoc content to strip
             continue
@@ -587,8 +669,7 @@ def _strip_bash_heredoc_content(command: str) -> str:
         # Find the end delimiter (must be on its own line)
         # Pattern: newline + optional whitespace + delimiter + end of line
         end_pattern = re.compile(
-            rf'\n\s*{re.escape(delimiter)}\s*(?=\n|$)',
-            re.MULTILINE
+            rf"\n\s*{re.escape(delimiter)}\s*(?=\n|$)", re.MULTILINE
         )
 
         end_match = end_pattern.search(command, content_start)
@@ -664,21 +745,21 @@ class ToolPolicyChecker:
         # Note: Mixed settings files (settings.json for Claude/Gemini/Augment) are NOT
         # listed here — they are handled by content-aware checking in check_tool_allowed()
         config_patterns = [
-            "*ai-guardian.json",           # Config files
-            "*/.ai-guardian.json",         # Project config
-            "*/.config/ai-guardian/*",     # Config directory
-            "*/.cache/ai-guardian/*",      # Cache files (prevents poisoning)
-            "*/.claude/hooks.json",        # IDE hooks-only files
+            "*ai-guardian.json",  # Config files
+            "*/.ai-guardian.json",  # Project config
+            "*/.config/ai-guardian/*",  # Config directory
+            "*/.cache/ai-guardian/*",  # Cache files (prevents poisoning)
+            "*/.claude/hooks.json",  # IDE hooks-only files
             "*/.cursor/hooks.json",
             "*/Cursor/hooks.json",
             "*/.github/hooks/hooks.json",  # Copilot
-            "*/.codex/hooks.json",         # Codex
+            "*/.codex/hooks.json",  # Codex
             "*/.codeium/windsurf/hooks.json",  # Windsurf
-            "*/.clinerules/hooks/*",       # Cline / ZooCode (script-based)
-            "*/.kiro/hooks/*",             # Kiro (script-based)
+            "*/.clinerules/hooks/*",  # Cline / ZooCode (script-based)
+            "*/.kiro/hooks/*",  # Kiro (script-based)
             "*/.aider-desk/extensions/ai-guardian/*",  # AiderDesk
-            "*/.openclaw/plugins/ai-guardian/*",        # OpenClaw
-            "*/.ai-read-deny",             # Directory markers
+            "*/.openclaw/plugins/ai-guardian/*",  # OpenClaw
+            "*/.ai-read-deny",  # Directory markers
             "**/.ai-read-deny",
         ]
 
@@ -704,15 +785,15 @@ class ToolPolicyChecker:
             return False  # Command tools always check immutable patterns
 
         source_patterns = [
-            "*/ai-guardian/src/ai_guardian/*",    # Source directory
-            "*/ai-guardian/tests/*",               # Tests
-            "*/ai-guardian/*.md",                  # Documentation
-            "*/ai-guardian/*.py",                  # Root Python files
-            "*/ai-guardian/*.toml",                # Config files like pyproject.toml
-            "*/ai-guardian/*.txt",                 # Requirements, etc.
-            "*/ai-guardian/.github/*",             # GitHub workflows
-            "*/ai-guardian/CHANGELOG.md",          # Changelog
-            "*/ai-guardian/RELEASING.md",          # Release docs
+            "*/ai-guardian/src/ai_guardian/*",  # Source directory
+            "*/ai-guardian/tests/*",  # Tests
+            "*/ai-guardian/*.md",  # Documentation
+            "*/ai-guardian/*.py",  # Root Python files
+            "*/ai-guardian/*.toml",  # Config files like pyproject.toml
+            "*/ai-guardian/*.txt",  # Requirements, etc.
+            "*/ai-guardian/.github/*",  # GitHub workflows
+            "*/ai-guardian/CHANGELOG.md",  # Changelog
+            "*/ai-guardian/RELEASING.md",  # Release docs
         ]
 
         is_source_file = any(fnmatch.fnmatch(file_path, p) for p in source_patterns)
@@ -728,7 +809,9 @@ class ToolPolicyChecker:
         # - Public review (community scrutiny)
         # - Pip-installed code still protected (production deployments)
         logger.info(f"✅ Development source file: allowing {tool_name} on {file_path}")
-        logger.info("   Note: Changes affect local development only, not pip-installed versions")
+        logger.info(
+            "   Note: Changes affect local development only, not pip-installed versions"
+        )
         return True
 
     def _check_mixed_settings_hook_modification(
@@ -764,7 +847,9 @@ class ToolPolicyChecker:
                 new_json = json.loads(content)
             except (json.JSONDecodeError, TypeError):
                 return True, self._format_hook_protection_message(
-                    file_path, tool_name, "cannot parse new content as JSON — fail-closed"
+                    file_path,
+                    tool_name,
+                    "cannot parse new content as JSON — fail-closed",
                 )
 
             new_hooks = new_json.get("hooks")
@@ -805,13 +890,17 @@ class ToolPolicyChecker:
         msg += "\nThis operation has been blocked for security.\n"
         msg += "DO NOT attempt to bypass this protection - it prevents security control tampering.\n"
         msg += "\nRecommendation:\n"
-        msg += "- Modify only non-hook settings (permissions, theme, model, MCP, etc.)\n"
+        msg += (
+            "- Modify only non-hook settings (permissions, theme, model, MCP, etc.)\n"
+        )
         msg += "- Avoid including the 'hooks' key or hook event names in your edit\n"
         msg += "- Hook configuration must be edited manually (not by AI agents)\n"
         msg += "\n⚠️ This protection is immutable and cannot be disabled via configuration.\n"
         return msg
 
-    def check_tool_allowed(self, hook_data: Dict) -> Tuple[bool, Optional[str], Optional[str]]:
+    def check_tool_allowed(
+        self, hook_data: Dict
+    ) -> Tuple[bool, Optional[str], Optional[str]]:
         """
         Check if a tool invocation is allowed.
 
@@ -835,9 +924,13 @@ class ToolPolicyChecker:
             # Prevents accessing private networks, metadata endpoints, and dangerous URL schemes
             if HAS_SSRF_PROTECTOR:
                 ssrf_config = self.config.get("ssrf_protection", {})
-                if is_feature_enabled(ssrf_config.get("enabled"), datetime.now(timezone.utc), default=True):
+                if is_feature_enabled(
+                    ssrf_config.get("enabled"), datetime.now(timezone.utc), default=True
+                ):
                     ssrf_protector = SSRFProtector(ssrf_config)
-                    should_block, error_msg = ssrf_protector.check(tool_name, tool_input)
+                    should_block, error_msg = ssrf_protector.check(
+                        tool_name, tool_input
+                    )
 
                     if should_block:
                         # SSRF detected and blocked
@@ -848,7 +941,7 @@ class ToolPolicyChecker:
                             reason="SSRF attack detected",
                             matcher=tool_name,
                             hook_data=hook_data,
-                            violation_type=ViolationType.SSRF_BLOCKED
+                            violation_type=ViolationType.SSRF_BLOCKED,
                         )
                         return False, error_msg, tool_name
 
@@ -861,7 +954,7 @@ class ToolPolicyChecker:
                             reason="SSRF warning (allowed)",
                             matcher=tool_name,
                             hook_data=hook_data,
-                            violation_type=ViolationType.SSRF_BLOCKED
+                            violation_type=ViolationType.SSRF_BLOCKED,
                         )
                         # Continue to other checks (warning is logged, execution allowed)
 
@@ -869,38 +962,56 @@ class ToolPolicyChecker:
             # Detects credential exfiltration (env|curl, aws s3 cp, etc.)
             if HAS_CONFIG_SCANNER and tool_name == "Bash":
                 exfil_config = self.config.get("config_file_scanning", {})
-                if is_feature_enabled(exfil_config.get("enabled"), datetime.now(timezone.utc), default=True):
+                if is_feature_enabled(
+                    exfil_config.get("enabled"),
+                    datetime.now(timezone.utc),
+                    default=True,
+                ):
                     exfil_scanner = ConfigFileScanner(exfil_config)
                     bash_command = tool_input.get("command", "")
-                    exfil_block, exfil_msg, exfil_details = exfil_scanner.check_command(bash_command)
+                    exfil_block, exfil_msg, exfil_details = exfil_scanner.check_command(
+                        bash_command
+                    )
 
                     if exfil_block:
-                        logger.error(f"🚨 BLOCKED: {tool_name} - credential exfiltration detected")
+                        logger.error(
+                            f"🚨 BLOCKED: {tool_name} - credential exfiltration detected"
+                        )
                         self._log_violation(
                             tool_name=tool_name,
                             check_value=bash_command,
                             reason="Credential exfiltration detected in Bash command",
                             matcher=tool_name,
                             hook_data=hook_data,
-                            violation_type=ViolationType.CONFIG_FILE_EXFIL
+                            violation_type=ViolationType.CONFIG_FILE_EXFIL,
                         )
                         return False, exfil_msg, tool_name
 
                     elif exfil_msg:
-                        logger.warning(f"Config exfil warning for {tool_name}: {exfil_msg}")
+                        logger.warning(
+                            f"Config exfil warning for {tool_name}: {exfil_msg}"
+                        )
                         self._log_violation(
                             tool_name=tool_name,
                             check_value=bash_command,
                             reason="Config exfil warning (allowed)",
                             matcher=tool_name,
                             hook_data=hook_data,
-                            violation_type=ViolationType.CONFIG_FILE_EXFIL
+                            violation_type=ViolationType.CONFIG_FILE_EXFIL,
                         )
 
             # PRIORITY 1: Check immutable deny patterns (cannot be overridden)
             # These protect ai-guardian config, IDE hooks, and pip-installed package code
             # EXCEPT: Development source code can be edited (fork + PR workflow)
             check_value = self._extract_check_value(tool_name, tool_input, tool_name)
+
+            # For Bash/Shell: also check immutable deny patterns against the raw
+            # (un-stripped) command to prevent heredoc bypass (#1350)
+            raw_check_value = None
+            if tool_name in ("Bash", "Shell"):
+                raw_cmd = tool_input.get("command")
+                if raw_cmd and raw_cmd != check_value:
+                    raw_check_value = raw_cmd
 
             # For file-path tools (Edit/Write/Read/NotebookEdit), require check_value
             # If we can't extract file_path, fail-closed to prevent bypass (Issue #113)
@@ -924,25 +1035,30 @@ class ToolPolicyChecker:
                     check_value="<missing file_path>",
                     reason="missing required parameter",
                     matcher=tool_name,
-                    hook_data=hook_data
+                    hook_data=hook_data,
                 )
                 return False, error_msg, tool_name
 
             if check_value:
                 # Check if this is development source code (allowed for contributors)
                 if self._should_skip_immutable_protection(check_value, tool_name):
-                    logger.info(f"✅ Development source code: allowing {tool_name} on {check_value}")
+                    logger.info(
+                        f"✅ Development source code: allowing {tool_name} on {check_value}"
+                    )
                     return True, None, tool_name
 
                 # PRIORITY 1b: Content-aware check for mixed settings files (Issue #807)
                 # These files contain both hooks (protected) and user preferences (editable)
                 if tool_name in ("Edit", "Write"):
                     is_mixed = any(
-                        fnmatch.fnmatch(check_value, pat) for pat in MIXED_SETTINGS_PATTERNS
+                        fnmatch.fnmatch(check_value, pat)
+                        for pat in MIXED_SETTINGS_PATTERNS
                     )
                     if is_mixed:
-                        should_block, block_msg = self._check_mixed_settings_hook_modification(
-                            check_value, tool_name, tool_input
+                        should_block, block_msg = (
+                            self._check_mixed_settings_hook_modification(
+                                check_value, tool_name, tool_input
+                            )
                         )
                         if should_block:
                             self._log_violation(
@@ -962,7 +1078,12 @@ class ToolPolicyChecker:
 
                 immutable_denies = IMMUTABLE_DENY_PATTERNS.get(tool_name, [])
                 # Use Path.match() for file path tools with ** patterns, fnmatch otherwise
-                is_file_path_tool = tool_name in ["Write", "Read", "Edit", "NotebookEdit"]
+                is_file_path_tool = tool_name in [
+                    "Write",
+                    "Read",
+                    "Edit",
+                    "NotebookEdit",
+                ]
                 for pattern in immutable_denies:
                     # For file path tools with ** patterns: use Path.match()
                     # Otherwise: use fnmatch to match patterns within command strings or simple globs
@@ -971,14 +1092,19 @@ class ToolPolicyChecker:
                     else:
                         matches = fnmatch.fnmatch(check_value, pattern)
 
+                    if not matches and raw_check_value:
+                        matches = fnmatch.fnmatch(raw_check_value, pattern)
+
                     if matches:
-                        error_msg = self._format_immutable_deny_message(check_value, tool_name, pattern)
+                        error_msg = self._format_immutable_deny_message(
+                            check_value, tool_name, pattern
+                        )
                         self._log_violation(
                             tool_name=tool_name,
                             check_value=check_value,
                             reason=f"immutable deny: {pattern}",
                             matcher=tool_name,
-                            hook_data=hook_data
+                            hook_data=hook_data,
                         )
                         return False, error_msg, tool_name
 
@@ -986,7 +1112,9 @@ class ToolPolicyChecker:
             # Skip if permissions are disabled
             permissions_config = self.config.get("permissions", {})
             if isinstance(permissions_config, dict) and not is_feature_enabled(
-                permissions_config.get("enabled"), datetime.now(timezone.utc), default=True
+                permissions_config.get("enabled"),
+                datetime.now(timezone.utc),
+                default=True,
             ):
                 logger.info(f"✓ Tool '{tool_name}' allowed (permissions disabled)")
                 return True, None, tool_name
@@ -998,24 +1126,28 @@ class ToolPolicyChecker:
                 # No matching rules — check tool type
                 if self._is_restricted_tool(tool_name):
                     # MCP tools and Skills require explicit allow
-                    logger.warning(f"Tool '{tool_name}' requires explicit permission but no rule found")
+                    logger.warning(
+                        f"Tool '{tool_name}' requires explicit permission but no rule found"
+                    )
                     error_msg = self._format_deny_message(
                         tool_name,
                         "no permission rule",
                         None,
-                        tool_value=check_value if check_value else tool_name
+                        tool_value=check_value if check_value else tool_name,
                     )
                     self._log_violation(
                         tool_name=tool_name,
                         check_value=check_value if check_value else tool_name,
                         reason="no permission rule",
                         matcher=tool_name,
-                        hook_data=hook_data
+                        hook_data=hook_data,
                     )
                     return False, error_msg, tool_name
 
                 # Built-in tools allowed by default when no rules target them
-                logger.info(f"✓ Tool '{tool_name}' is allowed by default (no matching rule)")
+                logger.info(
+                    f"✓ Tool '{tool_name}' is allowed by default (no matching rule)"
+                )
                 return True, None, tool_name
 
             # Expand legacy rules (action on allow rules → split into allow + deny)
@@ -1049,7 +1181,9 @@ class ToolPolicyChecker:
                     continue
 
                 # Extract the value to check against this rule's patterns
-                rule_check_value = self._extract_check_value(tool_name, tool_input, rule.get("matcher", tool_name))
+                rule_check_value = self._extract_check_value(
+                    tool_name, tool_input, rule.get("matcher", tool_name)
+                )
                 if rule_check_value is None:
                     continue
 
@@ -1065,10 +1199,14 @@ class ToolPolicyChecker:
                     if matches:
                         pattern_matched = True
                         final_decision = mode
-                        final_action = rule.get("action", "block") if mode == "deny" else "allow"
+                        final_action = (
+                            rule.get("action", "block") if mode == "deny" else "allow"
+                        )
                         matched_pattern = pattern_str
                         matched_matcher = rule.get("matcher")
-                        logger.debug(f"Rule matched: matcher={matched_matcher}, mode={mode}, pattern={pattern_str} (last-match-wins, continuing)")
+                        logger.debug(
+                            f"Rule matched: matcher={matched_matcher}, mode={mode}, pattern={pattern_str} (last-match-wins, continuing)"
+                        )
                         break  # Break inner pattern loop, continue outer rule loop
 
                 # Legacy backward compat: allow rule with action field
@@ -1080,11 +1218,15 @@ class ToolPolicyChecker:
                     final_action = fallback_action
                     matched_pattern = "not in allow list"
                     matched_matcher = rule.get("matcher")
-                    logger.debug(f"Legacy fallback: matcher={matched_matcher}, action={fallback_action}")
+                    logger.debug(
+                        f"Legacy fallback: matcher={matched_matcher}, action={fallback_action}"
+                    )
 
             # Apply final decision
             if final_decision == "allow":
-                logger.info(f"✓ Tool '{tool_name}' allowed by rule (matcher={matched_matcher}, pattern={matched_pattern})")
+                logger.info(
+                    f"✓ Tool '{tool_name}' allowed by rule (matcher={matched_matcher}, pattern={matched_pattern})"
+                )
                 return True, None, tool_name
 
             if final_decision == "deny":
@@ -1093,25 +1235,37 @@ class ToolPolicyChecker:
                     check_value=check_value if check_value else tool_name,
                     reason=f"matched deny pattern: {matched_pattern}",
                     matcher=matched_matcher,
-                    hook_data=hook_data
+                    hook_data=hook_data,
                 )
 
                 if final_action == "warn":
-                    logger.warning(f"Policy violation (warn mode): {tool_name} - {matched_pattern} - execution allowed")
-                    return True, "⚠️  Tool policy violation (warn mode) - execution allowed", tool_name
+                    logger.warning(
+                        f"Policy violation (warn mode): {tool_name} - {matched_pattern} - execution allowed"
+                    )
+                    return (
+                        True,
+                        "⚠️  Tool policy violation (warn mode) - execution allowed",
+                        tool_name,
+                    )
                 elif final_action == "log-only":
-                    logger.warning(f"Policy violation (log-only mode): {tool_name} - {matched_pattern} - execution allowed (silent)")
+                    logger.warning(
+                        f"Policy violation (log-only mode): {tool_name} - {matched_pattern} - execution allowed (silent)"
+                    )
                     return True, None, tool_name
                 else:
                     self.last_deny_action = final_action
                     self.last_deny_matched_pattern = matched_pattern
-                    self.last_deny_check_value = check_value if check_value else tool_name
-                    logger.error(f"Tool '{tool_name}' blocked by deny rule: {matched_pattern}")
+                    self.last_deny_check_value = (
+                        check_value if check_value else tool_name
+                    )
+                    logger.error(
+                        f"Tool '{tool_name}' blocked by deny rule: {matched_pattern}"
+                    )
                     error_msg = self._format_deny_message(
                         tool_name,
                         f"matched deny pattern: {matched_pattern}",
                         matched_matcher,
-                        tool_value=check_value if check_value else tool_name
+                        tool_value=check_value if check_value else tool_name,
                     )
                     return False, error_msg, tool_name
 
@@ -1120,26 +1274,30 @@ class ToolPolicyChecker:
                 # Determine action from matching rules (last explicit action wins)
                 deny_default_action = "block"
                 for rule in expanded_rules:
-                    rule_action = rule.get("action") or rule.get("_legacy_fallback_action")
+                    rule_action = rule.get("action") or rule.get(
+                        "_legacy_fallback_action"
+                    )
                     if rule_action:
                         deny_default_action = rule_action
 
                 self.last_deny_action = deny_default_action
                 self.last_deny_matched_pattern = "not in allow list"
                 self.last_deny_check_value = check_value if check_value else tool_name
-                logger.warning(f"Tool '{tool_name}' has no matching pattern in rules — {deny_default_action}")
+                logger.warning(
+                    f"Tool '{tool_name}' has no matching pattern in rules — {deny_default_action}"
+                )
                 error_msg = self._format_deny_message(
                     tool_name,
                     "not in allow list",
                     None,
-                    tool_value=check_value if check_value else tool_name
+                    tool_value=check_value if check_value else tool_name,
                 )
                 self._log_violation(
                     tool_name=tool_name,
                     check_value=check_value if check_value else tool_name,
                     reason="not in allow list",
                     matcher=tool_name,
-                    hook_data=hook_data
+                    hook_data=hook_data,
                 )
                 return False, error_msg, tool_name
 
@@ -1150,6 +1308,7 @@ class ToolPolicyChecker:
         except Exception as e:
             logger.error(f"Error checking tool policy: {e}")
             import traceback
+
             logger.error(traceback.format_exc())
             # Fail-closed: block on errors (security-critical path)
             return False, f"Policy check error: {e}", None
@@ -1171,7 +1330,9 @@ class ToolPolicyChecker:
             if "tool_use" in hook_data and isinstance(hook_data["tool_use"], dict):
                 tool_name = hook_data["tool_use"].get("name")
                 # Try both "input" (PostToolUse) and "parameters" (PreToolUse)
-                tool_input = hook_data["tool_use"].get("input") or hook_data["tool_use"].get("parameters", {})
+                tool_input = hook_data["tool_use"].get("input") or hook_data[
+                    "tool_use"
+                ].get("parameters", {})
             # Cursor format: tool.name
             elif "tool" in hook_data and isinstance(hook_data["tool"], dict):
                 tool_name = hook_data["tool"].get("name")
@@ -1241,7 +1402,9 @@ class ToolPolicyChecker:
             # Fallback - return string representation
             return str(pattern_entry)
 
-    def _is_pattern_valid(self, pattern_entry: Union[str, Dict], current_time: Optional[datetime] = None) -> bool:
+    def _is_pattern_valid(
+        self, pattern_entry: Union[str, Dict], current_time: Optional[datetime] = None
+    ) -> bool:
         """
         Check if a pattern entry is still valid (not expired).
 
@@ -1285,7 +1448,9 @@ class ToolPolicyChecker:
         logger.warning(f"Unknown pattern entry format: {type(pattern_entry)}")
         return True
 
-    def _filter_valid_patterns(self, patterns: List[Union[str, Dict]], current_time: Optional[datetime] = None) -> List[Union[str, Dict]]:
+    def _filter_valid_patterns(
+        self, patterns: List[Union[str, Dict]], current_time: Optional[datetime] = None
+    ) -> List[Union[str, Dict]]:
         """
         Filter out expired patterns from a list.
 
@@ -1302,9 +1467,19 @@ class ToolPolicyChecker:
                 valid_patterns.append(pattern_entry)
             else:
                 # Log when we skip an expired pattern
-                pattern_str = pattern_entry.get("pattern") if isinstance(pattern_entry, dict) else str(pattern_entry)
-                valid_until = pattern_entry.get("valid_until") if isinstance(pattern_entry, dict) else None
-                logger.info(f"Skipping expired pattern '{pattern_str}' (expired: {valid_until})")
+                pattern_str = (
+                    pattern_entry.get("pattern")
+                    if isinstance(pattern_entry, dict)
+                    else str(pattern_entry)
+                )
+                valid_until = (
+                    pattern_entry.get("valid_until")
+                    if isinstance(pattern_entry, dict)
+                    else None
+                )
+                logger.info(
+                    f"Skipping expired pattern '{pattern_str}' (expired: {valid_until})"
+                )
 
         return valid_patterns
 
@@ -1329,8 +1504,10 @@ class ToolPolicyChecker:
             action = rule.get("action")
 
             if mode == "allow" and action and action != "block":
-                logger.info(f"Deprecated: action '{action}' on allow rule (matcher={rule.get('matcher')}). "
-                            f"Prefer separate deny rule with action instead.")
+                logger.info(
+                    f"Deprecated: action '{action}' on allow rule (matcher={rule.get('matcher')}). "
+                    f"Prefer separate deny rule with action instead."
+                )
                 clean_rule = {k: v for k, v in rule.items() if k != "action"}
                 clean_rule["_legacy_fallback_action"] = action
                 processed.append(clean_rule)
@@ -1358,7 +1535,9 @@ class ToolPolicyChecker:
             rules = permissions.get("rules", [])
         # Legacy format: array of rules directly (pre-v1.4.0)
         elif isinstance(permissions, list):
-            logger.debug("Legacy permissions format detected (array) - consider updating to new structure")
+            logger.debug(
+                "Legacy permissions format detected (array) - consider updating to new structure"
+            )
             rules = permissions
         else:
             logger.warning(f"Invalid permissions format: {type(permissions)}")
@@ -1368,7 +1547,9 @@ class ToolPolicyChecker:
             logger.warning(f"Invalid permissions.rules format: {type(rules)}")
             return []
 
-        logger.debug(f"Searching {len(rules)} permission rule(s) for tool '{tool_name}'")
+        logger.debug(
+            f"Searching {len(rules)} permission rule(s) for tool '{tool_name}'"
+        )
 
         matching_rules = []
         for rule in rules:
@@ -1381,27 +1562,39 @@ class ToolPolicyChecker:
 
             # Check if tool_name matches the matcher pattern
             if fnmatch.fnmatch(tool_name, matcher):
-                logger.debug(f"Found matching rule: matcher={matcher}, mode={rule.get('mode')}, action={rule.get('action', 'block')}, patterns={len(rule.get('patterns', []))}")
+                logger.debug(
+                    f"Found matching rule: matcher={matcher}, mode={rule.get('mode')}, action={rule.get('action', 'block')}, patterns={len(rule.get('patterns', []))}"
+                )
 
                 # Filter expired patterns from the rule
                 filtered_rule = rule.copy()
                 if "patterns" in filtered_rule:
-                    filtered_rule["patterns"] = self._filter_valid_patterns(filtered_rule["patterns"])
+                    filtered_rule["patterns"] = self._filter_valid_patterns(
+                        filtered_rule["patterns"]
+                    )
 
                 # Legacy format support - filter allow/deny lists
                 if "allow" in filtered_rule:
-                    filtered_rule["allow"] = self._filter_valid_patterns(filtered_rule["allow"])
+                    filtered_rule["allow"] = self._filter_valid_patterns(
+                        filtered_rule["allow"]
+                    )
                 if "deny" in filtered_rule:
-                    filtered_rule["deny"] = self._filter_valid_patterns(filtered_rule["deny"])
+                    filtered_rule["deny"] = self._filter_valid_patterns(
+                        filtered_rule["deny"]
+                    )
 
                 matching_rules.append(filtered_rule)
 
         if not matching_rules and tool_name.startswith("mcp__"):
-            logger.warning(f"No permission rules found for MCP tool '{tool_name}' (checked {len(rules)} rules)")
+            logger.warning(
+                f"No permission rules found for MCP tool '{tool_name}' (checked {len(rules)} rules)"
+            )
 
         return matching_rules
 
-    def _extract_check_value(self, tool_name: str, tool_input: Dict, matcher: str) -> Optional[str]:
+    def _extract_check_value(
+        self, tool_name: str, tool_input: Dict, matcher: str
+    ) -> Optional[str]:
         """
         Extract the value to check against allow/deny patterns.
 
@@ -1468,7 +1661,13 @@ class ToolPolicyChecker:
             return True
         return False
 
-    def _format_deny_message(self, tool_name: str, reason: str, matcher: Optional[str], tool_value: Optional[str] = None) -> str:
+    def _format_deny_message(
+        self,
+        tool_name: str,
+        reason: str,
+        matcher: Optional[str],
+        tool_value: Optional[str] = None,
+    ) -> str:
         """
         Format error message for denied tools.
 
@@ -1488,7 +1687,7 @@ class ToolPolicyChecker:
 
         # Start with header
         msg = "🛡️ Tool Access Denied\n\n"
-        msg += f"Protection: Tool Permission Policy\n"
+        msg += "Protection: Tool Permission Policy\n"
         msg += f"Tool: {tool_name}\n"
 
         # Show matcher if available
@@ -1507,7 +1706,9 @@ class ToolPolicyChecker:
             else:
                 label = "Value"
             # Truncate very long values
-            display_value = tool_value if len(tool_value) <= 100 else tool_value[:97] + "..."
+            display_value = (
+                tool_value if len(tool_value) <= 100 else tool_value[:97] + "..."
+            )
             msg += f"{label}: {display_value}\n"
 
         # Add blocked pattern
@@ -1517,7 +1718,9 @@ class ToolPolicyChecker:
             msg += f"Pattern: {display_reason}\n"
 
         # Why blocked section
-        if reason == "no permission rule" and (tool_name.startswith("mcp__") or tool_name == "Skill"):
+        if reason == "no permission rule" and (
+            tool_name.startswith("mcp__") or tool_name == "Skill"
+        ):
             msg += "\nWhy blocked: MCP servers and Skills are blocked by default (deny-by-default policy).\n"
             if tool_name.startswith("mcp__"):
                 msg += "MCP servers run third-party code that may bypass hook-based scanning.\n"
@@ -1530,9 +1733,15 @@ class ToolPolicyChecker:
 
             # Add context-specific explanation
             if tool_name == "Bash":
-                if "install" in (tool_value or "").lower() or "install" in (reason or "").lower():
+                if (
+                    "install" in (tool_value or "").lower()
+                    or "install" in (reason or "").lower()
+                ):
                     msg += "Package installation requires explicit approval to prevent supply chain attacks.\n"
-                elif "rm" in (tool_value or "").lower() or "delete" in (tool_value or "").lower():
+                elif (
+                    "rm" in (tool_value or "").lower()
+                    or "delete" in (tool_value or "").lower()
+                ):
                     msg += "Destructive commands require explicit approval to prevent data loss.\n"
                 else:
                     msg += "This command requires explicit approval in your security policy.\n"
@@ -1576,13 +1785,13 @@ class ToolPolicyChecker:
             msg += "- Verify it's safe and necessary\n"
             msg += "- Add to allowed_patterns if trusted\n"
 
-        msg += f"- Or ask your administrator to update the enterprise policy\n"
+        msg += "- Or ask your administrator to update the enterprise policy\n"
 
         # Configuration help
         msg += f"\nTo allow this, add to {config_path}:\n\n"
-        msg += '{\n'
+        msg += "{\n"
         msg += '  "permissions": [\n'
-        msg += '    {\n'
+        msg += "    {\n"
         msg += f'      "matcher": "{suggested_matcher}",\n'
         msg += '      "mode": "allow",\n'
         msg += '      "patterns": [\n'
@@ -1594,10 +1803,10 @@ class ToolPolicyChecker:
             else:
                 msg += f'        # "{pattern["pattern"]}"  # {pattern["comment"]}\n'
 
-        msg += '      ]\n'
-        msg += '    }\n'
-        msg += '  ]\n'
-        msg += '}\n'
+        msg += "      ]\n"
+        msg += "    }\n"
+        msg += "  ]\n"
+        msg += "}\n"
 
         # Config path
         msg += f"\nConfig: {config_path}\n"
@@ -1605,8 +1814,9 @@ class ToolPolicyChecker:
 
         return msg
 
-
-    def _format_immutable_deny_message(self, check_value: str, tool_name: str, matched_pattern: str = None) -> str:
+    def _format_immutable_deny_message(
+        self, check_value: str, tool_name: str, matched_pattern: str = None
+    ) -> str:
         """
         Format error message for immutable deny (cannot be overridden).
 
@@ -1655,7 +1865,9 @@ class ToolPolicyChecker:
 
         # Detect cache files specifically (for Read-specific messaging)
         cache_file_patterns = ["*/.cache/ai-guardian/*"]
-        is_cache_file = any(fnmatch.fnmatch(check_value, p) for p in cache_file_patterns)
+        is_cache_file = any(
+            fnmatch.fnmatch(check_value, p) for p in cache_file_patterns
+        )
 
         # Check if this is ai-guardian source code (development or pip-installed)
         # ONLY if it's NOT a config file
@@ -1671,21 +1883,25 @@ class ToolPolicyChecker:
             # Pip-installed package patterns
             "*/site-packages/ai_guardian/*",
         ]
-        is_source_file = (not is_config_file) and any(fnmatch.fnmatch(check_value, p) for p in source_patterns)
+        is_source_file = (not is_config_file) and any(
+            fnmatch.fnmatch(check_value, p) for p in source_patterns
+        )
 
         # Check if this is a .ai-read-deny marker file
-        is_marker_file = (check_value.endswith('.ai-read-deny') or
-                         '/.ai-read-deny' in check_value or
-                         '\\.ai-read-deny' in check_value or
-                         '.ai-read-deny' in check_value)
+        is_marker_file = (
+            check_value.endswith(".ai-read-deny")
+            or "/.ai-read-deny" in check_value
+            or "\\.ai-read-deny" in check_value
+            or ".ai-read-deny" in check_value
+        )
 
         # Check if this looks like documentation/discussion vs. actual config
         is_likely_documentation = (
-            check_value.endswith('.md') or
-            check_value.endswith('.txt') or
-            '/docs/' in check_value or
-            '/documentation/' in check_value or
-            'README' in check_value.upper()
+            check_value.endswith(".md")
+            or check_value.endswith(".txt")
+            or "/docs/" in check_value
+            or "/documentation/" in check_value
+            or "README" in check_value.upper()
         )
 
         # Start with consistent header
@@ -1704,20 +1920,30 @@ class ToolPolicyChecker:
         # Show tool and value
         msg += f"Tool: {tool_name}\n"
         # Truncate very long values
-        display_value = check_value if len(check_value) <= 100 else check_value[:97] + "..."
+        display_value = (
+            check_value if len(check_value) <= 100 else check_value[:97] + "..."
+        )
         msg += f"{value_label}: {display_value}\n"
 
         # Show pattern if available
         if matched_pattern:
-            display_pattern = matched_pattern if len(matched_pattern) <= 100 else matched_pattern[:97] + "..."
+            display_pattern = (
+                matched_pattern
+                if len(matched_pattern) <= 100
+                else matched_pattern[:97] + "..."
+            )
             msg += f"Pattern: {display_pattern}\n"
 
         # Why blocked section - varies by type and tool
         msg += "\nWhy blocked: "
 
-        is_read_operation = tool_name == "Read" or (tool_name == "Bash" and any(
-            cmd in check_value for cmd in ["cat ", "grep ", "head ", "tail ", "less ", "more "]
-        ))
+        is_read_operation = tool_name == "Read" or (
+            tool_name == "Bash"
+            and any(
+                cmd in check_value
+                for cmd in ["cat ", "grep ", "head ", "tail ", "less ", "more "]
+            )
+        )
 
         if is_source_file:
             msg += "This file is part of the pip-installed ai-guardian package.\n"
@@ -1781,11 +2007,13 @@ class ToolPolicyChecker:
         # Add workaround tip if this looks like documentation mentioning the tool
         if is_likely_documentation:
             check_value_lower = check_value.lower()
-            mentions_tool = 'ai-guardian' in check_value_lower or 'ai_guardian' in check_value_lower
+            mentions_tool = (
+                "ai-guardian" in check_value_lower or "ai_guardian" in check_value_lower
+            )
             if mentions_tool:
                 msg += "\n💡 TIP: Writing ABOUT the tool (not modifying it)?\n"
-                msg += "   Use \"ai - guardian\" (with spaces) to avoid triggering patterns.\n"
-                msg += "   Example: \"The ai - guardian tool protects...\"\n"
+                msg += '   Use "ai - guardian" (with spaces) to avoid triggering patterns.\n'
+                msg += '   Example: "The ai - guardian tool protects..."\n'
 
         # Protected file categories
         msg += "\nProtected categories:\n"
@@ -1819,14 +2047,14 @@ class ToolPolicyChecker:
         # MCP tools
         if tool_name.startswith("mcp__"):
             parts = tool_name.split("__")
-            patterns = [
-                {"pattern": tool_name, "comment": "Allow only this tool"}
-            ]
+            patterns = [{"pattern": tool_name, "comment": "Allow only this tool"}]
             if len(parts) >= 3:
-                patterns.append({
-                    "pattern": f"{parts[0]}__{parts[1]}__*",
-                    "comment": "Or allow all tools from this server"
-                })
+                patterns.append(
+                    {
+                        "pattern": f"{parts[0]}__{parts[1]}__*",
+                        "comment": "Or allow all tools from this server",
+                    }
+                )
             return "mcp__*", patterns
 
         # Other tools
@@ -1841,7 +2069,7 @@ class ToolPolicyChecker:
         reason: str,
         matcher: str,
         hook_data: Dict,
-        violation_type: str = ViolationType.TOOL_PERMISSION
+        violation_type: str = ViolationType.TOOL_PERMISSION,
     ):
         """
         Log a tool permission violation.
@@ -1862,7 +2090,9 @@ class ToolPolicyChecker:
             ide_type = self._detect_ide_type(hook_data)
 
             # Generate suggested rule
-            suggested_matcher, suggested_patterns = self._suggest_permission_rule(tool_name)
+            suggested_matcher, suggested_patterns = self._suggest_permission_rule(
+                tool_name
+            )
 
             # Create violation logger
             violation_logger = ViolationLogger()
@@ -1875,7 +2105,7 @@ class ToolPolicyChecker:
             ctx = {
                 "ide_type": ide_type,
                 "hook_event": hook_data.get("hook_event_name"),
-                "project_path": os.getcwd()
+                "project_path": os.getcwd(),
             }
             tool_use_id = hook_data.get("tool_use_id")
             session_id = hook_data.get("session_id")
@@ -1890,7 +2120,7 @@ class ToolPolicyChecker:
                     "tool_value": check_value,
                     "file_path": file_path,
                     "matcher": matcher,
-                    "reason": reason
+                    "reason": reason,
                 },
                 context=ctx,
                 suggestion={
@@ -1899,10 +2129,10 @@ class ToolPolicyChecker:
                     "rule": {
                         "matcher": suggested_matcher,
                         "mode": "allow",
-                        "patterns": [p["pattern"] for p in suggested_patterns]
-                    }
+                        "patterns": [p["pattern"] for p in suggested_patterns],
+                    },
                 },
-                severity="warning"
+                severity="warning",
             )
 
         except Exception as e:
@@ -1932,7 +2162,10 @@ class ToolPolicyChecker:
             return "cursor"
 
         # Claude Code detection
-        if "hook_event_name" in hook_data and hook_data.get("hook_event_name") in ["UserPromptSubmit", "PreToolUse"]:
+        if "hook_event_name" in hook_data and hook_data.get("hook_event_name") in [
+            "UserPromptSubmit",
+            "PreToolUse",
+        ]:
             return "claude_code"
 
         return "unknown"
@@ -1960,7 +2193,9 @@ class ToolPolicyChecker:
         # Load all configs first
         local_config, local_config_path = self._load_local_config()
         user_config, user_config_path = self._load_user_config()
-        remote_configs = self._load_remote_configs(local_config, local_config_path, user_config, user_config_path)
+        remote_configs = self._load_remote_configs(
+            local_config, local_config_path, user_config, user_config_path
+        )
 
         # Extract immutability constraints from remote configs
         immutable_matchers = self._get_immutable_matchers(remote_configs)
@@ -1968,11 +2203,15 @@ class ToolPolicyChecker:
 
         # Merge project local config (with immutability filtering)
         if local_config:
-            config = self._merge_configs(config, local_config, immutable_matchers, immutable_sections)
+            config = self._merge_configs(
+                config, local_config, immutable_matchers, immutable_sections
+            )
 
         # Merge user global config (with immutability filtering)
         if user_config:
-            config = self._merge_configs(config, user_config, immutable_matchers, immutable_sections)
+            config = self._merge_configs(
+                config, user_config, immutable_matchers, immutable_sections
+            )
 
         # Merge remote configs (highest priority, no filtering needed)
         for remote_config in remote_configs:
@@ -1985,7 +2224,11 @@ class ToolPolicyChecker:
         self._auto_generate_directory_rules(config)
 
         permissions = config.get("permissions", {})
-        rule_count = len(permissions.get("rules", []) if isinstance(permissions, dict) else permissions if isinstance(permissions, list) else [])
+        rule_count = len(
+            permissions.get("rules", [])
+            if isinstance(permissions, dict)
+            else permissions if isinstance(permissions, list) else []
+        )
         logger.debug(f"Config loaded: {rule_count} permission rule(s)")
 
         return config
@@ -2016,7 +2259,9 @@ class ToolPolicyChecker:
                     matcher = rule.get("matcher")
                     if matcher:
                         immutable_matchers.add(matcher)
-                        logger.debug(f"Matcher '{matcher}' marked as immutable in remote config")
+                        logger.debug(
+                            f"Matcher '{matcher}' marked as immutable in remote config"
+                        )
 
         return immutable_matchers
 
@@ -2038,7 +2283,7 @@ class ToolPolicyChecker:
             "pattern_server",
             "secret_scanning",
             "directory_exclusions",
-            "permissions"
+            "permissions",
         ]
 
         for remote_config in remote_configs:
@@ -2046,27 +2291,19 @@ class ToolPolicyChecker:
                 section = remote_config.get(section_name)
                 if isinstance(section, dict) and section.get("immutable", False):
                     immutable_sections.add(section_name)
-                    logger.debug(f"Section '{section_name}' marked as immutable in remote config")
+                    logger.debug(
+                        f"Section '{section_name}' marked as immutable in remote config"
+                    )
 
         return immutable_sections
 
     def _get_defaults(self) -> Dict:
         """Get default empty configuration."""
         return {
-            "permissions": {
-                "enabled": True,
-                "immutable": False,
-                "rules": []
-            },
-            "permissions_directories": {
-                "deny": [],
-                "allow": []
-            },
+            "permissions": {"enabled": True, "immutable": False, "rules": []},
+            "permissions_directories": {"deny": [], "allow": []},
             "remote_configs": [],
-            "directory_exclusions": {
-                "enabled": False,
-                "paths": []
-            }
+            "directory_exclusions": {"enabled": False, "paths": []},
         }
 
     def _load_local_config(self) -> Tuple[Optional[Dict], Optional[Path]]:
@@ -2105,8 +2342,10 @@ class ToolPolicyChecker:
         if cls._schema_validator is None:
             try:
                 # Load schema from package
-                schema_path = Path(__file__).parent / "schemas" / "ai-guardian-config.schema.json"
-                with open(schema_path, 'r') as f:
+                schema_path = (
+                    Path(__file__).parent / "schemas" / "ai-guardian-config.schema.json"
+                )
+                with open(schema_path, "r") as f:
                     schema = json.load(f)
 
                 # Create and cache validator
@@ -2142,7 +2381,11 @@ class ToolPolicyChecker:
             return True
         except JsonSchemaValidationError as e:
             # Format user-friendly error message
-            error_path = " -> ".join(str(p) for p in e.absolute_path) if e.absolute_path else "root"
+            error_path = (
+                " -> ".join(str(p) for p in e.absolute_path)
+                if e.absolute_path
+                else "root"
+            )
             error_msg = (
                 f"\n{'='*70}\n"
                 f"❌ CONFIGURATION ERROR: {source_name} config at {path}\n"
@@ -2180,7 +2423,9 @@ class ToolPolicyChecker:
 
         config, error_msg = _load_json_config(path)
         if error_msg:
-            logger.warning(f"Error loading {source_name} config from {path}: {error_msg}")
+            logger.warning(
+                f"Error loading {source_name} config from {path}: {error_msg}"
+            )
             return None
 
         logger.debug(f"Loaded {source_name} config: {config}")
@@ -2216,9 +2461,11 @@ class ToolPolicyChecker:
         """
         if isinstance(override_value, dict):
             # New unified format: permissions is an object with enabled, immutable, rules
-            base_permissions = base_value if isinstance(base_value, dict) else {
-                "enabled": True, "immutable": False, "rules": []
-            }
+            base_permissions = (
+                base_value
+                if isinstance(base_value, dict)
+                else {"enabled": True, "immutable": False, "rules": []}
+            )
 
             merged_permissions = base_permissions.copy()
 
@@ -2232,7 +2479,9 @@ class ToolPolicyChecker:
 
             # Merge auto_directory_rules field (NEW in v1.8.0, Issue #144)
             if "auto_directory_rules" in override_value:
-                merged_permissions["auto_directory_rules"] = override_value["auto_directory_rules"]
+                merged_permissions["auto_directory_rules"] = override_value[
+                    "auto_directory_rules"
+                ]
 
             # Merge rules array with matcher-level immutability filtering
             if "rules" in override_value:
@@ -2243,7 +2492,9 @@ class ToolPolicyChecker:
                     for rule in override_rules:
                         matcher = rule.get("matcher")
                         if matcher in immutable_matchers:
-                            logger.info(f"Skipping override for immutable matcher: {matcher}")
+                            logger.info(
+                                f"Skipping override for immutable matcher: {matcher}"
+                            )
                         else:
                             filtered_rules.append(rule)
 
@@ -2258,7 +2509,9 @@ class ToolPolicyChecker:
 
         elif isinstance(override_value, list):
             # Legacy format: permissions is array of rules directly (pre-v1.4.0)
-            logger.debug("Legacy permissions array format in override - converting to new structure")
+            logger.debug(
+                "Legacy permissions array format in override - converting to new structure"
+            )
             # Filter out rules for immutable matchers
             filtered_rules = []
             for rule in override_value:
@@ -2292,7 +2545,7 @@ class ToolPolicyChecker:
         base: Dict,
         override: Dict,
         immutable_matchers: Optional[Set[str]] = None,
-        immutable_sections: Optional[Set[str]] = None
+        immutable_sections: Optional[Set[str]] = None,
     ) -> Dict:
         """
         Merge two configuration dictionaries with immutability enforcement.
@@ -2348,7 +2601,7 @@ class ToolPolicyChecker:
         local_config: Optional[Dict],
         local_config_path: Optional[Path],
         user_config: Optional[Dict],
-        user_config_path: Optional[Path]
+        user_config_path: Optional[Path],
     ) -> List[Dict]:
         """
         Load remote configurations from URLs.
@@ -2373,13 +2626,17 @@ class ToolPolicyChecker:
                     system_config = json.load(f)
                     urls = system_config.get("urls", [])
                     if urls:
-                        logger.info(f"Using {len(urls)} enterprise remote URLs (system config)")
+                        logger.info(
+                            f"Using {len(urls)} enterprise remote URLs (system config)"
+                        )
                         for url in urls:
                             remote_entries.append((url, system_config_path))
                         # STOP HERE - ignore user/local configs
                         return self._fetch_remote_configs(remote_entries)
             except Exception as e:
-                logger.error(f"Failed to load system config from {system_config_path}: {e}")
+                logger.error(
+                    f"Failed to load system config from {system_config_path}: {e}"
+                )
 
         # Priority 2: Environment variable
         env_urls = os.environ.get("AI_GUARDIAN_REMOTE_CONFIG_URLS", "")
@@ -2429,7 +2686,9 @@ class ToolPolicyChecker:
 
         return self._fetch_remote_configs(remote_entries)
 
-    def _load_remote_config(self, url: str, base_config_path: Optional[Path], token_env: Optional[str]) -> Optional[Dict]:
+    def _load_remote_config(
+        self, url: str, base_config_path: Optional[Path], token_env: Optional[str]
+    ) -> Optional[Dict]:
         """
         Load a remote configuration from URL.
 
@@ -2495,7 +2754,9 @@ class ToolPolicyChecker:
                             )
                             return None
 
-                logger.info(f"Remote config validated and passed security checks: {url}")
+                logger.info(
+                    f"Remote config validated and passed security checks: {url}"
+                )
                 return config
             else:
                 # Local file path
@@ -2589,34 +2850,48 @@ class ToolPolicyChecker:
                     matcher = dir_entry.get("matcher", "Skill")
                     mode = dir_entry.get("mode", "allow")
 
-                    discovered_items = self._discover_directory_items(discovery, dir_entry, cache_ttl)
+                    discovered_items = self._discover_directory_items(
+                        discovery, dir_entry, cache_ttl
+                    )
                     if discovered_items:
-                        self._add_to_permission_rule(config, matcher, mode, discovered_items)
+                        self._add_to_permission_rule(
+                            config, matcher, mode, discovered_items
+                        )
                 return
 
             # Old format: dict with allow/deny arrays (backward compatibility)
             # Process allow directories
             allow_dirs = permissions_dirs.get("allow", [])
             for dir_entry in allow_dirs:
-                discovered_items = self._discover_directory_items(discovery, dir_entry, cache_ttl)
+                discovered_items = self._discover_directory_items(
+                    discovery, dir_entry, cache_ttl
+                )
                 if discovered_items:
                     matcher = dir_entry.get("matcher", "Skill")
-                    self._add_to_permission_rule(config, matcher, "allow", discovered_items)
+                    self._add_to_permission_rule(
+                        config, matcher, "allow", discovered_items
+                    )
 
             # Process deny directories
             deny_dirs = permissions_dirs.get("deny", [])
             for dir_entry in deny_dirs:
-                discovered_items = self._discover_directory_items(discovery, dir_entry, cache_ttl)
+                discovered_items = self._discover_directory_items(
+                    discovery, dir_entry, cache_ttl
+                )
                 if discovered_items:
                     matcher = dir_entry.get("matcher", "Skill")
-                    self._add_to_permission_rule(config, matcher, "deny", discovered_items)
+                    self._add_to_permission_rule(
+                        config, matcher, "deny", discovered_items
+                    )
 
         except ImportError:
             logger.debug("Skill discovery not available")
         except Exception as e:
             logger.error(f"Error discovering from directories: {e}")
 
-    def _discover_directory_items(self, discovery, dir_entry: Dict, cache_ttl: int) -> List[str]:
+    def _discover_directory_items(
+        self, discovery, dir_entry: Dict, cache_ttl: int
+    ) -> List[str]:
         """
         Discover items from a single directory entry.
 
@@ -2636,7 +2911,9 @@ class ToolPolicyChecker:
                 return []
 
             # Discover items from directory
-            items = discovery.discover_skills(url, cache_ttl_hours=cache_ttl, token_env=token_env)
+            items = discovery.discover_skills(
+                url, cache_ttl_hours=cache_ttl, token_env=token_env
+            )
 
             # Extract just the names (remove category prefix if present)
             names = []
@@ -2653,7 +2930,9 @@ class ToolPolicyChecker:
             logger.error(f"Error discovering items from {dir_entry}: {e}")
             return []
 
-    def _add_to_permission_rule(self, config: Dict, matcher: str, list_type: str, items: List[str]) -> None:
+    def _add_to_permission_rule(
+        self, config: Dict, matcher: str, list_type: str, items: List[str]
+    ) -> None:
         """
         Add items to a permission rule (or create one if needed).
 
@@ -2693,11 +2972,7 @@ class ToolPolicyChecker:
                 return
 
         # No existing rule - create new one
-        new_rule = {
-            "matcher": matcher,
-            "mode": mode,
-            "patterns": items
-        }
+        new_rule = {"matcher": matcher, "mode": mode, "patterns": items}
         rules.append(new_rule)
 
     def _auto_generate_directory_rules(self, config: Dict) -> None:
@@ -2728,7 +3003,7 @@ class ToolPolicyChecker:
             # Generate directory rules
             from ai_guardian.directory_rule_generator import (
                 DirectoryRuleGenerator,
-                insert_generated_rules
+                insert_generated_rules,
             )
 
             generator = DirectoryRuleGenerator(config)
@@ -2737,7 +3012,9 @@ class ToolPolicyChecker:
             if generated_rules:
                 # Insert AFTER user rules, BEFORE immutable rules
                 insert_generated_rules(config, generated_rules)
-                logger.info(f"Auto-generated {len(generated_rules)} directory rules from skill permissions")
+                logger.info(
+                    f"Auto-generated {len(generated_rules)} directory rules from skill permissions"
+                )
             else:
                 logger.debug("No directory rules generated (no matching skills found)")
 
@@ -2746,4 +3023,5 @@ class ToolPolicyChecker:
         except Exception as e:
             logger.error(f"Error auto-generating directory rules: {e}")
             import traceback
+
             logger.debug(traceback.format_exc())

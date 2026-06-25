@@ -94,7 +94,11 @@ def ensure_scanner_path():
 def _well_known_dirs_with_scanners(well_known=None):
     """Return well-known directories that contain at least one scanner binary."""
     if well_known is None:
-        well_known = _WELL_KNOWN_DIRS_WINDOWS if platform.system() == "Windows" else _WELL_KNOWN_DIRS
+        well_known = (
+            _WELL_KNOWN_DIRS_WINDOWS
+            if platform.system() == "Windows"
+            else _WELL_KNOWN_DIRS
+        )
     is_windows = platform.system() == "Windows"
     dirs = []
     for d in well_known:
@@ -103,7 +107,9 @@ def _well_known_dirs_with_scanners(well_known=None):
             if is_windows:
                 candidates.append(os.path.join(d, binary + ".exe"))
             for candidate in candidates:
-                if os.path.isfile(candidate) and (is_windows or os.access(candidate, os.X_OK)):
+                if os.path.isfile(candidate) and (
+                    is_windows or os.access(candidate, os.X_OK)
+                ):
                     if d not in dirs:
                         dirs.append(d)
                     break
@@ -123,7 +129,9 @@ def _read_shell_path():
     try:
         result = subprocess.run(
             [shell, "-l", "-c", "echo $PATH"],
-            capture_output=True, text=True, timeout=5,
+            capture_output=True,
+            text=True,
+            timeout=5,
         )
         if result.returncode == 0 and result.stdout.strip():
             return result.stdout.strip().split(os.pathsep)

@@ -1,7 +1,6 @@
 """Tests for effective config provenance and formatting (Issue #1259)."""
 
 import json
-import os
 import sys
 import pytest
 from pathlib import Path
@@ -54,13 +53,20 @@ class TestComputeDetailedProvenance:
         global_path.write_text(json.dumps(global_config))
 
         with patch("ai_guardian.config_writer._resolve_config_path") as mock_resolve:
+
             def resolve(scope, project_dir=None):
                 if scope == "global":
                     return global_path
-                return project_dir / "ai-guardian.json" if project_dir else Path("/nonexistent/ai-guardian.json")
+                return (
+                    project_dir / "ai-guardian.json"
+                    if project_dir
+                    else Path("/nonexistent/ai-guardian.json")
+                )
+
             mock_resolve.side_effect = resolve
 
             from ai_guardian.config_writer import compute_detailed_provenance
+
             result = compute_detailed_provenance()
 
         assert result["secret_scanning"]["enabled"] == "global"
@@ -82,6 +88,7 @@ class TestComputeDetailedProvenance:
                 global_path if scope == "global" else project_path
             )
             from ai_guardian.config_writer import compute_detailed_provenance
+
             result = compute_detailed_provenance()
 
         ss = result["secret_scanning"]
@@ -101,6 +108,7 @@ class TestComputeDetailedProvenance:
                 global_path if scope == "global" else project_path
             )
             from ai_guardian.config_writer import compute_detailed_provenance
+
             result = compute_detailed_provenance()
 
         allowlist = result["secret_scanning"]["allowlist_patterns"]
@@ -117,9 +125,12 @@ class TestComputeDetailedProvenance:
 
         with patch("ai_guardian.config_writer._resolve_config_path") as mock_resolve:
             mock_resolve.side_effect = lambda scope, pd=None: (
-                global_path if scope == "global" else Path("/nonexistent/ai-guardian.json")
+                global_path
+                if scope == "global"
+                else Path("/nonexistent/ai-guardian.json")
             )
             from ai_guardian.config_writer import compute_detailed_provenance
+
             result = compute_detailed_provenance()
 
         engines = result["secret_scanning"]["engines"]
@@ -162,6 +173,7 @@ class TestFormatProvenanceText:
 
     def test_empty_config(self):
         from ai_guardian.config_writer import format_provenance_text
+
         assert format_provenance_text({}, {}) == ""
 
     def test_skips_underscore_keys(self):
@@ -194,6 +206,7 @@ class TestFormatDiffText:
 
     def test_empty_when_no_overrides(self):
         from ai_guardian.config_writer import format_diff_text
+
         text = format_diff_text({}, {})
         assert text.strip() == ""
 
@@ -218,19 +231,23 @@ class TestFormatScalar:
 
     def test_bool(self):
         from ai_guardian.config_writer import _format_scalar
+
         assert _format_scalar(True) == "true"
         assert _format_scalar(False) == "false"
 
     def test_none(self):
         from ai_guardian.config_writer import _format_scalar
+
         assert _format_scalar(None) == "null"
 
     def test_string(self):
         from ai_guardian.config_writer import _format_scalar
+
         assert _format_scalar("hello") == "hello"
 
     def test_list(self):
         from ai_guardian.config_writer import _format_scalar
+
         assert _format_scalar(["a", "b"]) == '["a", "b"]'
 
 
@@ -243,39 +260,44 @@ class TestWebConfigEffective:
 
     def test_load_effective_data_error(self):
         from ai_guardian.web.pages.config_effective import _load_effective_data
-        with patch("ai_guardian.web.pages.config_effective.load_scoped_config",
-                   side_effect=Exception("test error"), create=True):
+
+        with patch(
+            "ai_guardian.web.pages.config_effective.load_scoped_config",
+            side_effect=Exception("test error"),
+            create=True,
+        ):
             merged, prov, proj, error = _load_effective_data()
             # On import error, returns error string
             assert error is not None or merged is not None
 
     def test_has_project_override_scalar(self):
         from ai_guardian.web.pages.config_effective import _has_project_override
+
         assert _has_project_override("project") is True
         assert _has_project_override("global") is False
 
     def test_has_project_override_dict(self):
         from ai_guardian.web.pages.config_effective import _has_project_override
+
         assert _has_project_override({"a": "project", "b": "global"}) is True
         assert _has_project_override({"a": "global", "b": "global"}) is False
 
     def test_has_project_override_list(self):
         from ai_guardian.web.pages.config_effective import _has_project_override
-        assert _has_project_override([
-            {"value": "x", "source": "project"}
-        ]) is True
-        assert _has_project_override([
-            {"value": "x", "source": "global"}
-        ]) is False
+
+        assert _has_project_override([{"value": "x", "source": "project"}]) is True
+        assert _has_project_override([{"value": "x", "source": "global"}]) is False
 
     def test_provenance_label(self):
         from ai_guardian.web.pages.config_effective import _provenance_label
+
         assert _provenance_label("project") == "Project"
         assert _provenance_label("global") == "Global"
         assert _provenance_label("generated") == "Generated"
 
     def test_provenance_color(self):
         from ai_guardian.web.pages.config_effective import _provenance_color
+
         assert _provenance_color("project") == "blue"
         assert _provenance_color("global") == "grey-6"
         assert _provenance_color("generated") == "amber-8"
@@ -283,10 +305,13 @@ class TestWebConfigEffective:
     def test_inject_generated_rules_adds_provenance(self):
         """Generated rules should be injected with 'generated' provenance."""
         from ai_guardian.web.pages.config_effective import _inject_generated_rules
+
         merged = {
             "permissions": {
                 "auto_directory_rules": {"enabled": True},
-                "rules": [{"matcher": "Skill", "mode": "allow", "patterns": ["test-*"]}],
+                "rules": [
+                    {"matcher": "Skill", "mode": "allow", "patterns": ["test-*"]}
+                ],
             },
             "directory_rules": {"action": "block", "rules": []},
         }
@@ -298,7 +323,11 @@ class TestWebConfigEffective:
         ) as mock_cls:
             mock_gen = MagicMock()
             mock_gen.generate_directory_rules.return_value = [
-                {"mode": "allow", "paths": ["~/.claude/skills/s1/**"], "_generated": True}
+                {
+                    "mode": "allow",
+                    "paths": ["~/.claude/skills/s1/**"],
+                    "_generated": True,
+                }
             ]
             mock_cls.return_value = mock_gen
             with patch(
@@ -316,6 +345,7 @@ class TestWebConfigEffective:
     def test_inject_generated_rules_noop_when_disabled(self):
         """No injection when auto_directory_rules is disabled."""
         from ai_guardian.web.pages.config_effective import _inject_generated_rules
+
         merged = {"permissions": {"auto_directory_rules": {"enabled": False}}}
         provenance = {}
         _inject_generated_rules(merged, provenance)

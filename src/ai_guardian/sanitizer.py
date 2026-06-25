@@ -11,11 +11,10 @@ Part of Issue #857: directory input with output directory.
 import fnmatch
 import logging
 import os
-import re
 import shutil
 import sys
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -26,8 +25,15 @@ def get_sanitize_config():
         "secret_scanning": {"enabled": True},
         "scan_pii": {
             "enabled": True,
-            "pii_types": ["ssn", "credit_card", "phone", "email",
-                          "us_passport", "iban", "intl_phone"],
+            "pii_types": [
+                "ssn",
+                "credit_card",
+                "phone",
+                "email",
+                "us_passport",
+                "iban",
+                "intl_phone",
+            ],
             "allowlist_patterns": [],
             "ignore_files": [],
             "ignore_tools": [],
@@ -49,27 +55,44 @@ def _sanitize_unicode(text: str) -> tuple:
     zero_width_set = set(UnicodeAttackDetector.ZERO_WIDTH_CHARS)
     bidi_set = set(UnicodeAttackDetector.BIDI_OVERRIDE_CHARS)
 
-    homoglyph_map = {lookalike: latin for lookalike, latin in UnicodeAttackDetector.HOMOGLYPH_PATTERNS}
+    homoglyph_map = {
+        lookalike: latin
+        for lookalike, latin in UnicodeAttackDetector.HOMOGLYPH_PATTERNS
+    }
 
     result = []
     for char in text:
         code_point = ord(char)
 
         if char in zero_width_set:
-            changes.append({"type": "unicode_zero_width", "char": f"U+{code_point:04X}"})
+            changes.append(
+                {"type": "unicode_zero_width", "char": f"U+{code_point:04X}"}
+            )
             continue
 
         if char in bidi_set:
-            changes.append({"type": "unicode_bidi_override", "char": f"U+{code_point:04X}"})
+            changes.append(
+                {"type": "unicode_bidi_override", "char": f"U+{code_point:04X}"}
+            )
             continue
 
-        if UnicodeAttackDetector.TAG_CHAR_START <= code_point <= UnicodeAttackDetector.TAG_CHAR_END:
+        if (
+            UnicodeAttackDetector.TAG_CHAR_START
+            <= code_point
+            <= UnicodeAttackDetector.TAG_CHAR_END
+        ):
             changes.append({"type": "unicode_tag_char", "char": f"U+{code_point:05X}"})
             continue
 
         if char in homoglyph_map:
             latin = homoglyph_map[char]
-            changes.append({"type": "unicode_homoglyph", "char": f"U+{code_point:04X}", "replaced_with": latin})
+            changes.append(
+                {
+                    "type": "unicode_homoglyph",
+                    "char": f"U+{code_point:04X}",
+                    "replaced_with": latin,
+                }
+            )
             result.append(latin)
             continue
 
@@ -87,13 +110,15 @@ def _sanitize_prompt_injection(text: str) -> tuple:
     """
     from ai_guardian.prompt_injection import PromptInjectionDetector
 
-    detector = PromptInjectionDetector({
-        "enabled": True,
-        "sensitivity": "high",
-        "allowlist_patterns": [],
-        "ignore_files": [],
-        "ignore_tools": [],
-    })
+    detector = PromptInjectionDetector(
+        {
+            "enabled": True,
+            "sensitivity": "high",
+            "allowlist_patterns": [],
+            "ignore_files": [],
+            "ignore_tools": [],
+        }
+    )
 
     redactions = []
 
@@ -111,17 +136,20 @@ def _sanitize_prompt_injection(text: str) -> tuple:
         for match in pattern.finditer(text):
             start, end = match.span()
 
-            if any(rs <= start < re_ or rs < end <= re_
-                   for rs, re_ in redacted_regions):
+            if any(
+                rs <= start < re_ or rs < end <= re_ for rs, re_ in redacted_regions
+            ):
                 continue
 
             redacted_regions.append((start, end))
             replacements.append((start, end, match.group(0)))
-            redactions.append({
-                "type": "prompt_injection",
-                "matched_text": match.group(0)[:80],
-                "pattern": pattern.pattern[:60],
-            })
+            redactions.append(
+                {
+                    "type": "prompt_injection",
+                    "matched_text": match.group(0)[:80],
+                    "pattern": pattern.pattern[:60],
+                }
+            )
 
     for start, end, original in sorted(replacements, key=lambda x: x[0], reverse=True):
         text = text[:start] + "[SANITIZED]" + text[end:]
@@ -129,8 +157,9 @@ def _sanitize_prompt_injection(text: str) -> tuple:
     return text, redactions
 
 
-def sanitize_text(text: str, no_secrets: bool = False, no_pii: bool = False,
-                  no_threats: bool = False) -> Dict:
+def sanitize_text(
+    text: str, no_secrets: bool = False, no_pii: bool = False, no_threats: bool = False
+) -> Dict:
     """
     Sanitize text by redacting secrets, PII, and threats.
 
@@ -144,9 +173,17 @@ def sanitize_text(text: str, no_secrets: bool = False, no_pii: bool = False,
         Dict with sanitized_text, redactions list, and stats
     """
     if not text:
-        return {"sanitized_text": "", "redactions": [], "stats": {
-            "secrets": 0, "pii": 0, "prompt_injection": 0, "unicode": 0, "total": 0,
-        }}
+        return {
+            "sanitized_text": "",
+            "redactions": [],
+            "stats": {
+                "secrets": 0,
+                "pii": 0,
+                "prompt_injection": 0,
+                "unicode": 0,
+                "total": 0,
+            },
+        }
 
     sanitized = text
     all_redactions: List[Dict] = []
@@ -178,8 +215,12 @@ def sanitize_text(text: str, no_secrets: bool = False, no_pii: bool = False,
         for r in result.get("redactions", []):
             rtype = r.get("type", "")
             is_pii = rtype in (
-                "SSN", "Credit Card Number", "US Phone Number",
-                "Email Address", "US Passport Number", "IBAN",
+                "SSN",
+                "Credit Card Number",
+                "US Phone Number",
+                "Email Address",
+                "US Passport Number",
+                "IBAN",
                 "International Phone Number",
             )
             if is_pii:
@@ -213,28 +254,114 @@ def _write_bytes(data: bytes, output_path: Optional[str]) -> None:
 
 
 _TEXT_EXTENSIONS = {
-    ".py", ".js", ".ts", ".jsx", ".tsx", ".json", ".yaml", ".yml",
-    ".md", ".txt", ".cfg", ".ini", ".toml", ".xml", ".html", ".htm",
-    ".css", ".scss", ".sql", ".sh", ".bash", ".zsh", ".bat", ".ps1",
-    ".rb", ".go", ".rs", ".java", ".c", ".cpp", ".h", ".hpp", ".cs",
-    ".env", ".properties", ".csv", ".tsv", ".log", ".conf",
-    ".dockerfile", ".tf", ".hcl", ".r", ".R", ".swift", ".kt",
-    ".scala", ".pl", ".pm", ".lua", ".ex", ".exs", ".erl",
-    ".hs", ".ml", ".clj", ".vim", ".el", ".cmake", ".gradle",
-    ".sbt", ".rake", ".gemspec", ".podspec", ".graphql", ".proto",
-    ".rst", ".adoc", ".tex", ".bib",
+    ".py",
+    ".js",
+    ".ts",
+    ".jsx",
+    ".tsx",
+    ".json",
+    ".yaml",
+    ".yml",
+    ".md",
+    ".txt",
+    ".cfg",
+    ".ini",
+    ".toml",
+    ".xml",
+    ".html",
+    ".htm",
+    ".css",
+    ".scss",
+    ".sql",
+    ".sh",
+    ".bash",
+    ".zsh",
+    ".bat",
+    ".ps1",
+    ".rb",
+    ".go",
+    ".rs",
+    ".java",
+    ".c",
+    ".cpp",
+    ".h",
+    ".hpp",
+    ".cs",
+    ".env",
+    ".properties",
+    ".csv",
+    ".tsv",
+    ".log",
+    ".conf",
+    ".dockerfile",
+    ".tf",
+    ".hcl",
+    ".r",
+    ".R",
+    ".swift",
+    ".kt",
+    ".scala",
+    ".pl",
+    ".pm",
+    ".lua",
+    ".ex",
+    ".exs",
+    ".erl",
+    ".hs",
+    ".ml",
+    ".clj",
+    ".vim",
+    ".el",
+    ".cmake",
+    ".gradle",
+    ".sbt",
+    ".rake",
+    ".gemspec",
+    ".podspec",
+    ".graphql",
+    ".proto",
+    ".rst",
+    ".adoc",
+    ".tex",
+    ".bib",
 }
 
 _TEXT_FILENAMES = {
-    "Makefile", "Dockerfile", "Jenkinsfile", "Vagrantfile", "Rakefile",
-    "Gemfile", "Procfile", "Brewfile", "Taskfile",
-    ".gitignore", ".dockerignore", ".editorconfig", ".eslintrc",
-    ".prettierrc", ".babelrc", ".npmrc", ".yarnrc",
-    ".flake8", ".pylintrc", ".rubocop.yml",
+    "Makefile",
+    "Dockerfile",
+    "Jenkinsfile",
+    "Vagrantfile",
+    "Rakefile",
+    "Gemfile",
+    "Procfile",
+    "Brewfile",
+    "Taskfile",
+    ".gitignore",
+    ".dockerignore",
+    ".editorconfig",
+    ".eslintrc",
+    ".prettierrc",
+    ".babelrc",
+    ".npmrc",
+    ".yarnrc",
+    ".flake8",
+    ".pylintrc",
+    ".rubocop.yml",
 }
 
-_SKIP_DIRS = {".git", "__pycache__", "node_modules", ".venv", "venv",
-              ".tox", ".mypy_cache", ".pytest_cache", ".eggs", "dist", "build"}
+_SKIP_DIRS = {
+    ".git",
+    "__pycache__",
+    "node_modules",
+    ".venv",
+    "venv",
+    ".tox",
+    ".mypy_cache",
+    ".pytest_cache",
+    ".eggs",
+    "dist",
+    "build",
+}
 
 
 def _is_text_file(file_path: Path) -> bool:
@@ -248,6 +375,7 @@ def _is_image_file(file_path: Path) -> bool:
     """Check if a file is an image (guarded for missing OCR deps)."""
     try:
         from ai_guardian.image_scanner import ImageDetector
+
         return ImageDetector.is_image_file(str(file_path))
     except ImportError:
         return False
@@ -261,12 +389,17 @@ def _matches_patterns(rel_path: str, filename: str, patterns: List[str]) -> bool
     return False
 
 
-def sanitize_directory(input_dir: Path, output_dir: Path,
-                       no_secrets: bool = False, no_pii: bool = False,
-                       no_threats: bool = False, no_images: bool = False,
-                       include: Optional[List[str]] = None,
-                       exclude: Optional[List[str]] = None,
-                       redact_strategy: str = "blackout") -> Dict:
+def sanitize_directory(
+    input_dir: Path,
+    output_dir: Path,
+    no_secrets: bool = False,
+    no_pii: bool = False,
+    no_threats: bool = False,
+    no_images: bool = False,
+    include: Optional[List[str]] = None,
+    exclude: Optional[List[str]] = None,
+    redact_strategy: str = "blackout",
+) -> Dict:
     """
     Sanitize all files in a directory, writing redacted output to output_dir.
 
@@ -316,28 +449,50 @@ def sanitize_directory(input_dir: Path, output_dir: Path,
 
                 if is_image:
                     stats = _sanitize_image_to_path(
-                        str(file_path), str(dest),
-                        no_secrets=no_secrets, no_pii=no_pii, no_threats=no_threats,
+                        str(file_path),
+                        str(dest),
+                        no_secrets=no_secrets,
+                        no_pii=no_pii,
+                        no_threats=no_threats,
                         redact_strategy=redact_strategy,
                     )
                     image_count += 1
                     for key in ("secrets", "pii", "prompt_injection", "unicode"):
                         total_stats[key] += stats.get(key, 0)
-                    file_redactions = sum(stats.get(k, 0) for k in ("secrets", "pii", "prompt_injection", "unicode"))
+                    file_redactions = sum(
+                        stats.get(k, 0)
+                        for k in ("secrets", "pii", "prompt_injection", "unicode")
+                    )
                     if file_redactions > 0:
-                        file_details.append({"file": rel_str, "redactions": file_redactions, "type": "image"})
+                        file_details.append(
+                            {
+                                "file": rel_str,
+                                "redactions": file_redactions,
+                                "type": "image",
+                            }
+                        )
 
                 elif is_text:
                     content = file_path.read_text(encoding="utf-8", errors="ignore")
-                    result = sanitize_text(content, no_secrets=no_secrets,
-                                           no_pii=no_pii, no_threats=no_threats)
+                    result = sanitize_text(
+                        content,
+                        no_secrets=no_secrets,
+                        no_pii=no_pii,
+                        no_threats=no_threats,
+                    )
                     dest.write_text(result["sanitized_text"], encoding="utf-8")
                     text_count += 1
                     stats = result["stats"]
                     for key in ("secrets", "pii", "prompt_injection", "unicode"):
                         total_stats[key] += stats.get(key, 0)
                     if stats["total"] > 0:
-                        file_details.append({"file": rel_str, "redactions": stats["total"], "type": "text"})
+                        file_details.append(
+                            {
+                                "file": rel_str,
+                                "redactions": stats["total"],
+                                "type": "text",
+                            }
+                        )
 
                 else:
                     shutil.copy2(str(file_path), str(dest))
@@ -359,14 +514,20 @@ def sanitize_directory(input_dir: Path, output_dir: Path,
     }
 
 
-def _sanitize_image_to_path(input_path: str, output_path: str,
-                             no_secrets: bool = False, no_pii: bool = False,
-                             no_threats: bool = False,
-                             redact_strategy: str = "blackout") -> Dict:
+def _sanitize_image_to_path(
+    input_path: str,
+    output_path: str,
+    no_secrets: bool = False,
+    no_pii: bool = False,
+    no_threats: bool = False,
+    redact_strategy: str = "blackout",
+) -> Dict:
     """Sanitize an image file writing to output_path. Returns stats dict."""
     try:
         from ai_guardian.image_scanner import (
-            ImageRedactor, scan_image, TextRegion,
+            ImageRedactor,
+            scan_image,
+            TextRegion,
         )
     except ImportError:
         shutil.copy2(input_path, output_path)
@@ -390,16 +551,18 @@ def _sanitize_image_to_path(input_path: str, output_path: str,
 
     regions_to_redact: List = []
     for region in result.text_regions:
-        san = sanitize_text(region.text, no_secrets=no_secrets,
-                            no_pii=no_pii, no_threats=no_threats)
+        san = sanitize_text(
+            region.text, no_secrets=no_secrets, no_pii=no_pii, no_threats=no_threats
+        )
         if san["stats"]["total"] > 0:
             regions_to_redact.append(region)
             for key in ("secrets", "pii", "prompt_injection", "unicode"):
                 stats[key] += san["stats"][key]
 
     for qr_text in result.qr_texts:
-        san = sanitize_text(qr_text, no_secrets=no_secrets,
-                            no_pii=no_pii, no_threats=no_threats)
+        san = sanitize_text(
+            qr_text, no_secrets=no_secrets, no_pii=no_pii, no_threats=no_threats
+        )
         for key in ("secrets", "pii", "prompt_injection", "unicode"):
             stats[key] += san["stats"][key]
 
@@ -408,12 +571,22 @@ def _sanitize_image_to_path(input_path: str, output_path: str,
         return stats
 
     ext = os.path.splitext(input_path)[1].lower()
-    fmt_map = {".png": "PNG", ".jpg": "JPEG", ".jpeg": "JPEG", ".bmp": "BMP",
-               ".tiff": "TIFF", ".tif": "TIFF", ".webp": "WEBP", ".gif": "GIF"}
+    fmt_map = {
+        ".png": "PNG",
+        ".jpg": "JPEG",
+        ".jpeg": "JPEG",
+        ".bmp": "BMP",
+        ".tiff": "TIFF",
+        ".tif": "TIFF",
+        ".webp": "WEBP",
+        ".gif": "GIF",
+    }
     output_format = fmt_map.get(ext, "PNG")
 
     redactor = ImageRedactor(method=redact_strategy)
-    redacted_bytes = redactor.redact_regions(image_data, regions_to_redact, output_format=output_format)
+    redacted_bytes = redactor.redact_regions(
+        image_data, regions_to_redact, output_format=output_format
+    )
     _write_bytes(redacted_bytes, output_path)
 
     return stats
@@ -423,10 +596,16 @@ def _sanitize_image(input_path: str, args) -> int:
     """Sanitize an image file: OCR text regions, redact those containing secrets/PII."""
     try:
         from ai_guardian.image_scanner import (
-            ImageRedactor, OCREngine, scan_image, TextRegion,
+            ImageRedactor,
+            OCREngine,
+            scan_image,
+            TextRegion,
         )
     except ImportError:
-        print("Error: Image scanning dependencies not available (rapidocr-onnxruntime, Pillow).", file=sys.stderr)
+        print(
+            "Error: Image scanning dependencies not available (rapidocr-onnxruntime, Pillow).",
+            file=sys.stderr,
+        )
         return 1
 
     try:
@@ -454,7 +633,13 @@ def _sanitize_image(input_path: str, args) -> int:
         return 0
 
     regions_to_redact: List[TextRegion] = []
-    total_stats = {"secrets": 0, "pii": 0, "prompt_injection": 0, "unicode": 0, "total": 0}
+    total_stats = {
+        "secrets": 0,
+        "pii": 0,
+        "prompt_injection": 0,
+        "unicode": 0,
+        "total": 0,
+    }
 
     for region in result.text_regions:
         san = sanitize_text(
@@ -469,12 +654,19 @@ def _sanitize_image(input_path: str, args) -> int:
                 total_stats[key] += san["stats"][key]
 
     for qr_text in result.qr_texts:
-        san = sanitize_text(qr_text, no_secrets=args.no_secrets, no_pii=args.no_pii, no_threats=args.no_threats)
+        san = sanitize_text(
+            qr_text,
+            no_secrets=args.no_secrets,
+            no_pii=args.no_pii,
+            no_threats=args.no_threats,
+        )
         if san["stats"]["total"] > 0:
             for key in ("secrets", "pii", "prompt_injection", "unicode"):
                 total_stats[key] += san["stats"][key]
 
-    total_stats["total"] = sum(total_stats[k] for k in ("secrets", "pii", "prompt_injection", "unicode"))
+    total_stats["total"] = sum(
+        total_stats[k] for k in ("secrets", "pii", "prompt_injection", "unicode")
+    )
 
     if not regions_to_redact:
         _write_bytes(image_data, output_path)
@@ -486,14 +678,25 @@ def _sanitize_image(input_path: str, args) -> int:
         return 0
 
     import os
+
     ext = os.path.splitext(input_path)[1].lower()
-    fmt_map = {".png": "PNG", ".jpg": "JPEG", ".jpeg": "JPEG", ".bmp": "BMP",
-               ".tiff": "TIFF", ".tif": "TIFF", ".webp": "WEBP", ".gif": "GIF"}
+    fmt_map = {
+        ".png": "PNG",
+        ".jpg": "JPEG",
+        ".jpeg": "JPEG",
+        ".bmp": "BMP",
+        ".tiff": "TIFF",
+        ".tif": "TIFF",
+        ".webp": "WEBP",
+        ".gif": "GIF",
+    }
     output_format = fmt_map.get(ext, "PNG")
 
     strategy = getattr(args, "redact_strategy", "blackout") or "blackout"
     redactor = ImageRedactor(method=strategy)
-    redacted_bytes = redactor.redact_regions(image_data, regions_to_redact, output_format=output_format)
+    redacted_bytes = redactor.redact_regions(
+        image_data, regions_to_redact, output_format=output_format
+    )
 
     _write_bytes(redacted_bytes, output_path)
 
@@ -523,19 +726,28 @@ def _sanitize_directory_command(args) -> int:
 
     output_dir_str = getattr(args, "output_dir", None)
     if not output_dir_str:
-        print("Error: --output-dir is required when input is a directory.", file=sys.stderr)
+        print(
+            "Error: --output-dir is required when input is a directory.",
+            file=sys.stderr,
+        )
         return 1
 
     output_file = getattr(args, "output", None)
     if output_file:
-        print("Error: Use --output-dir (not -o/--output) for directory input.", file=sys.stderr)
+        print(
+            "Error: Use --output-dir (not -o/--output) for directory input.",
+            file=sys.stderr,
+        )
         return 1
 
     output_dir = Path(output_dir_str).resolve()
 
     try:
         output_dir.relative_to(input_dir)
-        print("Error: Output directory cannot be inside the input directory.", file=sys.stderr)
+        print(
+            "Error: Output directory cannot be inside the input directory.",
+            file=sys.stderr,
+        )
         return 1
     except ValueError:
         pass  # intentionally silent — invalid value uses default
@@ -568,11 +780,20 @@ def _sanitize_directory_command(args) -> int:
         img_redactions = sum(
             d["redactions"] for d in result["file_details"] if d["type"] == "image"
         )
-        print(f"  Text files: {result['text_files']} ({text_redactions} redactions)", file=sys.stderr)
+        print(
+            f"  Text files: {result['text_files']} ({text_redactions} redactions)",
+            file=sys.stderr,
+        )
         if result["image_files"] > 0:
-            print(f"  Image files: {result['image_files']} ({img_redactions} redactions)", file=sys.stderr)
+            print(
+                f"  Image files: {result['image_files']} ({img_redactions} redactions)",
+                file=sys.stderr,
+            )
         if result["binary_files"] > 0:
-            print(f"  Binary files: {result['binary_files']} (copied as-is)", file=sys.stderr)
+            print(
+                f"  Binary files: {result['binary_files']} (copied as-is)",
+                file=sys.stderr,
+            )
         if result["skipped_files"] > 0:
             print(f"  Skipped: {result['skipped_files']}", file=sys.stderr)
         print(f"Output: {output_dir}/", file=sys.stderr)
@@ -581,12 +802,21 @@ def _sanitize_directory_command(args) -> int:
             print(file=sys.stderr)
             for detail in result["file_details"]:
                 if detail["type"] == "image":
-                    _labels = {"blur": "blurred", "blackout": "blacked out", "pixelate": "pixelated"}
-                    strategy = getattr(args, "redact_strategy", "blackout") or "blackout"
+                    _labels = {
+                        "blur": "blurred",
+                        "blackout": "blacked out",
+                        "pixelate": "pixelated",
+                    }
+                    strategy = (
+                        getattr(args, "redact_strategy", "blackout") or "blackout"
+                    )
                     rtype = f"regions {_labels.get(strategy, 'redacted')}"
                 else:
                     rtype = "redacted"
-                print(f"  {detail['file']:<40} ({detail['redactions']} {rtype})", file=sys.stderr)
+                print(
+                    f"  {detail['file']:<40} ({detail['redactions']} {rtype})",
+                    file=sys.stderr,
+                )
 
         if result["errors"]:
             print(f"\nErrors ({len(result['errors'])}):", file=sys.stderr)
@@ -618,13 +848,17 @@ def sanitize_command(args) -> int:
 
     # Reject --output-dir for single file input
     if getattr(args, "output_dir", None):
-        print("Error: --output-dir is only valid when input is a directory.", file=sys.stderr)
+        print(
+            "Error: --output-dir is only valid when input is a directory.",
+            file=sys.stderr,
+        )
         return 1
 
     # Check if input is an image file
     if hasattr(args, "input") and args.input:
         try:
             from ai_guardian.image_scanner import ImageDetector
+
             if ImageDetector.is_image_file(args.input):
                 return _sanitize_image(args.input, args)
         except ImportError:
@@ -643,7 +877,10 @@ def sanitize_command(args) -> int:
             return 1
     else:
         if sys.stdin.isatty():
-            print("Error: No input provided. Pipe text via stdin or provide a file argument.", file=sys.stderr)
+            print(
+                "Error: No input provided. Pipe text via stdin or provide a file argument.",
+                file=sys.stderr,
+            )
             print("Usage: echo 'text' | ai-guardian sanitize", file=sys.stderr)
             print("   or: ai-guardian sanitize <file>", file=sys.stderr)
             return 1

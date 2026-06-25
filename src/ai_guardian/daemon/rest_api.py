@@ -15,9 +15,15 @@ from http.server import HTTPServer, BaseHTTPRequestHandler
 logger = logging.getLogger(__name__)
 
 
-_VALID_CHECKS = frozenset({
-    "secrets", "pii", "injection", "ssrf", "context_poisoning",
-})
+_VALID_CHECKS = frozenset(
+    {
+        "secrets",
+        "pii",
+        "injection",
+        "ssrf",
+        "context_poisoning",
+    }
+)
 
 _ALL_CHECKS = list(_VALID_CHECKS)
 
@@ -82,15 +88,13 @@ class _RestHandler(BaseHTTPRequestHandler):
         elif path == "/api/ml-status":
             self._send_json(self.server.daemon_state.get_ml_status())
         elif path == "/api/cache-status":
-            self._send_json(
-                self.server.daemon_state.get_project_cache_status()
-            )
+            self._send_json(self.server.daemon_state.get_project_cache_status())
         else:
             self._send_error(404, "Not found")
 
     def _check_auth(self):
         """Check bearer token if the server has one configured."""
-        token = getattr(self.server, 'auth_token', None)
+        token = getattr(self.server, "auth_token", None)
         if not token:
             return True
         auth_header = self.headers.get("Authorization", "")
@@ -128,7 +132,9 @@ class _RestHandler(BaseHTTPRequestHandler):
                 self._send_error(400, "minutes must be a number between 0 and 1440")
                 return
             self.server.daemon_state.pause_dir(directory, minutes)
-            self._send_json({"status": "dir_paused", "dir": directory, "minutes": minutes})
+            self._send_json(
+                {"status": "dir_paused", "dir": directory, "minutes": minutes}
+            )
         elif self.path == "/api/resume_dir":
             body = self._read_body()
             if body is None:
@@ -153,12 +159,14 @@ class _RestHandler(BaseHTTPRequestHandler):
             manager = self.server.daemon_state.get_ml_engine_manager()
             if manager is None:
                 ml_status = self.server.daemon_state.get_ml_status()
-                self._send_json({
-                    "available": False,
-                    "error": ml_status.get(
-                        "ml_load_error", "ML model not available"
-                    ),
-                })
+                self._send_json(
+                    {
+                        "available": False,
+                        "error": ml_status.get(
+                            "ml_load_error", "ML model not available"
+                        ),
+                    }
+                )
             else:
                 result = manager.detect(content)
                 self._send_json(result)
@@ -238,6 +246,7 @@ class _RestHandler(BaseHTTPRequestHandler):
         """Get instance name from current config, falling back to startup value."""
         try:
             from ai_guardian.config_loaders import _load_config_file
+
             cfg, _ = _load_config_file()
             if cfg:
                 name = cfg.get("name")
@@ -245,18 +254,20 @@ class _RestHandler(BaseHTTPRequestHandler):
                     return name
         except Exception:
             pass  # intentionally silent — optional dependency
-        return getattr(self.server, 'instance_name', None) or "ai-guardian"
+        return getattr(self.server, "instance_name", None) or "ai-guardian"
 
     @staticmethod
     def _get_menu_tags():
         """Get menu_tags from current config for plugin filtering."""
         from ai_guardian.daemon import get_local_menu_tags
+
         return get_local_menu_tags()
 
     @staticmethod
     def _get_about():
         try:
             from ai_guardian.daemon.about import get_about_info
+
             return get_about_info()
         except Exception as e:
             logger.debug("Failed to get about info: %s", e)
@@ -264,8 +275,12 @@ class _RestHandler(BaseHTTPRequestHandler):
 
     def _get_tray_plugins(self):
         try:
-            from ai_guardian.daemon.tray_plugins import load_merged_plugins, plugins_to_dict
+            from ai_guardian.daemon.tray_plugins import (
+                load_merged_plugins,
+                plugins_to_dict,
+            )
             from ai_guardian.daemon.working_dir import get_working_dir
+
             name = self._get_instance_name()
             working_dir = get_working_dir(name)
             return plugins_to_dict(load_merged_plugins(working_dir))
@@ -277,6 +292,7 @@ class _RestHandler(BaseHTTPRequestHandler):
     def _get_config():
         try:
             from ai_guardian.daemon.multi_client import MultiDaemonClient
+
             return MultiDaemonClient._local_config()
         except Exception as e:
             logger.debug("Failed to get config: %s", e)
@@ -288,6 +304,7 @@ class _RestHandler(BaseHTTPRequestHandler):
             return _RestHandler._get_config()
         try:
             from ai_guardian.config_writer import load_scoped_config
+
             return load_scoped_config(scope, project_dir)
         except Exception as e:
             logger.debug("Failed to get scoped config: %s", e)
@@ -297,6 +314,7 @@ class _RestHandler(BaseHTTPRequestHandler):
     def _get_config_provenance(project_dir=None):
         try:
             from ai_guardian.config_writer import compute_provenance
+
             return compute_provenance(project_dir)
         except Exception as e:
             logger.debug("Failed to compute provenance: %s", e)
@@ -321,6 +339,7 @@ class _RestHandler(BaseHTTPRequestHandler):
 
         try:
             from ai_guardian.config_writer import write_scoped_config
+
             success, msg = write_scoped_config(scope, section, key, value, project_dir)
             if success:
                 self.server.daemon_state.force_reload_config()
@@ -342,6 +361,7 @@ class _RestHandler(BaseHTTPRequestHandler):
 
         try:
             from ai_guardian.config_writer import delete_project_override
+
             success, msg = delete_project_override(section, key, project_dir)
             if success:
                 self.server.daemon_state.force_reload_config()
@@ -356,6 +376,7 @@ class _RestHandler(BaseHTTPRequestHandler):
     def _get_violations(limit, violation_type):
         try:
             from ai_guardian.daemon.multi_client import MultiDaemonClient
+
             return MultiDaemonClient._local_violations(limit, violation_type)
         except Exception as e:
             logger.debug("Failed to get violations: %s", e)
@@ -365,6 +386,7 @@ class _RestHandler(BaseHTTPRequestHandler):
     def _get_metrics(since_days):
         try:
             from ai_guardian.daemon.multi_client import MultiDaemonClient
+
             return MultiDaemonClient._local_metrics(since_days)
         except Exception as e:
             logger.debug("Failed to get metrics: %s", e)
@@ -380,7 +402,10 @@ class _RestHandler(BaseHTTPRequestHandler):
     def _get_audit(since, until, violation_type, severity):
         try:
             from ai_guardian.daemon.multi_client import MultiDaemonClient
-            return MultiDaemonClient._local_audit(since, until, violation_type, severity)
+
+            return MultiDaemonClient._local_audit(
+                since, until, violation_type, severity
+            )
         except Exception as e:
             logger.debug("Failed to get audit: %s", e)
             return {"summary": {"total": 0}, "security_posture": "UNKNOWN"}
@@ -389,6 +414,7 @@ class _RestHandler(BaseHTTPRequestHandler):
     def _get_version():
         try:
             from ai_guardian import __version__
+
             return __version__
         except ImportError:
             return "unknown"
@@ -399,6 +425,7 @@ class _RestHandler(BaseHTTPRequestHandler):
     def _handle_check(self, body):
         """Handle POST /api/check — content security scanning."""
         import time as _time
+
         content = body.get("content", "")
         if not content:
             self._send_error(400, "content is required")
@@ -411,8 +438,9 @@ class _RestHandler(BaseHTTPRequestHandler):
         invalid = set(checks) - _VALID_CHECKS
         if invalid:
             self._send_error(
-                400, f"Invalid checks: {', '.join(sorted(invalid))}. "
-                     f"Valid: {', '.join(sorted(_VALID_CHECKS))}"
+                400,
+                f"Invalid checks: {', '.join(sorted(invalid))}. "
+                f"Valid: {', '.join(sorted(_VALID_CHECKS))}",
             )
             return
 
@@ -425,6 +453,7 @@ class _RestHandler(BaseHTTPRequestHandler):
 
         try:
             from ai_guardian.sdk import _DirectSession
+
             cfg = self.server.daemon_state.get_config()
             session = _DirectSession(action="log", config=cfg)
 
@@ -433,11 +462,13 @@ class _RestHandler(BaseHTTPRequestHandler):
             if "secrets" in checks or "pii" in checks:
                 result = session.check_content(content, filename="input")
                 if result.detected:
-                    findings.append({
-                        "type": result.violation_type,
-                        "message": result.message,
-                        "action_taken": action,
-                    })
+                    findings.append(
+                        {
+                            "type": result.violation_type,
+                            "message": result.message,
+                            "action_taken": action,
+                        }
+                    )
 
             if "injection" in checks:
                 pi_cfg = cfg.get("prompt_injection", {})
@@ -446,17 +477,21 @@ class _RestHandler(BaseHTTPRequestHandler):
                         from ai_guardian.prompt_injection import (
                             check_prompt_injection,
                         )
+
                         should_block, msg, detected = check_prompt_injection(
-                            content, cfg,
+                            content,
+                            cfg,
                         )
                         if detected and not any(
                             f["type"] == "prompt_injection" for f in findings
                         ):
-                            findings.append({
-                                "type": "prompt_injection",
-                                "message": msg,
-                                "action_taken": action,
-                            })
+                            findings.append(
+                                {
+                                    "type": "prompt_injection",
+                                    "message": msg,
+                                    "action_taken": action,
+                                }
+                            )
                     except Exception as e:
                         logger.warning("Prompt injection check failed: %s", e)
 
@@ -467,17 +502,21 @@ class _RestHandler(BaseHTTPRequestHandler):
                         from ai_guardian.context_poisoning import (
                             check_context_poisoning,
                         )
+
                         should_block, msg, detected = check_context_poisoning(
-                            content, cfg,
+                            content,
+                            cfg,
                         )
                         if detected and not any(
                             f["type"] == "context_poisoning" for f in findings
                         ):
-                            findings.append({
-                                "type": "context_poisoning",
-                                "message": msg,
-                                "action_taken": action,
-                            })
+                            findings.append(
+                                {
+                                    "type": "context_poisoning",
+                                    "message": msg,
+                                    "action_taken": action,
+                                }
+                            )
                     except Exception as e:
                         logger.warning("Context poisoning check failed: %s", e)
 
@@ -485,20 +524,25 @@ class _RestHandler(BaseHTTPRequestHandler):
             if findings:
                 try:
                     from ai_guardian.sanitizer import sanitize_text
+
                     san_result = sanitize_text(content)
-                    redacted = san_result.get("sanitized_text") or san_result.get("redacted")
+                    redacted = san_result.get("sanitized_text") or san_result.get(
+                        "redacted"
+                    )
                 except Exception as e:
                     logger.warning("Sanitization failed: %s", e)
                     redacted = None
 
             elapsed = (_time.monotonic() - t0) * 1000
 
-            self._send_json({
-                "clean": len(findings) == 0,
-                "findings": findings,
-                "redacted": redacted,
-                "elapsed_ms": round(elapsed, 1),
-            })
+            self._send_json(
+                {
+                    "clean": len(findings) == 0,
+                    "findings": findings,
+                    "redacted": redacted,
+                    "elapsed_ms": round(elapsed, 1),
+                }
+            )
         except Exception as e:
             logger.error("Check endpoint failed: %s", e)
             self._send_error(500, "Internal error")
@@ -531,10 +575,21 @@ class _RestHandler(BaseHTTPRequestHandler):
         )
         self._send_json(result)
 
-    _BLOCKED_SCAN_DIRS = frozenset([
-        "/etc", "/usr", "/bin", "/sbin", "/var", "/sys", "/proc", "/dev",
-        "/boot", "/lib", "/lib64",
-    ])
+    _BLOCKED_SCAN_DIRS = frozenset(
+        [
+            "/etc",
+            "/usr",
+            "/bin",
+            "/sbin",
+            "/var",
+            "/sys",
+            "/proc",
+            "/dev",
+            "/boot",
+            "/lib",
+            "/lib64",
+        ]
+    )
 
     def _handle_scan(self, body):
         """Handle POST /api/scan — file/directory security scanning."""
@@ -570,18 +625,18 @@ class _RestHandler(BaseHTTPRequestHandler):
 
             base = resolved if resolved.is_dir() else resolved.parent
             for f in findings:
-                f["config_section"] = config_section_for_rule_id(
-                    f.get("rule_id", "")
-                )
+                f["config_section"] = config_section_for_rule_id(f.get("rule_id", ""))
                 fp = f.get("file_path", "")
                 if fp and not _Path(fp).is_absolute():
                     f["file_path"] = str(base / fp)
 
-            self._send_json({
-                "findings": findings,
-                "scanned_files": len(findings),
-                "scan_time_ms": elapsed_ms,
-            })
+            self._send_json(
+                {
+                    "findings": findings,
+                    "scanned_files": len(findings),
+                    "scan_time_ms": elapsed_ms,
+                }
+            )
         except Exception as e:
             logger.error("Scan endpoint failed: %s", e)
             self._send_error(500, "Internal error during scan")
@@ -640,24 +695,32 @@ class _RestHandler(BaseHTTPRequestHandler):
 
         if result is None:
             decision = _map_fallback_to_decision(fallback)
-            self._send_json({
-                "decision": decision.value,
-                "allowlist_pattern": None,
-                "config_saved": False,
-                "config_path": None,
-                "source": "fallback",
-            })
+            self._send_json(
+                {
+                    "decision": decision.value,
+                    "allowlist_pattern": None,
+                    "config_saved": False,
+                    "config_path": None,
+                    "source": "fallback",
+                }
+            )
         else:
-            self._send_json({
-                "decision": result.decision.value,
-                "allowlist_pattern": result.allowlist_pattern,
-                "config_saved": getattr(result, 'config_saved', False),
-                "config_path": getattr(result, 'config_path', None),
-                "source_annotation_saved": getattr(result, 'source_annotation_saved', False),
-                "ignore_path": getattr(result, 'ignore_path', None),
-                "ignore_scanner_types": getattr(result, 'ignore_scanner_types', None),
-                "source": "daemon",
-            })
+            self._send_json(
+                {
+                    "decision": result.decision.value,
+                    "allowlist_pattern": result.allowlist_pattern,
+                    "config_saved": getattr(result, "config_saved", False),
+                    "config_path": getattr(result, "config_path", None),
+                    "source_annotation_saved": getattr(
+                        result, "source_annotation_saved", False
+                    ),
+                    "ignore_path": getattr(result, "ignore_path", None),
+                    "ignore_scanner_types": getattr(
+                        result, "ignore_scanner_types", None
+                    ),
+                    "source": "daemon",
+                }
+            )
 
     def _handle_redact(self, body):
         """Handle POST /api/redact — text sanitization."""
@@ -667,10 +730,13 @@ class _RestHandler(BaseHTTPRequestHandler):
             return
         try:
             from ai_guardian.sanitizer import sanitize_text
+
             result = sanitize_text(content)
             redacted = result.get("sanitized_text") or result.get("redacted")
             if redacted is None:
-                logger.error("Sanitizer returned unexpected structure: %s", list(result.keys()))
+                logger.error(
+                    "Sanitizer returned unexpected structure: %s", list(result.keys())
+                )
                 self._send_error(500, "Internal error")
                 return
             stats = result.get("stats", {})
@@ -679,10 +745,12 @@ class _RestHandler(BaseHTTPRequestHandler):
                 redactions = result.get("redactions", [])
                 if isinstance(redactions, list):
                     count = len(redactions)
-            self._send_json({
-                "redacted": redacted,
-                "redaction_count": count,
-            })
+            self._send_json(
+                {
+                    "redacted": redacted,
+                    "redaction_count": count,
+                }
+            )
         except Exception as e:
             logger.error("Redact endpoint failed: %s", e)
             self._send_error(500, "Internal error")
@@ -759,9 +827,7 @@ class DaemonRestAPI:
         )
         self._thread.start()
 
-        logger.info(
-            "REST API listening on %s:%d", self._host, actual_port
-        )
+        logger.info("REST API listening on %s:%d", self._host, actual_port)
         return actual_port
 
     def stop(self):

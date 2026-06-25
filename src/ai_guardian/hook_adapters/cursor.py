@@ -23,6 +23,7 @@ class CursorAdapter(HookAdapter):
     @property
     def ide_type(self):
         from ai_guardian.response_format import IDEType
+
         return IDEType.CURSOR
 
     @property
@@ -100,7 +101,9 @@ class CursorAdapter(HookAdapter):
         if hook_event == HookEvent.PRE_TOOL_USE:
             response = {"permission": "deny" if has_secrets else "allow"}
             if has_secrets:
-                final_error = self._combine_error_messages(error_message, warning_message)
+                final_error = self._combine_error_messages(
+                    error_message, warning_message
+                )
                 if final_error:
                     response["user_message"] = final_error
                 response["agent_message"] = self._sanitize_block_reason(violation_type)
@@ -115,7 +118,9 @@ class CursorAdapter(HookAdapter):
         else:
             response = {"continue": not has_secrets}
             if has_secrets:
-                final_error = self._combine_error_messages(error_message, warning_message)
+                final_error = self._combine_error_messages(
+                    error_message, warning_message
+                )
                 if final_error:
                     response["user_message"] = final_error
             else:

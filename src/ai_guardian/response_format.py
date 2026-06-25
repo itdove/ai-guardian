@@ -9,7 +9,6 @@ to the hook_adapters package. New code should use the adapter API directly.
 """
 
 import logging
-import os
 from enum import Enum
 
 from ai_guardian.constants import HookEvent
@@ -30,6 +29,7 @@ _SECURITY_SYSTEM_MESSAGE = (
 
 class IDEType(Enum):
     """Supported IDE types with different output formats."""
+
     CLAUDE_CODE = "claude_code"  # Exit codes: 0=allow, 2=block
     CURSOR = "cursor"  # JSON: {"continue": bool, "user_message": str}
     GITHUB_COPILOT = "github_copilot"  # JSON: {"permissionDecision": "allow"|"deny"}
@@ -53,10 +53,20 @@ def detect_ide_type(hook_data):
         IDEType: The detected IDE type
     """
     from ai_guardian.hook_adapters import detect_adapter
+
     return detect_adapter(hook_data).ide_type
 
 
-def format_response(ide_type, has_secrets, error_message=None, hook_event=HookEvent.PROMPT, warning_message=None, modified_output=None, violation_type=None, security_message=None):
+def format_response(
+    ide_type,
+    has_secrets,
+    error_message=None,
+    hook_event=HookEvent.PROMPT,
+    warning_message=None,
+    modified_output=None,
+    violation_type=None,
+    security_message=None,
+):
     """
     Format the response based on IDE type and hook event.
 
@@ -78,6 +88,7 @@ def format_response(ide_type, has_secrets, error_message=None, hook_event=HookEv
         daemon metadata: '_blocked' (True when has_secrets=True)
     """
     from ai_guardian.hook_adapters import get_adapter_by_ide_type
+
     adapter = get_adapter_by_ide_type(ide_type)
     return adapter.format_response(
         has_secrets=has_secrets,
@@ -104,6 +115,7 @@ def detect_hook_event(hook_data):
         HookEvent: HookEvent.PROMPT, HookEvent.PRE_TOOL_USE, HookEvent.POST_TOOL_USE, or HookEvent.BEFORE_READ_FILE
     """
     from ai_guardian.hook_adapters import detect_adapter
+
     adapter = detect_adapter(hook_data)
     normalized = adapter.normalize_input(hook_data)
     return normalized.event

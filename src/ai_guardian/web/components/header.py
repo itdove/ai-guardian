@@ -5,62 +5,86 @@ from nicegui import ui
 from ai_guardian import __version__
 
 NAV_GROUPS = [
-    ("Security Overview", [
-        ("Security Dashboard", ""),
-        ("Global Settings", "/settings"),
-        ("Health Check", "/health-check"),
-    ]),
-    ("Monitoring", [
-        ("Violations", "/violations"),
-        ("Violation Logging", "/violation-logging"),
-        ("Metrics & Audit", "/metrics"),
-        ("Performance", "/performance"),
-        ("Logs", "/logs"),
-    ]),
-    ("Permissions", [
-        ("Permission Rules", "/permission-rules"),
-        ("MCP Settings", "/mcp-servers"),
-        ("MCP Security", "/mcp-security"),
-        ("Permissions Discovery", "/permissions-discovery"),
-        ("Auto Directory Rules", "/auto-directory-rules"),
-        ("Directory Rules", "/directory-rules"),
-    ]),
-    ("Secrets", [
-        ("Secret Scanning", "/secrets"),
-        ("Engine Config", "/secret-engines"),
-        ("Secret Redaction", "/secret-redaction"),
-    ]),
-    ("Prompt Injection", [
-        ("Detection", "/pi-detection"),
-        ("ML Engines", "/pi-ml-engines"),
-        ("Patterns", "/pi-patterns"),
-        ("Jailbreak", "/pi-jailbreak"),
-        ("Unicode Detection", "/pi-unicode"),
-    ]),
-    ("Threat Detection", [
-        ("SSRF Protection", "/ssrf"),
-        ("Context Poisoning", "/context-poisoning"),
-        ("Supply Chain", "/supply-chain"),
-        ("Config Scanner", "/config-scanner"),
-        ("PII Detection", "/scan-pii"),
-        ("Annotations", "/annotations"),
-    ]),
-    ("Configuration", [
-        ("Daemon", "/daemon"),
-        ("Config Cache", "/cache-status"),
-        ("Remote Configs", "/remote-configs"),
-        ("Config File", "/config-file"),
-        ("Config Editor", "/config-editor"),
-        ("Console Settings", "/console-settings"),
-        ("Effective Config", "/config-effective"),
-    ]),
-    ("Tools", [
-        ("Detection Patterns", "/detection-patterns"),
-        ("Regex Tester", "/regex-tester"),
-        ("Hook Simulator", "/hook-simulator"),
-        ("Engine Tester", "/engine-tester"),
-        ("Directory Scan", "/directory-scan"),
-    ]),
+    (
+        "Security Overview",
+        [
+            ("Security Dashboard", ""),
+            ("Global Settings", "/settings"),
+            ("Health Check", "/health-check"),
+        ],
+    ),
+    (
+        "Monitoring",
+        [
+            ("Violations", "/violations"),
+            ("Violation Logging", "/violation-logging"),
+            ("Metrics & Audit", "/metrics"),
+            ("Performance", "/performance"),
+            ("Logs", "/logs"),
+        ],
+    ),
+    (
+        "Permissions",
+        [
+            ("Permission Rules", "/permission-rules"),
+            ("MCP Settings", "/mcp-servers"),
+            ("MCP Security", "/mcp-security"),
+            ("Permissions Discovery", "/permissions-discovery"),
+            ("Auto Directory Rules", "/auto-directory-rules"),
+            ("Directory Rules", "/directory-rules"),
+        ],
+    ),
+    (
+        "Secrets",
+        [
+            ("Secret Scanning", "/secrets"),
+            ("Engine Config", "/secret-engines"),
+            ("Secret Redaction", "/secret-redaction"),
+        ],
+    ),
+    (
+        "Prompt Injection",
+        [
+            ("Detection", "/pi-detection"),
+            ("ML Engines", "/pi-ml-engines"),
+            ("Patterns", "/pi-patterns"),
+            ("Jailbreak", "/pi-jailbreak"),
+            ("Unicode Detection", "/pi-unicode"),
+        ],
+    ),
+    (
+        "Threat Detection",
+        [
+            ("SSRF Protection", "/ssrf"),
+            ("Context Poisoning", "/context-poisoning"),
+            ("Supply Chain", "/supply-chain"),
+            ("Config Scanner", "/config-scanner"),
+            ("PII Detection", "/scan-pii"),
+            ("Annotations", "/annotations"),
+        ],
+    ),
+    (
+        "Configuration",
+        [
+            ("Daemon", "/daemon"),
+            ("Config Cache", "/cache-status"),
+            ("Remote Configs", "/remote-configs"),
+            ("Config File", "/config-file"),
+            ("Config Editor", "/config-editor"),
+            ("Console Settings", "/console-settings"),
+            ("Effective Config", "/config-effective"),
+        ],
+    ),
+    (
+        "Tools",
+        [
+            ("Detection Patterns", "/detection-patterns"),
+            ("Regex Tester", "/regex-tester"),
+            ("Hook Simulator", "/hook-simulator"),
+            ("Engine Tester", "/engine-tester"),
+            ("Directory Scan", "/directory-scan"),
+        ],
+    ),
 ]
 
 
@@ -75,6 +99,7 @@ def _build_search_index(prefix):
 
     try:
         from ai_guardian.web.pages.global_settings import FEATURE_GROUPS
+
         settings_path = f"{prefix}/settings"
         for fg_group, features in FEATURE_GROUPS:
             for config_key, feat_label, feat_desc in features:
@@ -83,8 +108,7 @@ def _build_search_index(prefix):
                 ).lower()
                 feat_path = f"{settings_path}#feature-{config_key}"
                 entries.append(
-                    (search_text, feat_label,
-                     f"Settings › {fg_group}", feat_path)
+                    (search_text, feat_label, f"Settings › {fg_group}", feat_path)
                 )
     except ImportError:
         pass  # intentionally silent — optional dependency
@@ -96,6 +120,7 @@ def _init_scope_state():
     """Initialize scope session state if not set."""
     try:
         from nicegui import app
+
         if "config_scope" not in app.storage.user:
             app.storage.user["config_scope"] = "global"
         if "project_dir" not in app.storage.user:
@@ -122,9 +147,7 @@ def create_header(daemon_name: str = ""):
         with ui.row().classes("gap-2"):
             if daemon_name:
                 prefix = f"/{daemon_name}"
-                ui.link("Dashboard", prefix).classes(
-                    "text-white no-underline"
-                )
+                ui.link("Dashboard", prefix).classes("text-white no-underline")
                 ui.link("Violations", f"{prefix}/violations").classes(
                     "text-white no-underline"
                 )
@@ -132,9 +155,7 @@ def create_header(daemon_name: str = ""):
                     "text-white no-underline"
                 )
             else:
-                ui.link("Select Daemon", "/").classes(
-                    "text-white no-underline"
-                )
+                ui.link("Select Daemon", "/").classes("text-white no-underline")
 
 
 def create_sidebar(daemon_name: str, current: str = ""):
@@ -142,18 +163,25 @@ def create_sidebar(daemon_name: str, current: str = ""):
     prefix = f"/{daemon_name}"
     search_index = _build_search_index(prefix)
 
-    with ui.column().classes("w-56 bg-blue-grey-10 p-2 gap-2").style(
-        "height: calc(100vh - 64px); position: sticky; top: 64px; display: flex; flex-direction: column;"
-    ) as sidebar:
-        search_input = ui.input(placeholder="Search settings...").props(
-            "dense outlined clearable"
-        ).classes("w-full").style(
-            "color: white; --q-color-primary: #78909c;"
+    with (
+        ui.column()
+        .classes("w-56 bg-blue-grey-10 p-2 gap-2")
+        .style(
+            "height: calc(100vh - 64px); position: sticky; top: 64px; display: flex; flex-direction: column;"
+        ) as sidebar
+    ):
+        search_input = (
+            ui.input(placeholder="Search settings...")
+            .props("dense outlined clearable")
+            .classes("w-full")
+            .style("color: white; --q-color-primary: #78909c;")
         )
 
         # Scrollable container for navigation
-        nav_container = ui.column().classes("w-full gap-0 overflow-y-auto").style(
-            "flex: 1; min-height: 0;"
+        nav_container = (
+            ui.column()
+            .classes("w-full gap-0 overflow-y-auto")
+            .style("flex: 1; min-height: 0;")
         )
         active_link = None
         with nav_container:
@@ -174,20 +202,22 @@ def create_sidebar(daemon_name: str, current: str = ""):
 
         # Scroll active item into view after page loads
         if active_link:
-            ui.run_javascript(f'''
-                setTimeout(() => {{
+            ui.run_javascript("""
+                setTimeout(() => {
                     const activeLink = document.querySelector('.bg-blue-grey-8');
-                    if (activeLink) {{
-                        activeLink.scrollIntoView({{
+                    if (activeLink) {
+                        activeLink.scrollIntoView({
                             behavior: 'smooth',
                             block: 'center'
-                        }});
-                    }}
-                }}, 100);
-            ''')
+                        });
+                    }
+                }, 100);
+            """)
 
-        results_container = ui.column().classes("w-full gap-0 overflow-y-auto").style(
-            "flex: 1; min-height: 0;"
+        results_container = (
+            ui.column()
+            .classes("w-full gap-0 overflow-y-auto")
+            .style("flex: 1; min-height: 0;")
         )
         results_container.set_visibility(False)
 
@@ -201,9 +231,7 @@ def create_sidebar(daemon_name: str, current: str = ""):
                     "w-full gap-0 px-1 py-1 rounded hover:bg-blue-grey-9"
                 ) as row:
                     ui.label(group_name).classes("text-xs text-grey-7")
-                    link_classes = (
-                        "w-full no-underline text-sm "
-                    )
+                    link_classes = "w-full no-underline text-sm "
                     if current == path:
                         link_classes += "text-white font-bold active-search-result"
                     else:
@@ -218,7 +246,7 @@ def create_sidebar(daemon_name: str, current: str = ""):
                 results_container.set_visibility(False)
                 # Re-scroll to active item in nav when clearing search
                 if active_link:
-                    ui.run_javascript('''
+                    ui.run_javascript("""
                         setTimeout(() => {
                             const activeLink = document.querySelector('.bg-blue-grey-8');
                             if (activeLink) {
@@ -228,7 +256,7 @@ def create_sidebar(daemon_name: str, current: str = ""):
                                 });
                             }
                         }, 100);
-                    ''')
+                    """)
                 return
 
             nav_container.set_visibility(False)
@@ -244,7 +272,7 @@ def create_sidebar(daemon_name: str, current: str = ""):
             no_results_label.set_visibility(not any_visible)
 
             # Scroll to active item in search results if present
-            ui.run_javascript('''
+            ui.run_javascript("""
                 setTimeout(() => {
                     const activeResult = document.querySelector('.active-search-result');
                     if (activeResult && activeResult.closest('[style*="display: none"]') === null) {
@@ -254,7 +282,7 @@ def create_sidebar(daemon_name: str, current: str = ""):
                         });
                     }
                 }, 100);
-            ''')
+            """)
 
         search_input.on_value_change(on_search)
 
@@ -263,6 +291,7 @@ def _create_scope_toggle():
     """Create the Global/Project scope toggle in the header."""
     try:
         from nicegui import app
+
         current = app.storage.user.get("config_scope", "global")
     except Exception:
         current = "global"
@@ -271,21 +300,26 @@ def _create_scope_toggle():
         ui.label("|").classes("text-grey-6")
         ui.label("Scope:").classes("text-grey-4 text-xs")
 
-        scope_toggle = ui.toggle(
-            {
-                "global": "Global",
-                "project": "Project",
-            },
-            value=current,
-        ).props("dense size=sm color=blue-grey-6 text-color=white toggle-color=blue-6").classes(
-            "text-xs"
+        scope_toggle = (
+            ui.toggle(
+                {
+                    "global": "Global",
+                    "project": "Project",
+                },
+                value=current,
+            )
+            .props(
+                "dense size=sm color=blue-grey-6 text-color=white toggle-color=blue-6"
+            )
+            .classes("text-xs")
         )
 
         async def on_scope_change(e):
             try:
                 from nicegui import app as _app
+
                 _app.storage.user["config_scope"] = e.value
-                await ui.run_javascript('location.reload()')
+                await ui.run_javascript("location.reload()")
             except Exception:
                 pass  # intentionally silent — optional dependency
 

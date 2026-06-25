@@ -60,6 +60,7 @@ def _parse_enabled(raw):
 def _load_cp_stats():
     try:
         from ai_guardian.violation_logger import ViolationLogger
+
         vl = ViolationLogger()
         violations = vl.get_recent_violations(
             limit=1000, violation_type="context_poisoning"
@@ -71,15 +72,18 @@ def _load_cp_stats():
         return None
 
 
-def _render_toggle(label, desc, is_temp, until_dt, reason, is_enabled,
-                   save_fn, refresh_fn):
+def _render_toggle(
+    label, desc, is_temp, until_dt, reason, is_enabled, save_fn, refresh_fn
+):
     with ui.card().classes("w-full"):
         if is_temp and until_dt:
             remaining = _format_remaining(until_dt)
             with ui.row().classes("items-center gap-2 w-full"):
                 ui.icon("timer").classes("text-amber")
                 ui.label(label).classes("font-bold text-sm flex-grow")
-                ui.badge(f"TEMP DISABLED — {remaining}", color="amber").classes("text-xs")
+                ui.badge(f"TEMP DISABLED — {remaining}", color="amber").classes(
+                    "text-xs"
+                )
             ui.label(desc).classes("text-xs text-grey-6 ml-8")
             if reason:
                 ui.label(f"Reason: {reason}").classes("text-xs text-grey-7 ml-8")
@@ -89,8 +93,9 @@ def _render_toggle(label, desc, is_temp, until_dt, reason, is_enabled,
                 ui.notify(f"{label} re-enabled", type="positive")
                 await refresh_fn()
 
-            ui.button("Re-enable Now", icon="play_arrow", color="green",
-                      on_click=do_reenable).props("dense size=sm").classes("ml-8")
+            ui.button(
+                "Re-enable Now", icon="play_arrow", color="green", on_click=do_reenable
+            ).props("dense size=sm").classes("ml-8")
         else:
             with ui.row().classes("items-center gap-2 w-full"):
                 sw = ui.switch(label, value=bool(is_enabled)).classes("flex-grow")
@@ -106,24 +111,40 @@ def _render_toggle(label, desc, is_temp, until_dt, reason, is_enabled,
                 sw.on_value_change(on_toggle)
 
             with ui.row().classes("items-center gap-2 ml-8"):
-                dur = ui.input(placeholder="e.g. 30m, 2h, 1d").props("dense outlined").classes("w-32")
-                rsn = ui.input(placeholder="Reason").props("dense outlined").classes("w-40")
+                dur = (
+                    ui.input(placeholder="e.g. 30m, 2h, 1d")
+                    .props("dense outlined")
+                    .classes("w-32")
+                )
+                rsn = (
+                    ui.input(placeholder="Reason")
+                    .props("dense outlined")
+                    .classes("w-40")
+                )
 
                 async def do_temp(d=dur, r=rsn):
                     delta = _parse_duration(d.value or "30m")
                     if not delta:
-                        ui.notify("Invalid duration (e.g. 30m, 2h, 1d)", type="negative")
+                        ui.notify(
+                            "Invalid duration (e.g. 30m, 2h, 1d)", type="negative"
+                        )
                         return
-                    until_ts = (datetime.now(timezone.utc) + delta).strftime("%Y-%m-%dT%H:%M:%SZ")
+                    until_ts = (datetime.now(timezone.utc) + delta).strftime(
+                        "%Y-%m-%dT%H:%M:%SZ"
+                    )
                     entry = {"value": False, "disabled_until": until_ts}
                     rv = r.value.strip()
                     if rv:
                         entry["reason"] = rv
                     await run.io_bound(save_fn, entry)
-                    ui.notify(f"{label} temp disabled for {d.value or '30m'}", type="warning")
+                    ui.notify(
+                        f"{label} temp disabled for {d.value or '30m'}", type="warning"
+                    )
                     await refresh_fn()
 
-                ui.button("Temp Disable", icon="timer", on_click=do_temp).props("dense size=sm")
+                ui.button("Temp Disable", icon="timer", on_click=do_temp).props(
+                    "dense size=sm"
+                )
 
 
 def create_context_poisoning_page(service, daemon_name: str):
@@ -166,8 +187,12 @@ def create_context_poisoning_page(service, daemon_name: str):
                     _render_toggle(
                         "Context Poisoning Detection",
                         "Detect attempts to inject persistent malicious instructions into conversation context.",
-                        is_temp, until_dt, reason, is_enabled,
-                        save_enabled, refresh,
+                        is_temp,
+                        until_dt,
+                        reason,
+                        is_enabled,
+                        save_enabled,
+                        refresh,
                     )
 
                     with ui.card().classes("w-full"):
@@ -202,9 +227,9 @@ def create_context_poisoning_page(service, daemon_name: str):
 
                     with ui.card().classes("w-full"):
                         ui.label("Sensitivity").classes("text-lg font-bold")
-                        ui.label(
-                            "Set the detection sensitivity level."
-                        ).classes("text-xs text-grey-6")
+                        ui.label("Set the detection sensitivity level.").classes(
+                            "text-xs text-grey-6"
+                        )
                         sensitivity = cp.get("sensitivity", "medium")
                         sens_sel = ui.select(
                             options={
@@ -236,12 +261,16 @@ def create_context_poisoning_page(service, daemon_name: str):
                         allowlist = cp.get("allowlist_patterns", [])
                         if allowlist:
                             for idx, pat in enumerate(allowlist):
-                                display = pat if isinstance(pat, str) else pat.get("pattern", str(pat))
+                                display = (
+                                    pat
+                                    if isinstance(pat, str)
+                                    else pat.get("pattern", str(pat))
+                                )
                                 with ui.row().classes("items-center gap-2 w-full"):
                                     ui.icon("rule").classes("text-blue-4")
-                                    ui.label(display).classes("flex-grow text-sm").style(
-                                        "font-family: monospace"
-                                    )
+                                    ui.label(display).classes(
+                                        "flex-grow text-sm"
+                                    ).style("font-family: monospace")
 
                                     async def remove_pattern(i=idx):
                                         cfg = await run.io_bound(load_web_config)
@@ -254,19 +283,27 @@ def create_context_poisoning_page(service, daemon_name: str):
                                             sect["allowlist_patterns"] = items
                                             cfg["context_poisoning"] = sect
                                             await run.io_bound(save_web_config, cfg)
-                                            ui.notify("Pattern removed", type="positive")
+                                            ui.notify(
+                                                "Pattern removed", type="positive"
+                                            )
                                             await refresh()
 
                                     ui.button(
-                                        icon="delete", on_click=remove_pattern, color="red"
+                                        icon="delete",
+                                        on_click=remove_pattern,
+                                        color="red",
                                     ).props("flat dense size=sm")
                         else:
-                            ui.label("No allowlist patterns.").classes("text-grey-6 text-sm")
+                            ui.label("No allowlist patterns.").classes(
+                                "text-grey-6 text-sm"
+                            )
 
                         with ui.row().classes("items-center gap-2 mt-2"):
-                            al_input = ui.input(
-                                placeholder="e.g. remember.*validate"
-                            ).props("dense outlined").classes("flex-grow")
+                            al_input = (
+                                ui.input(placeholder="e.g. remember.*validate")
+                                .props("dense outlined")
+                                .classes("flex-grow")
+                            )
 
                             async def add_allowlist():
                                 val = al_input.value.strip()
@@ -289,7 +326,9 @@ def create_context_poisoning_page(service, daemon_name: str):
                                 ui.notify(f"Added: {val}", type="positive")
                                 await refresh()
 
-                            ui.button("Add", icon="add", on_click=add_allowlist).props("dense")
+                            ui.button("Add", icon="add", on_click=add_allowlist).props(
+                                "dense"
+                            )
 
                     with ui.card().classes("w-full"):
                         ui.label("Custom Patterns").classes("text-lg font-bold")
@@ -317,19 +356,27 @@ def create_context_poisoning_page(service, daemon_name: str):
                                             sect["custom_patterns"] = items
                                             cfg["context_poisoning"] = sect
                                             await run.io_bound(save_web_config, cfg)
-                                            ui.notify("Pattern removed", type="positive")
+                                            ui.notify(
+                                                "Pattern removed", type="positive"
+                                            )
                                             await refresh()
 
                                     ui.button(
-                                        icon="delete", on_click=remove_custom, color="red"
+                                        icon="delete",
+                                        on_click=remove_custom,
+                                        color="red",
                                     ).props("flat dense size=sm")
                         else:
-                            ui.label("No custom patterns.").classes("text-grey-6 text-sm")
+                            ui.label("No custom patterns.").classes(
+                                "text-grey-6 text-sm"
+                            )
 
                         with ui.row().classes("items-center gap-2 mt-2"):
-                            cp_input = ui.input(
-                                placeholder="e.g. inject\\s+into\\s+memory"
-                            ).props("dense outlined").classes("flex-grow")
+                            cp_input = (
+                                ui.input(placeholder="e.g. inject\\s+into\\s+memory")
+                                .props("dense outlined")
+                                .classes("flex-grow")
+                            )
 
                             async def add_custom():
                                 val = cp_input.value.strip()
@@ -352,7 +399,9 @@ def create_context_poisoning_page(service, daemon_name: str):
                                 ui.notify(f"Added: {val}", type="positive")
                                 await refresh()
 
-                            ui.button("Add", icon="add", on_click=add_custom).props("dense")
+                            ui.button("Add", icon="add", on_click=add_custom).props(
+                                "dense"
+                            )
 
                     with ui.card().classes("w-full"):
                         ui.label("Ignore Files").classes("text-lg font-bold")
@@ -380,19 +429,27 @@ def create_context_poisoning_page(service, daemon_name: str):
                                             sect["ignore_files"] = items
                                             cfg["context_poisoning"] = sect
                                             await run.io_bound(save_web_config, cfg)
-                                            ui.notify("Pattern removed", type="positive")
+                                            ui.notify(
+                                                "Pattern removed", type="positive"
+                                            )
                                             await refresh()
 
                                     ui.button(
-                                        icon="delete", on_click=remove_ignore_file, color="red"
+                                        icon="delete",
+                                        on_click=remove_ignore_file,
+                                        color="red",
                                     ).props("flat dense size=sm")
                         else:
-                            ui.label("No ignore file patterns.").classes("text-grey-6 text-sm")
+                            ui.label("No ignore file patterns.").classes(
+                                "text-grey-6 text-sm"
+                            )
 
                         with ui.row().classes("items-center gap-2 mt-2"):
-                            if_input = ui.input(
-                                placeholder="e.g. tests/**, docs/*.md"
-                            ).props("dense outlined").classes("flex-grow")
+                            if_input = (
+                                ui.input(placeholder="e.g. tests/**, docs/*.md")
+                                .props("dense outlined")
+                                .classes("flex-grow")
+                            )
 
                             async def add_ignore_file():
                                 val = if_input.value.strip()
@@ -415,7 +472,9 @@ def create_context_poisoning_page(service, daemon_name: str):
                                 ui.notify(f"Added: {val}", type="positive")
                                 await refresh()
 
-                            ui.button("Add", icon="add", on_click=add_ignore_file).props("dense")
+                            ui.button(
+                                "Add", icon="add", on_click=add_ignore_file
+                            ).props("dense")
 
                     with ui.card().classes("w-full"):
                         ui.label("Ignore Tools").classes("text-lg font-bold")
@@ -447,15 +506,19 @@ def create_context_poisoning_page(service, daemon_name: str):
                                             await refresh()
 
                                     ui.button(
-                                        icon="delete", on_click=remove_ignore_tool, color="red"
+                                        icon="delete",
+                                        on_click=remove_ignore_tool,
+                                        color="red",
                                     ).props("flat dense size=sm")
                         else:
                             ui.label("No ignored tools.").classes("text-grey-6 text-sm")
 
                         with ui.row().classes("items-center gap-2 mt-2"):
-                            it_input = ui.input(
-                                placeholder="e.g. Read, Grep"
-                            ).props("dense outlined").classes("flex-grow")
+                            it_input = (
+                                ui.input(placeholder="e.g. Read, Grep")
+                                .props("dense outlined")
+                                .classes("flex-grow")
+                            )
 
                             async def add_ignore_tool():
                                 val = it_input.value.strip()
@@ -478,7 +541,9 @@ def create_context_poisoning_page(service, daemon_name: str):
                                 ui.notify(f"Added: {val}", type="positive")
                                 await refresh()
 
-                            ui.button("Add", icon="add", on_click=add_ignore_tool).props("dense")
+                            ui.button(
+                                "Add", icon="add", on_click=add_ignore_tool
+                            ).props("dense")
 
                     with ui.card().classes("w-full"):
                         ui.label("Detection Statistics").classes("text-lg font-bold")
@@ -488,10 +553,12 @@ def create_context_poisoning_page(service, daemon_name: str):
                                 "text-grey-6 text-sm"
                             )
                         elif total == 0:
-                            ui.label("No context poisoning attempts detected yet.").classes(
-                                "text-grey-6 text-sm"
-                            )
+                            ui.label(
+                                "No context poisoning attempts detected yet."
+                            ).classes("text-grey-6 text-sm")
                         else:
-                            ui.label(f"Total context poisoning attempts detected: {total}").classes("text-sm")
+                            ui.label(
+                                f"Total context poisoning attempts detected: {total}"
+                            ).classes("text-sm")
 
             ui.timer(0.1, refresh, once=True)

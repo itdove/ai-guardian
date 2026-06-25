@@ -11,17 +11,16 @@ import inspect
 import json
 import os
 import tempfile
-from unittest import mock
 
 import pytest
 
 from ai_guardian.tui.auto_directory_rules import AutoDirectoryRulesContent
 from ai_guardian.tui.app import NAV_GROUPS, HELP_DOCS
 
-
 # ---------------------------------------------------------------------------
 # Import / navigation tests
 # ---------------------------------------------------------------------------
+
 
 class TestAutoDirectoryRulesImport:
     """Verify the panel integrates with the TUI app."""
@@ -30,10 +29,7 @@ class TestAutoDirectoryRulesImport:
         assert AutoDirectoryRulesContent is not None
 
     def test_in_nav_groups(self):
-        nav_dict = {
-            name: [pid for _, pid in items]
-            for name, items in NAV_GROUPS
-        }
+        nav_dict = {name: [pid for _, pid in items] for name, items in NAV_GROUPS}
         assert "panel-auto-directory-rules" in nav_dict["Permissions"]
 
     def test_has_help_doc(self):
@@ -62,6 +58,7 @@ class TestAutoDirectoryRulesImport:
 # ---------------------------------------------------------------------------
 # Structural tests
 # ---------------------------------------------------------------------------
+
 
 class TestAutoDirectoryRulesStructure:
     """Verify the panel has required structural elements."""
@@ -100,6 +97,7 @@ class TestAutoDirectoryRulesStructure:
 # ---------------------------------------------------------------------------
 # Generator preview tests
 # ---------------------------------------------------------------------------
+
 
 class TestRunGenerator:
     """Test the _run_generator method."""
@@ -177,6 +175,7 @@ class TestRunGenerator:
 # Config save tests
 # ---------------------------------------------------------------------------
 
+
 class TestConfigSave:
     """Test config save logic."""
 
@@ -220,7 +219,9 @@ class TestConfigSave:
                 saved = json.load(f)
             assert saved["permissions"]["auto_directory_rules"]["enabled"] is True
             # allow_symlinks preserved
-            assert saved["permissions"]["auto_directory_rules"]["allow_symlinks"] is True
+            assert (
+                saved["permissions"]["auto_directory_rules"]["allow_symlinks"] is True
+            )
 
     def test_save_creates_auto_directory_rules_section(self):
         """Save creates auto_directory_rules if missing."""
@@ -287,7 +288,9 @@ class TestConfigSave:
 
             # Auto directory rules updated
             assert saved["permissions"]["auto_directory_rules"]["enabled"] is True
-            assert saved["permissions"]["auto_directory_rules"]["allow_symlinks"] is True
+            assert (
+                saved["permissions"]["auto_directory_rules"]["allow_symlinks"] is True
+            )
             # Other config preserved
             assert saved["secret_scanning"]["enabled"] is True
             assert len(saved["permissions"]["rules"]) == 1

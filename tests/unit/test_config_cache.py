@@ -1,4 +1,5 @@
 """Tests for mtime-based config file caching (#569)."""
+
 import json
 import os
 import sys
@@ -8,7 +9,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-sys.path.insert(0, str(Path(__file__).parent.parent.parent / 'src'))
+sys.path.insert(0, str(Path(__file__).parent.parent.parent / "src"))
 
 from ai_guardian import (
     _clear_config_cache,
@@ -34,7 +35,10 @@ class TestConfigCache(unittest.TestCase):
             config_file = Path(tmpdir) / ".ai-guardian.json"
             config_file.write_text(json.dumps({"secret_scanning": {"enabled": True}}))
 
-            with patch('ai_guardian.config_loaders.get_config_dir', return_value=Path("/nonexistent")):
+            with patch(
+                "ai_guardian.config_loaders.get_config_dir",
+                return_value=Path("/nonexistent"),
+            ):
                 old_cwd = os.getcwd()
                 try:
                     os.chdir(tmpdir)
@@ -52,7 +56,10 @@ class TestConfigCache(unittest.TestCase):
             config_file = Path(tmpdir) / ".ai-guardian.json"
             config_file.write_text(json.dumps({"secret_scanning": {"enabled": True}}))
 
-            with patch('ai_guardian.config_loaders.get_config_dir', return_value=Path("/nonexistent")):
+            with patch(
+                "ai_guardian.config_loaders.get_config_dir",
+                return_value=Path("/nonexistent"),
+            ):
                 old_cwd = os.getcwd()
                 try:
                     os.chdir(tmpdir)
@@ -61,7 +68,9 @@ class TestConfigCache(unittest.TestCase):
 
                     # Ensure mtime changes (some filesystems have 1s resolution)
                     time.sleep(0.05)
-                    config_file.write_text(json.dumps({"secret_scanning": {"enabled": False}}))
+                    config_file.write_text(
+                        json.dumps({"secret_scanning": {"enabled": False}})
+                    )
                     # Force mtime change on filesystems with coarse resolution
                     new_mtime = os.path.getmtime(str(config_file)) + 1
                     os.utime(str(config_file), (new_mtime, new_mtime))
@@ -77,7 +86,10 @@ class TestConfigCache(unittest.TestCase):
             config_file = Path(tmpdir) / ".ai-guardian.json"
             config_file.write_text(json.dumps({"key": "value1"}))
 
-            with patch('ai_guardian.config_loaders.get_config_dir', return_value=Path("/nonexistent")):
+            with patch(
+                "ai_guardian.config_loaders.get_config_dir",
+                return_value=Path("/nonexistent"),
+            ):
                 old_cwd = os.getcwd()
                 try:
                     os.chdir(tmpdir)
@@ -94,7 +106,10 @@ class TestConfigCache(unittest.TestCase):
     def test_cache_handles_no_config_file(self):
         """When no config file exists, (None, None) is cached."""
         with tempfile.TemporaryDirectory() as tmpdir:
-            with patch('ai_guardian.config_loaders.get_config_dir', return_value=Path("/nonexistent")):
+            with patch(
+                "ai_guardian.config_loaders.get_config_dir",
+                return_value=Path("/nonexistent"),
+            ):
                 old_cwd = os.getcwd()
                 try:
                     os.chdir(tmpdir)
@@ -112,7 +127,10 @@ class TestConfigCache(unittest.TestCase):
             config_file = Path(tmpdir) / ".ai-guardian.json"
             config_file.write_text("{bad json")
 
-            with patch('ai_guardian.config_loaders.get_config_dir', return_value=Path("/nonexistent")):
+            with patch(
+                "ai_guardian.config_loaders.get_config_dir",
+                return_value=Path("/nonexistent"),
+            ):
                 old_cwd = os.getcwd()
                 try:
                     os.chdir(tmpdir)
@@ -135,23 +153,26 @@ class TestConfigCache(unittest.TestCase):
             config_file = Path(tmpdir) / ".ai-guardian.json"
             config_file.write_text(json.dumps(config_data))
 
-            with patch('ai_guardian.config_loaders.get_config_dir', return_value=Path("/nonexistent")):
+            with patch(
+                "ai_guardian.config_loaders.get_config_dir",
+                return_value=Path("/nonexistent"),
+            ):
                 old_cwd = os.getcwd()
                 try:
                     os.chdir(tmpdir)
                     _clear_config_cache()
 
-                    with patch('builtins.open', wraps=open) as mock_open:
+                    with patch("builtins.open", wraps=open) as mock_open:
                         _load_secret_scanning_config()
                         _load_prompt_injection_config()
 
                         config_name = config_file.name
                         json_reads = [
-                            c for c in mock_open.call_args_list
-                            if config_name in str(c)
+                            c for c in mock_open.call_args_list if config_name in str(c)
                         ]
-                        self.assertEqual(len(json_reads), 1,
-                                         "Config file should be read only once")
+                        self.assertEqual(
+                            len(json_reads), 1, "Config file should be read only once"
+                        )
                 finally:
                     os.chdir(old_cwd)
 
@@ -164,28 +185,35 @@ class TestConfigCache(unittest.TestCase):
                     "pattern_server": {
                         "url": "https://example.com/patterns",
                         "enabled": True,
-                    }
+                    },
                 }
             }
             config_file = Path(tmpdir) / ".ai-guardian.json"
             config_file.write_text(json.dumps(config_data))
 
-            with patch('ai_guardian.config_loaders.get_config_dir', return_value=Path("/nonexistent")):
+            with patch(
+                "ai_guardian.config_loaders.get_config_dir",
+                return_value=Path("/nonexistent"),
+            ):
                 old_cwd = os.getcwd()
                 try:
                     os.chdir(tmpdir)
                     _clear_config_cache()
 
                     _load_config_file()
-                    with patch('builtins.open', wraps=open) as mock_open:
+                    with patch("builtins.open", wraps=open) as mock_open:
                         result = _load_pattern_server_config()
 
                         json_reads = [
-                            c for c in mock_open.call_args_list
+                            c
+                            for c in mock_open.call_args_list
                             if str(config_file) in str(c)
                         ]
-                        self.assertEqual(len(json_reads), 0,
-                                         "Pattern server should use cached config")
+                        self.assertEqual(
+                            len(json_reads),
+                            0,
+                            "Pattern server should use cached config",
+                        )
 
                     self.assertIsNotNone(result)
                     self.assertEqual(result["url"], "https://example.com/patterns")
@@ -193,5 +221,5 @@ class TestConfigCache(unittest.TestCase):
                     os.chdir(old_cwd)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()

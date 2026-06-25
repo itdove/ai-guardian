@@ -14,7 +14,13 @@ from typing import Optional, Tuple
 from textual.app import App, ComposeResult
 from textual.containers import Container, Horizontal, VerticalScroll
 from textual.widgets import (
-    Footer, Header, Tree, ContentSwitcher, Button, Input, Static,
+    Footer,
+    Header,
+    Tree,
+    ContentSwitcher,
+    Button,
+    Input,
+    Static,
 )
 from textual.screen import ModalScreen
 from textual.binding import Binding
@@ -39,17 +45,22 @@ def copy_osc52(text: str) -> bool:
         return False
 
 
-def _try_clipboard_command(cmd: list, text: str,
-                           encoding: str = "utf-8") -> bool:
+def _try_clipboard_command(cmd: list, text: str, encoding: str = "utf-8") -> bool:
     """Try a clipboard command, returning True on success."""
     try:
         subprocess.run(
-            cmd, input=text.encode(encoding), check=True,
-            capture_output=True, timeout=5,
+            cmd,
+            input=text.encode(encoding),
+            check=True,
+            capture_output=True,
+            timeout=5,
         )
         return True
-    except (FileNotFoundError, subprocess.CalledProcessError,
-            subprocess.TimeoutExpired):
+    except (
+        FileNotFoundError,
+        subprocess.CalledProcessError,
+        subprocess.TimeoutExpired,
+    ):
         return False
 
 
@@ -68,11 +79,13 @@ def copy_to_system_clipboard(text: str) -> Tuple[Optional[str], Optional[str]]:
             return (None, "clip")
     elif sys.platform.startswith("linux"):
         if _try_clipboard_command(
-            ["xclip", "-selection", "clipboard"], text,
+            ["xclip", "-selection", "clipboard"],
+            text,
         ):
             return (None, "xclip")
         if _try_clipboard_command(
-            ["xsel", "--clipboard", "--input"], text,
+            ["xsel", "--clipboard", "--input"],
+            text,
         ):
             return (None, "xsel")
         if _try_clipboard_command(["wl-copy"], text):
@@ -91,64 +104,89 @@ def copy_to_system_clipboard(text: str) -> Tuple[Optional[str], Optional[str]]:
         return (None, "OSC 52")
     return ("Clipboard command failed", None)
 
+
 # ai-guardian:begin-allow
 NAV_GROUPS = [
-    ("Security Overview", [
-        ("Security Dashboard", "panel-security-dashboard"),
-        ("Global Settings", "panel-global-settings"),
-        ("Health Check", "panel-health-check"),
-    ]),
-    ("Monitoring", [
-        ("Violations", "panel-violations"),
-        ("Violation Logging", "panel-violation-logging"),
-        ("Metrics & Audit", "panel-metrics"),
-        ("Performance", "panel-performance"),
-        ("Logs", "panel-logs"),
-    ]),
-    ("Permissions", [
-        ("Skills", "panel-skills"),
-        ("MCP Servers", "panel-mcp"),
-        ("MCP Security", "panel-mcp-security"),
-        ("Permissions Discovery", "panel-permissions-discovery"),
-        ("Auto Directory Rules", "panel-auto-directory-rules"),
-        ("Directory Rules", "panel-directory-rules"),
-    ]),
-    ("Secrets", [
-        ("Secret Scanning", "panel-secrets"),
-        ("Engine Configuration", "panel-secret-engines"),
-        ("Secret Redaction", "panel-secret-redaction"),
-    ]),
-    ("Prompt Injection", [
-        ("Detection Settings", "panel-pi-detection"),
-        ("ML Engines", "panel-pi-ml-engines"),
-        ("Patterns", "panel-pi-patterns"),
-        ("Jailbreak", "panel-pi-jailbreak"),
-        ("Unicode Detection", "panel-pi-unicode"),
-    ]),
-    ("Threat Detection", [
-        ("SSRF Protection", "panel-ssrf"),
-        ("Context Poisoning", "panel-context-poisoning"),
-        ("Supply Chain", "panel-supply-chain"),
-        ("Config Scanner", "panel-config-scanner"),
-        ("PII Detection", "panel-scan-pii"),
-        ("Annotations", "panel-annotations"),
-    ]),
-    ("Configuration", [
-        ("Remote Configs", "panel-remote-configs"),
-        ("Config Cache", "panel-cache-status"),
-        ("Config File", "panel-config-file"),
-        ("Config Editor", "panel-config-editor"),
-        ("Console Settings", "panel-console-settings"),
-        ("Effective Config", "panel-config-effective"),
-        ("Daemon", "panel-daemon"),
-    ]),
-    ("Tools", [
-        ("Detection Patterns", "panel-detection-patterns"),
-        ("Regex Tester", "panel-regex-tester"),
-        ("Hook Simulator", "panel-hook-simulator"),
-        ("Engine Tester", "panel-engine-tester"),
-        ("Directory Scan", "panel-directory-scan"),
-    ]),
+    (
+        "Security Overview",
+        [
+            ("Security Dashboard", "panel-security-dashboard"),
+            ("Global Settings", "panel-global-settings"),
+            ("Health Check", "panel-health-check"),
+        ],
+    ),
+    (
+        "Monitoring",
+        [
+            ("Violations", "panel-violations"),
+            ("Violation Logging", "panel-violation-logging"),
+            ("Metrics & Audit", "panel-metrics"),
+            ("Performance", "panel-performance"),
+            ("Logs", "panel-logs"),
+        ],
+    ),
+    (
+        "Permissions",
+        [
+            ("Skills", "panel-skills"),
+            ("MCP Servers", "panel-mcp"),
+            ("MCP Security", "panel-mcp-security"),
+            ("Permissions Discovery", "panel-permissions-discovery"),
+            ("Auto Directory Rules", "panel-auto-directory-rules"),
+            ("Directory Rules", "panel-directory-rules"),
+        ],
+    ),
+    (
+        "Secrets",
+        [
+            ("Secret Scanning", "panel-secrets"),
+            ("Engine Configuration", "panel-secret-engines"),
+            ("Secret Redaction", "panel-secret-redaction"),
+        ],
+    ),
+    (
+        "Prompt Injection",
+        [
+            ("Detection Settings", "panel-pi-detection"),
+            ("ML Engines", "panel-pi-ml-engines"),
+            ("Patterns", "panel-pi-patterns"),
+            ("Jailbreak", "panel-pi-jailbreak"),
+            ("Unicode Detection", "panel-pi-unicode"),
+        ],
+    ),
+    (
+        "Threat Detection",
+        [
+            ("SSRF Protection", "panel-ssrf"),
+            ("Context Poisoning", "panel-context-poisoning"),
+            ("Supply Chain", "panel-supply-chain"),
+            ("Config Scanner", "panel-config-scanner"),
+            ("PII Detection", "panel-scan-pii"),
+            ("Annotations", "panel-annotations"),
+        ],
+    ),
+    (
+        "Configuration",
+        [
+            ("Remote Configs", "panel-remote-configs"),
+            ("Config Cache", "panel-cache-status"),
+            ("Config File", "panel-config-file"),
+            ("Config Editor", "panel-config-editor"),
+            ("Console Settings", "panel-console-settings"),
+            ("Effective Config", "panel-config-effective"),
+            ("Daemon", "panel-daemon"),
+        ],
+    ),
+    (
+        "Tools",
+        [
+            ("Detection Patterns", "panel-detection-patterns"),
+            ("Regex Tester", "panel-regex-tester"),
+            ("Hook Simulator", "panel-hook-simulator"),
+            ("Engine Tester", "panel-engine-tester"),
+            ("Directory Scan", "panel-directory-scan"),
+        ],
+    ),
 ]
 
 
@@ -897,7 +935,9 @@ class HelpModal(ModalScreen):
 
     def compose(self) -> ComposeResult:
         with Container(id="help-container"):
-            yield Static(f"[bold $accent]? {self._title}[/bold $accent]", id="help-title")
+            yield Static(
+                f"[bold $accent]? {self._title}[/bold $accent]", id="help-title"
+            )
             with VerticalScroll(id="help-body"):
                 yield Static(self._body)
             with Horizontal(id="help-footer"):
@@ -916,6 +956,7 @@ class AIGuardianTUI(App):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         from ai_guardian import __version__
+
         self.title = f"\U0001f6e1️ AI Guardian v{__version__}"
         self._input_original_values = {}
         self.initial_panel = None
@@ -1126,6 +1167,7 @@ class AIGuardianTUI(App):
 
         with Horizontal(id="main-layout"):
             from ai_guardian import __version__
+
             tree: Tree[str] = Tree(f"AI Guardian v{__version__}", id="nav-tree")
             tree.root.expand()
             for group_label, items in NAV_GROUPS:
@@ -1137,163 +1179,213 @@ class AIGuardianTUI(App):
 
             with ContentSwitcher(id="panels", initial="panel-security-dashboard"):
                 with Container(id="panel-security-dashboard"):
-                    from ai_guardian.tui.security_dashboard import SecurityDashboardContent
+                    from ai_guardian.tui.security_dashboard import (
+                        SecurityDashboardContent,
+                    )
+
                     yield SecurityDashboardContent()
 
                 with Container(id="panel-global-settings"):
                     from ai_guardian.tui.global_settings import GlobalSettingsContent
+
                     yield GlobalSettingsContent()
 
                 with Container(id="panel-skills"):
                     from ai_guardian.tui.skills import SkillsContent
+
                     yield SkillsContent()
 
                 with Container(id="panel-mcp"):
                     from ai_guardian.tui.mcp_servers import MCPServersContent
+
                     yield MCPServersContent()
 
                 with Container(id="panel-mcp-security"):
                     from ai_guardian.tui.mcp_security import MCPSecurityContent
+
                     yield MCPSecurityContent()
 
                 with Container(id="panel-permissions-discovery"):
-                    from ai_guardian.tui.permissions_discovery import PermissionsDiscoveryContent
+                    from ai_guardian.tui.permissions_discovery import (
+                        PermissionsDiscoveryContent,
+                    )
+
                     yield PermissionsDiscoveryContent()
 
                 with Container(id="panel-auto-directory-rules"):
-                    from ai_guardian.tui.auto_directory_rules import AutoDirectoryRulesContent
+                    from ai_guardian.tui.auto_directory_rules import (
+                        AutoDirectoryRulesContent,
+                    )
+
                     yield AutoDirectoryRulesContent()
 
                 with Container(id="panel-pi-detection"):
                     from ai_guardian.tui.pi_detection import PIDetectionContent
+
                     yield PIDetectionContent()
 
                 with Container(id="panel-pi-ml-engines"):
                     from ai_guardian.tui.pi_ml_engines import PIMLEnginesContent
+
                     yield PIMLEnginesContent()
 
                 with Container(id="panel-pi-patterns"):
                     from ai_guardian.tui.pi_patterns import PIPatternsContent
+
                     yield PIPatternsContent()
 
                 with Container(id="panel-pi-jailbreak"):
                     from ai_guardian.tui.pi_jailbreak import PIJailbreakContent
+
                     yield PIJailbreakContent()
 
                 with Container(id="panel-pi-unicode"):
                     from ai_guardian.tui.pi_unicode import PIUnicodeContent
+
                     yield PIUnicodeContent()
 
                 with Container(id="panel-ssrf"):
                     from ai_guardian.tui.ssrf import SSRFContent
+
                     yield SSRFContent()
 
                 with Container(id="panel-context-poisoning"):
                     from ai_guardian.tui.cp_detection import CPDetectionContent
+
                     yield CPDetectionContent()
 
                 with Container(id="panel-supply-chain"):
                     from ai_guardian.tui.supply_chain import SupplyChainContent
+
                     yield SupplyChainContent()
 
                 with Container(id="panel-config-scanner"):
                     from ai_guardian.tui.config_scanner import ConfigScannerContent
+
                     yield ConfigScannerContent()
 
                 with Container(id="panel-scan-pii"):
                     from ai_guardian.tui.scan_pii import ScanPIIContent
+
                     yield ScanPIIContent()
 
                 with Container(id="panel-annotations"):
                     from ai_guardian.tui.annotations import AnnotationsContent
+
                     yield AnnotationsContent()
 
                 with Container(id="panel-secrets"):
                     from ai_guardian.tui.secrets import SecretsContent
+
                     yield SecretsContent()
 
                 with Container(id="panel-secret-engines"):
                     from ai_guardian.tui.secret_engines import SecretEnginesContent
+
                     yield SecretEnginesContent()
 
                 with Container(id="panel-secret-redaction"):
                     from ai_guardian.tui.secret_redaction import SecretRedactionContent
+
                     yield SecretRedactionContent()
 
                 with Container(id="panel-violations"):
                     from ai_guardian.tui.violations import ViolationsContent
+
                     yield ViolationsContent()
 
                 with Container(id="panel-violation-logging"):
-                    from ai_guardian.tui.violation_logging import ViolationLoggingContent
+                    from ai_guardian.tui.violation_logging import (
+                        ViolationLoggingContent,
+                    )
+
                     yield ViolationLoggingContent()
 
                 with Container(id="panel-metrics"):
                     from ai_guardian.tui.metrics_panel import MetricsContent
+
                     yield MetricsContent()
 
                 with Container(id="panel-performance"):
                     from ai_guardian.tui.performance import PerformanceContent
+
                     yield PerformanceContent()
 
                 with Container(id="panel-logs"):
                     from ai_guardian.tui.logs import LogsContent
+
                     yield LogsContent()
 
                 with Container(id="panel-directory-rules"):
                     from ai_guardian.tui.directory_rules import DirectoryRulesContent
+
                     yield DirectoryRulesContent()
 
                 with Container(id="panel-remote-configs"):
                     from ai_guardian.tui.remote_configs import RemoteConfigsContent
+
                     yield RemoteConfigsContent()
 
                 with Container(id="panel-cache-status"):
                     from ai_guardian.tui.cache_status import CacheStatusContent
+
                     yield CacheStatusContent()
 
                 with Container(id="panel-config-file"):
                     from ai_guardian.tui.config_viewer import ConfigContent
+
                     yield ConfigContent()
 
                 with Container(id="panel-config-editor"):
                     from ai_guardian.tui.config_editor import ConfigEditorContent
+
                     yield ConfigEditorContent()
 
                 with Container(id="panel-console-settings"):
                     from ai_guardian.tui.console_settings import ConsoleSettingsContent
+
                     yield ConsoleSettingsContent()
 
                 with Container(id="panel-config-effective"):
                     from ai_guardian.tui.config_effective import ConfigEffectiveContent
+
                     yield ConfigEffectiveContent()
 
                 with Container(id="panel-daemon"):
                     from ai_guardian.tui.daemon_panel import DaemonPanelContent
+
                     yield DaemonPanelContent()
 
                 with Container(id="panel-detection-patterns"):
-                    from ai_guardian.tui.detection_patterns import DetectionPatternsContent
+                    from ai_guardian.tui.detection_patterns import (
+                        DetectionPatternsContent,
+                    )
+
                     yield DetectionPatternsContent()
 
                 with Container(id="panel-regex-tester"):
                     from ai_guardian.tui.regex_tester import RegexTesterContent
+
                     yield RegexTesterContent()
 
                 with Container(id="panel-hook-simulator"):
                     from ai_guardian.tui.hook_simulator import HookSimulatorContent
+
                     yield HookSimulatorContent()
 
                 with Container(id="panel-engine-tester"):
                     from ai_guardian.tui.engine_tester import EngineTesterContent
+
                     yield EngineTesterContent()
 
                 with Container(id="panel-directory-scan"):
                     from ai_guardian.tui.directory_scan import DirectoryScanContent
+
                     yield DirectoryScanContent()
 
                 with Container(id="panel-health-check"):
                     from ai_guardian.tui.health_check import HealthCheckContent
+
                     yield HealthCheckContent()
 
         yield Footer()
@@ -1408,7 +1500,9 @@ class AIGuardianTUI(App):
             content.refresh_content()
             self.notify("Panel refreshed", severity="information")
         else:
-            self.notify("No refresh method available for this panel", severity="warning")
+            self.notify(
+                "No refresh method available for this panel", severity="warning"
+            )
 
     def action_filter_all(self) -> None:
         """Filter all violations (only works on Violations panel)."""

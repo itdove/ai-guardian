@@ -22,9 +22,11 @@ from tests.fixtures import attack_constants
 class E2ELegitimateWorkflowTests(TestCase):
     """Test complete legitimate workflows end-to-end"""
 
-    @patch('ai_guardian.hook_processing._load_secret_redaction_config')
-    @patch('ai_guardian.hook_processing._load_pattern_server_config')
-    def test_e2e_legitimate_notebooklm_workflow(self, mock_pattern_config, mock_redaction_config):
+    @patch("ai_guardian.hook_processing._load_secret_redaction_config")
+    @patch("ai_guardian.hook_processing._load_pattern_server_config")
+    def test_e2e_legitimate_notebooklm_workflow(
+        self, mock_pattern_config, mock_redaction_config
+    ):
         """
         End-to-end test: Legitimate NotebookLM usage.
 
@@ -42,30 +44,28 @@ class E2ELegitimateWorkflowTests(TestCase):
         # Step 1: UserPromptSubmit - clean prompt
         prompt_data = {
             "hook_event_name": "UserPromptSubmit",
-            "prompt": "Create a notebook for AI security research and add example.com as a source"
+            "prompt": "Create a notebook for AI security research and add example.com as a source",
         }
 
-        with patch('sys.stdin', StringIO(json.dumps(prompt_data))):
+        with patch("sys.stdin", StringIO(json.dumps(prompt_data))):
             result = ai_guardian.process_hook_input()
 
-        assert result['exit_code'] == 0, "Clean prompt should be allowed"
+        assert result["exit_code"] == 0, "Clean prompt should be allowed"
 
         # Step 2: PreToolUse - notebook_create with clean inputs
         pretooluse_data = create_hook_data(
             tool_name=attack_constants.MCP_TOOL_NOTEBOOKLM_CREATE,
             tool_input={
                 "title": "AI Security Research Notes",
-                "sources": [
-                    {"type": "url", "url": "https://example.com/ai-security"}
-                ]
+                "sources": [{"type": "url", "url": "https://example.com/ai-security"}],
             },
-            hook_event="PreToolUse"
+            hook_event="PreToolUse",
         )
 
-        with patch('sys.stdin', StringIO(json.dumps(pretooluse_data))):
+        with patch("sys.stdin", StringIO(json.dumps(pretooluse_data))):
             result = ai_guardian.process_hook_input()
 
-        assert result['exit_code'] == 0, "Clean MCP tool call should be allowed"
+        assert result["exit_code"] == 0, "Clean MCP tool call should be allowed"
 
         # Step 3: PostToolUse - clean tool response
         posttooluse_data = {
@@ -74,18 +74,20 @@ class E2ELegitimateWorkflowTests(TestCase):
             "tool_response": {
                 "notebook_id": "nb_12345",
                 "title": "AI Security Research Notes",
-                "status": "success"
-            }
+                "status": "success",
+            },
         }
 
-        with patch('sys.stdin', StringIO(json.dumps(posttooluse_data))):
+        with patch("sys.stdin", StringIO(json.dumps(posttooluse_data))):
             result = ai_guardian.process_hook_input()
 
-        assert result['exit_code'] == 0, "Clean tool response should be allowed"
+        assert result["exit_code"] == 0, "Clean tool response should be allowed"
 
-    @patch('ai_guardian.hook_processing._load_secret_redaction_config')
-    @patch('ai_guardian.hook_processing._load_pattern_server_config')
-    def test_e2e_legitimate_bash_workflow(self, mock_pattern_config, mock_redaction_config):
+    @patch("ai_guardian.hook_processing._load_secret_redaction_config")
+    @patch("ai_guardian.hook_processing._load_pattern_server_config")
+    def test_e2e_legitimate_bash_workflow(
+        self, mock_pattern_config, mock_redaction_config
+    ):
         """
         End-to-end test: Legitimate Bash command workflow.
 
@@ -103,25 +105,23 @@ class E2ELegitimateWorkflowTests(TestCase):
         # Step 1: UserPromptSubmit
         prompt_data = {
             "hook_event_name": "UserPromptSubmit",
-            "prompt": "List files in the current directory"
+            "prompt": "List files in the current directory",
         }
 
-        with patch('sys.stdin', StringIO(json.dumps(prompt_data))):
+        with patch("sys.stdin", StringIO(json.dumps(prompt_data))):
             result = ai_guardian.process_hook_input()
 
-        assert result['exit_code'] == 0
+        assert result["exit_code"] == 0
 
         # Step 2: PreToolUse - Bash command
         pretooluse_data = create_hook_data(
-            tool_name="Bash",
-            tool_input={"command": "ls -la"},
-            hook_event="PreToolUse"
+            tool_name="Bash", tool_input={"command": "ls -la"}, hook_event="PreToolUse"
         )
 
-        with patch('sys.stdin', StringIO(json.dumps(pretooluse_data))):
+        with patch("sys.stdin", StringIO(json.dumps(pretooluse_data))):
             result = ai_guardian.process_hook_input()
 
-        assert result['exit_code'] == 0
+        assert result["exit_code"] == 0
 
         # Step 3: PostToolUse - Bash output
         posttooluse_data = {
@@ -129,17 +129,19 @@ class E2ELegitimateWorkflowTests(TestCase):
             "tool_name": "Bash",
             "tool_response": {
                 "output": "total 24\ndrwxr-xr-x  5 user  staff  160 Apr 23 10:00 .\ndrwxr-xr-x  3 user  staff   96 Apr 23 09:00 ..\n-rw-r--r--  1 user  staff  123 Apr 23 10:00 README.md\n"
-            }
+            },
         }
 
-        with patch('sys.stdin', StringIO(json.dumps(posttooluse_data))):
+        with patch("sys.stdin", StringIO(json.dumps(posttooluse_data))):
             result = ai_guardian.process_hook_input()
 
-        assert result['exit_code'] == 0
+        assert result["exit_code"] == 0
 
-    @patch('ai_guardian.hook_processing._load_secret_redaction_config')
-    @patch('ai_guardian.hook_processing._load_pattern_server_config')
-    def test_e2e_read_write_workflow_with_protections(self, mock_pattern_config, mock_redaction_config):
+    @patch("ai_guardian.hook_processing._load_secret_redaction_config")
+    @patch("ai_guardian.hook_processing._load_pattern_server_config")
+    def test_e2e_read_write_workflow_with_protections(
+        self, mock_pattern_config, mock_redaction_config
+    ):
         """
         End-to-end test: Read file → Process → Write file workflow.
 
@@ -158,25 +160,25 @@ class E2ELegitimateWorkflowTests(TestCase):
         # Step 1: UserPromptSubmit
         prompt_data = {
             "hook_event_name": "UserPromptSubmit",
-            "prompt": "Read config.json and create a summary file"
+            "prompt": "Read config.json and create a summary file",
         }
 
-        with patch('sys.stdin', StringIO(json.dumps(prompt_data))):
+        with patch("sys.stdin", StringIO(json.dumps(prompt_data))):
             result = ai_guardian.process_hook_input()
 
-        assert result['exit_code'] == 0
+        assert result["exit_code"] == 0
 
         # Step 2: PreToolUse - Read tool
         pretooluse_data = create_hook_data(
             tool_name="Read",
             tool_input={"file_path": "/tmp/config.json"},
-            hook_event="PreToolUse"
+            hook_event="PreToolUse",
         )
 
-        with patch('sys.stdin', StringIO(json.dumps(pretooluse_data))):
+        with patch("sys.stdin", StringIO(json.dumps(pretooluse_data))):
             result = ai_guardian.process_hook_input()
 
-        assert result['exit_code'] == 0
+        assert result["exit_code"] == 0
 
         # Step 3: PostToolUse - Read output (clean)
         posttooluse_data = {
@@ -184,49 +186,48 @@ class E2ELegitimateWorkflowTests(TestCase):
             "tool_name": "Read",
             "tool_response": {
                 "content": '{\n  "app_name": "MyApp",\n  "version": "1.0.0",\n  "debug": false\n}'
-            }
+            },
         }
 
-        with patch('sys.stdin', StringIO(json.dumps(posttooluse_data))):
+        with patch("sys.stdin", StringIO(json.dumps(posttooluse_data))):
             result = ai_guardian.process_hook_input()
 
-        assert result['exit_code'] == 0
+        assert result["exit_code"] == 0
 
         # Step 4: PreToolUse - Write tool
         pretooluse_data = create_hook_data(
             tool_name="Write",
             tool_input={
                 "file_path": "/tmp/summary.txt",
-                "content": "App: MyApp v1.0.0, Debug: disabled"
+                "content": "App: MyApp v1.0.0, Debug: disabled",
             },
-            hook_event="PreToolUse"
+            hook_event="PreToolUse",
         )
 
-        with patch('sys.stdin', StringIO(json.dumps(pretooluse_data))):
+        with patch("sys.stdin", StringIO(json.dumps(pretooluse_data))):
             result = ai_guardian.process_hook_input()
 
-        assert result['exit_code'] == 0
+        assert result["exit_code"] == 0
 
         # Step 5: PostToolUse - Write output (no scannable output)
         posttooluse_data = {
             "hook_event_name": "PostToolUse",
             "tool_name": "Write",
-            "tool_response": {
-                "success": True,
-                "file_path": "/tmp/summary.txt"
-            }
+            "tool_response": {"success": True, "file_path": "/tmp/summary.txt"},
         }
 
-        with patch('sys.stdin', StringIO(json.dumps(posttooluse_data))):
+        with patch("sys.stdin", StringIO(json.dumps(posttooluse_data))):
             result = ai_guardian.process_hook_input()
 
-        assert result['exit_code'] == 0
+        assert result["exit_code"] == 0
 
         # Complete workflow executed with protection at each stage
 
-    @patch('ai_guardian.hook_processing._load_secret_redaction_config')
-    @patch('ai_guardian.hook_processing._load_pattern_server_config')
-    def test_e2e_secret_detected_in_output(self, mock_pattern_config, mock_redaction_config):
+    @patch("ai_guardian.hook_processing._load_secret_redaction_config")
+    @patch("ai_guardian.hook_processing._load_pattern_server_config")
+    def test_e2e_secret_detected_in_output(
+        self, mock_pattern_config, mock_redaction_config
+    ):
         """
         End-to-end test: Secret in tool output redacted at PostToolUse.
 
@@ -245,25 +246,23 @@ class E2ELegitimateWorkflowTests(TestCase):
         # Step 1: UserPromptSubmit - clean prompt
         prompt_data = {
             "hook_event_name": "UserPromptSubmit",
-            "prompt": "Run env command"
+            "prompt": "Run env command",
         }
 
-        with patch('sys.stdin', StringIO(json.dumps(prompt_data))):
+        with patch("sys.stdin", StringIO(json.dumps(prompt_data))):
             result = ai_guardian.process_hook_input()
 
-        assert result['exit_code'] == 0
+        assert result["exit_code"] == 0
 
         # Step 2: PreToolUse - clean Bash command
         pretooluse_data = create_hook_data(
-            tool_name="Bash",
-            tool_input={"command": "env"},
-            hook_event="PreToolUse"
+            tool_name="Bash", tool_input={"command": "env"}, hook_event="PreToolUse"
         )
 
-        with patch('sys.stdin', StringIO(json.dumps(pretooluse_data))):
+        with patch("sys.stdin", StringIO(json.dumps(pretooluse_data))):
             result = ai_guardian.process_hook_input()
 
-        assert result['exit_code'] == 0
+        assert result["exit_code"] == 0
 
         # Step 3: PostToolUse - output contains secret
         posttooluse_data = {
@@ -271,25 +270,33 @@ class E2ELegitimateWorkflowTests(TestCase):
             "tool_name": "Bash",
             "tool_response": {
                 "output": f"PATH=/usr/bin\nSLACK_TOKEN={attack_constants.SECRET_SLACK_TOKEN}\nHOME=/home/user\n"
-            }
+            },
         }
 
-        with patch('sys.stdin', StringIO(json.dumps(posttooluse_data))):
+        with patch("sys.stdin", StringIO(json.dumps(posttooluse_data))):
             result = ai_guardian.process_hook_input()
 
         # REDACTED at PostToolUse (not blocked)
-        assert result['exit_code'] == 0, "PostToolUse always returns exit 0"
-        response = json.loads(result['output'])
+        assert result["exit_code"] == 0, "PostToolUse always returns exit 0"
+        response = json.loads(result["output"])
         # When redacting, decision field is not set (passes through with warning)
-        assert response.get('systemMessage') is not None, "Should have warning about redacted secrets"
-        assert 'Redacted' in response.get('systemMessage', ''), "Warning should mention redaction"
+        assert (
+            response.get("systemMessage") is not None
+        ), "Should have warning about redacted secrets"
+        assert "Redacted" in response.get(
+            "systemMessage", ""
+        ), "Warning should mention redaction"
         # Verify the secret was actually redacted in the output
-        output_text = response.get('modified_output', response.get('output', ''))
-        assert attack_constants.SECRET_SLACK_TOKEN not in output_text, "Secret should be redacted from output"
+        output_text = response.get("modified_output", response.get("output", ""))
+        assert (
+            attack_constants.SECRET_SLACK_TOKEN not in output_text
+        ), "Secret should be redacted from output"
 
-    @patch('ai_guardian.hook_processing._load_secret_redaction_config')
-    @patch('ai_guardian.hook_processing._load_pattern_server_config')
-    def test_e2e_multiple_tool_calls_in_sequence(self, mock_pattern_config, mock_redaction_config):
+    @patch("ai_guardian.hook_processing._load_secret_redaction_config")
+    @patch("ai_guardian.hook_processing._load_pattern_server_config")
+    def test_e2e_multiple_tool_calls_in_sequence(
+        self, mock_pattern_config, mock_redaction_config
+    ):
         """
         End-to-end test: Multiple tool calls in sequence (realistic workflow).
 
@@ -310,91 +317,86 @@ class E2ELegitimateWorkflowTests(TestCase):
         # Step 1: UserPromptSubmit
         prompt_data = {
             "hook_event_name": "UserPromptSubmit",
-            "prompt": "Analyze the codebase and create a report"
+            "prompt": "Analyze the codebase and create a report",
         }
 
-        with patch('sys.stdin', StringIO(json.dumps(prompt_data))):
+        with patch("sys.stdin", StringIO(json.dumps(prompt_data))):
             result = ai_guardian.process_hook_input()
 
-        assert result['exit_code'] == 0
+        assert result["exit_code"] == 0
 
         # Step 2-3: Bash find files
         pretooluse_data = create_hook_data(
             tool_name="Bash",
             tool_input={"command": "find . -name '*.py' | head -5"},
-            hook_event="PreToolUse"
+            hook_event="PreToolUse",
         )
 
-        with patch('sys.stdin', StringIO(json.dumps(pretooluse_data))):
+        with patch("sys.stdin", StringIO(json.dumps(pretooluse_data))):
             result = ai_guardian.process_hook_input()
 
-        assert result['exit_code'] == 0
+        assert result["exit_code"] == 0
 
         posttooluse_data = {
             "hook_event_name": "PostToolUse",
             "tool_name": "Bash",
             "tool_response": {
                 "output": "./src/main.py\n./src/utils.py\n./tests/test_main.py\n"
-            }
+            },
         }
 
-        with patch('sys.stdin', StringIO(json.dumps(posttooluse_data))):
+        with patch("sys.stdin", StringIO(json.dumps(posttooluse_data))):
             result = ai_guardian.process_hook_input()
 
-        assert result['exit_code'] == 0
+        assert result["exit_code"] == 0
 
         # Step 4-5: Read file
         pretooluse_data = create_hook_data(
             tool_name="Read",
             tool_input={"file_path": "./src/main.py"},
-            hook_event="PreToolUse"
+            hook_event="PreToolUse",
         )
 
-        with patch('sys.stdin', StringIO(json.dumps(pretooluse_data))):
+        with patch("sys.stdin", StringIO(json.dumps(pretooluse_data))):
             result = ai_guardian.process_hook_input()
 
-        assert result['exit_code'] == 0
+        assert result["exit_code"] == 0
 
         posttooluse_data = {
             "hook_event_name": "PostToolUse",
             "tool_name": "Read",
-            "tool_response": {
-                "content": "def main():\n    print('Hello, World!')\n"
-            }
+            "tool_response": {"content": "def main():\n    print('Hello, World!')\n"},
         }
 
-        with patch('sys.stdin', StringIO(json.dumps(posttooluse_data))):
+        with patch("sys.stdin", StringIO(json.dumps(posttooluse_data))):
             result = ai_guardian.process_hook_input()
 
-        assert result['exit_code'] == 0
+        assert result["exit_code"] == 0
 
         # Step 6-7: Write report
         pretooluse_data = create_hook_data(
             tool_name="Write",
             tool_input={
                 "file_path": "./report.md",
-                "content": "# Codebase Report\n\nFound 3 Python files.\n"
+                "content": "# Codebase Report\n\nFound 3 Python files.\n",
             },
-            hook_event="PreToolUse"
+            hook_event="PreToolUse",
         )
 
-        with patch('sys.stdin', StringIO(json.dumps(pretooluse_data))):
+        with patch("sys.stdin", StringIO(json.dumps(pretooluse_data))):
             result = ai_guardian.process_hook_input()
 
-        assert result['exit_code'] == 0
+        assert result["exit_code"] == 0
 
         posttooluse_data = {
             "hook_event_name": "PostToolUse",
             "tool_name": "Write",
-            "tool_response": {
-                "success": True,
-                "file_path": "./report.md"
-            }
+            "tool_response": {"success": True, "file_path": "./report.md"},
         }
 
-        with patch('sys.stdin', StringIO(json.dumps(posttooluse_data))):
+        with patch("sys.stdin", StringIO(json.dumps(posttooluse_data))):
             result = ai_guardian.process_hook_input()
 
-        assert result['exit_code'] == 0
+        assert result["exit_code"] == 0
 
         # Complete multi-tool workflow executed successfully

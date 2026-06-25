@@ -13,6 +13,7 @@ logger = logging.getLogger(__name__)
 
 try:
     from tree_sitter import Language, Parser
+
     HAS_TREE_SITTER = True
 except ImportError:
     HAS_TREE_SITTER = False
@@ -84,6 +85,7 @@ def _get_parser(language_name: str) -> Optional[Tuple["Parser", Set[str]]]:
 
     try:
         import importlib
+
         grammar_module = importlib.import_module(module_name)
 
         if language_name == "typescript":

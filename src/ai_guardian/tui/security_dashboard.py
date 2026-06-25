@@ -8,11 +8,10 @@ Provides quick status view, bulk operations, and security analytics.
 
 import json
 from datetime import datetime
-from typing import Dict, Any
 
 from textual.app import ComposeResult
 from textual.containers import Container, Horizontal, VerticalScroll, Grid
-from textual.widgets import Static, Button, Label
+from textual.widgets import Static, Button
 
 from textual.widgets import ContentSwitcher
 
@@ -20,32 +19,99 @@ from ai_guardian.config_utils import get_config_dir
 from ai_guardian.tui.widgets import format_local_time
 
 FEATURE_GROUPS = [
-    ("Scanning", [
-        ("secret_scanning", "Secret Scanning", "Scan for API keys, tokens, credentials"),
-        ("scan_pii", "PII Detection", "GDPR/CCPA compliance scanning"),
-        ("image_scanning", "Image Scanning", "OCR-based image scanning for secrets and PII"),
-        ("transcript_scanning", "Transcript Scanning", "Scan conversation for secrets/PII from ! commands"),
-    ]),
-    ("Threat Detection", [
-        ("prompt_injection", "Prompt Injection", "Detect and block prompt injection attacks"),
-        ("ssrf_protection", "SSRF Protection", "Block requests to private networks and metadata"),
-        ("config_file_scanning", "Config File Scanner", "Detect credential exfiltration in config files"),
-        ("context_poisoning", "Context Poisoning", "Detect context poisoning attempts"),
-        ("supply_chain", "Supply Chain", "Detect malicious hooks, MCP servers, and plugins"),
-    ]),
-    ("Response Protection", [
-        ("secret_redaction", "Secret Redaction", "Redact secrets from tool outputs"),
-        ("annotations", "Annotations", "Inline suppression for secrets and PII"),
-    ]),
-    ("Access Control", [
-        ("permissions", "Permissions", "Tool permission enforcement"),
-        ("security_instructions", "Security Instructions", "Security rule injection into AI context"),
-        ("directory_rules", "Directory Rules", "Block access to protected directories"),
-    ]),
-    ("Monitoring", [
-        ("violation_logging", "Violation Logging", "Log blocked operations for audit"),
-        ("latency_tracking", "Latency Tracking", "Record per-hook timing to latency.jsonl"),
-    ]),
+    (
+        "Scanning",
+        [
+            (
+                "secret_scanning",
+                "Secret Scanning",
+                "Scan for API keys, tokens, credentials",
+            ),
+            ("scan_pii", "PII Detection", "GDPR/CCPA compliance scanning"),
+            (
+                "image_scanning",
+                "Image Scanning",
+                "OCR-based image scanning for secrets and PII",
+            ),
+            (
+                "transcript_scanning",
+                "Transcript Scanning",
+                "Scan conversation for secrets/PII from ! commands",
+            ),
+        ],
+    ),
+    (
+        "Threat Detection",
+        [
+            (
+                "prompt_injection",
+                "Prompt Injection",
+                "Detect and block prompt injection attacks",
+            ),
+            (
+                "ssrf_protection",
+                "SSRF Protection",
+                "Block requests to private networks and metadata",
+            ),
+            (
+                "config_file_scanning",
+                "Config File Scanner",
+                "Detect credential exfiltration in config files",
+            ),
+            (
+                "context_poisoning",
+                "Context Poisoning",
+                "Detect context poisoning attempts",
+            ),
+            (
+                "supply_chain",
+                "Supply Chain",
+                "Detect malicious hooks, MCP servers, and plugins",
+            ),
+        ],
+    ),
+    (
+        "Response Protection",
+        [
+            (
+                "secret_redaction",
+                "Secret Redaction",
+                "Redact secrets from tool outputs",
+            ),
+            ("annotations", "Annotations", "Inline suppression for secrets and PII"),
+        ],
+    ),
+    (
+        "Access Control",
+        [
+            ("permissions", "Permissions", "Tool permission enforcement"),
+            (
+                "security_instructions",
+                "Security Instructions",
+                "Security rule injection into AI context",
+            ),
+            (
+                "directory_rules",
+                "Directory Rules",
+                "Block access to protected directories",
+            ),
+        ],
+    ),
+    (
+        "Monitoring",
+        [
+            (
+                "violation_logging",
+                "Violation Logging",
+                "Log blocked operations for audit",
+            ),
+            (
+                "latency_tracking",
+                "Latency Tracking",
+                "Record per-hook timing to latency.jsonl",
+            ),
+        ],
+    ),
 ]
 
 CARD_PANEL_MAP = {
@@ -227,18 +293,31 @@ class SecurityDashboardContent(Container):
                 yield Static("[bold]Quick Actions[/bold]", classes="section-title")
 
                 with Horizontal(classes="setting-row"):
-                    yield Button("Enable All Features", id="enable-all-btn", variant="success")
-                    yield Button("Disable All Features", id="disable-all-btn", variant="error")
-                    yield Button("Export Security Config", id="export-config-btn", variant="primary")
+                    yield Button(
+                        "Enable All Features", id="enable-all-btn", variant="success"
+                    )
+                    yield Button(
+                        "Disable All Features", id="disable-all-btn", variant="error"
+                    )
+                    yield Button(
+                        "Export Security Config",
+                        id="export-config-btn",
+                        variant="primary",
+                    )
 
             # Recent violations
             with Container(classes="section"):
-                yield Static("[bold]Recent Security Violations (Last 24 Hours)[/bold]", classes="section-title")
+                yield Static(
+                    "[bold]Recent Security Violations (Last 24 Hours)[/bold]",
+                    classes="section-title",
+                )
                 yield Static("", id="recent-violations")
 
             # Recommendations
             with Container(classes="section"):
-                yield Static("[bold]Security Recommendations[/bold]", classes="section-title")
+                yield Static(
+                    "[bold]Security Recommendations[/bold]", classes="section-title"
+                )
                 yield Static("", id="recommendations")
 
     def on_mount(self) -> None:
@@ -264,7 +343,7 @@ class SecurityDashboardContent(Container):
         config = {}
         if config_path.exists():
             try:
-                with open(config_path, 'r', encoding='utf-8') as f:
+                with open(config_path, "r", encoding="utf-8") as f:
                     config = json.load(f)
             except Exception as e:
                 self.app.notify(f"Error loading config: {e}", severity="error")
@@ -323,7 +402,9 @@ class SecurityDashboardContent(Container):
 
             if isinstance(status, dict) and status.get("disabled_until"):
                 disabled_until = status.get("disabled_until", "")
-                status_text += f"\n[dim]Until: {format_local_time(disabled_until)}[/dim]"
+                status_text += (
+                    f"\n[dim]Until: {format_local_time(disabled_until)}[/dim]"
+                )
 
             if action_val:
                 status_text += f"  [dim]({action_val})[/dim]"
@@ -347,8 +428,12 @@ class SecurityDashboardContent(Container):
             for v in violations:
                 timestamp_str = v.get("timestamp", "")
                 try:
-                    timestamp = datetime.fromisoformat(timestamp_str.replace('Z', '+00:00'))
-                    hours_ago = (now - timestamp.replace(tzinfo=None)).total_seconds() / 3600
+                    timestamp = datetime.fromisoformat(
+                        timestamp_str.replace("Z", "+00:00")
+                    )
+                    hours_ago = (
+                        now - timestamp.replace(tzinfo=None)
+                    ).total_seconds() / 3600
 
                     if hours_ago <= 24:
                         recent.append(v)
@@ -360,20 +445,32 @@ class SecurityDashboardContent(Container):
                 for v in recent:
                     reason = v.get("reason", "Unknown")
                     violation_type = self._categorize_violation(reason)
-                    violation_types[violation_type] = violation_types.get(violation_type, 0) + 1
+                    violation_types[violation_type] = (
+                        violation_types.get(violation_type, 0) + 1
+                    )
 
                 violations_text = f"Total: {len(recent)} violations\n\n"
-                for vtype, count in sorted(violation_types.items(), key=lambda x: x[1], reverse=True):
+                for vtype, count in sorted(
+                    violation_types.items(), key=lambda x: x[1], reverse=True
+                ):
                     violations_text += f"  • {vtype}: {count}\n"
 
-                self.query_one("#recent-violations", Static).update(violations_text.strip())
+                self.query_one("#recent-violations", Static).update(
+                    violations_text.strip()
+                )
             else:
-                self.query_one("#recent-violations", Static).update("[dim]No violations in last 24 hours[/dim]")
+                self.query_one("#recent-violations", Static).update(
+                    "[dim]No violations in last 24 hours[/dim]"
+                )
 
         except ImportError:
-            self.query_one("#recent-violations", Static).update("[dim]Violation logging not available[/dim]")
+            self.query_one("#recent-violations", Static).update(
+                "[dim]Violation logging not available[/dim]"
+            )
         except Exception as e:
-            self.query_one("#recent-violations", Static).update(f"[dim]Error loading violations: {e}[/dim]")
+            self.query_one("#recent-violations", Static).update(
+                f"[dim]Error loading violations: {e}[/dim]"
+            )
 
     def _categorize_violation(self, reason: str) -> str:
         """Categorize a violation by its reason."""
@@ -385,9 +482,17 @@ class SecurityDashboardContent(Container):
             return "Jailbreak Detection"
         elif "prompt injection" in reason_lower or "injection" in reason_lower:
             return "Prompt Injection"
-        elif "unicode" in reason_lower or "zero-width" in reason_lower or "homoglyph" in reason_lower:
+        elif (
+            "unicode" in reason_lower
+            or "zero-width" in reason_lower
+            or "homoglyph" in reason_lower
+        ):
             return "Unicode Attack"
-        elif "config" in reason_lower or "claude.md" in reason_lower or "agents.md" in reason_lower:
+        elif (
+            "config" in reason_lower
+            or "claude.md" in reason_lower
+            or "agents.md" in reason_lower
+        ):
             return "Config File Scanner"
         elif "pii" in reason_lower:
             return "PII Detection"
@@ -397,7 +502,11 @@ class SecurityDashboardContent(Container):
             return "Image Scanning"
         elif "transcript" in reason_lower:
             return "Transcript Scanning"
-        elif "permission" in reason_lower or "tool" in reason_lower or "skill" in reason_lower:
+        elif (
+            "permission" in reason_lower
+            or "tool" in reason_lower
+            or "skill" in reason_lower
+        ):
             return "Permissions"
         elif "directory" in reason_lower:
             return "Directory Blocking"
@@ -435,9 +544,15 @@ class SecurityDashboardContent(Container):
             pass  # intentionally silent — optional dependency
 
         if not recommendations:
-            recommendations.append("✓ All security features enabled - good security posture!")
-            recommendations.append("💡 Tip: Review the Violations tab regularly to monitor security events.")
-            recommendations.append("💡 Tip: Use time-based toggles to temporarily disable features during debugging.")
+            recommendations.append(
+                "✓ All security features enabled - good security posture!"
+            )
+            recommendations.append(
+                "💡 Tip: Review the Violations tab regularly to monitor security events."
+            )
+            recommendations.append(
+                "💡 Tip: Use time-based toggles to temporarily disable features during debugging."
+            )
 
         recommendations.append(
             "⚠ Shell mode bypass: Commands run with the '!' prefix in Claude Code "
@@ -485,7 +600,7 @@ class SecurityDashboardContent(Container):
 
         try:
             if config_path.exists():
-                with open(config_path, 'r', encoding='utf-8') as f:
+                with open(config_path, "r", encoding="utf-8") as f:
                     config = json.load(f)
             else:
                 config = {}
@@ -508,7 +623,7 @@ class SecurityDashboardContent(Container):
                     config[feature] = {}
                 config[feature]["enabled"] = True
 
-            with open(config_path, 'w', encoding='utf-8') as f:
+            with open(config_path, "w", encoding="utf-8") as f:
                 json.dump(config, f, indent=2)
 
             self.load_dashboard()
@@ -524,7 +639,7 @@ class SecurityDashboardContent(Container):
 
         try:
             if config_path.exists():
-                with open(config_path, 'r', encoding='utf-8') as f:
+                with open(config_path, "r", encoding="utf-8") as f:
                     config = json.load(f)
             else:
                 config = {}
@@ -547,7 +662,7 @@ class SecurityDashboardContent(Container):
                     config[feature] = {}
                 config[feature]["enabled"] = False
 
-            with open(config_path, 'w', encoding='utf-8') as f:
+            with open(config_path, "w", encoding="utf-8") as f:
                 json.dump(config, f, indent=2)
 
             self.load_dashboard()
@@ -566,7 +681,7 @@ class SecurityDashboardContent(Container):
                 self.app.notify("No configuration file found", severity="error")
                 return
 
-            with open(config_path, 'r', encoding='utf-8') as f:
+            with open(config_path, "r", encoding="utf-8") as f:
                 config = json.load(f)
 
             security_config = {}
@@ -574,11 +689,16 @@ class SecurityDashboardContent(Container):
                 for key, _label, _desc in features:
                     security_config[key] = config.get(key, {})
 
-            export_path = config_dir / f"security-export-{datetime.now().strftime('%Y%m%d-%H%M%S')}.json"
-            with open(export_path, 'w', encoding='utf-8') as f:
+            export_path = (
+                config_dir
+                / f"security-export-{datetime.now().strftime('%Y%m%d-%H%M%S')}.json"
+            )
+            with open(export_path, "w", encoding="utf-8") as f:
                 json.dump(security_config, f, indent=2)
 
-            self.app.notify(f"✓ Security config exported to: {export_path.name}", severity="success")
+            self.app.notify(
+                f"✓ Security config exported to: {export_path.name}", severity="success"
+            )
 
         except Exception as e:
             self.app.notify(f"Error exporting config: {e}", severity="error")

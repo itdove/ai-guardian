@@ -5,16 +5,13 @@ These tests simulate actual attack scenarios and legitimate workflows,
 demonstrating defense-in-depth and testing complete attack chains.
 """
 
-import json
-from io import StringIO
 from unittest import TestCase
 from unittest.mock import patch
 
-import pytest
 
 import ai_guardian
 from ai_guardian.tool_policy import ToolPolicyChecker
-from tests.fixtures.mock_mcp_server import create_hook_data, MockMCPServer
+from tests.fixtures.mock_mcp_server import create_hook_data
 from tests.fixtures import attack_constants
 
 
@@ -49,9 +46,9 @@ class DataExfiltrationAttackScenario(TestCase):
                     {
                         "matcher": "mcp__notebooklm-mcp__*",
                         "mode": "allow",
-                        "patterns": ["mcp__notebooklm-mcp__*"]
+                        "patterns": ["mcp__notebooklm-mcp__*"],
                     }
-                ]
+                ],
             }
         }
 
@@ -64,7 +61,7 @@ class DataExfiltrationAttackScenario(TestCase):
         # This would be caught by secret scanning in tool_input
         hook_data = create_hook_data(
             tool_name=attack_constants.MCP_TOOL_NOTEBOOKLM_CREATE,
-            tool_input={"title": malicious_title}
+            tool_input={"title": malicious_title},
         )
 
         # The tool permission would pass (MCP allowed)
@@ -76,7 +73,7 @@ class DataExfiltrationAttackScenario(TestCase):
         # This demonstrates that even if permissions allow the tool,
         # secret scanning provides defense in depth
 
-    @patch('ai_guardian.hook_processing._load_pattern_server_config')
+    @patch("ai_guardian.hook_processing._load_pattern_server_config")
     def test_exfiltration_blocked_at_source_add(self, mock_pattern_config):
         """
         Attack Step: Add source with stolen credentials
@@ -174,12 +171,7 @@ class PromptInjectionChainScenario(TestCase):
         assert is_attack, "Prompt injection should be blocked"
 
         # Step 2: Even if injection bypassed, immutable protections prevent config edits
-        policy_config = {
-            "permissions": {
-                "enabled": True,
-                "rules": []
-            }
-        }
+        policy_config = {"permissions": {"enabled": True, "rules": []}}
 
         policy_checker = ToolPolicyChecker(config=policy_config)
 
@@ -189,18 +181,19 @@ class PromptInjectionChainScenario(TestCase):
             tool_input={
                 "file_path": "/Users/user/.config/ai-guardian/ai-guardian.json",
                 "old_string": '"enabled": true',
-                "new_string": '"enabled": false'
-            }
+                "new_string": '"enabled": false',
+            },
         )
 
         allowed, error_msg, _ = policy_checker.check_tool_allowed(edit_config_hook)
 
         # Expected: BLOCKED by immutable deny patterns
         assert not allowed, "Config file edits should be blocked"
-        assert "immutable" in error_msg.lower() or "protected" in error_msg.lower(), \
-            f"Should mention immutable protection: {error_msg}"
+        assert (
+            "immutable" in error_msg.lower() or "protected" in error_msg.lower()
+        ), f"Should mention immutable protection: {error_msg}"
 
-    @patch('ai_guardian.hook_processing._load_pattern_server_config')
+    @patch("ai_guardian.hook_processing._load_pattern_server_config")
     def test_injection_cannot_bypass_secret_scanning(self, mock_pattern_config):
         """
         Attack: Try to use injection to bypass secret scanning
@@ -246,9 +239,11 @@ class LegitimateWorkflowScenario(TestCase):
     Tests that there are no false positives.
     """
 
-    @patch('ai_guardian.hook_processing._load_secret_redaction_config')
-    @patch('ai_guardian.hook_processing._load_pattern_server_config')
-    def test_legitimate_research_workflow(self, mock_pattern_config, mock_redaction_config):
+    @patch("ai_guardian.hook_processing._load_secret_redaction_config")
+    @patch("ai_guardian.hook_processing._load_pattern_server_config")
+    def test_legitimate_research_workflow(
+        self, mock_pattern_config, mock_redaction_config
+    ):
         """
         Legitimate Use: Research workflow with NotebookLM
 
@@ -272,9 +267,9 @@ class LegitimateWorkflowScenario(TestCase):
                     {
                         "matcher": "mcp__notebooklm-mcp__*",
                         "mode": "allow",
-                        "patterns": ["mcp__notebooklm-mcp__*"]
+                        "patterns": ["mcp__notebooklm-mcp__*"],
                     }
-                ]
+                ],
             }
         }
 
@@ -283,7 +278,7 @@ class LegitimateWorkflowScenario(TestCase):
         # Step 1: Create notebook with legitimate title
         create_hook = create_hook_data(
             tool_name=attack_constants.MCP_TOOL_NOTEBOOKLM_CREATE,
-            tool_input={"title": attack_constants.LEGITIMATE_NOTEBOOK_TITLE}
+            tool_input={"title": attack_constants.LEGITIMATE_NOTEBOOK_TITLE},
         )
 
         allowed, error_msg, _ = policy_checker.check_tool_allowed(create_hook)
@@ -300,8 +295,8 @@ class LegitimateWorkflowScenario(TestCase):
             tool_name=attack_constants.MCP_TOOL_NOTEBOOKLM_SOURCE,
             tool_input={
                 "source_type": "url",
-                "url": attack_constants.LEGITIMATE_PUBLIC_URL
-            }
+                "url": attack_constants.LEGITIMATE_PUBLIC_URL,
+            },
         )
 
         allowed, error_msg, _ = policy_checker.check_tool_allowed(add_source_hook)
@@ -320,7 +315,9 @@ class LegitimateWorkflowScenario(TestCase):
 
         config_pi = {"enabled": True}
         is_attack, error_msg, _ = check_prompt_injection(
-            legitimate_query, config_pi, tool_name=attack_constants.MCP_TOOL_NOTEBOOKLM_QUERY
+            legitimate_query,
+            config_pi,
+            tool_name=attack_constants.MCP_TOOL_NOTEBOOKLM_QUERY,
         )
 
         assert not is_attack, "Legitimate query should not be flagged as injection"
@@ -380,9 +377,9 @@ class EnterprisePolicyScenario(TestCase):
                     {
                         "matcher": "mcp__notebooklm-mcp__*",
                         "mode": "allow",
-                        "patterns": ["mcp__notebooklm-mcp__*"]
+                        "patterns": ["mcp__notebooklm-mcp__*"],
                     }
-                ]
+                ],
             }
         }
 
@@ -391,7 +388,7 @@ class EnterprisePolicyScenario(TestCase):
         # Test 1: Approved MCP server (NotebookLM) - ALLOWED
         approved_hook = create_hook_data(
             tool_name=attack_constants.MCP_TOOL_NOTEBOOKLM_CREATE,
-            tool_input={"title": "Work Notes"}
+            tool_input={"title": "Work Notes"},
         )
 
         allowed, error_msg, _ = policy_checker.check_tool_allowed(approved_hook)
@@ -400,11 +397,13 @@ class EnterprisePolicyScenario(TestCase):
         # Test 2: Unapproved MCP server - BLOCKED (not in allow list)
         unapproved_hook = create_hook_data(
             tool_name=attack_constants.MCP_TOOL_BLOCKED_CUSTOM,
-            tool_input={"action": "test"}
+            tool_input={"action": "test"},
         )
 
         allowed, error_msg, _ = policy_checker.check_tool_allowed(unapproved_hook)
-        assert not allowed, "Unapproved MCP server should be blocked (not in allow list)"
+        assert (
+            not allowed
+        ), "Unapproved MCP server should be blocked (not in allow list)"
         assert error_msg is not None, "Should have denial message"
 
     def test_enterprise_blocks_all_mcp_by_default(self):
@@ -418,13 +417,7 @@ class EnterprisePolicyScenario(TestCase):
         paranoid_config = {
             "permissions": {
                 "enabled": True,
-                "rules": [
-                    {
-                        "matcher": "mcp__*",
-                        "mode": "deny",
-                        "patterns": ["*"]
-                    }
-                ]
+                "rules": [{"matcher": "mcp__*", "mode": "deny", "patterns": ["*"]}],
             }
         }
 
@@ -439,13 +432,12 @@ class EnterprisePolicyScenario(TestCase):
         ]
 
         for tool_name in mcp_tools:
-            hook_data = create_hook_data(
-                tool_name=tool_name,
-                tool_input={}
-            )
+            hook_data = create_hook_data(tool_name=tool_name, tool_input={})
 
             allowed, error_msg, _ = policy_checker.check_tool_allowed(hook_data)
-            assert not allowed, f"MCP tool {tool_name} should be blocked in paranoid mode"
+            assert (
+                not allowed
+            ), f"MCP tool {tool_name} should be blocked in paranoid mode"
 
 
 class MultiStageAttackScenario(TestCase):
@@ -456,9 +448,11 @@ class MultiStageAttackScenario(TestCase):
     Tests that defense-in-depth prevents complex attacks.
     """
 
-    @patch('ai_guardian.hook_processing._load_secret_redaction_config')
-    @patch('ai_guardian.hook_processing._load_pattern_server_config')
-    def test_combined_injection_and_exfiltration_attack(self, mock_pattern_config, mock_redaction_config):
+    @patch("ai_guardian.hook_processing._load_secret_redaction_config")
+    @patch("ai_guardian.hook_processing._load_pattern_server_config")
+    def test_combined_injection_and_exfiltration_attack(
+        self, mock_pattern_config, mock_redaction_config
+    ):
         """
         Advanced Attack: Injection + Exfiltration
 
@@ -507,12 +501,7 @@ class MultiStageAttackScenario(TestCase):
         Scenario: Try to modify AI Guardian config to disable protections
         Expected: Immutable protections prevent config modification
         """
-        config = {
-            "permissions": {
-                "enabled": True,
-                "rules": []
-            }
-        }
+        config = {"permissions": {"enabled": True, "rules": []}}
 
         policy_checker = ToolPolicyChecker(config=config)
 
@@ -522,8 +511,8 @@ class MultiStageAttackScenario(TestCase):
             tool_input={
                 "file_path": "/home/user/.config/ai-guardian/ai-guardian.json",
                 "old_string": '"enabled": true',
-                "new_string": '"enabled": false'
-            }
+                "new_string": '"enabled": false',
+            },
         )
 
         allowed, error_msg, _ = policy_checker.check_tool_allowed(edit_hook)
@@ -534,8 +523,8 @@ class MultiStageAttackScenario(TestCase):
             tool_name="Write",
             tool_input={
                 "file_path": "/home/user/.config/ai-guardian/ai-guardian.json",
-                "content": '{"secret_scanning": {"enabled": false}}'
-            }
+                "content": '{"secret_scanning": {"enabled": false}}',
+            },
         )
 
         allowed, error_msg, _ = policy_checker.check_tool_allowed(write_hook)
@@ -546,7 +535,7 @@ class MultiStageAttackScenario(TestCase):
             tool_name="Bash",
             tool_input={
                 "command": "sed -i 's/enabled.*true/enabled\": false/' ~/.config/ai-guardian/ai-guardian.json"
-            }
+            },
         )
 
         allowed, error_msg, _ = policy_checker.check_tool_allowed(bash_hook)

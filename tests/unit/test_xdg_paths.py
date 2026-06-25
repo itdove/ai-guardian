@@ -6,7 +6,6 @@ follow the XDG spec and maintain backward compatibility.
 """
 
 import os
-import json
 import sys
 from pathlib import Path
 from unittest import mock
@@ -26,7 +25,9 @@ class TestGetStateDir:
 
     def test_direct_override(self, tmp_path):
         custom = str(tmp_path / "custom-state")
-        with mock.patch.dict(os.environ, {"AI_GUARDIAN_STATE_DIR": custom}, clear=False):
+        with mock.patch.dict(
+            os.environ, {"AI_GUARDIAN_STATE_DIR": custom}, clear=False
+        ):
             result = get_state_dir()
         assert result == Path(custom)
 
@@ -38,7 +39,9 @@ class TestGetStateDir:
             result = get_state_dir()
         assert result == Path(xdg) / "ai-guardian"
 
-    @pytest.mark.skipif(sys.platform == "win32", reason="Windows uses LOCALAPPDATA, not ~/.local/state")
+    @pytest.mark.skipif(
+        sys.platform == "win32", reason="Windows uses LOCALAPPDATA, not ~/.local/state"
+    )
     def test_default_fallback(self, tmp_path):
         with mock.patch.dict(os.environ, {}, clear=False):
             os.environ.pop("AI_GUARDIAN_STATE_DIR", None)
@@ -55,7 +58,9 @@ class TestGetStateDir:
         assert result == Path(custom)
 
     def test_expanduser_on_tilde(self, tmp_path):
-        with mock.patch.dict(os.environ, {"AI_GUARDIAN_STATE_DIR": "~/my-state"}, clear=False):
+        with mock.patch.dict(
+            os.environ, {"AI_GUARDIAN_STATE_DIR": "~/my-state"}, clear=False
+        ):
             result = get_state_dir()
         assert "~" not in str(result)
 
@@ -65,7 +70,9 @@ class TestGetCacheDir:
 
     def test_direct_override(self, tmp_path):
         custom = str(tmp_path / "custom-cache")
-        with mock.patch.dict(os.environ, {"AI_GUARDIAN_CACHE_DIR": custom}, clear=False):
+        with mock.patch.dict(
+            os.environ, {"AI_GUARDIAN_CACHE_DIR": custom}, clear=False
+        ):
             result = get_cache_dir()
         assert result == Path(custom)
 
@@ -77,7 +84,9 @@ class TestGetCacheDir:
             result = get_cache_dir()
         assert result == Path(xdg) / "ai-guardian"
 
-    @pytest.mark.skipif(sys.platform == "win32", reason="Windows uses LOCALAPPDATA, not ~/.cache")
+    @pytest.mark.skipif(
+        sys.platform == "win32", reason="Windows uses LOCALAPPDATA, not ~/.cache"
+    )
     def test_default_fallback(self, tmp_path):
         with mock.patch.dict(os.environ, {}, clear=False):
             os.environ.pop("AI_GUARDIAN_CACHE_DIR", None)
@@ -94,7 +103,9 @@ class TestGetCacheDir:
         assert result == Path(custom)
 
     def test_expanduser_on_tilde(self, tmp_path):
-        with mock.patch.dict(os.environ, {"AI_GUARDIAN_CACHE_DIR": "~/my-cache"}, clear=False):
+        with mock.patch.dict(
+            os.environ, {"AI_GUARDIAN_CACHE_DIR": "~/my-cache"}, clear=False
+        ):
             result = get_cache_dir()
         assert "~" not in str(result)
 
@@ -132,7 +143,9 @@ class TestWindowsPaths:
     @mock.patch("ai_guardian.config_utils.platform.system", return_value="Windows")
     def test_env_override_takes_precedence_on_windows(self, _mock_sys, tmp_path):
         custom = str(tmp_path / "custom")
-        with mock.patch.dict(os.environ, {"AI_GUARDIAN_CONFIG_DIR": custom}, clear=False):
+        with mock.patch.dict(
+            os.environ, {"AI_GUARDIAN_CONFIG_DIR": custom}, clear=False
+        ):
             result = get_config_dir()
         assert result == Path(custom)
 
@@ -251,11 +264,13 @@ class TestViolationLoggerUsesStateDir:
         env = {"AI_GUARDIAN_STATE_DIR": str(state_dir)}
         with mock.patch.dict(os.environ, env, clear=False):
             from ai_guardian.violation_logger import ViolationLogger
+
             vl = ViolationLogger()
             assert vl.log_path == state_dir / "violations.jsonl"
 
     def test_custom_path_overrides_state_dir(self, tmp_path):
         custom = tmp_path / "custom" / "my-violations.jsonl"
         from ai_guardian.violation_logger import ViolationLogger
+
         vl = ViolationLogger(log_path=custom)
         assert vl.log_path == custom

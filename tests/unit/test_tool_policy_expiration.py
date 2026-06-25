@@ -4,7 +4,6 @@ Unit tests for tool policy time-based expiration feature (Issue #34)
 Tests the ability to set expiration timestamps on permission patterns.
 """
 
-import json
 from datetime import datetime, timezone
 from unittest import TestCase
 from ai_guardian.tool_policy import ToolPolicyChecker
@@ -21,11 +20,7 @@ class ToolPolicyExpirationTest(TestCase):
         """Simple string patterns never expire"""
         config = {
             "permissions": [
-                {
-                    "matcher": "Skill",
-                    "mode": "allow",
-                    "patterns": ["daf-*", "gh-cli"]
-                }
+                {"matcher": "Skill", "mode": "allow", "patterns": ["daf-*", "gh-cli"]}
             ]
         }
 
@@ -39,22 +34,13 @@ class ToolPolicyExpirationTest(TestCase):
         """Tools matching simple patterns are allowed"""
         config = {
             "permissions": [
-                {
-                    "matcher": "Skill",
-                    "mode": "allow",
-                    "patterns": ["daf-*"]
-                }
+                {"matcher": "Skill", "mode": "allow", "patterns": ["daf-*"]}
             ]
         }
 
         policy_checker = ToolPolicyChecker(config=config)
 
-        hook_data = {
-            "tool_use": {
-                "name": "Skill",
-                "input": {"skill": "daf-jira"}
-            }
-        }
+        hook_data = {"tool_use": {"name": "Skill", "input": {"skill": "daf-jira"}}}
 
         is_allowed, error_msg, tool_name = policy_checker.check_tool_allowed(hook_data)
         self.assertTrue(is_allowed)
@@ -66,39 +52,28 @@ class ToolPolicyExpirationTest(TestCase):
 
     def test_extended_pattern_format_not_yet_expired(self):
         """Extended pattern with future valid_until is valid"""
-        pattern_entry = {
-            "pattern": "debug-*",
-            "valid_until": "2099-12-31T23:59:59Z"
-        }
+        pattern_entry = {"pattern": "debug-*", "valid_until": "2099-12-31T23:59:59Z"}
 
         policy_checker = ToolPolicyChecker(config={"permissions": []})
         self.assertTrue(policy_checker._is_pattern_valid(pattern_entry))
 
     def test_extended_pattern_format_expired(self):
         """Extended pattern with past valid_until is expired"""
-        pattern_entry = {
-            "pattern": "temp-*",
-            "valid_until": "2020-01-01T00:00:00Z"
-        }
+        pattern_entry = {"pattern": "temp-*", "valid_until": "2020-01-01T00:00:00Z"}
 
         policy_checker = ToolPolicyChecker(config={"permissions": []})
         self.assertFalse(policy_checker._is_pattern_valid(pattern_entry))
 
     def test_extended_pattern_format_no_valid_until(self):
         """Extended pattern without valid_until never expires"""
-        pattern_entry = {
-            "pattern": "permanent-*"
-        }
+        pattern_entry = {"pattern": "permanent-*"}
 
         policy_checker = ToolPolicyChecker(config={"permissions": []})
         self.assertTrue(policy_checker._is_pattern_valid(pattern_entry))
 
     def test_extended_pattern_format_empty_valid_until(self):
         """Extended pattern with empty valid_until never expires"""
-        pattern_entry = {
-            "pattern": "test-*",
-            "valid_until": ""
-        }
+        pattern_entry = {"pattern": "test-*", "valid_until": ""}
 
         policy_checker = ToolPolicyChecker(config={"permissions": []})
         self.assertTrue(policy_checker._is_pattern_valid(pattern_entry))
@@ -115,12 +90,12 @@ class ToolPolicyExpirationTest(TestCase):
             "permanent-*",  # Simple format - never expires
             {
                 "pattern": "active-*",
-                "valid_until": "2026-04-14T00:00:00Z"  # Future - valid
+                "valid_until": "2026-04-14T00:00:00Z",  # Future - valid
             },
             {
                 "pattern": "expired-*",
-                "valid_until": "2026-04-12T00:00:00Z"  # Past - expired
-            }
+                "valid_until": "2026-04-12T00:00:00Z",  # Past - expired
+            },
         ]
 
         policy_checker = ToolPolicyChecker(config={"permissions": []})
@@ -146,11 +121,8 @@ class ToolPolicyExpirationTest(TestCase):
                     "matcher": "Skill",
                     "mode": "allow",
                     "patterns": [
-                        {
-                            "pattern": "debug-*",
-                            "valid_until": "2026-04-13T12:00:00Z"
-                        }
-                    ]
+                        {"pattern": "debug-*", "valid_until": "2026-04-13T12:00:00Z"}
+                    ],
                 }
             ]
         }
@@ -158,23 +130,21 @@ class ToolPolicyExpirationTest(TestCase):
         policy_checker = ToolPolicyChecker(config=config)
 
         # Override current time for testing
-        policy_checker._find_permission_rules = lambda tool_name: [
-            {
-                "matcher": "Skill",
-                "mode": "allow",
-                "patterns": policy_checker._filter_valid_patterns(
-                    config["permissions"][0]["patterns"],
-                    current_time
-                )
-            }
-        ] if tool_name == "Skill" else []
+        policy_checker._find_permission_rules = lambda tool_name: (
+            [
+                {
+                    "matcher": "Skill",
+                    "mode": "allow",
+                    "patterns": policy_checker._filter_valid_patterns(
+                        config["permissions"][0]["patterns"], current_time
+                    ),
+                }
+            ]
+            if tool_name == "Skill"
+            else []
+        )
 
-        hook_data = {
-            "tool_use": {
-                "name": "Skill",
-                "input": {"skill": "debug-tool"}
-            }
-        }
+        hook_data = {"tool_use": {"name": "Skill", "input": {"skill": "debug-tool"}}}
 
         is_allowed, error_msg, tool_name = policy_checker.check_tool_allowed(hook_data)
         self.assertTrue(is_allowed)
@@ -189,11 +159,8 @@ class ToolPolicyExpirationTest(TestCase):
                     "matcher": "Skill",
                     "mode": "allow",
                     "patterns": [
-                        {
-                            "pattern": "debug-*",
-                            "valid_until": "2026-04-13T12:00:00Z"
-                        }
-                    ]
+                        {"pattern": "debug-*", "valid_until": "2026-04-13T12:00:00Z"}
+                    ],
                 }
             ]
         }
@@ -209,19 +176,13 @@ class ToolPolicyExpirationTest(TestCase):
             for rule in rules:
                 if "patterns" in rule:
                     rule["patterns"] = policy_checker._filter_valid_patterns(
-                        rule["patterns"],
-                        current_time
+                        rule["patterns"], current_time
                     )
             return rules
 
         policy_checker._find_permission_rules = custom_find
 
-        hook_data = {
-            "tool_use": {
-                "name": "Skill",
-                "input": {"skill": "debug-tool"}
-            }
-        }
+        hook_data = {"tool_use": {"name": "Skill", "input": {"skill": "debug-tool"}}}
 
         is_allowed, error_msg, tool_name = policy_checker.check_tool_allowed(hook_data)
         self.assertFalse(is_allowed)
@@ -239,12 +200,12 @@ class ToolPolicyExpirationTest(TestCase):
             "daf-*",  # Simple - permanent
             {
                 "pattern": "debug-*",
-                "valid_until": "2026-04-14T00:00:00Z"  # Extended - valid
+                "valid_until": "2026-04-14T00:00:00Z",  # Extended - valid
             },
             {
                 "pattern": "temp-*",
-                "valid_until": "2026-04-12T00:00:00Z"  # Extended - expired
-            }
+                "valid_until": "2026-04-12T00:00:00Z",  # Extended - expired
+            },
         ]
 
         policy_checker = ToolPolicyChecker(config={"permissions": []})
@@ -268,10 +229,7 @@ class ToolPolicyExpirationTest(TestCase):
         """Extract pattern string from extended dict format"""
         policy_checker = ToolPolicyChecker(config={"permissions": []})
 
-        pattern_entry = {
-            "pattern": "debug-*",
-            "valid_until": "2026-04-13T12:00:00Z"
-        }
+        pattern_entry = {"pattern": "debug-*", "valid_until": "2026-04-13T12:00:00Z"}
 
         pattern_str = policy_checker._extract_pattern_string(pattern_entry)
         self.assertEqual(pattern_str, "debug-*")
@@ -284,10 +242,7 @@ class ToolPolicyExpirationTest(TestCase):
         """Pattern is expired when current_time == valid_until"""
         current_time = datetime(2026, 4, 13, 12, 0, 0, tzinfo=timezone.utc)
 
-        pattern_entry = {
-            "pattern": "temp-*",
-            "valid_until": "2026-04-13T12:00:00Z"
-        }
+        pattern_entry = {"pattern": "temp-*", "valid_until": "2026-04-13T12:00:00Z"}
 
         policy_checker = ToolPolicyChecker(config={"permissions": []})
 
@@ -299,10 +254,7 @@ class ToolPolicyExpirationTest(TestCase):
         """Pattern is valid one second before expiration"""
         current_time = datetime(2026, 4, 13, 11, 59, 59, tzinfo=timezone.utc)
 
-        pattern_entry = {
-            "pattern": "temp-*",
-            "valid_until": "2026-04-13T12:00:00Z"
-        }
+        pattern_entry = {"pattern": "temp-*", "valid_until": "2026-04-13T12:00:00Z"}
 
         policy_checker = ToolPolicyChecker(config={"permissions": []})
 
@@ -315,10 +267,7 @@ class ToolPolicyExpirationTest(TestCase):
 
     def test_invalid_timestamp_treated_as_valid(self):
         """Invalid timestamp is treated as non-expiring (fail-safe)"""
-        pattern_entry = {
-            "pattern": "test-*",
-            "valid_until": "invalid-timestamp"
-        }
+        pattern_entry = {"pattern": "test-*", "valid_until": "invalid-timestamp"}
 
         policy_checker = ToolPolicyChecker(config={"permissions": []})
 
@@ -340,11 +289,8 @@ class ToolPolicyExpirationTest(TestCase):
                     "matcher": "Skill",
                     "allow": [
                         "daf-*",
-                        {
-                            "pattern": "debug-*",
-                            "valid_until": "2026-04-14T00:00:00Z"
-                        }
-                    ]
+                        {"pattern": "debug-*", "valid_until": "2026-04-14T00:00:00Z"},
+                    ],
                 }
             ]
         }
@@ -375,9 +321,9 @@ class ToolPolicyExpirationTest(TestCase):
                         {
                             "pattern": "debug-*",
                             "valid_until": "2026-04-13T12:00:00Z",
-                            "_comment": "Temporary debug access until noon"
-                        }
-                    ]
+                            "_comment": "Temporary debug access until noon",
+                        },
+                    ],
                 }
             ]
         }
@@ -386,15 +332,13 @@ class ToolPolicyExpirationTest(TestCase):
 
         # Morning: debug access should be valid
         morning_patterns = policy_checker._filter_valid_patterns(
-            config["permissions"][0]["patterns"],
-            morning_time
+            config["permissions"][0]["patterns"], morning_time
         )
         self.assertEqual(len(morning_patterns), 2)
 
         # Afternoon: debug access should be expired
         afternoon_patterns = policy_checker._filter_valid_patterns(
-            config["permissions"][0]["patterns"],
-            afternoon_time
+            config["permissions"][0]["patterns"], afternoon_time
         )
         self.assertEqual(len(afternoon_patterns), 1)  # Only permanent pattern remains
 
@@ -409,9 +353,9 @@ class ToolPolicyExpirationTest(TestCase):
                         {
                             "pattern": "*docker rm*",
                             "valid_until": "2026-04-13T15:00:00Z",
-                            "_comment": "Container cleanup until 15:00"
+                            "_comment": "Container cleanup until 15:00",
                         }
-                    ]
+                    ],
                 }
             ]
         }
@@ -421,19 +365,17 @@ class ToolPolicyExpirationTest(TestCase):
         # Before 15:00
         before_time = datetime(2026, 4, 13, 14, 30, 0, tzinfo=timezone.utc)
         before_patterns = policy_checker._filter_valid_patterns(
-            config["permissions"][0]["patterns"],
-            before_time
+            config["permissions"][0]["patterns"], before_time
         )
         self.assertEqual(len(before_patterns), 1)
 
         # After 15:00
         after_time = datetime(2026, 4, 13, 15, 30, 0, tzinfo=timezone.utc)
         after_patterns = policy_checker._filter_valid_patterns(
-            config["permissions"][0]["patterns"],
-            after_time
+            config["permissions"][0]["patterns"], after_time
         )
         self.assertEqual(len(after_patterns), 0)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()

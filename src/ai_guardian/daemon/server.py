@@ -13,9 +13,13 @@ import platform
 import signal
 import socket
 import threading
-import time
 
-from ai_guardian.daemon import get_pid_path, get_socket_path, is_pid_alive, is_pid_active
+from ai_guardian.daemon import (
+    get_pid_path,
+    get_socket_path,
+    is_pid_alive,
+    is_pid_active,
+)
 from ai_guardian.daemon.protocol import (
     decode_message,
     encode_message,
@@ -36,8 +40,7 @@ _is_pid_alive = is_pid_alive
 class DaemonServer:
     """Long-running daemon server for ai-guardian."""
 
-    def __init__(self, idle_timeout=0.0, use_tcp=False,
-                 enable_rest_api=True):
+    def __init__(self, idle_timeout=0.0, use_tcp=False, enable_rest_api=True):
         """Initialize daemon server.
 
         Args:
@@ -64,6 +67,7 @@ class DaemonServer:
         tray client.
         """
         from ai_guardian.daemon.path_env import ensure_scanner_path
+
         ensure_scanner_path()
 
         self._cleanup_stale()
@@ -87,7 +91,7 @@ class DaemonServer:
         idle_thread.start()
 
         sock_info = self._socket_info()
-        name_info = f", name={self._name}" if hasattr(self, '_name') else ""
+        name_info = f", name={self._name}" if hasattr(self, "_name") else ""
         logger.info(f"Daemon started (pid {os.getpid()}, {sock_info}{name_info})")
         print(f"ai-guardian daemon started (pid {os.getpid()}, {sock_info}{name_info})")
         print("Use 'ai-guardian tray' to start the system tray client")
@@ -141,7 +145,7 @@ class DaemonServer:
         if not self._use_tcp:
             get_socket_path().unlink(missing_ok=True)
         get_pid_path().unlink(missing_ok=True)
-        lock_path = getattr(self, '_lock_path', None)
+        lock_path = getattr(self, "_lock_path", None)
         if lock_path:
             try:
                 os.unlink(lock_path)
@@ -238,10 +242,13 @@ class DaemonServer:
                     response = make_response({"error": "dir is required"})
                 else:
                     self.state.pause_dir(directory, minutes)
-                    response = make_response({
-                        "status": "dir_paused", "dir": directory,
-                        "minutes": minutes,
-                    })
+                    response = make_response(
+                        {
+                            "status": "dir_paused",
+                            "dir": directory,
+                            "minutes": minutes,
+                        }
+                    )
             elif msg_type == "resume_dir":
                 data = request.get("data", {})
                 directory = data.get("dir", "")
@@ -249,9 +256,12 @@ class DaemonServer:
                     response = make_response({"error": "dir is required"})
                 else:
                     self.state.resume_dir(directory)
-                    response = make_response({
-                        "status": "dir_resumed", "dir": directory,
-                    })
+                    response = make_response(
+                        {
+                            "status": "dir_resumed",
+                            "dir": directory,
+                        }
+                    )
             elif msg_type == "reload_config":
                 self.state.force_reload_config()
                 response = make_response({"status": "config_reloaded"})
@@ -264,12 +274,14 @@ class DaemonServer:
                     manager = self.state.get_ml_engine_manager()
                     if manager is None:
                         ml_status = self.state.get_ml_status()
-                        response = make_response({
-                            "available": False,
-                            "error": ml_status.get(
-                                "ml_load_error", "ML model not available"
-                            ),
-                        })
+                        response = make_response(
+                            {
+                                "available": False,
+                                "error": ml_status.get(
+                                    "ml_load_error", "ML model not available"
+                                ),
+                            }
+                        )
                     else:
                         result = manager.detect(content)
                         response = make_response(result)
@@ -280,9 +292,7 @@ class DaemonServer:
             elif msg_type == "ml_status":
                 response = make_response(self.state.get_ml_status())
             else:
-                response = make_response(
-                    {"error": f"Unknown message type: {msg_type}"}
-                )
+                response = make_response({"error": f"Unknown message type: {msg_type}"})
 
             client_sock.sendall(encode_message(response))
         except (ConnectionError, ValueError, OSError) as e:
@@ -315,7 +325,11 @@ class DaemonServer:
         if cwd and self.state.is_dir_paused(cwd):
             return {"output": "{}", "exit_code": 0}
         if cwd:
-            from ai_guardian.config_utils import set_project_dir_override, clear_project_dir_override
+            from ai_guardian.config_utils import (
+                set_project_dir_override,
+                clear_project_dir_override,
+            )
+
             set_project_dir_override(cwd)
 
         try:
@@ -323,6 +337,7 @@ class DaemonServer:
             self.state.check_project_config(cwd)
 
             from ai_guardian import process_hook_data
+
             result = process_hook_data(hook_data, daemon_state=self.state)
         finally:
             if cwd:
@@ -333,7 +348,9 @@ class DaemonServer:
         violation_type = result.get("_violation_type")
         if exit_code != 0 or result.get("_blocked"):
             self.state.record_blocked(violation_type=violation_type)
-            session_key = hook_data.get("session_id") or hook_data.get("transcript_path")
+            session_key = hook_data.get("session_id") or hook_data.get(
+                "transcript_path"
+            )
             if session_key:
                 self.state.mark_security_reinject(session_key)
         elif result.get("_warning"):
@@ -366,6 +383,7 @@ class DaemonServer:
 
         try:
             from ai_guardian.sdk import _DirectSession
+
             session = _DirectSession(action="log", config=self.state.get_config())
 
             if check_type == "content":
@@ -437,7 +455,7 @@ class DaemonServer:
             pid_info["port"] = self._tcp_port
         if self._rest_port:
             pid_info["rest_port"] = self._rest_port
-        if hasattr(self, '_name') and self._name:
+        if hasattr(self, "_name") and self._name:
             pid_info["name"] = self._name
         if self.state._source_mtime:
             pid_info["source_mtime"] = self.state._source_mtime
@@ -462,6 +480,7 @@ class DaemonServer:
                 pass  # intentionally silent — optional dependency
 
             import socket as socket_mod
+
             self._name = full_cfg.get("name") or socket_mod.gethostname()
             cfg_port = daemon_cfg.get("rest_port", DEFAULT_REST_PORT)
 
@@ -471,8 +490,11 @@ class DaemonServer:
             host = daemon_cfg.get("rest_host", default_host)
             auth_token = daemon_cfg.get("auth_token")
             self._rest_api = DaemonRestAPI(
-                state=self.state, host=host, port=cfg_port,
-                name=self._name, auth_token=auth_token,
+                state=self.state,
+                host=host,
+                port=cfg_port,
+                name=self._name,
+                auth_token=auth_token,
             )
             self._rest_port = self._rest_api.start()
             logger.info(f"REST API started on port {self._rest_port}")
@@ -581,6 +603,7 @@ class DaemonServer:
     def _is_old_daemon_responsive(self):
         """Check if an existing daemon responds on the socket."""
         from ai_guardian.daemon.protocol import make_ping
+
         try:
             sock_path = get_socket_path()
             if self._use_tcp:
@@ -600,6 +623,7 @@ class DaemonServer:
                 sock.connect(str(sock_path))
             try:
                 from ai_guardian.daemon.protocol import decode_message, encode_message
+
                 sock.sendall(encode_message(make_ping()))
                 response = decode_message(sock, timeout=1.0)
                 return response.get("type") == "pong"

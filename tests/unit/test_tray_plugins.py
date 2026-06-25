@@ -1,7 +1,6 @@
 """Tests for tray menu plugin loader and command utilities."""
 
 import json
-import os
 from pathlib import Path
 from unittest import mock
 
@@ -32,12 +31,20 @@ class TestLoadPlugins:
     def test_loads_single_plugin_file(self, tmp_path):
         plugins_dir = tmp_path / "tray-plugins"
         plugins_dir.mkdir()
-        (plugins_dir / "test.json").write_text(json.dumps({
-            "name": "TestPlugin",
-            "items": [
-                {"label": "Hello", "command": "echo hello", "type": "background"}
-            ]
-        }))
+        (plugins_dir / "test.json").write_text(
+            json.dumps(
+                {
+                    "name": "TestPlugin",
+                    "items": [
+                        {
+                            "label": "Hello",
+                            "command": "echo hello",
+                            "type": "background",
+                        }
+                    ],
+                }
+            )
+        )
         plugins = load_plugins(plugins_dir)
         assert len(plugins) == 1
         assert plugins[0].name == "TestPlugin"
@@ -50,10 +57,14 @@ class TestLoadPlugins:
         plugins_dir = tmp_path / "tray-plugins"
         plugins_dir.mkdir()
         for i in range(3):
-            (plugins_dir / f"plugin{i}.json").write_text(json.dumps({
-                "name": f"Plugin{i}",
-                "items": [{"label": "Action", "command": f"cmd{i}"}]
-            }))
+            (plugins_dir / f"plugin{i}.json").write_text(
+                json.dumps(
+                    {
+                        "name": f"Plugin{i}",
+                        "items": [{"label": "Action", "command": f"cmd{i}"}],
+                    }
+                )
+            )
         plugins = load_plugins(plugins_dir)
         assert len(plugins) == 3
 
@@ -61,10 +72,9 @@ class TestLoadPlugins:
         plugins_dir = tmp_path / "tray-plugins"
         plugins_dir.mkdir()
         (plugins_dir / "bad.json").write_text("not valid json {{{")
-        (plugins_dir / "good.json").write_text(json.dumps({
-            "name": "Good",
-            "items": [{"label": "Ok", "command": "true"}]
-        }))
+        (plugins_dir / "good.json").write_text(
+            json.dumps({"name": "Good", "items": [{"label": "Ok", "command": "true"}]})
+        )
         plugins = load_plugins(plugins_dir)
         assert len(plugins) == 1
         assert plugins[0].name == "Good"
@@ -72,18 +82,16 @@ class TestLoadPlugins:
     def test_skips_plugin_missing_name(self, tmp_path):
         plugins_dir = tmp_path / "tray-plugins"
         plugins_dir.mkdir()
-        (plugins_dir / "noname.json").write_text(json.dumps({
-            "items": [{"label": "X", "command": "y"}]
-        }))
+        (plugins_dir / "noname.json").write_text(
+            json.dumps({"items": [{"label": "X", "command": "y"}]})
+        )
         plugins = load_plugins(plugins_dir)
         assert len(plugins) == 0
 
     def test_skips_plugin_missing_items(self, tmp_path):
         plugins_dir = tmp_path / "tray-plugins"
         plugins_dir.mkdir()
-        (plugins_dir / "noitems.json").write_text(json.dumps({
-            "name": "NoItems"
-        }))
+        (plugins_dir / "noitems.json").write_text(json.dumps({"name": "NoItems"}))
         plugins = load_plugins(plugins_dir)
         assert len(plugins) == 0
 
@@ -100,13 +108,17 @@ class TestLoadPlugins:
     def test_validates_item_requires_label(self, tmp_path):
         plugins_dir = tmp_path / "tray-plugins"
         plugins_dir.mkdir()
-        (plugins_dir / "test.json").write_text(json.dumps({
-            "name": "Test",
-            "items": [
-                {"command": "echo missing label"},
-                {"label": "Good", "command": "echo ok"},
-            ]
-        }))
+        (plugins_dir / "test.json").write_text(
+            json.dumps(
+                {
+                    "name": "Test",
+                    "items": [
+                        {"command": "echo missing label"},
+                        {"label": "Good", "command": "echo ok"},
+                    ],
+                }
+            )
+        )
         plugins = load_plugins(plugins_dir)
         assert len(plugins) == 1
         assert len(plugins[0].items) == 1
@@ -115,13 +127,17 @@ class TestLoadPlugins:
     def test_validates_item_requires_command(self, tmp_path):
         plugins_dir = tmp_path / "tray-plugins"
         plugins_dir.mkdir()
-        (plugins_dir / "test.json").write_text(json.dumps({
-            "name": "Test",
-            "items": [
-                {"label": "No Command"},
-                {"label": "Good", "command": "echo ok"},
-            ]
-        }))
+        (plugins_dir / "test.json").write_text(
+            json.dumps(
+                {
+                    "name": "Test",
+                    "items": [
+                        {"label": "No Command"},
+                        {"label": "Good", "command": "echo ok"},
+                    ],
+                }
+            )
+        )
         plugins = load_plugins(plugins_dir)
         assert len(plugins[0].items) == 1
         assert plugins[0].items[0].label == "Good"
@@ -129,17 +145,27 @@ class TestLoadPlugins:
     def test_parses_params_correctly(self, tmp_path):
         plugins_dir = tmp_path / "tray-plugins"
         plugins_dir.mkdir()
-        (plugins_dir / "test.json").write_text(json.dumps({
-            "name": "Test",
-            "items": [{
-                "label": "Deploy",
-                "command": "deploy {tray.branch}",
-                "type": "terminal",
-                "params": [
-                    {"name": "branch", "hint": "Git branch", "default": "main"}
-                ]
-            }]
-        }))
+        (plugins_dir / "test.json").write_text(
+            json.dumps(
+                {
+                    "name": "Test",
+                    "items": [
+                        {
+                            "label": "Deploy",
+                            "command": "deploy {tray.branch}",
+                            "type": "terminal",
+                            "params": [
+                                {
+                                    "name": "branch",
+                                    "hint": "Git branch",
+                                    "default": "main",
+                                }
+                            ],
+                        }
+                    ],
+                }
+            )
+        )
         plugins = load_plugins(plugins_dir)
         item = plugins[0].items[0]
         assert len(item.params) == 1
@@ -151,16 +177,22 @@ class TestLoadPlugins:
     def test_parses_params_with_options(self, tmp_path):
         plugins_dir = tmp_path / "tray-plugins"
         plugins_dir.mkdir()
-        (plugins_dir / "test.json").write_text(json.dumps({
-            "name": "Test",
-            "items": [{
-                "label": "Deploy",
-                "command": "deploy --env {env}",
-                "params": [
-                    {"name": "env", "options": ["dev", "staging", "prod"]}
-                ]
-            }]
-        }))
+        (plugins_dir / "test.json").write_text(
+            json.dumps(
+                {
+                    "name": "Test",
+                    "items": [
+                        {
+                            "label": "Deploy",
+                            "command": "deploy --env {env}",
+                            "params": [
+                                {"name": "env", "options": ["dev", "staging", "prod"]}
+                            ],
+                        }
+                    ],
+                }
+            )
+        )
         plugins = load_plugins(plugins_dir)
         param = plugins[0].items[0].params[0]
         assert param.name == "env"
@@ -170,53 +202,74 @@ class TestLoadPlugins:
         plugins_dir = tmp_path / "tray-plugins"
         plugins_dir.mkdir()
         (plugins_dir / "readme.txt").write_text("not a plugin")
-        (plugins_dir / "good.json").write_text(json.dumps({
-            "name": "Good",
-            "items": [{"label": "Ok", "command": "true"}]
-        }))
+        (plugins_dir / "good.json").write_text(
+            json.dumps({"name": "Good", "items": [{"label": "Ok", "command": "true"}]})
+        )
         plugins = load_plugins(plugins_dir)
         assert len(plugins) == 1
 
     def test_default_type_is_terminal(self, tmp_path):
         plugins_dir = tmp_path / "tray-plugins"
         plugins_dir.mkdir()
-        (plugins_dir / "test.json").write_text(json.dumps({
-            "name": "Test",
-            "items": [{"label": "Run", "command": "bash"}]
-        }))
+        (plugins_dir / "test.json").write_text(
+            json.dumps({"name": "Test", "items": [{"label": "Run", "command": "bash"}]})
+        )
         plugins = load_plugins(plugins_dir)
         assert plugins[0].items[0].type == "terminal"
 
     def test_modal_type_accepted(self, tmp_path):
         plugins_dir = tmp_path / "tray-plugins"
         plugins_dir.mkdir()
-        (plugins_dir / "test.json").write_text(json.dumps({
-            "name": "Test",
-            "items": [{"label": "Version", "command": "ai-guardian --version", "type": "modal"}]
-        }))
+        (plugins_dir / "test.json").write_text(
+            json.dumps(
+                {
+                    "name": "Test",
+                    "items": [
+                        {
+                            "label": "Version",
+                            "command": "ai-guardian --version",
+                            "type": "modal",
+                        }
+                    ],
+                }
+            )
+        )
         plugins = load_plugins(plugins_dir)
         assert plugins[0].items[0].type == "modal"
 
     def test_invalid_type_defaults_to_terminal(self, tmp_path):
         plugins_dir = tmp_path / "tray-plugins"
         plugins_dir.mkdir()
-        (plugins_dir / "test.json").write_text(json.dumps({
-            "name": "Test",
-            "items": [{"label": "Run", "command": "bash", "type": "bogus"}]
-        }))
+        (plugins_dir / "test.json").write_text(
+            json.dumps(
+                {
+                    "name": "Test",
+                    "items": [{"label": "Run", "command": "bash", "type": "bogus"}],
+                }
+            )
+        )
         plugins = load_plugins(plugins_dir)
         assert plugins[0].items[0].type == "terminal"
 
     def test_command_as_platform_map(self, tmp_path):
         plugins_dir = tmp_path / "tray-plugins"
         plugins_dir.mkdir()
-        (plugins_dir / "test.json").write_text(json.dumps({
-            "name": "Test",
-            "items": [{
-                "label": "Shell",
-                "command": {"darwin": "open -a Terminal", "default": "bash"}
-            }]
-        }))
+        (plugins_dir / "test.json").write_text(
+            json.dumps(
+                {
+                    "name": "Test",
+                    "items": [
+                        {
+                            "label": "Shell",
+                            "command": {
+                                "darwin": "open -a Terminal",
+                                "default": "bash",
+                            },
+                        }
+                    ],
+                }
+            )
+        )
         plugins = load_plugins(plugins_dir)
         assert isinstance(plugins[0].items[0].command, dict)
 
@@ -231,51 +284,75 @@ class TestLoadPlugins:
     def test_skips_param_missing_name(self, tmp_path):
         plugins_dir = tmp_path / "tray-plugins"
         plugins_dir.mkdir()
-        (plugins_dir / "test.json").write_text(json.dumps({
-            "name": "Test",
-            "items": [{
-                "label": "Deploy",
-                "command": "deploy",
-                "params": [
-                    {"hint": "no name field"},
-                    {"name": "good", "hint": "valid"}
-                ]
-            }]
-        }))
+        (plugins_dir / "test.json").write_text(
+            json.dumps(
+                {
+                    "name": "Test",
+                    "items": [
+                        {
+                            "label": "Deploy",
+                            "command": "deploy",
+                            "params": [
+                                {"hint": "no name field"},
+                                {"name": "good", "hint": "valid"},
+                            ],
+                        }
+                    ],
+                }
+            )
+        )
         plugins = load_plugins(plugins_dir)
         assert len(plugins[0].items[0].params) == 1
         assert plugins[0].items[0].params[0].name == "good"
 
-
     def test_parses_run_on_target_true(self, tmp_path):
         plugins_dir = tmp_path / "tray-plugins"
         plugins_dir.mkdir()
-        (plugins_dir / "test.json").write_text(json.dumps({
-            "name": "Test",
-            "items": [{"label": "Doctor", "command": "ai-guardian doctor",
-                       "run_on_target": True}]
-        }))
+        (plugins_dir / "test.json").write_text(
+            json.dumps(
+                {
+                    "name": "Test",
+                    "items": [
+                        {
+                            "label": "Doctor",
+                            "command": "ai-guardian doctor",
+                            "run_on_target": True,
+                        }
+                    ],
+                }
+            )
+        )
         plugins = load_plugins(plugins_dir)
         assert plugins[0].items[0].run_on_target is True
 
     def test_parses_run_on_target_false(self, tmp_path):
         plugins_dir = tmp_path / "tray-plugins"
         plugins_dir.mkdir()
-        (plugins_dir / "test.json").write_text(json.dumps({
-            "name": "Test",
-            "items": [{"label": "Logs", "command": "podman logs {container_id}",
-                       "run_on_target": False}]
-        }))
+        (plugins_dir / "test.json").write_text(
+            json.dumps(
+                {
+                    "name": "Test",
+                    "items": [
+                        {
+                            "label": "Logs",
+                            "command": "podman logs {container_id}",
+                            "run_on_target": False,
+                        }
+                    ],
+                }
+            )
+        )
         plugins = load_plugins(plugins_dir)
         assert plugins[0].items[0].run_on_target is False
 
     def test_default_run_on_target_is_false(self, tmp_path):
         plugins_dir = tmp_path / "tray-plugins"
         plugins_dir.mkdir()
-        (plugins_dir / "test.json").write_text(json.dumps({
-            "name": "Test",
-            "items": [{"label": "Run", "command": "echo hi"}]
-        }))
+        (plugins_dir / "test.json").write_text(
+            json.dumps(
+                {"name": "Test", "items": [{"label": "Run", "command": "echo hi"}]}
+            )
+        )
         plugins = load_plugins(plugins_dir)
         assert plugins[0].items[0].run_on_target is False
 
@@ -361,9 +438,12 @@ class TestSubstituteTargetVars:
 
     def _make_target(self, **kwargs):
         from ai_guardian.daemon.discovery import DaemonTarget
+
         defaults = dict(
-            name="test-daemon", runtime="container",
-            host="192.168.1.10", port=63152,
+            name="test-daemon",
+            runtime="container",
+            host="192.168.1.10",
+            port=63152,
             container_id="a1b2c3d4e5f6a1b2",
             container_engine="podman",
             pod_name="guardian-pod-1",
@@ -377,22 +457,26 @@ class TestSubstituteTargetVars:
         [
             ("podman logs {container_id}", {}, "podman logs a1b2c3d4e5f6a1b2"),
             (
-                "curl http://{host}:{port}/api/health", {},
+                "curl http://{host}:{port}/api/health",
+                {},
                 "curl http://192.168.1.10:63152/api/health",
             ),
             ("echo {name}", {}, "echo test-daemon"),
             ("{container_engine} ps", {"container_engine": "docker"}, "docker ps"),
             (
-                "kubectl logs {pod_name} -n {namespace}", {},
+                "kubectl logs {pod_name} -n {namespace}",
+                {},
                 "kubectl logs guardian-pod-1 -n ai-guardian",
             ),
             ("logs {container_id}", {"container_id": None}, "logs "),
             (
-                "echo {json} {tray.x} {name}", {},
+                "echo {json} {tray.x} {name}",
+                {},
                 "echo {json} {tray.x} test-daemon",
             ),
             (
-                "{container_id} and {container_id}", {},
+                "{container_id} and {container_id}",
+                {},
                 "a1b2c3d4e5f6a1b2 and a1b2c3d4e5f6a1b2",
             ),
             (":{port}", {"port": 8080}, ":8080"),
@@ -460,6 +544,7 @@ class TestNeedsShell:
     )
     def test_needs_shell(self, command, expected):
         from ai_guardian.daemon.tray_plugins import _needs_shell
+
         assert _needs_shell(command) is expected
 
 
@@ -468,6 +553,7 @@ class TestWrapForTarget:
 
     def _make_target(self, **kwargs):
         from ai_guardian.daemon.discovery import DaemonTarget
+
         defaults = dict(name="test", runtime="local")
         defaults.update(kwargs)
         return DaemonTarget(**defaults)
@@ -485,8 +571,12 @@ class TestWrapForTarget:
         )
         result = wrap_for_target(["ai-guardian", "doctor"], target)
         assert result == [
-            "podman", "exec", "-it", "a1b2c3d4e5f6a1b2",
-            "ai-guardian", "doctor",
+            "podman",
+            "exec",
+            "-it",
+            "a1b2c3d4e5f6a1b2",
+            "ai-guardian",
+            "doctor",
         ]
 
     def test_container_runtime_docker_engine(self):
@@ -514,17 +604,23 @@ class TestWrapForTarget:
             container_engine="podman",
         )
         result = wrap_for_target(
-            ["ai-guardian", "doctor"], target, interactive=False,
+            ["ai-guardian", "doctor"],
+            target,
+            interactive=False,
         )
         assert "-it" not in result
         assert result == [
-            "podman", "exec", "a1b2c3d4e5f6a1b2",
-            "ai-guardian", "doctor",
+            "podman",
+            "exec",
+            "a1b2c3d4e5f6a1b2",
+            "ai-guardian",
+            "doctor",
         ]
 
     def test_container_runtime_invalid_id_falls_back_to_local(self):
         target = self._make_target(
-            runtime="container", container_id=".invalid",
+            runtime="container",
+            container_id=".invalid",
         )
         cmd = ["ai-guardian", "doctor"]
         result = wrap_for_target(cmd, target)
@@ -532,7 +628,8 @@ class TestWrapForTarget:
 
     def test_container_runtime_missing_id_falls_back_to_local(self):
         target = self._make_target(
-            runtime="container", container_id=None,
+            runtime="container",
+            container_id=None,
         )
         cmd = ["ai-guardian", "doctor"]
         result = wrap_for_target(cmd, target)
@@ -547,9 +644,15 @@ class TestWrapForTarget:
         with mock.patch("shutil.which", return_value=None):
             result = wrap_for_target(["ai-guardian", "doctor"], target)
         assert result == [
-            "kubectl", "exec", "-it",
-            "guardian-pod-1", "-n", "ai-guardian", "--",
-            "ai-guardian", "doctor",
+            "kubectl",
+            "exec",
+            "-it",
+            "guardian-pod-1",
+            "-n",
+            "ai-guardian",
+            "--",
+            "ai-guardian",
+            "doctor",
         ]
 
     def test_kubernetes_runtime_prefers_oc(self):
@@ -576,7 +679,8 @@ class TestWrapForTarget:
 
     def test_kubernetes_missing_pod_falls_back_to_local(self):
         target = self._make_target(
-            runtime="kubernetes", pod_name=None,
+            runtime="kubernetes",
+            pod_name=None,
         )
         cmd = ["ai-guardian", "doctor"]
         result = wrap_for_target(cmd, target)
@@ -590,7 +694,9 @@ class TestWrapForTarget:
         )
         with mock.patch("shutil.which", return_value=None):
             result = wrap_for_target(
-                ["ai-guardian", "doctor"], target, interactive=False,
+                ["ai-guardian", "doctor"],
+                target,
+                interactive=False,
             )
         assert "-it" not in result
 
@@ -609,32 +715,54 @@ class TestWrapForTarget:
 
 class TestPluginsToDict:
     def test_serializes_simple_plugin(self):
-        plugins = [Plugin(
-            name="Test",
-            items=[PluginItem(label="Hello", command="echo hi", type="background")]
-        )]
+        plugins = [
+            Plugin(
+                name="Test",
+                items=[PluginItem(label="Hello", command="echo hi", type="background")],
+            )
+        ]
         result = plugins_to_dict(plugins)
         assert result == {
-            "plugins": [{
-                "name": "Test",
-                "items": [{"label": "Hello", "command": "echo hi", "type": "background"}]
-            }]
+            "plugins": [
+                {
+                    "name": "Test",
+                    "items": [
+                        {"label": "Hello", "command": "echo hi", "type": "background"}
+                    ],
+                }
+            ]
         }
 
     def test_serializes_plugin_with_params(self):
-        plugins = [Plugin(
-            name="Deploy",
-            items=[PluginItem(
-                label="Go",
-                command="deploy {tray.env}",
-                type="terminal",
-                params=[PluginParam(name="env", hint="Environment", default="dev", options=["dev", "prod"])]
-            )]
-        )]
+        plugins = [
+            Plugin(
+                name="Deploy",
+                items=[
+                    PluginItem(
+                        label="Go",
+                        command="deploy {tray.env}",
+                        type="terminal",
+                        params=[
+                            PluginParam(
+                                name="env",
+                                hint="Environment",
+                                default="dev",
+                                options=["dev", "prod"],
+                            )
+                        ],
+                    )
+                ],
+            )
+        ]
         result = plugins_to_dict(plugins)
         item = result["plugins"][0]["items"][0]
         assert item["params"] == [
-            {"name": "env", "hint": "Environment", "default": "dev", "options": ["dev", "prod"]}
+            {
+                "name": "env",
+                "hint": "Environment",
+                "default": "dev",
+                "options": ["dev", "prod"],
+            }
         ]
 
     def test_serializes_empty_list(self):
@@ -642,54 +770,58 @@ class TestPluginsToDict:
         assert result == {"plugins": []}
 
     def test_items_without_params_have_no_params_key(self):
-        plugins = [Plugin(
-            name="Test",
-            items=[PluginItem(label="Run", command="bash")]
-        )]
+        plugins = [Plugin(name="Test", items=[PluginItem(label="Run", command="bash")])]
         result = plugins_to_dict(plugins)
         assert "params" not in result["plugins"][0]["items"][0]
 
     def test_serializes_platform_map_command(self):
         cmd_map = {"darwin": "open .", "default": "xdg-open ."}
-        plugins = [Plugin(
-            name="Test",
-            items=[PluginItem(label="Open", command=cmd_map)]
-        )]
+        plugins = [
+            Plugin(name="Test", items=[PluginItem(label="Open", command=cmd_map)])
+        ]
         result = plugins_to_dict(plugins)
         assert result["plugins"][0]["items"][0]["command"] == cmd_map
 
     def test_serializes_run_on_target_true(self):
-        plugins = [Plugin(
-            name="Test",
-            items=[PluginItem(
-                label="Doctor", command="ai-guardian doctor",
-                run_on_target=True,
-            )]
-        )]
+        plugins = [
+            Plugin(
+                name="Test",
+                items=[
+                    PluginItem(
+                        label="Doctor",
+                        command="ai-guardian doctor",
+                        run_on_target=True,
+                    )
+                ],
+            )
+        ]
         result = plugins_to_dict(plugins)
         assert result["plugins"][0]["items"][0]["run_on_target"] is True
 
     def test_serializes_run_on_target_false_omitted(self):
-        plugins = [Plugin(
-            name="Test",
-            items=[PluginItem(label="Logs", command="podman logs abc")]
-        )]
+        plugins = [
+            Plugin(
+                name="Test", items=[PluginItem(label="Logs", command="podman logs abc")]
+            )
+        ]
         result = plugins_to_dict(plugins)
         assert "run_on_target" not in result["plugins"][0]["items"][0]
 
     def test_roundtrip_through_dict(self):
-        original = [Plugin(
-            name="Roundtrip",
-            items=[
-                PluginItem(label="Simple", command="echo 1", type="background"),
-                PluginItem(
-                    label="Params",
-                    command="deploy {tray.env}",
-                    type="terminal",
-                    params=[PluginParam(name="env", hint="Env", default="dev")],
-                ),
-            ]
-        )]
+        original = [
+            Plugin(
+                name="Roundtrip",
+                items=[
+                    PluginItem(label="Simple", command="echo 1", type="background"),
+                    PluginItem(
+                        label="Params",
+                        command="deploy {tray.env}",
+                        type="terminal",
+                        params=[PluginParam(name="env", hint="Env", default="dev")],
+                    ),
+                ],
+            )
+        ]
         data = plugins_to_dict(original)
         restored = dict_to_plugins(data)
         assert len(restored) == 1
@@ -699,16 +831,19 @@ class TestPluginsToDict:
         assert restored[0].items[1].params[0].name == "env"
 
     def test_roundtrip_preserves_run_on_target(self):
-        original = [Plugin(
-            name="Roundtrip",
-            items=[
-                PluginItem(
-                    label="Doctor", command="ai-guardian doctor",
-                    run_on_target=True,
-                ),
-                PluginItem(label="Logs", command="podman logs abc"),
-            ]
-        )]
+        original = [
+            Plugin(
+                name="Roundtrip",
+                items=[
+                    PluginItem(
+                        label="Doctor",
+                        command="ai-guardian doctor",
+                        run_on_target=True,
+                    ),
+                    PluginItem(label="Logs", command="podman logs abc"),
+                ],
+            )
+        ]
         data = plugins_to_dict(original)
         restored = dict_to_plugins(data)
         assert restored[0].items[0].run_on_target is True
@@ -721,6 +856,7 @@ class TestSendNotification:
             m.system.return_value = "Darwin"
             with mock.patch("subprocess.run") as mock_run:
                 from ai_guardian.daemon.tray_plugins import send_notification
+
                 result = send_notification("Title", "Hello world")
                 assert result is True
                 mock_run.assert_called_once()
@@ -732,6 +868,7 @@ class TestSendNotification:
             m.system.return_value = "Linux"
             with mock.patch("subprocess.run") as mock_run:
                 from ai_guardian.daemon.tray_plugins import send_notification
+
                 result = send_notification("Title", "Hello")
                 assert result is True
                 mock_run.assert_called_once()
@@ -742,6 +879,7 @@ class TestSendNotification:
         with mock.patch("ai_guardian.daemon.tray_plugins.platform") as m:
             m.system.return_value = "FreeBSD"
             from ai_guardian.daemon.tray_plugins import send_notification
+
             assert send_notification("T", "M") is False
 
     def test_returns_false_on_error(self):
@@ -749,6 +887,7 @@ class TestSendNotification:
             m.system.return_value = "Darwin"
             with mock.patch("subprocess.run", side_effect=FileNotFoundError):
                 from ai_guardian.daemon.tray_plugins import send_notification
+
                 assert send_notification("T", "M") is False
 
     def test_escapes_quotes_in_message(self):
@@ -756,6 +895,7 @@ class TestSendNotification:
             m.system.return_value = "Darwin"
             with mock.patch("subprocess.run") as mock_run:
                 from ai_guardian.daemon.tray_plugins import send_notification
+
                 send_notification("Title", 'He said "hello"')
                 script = mock_run.call_args[0][0][2]
                 assert '\\"' in script
@@ -763,9 +903,13 @@ class TestSendNotification:
     def test_linux_includes_icon_flag(self):
         with mock.patch("ai_guardian.daemon.tray_plugins.platform") as m:
             m.system.return_value = "Linux"
-            with mock.patch("ai_guardian.daemon.tray_plugins._find_icon", return_value="/path/to/icon.png"):
+            with mock.patch(
+                "ai_guardian.daemon.tray_plugins._find_icon",
+                return_value="/path/to/icon.png",
+            ):
                 with mock.patch("subprocess.run") as mock_run:
                     from ai_guardian.daemon.tray_plugins import send_notification
+
                     result = send_notification("Title", "Hello")
                     assert result is True
                     args = mock_run.call_args[0][0]
@@ -775,9 +919,12 @@ class TestSendNotification:
     def test_linux_no_icon_when_not_found(self):
         with mock.patch("ai_guardian.daemon.tray_plugins.platform") as m:
             m.system.return_value = "Linux"
-            with mock.patch("ai_guardian.daemon.tray_plugins._find_icon", return_value=""):
+            with mock.patch(
+                "ai_guardian.daemon.tray_plugins._find_icon", return_value=""
+            ):
                 with mock.patch("subprocess.run") as mock_run:
                     from ai_guardian.daemon.tray_plugins import send_notification
+
                     result = send_notification("Title", "Hello")
                     assert result is True
                     args = mock_run.call_args[0][0]
@@ -786,9 +933,13 @@ class TestSendNotification:
     def test_windows_loads_custom_icon(self):
         with mock.patch("ai_guardian.daemon.tray_plugins.platform") as m:
             m.system.return_value = "Windows"
-            with mock.patch("ai_guardian.daemon.tray_plugins._find_icon", return_value="C:\\icons\\shield.png"):
+            with mock.patch(
+                "ai_guardian.daemon.tray_plugins._find_icon",
+                return_value="C:\\icons\\shield.png",
+            ):
                 with mock.patch("subprocess.run") as mock_run:
                     from ai_guardian.daemon.tray_plugins import send_notification
+
                     result = send_notification("Title", "Hello")
                     assert result is True
                     ps_cmd = mock_run.call_args[0][0][2]
@@ -798,9 +949,12 @@ class TestSendNotification:
     def test_windows_fallback_icon_when_not_found(self):
         with mock.patch("ai_guardian.daemon.tray_plugins.platform") as m:
             m.system.return_value = "Windows"
-            with mock.patch("ai_guardian.daemon.tray_plugins._find_icon", return_value=""):
+            with mock.patch(
+                "ai_guardian.daemon.tray_plugins._find_icon", return_value=""
+            ):
                 with mock.patch("subprocess.run") as mock_run:
                     from ai_guardian.daemon.tray_plugins import send_notification
+
                     result = send_notification("Title", "Hello")
                     assert result is True
                     ps_cmd = mock_run.call_args[0][0][2]
@@ -814,6 +968,7 @@ class TestCopyToClipboard:
             m.system.return_value = "Darwin"
             with mock.patch("subprocess.run") as mock_run:
                 from ai_guardian.daemon.tray_plugins import copy_to_clipboard
+
                 result = copy_to_clipboard("hello")
                 assert result is True
                 mock_run.assert_called_once()
@@ -827,6 +982,7 @@ class TestCopyToClipboard:
             with mock.patch("shutil.which", return_value="/usr/bin/xclip"):
                 with mock.patch("subprocess.run") as mock_run:
                     from ai_guardian.daemon.tray_plugins import copy_to_clipboard
+
                     result = copy_to_clipboard("hello")
                     assert result is True
                     args = mock_run.call_args[0][0]
@@ -835,9 +991,13 @@ class TestCopyToClipboard:
     def test_linux_falls_back_to_xsel(self):
         with mock.patch("ai_guardian.daemon.tray_plugins.platform") as m:
             m.system.return_value = "Linux"
-            with mock.patch("shutil.which", side_effect=lambda x: "/usr/bin/xsel" if x == "xsel" else None):
+            with mock.patch(
+                "shutil.which",
+                side_effect=lambda x: "/usr/bin/xsel" if x == "xsel" else None,
+            ):
                 with mock.patch("subprocess.run") as mock_run:
                     from ai_guardian.daemon.tray_plugins import copy_to_clipboard
+
                     result = copy_to_clipboard("hello")
                     assert result is True
                     args = mock_run.call_args[0][0]
@@ -848,12 +1008,14 @@ class TestCopyToClipboard:
             m.system.return_value = "Linux"
             with mock.patch("shutil.which", return_value=None):
                 from ai_guardian.daemon.tray_plugins import copy_to_clipboard
+
                 assert copy_to_clipboard("hello") is False
 
     def test_returns_false_on_unknown_platform(self):
         with mock.patch("ai_guardian.daemon.tray_plugins.platform") as m:
             m.system.return_value = "FreeBSD"
             from ai_guardian.daemon.tray_plugins import copy_to_clipboard
+
             assert copy_to_clipboard("hello") is False
 
     def test_returns_false_on_error(self):
@@ -861,16 +1023,16 @@ class TestCopyToClipboard:
             m.system.return_value = "Darwin"
             with mock.patch("subprocess.run", side_effect=OSError("broken")):
                 from ai_guardian.daemon.tray_plugins import copy_to_clipboard
+
                 assert copy_to_clipboard("hello") is False
 
 
 class TestDictToPlugins:
     def test_deserializes_valid_data(self):
         data = {
-            "plugins": [{
-                "name": "Test",
-                "items": [{"label": "Run", "command": "bash"}]
-            }]
+            "plugins": [
+                {"name": "Test", "items": [{"label": "Run", "command": "bash"}]}
+            ]
         }
         plugins = dict_to_plugins(data)
         assert len(plugins) == 1
@@ -951,7 +1113,10 @@ class TestShowDialog:
     def test_macos_includes_icon_when_found(self):
         with mock.patch("ai_guardian.daemon.tray_plugins.platform") as m:
             m.system.return_value = "Darwin"
-            with mock.patch("ai_guardian.daemon.tray_plugins._find_icon", return_value="/path/to/icon.icns"):
+            with mock.patch(
+                "ai_guardian.daemon.tray_plugins._find_icon",
+                return_value="/path/to/icon.icns",
+            ):
                 with mock.patch("subprocess.run") as mock_run:
                     result = show_dialog("Title", "Hello")
                     assert result is True
@@ -971,11 +1136,15 @@ class TestPluginTags:
     def test_tags_parsed_from_json(self, tmp_path):
         plugins_dir = tmp_path / "tray-plugins"
         plugins_dir.mkdir()
-        (plugins_dir / "tagged.json").write_text(json.dumps({
-            "name": "Carbonite",
-            "tags": ["carbonite", "container"],
-            "items": [{"label": "Status", "command": "echo ok"}]
-        }))
+        (plugins_dir / "tagged.json").write_text(
+            json.dumps(
+                {
+                    "name": "Carbonite",
+                    "tags": ["carbonite", "container"],
+                    "items": [{"label": "Status", "command": "echo ok"}],
+                }
+            )
+        )
         plugins = load_plugins(plugins_dir)
         assert len(plugins) == 1
         assert plugins[0].tags == ["carbonite", "container"]
@@ -983,67 +1152,78 @@ class TestPluginTags:
     def test_tags_missing_defaults_to_empty(self, tmp_path):
         plugins_dir = tmp_path / "tray-plugins"
         plugins_dir.mkdir()
-        (plugins_dir / "untagged.json").write_text(json.dumps({
-            "name": "Generic",
-            "items": [{"label": "Run", "command": "bash"}]
-        }))
+        (plugins_dir / "untagged.json").write_text(
+            json.dumps(
+                {"name": "Generic", "items": [{"label": "Run", "command": "bash"}]}
+            )
+        )
         plugins = load_plugins(plugins_dir)
         assert plugins[0].tags == []
 
     def test_tags_invalid_type_ignored(self, tmp_path):
         plugins_dir = tmp_path / "tray-plugins"
         plugins_dir.mkdir()
-        (plugins_dir / "badtag.json").write_text(json.dumps({
-            "name": "Bad",
-            "tags": "not-a-list",
-            "items": [{"label": "Go", "command": "go"}]
-        }))
+        (plugins_dir / "badtag.json").write_text(
+            json.dumps(
+                {
+                    "name": "Bad",
+                    "tags": "not-a-list",
+                    "items": [{"label": "Go", "command": "go"}],
+                }
+            )
+        )
         plugins = load_plugins(plugins_dir)
         assert plugins[0].tags == []
 
     def test_tags_filters_non_string_entries(self, tmp_path):
         plugins_dir = tmp_path / "tray-plugins"
         plugins_dir.mkdir()
-        (plugins_dir / "mixed.json").write_text(json.dumps({
-            "name": "Mixed",
-            "tags": ["valid", 42, "", None, "also-valid"],
-            "items": [{"label": "Do", "command": "do"}]
-        }))
+        (plugins_dir / "mixed.json").write_text(
+            json.dumps(
+                {
+                    "name": "Mixed",
+                    "tags": ["valid", 42, "", None, "also-valid"],
+                    "items": [{"label": "Do", "command": "do"}],
+                }
+            )
+        )
         plugins = load_plugins(plugins_dir)
         assert plugins[0].tags == ["valid", "also-valid"]
 
     def test_tags_included_in_serialization(self):
-        plugins = [Plugin(
-            name="Tagged",
-            tags=["carbonite"],
-            items=[PluginItem(label="Run", command="echo")]
-        )]
+        plugins = [
+            Plugin(
+                name="Tagged",
+                tags=["carbonite"],
+                items=[PluginItem(label="Run", command="echo")],
+            )
+        ]
         result = plugins_to_dict(plugins)
         assert result["plugins"][0]["tags"] == ["carbonite"]
 
     def test_tags_omitted_when_empty(self):
-        plugins = [Plugin(
-            name="Untagged",
-            items=[PluginItem(label="Run", command="echo")]
-        )]
+        plugins = [
+            Plugin(name="Untagged", items=[PluginItem(label="Run", command="echo")])
+        ]
         result = plugins_to_dict(plugins)
         assert "tags" not in result["plugins"][0]
 
     def test_tags_roundtrip(self):
-        original = [Plugin(
-            name="Roundtrip",
-            tags=["carbonite", "staging"],
-            items=[PluginItem(label="Go", command="echo 1")]
-        )]
+        original = [
+            Plugin(
+                name="Roundtrip",
+                tags=["carbonite", "staging"],
+                items=[PluginItem(label="Go", command="echo 1")],
+            )
+        ]
         data = plugins_to_dict(original)
         restored = dict_to_plugins(data)
         assert restored[0].tags == ["carbonite", "staging"]
 
     def test_tags_roundtrip_empty(self):
-        original = [Plugin(
-            name="Roundtrip",
-            items=[PluginItem(label="Go", command="echo 1")]
-        )]
+        original = [
+            Plugin(name="Roundtrip", items=[PluginItem(label="Go", command="echo 1")])
+        ]
         data = plugins_to_dict(original)
         restored = dict_to_plugins(data)
         assert restored[0].tags == []
@@ -1113,11 +1293,15 @@ class TestPluginScope:
     def test_scope_parsed_from_json(self, tmp_path):
         plugins_dir = tmp_path / "tray-plugins"
         plugins_dir.mkdir()
-        (plugins_dir / "global.json").write_text(json.dumps({
-            "name": "Quick Links",
-            "scope": "global",
-            "items": [{"label": "Docs", "command": "echo docs"}]
-        }))
+        (plugins_dir / "global.json").write_text(
+            json.dumps(
+                {
+                    "name": "Quick Links",
+                    "scope": "global",
+                    "items": [{"label": "Docs", "command": "echo docs"}],
+                }
+            )
+        )
         plugins = load_plugins(plugins_dir)
         assert len(plugins) == 1
         assert plugins[0].scope == "global"
@@ -1125,67 +1309,78 @@ class TestPluginScope:
     def test_scope_daemon_explicit(self, tmp_path):
         plugins_dir = tmp_path / "tray-plugins"
         plugins_dir.mkdir()
-        (plugins_dir / "daemon.json").write_text(json.dumps({
-            "name": "Daemon Plugin",
-            "scope": "daemon",
-            "items": [{"label": "Run", "command": "echo"}]
-        }))
+        (plugins_dir / "daemon.json").write_text(
+            json.dumps(
+                {
+                    "name": "Daemon Plugin",
+                    "scope": "daemon",
+                    "items": [{"label": "Run", "command": "echo"}],
+                }
+            )
+        )
         plugins = load_plugins(plugins_dir)
         assert plugins[0].scope == "daemon"
 
     def test_scope_missing_defaults_to_daemon(self, tmp_path):
         plugins_dir = tmp_path / "tray-plugins"
         plugins_dir.mkdir()
-        (plugins_dir / "noscope.json").write_text(json.dumps({
-            "name": "No Scope",
-            "items": [{"label": "Run", "command": "echo"}]
-        }))
+        (plugins_dir / "noscope.json").write_text(
+            json.dumps(
+                {"name": "No Scope", "items": [{"label": "Run", "command": "echo"}]}
+            )
+        )
         plugins = load_plugins(plugins_dir)
         assert plugins[0].scope == "daemon"
 
     def test_scope_invalid_defaults_to_daemon(self, tmp_path):
         plugins_dir = tmp_path / "tray-plugins"
         plugins_dir.mkdir()
-        (plugins_dir / "invalid.json").write_text(json.dumps({
-            "name": "Invalid Scope",
-            "scope": "invalid_value",
-            "items": [{"label": "Run", "command": "echo"}]
-        }))
+        (plugins_dir / "invalid.json").write_text(
+            json.dumps(
+                {
+                    "name": "Invalid Scope",
+                    "scope": "invalid_value",
+                    "items": [{"label": "Run", "command": "echo"}],
+                }
+            )
+        )
         plugins = load_plugins(plugins_dir)
         assert plugins[0].scope == "daemon"
 
     def test_scope_included_in_serialization(self):
-        plugins = [Plugin(
-            name="Global",
-            scope="global",
-            items=[PluginItem(label="Run", command="echo")]
-        )]
+        plugins = [
+            Plugin(
+                name="Global",
+                scope="global",
+                items=[PluginItem(label="Run", command="echo")],
+            )
+        ]
         result = plugins_to_dict(plugins)
         assert result["plugins"][0]["scope"] == "global"
 
     def test_scope_daemon_omitted_in_serialization(self):
-        plugins = [Plugin(
-            name="Daemon",
-            items=[PluginItem(label="Run", command="echo")]
-        )]
+        plugins = [
+            Plugin(name="Daemon", items=[PluginItem(label="Run", command="echo")])
+        ]
         result = plugins_to_dict(plugins)
         assert "scope" not in result["plugins"][0]
 
     def test_scope_roundtrip_global(self):
-        original = [Plugin(
-            name="Roundtrip",
-            scope="global",
-            items=[PluginItem(label="Go", command="echo 1")]
-        )]
+        original = [
+            Plugin(
+                name="Roundtrip",
+                scope="global",
+                items=[PluginItem(label="Go", command="echo 1")],
+            )
+        ]
         data = plugins_to_dict(original)
         restored = dict_to_plugins(data)
         assert restored[0].scope == "global"
 
     def test_scope_roundtrip_daemon(self):
-        original = [Plugin(
-            name="Roundtrip",
-            items=[PluginItem(label="Go", command="echo 1")]
-        )]
+        original = [
+            Plugin(name="Roundtrip", items=[PluginItem(label="Go", command="echo 1")])
+        ]
         data = plugins_to_dict(original)
         restored = dict_to_plugins(data)
         assert restored[0].scope == "daemon"
@@ -1193,15 +1388,23 @@ class TestPluginScope:
     def test_mixed_scopes_loaded(self, tmp_path):
         plugins_dir = tmp_path / "tray-plugins"
         plugins_dir.mkdir()
-        (plugins_dir / "01-global.json").write_text(json.dumps({
-            "name": "Global",
-            "scope": "global",
-            "items": [{"label": "Docs", "command": "echo docs"}]
-        }))
-        (plugins_dir / "02-daemon.json").write_text(json.dumps({
-            "name": "Daemon",
-            "items": [{"label": "Status", "command": "echo status"}]
-        }))
+        (plugins_dir / "01-global.json").write_text(
+            json.dumps(
+                {
+                    "name": "Global",
+                    "scope": "global",
+                    "items": [{"label": "Docs", "command": "echo docs"}],
+                }
+            )
+        )
+        (plugins_dir / "02-daemon.json").write_text(
+            json.dumps(
+                {
+                    "name": "Daemon",
+                    "items": [{"label": "Status", "command": "echo status"}],
+                }
+            )
+        )
         plugins = load_plugins(plugins_dir)
         assert len(plugins) == 2
         global_plugins = [p for p in plugins if p.scope == "global"]
@@ -1216,24 +1419,42 @@ class TestParseParamTyped:
     def test_default_type_is_string(self, tmp_path):
         plugins_dir = tmp_path / "tray-plugins"
         plugins_dir.mkdir()
-        (plugins_dir / "test.json").write_text(json.dumps({
-            "name": "Test",
-            "items": [{"label": "Run", "command": "cmd", "params": [
-                {"name": "x", "hint": "val"}
-            ]}]
-        }))
+        (plugins_dir / "test.json").write_text(
+            json.dumps(
+                {
+                    "name": "Test",
+                    "items": [
+                        {
+                            "label": "Run",
+                            "command": "cmd",
+                            "params": [{"name": "x", "hint": "val"}],
+                        }
+                    ],
+                }
+            )
+        )
         plugins = load_plugins(plugins_dir)
         assert plugins[0].items[0].params[0].type == "string"
 
     def test_type_int_parsed(self, tmp_path):
         plugins_dir = tmp_path / "tray-plugins"
         plugins_dir.mkdir()
-        (plugins_dir / "test.json").write_text(json.dumps({
-            "name": "Test",
-            "items": [{"label": "Run", "command": "cmd", "params": [
-                {"name": "count", "type": "int", "min": 1, "max": 10}
-            ]}]
-        }))
+        (plugins_dir / "test.json").write_text(
+            json.dumps(
+                {
+                    "name": "Test",
+                    "items": [
+                        {
+                            "label": "Run",
+                            "command": "cmd",
+                            "params": [
+                                {"name": "count", "type": "int", "min": 1, "max": 10}
+                            ],
+                        }
+                    ],
+                }
+            )
+        )
         plugins = load_plugins(plugins_dir)
         p = plugins[0].items[0].params[0]
         assert p.type == "int"
@@ -1243,12 +1464,22 @@ class TestParseParamTyped:
     def test_type_boolean_parsed(self, tmp_path):
         plugins_dir = tmp_path / "tray-plugins"
         plugins_dir.mkdir()
-        (plugins_dir / "test.json").write_text(json.dumps({
-            "name": "Test",
-            "items": [{"label": "Run", "command": "cmd", "params": [
-                {"name": "flag", "type": "boolean", "default": "true"}
-            ]}]
-        }))
+        (plugins_dir / "test.json").write_text(
+            json.dumps(
+                {
+                    "name": "Test",
+                    "items": [
+                        {
+                            "label": "Run",
+                            "command": "cmd",
+                            "params": [
+                                {"name": "flag", "type": "boolean", "default": "true"}
+                            ],
+                        }
+                    ],
+                }
+            )
+        )
         plugins = load_plugins(plugins_dir)
         p = plugins[0].items[0].params[0]
         assert p.type == "boolean"
@@ -1257,36 +1488,72 @@ class TestParseParamTyped:
     def test_options_without_type_infers_choice(self, tmp_path):
         plugins_dir = tmp_path / "tray-plugins"
         plugins_dir.mkdir()
-        (plugins_dir / "test.json").write_text(json.dumps({
-            "name": "Test",
-            "items": [{"label": "Run", "command": "cmd", "params": [
-                {"name": "env", "options": ["dev", "prod"]}
-            ]}]
-        }))
+        (plugins_dir / "test.json").write_text(
+            json.dumps(
+                {
+                    "name": "Test",
+                    "items": [
+                        {
+                            "label": "Run",
+                            "command": "cmd",
+                            "params": [{"name": "env", "options": ["dev", "prod"]}],
+                        }
+                    ],
+                }
+            )
+        )
         plugins = load_plugins(plugins_dir)
         assert plugins[0].items[0].params[0].type == "choice"
 
     def test_options_with_explicit_type_uses_type(self, tmp_path):
         plugins_dir = tmp_path / "tray-plugins"
         plugins_dir.mkdir()
-        (plugins_dir / "test.json").write_text(json.dumps({
-            "name": "Test",
-            "items": [{"label": "Run", "command": "cmd", "params": [
-                {"name": "tag", "type": "combobox", "options": ["latest", "stable"]}
-            ]}]
-        }))
+        (plugins_dir / "test.json").write_text(
+            json.dumps(
+                {
+                    "name": "Test",
+                    "items": [
+                        {
+                            "label": "Run",
+                            "command": "cmd",
+                            "params": [
+                                {
+                                    "name": "tag",
+                                    "type": "combobox",
+                                    "options": ["latest", "stable"],
+                                }
+                            ],
+                        }
+                    ],
+                }
+            )
+        )
         plugins = load_plugins(plugins_dir)
         assert plugins[0].items[0].params[0].type == "combobox"
 
     def test_type_path_file_parsed(self, tmp_path):
         plugins_dir = tmp_path / "tray-plugins"
         plugins_dir.mkdir()
-        (plugins_dir / "test.json").write_text(json.dumps({
-            "name": "Test",
-            "items": [{"label": "Run", "command": "cmd", "params": [
-                {"name": "file", "type": "path-file", "hint": "Pick a file"}
-            ]}]
-        }))
+        (plugins_dir / "test.json").write_text(
+            json.dumps(
+                {
+                    "name": "Test",
+                    "items": [
+                        {
+                            "label": "Run",
+                            "command": "cmd",
+                            "params": [
+                                {
+                                    "name": "file",
+                                    "type": "path-file",
+                                    "hint": "Pick a file",
+                                }
+                            ],
+                        }
+                    ],
+                }
+            )
+        )
         plugins = load_plugins(plugins_dir)
         p = plugins[0].items[0].params[0]
         assert p.type == "path-file"
@@ -1295,12 +1562,22 @@ class TestParseParamTyped:
     def test_type_path_dir_parsed(self, tmp_path):
         plugins_dir = tmp_path / "tray-plugins"
         plugins_dir.mkdir()
-        (plugins_dir / "test.json").write_text(json.dumps({
-            "name": "Test",
-            "items": [{"label": "Run", "command": "cmd", "params": [
-                {"name": "dir", "type": "path-dir", "default": "."}
-            ]}]
-        }))
+        (plugins_dir / "test.json").write_text(
+            json.dumps(
+                {
+                    "name": "Test",
+                    "items": [
+                        {
+                            "label": "Run",
+                            "command": "cmd",
+                            "params": [
+                                {"name": "dir", "type": "path-dir", "default": "."}
+                            ],
+                        }
+                    ],
+                }
+            )
+        )
         plugins = load_plugins(plugins_dir)
         p = plugins[0].items[0].params[0]
         assert p.type == "path-dir"
@@ -1309,60 +1586,103 @@ class TestParseParamTyped:
     def test_invalid_type_defaults_to_string(self, tmp_path):
         plugins_dir = tmp_path / "tray-plugins"
         plugins_dir.mkdir()
-        (plugins_dir / "test.json").write_text(json.dumps({
-            "name": "Test",
-            "items": [{"label": "Run", "command": "cmd", "params": [
-                {"name": "x", "type": "bogus"}
-            ]}]
-        }))
+        (plugins_dir / "test.json").write_text(
+            json.dumps(
+                {
+                    "name": "Test",
+                    "items": [
+                        {
+                            "label": "Run",
+                            "command": "cmd",
+                            "params": [{"name": "x", "type": "bogus"}],
+                        }
+                    ],
+                }
+            )
+        )
         plugins = load_plugins(plugins_dir)
         assert plugins[0].items[0].params[0].type == "string"
 
     def test_required_false_parsed(self, tmp_path):
         plugins_dir = tmp_path / "tray-plugins"
         plugins_dir.mkdir()
-        (plugins_dir / "test.json").write_text(json.dumps({
-            "name": "Test",
-            "items": [{"label": "Run", "command": "cmd", "params": [
-                {"name": "tag", "required": False}
-            ]}]
-        }))
+        (plugins_dir / "test.json").write_text(
+            json.dumps(
+                {
+                    "name": "Test",
+                    "items": [
+                        {
+                            "label": "Run",
+                            "command": "cmd",
+                            "params": [{"name": "tag", "required": False}],
+                        }
+                    ],
+                }
+            )
+        )
         plugins = load_plugins(plugins_dir)
         assert plugins[0].items[0].params[0].required is False
 
     def test_required_default_is_true(self, tmp_path):
         plugins_dir = tmp_path / "tray-plugins"
         plugins_dir.mkdir()
-        (plugins_dir / "test.json").write_text(json.dumps({
-            "name": "Test",
-            "items": [{"label": "Run", "command": "cmd", "params": [
-                {"name": "x"}
-            ]}]
-        }))
+        (plugins_dir / "test.json").write_text(
+            json.dumps(
+                {
+                    "name": "Test",
+                    "items": [
+                        {"label": "Run", "command": "cmd", "params": [{"name": "x"}]}
+                    ],
+                }
+            )
+        )
         plugins = load_plugins(plugins_dir)
         assert plugins[0].items[0].params[0].required is True
 
     def test_pattern_parsed(self, tmp_path):
         plugins_dir = tmp_path / "tray-plugins"
         plugins_dir.mkdir()
-        (plugins_dir / "test.json").write_text(json.dumps({
-            "name": "Test",
-            "items": [{"label": "Run", "command": "cmd", "params": [
-                {"name": "branch", "pattern": "^[a-z]+$"}
-            ]}]
-        }))
+        (plugins_dir / "test.json").write_text(
+            json.dumps(
+                {
+                    "name": "Test",
+                    "items": [
+                        {
+                            "label": "Run",
+                            "command": "cmd",
+                            "params": [{"name": "branch", "pattern": "^[a-z]+$"}],
+                        }
+                    ],
+                }
+            )
+        )
         plugins = load_plugins(plugins_dir)
         assert plugins[0].items[0].params[0].pattern == "^[a-z]+$"
 
     def test_invalid_min_max_ignored(self, tmp_path):
         plugins_dir = tmp_path / "tray-plugins"
         plugins_dir.mkdir()
-        (plugins_dir / "test.json").write_text(json.dumps({
-            "name": "Test",
-            "items": [{"label": "Run", "command": "cmd", "params": [
-                {"name": "x", "type": "int", "min": "not-a-number", "max": None}
-            ]}]
-        }))
+        (plugins_dir / "test.json").write_text(
+            json.dumps(
+                {
+                    "name": "Test",
+                    "items": [
+                        {
+                            "label": "Run",
+                            "command": "cmd",
+                            "params": [
+                                {
+                                    "name": "x",
+                                    "type": "int",
+                                    "min": "not-a-number",
+                                    "max": None,
+                                }
+                            ],
+                        }
+                    ],
+                }
+            )
+        )
         plugins = load_plugins(plugins_dir)
         p = plugins[0].items[0].params[0]
         assert p.min is None
@@ -1514,13 +1834,18 @@ class TestParamSerializationTyped:
     """Tests for serialization of typed PluginParam fields."""
 
     def test_serializes_type_when_not_string(self):
-        plugins = [Plugin(
-            name="Test",
-            items=[PluginItem(
-                label="Run", command="cmd",
-                params=[PluginParam(name="n", type="int", min=1.0, max=10.0)],
-            )]
-        )]
+        plugins = [
+            Plugin(
+                name="Test",
+                items=[
+                    PluginItem(
+                        label="Run",
+                        command="cmd",
+                        params=[PluginParam(name="n", type="int", min=1.0, max=10.0)],
+                    )
+                ],
+            )
+        ]
         result = plugins_to_dict(plugins)
         p = result["plugins"][0]["items"][0]["params"][0]
         assert p["type"] == "int"
@@ -1528,93 +1853,137 @@ class TestParamSerializationTyped:
         assert p["max"] == 10.0
 
     def test_omits_type_when_string(self):
-        plugins = [Plugin(
-            name="Test",
-            items=[PluginItem(
-                label="Run", command="cmd",
-                params=[PluginParam(name="x")],
-            )]
-        )]
+        plugins = [
+            Plugin(
+                name="Test",
+                items=[
+                    PluginItem(
+                        label="Run",
+                        command="cmd",
+                        params=[PluginParam(name="x")],
+                    )
+                ],
+            )
+        ]
         result = plugins_to_dict(plugins)
         p = result["plugins"][0]["items"][0]["params"][0]
         assert "type" not in p
 
     def test_serializes_required_false(self):
-        plugins = [Plugin(
-            name="Test",
-            items=[PluginItem(
-                label="Run", command="cmd",
-                params=[PluginParam(name="x", required=False)],
-            )]
-        )]
+        plugins = [
+            Plugin(
+                name="Test",
+                items=[
+                    PluginItem(
+                        label="Run",
+                        command="cmd",
+                        params=[PluginParam(name="x", required=False)],
+                    )
+                ],
+            )
+        ]
         result = plugins_to_dict(plugins)
         p = result["plugins"][0]["items"][0]["params"][0]
         assert p["required"] is False
 
     def test_omits_required_when_true(self):
-        plugins = [Plugin(
-            name="Test",
-            items=[PluginItem(
-                label="Run", command="cmd",
-                params=[PluginParam(name="x", required=True)],
-            )]
-        )]
+        plugins = [
+            Plugin(
+                name="Test",
+                items=[
+                    PluginItem(
+                        label="Run",
+                        command="cmd",
+                        params=[PluginParam(name="x", required=True)],
+                    )
+                ],
+            )
+        ]
         result = plugins_to_dict(plugins)
         p = result["plugins"][0]["items"][0]["params"][0]
         assert "required" not in p
 
     def test_serializes_pattern(self):
-        plugins = [Plugin(
-            name="Test",
-            items=[PluginItem(
-                label="Run", command="cmd",
-                params=[PluginParam(name="b", pattern="^[a-z]+$")],
-            )]
-        )]
+        plugins = [
+            Plugin(
+                name="Test",
+                items=[
+                    PluginItem(
+                        label="Run",
+                        command="cmd",
+                        params=[PluginParam(name="b", pattern="^[a-z]+$")],
+                    )
+                ],
+            )
+        ]
         result = plugins_to_dict(plugins)
         p = result["plugins"][0]["items"][0]["params"][0]
         assert p["pattern"] == "^[a-z]+$"
 
     def test_serializes_path_file_type(self):
-        plugins = [Plugin(
-            name="Test",
-            items=[PluginItem(
-                label="Run", command="cmd",
-                params=[PluginParam(name="f", type="path-file", hint="Pick file")],
-            )]
-        )]
+        plugins = [
+            Plugin(
+                name="Test",
+                items=[
+                    PluginItem(
+                        label="Run",
+                        command="cmd",
+                        params=[
+                            PluginParam(name="f", type="path-file", hint="Pick file")
+                        ],
+                    )
+                ],
+            )
+        ]
         result = plugins_to_dict(plugins)
         p = result["plugins"][0]["items"][0]["params"][0]
         assert p["type"] == "path-file"
 
     def test_serializes_path_dir_type(self):
-        plugins = [Plugin(
-            name="Test",
-            items=[PluginItem(
-                label="Run", command="cmd",
-                params=[PluginParam(name="d", type="path-dir", default=".")],
-            )]
-        )]
+        plugins = [
+            Plugin(
+                name="Test",
+                items=[
+                    PluginItem(
+                        label="Run",
+                        command="cmd",
+                        params=[PluginParam(name="d", type="path-dir", default=".")],
+                    )
+                ],
+            )
+        ]
         result = plugins_to_dict(plugins)
         p = result["plugins"][0]["items"][0]["params"][0]
         assert p["type"] == "path-dir"
         assert p["default"] == "."
 
     def test_roundtrip_typed_params(self):
-        original = [Plugin(
-            name="RT",
-            items=[PluginItem(
-                label="Go", command="cmd",
-                params=[
-                    PluginParam(name="n", type="int", min=1.0, max=10.0, required=True),
-                    PluginParam(name="tag", type="combobox", options=["a", "b"], required=False),
-                    PluginParam(name="flag", type="boolean", default="true"),
-                    PluginParam(name="branch", pattern="^[a-z]+$"),
-                    PluginParam(name="f", type="path-file"),
-                    PluginParam(name="d", type="path-dir", default="."),
+        original = [
+            Plugin(
+                name="RT",
+                items=[
+                    PluginItem(
+                        label="Go",
+                        command="cmd",
+                        params=[
+                            PluginParam(
+                                name="n", type="int", min=1.0, max=10.0, required=True
+                            ),
+                            PluginParam(
+                                name="tag",
+                                type="combobox",
+                                options=["a", "b"],
+                                required=False,
+                            ),
+                            PluginParam(name="flag", type="boolean", default="true"),
+                            PluginParam(name="branch", pattern="^[a-z]+$"),
+                            PluginParam(name="f", type="path-file"),
+                            PluginParam(name="d", type="path-dir", default="."),
+                        ],
+                    )
                 ],
-            )]
-        )]
+            )
+        ]
         data = plugins_to_dict(original)
         restored = dict_to_plugins(data)
         params = restored[0].items[0].params
@@ -1636,77 +2005,96 @@ class TestPluginTarget:
     def test_target_omitted_defaults_to_none(self, tmp_path):
         plugins_dir = tmp_path / "plugins"
         plugins_dir.mkdir()
-        (plugins_dir / "t.json").write_text(json.dumps({
-            "name": "P", "items": [{"label": "A", "command": "cmd"}]
-        }))
+        (plugins_dir / "t.json").write_text(
+            json.dumps({"name": "P", "items": [{"label": "A", "command": "cmd"}]})
+        )
         plugins = load_plugins(plugins_dir)
         assert plugins[0].items[0].target is None
 
     def test_target_select_parsed(self, tmp_path):
         plugins_dir = tmp_path / "plugins"
         plugins_dir.mkdir()
-        (plugins_dir / "t.json").write_text(json.dumps({
-            "name": "P",
-            "items": [{"label": "A", "command": "cmd", "target": "select"}]
-        }))
+        (plugins_dir / "t.json").write_text(
+            json.dumps(
+                {
+                    "name": "P",
+                    "items": [{"label": "A", "command": "cmd", "target": "select"}],
+                }
+            )
+        )
         plugins = load_plugins(plugins_dir)
         assert plugins[0].items[0].target == "select"
 
     def test_target_all_parsed(self, tmp_path):
         plugins_dir = tmp_path / "plugins"
         plugins_dir.mkdir()
-        (plugins_dir / "t.json").write_text(json.dumps({
-            "name": "P",
-            "items": [{"label": "A", "command": "cmd", "target": "all"}]
-        }))
+        (plugins_dir / "t.json").write_text(
+            json.dumps(
+                {
+                    "name": "P",
+                    "items": [{"label": "A", "command": "cmd", "target": "all"}],
+                }
+            )
+        )
         plugins = load_plugins(plugins_dir)
         assert plugins[0].items[0].target == "all"
 
     def test_target_containers_parsed(self, tmp_path):
         plugins_dir = tmp_path / "plugins"
         plugins_dir.mkdir()
-        (plugins_dir / "t.json").write_text(json.dumps({
-            "name": "P",
-            "items": [{"label": "A", "command": "cmd", "target": "containers"}]
-        }))
+        (plugins_dir / "t.json").write_text(
+            json.dumps(
+                {
+                    "name": "P",
+                    "items": [{"label": "A", "command": "cmd", "target": "containers"}],
+                }
+            )
+        )
         plugins = load_plugins(plugins_dir)
         assert plugins[0].items[0].target == "containers"
 
     def test_target_invalid_defaults_to_none(self, tmp_path):
         plugins_dir = tmp_path / "plugins"
         plugins_dir.mkdir()
-        (plugins_dir / "t.json").write_text(json.dumps({
-            "name": "P",
-            "items": [{"label": "A", "command": "cmd", "target": "bogus"}]
-        }))
+        (plugins_dir / "t.json").write_text(
+            json.dumps(
+                {
+                    "name": "P",
+                    "items": [{"label": "A", "command": "cmd", "target": "bogus"}],
+                }
+            )
+        )
         plugins = load_plugins(plugins_dir)
         assert plugins[0].items[0].target is None
 
     def test_target_serialized_when_set(self):
         from ai_guardian.daemon.tray_plugins import _item_to_dict
+
         item = PluginItem(label="A", command="cmd", target="select")
         d = _item_to_dict(item)
         assert d["target"] == "select"
 
     def test_target_omitted_when_none(self):
         from ai_guardian.daemon.tray_plugins import _item_to_dict
+
         item = PluginItem(label="A", command="cmd", target=None)
         d = _item_to_dict(item)
         assert "target" not in d
 
     def test_target_roundtrip(self):
-        original = [Plugin(
-            name="T",
-            items=[PluginItem(label="A", command="cmd", target="all")]
-        )]
+        original = [
+            Plugin(name="T", items=[PluginItem(label="A", command="cmd", target="all")])
+        ]
         data = plugins_to_dict(original)
         restored = dict_to_plugins(data)
         assert restored[0].items[0].target == "all"
 
     def test_container_name_in_target_vars(self):
         from ai_guardian.daemon.discovery import DaemonTarget
+
         t = DaemonTarget(
-            name="my-project", runtime="container",
+            name="my-project",
+            runtime="container",
             container_name="sandbox-1",
         )
         result = substitute_target_vars("check {container_name}", t)
@@ -1719,19 +2107,23 @@ class TestInlineSubmenu:
     def test_inline_submenu_parsed(self, tmp_path):
         plugins_dir = tmp_path / "tray-plugins"
         plugins_dir.mkdir()
-        (plugins_dir / "test.json").write_text(json.dumps({
-            "name": "MyPlugin",
-            "items": [
-                {"label": "Check", "command": "echo check"},
+        (plugins_dir / "test.json").write_text(
+            json.dumps(
                 {
-                    "label": "Deploy",
+                    "name": "MyPlugin",
                     "items": [
-                        {"label": "Dev", "command": "deploy dev"},
-                        {"label": "Prod", "command": "deploy prod"},
+                        {"label": "Check", "command": "echo check"},
+                        {
+                            "label": "Deploy",
+                            "items": [
+                                {"label": "Dev", "command": "deploy dev"},
+                                {"label": "Prod", "command": "deploy prod"},
+                            ],
+                        },
                     ],
-                },
-            ],
-        }))
+                }
+            )
+        )
         plugins = load_plugins(plugins_dir)
         assert len(plugins) == 1
         assert len(plugins[0].items) == 2
@@ -1747,22 +2139,26 @@ class TestInlineSubmenu:
     def test_two_levels_of_nesting(self, tmp_path):
         plugins_dir = tmp_path / "tray-plugins"
         plugins_dir.mkdir()
-        (plugins_dir / "test.json").write_text(json.dumps({
-            "name": "Deep",
-            "items": [
+        (plugins_dir / "test.json").write_text(
+            json.dumps(
                 {
-                    "label": "Level 1",
+                    "name": "Deep",
                     "items": [
                         {
-                            "label": "Level 2",
+                            "label": "Level 1",
                             "items": [
-                                {"label": "Leaf", "command": "echo leaf"},
+                                {
+                                    "label": "Level 2",
+                                    "items": [
+                                        {"label": "Leaf", "command": "echo leaf"},
+                                    ],
+                                },
                             ],
                         },
                     ],
-                },
-            ],
-        }))
+                }
+            )
+        )
         plugins = load_plugins(plugins_dir)
         assert len(plugins) == 1
         level1 = plugins[0].items[0]
@@ -1775,15 +2171,19 @@ class TestInlineSubmenu:
     def test_submenu_item_has_no_command(self, tmp_path):
         plugins_dir = tmp_path / "tray-plugins"
         plugins_dir.mkdir()
-        (plugins_dir / "test.json").write_text(json.dumps({
-            "name": "P",
-            "items": [
+        (plugins_dir / "test.json").write_text(
+            json.dumps(
                 {
-                    "label": "Sub",
-                    "items": [{"label": "A", "command": "cmd"}],
-                },
-            ],
-        }))
+                    "name": "P",
+                    "items": [
+                        {
+                            "label": "Sub",
+                            "items": [{"label": "A", "command": "cmd"}],
+                        },
+                    ],
+                }
+            )
+        )
         plugins = load_plugins(plugins_dir)
         sub = plugins[0].items[0]
         assert sub.command is None
@@ -1792,32 +2192,39 @@ class TestInlineSubmenu:
     def test_submenu_with_all_features(self, tmp_path):
         plugins_dir = tmp_path / "tray-plugins"
         plugins_dir.mkdir()
-        (plugins_dir / "test.json").write_text(json.dumps({
-            "name": "Features",
-            "items": [
+        (plugins_dir / "test.json").write_text(
+            json.dumps(
                 {
-                    "label": "Sub",
+                    "name": "Features",
                     "items": [
                         {
-                            "label": "Terminal",
-                            "command": "echo hi",
-                            "type": "terminal",
-                            "run_on_target": True,
-                        },
-                        {
-                            "label": "Platform",
-                            "command": {"darwin": "open .", "default": "xdg-open ."},
-                            "type": "background",
-                        },
-                        {
-                            "label": "Params",
-                            "command": "deploy {tray.env}",
-                            "params": [{"name": "env", "default": "dev"}],
+                            "label": "Sub",
+                            "items": [
+                                {
+                                    "label": "Terminal",
+                                    "command": "echo hi",
+                                    "type": "terminal",
+                                    "run_on_target": True,
+                                },
+                                {
+                                    "label": "Platform",
+                                    "command": {
+                                        "darwin": "open .",
+                                        "default": "xdg-open .",
+                                    },
+                                    "type": "background",
+                                },
+                                {
+                                    "label": "Params",
+                                    "command": "deploy {tray.env}",
+                                    "params": [{"name": "env", "default": "dev"}],
+                                },
+                            ],
                         },
                     ],
-                },
-            ],
-        }))
+                }
+            )
+        )
         plugins = load_plugins(plugins_dir)
         children = plugins[0].items[0].items
         assert children[0].run_on_target is True
@@ -1828,13 +2235,17 @@ class TestInlineSubmenu:
     def test_empty_inline_items_skipped(self, tmp_path):
         plugins_dir = tmp_path / "tray-plugins"
         plugins_dir.mkdir()
-        (plugins_dir / "test.json").write_text(json.dumps({
-            "name": "P",
-            "items": [
-                {"label": "Sub", "items": []},
-                {"label": "Ok", "command": "echo ok"},
-            ],
-        }))
+        (plugins_dir / "test.json").write_text(
+            json.dumps(
+                {
+                    "name": "P",
+                    "items": [
+                        {"label": "Sub", "items": []},
+                        {"label": "Ok", "command": "echo ok"},
+                    ],
+                }
+            )
+        )
         plugins = load_plugins(plugins_dir)
         assert len(plugins) == 1
         assert len(plugins[0].items) == 1
@@ -1843,17 +2254,21 @@ class TestInlineSubmenu:
     def test_mutually_exclusive_command_and_items(self, tmp_path):
         plugins_dir = tmp_path / "tray-plugins"
         plugins_dir.mkdir()
-        (plugins_dir / "test.json").write_text(json.dumps({
-            "name": "P",
-            "items": [
+        (plugins_dir / "test.json").write_text(
+            json.dumps(
                 {
-                    "label": "Bad",
-                    "command": "echo hi",
-                    "items": [{"label": "X", "command": "y"}],
-                },
-                {"label": "Ok", "command": "echo ok"},
-            ],
-        }))
+                    "name": "P",
+                    "items": [
+                        {
+                            "label": "Bad",
+                            "command": "echo hi",
+                            "items": [{"label": "X", "command": "y"}],
+                        },
+                        {"label": "Ok", "command": "echo ok"},
+                    ],
+                }
+            )
+        )
         plugins = load_plugins(plugins_dir)
         assert len(plugins) == 1
         assert plugins[0].items[0].label == "Ok"
@@ -1865,19 +2280,27 @@ class TestFileImport:
     def test_import_resolves_file(self, tmp_path):
         plugins_dir = tmp_path / "tray-plugins"
         plugins_dir.mkdir()
-        (plugins_dir / "deploy.json").write_text(json.dumps({
-            "items": [
-                {"label": "Dev", "command": "deploy dev"},
-                {"label": "Prod", "command": "deploy prod"},
-            ],
-        }))
-        (plugins_dir / "main.json").write_text(json.dumps({
-            "name": "MyPlugin",
-            "items": [
-                {"label": "Check", "command": "echo check"},
-                {"label": "Deploy", "import": "deploy.json"},
-            ],
-        }))
+        (plugins_dir / "deploy.json").write_text(
+            json.dumps(
+                {
+                    "items": [
+                        {"label": "Dev", "command": "deploy dev"},
+                        {"label": "Prod", "command": "deploy prod"},
+                    ],
+                }
+            )
+        )
+        (plugins_dir / "main.json").write_text(
+            json.dumps(
+                {
+                    "name": "MyPlugin",
+                    "items": [
+                        {"label": "Check", "command": "echo check"},
+                        {"label": "Deploy", "import": "deploy.json"},
+                    ],
+                }
+            )
+        )
         plugins = load_plugins(plugins_dir)
         main = [p for p in plugins if p.name == "MyPlugin"][0]
         assert len(main.items) == 2
@@ -1891,13 +2314,17 @@ class TestFileImport:
     def test_missing_import_file_skipped(self, tmp_path):
         plugins_dir = tmp_path / "tray-plugins"
         plugins_dir.mkdir()
-        (plugins_dir / "main.json").write_text(json.dumps({
-            "name": "P",
-            "items": [
-                {"label": "Missing", "import": "nonexistent.json"},
-                {"label": "Ok", "command": "echo ok"},
-            ],
-        }))
+        (plugins_dir / "main.json").write_text(
+            json.dumps(
+                {
+                    "name": "P",
+                    "items": [
+                        {"label": "Missing", "import": "nonexistent.json"},
+                        {"label": "Ok", "command": "echo ok"},
+                    ],
+                }
+            )
+        )
         plugins = load_plugins(plugins_dir)
         assert len(plugins) == 1
         assert len(plugins[0].items) == 1
@@ -1906,16 +2333,24 @@ class TestFileImport:
     def test_import_with_tag_filtering_included(self, tmp_path):
         plugins_dir = tmp_path / "tray-plugins"
         plugins_dir.mkdir()
-        (plugins_dir / "commands.json").write_text(json.dumps({
-            "tags": ["workstation"],
-            "items": [{"label": "A", "command": "cmd_a"}],
-        }))
-        (plugins_dir / "main.json").write_text(json.dumps({
-            "name": "P",
-            "items": [
-                {"label": "Commands", "import": "commands.json"},
-            ],
-        }))
+        (plugins_dir / "commands.json").write_text(
+            json.dumps(
+                {
+                    "tags": ["workstation"],
+                    "items": [{"label": "A", "command": "cmd_a"}],
+                }
+            )
+        )
+        (plugins_dir / "main.json").write_text(
+            json.dumps(
+                {
+                    "name": "P",
+                    "items": [
+                        {"label": "Commands", "import": "commands.json"},
+                    ],
+                }
+            )
+        )
         plugins = load_plugins(plugins_dir, daemon_tags=["workstation"])
         assert len(plugins) == 1
         assert plugins[0].items[0].items is not None
@@ -1923,17 +2358,25 @@ class TestFileImport:
     def test_import_with_tag_filtering_excluded(self, tmp_path):
         plugins_dir = tmp_path / "tray-plugins"
         plugins_dir.mkdir()
-        (plugins_dir / "commands.json").write_text(json.dumps({
-            "tags": ["server"],
-            "items": [{"label": "A", "command": "cmd_a"}],
-        }))
-        (plugins_dir / "main.json").write_text(json.dumps({
-            "name": "P",
-            "items": [
-                {"label": "Commands", "import": "commands.json"},
-                {"label": "Ok", "command": "echo ok"},
-            ],
-        }))
+        (plugins_dir / "commands.json").write_text(
+            json.dumps(
+                {
+                    "tags": ["server"],
+                    "items": [{"label": "A", "command": "cmd_a"}],
+                }
+            )
+        )
+        (plugins_dir / "main.json").write_text(
+            json.dumps(
+                {
+                    "name": "P",
+                    "items": [
+                        {"label": "Commands", "import": "commands.json"},
+                        {"label": "Ok", "command": "echo ok"},
+                    ],
+                }
+            )
+        )
         plugins = load_plugins(plugins_dir, daemon_tags=["workstation"])
         assert len(plugins) == 1
         assert len(plugins[0].items) == 1
@@ -1942,15 +2385,23 @@ class TestFileImport:
     def test_import_untagged_always_included(self, tmp_path):
         plugins_dir = tmp_path / "tray-plugins"
         plugins_dir.mkdir()
-        (plugins_dir / "commands.json").write_text(json.dumps({
-            "items": [{"label": "A", "command": "cmd_a"}],
-        }))
-        (plugins_dir / "main.json").write_text(json.dumps({
-            "name": "P",
-            "items": [
-                {"label": "Commands", "import": "commands.json"},
-            ],
-        }))
+        (plugins_dir / "commands.json").write_text(
+            json.dumps(
+                {
+                    "items": [{"label": "A", "command": "cmd_a"}],
+                }
+            )
+        )
+        (plugins_dir / "main.json").write_text(
+            json.dumps(
+                {
+                    "name": "P",
+                    "items": [
+                        {"label": "Commands", "import": "commands.json"},
+                    ],
+                }
+            )
+        )
         plugins = load_plugins(plugins_dir, daemon_tags=["anything"])
         assert len(plugins) == 1
         assert plugins[0].items[0].items is not None
@@ -1958,18 +2409,30 @@ class TestFileImport:
     def test_nested_import_in_imported_file(self, tmp_path):
         plugins_dir = tmp_path / "tray-plugins"
         plugins_dir.mkdir()
-        (plugins_dir / "leaf.json").write_text(json.dumps({
-            "items": [{"label": "Leaf", "command": "echo leaf"}],
-        }))
-        (plugins_dir / "middle.json").write_text(json.dumps({
-            "items": [{"label": "Middle", "import": "leaf.json"}],
-        }))
-        (plugins_dir / "main.json").write_text(json.dumps({
-            "name": "P",
-            "items": [
-                {"label": "Top", "import": "middle.json"},
-            ],
-        }))
+        (plugins_dir / "leaf.json").write_text(
+            json.dumps(
+                {
+                    "items": [{"label": "Leaf", "command": "echo leaf"}],
+                }
+            )
+        )
+        (plugins_dir / "middle.json").write_text(
+            json.dumps(
+                {
+                    "items": [{"label": "Middle", "import": "leaf.json"}],
+                }
+            )
+        )
+        (plugins_dir / "main.json").write_text(
+            json.dumps(
+                {
+                    "name": "P",
+                    "items": [
+                        {"label": "Top", "import": "middle.json"},
+                    ],
+                }
+            )
+        )
         plugins = load_plugins(plugins_dir)
         main = [p for p in plugins if p.name == "P"][0]
         top = main.items[0]
@@ -1981,16 +2444,24 @@ class TestFileImport:
     def test_mutually_exclusive_command_and_import(self, tmp_path):
         plugins_dir = tmp_path / "tray-plugins"
         plugins_dir.mkdir()
-        (plugins_dir / "sub.json").write_text(json.dumps({
-            "items": [{"label": "A", "command": "cmd"}],
-        }))
-        (plugins_dir / "main.json").write_text(json.dumps({
-            "name": "P",
-            "items": [
-                {"label": "Bad", "command": "echo", "import": "sub.json"},
-                {"label": "Ok", "command": "echo ok"},
-            ],
-        }))
+        (plugins_dir / "sub.json").write_text(
+            json.dumps(
+                {
+                    "items": [{"label": "A", "command": "cmd"}],
+                }
+            )
+        )
+        (plugins_dir / "main.json").write_text(
+            json.dumps(
+                {
+                    "name": "P",
+                    "items": [
+                        {"label": "Bad", "command": "echo", "import": "sub.json"},
+                        {"label": "Ok", "command": "echo ok"},
+                    ],
+                }
+            )
+        )
         plugins = load_plugins(plugins_dir)
         assert len(plugins) == 1
         assert plugins[0].items[0].label == "Ok"
@@ -2002,13 +2473,17 @@ class TestCircularImportDetection:
     def test_self_import_detected(self, tmp_path):
         plugins_dir = tmp_path / "tray-plugins"
         plugins_dir.mkdir()
-        (plugins_dir / "self.json").write_text(json.dumps({
-            "name": "Self",
-            "items": [
-                {"label": "Loop", "import": "self.json"},
-                {"label": "Ok", "command": "echo ok"},
-            ],
-        }))
+        (plugins_dir / "self.json").write_text(
+            json.dumps(
+                {
+                    "name": "Self",
+                    "items": [
+                        {"label": "Loop", "import": "self.json"},
+                        {"label": "Ok", "command": "echo ok"},
+                    ],
+                }
+            )
+        )
         plugins = load_plugins(plugins_dir)
         assert len(plugins) == 1
         assert len(plugins[0].items) == 1
@@ -2017,13 +2492,21 @@ class TestCircularImportDetection:
     def test_mutual_circular_import(self, tmp_path):
         plugins_dir = tmp_path / "tray-plugins"
         plugins_dir.mkdir()
-        (plugins_dir / "a.json").write_text(json.dumps({
-            "name": "A",
-            "items": [{"label": "To B", "import": "b.json"}],
-        }))
-        (plugins_dir / "b.json").write_text(json.dumps({
-            "items": [{"label": "To A", "import": "a.json"}],
-        }))
+        (plugins_dir / "a.json").write_text(
+            json.dumps(
+                {
+                    "name": "A",
+                    "items": [{"label": "To B", "import": "b.json"}],
+                }
+            )
+        )
+        (plugins_dir / "b.json").write_text(
+            json.dumps(
+                {
+                    "items": [{"label": "To A", "import": "a.json"}],
+                }
+            )
+        )
         plugins = load_plugins(plugins_dir)
         a_plugin = [p for p in plugins if p.name == "A"]
         assert len(a_plugin) == 0 or (
@@ -2037,10 +2520,14 @@ class TestCircularImportDetection:
     def test_check_circular_imports_detects_self(self, tmp_path):
         plugins_dir = tmp_path / "tray-plugins"
         plugins_dir.mkdir()
-        (plugins_dir / "loop.json").write_text(json.dumps({
-            "name": "Loop",
-            "items": [{"label": "Self", "import": "loop.json"}],
-        }))
+        (plugins_dir / "loop.json").write_text(
+            json.dumps(
+                {
+                    "name": "Loop",
+                    "items": [{"label": "Self", "import": "loop.json"}],
+                }
+            )
+        )
         warnings = check_circular_imports(plugins_dir)
         assert len(warnings) == 1
         assert "loop.json" in warnings[0]
@@ -2048,30 +2535,50 @@ class TestCircularImportDetection:
     def test_check_circular_imports_detects_chain(self, tmp_path):
         plugins_dir = tmp_path / "tray-plugins"
         plugins_dir.mkdir()
-        (plugins_dir / "a.json").write_text(json.dumps({
-            "name": "A",
-            "items": [{"label": "To B", "import": "b.json"}],
-        }))
-        (plugins_dir / "b.json").write_text(json.dumps({
-            "items": [{"label": "To A", "import": "a.json"}],
-        }))
+        (plugins_dir / "a.json").write_text(
+            json.dumps(
+                {
+                    "name": "A",
+                    "items": [{"label": "To B", "import": "b.json"}],
+                }
+            )
+        )
+        (plugins_dir / "b.json").write_text(
+            json.dumps(
+                {
+                    "items": [{"label": "To A", "import": "a.json"}],
+                }
+            )
+        )
         warnings = check_circular_imports(plugins_dir)
         assert len(warnings) >= 1
 
     def test_check_circular_imports_no_false_positive(self, tmp_path):
         plugins_dir = tmp_path / "tray-plugins"
         plugins_dir.mkdir()
-        (plugins_dir / "shared.json").write_text(json.dumps({
-            "items": [{"label": "Common", "command": "echo common"}],
-        }))
-        (plugins_dir / "a.json").write_text(json.dumps({
-            "name": "A",
-            "items": [{"label": "Shared", "import": "shared.json"}],
-        }))
-        (plugins_dir / "b.json").write_text(json.dumps({
-            "name": "B",
-            "items": [{"label": "Shared", "import": "shared.json"}],
-        }))
+        (plugins_dir / "shared.json").write_text(
+            json.dumps(
+                {
+                    "items": [{"label": "Common", "command": "echo common"}],
+                }
+            )
+        )
+        (plugins_dir / "a.json").write_text(
+            json.dumps(
+                {
+                    "name": "A",
+                    "items": [{"label": "Shared", "import": "shared.json"}],
+                }
+            )
+        )
+        (plugins_dir / "b.json").write_text(
+            json.dumps(
+                {
+                    "name": "B",
+                    "items": [{"label": "Shared", "import": "shared.json"}],
+                }
+            )
+        )
         warnings = check_circular_imports(plugins_dir)
         assert len(warnings) == 0
 
@@ -2080,15 +2587,17 @@ class TestNestedSerialization:
     """Tests for serialization and deserialization of nested items."""
 
     def test_serialize_inline_submenu(self):
-        plugins = [Plugin(
-            name="P",
-            items=[
-                PluginItem(
-                    label="Sub",
-                    items=[PluginItem(label="A", command="cmd_a")],
-                ),
-            ],
-        )]
+        plugins = [
+            Plugin(
+                name="P",
+                items=[
+                    PluginItem(
+                        label="Sub",
+                        items=[PluginItem(label="A", command="cmd_a")],
+                    ),
+                ],
+            )
+        ]
         result = plugins_to_dict(plugins)
         sub = result["plugins"][0]["items"][0]
         assert "items" in sub
@@ -2096,10 +2605,12 @@ class TestNestedSerialization:
         assert sub["items"][0]["label"] == "A"
 
     def test_serialize_import_file(self):
-        plugins = [Plugin(
-            name="P",
-            items=[PluginItem(label="Imported", import_file="other.json")],
-        )]
+        plugins = [
+            Plugin(
+                name="P",
+                items=[PluginItem(label="Imported", import_file="other.json")],
+            )
+        ]
         result = plugins_to_dict(plugins)
         item = result["plugins"][0]["items"][0]
         assert item["import"] == "other.json"
@@ -2107,19 +2618,23 @@ class TestNestedSerialization:
         assert "items" not in item
 
     def test_roundtrip_nested_items(self):
-        original = [Plugin(
-            name="P",
-            items=[
-                PluginItem(label="Cmd", command="echo 1", type="background"),
-                PluginItem(
-                    label="Sub",
-                    items=[
-                        PluginItem(label="Child1", command="cmd1"),
-                        PluginItem(label="Child2", command="cmd2", type="notification"),
-                    ],
-                ),
-            ],
-        )]
+        original = [
+            Plugin(
+                name="P",
+                items=[
+                    PluginItem(label="Cmd", command="echo 1", type="background"),
+                    PluginItem(
+                        label="Sub",
+                        items=[
+                            PluginItem(label="Child1", command="cmd1"),
+                            PluginItem(
+                                label="Child2", command="cmd2", type="notification"
+                            ),
+                        ],
+                    ),
+                ],
+            )
+        ]
         data = plugins_to_dict(original)
         restored = dict_to_plugins(data)
         assert len(restored) == 1
@@ -2133,22 +2648,24 @@ class TestNestedSerialization:
         assert sub.items[1].type == "notification"
 
     def test_roundtrip_deeply_nested(self):
-        original = [Plugin(
-            name="Deep",
-            items=[
-                PluginItem(
-                    label="L1",
-                    items=[
-                        PluginItem(
-                            label="L2",
-                            items=[
-                                PluginItem(label="L3", command="echo deep"),
-                            ],
-                        ),
-                    ],
-                ),
-            ],
-        )]
+        original = [
+            Plugin(
+                name="Deep",
+                items=[
+                    PluginItem(
+                        label="L1",
+                        items=[
+                            PluginItem(
+                                label="L2",
+                                items=[
+                                    PluginItem(label="L3", command="echo deep"),
+                                ],
+                            ),
+                        ],
+                    ),
+                ],
+            )
+        ]
         data = plugins_to_dict(original)
         restored = dict_to_plugins(data)
         l1 = restored[0].items[0]
@@ -2210,15 +2727,21 @@ class TestLoadMergedPlugins:
 
     @pytest.fixture(autouse=True)
     def _no_bundled(self):
-        with mock.patch("ai_guardian.daemon.tray_plugins._load_bundled_plugins", return_value=[]):
+        with mock.patch(
+            "ai_guardian.daemon.tray_plugins._load_bundled_plugins", return_value=[]
+        ):
             yield
 
     def _make_plugin_json(self, path, name, label="Action", command="echo ok"):
         path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(json.dumps({
-            "name": name,
-            "items": [{"label": label, "command": command}],
-        }))
+        path.write_text(
+            json.dumps(
+                {
+                    "name": name,
+                    "items": [{"label": label, "command": command}],
+                }
+            )
+        )
 
     def test_user_only_when_no_project(self, tmp_path):
         user_dir = tmp_path / "user-plugins"
@@ -2250,12 +2773,16 @@ class TestLoadMergedPlugins:
         user_dir = tmp_path / "user-plugins"
         user_dir.mkdir()
         self._make_plugin_json(
-            user_dir / "p1.json", "SharedName", label="User",
+            user_dir / "p1.json",
+            "SharedName",
+            label="User",
         )
         project = tmp_path / "project"
         proj_plugins = project / ".ai-guardian" / "tray-plugins"
         self._make_plugin_json(
-            proj_plugins / "p1.json", "SharedName", label="Project",
+            proj_plugins / "p1.json",
+            "SharedName",
+            label="Project",
         )
         with mock.patch(
             "ai_guardian.daemon.get_tray_plugins_dir",
@@ -2315,13 +2842,21 @@ class TestLoadMergedPlugins:
         project = tmp_path / "project"
         proj_plugins = project / ".ai-guardian" / "tray-plugins"
         proj_plugins.mkdir(parents=True)
-        (proj_plugins / "sub.json").write_text(json.dumps({
-            "items": [{"label": "Sub", "command": "echo sub"}],
-        }))
-        (proj_plugins / "main.json").write_text(json.dumps({
-            "name": "ProjPlugin",
-            "items": [{"label": "Imported", "import": "sub.json"}],
-        }))
+        (proj_plugins / "sub.json").write_text(
+            json.dumps(
+                {
+                    "items": [{"label": "Sub", "command": "echo sub"}],
+                }
+            )
+        )
+        (proj_plugins / "main.json").write_text(
+            json.dumps(
+                {
+                    "name": "ProjPlugin",
+                    "items": [{"label": "Imported", "import": "sub.json"}],
+                }
+            )
+        )
         with mock.patch(
             "ai_guardian.daemon.get_tray_plugins_dir",
             return_value=user_dir,
@@ -2339,11 +2874,15 @@ class TestLoadMergedPlugins:
         project = tmp_path / "project"
         proj_plugins = project / ".ai-guardian" / "tray-plugins"
         proj_plugins.mkdir(parents=True)
-        (proj_plugins / "tagged.json").write_text(json.dumps({
-            "name": "Tagged",
-            "tags": ["special"],
-            "items": [{"label": "A", "command": "echo a"}],
-        }))
+        (proj_plugins / "tagged.json").write_text(
+            json.dumps(
+                {
+                    "name": "Tagged",
+                    "tags": ["special"],
+                    "items": [{"label": "A", "command": "echo a"}],
+                }
+            )
+        )
         with mock.patch(
             "ai_guardian.daemon.get_tray_plugins_dir",
             return_value=user_dir,
@@ -2361,7 +2900,10 @@ class TestLoadMergedPlugins:
 
 SCHEMA_PATH = (
     Path(__file__).resolve().parent.parent.parent
-    / "src" / "ai_guardian" / "schemas" / "tray-plugin.schema.json"
+    / "src"
+    / "ai_guardian"
+    / "schemas"
+    / "tray-plugin.schema.json"
 )
 
 
@@ -2376,91 +2918,121 @@ def _validate_schema(instance, schema):
 
 class TestValidPluginSchemas:
     def test_minimal_plugin(self, plugin_schema):
-        _validate_schema({
-            "name": "My Plugin",
-            "items": [{"label": "Hello", "command": "echo hello"}],
-        }, plugin_schema)
+        _validate_schema(
+            {
+                "name": "My Plugin",
+                "items": [{"label": "Hello", "command": "echo hello"}],
+            },
+            plugin_schema,
+        )
 
     def test_all_fields(self, plugin_schema):
-        _validate_schema({
-            "name": "Full Plugin",
-            "items": [
-                {
-                    "label": "Action",
-                    "command": "echo {tray.name}",
-                    "type": "notification",
-                    "run_on_target": True,
-                    "params": [
-                        {
-                            "name": "name",
-                            "hint": "Your name",
-                            "default": "World",
-                            "options": ["Alice", "Bob"],
-                        }
-                    ],
-                }
-            ],
-        }, plugin_schema)
+        _validate_schema(
+            {
+                "name": "Full Plugin",
+                "items": [
+                    {
+                        "label": "Action",
+                        "command": "echo {tray.name}",
+                        "type": "notification",
+                        "run_on_target": True,
+                        "params": [
+                            {
+                                "name": "name",
+                                "hint": "Your name",
+                                "default": "World",
+                                "options": ["Alice", "Bob"],
+                            }
+                        ],
+                    }
+                ],
+            },
+            plugin_schema,
+        )
 
     def test_platform_map_command(self, plugin_schema):
-        _validate_schema({
-            "name": "Cross-Platform",
-            "items": [
-                {
-                    "label": "Open",
-                    "command": {
-                        "darwin": "open .",
-                        "linux": "xdg-open .",
-                        "windows": "explorer .",
-                        "default": "echo unsupported",
-                    },
-                }
-            ],
-        }, plugin_schema)
+        _validate_schema(
+            {
+                "name": "Cross-Platform",
+                "items": [
+                    {
+                        "label": "Open",
+                        "command": {
+                            "darwin": "open .",
+                            "linux": "xdg-open .",
+                            "windows": "explorer .",
+                            "default": "echo unsupported",
+                        },
+                    }
+                ],
+            },
+            plugin_schema,
+        )
 
     def test_platform_map_single_key(self, plugin_schema):
-        _validate_schema({
-            "name": "Mac Only",
-            "items": [
-                {"label": "Say", "command": {"darwin": "say hello"}},
-            ],
-        }, plugin_schema)
+        _validate_schema(
+            {
+                "name": "Mac Only",
+                "items": [
+                    {"label": "Say", "command": {"darwin": "say hello"}},
+                ],
+            },
+            plugin_schema,
+        )
 
     def test_multiple_items(self, plugin_schema):
-        _validate_schema({
-            "name": "Multi",
-            "items": [
-                {"label": "A", "command": "cmd-a"},
-                {"label": "B", "command": "cmd-b", "type": "background"},
-                {"label": "C", "command": "cmd-c", "type": "clipboard"},
-            ],
-        }, plugin_schema)
+        _validate_schema(
+            {
+                "name": "Multi",
+                "items": [
+                    {"label": "A", "command": "cmd-a"},
+                    {"label": "B", "command": "cmd-b", "type": "background"},
+                    {"label": "C", "command": "cmd-c", "type": "clipboard"},
+                ],
+            },
+            plugin_schema,
+        )
 
     def test_all_execution_types(self, plugin_schema):
-        for exec_type in ("terminal", "background", "notification", "clipboard", "modal"):
-            _validate_schema({
-                "name": "Types",
-                "items": [{"label": "X", "command": "cmd", "type": exec_type}],
-            }, plugin_schema)
+        for exec_type in (
+            "terminal",
+            "background",
+            "notification",
+            "clipboard",
+            "modal",
+        ):
+            _validate_schema(
+                {
+                    "name": "Types",
+                    "items": [{"label": "X", "command": "cmd", "type": exec_type}],
+                },
+                plugin_schema,
+            )
 
     def test_param_minimal(self, plugin_schema):
-        _validate_schema({
-            "name": "P",
-            "items": [
-                {
-                    "label": "X",
-                    "command": "echo {tray.val}",
-                    "params": [{"name": "val"}],
-                }
-            ],
-        }, plugin_schema)
+        _validate_schema(
+            {
+                "name": "P",
+                "items": [
+                    {
+                        "label": "X",
+                        "command": "echo {tray.val}",
+                        "params": [{"name": "val"}],
+                    }
+                ],
+            },
+            plugin_schema,
+        )
 
     def test_schema_ref_allowed(self, plugin_schema):
-        _validate_schema({
-            "$schema": "https://raw.githubusercontent.com/itdove/ai-guardian/main/src/ai_guardian/schemas/tray-plugin.schema.json",
-            "name": "With Schema Ref",
-            "items": [{"label": "X", "command": "echo ok"}],
-        }, plugin_schema)
+        _validate_schema(
+            {
+                "$schema": "https://raw.githubusercontent.com/itdove/ai-guardian/main/src/ai_guardian/schemas/tray-plugin.schema.json",
+                "name": "With Schema Ref",
+                "items": [{"label": "X", "command": "echo ok"}],
+            },
+            plugin_schema,
+        )
 
 
 class TestInvalidPluginSchemas:
@@ -2484,9 +3056,12 @@ class TestInvalidPluginSchemas:
                 id="empty_items",
             ),
             pytest.param(
-                {"name": "TooMany", "items": [
-                    {"label": f"Item{i}", "command": f"cmd{i}"} for i in range(13)
-                ]},
+                {
+                    "name": "TooMany",
+                    "items": [
+                        {"label": f"Item{i}", "command": f"cmd{i}"} for i in range(13)
+                    ],
+                },
                 id="too_many_items",
             ),
             pytest.param(
@@ -2498,7 +3073,10 @@ class TestInvalidPluginSchemas:
                 id="missing_command",
             ),
             pytest.param(
-                {"name": "P", "items": [{"label": "X", "command": "cmd", "type": "invalid"}]},
+                {
+                    "name": "P",
+                    "items": [{"label": "X", "command": "cmd", "type": "invalid"}],
+                },
                 id="invalid_type",
             ),
             pytest.param(
@@ -2510,19 +3088,44 @@ class TestInvalidPluginSchemas:
                 id="unknown_platform_key",
             ),
             pytest.param(
-                {"name": "P", "items": [{"label": "X", "command": "cmd"}], "unknown_field": True},
+                {
+                    "name": "P",
+                    "items": [{"label": "X", "command": "cmd"}],
+                    "unknown_field": True,
+                },
                 id="extra_property_on_root",
             ),
             pytest.param(
-                {"name": "P", "items": [{"label": "X", "command": "cmd", "typo": True}]},
+                {
+                    "name": "P",
+                    "items": [{"label": "X", "command": "cmd", "typo": True}],
+                },
                 id="extra_property_on_item",
             ),
             pytest.param(
-                {"name": "P", "items": [{"label": "X", "command": "cmd", "params": [{"hint": "no name"}]}]},
+                {
+                    "name": "P",
+                    "items": [
+                        {
+                            "label": "X",
+                            "command": "cmd",
+                            "params": [{"hint": "no name"}],
+                        }
+                    ],
+                },
                 id="missing_param_name",
             ),
             pytest.param(
-                {"name": "P", "items": [{"label": "X", "command": "cmd", "params": [{"name": "x", "extra": True}]}]},
+                {
+                    "name": "P",
+                    "items": [
+                        {
+                            "label": "X",
+                            "command": "cmd",
+                            "params": [{"name": "x", "extra": True}],
+                        }
+                    ],
+                },
                 id="extra_property_on_param",
             ),
             pytest.param(
@@ -2534,7 +3137,10 @@ class TestInvalidPluginSchemas:
                 id="command_not_string_or_object",
             ),
             pytest.param(
-                {"name": "P", "items": [{"label": "X", "command": "cmd", "run_on_target": "yes"}]},
+                {
+                    "name": "P",
+                    "items": [{"label": "X", "command": "cmd", "run_on_target": "yes"}],
+                },
                 id="run_on_target_not_boolean",
             ),
         ],
@@ -2549,23 +3155,31 @@ class TestTagsPluginSchema:
         "data",
         [
             pytest.param(
-                {"name": "Carbonite", "tags": ["carbonite", "container"],
-                 "items": [{"label": "Status", "command": "echo ok"}]},
+                {
+                    "name": "Carbonite",
+                    "tags": ["carbonite", "container"],
+                    "items": [{"label": "Status", "command": "echo ok"}],
+                },
                 id="multiple_tags",
             ),
             pytest.param(
-                {"name": "Carbonite", "tags": ["carbonite"],
-                 "items": [{"label": "Status", "command": "echo ok"}]},
+                {
+                    "name": "Carbonite",
+                    "tags": ["carbonite"],
+                    "items": [{"label": "Status", "command": "echo ok"}],
+                },
                 id="single_tag",
             ),
             pytest.param(
-                {"name": "Generic", "tags": [],
-                 "items": [{"label": "Run", "command": "echo"}]},
+                {
+                    "name": "Generic",
+                    "tags": [],
+                    "items": [{"label": "Run", "command": "echo"}],
+                },
                 id="empty_tags",
             ),
             pytest.param(
-                {"name": "Generic",
-                 "items": [{"label": "Run", "command": "echo"}]},
+                {"name": "Generic", "items": [{"label": "Run", "command": "echo"}]},
                 id="without_tags",
             ),
         ],
@@ -2584,8 +3198,11 @@ class TestTagsPluginSchema:
     def test_invalid_tags(self, plugin_schema, tags_value):
         with pytest.raises(jsonschema.ValidationError):
             _validate_schema(
-                {"name": "P", "tags": tags_value,
-                 "items": [{"label": "X", "command": "cmd"}]},
+                {
+                    "name": "P",
+                    "tags": tags_value,
+                    "items": [{"label": "X", "command": "cmd"}],
+                },
                 plugin_schema,
             )
 
@@ -2595,23 +3212,32 @@ class TestScopePluginSchema:
         "data",
         [
             pytest.param(
-                {"name": "Quick Links", "scope": "global",
-                 "items": [{"label": "Docs", "command": "echo docs"}]},
+                {
+                    "name": "Quick Links",
+                    "scope": "global",
+                    "items": [{"label": "Docs", "command": "echo docs"}],
+                },
                 id="scope_global",
             ),
             pytest.param(
-                {"name": "Daemon Plugin", "scope": "daemon",
-                 "items": [{"label": "Status", "command": "echo ok"}]},
+                {
+                    "name": "Daemon Plugin",
+                    "scope": "daemon",
+                    "items": [{"label": "Status", "command": "echo ok"}],
+                },
                 id="scope_daemon",
             ),
             pytest.param(
-                {"name": "No Scope",
-                 "items": [{"label": "Run", "command": "echo"}]},
+                {"name": "No Scope", "items": [{"label": "Run", "command": "echo"}]},
                 id="without_scope",
             ),
             pytest.param(
-                {"name": "Global With Tags", "scope": "global", "tags": ["ignored"],
-                 "items": [{"label": "Docs", "command": "echo"}]},
+                {
+                    "name": "Global With Tags",
+                    "scope": "global",
+                    "tags": ["ignored"],
+                    "items": [{"label": "Docs", "command": "echo"}],
+                },
                 id="global_scope_with_tags",
             ),
         ],
@@ -2629,79 +3255,170 @@ class TestScopePluginSchema:
     def test_invalid_scope(self, plugin_schema, scope_value):
         with pytest.raises(jsonschema.ValidationError):
             _validate_schema(
-                {"name": "P", "scope": scope_value,
-                 "items": [{"label": "X", "command": "cmd"}]},
+                {
+                    "name": "P",
+                    "scope": scope_value,
+                    "items": [{"label": "X", "command": "cmd"}],
+                },
                 plugin_schema,
             )
 
 
 class TestSubmenuPluginSchema:
     def test_inline_submenu_valid(self, plugin_schema):
-        _validate_schema({"name": "Plugin", "items": [{"label": "Deploy", "items": [{"label": "Dev", "command": "deploy dev"}, {"label": "Prod", "command": "deploy prod"}]}]}, plugin_schema)
+        _validate_schema(
+            {
+                "name": "Plugin",
+                "items": [
+                    {
+                        "label": "Deploy",
+                        "items": [
+                            {"label": "Dev", "command": "deploy dev"},
+                            {"label": "Prod", "command": "deploy prod"},
+                        ],
+                    }
+                ],
+            },
+            plugin_schema,
+        )
 
     def test_nested_two_levels(self, plugin_schema):
-        _validate_schema({"name": "Plugin", "items": [{"label": "Level 1", "items": [{"label": "Level 2", "items": [{"label": "Leaf", "command": "echo leaf"}]}]}]}, plugin_schema)
+        _validate_schema(
+            {
+                "name": "Plugin",
+                "items": [
+                    {
+                        "label": "Level 1",
+                        "items": [
+                            {
+                                "label": "Level 2",
+                                "items": [{"label": "Leaf", "command": "echo leaf"}],
+                            }
+                        ],
+                    }
+                ],
+            },
+            plugin_schema,
+        )
 
     def test_mixed_command_and_submenu(self, plugin_schema):
-        _validate_schema({"name": "Plugin", "items": [{"label": "Simple", "command": "echo hi"}, {"label": "Sub", "items": [{"label": "A", "command": "cmd"}]}]}, plugin_schema)
+        _validate_schema(
+            {
+                "name": "Plugin",
+                "items": [
+                    {"label": "Simple", "command": "echo hi"},
+                    {"label": "Sub", "items": [{"label": "A", "command": "cmd"}]},
+                ],
+            },
+            plugin_schema,
+        )
 
     def test_submenu_empty_items_rejected(self, plugin_schema):
         with pytest.raises(jsonschema.ValidationError):
-            _validate_schema({"name": "P", "items": [{"label": "Empty", "items": []}]}, plugin_schema)
+            _validate_schema(
+                {"name": "P", "items": [{"label": "Empty", "items": []}]}, plugin_schema
+            )
 
     def test_submenu_missing_label_rejected(self, plugin_schema):
         with pytest.raises(jsonschema.ValidationError):
-            _validate_schema({"name": "P", "items": [{"items": [{"label": "A", "command": "cmd"}]}]}, plugin_schema)
+            _validate_schema(
+                {"name": "P", "items": [{"items": [{"label": "A", "command": "cmd"}]}]},
+                plugin_schema,
+            )
 
 
 class TestImportPluginSchema:
     def test_import_item_valid(self, plugin_schema):
-        _validate_schema({"name": "Plugin", "items": [{"label": "Deploy", "import": "deploy.json"}]}, plugin_schema)
+        _validate_schema(
+            {"name": "Plugin", "items": [{"label": "Deploy", "import": "deploy.json"}]},
+            plugin_schema,
+        )
 
     def test_import_missing_label_rejected(self, plugin_schema):
         with pytest.raises(jsonschema.ValidationError):
-            _validate_schema({"name": "P", "items": [{"import": "file.json"}]}, plugin_schema)
+            _validate_schema(
+                {"name": "P", "items": [{"import": "file.json"}]}, plugin_schema
+            )
 
     def test_import_empty_string_rejected(self, plugin_schema):
         with pytest.raises(jsonschema.ValidationError):
-            _validate_schema({"name": "P", "items": [{"label": "X", "import": ""}]}, plugin_schema)
+            _validate_schema(
+                {"name": "P", "items": [{"label": "X", "import": ""}]}, plugin_schema
+            )
 
     def test_command_with_items_rejected(self, plugin_schema):
         with pytest.raises(jsonschema.ValidationError):
-            _validate_schema({"name": "P", "items": [{"label": "Bad", "command": "echo", "items": [{"label": "A", "command": "cmd"}]}]}, plugin_schema)
+            _validate_schema(
+                {
+                    "name": "P",
+                    "items": [
+                        {
+                            "label": "Bad",
+                            "command": "echo",
+                            "items": [{"label": "A", "command": "cmd"}],
+                        }
+                    ],
+                },
+                plugin_schema,
+            )
 
     def test_command_with_import_rejected(self, plugin_schema):
         with pytest.raises(jsonschema.ValidationError):
-            _validate_schema({"name": "P", "items": [{"label": "Bad", "command": "echo", "import": "f.json"}]}, plugin_schema)
+            _validate_schema(
+                {
+                    "name": "P",
+                    "items": [{"label": "Bad", "command": "echo", "import": "f.json"}],
+                },
+                plugin_schema,
+            )
 
 
 class TestPathTypePluginSchema:
     def test_path_file_type_valid(self, plugin_schema):
-        _validate_schema({
-            "name": "P",
-            "items": [{
-                "label": "Sanitize",
-                "command": "sanitize {tray.file}",
-                "params": [{"name": "file", "type": "path-file", "hint": "Pick a file"}],
-            }],
-        }, plugin_schema)
+        _validate_schema(
+            {
+                "name": "P",
+                "items": [
+                    {
+                        "label": "Sanitize",
+                        "command": "sanitize {tray.file}",
+                        "params": [
+                            {"name": "file", "type": "path-file", "hint": "Pick a file"}
+                        ],
+                    }
+                ],
+            },
+            plugin_schema,
+        )
 
     def test_path_dir_type_valid(self, plugin_schema):
-        _validate_schema({
-            "name": "P",
-            "items": [{
-                "label": "Scan",
-                "command": "scan {tray.dir}",
-                "params": [{"name": "dir", "type": "path-dir", "default": "."}],
-            }],
-        }, plugin_schema)
+        _validate_schema(
+            {
+                "name": "P",
+                "items": [
+                    {
+                        "label": "Scan",
+                        "command": "scan {tray.dir}",
+                        "params": [{"name": "dir", "type": "path-dir", "default": "."}],
+                    }
+                ],
+            },
+            plugin_schema,
+        )
 
     def test_path_file_with_required_false(self, plugin_schema):
-        _validate_schema({
-            "name": "P",
-            "items": [{
-                "label": "X",
-                "command": "cmd {tray.f}",
-                "params": [{"name": "f", "type": "path-file", "required": False}],
-            }],
-        }, plugin_schema)
+        _validate_schema(
+            {
+                "name": "P",
+                "items": [
+                    {
+                        "label": "X",
+                        "command": "cmd {tray.f}",
+                        "params": [
+                            {"name": "f", "type": "path-file", "required": False}
+                        ],
+                    }
+                ],
+            },
+            plugin_schema,
+        )

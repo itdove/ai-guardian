@@ -25,54 +25,68 @@ from typing import List, Optional, Tuple
 
 try:
     from PIL import Image, ImageFilter
+
     HAS_PILLOW = True
 except ImportError:
     HAS_PILLOW = False
 
 try:
     from rapidocr_onnxruntime import RapidOCR
+
     HAS_RAPIDOCR = True
 except ImportError:
     HAS_RAPIDOCR = False
 
 try:
     from pyzbar import pyzbar
+
     HAS_PYZBAR = True
 except ImportError:
     HAS_PYZBAR = False
 
 try:
     import cv2
+
     HAS_OPENCV = True
 except ImportError:
     HAS_OPENCV = False
 
 logger = logging.getLogger(__name__)
 
-IMAGE_EXTENSIONS = frozenset({
-    '.png', '.jpg', '.jpeg', '.gif', '.bmp', '.tiff', '.tif',
-    '.webp', '.ico',
-})
+IMAGE_EXTENSIONS = frozenset(
+    {
+        ".png",
+        ".jpg",
+        ".jpeg",
+        ".gif",
+        ".bmp",
+        ".tiff",
+        ".tif",
+        ".webp",
+        ".ico",
+    }
+)
 
 MAGIC_BYTES = {
-    b'\x89PNG': 'png',
-    b'\xff\xd8\xff': 'jpeg',
-    b'GIF87a': 'gif',
-    b'GIF89a': 'gif',
-    b'BM': 'bmp',
-    b'II\x2a\x00': 'tiff',
-    b'MM\x00\x2a': 'tiff',
-    b'RIFF': 'webp',
+    b"\x89PNG": "png",
+    b"\xff\xd8\xff": "jpeg",
+    b"GIF87a": "gif",
+    b"GIF89a": "gif",
+    b"BM": "bmp",
+    b"II\x2a\x00": "tiff",
+    b"MM\x00\x2a": "tiff",
+    b"RIFF": "webp",
 }
 
 _BASE64_IMAGE_RE = re.compile(
-    r'data:image/[a-zA-Z0-9+.-]+;base64,([A-Za-z0-9+/=]+)',
+    r"data:image/[a-zA-Z0-9+.-]+;base64,([A-Za-z0-9+/=]+)",
 )
 
 
 @dataclass
 class TextRegion:
     """A region of text detected by OCR with its bounding box."""
+
     text: str
     bbox: Tuple[int, int, int, int]  # (x, y, width, height)
     confidence: float
@@ -81,6 +95,7 @@ class TextRegion:
 @dataclass
 class OCRResult:
     """Result from OCR text extraction."""
+
     text: str
     regions: List[TextRegion] = field(default_factory=list)
     confidence: float = 0.0
@@ -90,6 +105,7 @@ class OCRResult:
 @dataclass
 class ImageScanResult:
     """Combined result from all image scanning operations."""
+
     extracted_text: str = ""
     text_regions: List[TextRegion] = field(default_factory=list)
     qr_texts: List[str] = field(default_factory=list)
@@ -107,7 +123,7 @@ class ImageDetector:
         if ext in IMAGE_EXTENSIONS:
             return True
         try:
-            with open(file_path, 'rb') as f:
+            with open(file_path, "rb") as f:
                 header = f.read(16)
             return ImageDetector._check_magic_bytes(header)
         except (OSError, IOError):
@@ -123,8 +139,8 @@ class ImageDetector:
     def _check_magic_bytes(header: bytes) -> bool:
         for magic, _ in MAGIC_BYTES.items():
             if header.startswith(magic):
-                if magic == b'RIFF' and len(header) >= 12:
-                    if header[8:12] != b'WEBP':
+                if magic == b"RIFF" and len(header) >= 12:
+                    if header[8:12] != b"WEBP":
                         continue
                 return True
         return False
@@ -136,14 +152,16 @@ class ImageDetector:
     @staticmethod
     def strip_base64_images(text: str) -> str:
         """Remove base64 image data URIs from text, leaving only non-image content."""
-        return _BASE64_IMAGE_RE.sub('', text)
+        return _BASE64_IMAGE_RE.sub("", text)
 
     @staticmethod
     def extract_base64_images(text: str) -> List[bytes]:
         results = []
         for match in _BASE64_IMAGE_RE.finditer(text):
             try:
-                b64_data = match.group(1).replace('\n', '').replace('\r', '').replace(' ', '')
+                b64_data = (
+                    match.group(1).replace("\n", "").replace("\r", "").replace(" ", "")
+                )
                 image_bytes = base64.b64decode(b64_data)
                 if ImageDetector.is_image_bytes(image_bytes):
                     results.append(image_bytes)
@@ -171,7 +189,7 @@ class OCREngine:
 
     def extract_text(self, image_data: bytes) -> OCRResult:
         start = time.monotonic()
-        min_confidence = self._config.get('min_confidence', 0.5)
+        min_confidence = self._config.get("min_confidence", 0.5)
 
         try:
             engine = self._get_engine()
@@ -193,11 +211,13 @@ class OCREngine:
                     continue
 
                 bbox = _box_points_to_bbox(box_points)
-                regions.append(TextRegion(
-                    text=text,
-                    bbox=bbox,
-                    confidence=confidence,
-                ))
+                regions.append(
+                    TextRegion(
+                        text=text,
+                        bbox=bbox,
+                        confidence=confidence,
+                    )
+                )
                 texts.append(text)
                 total_conf += confidence
 
@@ -281,7 +301,7 @@ class QRScanner:
         try:
             img = Image.open(io.BytesIO(image_data))
             decoded = pyzbar.decode(img)
-            return [d.data.decode('utf-8', errors='replace') for d in decoded if d.data]
+            return [d.data.decode("utf-8", errors="replace") for d in decoded if d.data]
         except Exception as e:
             logger.warning(f"QR scanning failed: {e}")
             return []
@@ -298,16 +318,21 @@ class FaceDetector:
             return []
         try:
             import numpy as np
+
             nparr = np.frombuffer(image_data, np.uint8)
             img = cv2.imdecode(nparr, cv2.IMREAD_GRAYSCALE)
             if img is None:
                 return []
 
             if cls._cascade is None:
-                cascade_path = cv2.data.haarcascades + 'haarcascade_frontalface_default.xml'
+                cascade_path = (
+                    cv2.data.haarcascades + "haarcascade_frontalface_default.xml"
+                )
                 cls._cascade = cv2.CascadeClassifier(cascade_path)
 
-            faces = cls._cascade.detectMultiScale(img, scaleFactor=1.1, minNeighbors=5, minSize=(30, 30))
+            faces = cls._cascade.detectMultiScale(
+                img, scaleFactor=1.1, minNeighbors=5, minSize=(30, 30)
+            )
             if len(faces) == 0:
                 return []
             return [(int(x), int(y), int(w), int(h)) for (x, y, w, h) in faces]
@@ -333,7 +358,7 @@ def scan_image(image_data: bytes, config: dict) -> ImageScanResult:
     """
     start = time.monotonic()
 
-    max_size = config.get('max_image_size_mb', 10) * 1024 * 1024
+    max_size = config.get("max_image_size_mb", 10) * 1024 * 1024
     if len(image_data) > max_size:
         logger.warning(
             f"Image too large ({len(image_data)} bytes > {max_size} bytes), "
@@ -356,13 +381,13 @@ def scan_image(image_data: bytes, config: dict) -> ImageScanResult:
         logger.warning(f"OCR failed: {e}")
 
     # QR code scanning (opt-in)
-    if config.get('qr_scanning', False):
+    if config.get("qr_scanning", False):
         result.qr_texts = QRScanner.scan(image_data)
         if result.qr_texts:
             logger.info(f"QR scanner found {len(result.qr_texts)} code(s)")
 
     # Face detection (opt-in)
-    if config.get('face_detection', False):
+    if config.get("face_detection", False):
         result.face_regions = FaceDetector.detect_faces(image_data)
         if result.face_regions:
             logger.info(f"Face detector found {len(result.face_regions)} face(s)")

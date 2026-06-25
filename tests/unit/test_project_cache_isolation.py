@@ -4,7 +4,6 @@ Verifies that the daemon's module-level caches are keyed per-project
 so that project A's configs don't bleed into project B.
 """
 
-import os
 import time
 from pathlib import Path
 from unittest.mock import patch
@@ -17,6 +16,7 @@ class TestFindProjectRootPerCwd:
 
     def setup_method(self):
         from ai_guardian.gitleaks_config import reset_cache
+
         reset_cache()
 
     def test_different_cwds_get_separate_entries(self, tmp_path):
@@ -66,6 +66,7 @@ class TestAiguardignorePerProject:
     def setup_method(self):
         from ai_guardian.aiguardignore import reset_cache
         from ai_guardian.gitleaks_config import reset_cache as reset_gitleaks
+
         reset_cache()
         reset_gitleaks()
 
@@ -130,19 +131,21 @@ class TestGitleaksAllowlistPerProject:
 
     def setup_method(self):
         from ai_guardian.gitleaks_config import reset_cache
+
         reset_cache()
 
     def test_separate_allowlists(self, tmp_path):
-        from ai_guardian.gitleaks_config import load_gitleaks_allowlist, _cached_allowlists
+        from ai_guardian.gitleaks_config import (
+            load_gitleaks_allowlist,
+            _cached_allowlists,
+        )
 
         proj_a = tmp_path / "project_a"
         proj_b = tmp_path / "project_b"
         proj_a.mkdir()
         proj_b.mkdir()
 
-        (proj_a / ".gitleaks.toml").write_text(
-            '[allowlist]\npaths = ["vendor/**"]\n'
-        )
+        (proj_a / ".gitleaks.toml").write_text('[allowlist]\npaths = ["vendor/**"]\n')
         (proj_b / ".gitleaks.toml").write_text(
             '[allowlist]\npaths = ["third_party/**"]\n'
         )
@@ -162,6 +165,7 @@ class TestConfigLoadersPerProject:
 
     def setup_method(self):
         from ai_guardian.config_loaders import _clear_config_cache
+
         _clear_config_cache()
 
     def test_separate_project_configs(self, tmp_path, monkeypatch):
@@ -178,6 +182,7 @@ class TestConfigLoadersPerProject:
         config_b_dir.mkdir()
 
         import json
+
         (config_a_dir / "ai-guardian.json").write_text(
             json.dumps({"secret_scanning": {"action": "block"}})
         )
@@ -207,8 +212,11 @@ class TestStaleCleanup:
 
     def test_gitleaks_cleanup(self, tmp_path):
         from ai_guardian.gitleaks_config import (
-            _project_roots, _cache_last_accessed, cleanup_stale_entries,
+            _project_roots,
+            _cache_last_accessed,
+            cleanup_stale_entries,
         )
+
         _project_roots.clear()
         _cache_last_accessed.clear()
 
@@ -221,8 +229,11 @@ class TestStaleCleanup:
 
     def test_aiguardignore_cleanup(self, tmp_path):
         from ai_guardian.aiguardignore import (
-            _cached_configs, _cache_last_accessed, cleanup_stale_entries,
+            _cached_configs,
+            _cache_last_accessed,
+            cleanup_stale_entries,
         )
+
         _cached_configs.clear()
         _cache_last_accessed.clear()
 
@@ -235,12 +246,16 @@ class TestStaleCleanup:
 
     def test_config_loaders_cleanup(self):
         from ai_guardian.config_loaders import (
-            _caches, _ConfigCacheEntry, cleanup_stale_entries,
+            _caches,
+            _ConfigCacheEntry,
+            cleanup_stale_entries,
         )
+
         _caches.clear()
 
         _caches["__stale__"] = _ConfigCacheEntry(
-            result=(None, None), last_accessed=time.monotonic() - 100000,
+            result=(None, None),
+            last_accessed=time.monotonic() - 100000,
         )
 
         cleanup_stale_entries(max_age=86400.0)
@@ -248,8 +263,11 @@ class TestStaleCleanup:
 
     def test_fresh_entries_preserved(self, tmp_path):
         from ai_guardian.gitleaks_config import (
-            _project_roots, _cache_last_accessed, cleanup_stale_entries,
+            _project_roots,
+            _cache_last_accessed,
+            cleanup_stale_entries,
         )
+
         _project_roots.clear()
         _cache_last_accessed.clear()
 

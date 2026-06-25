@@ -7,7 +7,6 @@ from ai_guardian.tui.schema_defaults import (
     SchemaDefaults,
     SchemaDefaultsMixin,
     _MISSING,
-    _MissingSentinel,
     default_indicator,
     default_placeholder,
     select_options_with_default,
@@ -83,12 +82,16 @@ class TestSchemaDefaults(unittest.TestCase):
 
     def test_get_default_nested_path(self):
         sd = SchemaDefaults.get()
-        result = sd.get_default("secret_scanning.pattern_server.cache.refresh_interval_hours")
+        result = sd.get_default(
+            "secret_scanning.pattern_server.cache.refresh_interval_hours"
+        )
         assert result == 12
 
     def test_get_default_nested_deep(self):
         sd = SchemaDefaults.get()
-        result = sd.get_default("secret_scanning.pattern_server.cache.expire_after_hours")
+        result = sd.get_default(
+            "secret_scanning.pattern_server.cache.expire_after_hours"
+        )
         assert result == 168
 
     def test_get_default_missing_path(self):

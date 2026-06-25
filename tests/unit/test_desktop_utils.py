@@ -2,10 +2,14 @@
 
 import subprocess
 import unittest
-from unittest.mock import MagicMock, call, patch
+from unittest.mock import MagicMock, patch
 
 from ai_guardian.desktop_utils import (
-    _get_default_browser, _try_kdotool, _try_xdotool, _try_wmctrl, open_url,
+    _get_default_browser,
+    _try_kdotool,
+    _try_xdotool,
+    _try_wmctrl,
+    open_url,
 )
 
 

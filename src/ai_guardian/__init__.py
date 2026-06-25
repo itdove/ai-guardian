@@ -21,30 +21,32 @@ from logging.handlers import RotatingFileHandler
 # Custom log record factory to add version to all log records
 _old_factory = logging.getLogRecordFactory()
 
+
 def _record_factory(*args, **kwargs):
     """Custom log record factory that injects version into all log records."""
     record = _old_factory(*args, **kwargs)
     record.version = __version__
     return record
 
+
 logging.setLogRecordFactory(_record_factory)
 
 # Set up file handler with rotation
 from ai_guardian.config_utils import get_state_dir, migrate_state_files
+
 migrate_state_files()
 _log_file = get_state_dir() / "ai-guardian.log"
 _log_file.parent.mkdir(parents=True, exist_ok=True)
 
 _file_handler = RotatingFileHandler(
-    _log_file,
-    maxBytes=5*1024*1024,  # 5 MB
-    backupCount=3,
-    encoding='utf-8'
+    _log_file, maxBytes=5 * 1024 * 1024, backupCount=3, encoding="utf-8"  # 5 MB
 )
-_file_handler.setFormatter(logging.Formatter(
-    '%(asctime)s - v%(version)s - %(name)s - %(levelname)s - %(message)s',
-    datefmt='%Y-%m-%d %H:%M:%S'
-))
+_file_handler.setFormatter(
+    logging.Formatter(
+        "%(asctime)s - v%(version)s - %(name)s - %(levelname)s - %(message)s",
+        datefmt="%Y-%m-%d %H:%M:%S",
+    )
+)
 
 # Suppress stderr output when --json is requested or running Console TUI (keep file logging)
 _stderr_handler = logging.StreamHandler(sys.stderr)
@@ -60,8 +62,8 @@ logging.basicConfig(
     format="%(message)s",  # Simple format for stderr
     handlers=[
         _stderr_handler,  # Keep stderr output for IDE compatibility
-        _file_handler  # Add file output
-    ]
+        _file_handler,  # Add file output
+    ],
 )
 
 # Global logger instance
@@ -73,7 +75,9 @@ _suppress_logging = (
     or "mcp-server" in sys.argv
     or ("setup" in sys.argv and "--json" in sys.argv)
 )
-_scan_quiet = ("scan" in sys.argv and "--verbose" not in sys.argv and "-v" not in sys.argv)
+_scan_quiet = (
+    "scan" in sys.argv and "--verbose" not in sys.argv and "-v" not in sys.argv
+)
 _quiet_stderr = "prompt" in sys.argv or "tray-target-select" in sys.argv
 if _quiet_stderr:
     _stderr_handler.setLevel(logging.CRITICAL)
@@ -84,9 +88,11 @@ elif not _suppress_logging:
     logger.info(f"AI Guardian v{__version__} initialized")
     logger.info(f"Python {sys.version.split()[0]}")
     import platform
+
     logger.info(f"Platform: {platform.platform()}")
 else:
     import platform
+
     logging.disable(logging.CRITICAL)
 
 

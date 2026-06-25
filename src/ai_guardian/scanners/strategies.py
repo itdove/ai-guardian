@@ -12,8 +12,8 @@ import logging
 from abc import ABC, abstractmethod
 from collections import defaultdict
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from dataclasses import dataclass, field
-from typing import List, Dict, Any, Optional, Set, Tuple, Callable
+from dataclasses import dataclass
+from typing import List, Dict, Any, Optional, Tuple, Callable
 
 from ai_guardian.scanners.engine_builder import resolve_engine_config_path
 
@@ -21,25 +21,31 @@ from ai_guardian.scanners.engine_builder import resolve_engine_config_path
 @dataclass
 class SecretMatch:
     """Single secret detection result."""
+
     rule_id: str
     description: str
     file: str
     line_number: int
     end_line: Optional[int] = None
     start_column: Optional[int] = None  # 0-based column
-    end_column: Optional[int] = None    # 0-based column
+    end_column: Optional[int] = None  # 0-based column
     commit: Optional[str] = None
     secret: Optional[str] = None  # Redacted or None
     engine: str = ""  # Which engine found it
     confidence: float = 1.0  # 0.0-1.0 confidence score
     verified: bool = False  # For engines that support verification
-    validation_status: str = "unverified"  # "verified", "inactive", or "unverified" (Issue #971)
-    category: Optional[str] = None  # Pattern category for violation routing (Issue #984)
+    validation_status: str = (
+        "unverified"  # "verified", "inactive", or "unverified" (Issue #971)
+    )
+    category: Optional[str] = (
+        None  # Pattern category for violation routing (Issue #984)
+    )
 
 
 @dataclass
 class ScanResult:
     """Result from a secret scanner."""
+
     has_secrets: bool
     secrets: List[SecretMatch]
     engine: str
@@ -63,7 +69,7 @@ class ExecutionStrategy(ABC):
         source_file: str,
         report_file_prefix: str,
         config_path: Optional[str] = None,
-        context: Optional[Dict] = None
+        context: Optional[Dict] = None,
     ) -> ScanResult:
         """
         Execute scanners and combine results.
@@ -82,9 +88,7 @@ class ExecutionStrategy(ABC):
         pass
 
     @staticmethod
-    def _filter_engines_for_file(
-        engines: List[Any], filename: str
-    ) -> List[Any]:
+    def _filter_engines_for_file(engines: List[Any], filename: str) -> List[Any]:
         """
         Filter engines to those whose file_patterns match the filename.
 
@@ -118,7 +122,7 @@ class FirstMatchStrategy(ExecutionStrategy):
         source_file: str,
         report_file_prefix: str,
         config_path: Optional[str] = None,
-        context: Optional[Dict] = None
+        context: Optional[Dict] = None,
     ) -> ScanResult:
         filename = context.get("filename", "") if context else ""
         engines = self._filter_engines_for_file(engine_configs, filename)
@@ -130,9 +134,7 @@ class FirstMatchStrategy(ExecutionStrategy):
             logging.info(f"FirstMatchStrategy: trying engine {engine_config.type}")
 
             resolved_path = resolve_engine_config_path(engine_config, config_path)
-            result = scanner_fn(
-                engine_config, source_file, report_file, resolved_path
-            )
+            result = scanner_fn(engine_config, source_file, report_file, resolved_path)
 
             if result.error and "not found" in (result.error or "").lower():
                 logging.warning(f"Engine {engine_config.type} unavailable, trying next")
@@ -159,10 +161,7 @@ class FirstMatchStrategy(ExecutionStrategy):
             return last_clean_result
 
         return ScanResult(
-            has_secrets=False,
-            secrets=[],
-            engine="none",
-            error="No scanners available"
+            has_secrets=False, secrets=[], engine="none", error="No scanners available"
         )
 
 
@@ -181,15 +180,17 @@ class AnyMatchStrategy(ExecutionStrategy):
         source_file: str,
         report_file_prefix: str,
         config_path: Optional[str] = None,
-        context: Optional[Dict] = None
+        context: Optional[Dict] = None,
     ) -> ScanResult:
         filename = context.get("filename", "") if context else ""
         engines = self._filter_engines_for_file(engine_configs, filename)
 
         if not engines:
             return ScanResult(
-                has_secrets=False, secrets=[], engine="none",
-                error="No scanners available"
+                has_secrets=False,
+                secrets=[],
+                engine="none",
+                error="No scanners available",
             )
 
         results = self._run_engines_parallel(
@@ -222,7 +223,7 @@ class AnyMatchStrategy(ExecutionStrategy):
             has_secrets=len(unique_secrets) > 0,
             secrets=unique_secrets,
             engine=engine_label,
-            scan_time_ms=total_time_ms
+            scan_time_ms=total_time_ms,
         )
 
     @staticmethod
@@ -249,10 +250,14 @@ class AnyMatchStrategy(ExecutionStrategy):
                     results.append(result)
                 except Exception as e:
                     logging.error(f"Engine {engine_type} raised exception: {e}")
-                    results.append(ScanResult(
-                        has_secrets=False, secrets=[], engine=engine_type,
-                        error=str(e)
-                    ))
+                    results.append(
+                        ScanResult(
+                            has_secrets=False,
+                            secrets=[],
+                            engine=engine_type,
+                            error=str(e),
+                        )
+                    )
 
         return results
 
@@ -304,15 +309,17 @@ class ConsensusStrategy(ExecutionStrategy):
         source_file: str,
         report_file_prefix: str,
         config_path: Optional[str] = None,
-        context: Optional[Dict] = None
+        context: Optional[Dict] = None,
     ) -> ScanResult:
         filename = context.get("filename", "") if context else ""
         engines = self._filter_engines_for_file(engine_configs, filename)
 
         if not engines:
             return ScanResult(
-                has_secrets=False, secrets=[], engine="none",
-                error="No scanners available"
+                has_secrets=False,
+                secrets=[],
+                engine="none",
+                error="No scanners available",
             )
 
         results = AnyMatchStrategy._run_engines_parallel(
@@ -346,7 +353,7 @@ class ConsensusStrategy(ExecutionStrategy):
             has_secrets=len(consensus_secrets) > 0,
             secrets=consensus_secrets,
             engine=engine_label,
-            scan_time_ms=total_time_ms
+            scan_time_ms=total_time_ms,
         )
 
     def _find_consensus(self, secrets: List[SecretMatch]) -> List[SecretMatch]:
@@ -380,7 +387,7 @@ class ConsensusStrategy(ExecutionStrategy):
 EXECUTION_STRATEGIES = {
     "first-match": FirstMatchStrategy,
     "any-match": AnyMatchStrategy,
-    "consensus": ConsensusStrategy
+    "consensus": ConsensusStrategy,
 }
 
 

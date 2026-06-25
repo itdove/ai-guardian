@@ -24,7 +24,9 @@ class TestSSRFProtectorCore:
     def test_disabled_protection(self):
         """Test that protection can be disabled."""
         protector = SSRFProtector({"enabled": False})
-        should_block, msg = protector.check("Bash", {"command": "curl http://169.254.169.254"})
+        should_block, msg = protector.check(
+            "Bash", {"command": "curl http://169.254.169.254"}
+        )
         assert not should_block
         assert msg is None
 
@@ -64,8 +66,7 @@ class TestHermesValidatedPayloads:
 
         # Direct metadata endpoint access
         should_block, msg = protector.check(
-            "Bash",
-            {"command": "curl http://169.254.169.254/latest/meta-data/"}
+            "Bash", {"command": "curl http://169.254.169.254/latest/meta-data/"}
         )
 
         assert should_block, "Failed to block AWS metadata endpoint (Hermes payload #1)"
@@ -80,68 +81,82 @@ class TestHermesValidatedPayloads:
         # we should block direct metadata endpoint references
         should_block, msg = protector.check(
             "Bash",
-            {"command": "curl http://169.254.169.254/latest/meta-data/iam/security-credentials/"}
+            {
+                "command": "curl http://169.254.169.254/latest/meta-data/iam/security-credentials/"
+            },
         )
 
-        assert should_block, "Failed to block metadata credentials endpoint (Hermes payload #2)"
+        assert (
+            should_block
+        ), "Failed to block metadata credentials endpoint (Hermes payload #2)"
         assert "169.254.169.254" in msg
 
 
 class TestPrivateIPRanges:
     """Test blocking of private IP ranges (RFC 1918, loopback, link-local)."""
 
-    @pytest.mark.parametrize("ip,description", [
-        ("10.0.0.1", "10.0.0.0/8 - Private network"),
-        ("10.255.255.255", "10.0.0.0/8 - Last address"),
-        ("172.16.0.1", "172.16.0.0/12 - Private network"),
-        ("172.31.255.255", "172.16.0.0/12 - Last address"),
-        ("192.168.0.1", "192.168.0.0/16 - Private network"),
-        ("192.168.255.255", "192.168.0.0/16 - Last address"),
-        ("127.0.0.1", "127.0.0.0/8 - Loopback"),
-        ("127.255.255.255", "127.0.0.0/8 - Last loopback"),
-        ("169.254.169.254", "169.254.0.0/16 - AWS metadata"),
-        ("169.254.0.1", "169.254.0.0/16 - Link-local"),
-    ])
+    @pytest.mark.parametrize(
+        "ip,description",
+        [
+            ("10.0.0.1", "10.0.0.0/8 - Private network"),
+            ("10.255.255.255", "10.0.0.0/8 - Last address"),
+            ("172.16.0.1", "172.16.0.0/12 - Private network"),
+            ("172.31.255.255", "172.16.0.0/12 - Last address"),
+            ("192.168.0.1", "192.168.0.0/16 - Private network"),
+            ("192.168.255.255", "192.168.0.0/16 - Last address"),
+            ("127.0.0.1", "127.0.0.0/8 - Loopback"),
+            ("127.255.255.255", "127.0.0.0/8 - Last loopback"),
+            ("169.254.169.254", "169.254.0.0/16 - AWS metadata"),
+            ("169.254.0.1", "169.254.0.0/16 - Link-local"),
+        ],
+    )
     def test_private_ipv4_blocked(self, ip, description):
         """Test that private IPv4 addresses are blocked."""
         protector = SSRFProtector()
         should_block, msg = protector.check(
-            "Bash",
-            {"command": f"curl http://{ip}/test"}
+            "Bash", {"command": f"curl http://{ip}/test"}
         )
 
         assert should_block, f"Failed to block {description}"
         assert ip in msg
 
-    @pytest.mark.parametrize("ip,description", [
-        ("::1", "IPv6 loopback"),
-        ("fc00::1", "IPv6 private - fc00::/7"),
-        ("fd00::1", "IPv6 private - fd00::/8"),
-        ("fe80::1", "IPv6 link-local"),
-    ])
+    @pytest.mark.parametrize(
+        "ip,description",
+        [
+            ("::1", "IPv6 loopback"),
+            ("fc00::1", "IPv6 private - fc00::/7"),
+            ("fd00::1", "IPv6 private - fd00::/8"),
+            ("fe80::1", "IPv6 link-local"),
+        ],
+    )
     def test_private_ipv6_blocked(self, ip, description):
         """Test that private IPv6 addresses are blocked."""
         protector = SSRFProtector()
         should_block, msg = protector.check(
-            "Bash",
-            {"command": f"curl http://[{ip}]/test"}
+            "Bash", {"command": f"curl http://[{ip}]/test"}
         )
 
         assert should_block, f"Failed to block {description}"
 
-    @pytest.mark.parametrize("ipv6_mapped,expected_ipv4,description", [
-        ("::ffff:169.254.169.254", "169.254.169.254", "AWS metadata via IPv6-mapped"),
-        ("::ffff:127.0.0.1", "127.0.0.1", "Loopback via IPv6-mapped"),
-        ("::ffff:10.0.0.1", "10.0.0.1", "Private 10.x via IPv6-mapped"),
-        ("::ffff:172.16.0.1", "172.16.0.1", "Private 172.16.x via IPv6-mapped"),
-        ("::ffff:192.168.1.1", "192.168.1.1", "Private 192.168.x via IPv6-mapped"),
-    ])
+    @pytest.mark.parametrize(
+        "ipv6_mapped,expected_ipv4,description",
+        [
+            (
+                "::ffff:169.254.169.254",
+                "169.254.169.254",
+                "AWS metadata via IPv6-mapped",
+            ),
+            ("::ffff:127.0.0.1", "127.0.0.1", "Loopback via IPv6-mapped"),
+            ("::ffff:10.0.0.1", "10.0.0.1", "Private 10.x via IPv6-mapped"),
+            ("::ffff:172.16.0.1", "172.16.0.1", "Private 172.16.x via IPv6-mapped"),
+            ("::ffff:192.168.1.1", "192.168.1.1", "Private 192.168.x via IPv6-mapped"),
+        ],
+    )
     def test_ipv6_mapped_ipv4_blocked(self, ipv6_mapped, expected_ipv4, description):
         """Test that IPv6-mapped IPv4 addresses are blocked (CVE-level bypass fix)."""
         protector = SSRFProtector()
         should_block, msg = protector.check(
-            "Bash",
-            {"command": f"curl http://[{ipv6_mapped}]/test"}
+            "Bash", {"command": f"curl http://[{ipv6_mapped}]/test"}
         )
 
         assert should_block, f"Failed to block {description} (maps to {expected_ipv4})"
@@ -151,20 +166,20 @@ class TestPrivateIPRanges:
 class TestCloudMetadataEndpoints:
     """Test blocking of cloud provider metadata endpoints."""
 
-    @pytest.mark.parametrize("endpoint,provider", [
-        ("http://169.254.169.254/latest/meta-data/", "AWS"),
-        ("http://169.254.169.254/latest/user-data", "AWS"),
-        ("http://metadata.google.internal/", "GCP"),
-        ("http://metadata.goog/", "GCP alternative"),
-        ("http://[fd00:ec2::254]/", "AWS IPv6"),
-    ])
+    @pytest.mark.parametrize(
+        "endpoint,provider",
+        [
+            ("http://169.254.169.254/latest/meta-data/", "AWS"),
+            ("http://169.254.169.254/latest/user-data", "AWS"),
+            ("http://metadata.google.internal/", "GCP"),
+            ("http://metadata.goog/", "GCP alternative"),
+            ("http://[fd00:ec2::254]/", "AWS IPv6"),
+        ],
+    )
     def test_metadata_endpoints_blocked(self, endpoint, provider):
         """Test that cloud metadata endpoints are blocked."""
         protector = SSRFProtector()
-        should_block, msg = protector.check(
-            "Bash",
-            {"command": f"curl {endpoint}"}
-        )
+        should_block, msg = protector.check("Bash", {"command": f"curl {endpoint}"})
 
         assert should_block, f"Failed to block {provider} metadata endpoint"
         assert "SSRF" in msg
@@ -173,8 +188,7 @@ class TestCloudMetadataEndpoints:
         """Test that localhost domain is blocked by default."""
         protector = SSRFProtector()
         should_block, msg = protector.check(
-            "Bash",
-            {"command": "curl http://localhost:8080/admin"}
+            "Bash", {"command": "curl http://localhost:8080/admin"}
         )
 
         assert should_block
@@ -184,15 +198,14 @@ class TestCloudMetadataEndpoints:
 class TestDangerousURLSchemes:
     """Test blocking of dangerous URL schemes."""
 
-    @pytest.mark.parametrize("scheme", [
-        "file", "gopher", "ftp", "ftps", "data", "dict", "ldap", "ldaps"
-    ])
+    @pytest.mark.parametrize(
+        "scheme", ["file", "gopher", "ftp", "ftps", "data", "dict", "ldap", "ldaps"]
+    )
     def test_dangerous_scheme_blocked(self, scheme):
         """Test that dangerous URL schemes are blocked."""
         protector = SSRFProtector()
         should_block, msg = protector.check(
-            "Bash",
-            {"command": f"{scheme}://example.com/test"}
+            "Bash", {"command": f"{scheme}://example.com/test"}
         )
 
         assert should_block, f"Failed to block {scheme}:// scheme"
@@ -202,8 +215,7 @@ class TestDangerousURLSchemes:
         """Test that file:// URLs are blocked."""
         protector = SSRFProtector()
         should_block, msg = protector.check(
-            "Bash",
-            {"command": "curl file:///etc/passwd"}
+            "Bash", {"command": "curl file:///etc/passwd"}
         )
 
         assert should_block
@@ -213,8 +225,7 @@ class TestDangerousURLSchemes:
         """Test that data: URLs are blocked."""
         protector = SSRFProtector()
         should_block, msg = protector.check(
-            "Bash",
-            {"command": "curl data:text/plain,hello"}
+            "Bash", {"command": "curl data:text/plain,hello"}
         )
 
         assert should_block
@@ -230,15 +241,13 @@ class TestEdgeCases:
 
         # Single quotes
         should_block, msg = protector.check(
-            "Bash",
-            {"command": "curl 'http://169.254.169.254/meta-data'"}
+            "Bash", {"command": "curl 'http://169.254.169.254/meta-data'"}
         )
         assert should_block
 
         # Double quotes
         should_block, msg = protector.check(
-            "Bash",
-            {"command": 'curl "http://169.254.169.254/meta-data"'}
+            "Bash", {"command": 'curl "http://169.254.169.254/meta-data"'}
         )
         assert should_block
 
@@ -246,8 +255,7 @@ class TestEdgeCases:
         """Test URL extraction from piped commands."""
         protector = SSRFProtector()
         should_block, msg = protector.check(
-            "Bash",
-            {"command": "curl http://10.0.0.1/test | jq .data"}
+            "Bash", {"command": "curl http://10.0.0.1/test | jq .data"}
         )
 
         assert should_block
@@ -259,8 +267,7 @@ class TestEdgeCases:
 
         # One private, one public
         should_block, msg = protector.check(
-            "Bash",
-            {"command": "curl http://example.com && curl http://192.168.1.1"}
+            "Bash", {"command": "curl http://example.com && curl http://192.168.1.1"}
         )
 
         assert should_block
@@ -270,8 +277,7 @@ class TestEdgeCases:
         """Test wget commands with private IPs."""
         protector = SSRFProtector()
         should_block, msg = protector.check(
-            "Bash",
-            {"command": "wget http://172.16.0.1/file.txt"}
+            "Bash", {"command": "wget http://172.16.0.1/file.txt"}
         )
 
         assert should_block
@@ -282,7 +288,9 @@ class TestEdgeCases:
         protector = SSRFProtector()
         should_block, msg = protector.check(
             "Bash",
-            {"command": "curl -X POST -H 'Content-Type: application/json' http://127.0.0.1:8080/api"}
+            {
+                "command": "curl -X POST -H 'Content-Type: application/json' http://127.0.0.1:8080/api"
+            },
         )
 
         assert should_block
@@ -292,8 +300,7 @@ class TestEdgeCases:
         """Test --url flag format."""
         protector = SSRFProtector()
         should_block, msg = protector.check(
-            "Bash",
-            {"command": "curl --url http://10.10.10.10/data"}
+            "Bash", {"command": "curl --url http://10.10.10.10/data"}
         )
 
         assert should_block
@@ -302,23 +309,23 @@ class TestEdgeCases:
 class TestFalsePositives:
     """Test that legitimate public URLs are NOT blocked."""
 
-    @pytest.mark.parametrize("url", [
-        "http://example.com",
-        "https://www.google.com",
-        "https://api.github.com/repos",
-        "https://s3.amazonaws.com/bucket/file.txt",
-        "https://storage.googleapis.com/bucket/object",
-        "http://8.8.8.8",  # Google DNS
-        "https://1.1.1.1",  # Cloudflare DNS
-        "https://registry.npmjs.org/package",
-    ])
+    @pytest.mark.parametrize(
+        "url",
+        [
+            "http://example.com",
+            "https://www.google.com",
+            "https://api.github.com/repos",
+            "https://s3.amazonaws.com/bucket/file.txt",
+            "https://storage.googleapis.com/bucket/object",
+            "http://8.8.8.8",  # Google DNS
+            "https://1.1.1.1",  # Cloudflare DNS
+            "https://registry.npmjs.org/package",
+        ],
+    )
     def test_public_url_allowed(self, url):
         """Test that public URLs are allowed."""
         protector = SSRFProtector()
-        should_block, msg = protector.check(
-            "Bash",
-            {"command": f"curl {url}"}
-        )
+        should_block, msg = protector.check("Bash", {"command": f"curl {url}"})
 
         assert not should_block, f"Incorrectly blocked legitimate URL: {url}"
 
@@ -328,15 +335,13 @@ class TestFalsePositives:
 
         # S3
         should_block, msg = protector.check(
-            "Bash",
-            {"command": "curl https://s3.amazonaws.com/mybucket/file.txt"}
+            "Bash", {"command": "curl https://s3.amazonaws.com/mybucket/file.txt"}
         )
         assert not should_block
 
         # EC2 API (public)
         should_block, msg = protector.check(
-            "Bash",
-            {"command": "aws ec2 describe-instances"}
+            "Bash", {"command": "aws ec2 describe-instances"}
         )
         assert not should_block  # No URL extracted from this command
 
@@ -344,8 +349,7 @@ class TestFalsePositives:
         """Test that HTTPS URLs to public domains are allowed."""
         protector = SSRFProtector()
         should_block, msg = protector.check(
-            "Bash",
-            {"command": "curl https://api.openai.com/v1/models"}
+            "Bash", {"command": "curl https://api.openai.com/v1/models"}
         )
 
         assert not should_block
@@ -358,8 +362,7 @@ class TestActionModes:
         """Test block mode (default) prevents execution."""
         protector = SSRFProtector({"action": "block"})
         should_block, msg = protector.check(
-            "Bash",
-            {"command": "curl http://169.254.169.254"}
+            "Bash", {"command": "curl http://169.254.169.254"}
         )
 
         assert should_block
@@ -368,13 +371,14 @@ class TestActionModes:
 
     def test_warn_mode_allows_with_warning(self):
         """Test warn mode logs but allows execution for configurable patterns."""
-        protector = SSRFProtector({
-            "action": "warn",
-            "additional_blocked_domains": ["evil.test"],
-        })
+        protector = SSRFProtector(
+            {
+                "action": "warn",
+                "additional_blocked_domains": ["evil.test"],
+            }
+        )
         should_block, msg = protector.check(
-            "Bash",
-            {"command": "curl http://evil.test/exfil"}
+            "Bash", {"command": "curl http://evil.test/exfil"}
         )
 
         assert not should_block  # Execution allowed for configurable pattern
@@ -385,13 +389,14 @@ class TestActionModes:
 
     def test_log_only_mode_no_agent_message(self):
         """Test log-only mode allows execution with no agent-facing message."""
-        protector = SSRFProtector({
-            "action": "log-only",
-            "additional_blocked_domains": ["evil.test"],
-        })
+        protector = SSRFProtector(
+            {
+                "action": "log-only",
+                "additional_blocked_domains": ["evil.test"],
+            }
+        )
         should_block, msg = protector.check(
-            "Bash",
-            {"command": "curl http://evil.test/exfil"}
+            "Bash", {"command": "curl http://evil.test/exfil"}
         )
 
         assert not should_block  # Execution allowed
@@ -401,8 +406,7 @@ class TestActionModes:
         """Immutable SSRF patterns (metadata endpoints) always block regardless of action mode."""
         protector = SSRFProtector({"action": "warn"})
         should_block, msg = protector.check(
-            "Bash",
-            {"command": "curl http://169.254.169.254/latest/meta-data/"}
+            "Bash", {"command": "curl http://169.254.169.254/latest/meta-data/"}
         )
 
         assert should_block, "Immutable pattern must block even in warn mode"
@@ -413,8 +417,7 @@ class TestActionModes:
         """Immutable SSRF patterns always block regardless of log-only action mode."""
         protector = SSRFProtector({"action": "log-only"})
         should_block, msg = protector.check(
-            "Bash",
-            {"command": "curl http://169.254.169.254"}
+            "Bash", {"command": "curl http://169.254.169.254"}
         )
 
         assert should_block, "Immutable pattern must block even in log-only mode"
@@ -424,8 +427,7 @@ class TestActionModes:
         """Dangerous URL schemes are immutable and always block."""
         protector = SSRFProtector({"action": "warn"})
         should_block, msg = protector.check(
-            "Bash",
-            {"command": "curl file:///etc/passwd"}
+            "Bash", {"command": "curl file:///etc/passwd"}
         )
 
         assert should_block, "Dangerous scheme must block even in warn mode"
@@ -434,8 +436,7 @@ class TestActionModes:
         """Private IP ranges are immutable and always block."""
         protector = SSRFProtector({"action": "log-only"})
         should_block, msg = protector.check(
-            "Bash",
-            {"command": "curl http://10.0.0.1/admin"}
+            "Bash", {"command": "curl http://10.0.0.1/admin"}
         )
 
         assert should_block, "Private IP must block even in log-only mode"
@@ -446,13 +447,12 @@ class TestConfigurationOverrides:
 
     def test_additional_blocked_ips(self):
         """Test additional IP addresses can be blocked."""
-        protector = SSRFProtector({
-            "additional_blocked_ips": ["203.0.113.0/24"]  # TEST-NET-3
-        })
+        protector = SSRFProtector(
+            {"additional_blocked_ips": ["203.0.113.0/24"]}  # TEST-NET-3
+        )
 
         should_block, msg = protector.check(
-            "Bash",
-            {"command": "curl http://203.0.113.5"}
+            "Bash", {"command": "curl http://203.0.113.5"}
         )
 
         assert should_block
@@ -460,13 +460,12 @@ class TestConfigurationOverrides:
 
     def test_additional_blocked_domains(self):
         """Test additional domains can be blocked."""
-        protector = SSRFProtector({
-            "additional_blocked_domains": ["internal.example.com", "admin.local"]
-        })
+        protector = SSRFProtector(
+            {"additional_blocked_domains": ["internal.example.com", "admin.local"]}
+        )
 
         should_block, msg = protector.check(
-            "Bash",
-            {"command": "curl http://internal.example.com/api"}
+            "Bash", {"command": "curl http://internal.example.com/api"}
         )
 
         assert should_block
@@ -478,15 +477,13 @@ class TestConfigurationOverrides:
 
         # Localhost domain
         should_block, msg = protector.check(
-            "Bash",
-            {"command": "curl http://localhost:3000"}
+            "Bash", {"command": "curl http://localhost:3000"}
         )
         assert not should_block
 
         # Localhost IP
         should_block, msg = protector.check(
-            "Bash",
-            {"command": "curl http://127.0.0.1:8080"}
+            "Bash", {"command": "curl http://127.0.0.1:8080"}
         )
         assert not should_block
 
@@ -495,8 +492,7 @@ class TestConfigurationOverrides:
         protector = SSRFProtector({"allow_localhost": False})
 
         should_block, msg = protector.check(
-            "Bash",
-            {"command": "curl http://localhost:3000"}
+            "Bash", {"command": "curl http://localhost:3000"}
         )
         assert should_block
 
@@ -506,178 +502,183 @@ class TestAllowedDomains:
 
     def test_allowed_domain_overrides_additional_blocked_domain(self):
         """Test that allowed_domains can override additional_blocked_domains."""
-        protector = SSRFProtector({
-            "additional_blocked_domains": ["api.corp.internal", "public.corp.internal", "other.corp.internal"],
-            "allowed_domains": ["api.corp.internal", "public.corp.internal"]
-        })
+        protector = SSRFProtector(
+            {
+                "additional_blocked_domains": [
+                    "api.corp.internal",
+                    "public.corp.internal",
+                    "other.corp.internal",
+                ],
+                "allowed_domains": ["api.corp.internal", "public.corp.internal"],
+            }
+        )
 
         # api.corp.internal should be allowed (in allow-list)
         should_block, msg = protector.check(
-            "Bash",
-            {"command": "curl http://api.corp.internal/data"}
+            "Bash", {"command": "curl http://api.corp.internal/data"}
         )
-        assert not should_block, "allowed_domains should override additional_blocked_domains"
+        assert (
+            not should_block
+        ), "allowed_domains should override additional_blocked_domains"
 
         # public.corp.internal should be allowed
         should_block, msg = protector.check(
-            "Bash",
-            {"command": "curl http://public.corp.internal/info"}
+            "Bash", {"command": "curl http://public.corp.internal/info"}
         )
         assert not should_block
 
         # other.corp.internal should be blocked (not in allow-list)
         should_block, msg = protector.check(
-            "Bash",
-            {"command": "curl http://other.corp.internal/secret"}
+            "Bash", {"command": "curl http://other.corp.internal/secret"}
         )
         assert should_block, "Domains not in allow-list should remain blocked"
 
     def test_allowed_domain_subdomain_matching(self):
         """Test that allowed_domains supports subdomain matching."""
-        protector = SSRFProtector({
-            "additional_blocked_domains": ["api.corp.internal", "v1.api.corp.internal", "admin.corp.internal"],
-            "allowed_domains": ["api.corp.internal"]
-        })
+        protector = SSRFProtector(
+            {
+                "additional_blocked_domains": [
+                    "api.corp.internal",
+                    "v1.api.corp.internal",
+                    "admin.corp.internal",
+                ],
+                "allowed_domains": ["api.corp.internal"],
+            }
+        )
 
         # Exact match
         should_block, msg = protector.check(
-            "Bash",
-            {"command": "curl http://api.corp.internal"}
+            "Bash", {"command": "curl http://api.corp.internal"}
         )
         assert not should_block
 
         # Subdomain of allowed domain
         should_block, msg = protector.check(
-            "Bash",
-            {"command": "curl http://v1.api.corp.internal/endpoint"}
+            "Bash", {"command": "curl http://v1.api.corp.internal/endpoint"}
         )
         assert not should_block, "Subdomains of allowed domains should be allowed"
 
         # Different subdomain not in allow-list
         should_block, msg = protector.check(
-            "Bash",
-            {"command": "curl http://admin.corp.internal"}
+            "Bash", {"command": "curl http://admin.corp.internal"}
         )
         assert should_block
 
     def test_allowed_domain_cannot_override_core_metadata_endpoints(self):
         """Test that allowed_domains CANNOT override immutable core protections."""
-        protector = SSRFProtector({
-            "allowed_domains": [
-                "metadata.google.internal",
-                "169.254.169.254",
-                "fd00:ec2::254"
-            ]
-        })
+        protector = SSRFProtector(
+            {
+                "allowed_domains": [
+                    "metadata.google.internal",
+                    "169.254.169.254",
+                    "fd00:ec2::254",
+                ]
+            }
+        )
 
         # Core metadata endpoints should ALWAYS be blocked
         should_block, msg = protector.check(
-            "Bash",
-            {"command": "curl http://metadata.google.internal"}
+            "Bash", {"command": "curl http://metadata.google.internal"}
         )
-        assert should_block, "Core metadata endpoints cannot be overridden by allow-list"
+        assert (
+            should_block
+        ), "Core metadata endpoints cannot be overridden by allow-list"
 
         should_block, msg = protector.check(
-            "Bash",
-            {"command": "curl http://169.254.169.254/latest/meta-data"}
+            "Bash", {"command": "curl http://169.254.169.254/latest/meta-data"}
         )
         assert should_block, "AWS metadata endpoint cannot be overridden"
 
         should_block, msg = protector.check(
-            "Bash",
-            {"command": "curl http://[fd00:ec2::254]/"}
+            "Bash", {"command": "curl http://[fd00:ec2::254]/"}
         )
         assert should_block, "AWS IPv6 metadata cannot be overridden"
 
     def test_allowed_domain_cannot_override_dangerous_schemes(self):
         """Test that allowed_domains cannot override dangerous URL schemes."""
-        protector = SSRFProtector({
-            "allowed_domains": ["example.com"]
-        })
+        protector = SSRFProtector({"allowed_domains": ["example.com"]})
 
         # Dangerous schemes should always be blocked
         should_block, msg = protector.check(
-            "Bash",
-            {"command": "file://example.com/etc/passwd"}
+            "Bash", {"command": "file://example.com/etc/passwd"}
         )
         assert should_block, "Dangerous schemes cannot be overridden"
 
-        should_block, msg = protector.check(
-            "Bash",
-            {"command": "gopher://example.com"}
-        )
+        should_block, msg = protector.check("Bash", {"command": "gopher://example.com"})
         assert should_block
 
     def test_allowed_domain_with_localhost(self):
         """Test allowed_domains interaction with allow_localhost."""
         # With allow_localhost=False, localhost is blocked
-        protector = SSRFProtector({
-            "allow_localhost": False,
-            "allowed_domains": ["localhost"]
-        })
+        protector = SSRFProtector(
+            {"allow_localhost": False, "allowed_domains": ["localhost"]}
+        )
 
         # localhost domain should still be blocked (it's in CORE_BLOCKED_DOMAINS)
         # Note: localhost is treated specially and removed from blocked list when allow_localhost=True
         should_block, msg = protector.check(
-            "Bash",
-            {"command": "curl http://localhost:8080"}
+            "Bash", {"command": "curl http://localhost:8080"}
         )
         # This should NOT be blocked because allowed_domains can override the localhost block
         # when allow_localhost=False (localhost is in additional blocked list, not immutable core)
-        assert not should_block, "allowed_domains should allow localhost when in allow-list"
+        assert (
+            not should_block
+        ), "allowed_domains should allow localhost when in allow-list"
 
     def test_allowed_domain_empty_list(self):
         """Test that empty allowed_domains list works correctly."""
-        protector = SSRFProtector({
-            "additional_blocked_domains": ["internal.example.com"],
-            "allowed_domains": []
-        })
+        protector = SSRFProtector(
+            {
+                "additional_blocked_domains": ["internal.example.com"],
+                "allowed_domains": [],
+            }
+        )
 
         should_block, msg = protector.check(
-            "Bash",
-            {"command": "curl http://internal.example.com"}
+            "Bash", {"command": "curl http://internal.example.com"}
         )
         assert should_block, "Empty allow-list should not affect blocking"
 
     def test_allowed_domain_case_insensitive(self):
         """Test that domain matching is case-insensitive."""
-        protector = SSRFProtector({
-            "additional_blocked_domains": ["Api.Corp.Internal"],
-            "allowed_domains": ["API.Corp.Internal"]
-        })
+        protector = SSRFProtector(
+            {
+                "additional_blocked_domains": ["Api.Corp.Internal"],
+                "allowed_domains": ["API.Corp.Internal"],
+            }
+        )
 
         # Lowercase variant
         should_block, msg = protector.check(
-            "Bash",
-            {"command": "curl http://api.corp.internal"}
+            "Bash", {"command": "curl http://api.corp.internal"}
         )
         assert not should_block
 
         # Uppercase variant
         should_block, msg = protector.check(
-            "Bash",
-            {"command": "curl http://API.CORP.INTERNAL"}
+            "Bash", {"command": "curl http://API.CORP.INTERNAL"}
         )
         assert not should_block
 
         # Mixed case
         should_block, msg = protector.check(
-            "Bash",
-            {"command": "curl http://Api.Corp.Internal"}
+            "Bash", {"command": "curl http://Api.Corp.Internal"}
         )
         assert not should_block
 
     def test_allowed_domain_with_multiple_urls(self):
         """Test allowed_domains with commands containing multiple URLs."""
-        protector = SSRFProtector({
-            "additional_blocked_domains": ["api.internal", "admin.internal"],
-            "allowed_domains": ["api.internal"]
-        })
+        protector = SSRFProtector(
+            {
+                "additional_blocked_domains": ["api.internal", "admin.internal"],
+                "allowed_domains": ["api.internal"],
+            }
+        )
 
         # One allowed, one blocked
         should_block, msg = protector.check(
             "Bash",
-            {"command": "curl http://api.internal && curl http://admin.internal"}
+            {"command": "curl http://api.internal && curl http://admin.internal"},
         )
         assert should_block, "Should block if any URL is blocked"
         assert "admin.internal" in msg
@@ -685,26 +686,22 @@ class TestAllowedDomains:
         # Both allowed
         should_block, msg = protector.check(
             "Bash",
-            {"command": "curl http://api.internal && curl http://v2.api.internal"}
+            {"command": "curl http://api.internal && curl http://v2.api.internal"},
         )
         assert not should_block, "Should allow if all URLs are allowed"
 
     def test_allowed_domain_does_not_affect_private_ips(self):
         """Test that allowed_domains only affects domain blocking, not IP blocking."""
-        protector = SSRFProtector({
-            "allowed_domains": ["10.0.0.1", "192.168.1.1"]
-        })
+        protector = SSRFProtector({"allowed_domains": ["10.0.0.1", "192.168.1.1"]})
 
         # Private IPs should still be blocked (immutable core protection)
-        should_block, msg = protector.check(
-            "Bash",
-            {"command": "curl http://10.0.0.1"}
-        )
-        assert should_block, "Private IPs are immutable protection, cannot be overridden"
+        should_block, msg = protector.check("Bash", {"command": "curl http://10.0.0.1"})
+        assert (
+            should_block
+        ), "Private IPs are immutable protection, cannot be overridden"
 
         should_block, msg = protector.check(
-            "Bash",
-            {"command": "curl http://192.168.1.1"}
+            "Bash", {"command": "curl http://192.168.1.1"}
         )
         assert should_block
 
@@ -714,10 +711,12 @@ class TestAllowedDomainsRegex:
 
     def test_regex_subdomain_wildcard(self):
         """Regex '.*\\.example\\.com' matches subdomains of example.com."""
-        protector = SSRFProtector({
-            "additional_blocked_domains": ["*.example.com"],
-            "allowed_domains": [".*\\.example\\.com"]
-        })
+        protector = SSRFProtector(
+            {
+                "additional_blocked_domains": ["*.example.com"],
+                "allowed_domains": [".*\\.example\\.com"],
+            }
+        )
 
         should_block, msg = protector.check(
             "Bash", {"command": "curl http://api.example.com/data"}
@@ -731,10 +730,12 @@ class TestAllowedDomainsRegex:
 
     def test_regex_specific_port(self):
         """Regex 'localhost:19200' matches only that port."""
-        protector = SSRFProtector({
-            "additional_blocked_domains": ["localhost"],
-            "allowed_domains": ["localhost:19200"]
-        })
+        protector = SSRFProtector(
+            {
+                "additional_blocked_domains": ["localhost"],
+                "allowed_domains": ["localhost:19200"],
+            }
+        )
 
         should_block, msg = protector.check(
             "Bash", {"command": "curl http://localhost:19200/api"}
@@ -748,10 +749,12 @@ class TestAllowedDomainsRegex:
 
     def test_regex_port_range(self):
         """Regex 'localhost:\\d+' matches any port on localhost."""
-        protector = SSRFProtector({
-            "additional_blocked_domains": ["localhost"],
-            "allowed_domains": ["localhost:\\d+"]
-        })
+        protector = SSRFProtector(
+            {
+                "additional_blocked_domains": ["localhost"],
+                "allowed_domains": ["localhost:\\d+"],
+            }
+        )
 
         should_block, msg = protector.check(
             "Bash", {"command": "curl http://localhost:8080/health"}
@@ -765,10 +768,12 @@ class TestAllowedDomainsRegex:
 
     def test_regex_port_alternation(self):
         """Regex 'localhost:(19200|8080)' matches specific ports."""
-        protector = SSRFProtector({
-            "additional_blocked_domains": ["localhost"],
-            "allowed_domains": ["localhost:(19200|8080)"]
-        })
+        protector = SSRFProtector(
+            {
+                "additional_blocked_domains": ["localhost"],
+                "allowed_domains": ["localhost:(19200|8080)"],
+            }
+        )
 
         should_block, msg = protector.check(
             "Bash", {"command": "curl http://localhost:19200"}
@@ -787,10 +792,12 @@ class TestAllowedDomainsRegex:
 
     def test_regex_character_class(self):
         """Regex 'cdn-[0-9]{2}\\.fastly\\.net' matches numbered CDN nodes."""
-        protector = SSRFProtector({
-            "additional_blocked_domains": ["*.fastly.net"],
-            "allowed_domains": ["cdn-[0-9]{2}\\.fastly\\.net"]
-        })
+        protector = SSRFProtector(
+            {
+                "additional_blocked_domains": ["*.fastly.net"],
+                "allowed_domains": ["cdn-[0-9]{2}\\.fastly\\.net"],
+            }
+        )
 
         should_block, msg = protector.check(
             "Bash", {"command": "curl http://cdn-01.fastly.net/asset.js"}
@@ -809,10 +816,12 @@ class TestAllowedDomainsRegex:
 
     def test_regex_multi_level_wildcard(self):
         """Regex 'api\\.internal\\..*\\.corp\\.net' matches multi-level domains."""
-        protector = SSRFProtector({
-            "additional_blocked_domains": ["*.corp.net"],
-            "allowed_domains": ["api\\.internal\\..*\\.corp\\.net"]
-        })
+        protector = SSRFProtector(
+            {
+                "additional_blocked_domains": ["*.corp.net"],
+                "allowed_domains": ["api\\.internal\\..*\\.corp\\.net"],
+            }
+        )
 
         should_block, msg = protector.check(
             "Bash", {"command": "curl http://api.internal.us.corp.net"}
@@ -826,10 +835,12 @@ class TestAllowedDomainsRegex:
 
     def test_plain_strings_backward_compatible(self):
         """Plain domain strings without regex metacharacters work as before."""
-        protector = SSRFProtector({
-            "additional_blocked_domains": ["api.corp.internal"],
-            "allowed_domains": ["api.corp.internal"]
-        })
+        protector = SSRFProtector(
+            {
+                "additional_blocked_domains": ["api.corp.internal"],
+                "allowed_domains": ["api.corp.internal"],
+            }
+        )
 
         should_block, msg = protector.check(
             "Bash", {"command": "curl http://api.corp.internal/data"}
@@ -843,10 +854,12 @@ class TestAllowedDomainsRegex:
 
     def test_invalid_regex_warns_and_skips(self):
         """Invalid regex patterns emit warning and are skipped, not crash."""
-        protector = SSRFProtector({
-            "additional_blocked_domains": ["evil.com"],
-            "allowed_domains": ["[invalid regex", "api\\.good\\.com"]
-        })
+        protector = SSRFProtector(
+            {
+                "additional_blocked_domains": ["evil.com"],
+                "allowed_domains": ["[invalid regex", "api\\.good\\.com"],
+            }
+        )
 
         # Should not crash during construction
         assert len(protector._allowed_domain_regexes) == 1, "Valid regex should be kept"
@@ -859,13 +872,15 @@ class TestAllowedDomainsRegex:
 
     def test_regex_cannot_override_immutable_protections(self):
         """Regex patterns CANNOT override immutable core protections."""
-        protector = SSRFProtector({
-            "allowed_domains": [
-                "metadata\\.google\\.internal",
-                "169\\.254\\.169\\.254",
-                ".*"
-            ]
-        })
+        protector = SSRFProtector(
+            {
+                "allowed_domains": [
+                    "metadata\\.google\\.internal",
+                    "169\\.254\\.169\\.254",
+                    ".*",
+                ]
+            }
+        )
 
         should_block, msg = protector.check(
             "Bash", {"command": "curl http://metadata.google.internal"}
@@ -879,14 +894,16 @@ class TestAllowedDomainsRegex:
 
     def test_mixed_exact_and_regex(self):
         """Config with both exact strings and regex patterns works correctly."""
-        protector = SSRFProtector({
-            "additional_blocked_domains": ["*.internal.com", "localhost"],
-            "allowed_domains": [
-                "api.internal.com",
-                ".*\\.staging\\.internal\\.com",
-                "localhost:3000"
-            ]
-        })
+        protector = SSRFProtector(
+            {
+                "additional_blocked_domains": ["*.internal.com", "localhost"],
+                "allowed_domains": [
+                    "api.internal.com",
+                    ".*\\.staging\\.internal\\.com",
+                    "localhost:3000",
+                ],
+            }
+        )
 
         # Exact match
         should_block, msg = protector.check(
@@ -914,10 +931,12 @@ class TestAllowedDomainsRegex:
 
     def test_regex_case_insensitive(self):
         """Regex matching is case-insensitive."""
-        protector = SSRFProtector({
-            "additional_blocked_domains": ["*.example.com"],
-            "allowed_domains": ["api\\.example\\.com"]
-        })
+        protector = SSRFProtector(
+            {
+                "additional_blocked_domains": ["*.example.com"],
+                "allowed_domains": ["api\\.example\\.com"],
+            }
+        )
 
         should_block, msg = protector.check(
             "Bash", {"command": "curl http://API.EXAMPLE.COM/data"}
@@ -926,10 +945,12 @@ class TestAllowedDomainsRegex:
 
     def test_regex_fullmatch_not_partial(self):
         """Regex uses fullmatch, not partial search — prevents over-matching."""
-        protector = SSRFProtector({
-            "additional_blocked_domains": ["evil.example.com"],
-            "allowed_domains": ["example\\.com"]
-        })
+        protector = SSRFProtector(
+            {
+                "additional_blocked_domains": ["evil.example.com"],
+                "allowed_domains": ["example\\.com"],
+            }
+        )
 
         # "example.com" regex should NOT match "evil.example.com" via fullmatch
         should_block, msg = protector.check(
@@ -946,7 +967,7 @@ class TestConvenienceFunction:
         should_block, msg = check_ssrf(
             "Bash",
             {"command": "curl http://169.254.169.254"},
-            {"enabled": True, "action": "block"}
+            {"enabled": True, "action": "block"},
         )
 
         assert should_block
@@ -955,9 +976,7 @@ class TestConvenienceFunction:
     def test_check_ssrf_with_disabled_config(self):
         """Test check_ssrf with disabled protection."""
         should_block, msg = check_ssrf(
-            "Bash",
-            {"command": "curl http://169.254.169.254"},
-            {"enabled": False}
+            "Bash", {"command": "curl http://169.254.169.254"}, {"enabled": False}
         )
 
         assert not should_block
@@ -1035,14 +1054,26 @@ class TestIPValidation:
 
         # Critical bypass vulnerability: IPv6-mapped IPv4 addresses
         # These should be blocked when their IPv4 equivalent is blocked
-        assert protector._is_ip_blocked("::ffff:169.254.169.254"), "AWS metadata bypass via IPv6-mapped"
-        assert protector._is_ip_blocked("::ffff:127.0.0.1"), "Loopback bypass via IPv6-mapped"
-        assert protector._is_ip_blocked("::ffff:10.0.0.1"), "Private 10.x bypass via IPv6-mapped"
-        assert protector._is_ip_blocked("::ffff:172.16.0.1"), "Private 172.16.x bypass via IPv6-mapped"
-        assert protector._is_ip_blocked("::ffff:192.168.1.1"), "Private 192.168.x bypass via IPv6-mapped"
+        assert protector._is_ip_blocked(
+            "::ffff:169.254.169.254"
+        ), "AWS metadata bypass via IPv6-mapped"
+        assert protector._is_ip_blocked(
+            "::ffff:127.0.0.1"
+        ), "Loopback bypass via IPv6-mapped"
+        assert protector._is_ip_blocked(
+            "::ffff:10.0.0.1"
+        ), "Private 10.x bypass via IPv6-mapped"
+        assert protector._is_ip_blocked(
+            "::ffff:172.16.0.1"
+        ), "Private 172.16.x bypass via IPv6-mapped"
+        assert protector._is_ip_blocked(
+            "::ffff:192.168.1.1"
+        ), "Private 192.168.x bypass via IPv6-mapped"
 
         # Public IPs should still not be blocked even when IPv6-mapped
-        assert not protector._is_ip_blocked("::ffff:8.8.8.8"), "Public IP via IPv6-mapped should be allowed"
+        assert not protector._is_ip_blocked(
+            "::ffff:8.8.8.8"
+        ), "Public IP via IPv6-mapped should be allowed"
 
 
 class TestDomainValidation:
@@ -1081,8 +1112,7 @@ class TestErrorHandling:
 
         # Malformed URL should be blocked
         should_block, msg = protector.check(
-            "Bash",
-            {"command": "curl ht!tp://malformed"}
+            "Bash", {"command": "curl ht!tp://malformed"}
         )
 
         # Should either block or ignore (depending on parsing)
@@ -1104,216 +1134,278 @@ class TestWildcardDomainPatterns:
 
     def test_wildcard_suffix_pattern(self):
         """Test *.internal.com pattern blocks all .internal.com domains."""
-        protector = SSRFProtector({
-            "additional_blocked_domains": ["*.internal.com"]
-        })
+        protector = SSRFProtector({"additional_blocked_domains": ["*.internal.com"]})
 
         # Should block any subdomain of .internal.com
-        should_block, msg = protector.check("Bash", {"command": "curl http://api.internal.com"})
+        should_block, msg = protector.check(
+            "Bash", {"command": "curl http://api.internal.com"}
+        )
         assert should_block
         assert "api.internal.com" in msg
 
-        should_block, msg = protector.check("Bash", {"command": "curl http://db.internal.com"})
+        should_block, msg = protector.check(
+            "Bash", {"command": "curl http://db.internal.com"}
+        )
         assert should_block
 
-        should_block, msg = protector.check("Bash", {"command": "curl http://cache.internal.com"})
+        should_block, msg = protector.check(
+            "Bash", {"command": "curl http://cache.internal.com"}
+        )
         assert should_block
 
         # Should NOT block different domains
-        should_block, msg = protector.check("Bash", {"command": "curl http://example.com"})
+        should_block, msg = protector.check(
+            "Bash", {"command": "curl http://example.com"}
+        )
         assert not should_block
 
     def test_wildcard_prefix_pattern(self):
         """Test admin.* pattern blocks all admin.* domains."""
-        protector = SSRFProtector({
-            "additional_blocked_domains": ["admin.*"]
-        })
+        protector = SSRFProtector({"additional_blocked_domains": ["admin.*"]})
 
         # Should block admin with any suffix
-        should_block, msg = protector.check("Bash", {"command": "curl http://admin.example.com"})
+        should_block, msg = protector.check(
+            "Bash", {"command": "curl http://admin.example.com"}
+        )
         assert should_block
 
-        should_block, msg = protector.check("Bash", {"command": "curl http://admin.corp.internal"})
+        should_block, msg = protector.check(
+            "Bash", {"command": "curl http://admin.corp.internal"}
+        )
         assert should_block
 
-        should_block, msg = protector.check("Bash", {"command": "curl http://admin.local"})
+        should_block, msg = protector.check(
+            "Bash", {"command": "curl http://admin.local"}
+        )
         assert should_block
 
         # Should NOT block different subdomains
-        should_block, msg = protector.check("Bash", {"command": "curl http://api.example.com"})
+        should_block, msg = protector.check(
+            "Bash", {"command": "curl http://api.example.com"}
+        )
         assert not should_block
 
     def test_wildcard_middle_pattern(self):
         """Test *.corp.* pattern blocks all .corp. domains."""
-        protector = SSRFProtector({
-            "additional_blocked_domains": ["*.corp.*"]
-        })
+        protector = SSRFProtector({"additional_blocked_domains": ["*.corp.*"]})
 
         # Should block any domain with .corp. in the middle
-        should_block, msg = protector.check("Bash", {"command": "curl http://api.corp.internal"})
+        should_block, msg = protector.check(
+            "Bash", {"command": "curl http://api.corp.internal"}
+        )
         assert should_block
 
-        should_block, msg = protector.check("Bash", {"command": "curl http://db.corp.example.com"})
+        should_block, msg = protector.check(
+            "Bash", {"command": "curl http://db.corp.example.com"}
+        )
         assert should_block
 
         # Should NOT block domains without .corp.
-        should_block, msg = protector.check("Bash", {"command": "curl http://api.example.com"})
+        should_block, msg = protector.check(
+            "Bash", {"command": "curl http://api.example.com"}
+        )
         assert not should_block
 
     def test_single_character_wildcard(self):
         """Test ? wildcard matches exactly one character."""
-        protector = SSRFProtector({
-            "additional_blocked_domains": ["test?.example.com"]
-        })
+        protector = SSRFProtector({"additional_blocked_domains": ["test?.example.com"]})
 
         # Should block test1, test2, testa, etc.
-        should_block, msg = protector.check("Bash", {"command": "curl http://test1.example.com"})
+        should_block, msg = protector.check(
+            "Bash", {"command": "curl http://test1.example.com"}
+        )
         assert should_block
 
-        should_block, msg = protector.check("Bash", {"command": "curl http://testa.example.com"})
+        should_block, msg = protector.check(
+            "Bash", {"command": "curl http://testa.example.com"}
+        )
         assert should_block
 
         # Should NOT block test10 (two characters) or test.example.com
-        should_block, msg = protector.check("Bash", {"command": "curl http://test10.example.com"})
+        should_block, msg = protector.check(
+            "Bash", {"command": "curl http://test10.example.com"}
+        )
         assert not should_block
 
-        should_block, msg = protector.check("Bash", {"command": "curl http://test.example.com"})
+        should_block, msg = protector.check(
+            "Bash", {"command": "curl http://test.example.com"}
+        )
         assert not should_block
 
     def test_multiple_wildcard_patterns(self):
         """Test multiple wildcard patterns can coexist."""
-        protector = SSRFProtector({
-            "additional_blocked_domains": [
-                "*.internal.com",
-                "admin.*",
-                "metadata.*"
-            ]
-        })
+        protector = SSRFProtector(
+            {"additional_blocked_domains": ["*.internal.com", "admin.*", "metadata.*"]}
+        )
 
         # Should block all patterns
-        should_block, msg = protector.check("Bash", {"command": "curl http://api.internal.com"})
+        should_block, msg = protector.check(
+            "Bash", {"command": "curl http://api.internal.com"}
+        )
         assert should_block
 
-        should_block, msg = protector.check("Bash", {"command": "curl http://admin.example.com"})
+        should_block, msg = protector.check(
+            "Bash", {"command": "curl http://admin.example.com"}
+        )
         assert should_block
 
-        should_block, msg = protector.check("Bash", {"command": "curl http://metadata.aws.com"})
+        should_block, msg = protector.check(
+            "Bash", {"command": "curl http://metadata.aws.com"}
+        )
         assert should_block
 
         # Should NOT block unmatched domains
-        should_block, msg = protector.check("Bash", {"command": "curl http://api.example.com"})
+        should_block, msg = protector.check(
+            "Bash", {"command": "curl http://api.example.com"}
+        )
         assert not should_block
 
     def test_wildcard_with_exact_domains(self):
         """Test wildcard patterns work alongside exact domain matches."""
-        protector = SSRFProtector({
-            "additional_blocked_domains": [
-                "exact.example.com",  # Exact match
-                "*.internal.com"      # Wildcard pattern
-            ]
-        })
+        protector = SSRFProtector(
+            {
+                "additional_blocked_domains": [
+                    "exact.example.com",  # Exact match
+                    "*.internal.com",  # Wildcard pattern
+                ]
+            }
+        )
 
         # Should block exact match
-        should_block, msg = protector.check("Bash", {"command": "curl http://exact.example.com"})
+        should_block, msg = protector.check(
+            "Bash", {"command": "curl http://exact.example.com"}
+        )
         assert should_block
 
         # Should block subdomain of exact match (default subdomain matching)
-        should_block, msg = protector.check("Bash", {"command": "curl http://sub.exact.example.com"})
+        should_block, msg = protector.check(
+            "Bash", {"command": "curl http://sub.exact.example.com"}
+        )
         assert should_block
 
         # Should block wildcard pattern
-        should_block, msg = protector.check("Bash", {"command": "curl http://api.internal.com"})
+        should_block, msg = protector.check(
+            "Bash", {"command": "curl http://api.internal.com"}
+        )
         assert should_block
 
         # Should NOT block unmatched
-        should_block, msg = protector.check("Bash", {"command": "curl http://other.example.com"})
+        should_block, msg = protector.check(
+            "Bash", {"command": "curl http://other.example.com"}
+        )
         assert not should_block
 
     def test_case_insensitive_wildcard_matching(self):
         """Test wildcard patterns are case-insensitive."""
-        protector = SSRFProtector({
-            "additional_blocked_domains": ["*.Internal.COM"]
-        })
+        protector = SSRFProtector({"additional_blocked_domains": ["*.Internal.COM"]})
 
         # Should block regardless of case
-        should_block, msg = protector.check("Bash", {"command": "curl http://API.internal.com"})
+        should_block, msg = protector.check(
+            "Bash", {"command": "curl http://API.internal.com"}
+        )
         assert should_block
 
-        should_block, msg = protector.check("Bash", {"command": "curl http://api.INTERNAL.com"})
+        should_block, msg = protector.check(
+            "Bash", {"command": "curl http://api.INTERNAL.com"}
+        )
         assert should_block
 
-        should_block, msg = protector.check("Bash", {"command": "curl http://api.Internal.Com"})
+        should_block, msg = protector.check(
+            "Bash", {"command": "curl http://api.Internal.Com"}
+        )
         assert should_block
 
     def test_invalid_wildcard_patterns_rejected(self):
         """Test that invalid wildcard patterns are rejected with warnings."""
         # This should not crash, invalid patterns should be skipped
-        protector = SSRFProtector({
-            "additional_blocked_domains": [
-                "***",           # Invalid: too many wildcards
-                "",              # Invalid: empty
-                "*.valid.com"    # Valid: should work
-            ]
-        })
+        protector = SSRFProtector(
+            {
+                "additional_blocked_domains": [
+                    "***",  # Invalid: too many wildcards
+                    "",  # Invalid: empty
+                    "*.valid.com",  # Valid: should work
+                ]
+            }
+        )
 
         # Valid pattern should still work
-        should_block, msg = protector.check("Bash", {"command": "curl http://test.valid.com"})
+        should_block, msg = protector.check(
+            "Bash", {"command": "curl http://test.valid.com"}
+        )
         assert should_block
 
         # Invalid patterns should be ignored (not crash)
-        should_block, msg = protector.check("Bash", {"command": "curl http://example.com"})
+        should_block, msg = protector.check(
+            "Bash", {"command": "curl http://example.com"}
+        )
         assert not should_block
 
     def test_wildcard_with_allow_list(self):
         """Test wildcard patterns respect allow-list overrides."""
-        protector = SSRFProtector({
-            "additional_blocked_domains": ["*.corp.internal"],
-            "allowed_domains": ["dev.corp.internal"]
-        })
+        protector = SSRFProtector(
+            {
+                "additional_blocked_domains": ["*.corp.internal"],
+                "allowed_domains": ["dev.corp.internal"],
+            }
+        )
 
         # Should block by wildcard
-        should_block, msg = protector.check("Bash", {"command": "curl http://api.corp.internal"})
+        should_block, msg = protector.check(
+            "Bash", {"command": "curl http://api.corp.internal"}
+        )
         assert should_block
 
         # Should allow by allow-list (overrides wildcard)
-        should_block, msg = protector.check("Bash", {"command": "curl http://dev.corp.internal"})
+        should_block, msg = protector.check(
+            "Bash", {"command": "curl http://dev.corp.internal"}
+        )
         assert not should_block
 
     def test_metadata_wildcard_pattern(self):
         """Test blocking all metadata endpoints with wildcard."""
-        protector = SSRFProtector({
-            "additional_blocked_domains": ["metadata.*"]
-        })
+        protector = SSRFProtector({"additional_blocked_domains": ["metadata.*"]})
 
         # Should block all metadata.* domains
-        should_block, msg = protector.check("Bash", {"command": "curl http://metadata.google.internal"})
+        should_block, msg = protector.check(
+            "Bash", {"command": "curl http://metadata.google.internal"}
+        )
         assert should_block
 
-        should_block, msg = protector.check("Bash", {"command": "curl http://metadata.aws.com"})
+        should_block, msg = protector.check(
+            "Bash", {"command": "curl http://metadata.aws.com"}
+        )
         assert should_block
 
-        should_block, msg = protector.check("Bash", {"command": "curl http://metadata.azure.com"})
+        should_block, msg = protector.check(
+            "Bash", {"command": "curl http://metadata.azure.com"}
+        )
         assert should_block
 
         # Should NOT block non-metadata domains
-        should_block, msg = protector.check("Bash", {"command": "curl http://api.google.com"})
+        should_block, msg = protector.check(
+            "Bash", {"command": "curl http://api.google.com"}
+        )
         assert not should_block
 
     def test_wildcard_all_subdomains_of_tld(self):
         """Test *.local blocks all .local domains."""
-        protector = SSRFProtector({
-            "additional_blocked_domains": ["*.local"]
-        })
+        protector = SSRFProtector({"additional_blocked_domains": ["*.local"]})
 
         # Should block all .local domains
-        should_block, msg = protector.check("Bash", {"command": "curl http://anything.local"})
+        should_block, msg = protector.check(
+            "Bash", {"command": "curl http://anything.local"}
+        )
         assert should_block
 
-        should_block, msg = protector.check("Bash", {"command": "curl http://test.local"})
+        should_block, msg = protector.check(
+            "Bash", {"command": "curl http://test.local"}
+        )
         assert should_block
 
         # Should NOT block .localhost or other TLDs
-        should_block, msg = protector.check("Bash", {"command": "curl http://example.com"})
+        should_block, msg = protector.check(
+            "Bash", {"command": "curl http://example.com"}
+        )
         assert not should_block
 
 

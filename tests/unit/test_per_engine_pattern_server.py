@@ -8,15 +8,12 @@ Verifies that per-engine pattern_server overrides are respected during scanning:
 """
 
 import unittest
-from unittest.mock import patch, MagicMock, call
+from unittest.mock import patch, MagicMock
 
 from ai_guardian.scanners.engine_builder import (
-    EngineConfig,
-    ENGINE_PRESETS,
     PATTERN_SERVER_UNSET,
     _build_engine_config,
     resolve_engine_config_path,
-    select_all_engines,
 )
 from ai_guardian.scanners.strategies import (
     FirstMatchStrategy,
@@ -45,14 +42,18 @@ class TestPerEnginePatternServerInStrategy(unittest.TestCase):
         def tracking_scanner(engine_config, source_file, report_file, config_path):
             calls.append((engine_config.type, config_path))
             return ScanResult(
-                has_secrets=False, secrets=[], engine=engine_config.type,
+                has_secrets=False,
+                secrets=[],
+                engine=engine_config.type,
             )
 
         gitleaks = _build_engine_config("gitleaks")
-        betterleaks = _build_engine_config({
-            "type": "betterleaks",
-            "pattern_server": None,
-        })
+        betterleaks = _build_engine_config(
+            {
+                "type": "betterleaks",
+                "pattern_server": None,
+            }
+        )
 
         strategy = FirstMatchStrategy()
         strategy.execute(
@@ -77,14 +78,18 @@ class TestPerEnginePatternServerInStrategy(unittest.TestCase):
         def tracking_scanner(engine_config, source_file, report_file, config_path):
             calls.append((engine_config.type, config_path))
             return ScanResult(
-                has_secrets=False, secrets=[], engine=engine_config.type,
+                has_secrets=False,
+                secrets=[],
+                engine=engine_config.type,
             )
 
         gitleaks = _build_engine_config("gitleaks")
-        betterleaks = _build_engine_config({
-            "type": "betterleaks",
-            "pattern_server": None,
-        })
+        betterleaks = _build_engine_config(
+            {
+                "type": "betterleaks",
+                "pattern_server": None,
+            }
+        )
 
         strategy = AnyMatchStrategy()
         strategy.execute(
@@ -121,10 +126,12 @@ class TestBackwardCompatibility(unittest.TestCase):
     def test_mixed_engines_list(self):
         """Mix of string and dict engine specs works correctly."""
         gitleaks = _build_engine_config("gitleaks")
-        betterleaks_disabled = _build_engine_config({
-            "type": "betterleaks",
-            "pattern_server": None,
-        })
+        betterleaks_disabled = _build_engine_config(
+            {
+                "type": "betterleaks",
+                "pattern_server": None,
+            }
+        )
         leaktk = _build_engine_config("leaktk")
 
         global_path = "/tmp/global.toml"
@@ -138,36 +145,40 @@ class TestBackwardCompatibility(unittest.TestCase):
 class TestPerEnginePatternServerFetch(unittest.TestCase):
     """Test per-engine pattern server URL fetching."""
 
-    @patch('ai_guardian.pattern_server.PatternServerClient')
+    @patch("ai_guardian.pattern_server.PatternServerClient")
     def test_per_engine_url_overrides_global(self, mock_client_cls):
         """Per-engine pattern_server URL should override global config_path."""
         mock_client = MagicMock()
         mock_client.get_patterns_path.return_value = "/cache/engine_specific.toml"
         mock_client_cls.return_value = mock_client
 
-        config = _build_engine_config({
-            "type": "gitleaks",
-            "pattern_server": {
-                "url": "https://custom-server.example.com",
-                "auth_token_env": "CUSTOM_TOKEN",
+        config = _build_engine_config(
+            {
+                "type": "gitleaks",
+                "pattern_server": {
+                    "url": "https://custom-server.example.com",
+                    "auth_token_env": "CUSTOM_TOKEN",
+                },
             }
-        })
+        )
         result = resolve_engine_config_path(config, "/tmp/global.toml")
 
         self.assertIn("engine_specific.toml", result)
         self.assertNotIn("global.toml", result)
 
-    @patch('ai_guardian.pattern_server.PatternServerClient')
+    @patch("ai_guardian.pattern_server.PatternServerClient")
     def test_per_engine_url_returns_none_on_failure(self, mock_client_cls):
         """Failed per-engine fetch should return None, not fall back to global."""
         mock_client = MagicMock()
         mock_client.get_patterns_path.return_value = None
         mock_client_cls.return_value = mock_client
 
-        config = _build_engine_config({
-            "type": "gitleaks",
-            "pattern_server": {"url": "https://down-server.example.com"}
-        })
+        config = _build_engine_config(
+            {
+                "type": "gitleaks",
+                "pattern_server": {"url": "https://down-server.example.com"},
+            }
+        )
         result = resolve_engine_config_path(config, "/tmp/global.toml")
         self.assertIsNone(result)
 
@@ -185,7 +196,7 @@ class TestConfigFlagGuard(unittest.TestCase):
             self.assertIsNone(
                 result,
                 f"{engine_type} has config_flag={config.config_flag} "
-                f"but received global config"
+                f"but received global config",
             )
 
     def test_gitleaks_receives_global_config(self):
@@ -207,13 +218,16 @@ class TestDescribePatterns(unittest.TestCase):
 
     def setUp(self):
         from ai_guardian import _describe_patterns
+
         self.describe = _describe_patterns
 
     def test_gitleaks_with_legacy_pattern_server(self):
         """Gitleaks + legacy pattern server → LeakTK Pattern Server message."""
         config = _build_engine_config("gitleaks")
         pattern_config = {"url": "https://patterns.example.com"}
-        result = self.describe(config, "/tmp/patterns.toml", "pattern server", pattern_config)
+        result = self.describe(
+            config, "/tmp/patterns.toml", "pattern server", pattern_config
+        )
         self.assertIn("LeakTK Pattern Server", result)
         self.assertIn("patterns.example.com", result)
 
@@ -241,7 +255,9 @@ class TestDescribePatterns(unittest.TestCase):
     def test_gitleaks_project_config(self):
         """Gitleaks + project config → shows config path."""
         config = _build_engine_config("gitleaks")
-        result = self.describe(config, "/project/.gitleaks.toml", "project config", None)
+        result = self.describe(
+            config, "/project/.gitleaks.toml", "project config", None
+        )
         self.assertIn("/project/.gitleaks.toml", result)
 
     def test_gitleaks_defaults(self):
@@ -252,20 +268,24 @@ class TestDescribePatterns(unittest.TestCase):
 
     def test_per_engine_pattern_server_override(self):
         """Engine with per-engine pattern_server shows engine-specific message."""
-        config = _build_engine_config({
-            "type": "betterleaks",
-            "pattern_server": {"url": "https://bl-patterns.example.com"}
-        })
+        config = _build_engine_config(
+            {
+                "type": "betterleaks",
+                "pattern_server": {"url": "https://bl-patterns.example.com"},
+            }
+        )
         result = self.describe(config, "/cache/bl.toml", "pattern server", None)
         self.assertIn("betterleaks Pattern Server", result)
         self.assertIn("bl-patterns.example.com", result)
 
     def test_per_engine_pattern_server_null(self):
         """Engine with pattern_server: null → built-in rules."""
-        config = _build_engine_config({
-            "type": "gitleaks",
-            "pattern_server": None,
-        })
+        config = _build_engine_config(
+            {
+                "type": "gitleaks",
+                "pattern_server": None,
+            }
+        )
         result = self.describe(config, None, "pattern server", {"url": "https://x.com"})
         self.assertIn("Built-in gitleaks rules", result)
         self.assertNotIn("LeakTK", result)
@@ -276,5 +296,5 @@ class TestDescribePatterns(unittest.TestCase):
         self.assertIn("Built-in gitleaks rules", result)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()

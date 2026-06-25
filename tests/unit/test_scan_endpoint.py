@@ -1,14 +1,11 @@
 """Tests for POST /api/scan endpoint and config_section_for_rule_id mapping."""
 
-import json
-from pathlib import Path
-from unittest.mock import patch, MagicMock
+from unittest.mock import MagicMock
 
 import pytest
 
 from ai_guardian.tui.pattern_editor import (
     config_section_for_rule_id,
-    RULE_ID_TO_CONFIG_SECTION,
 )
 
 
@@ -182,7 +179,6 @@ class TestRestRequestTimeout:
 
     def test_timeout_parameter_accepted(self):
         from ai_guardian.daemon.multi_client import MultiDaemonClient
-        from ai_guardian.daemon.discovery import DaemonTarget
         import inspect
 
         sig = inspect.signature(MultiDaemonClient._rest_request)

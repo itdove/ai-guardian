@@ -1,10 +1,8 @@
 """Tests for Augment Code hook support (Issue #638)."""
 
-import json
 import os
 from unittest import mock
 
-import pytest
 
 from ai_guardian.response_format import detect_ide_type, detect_hook_event, IDEType
 from ai_guardian.constants import HookEvent
@@ -149,6 +147,7 @@ class TestAugmentMCPConfig:
 
     def test_augment_in_mcp_ide_configs(self):
         from ai_guardian.setup import _MCP_IDE_CONFIGS
+
         assert "augment" in _MCP_IDE_CONFIGS
         aug_mcp = _MCP_IDE_CONFIGS["augment"]
         assert aug_mcp["config_file"] == "~/.augment/settings.json"

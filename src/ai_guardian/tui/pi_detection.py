@@ -7,7 +7,6 @@ score threshold, ignore files, and ignore tools.
 """
 
 import json
-from typing import Union, Dict, Any
 
 from textual.app import ComposeResult
 from textual.containers import Container, Horizontal, VerticalScroll
@@ -15,7 +14,9 @@ from textual.widgets import Static, Button, Input, Label, Select
 
 from ai_guardian.config_utils import get_config_dir
 from ai_guardian.tui.schema_defaults import (
-    SchemaDefaultsMixin, default_indicator, default_placeholder,
+    SchemaDefaultsMixin,
+    default_indicator,
+    default_placeholder,
     select_options_with_default,
 )
 from ai_guardian.tui.widgets import TimeBasedToggle, sanitize_enabled_value
@@ -94,7 +95,10 @@ class PIDetectionContent(SchemaDefaultsMixin, Container):
     """
 
     def compose(self) -> ComposeResult:
-        yield Static("[bold]Prompt Injection — Detection Settings[/bold]", id="pi-detection-header")
+        yield Static(
+            "[bold]Prompt Injection — Detection Settings[/bold]",
+            id="pi-detection-header",
+        )
 
         with VerticalScroll():
             yield TimeBasedToggle(
@@ -106,7 +110,9 @@ class PIDetectionContent(SchemaDefaultsMixin, Container):
             )
 
             with Container(classes="section"):
-                yield Static("[bold]Action on Detection[/bold]", classes="section-title")
+                yield Static(
+                    "[bold]Action on Detection[/bold]", classes="section-title"
+                )
 
                 with Horizontal(classes="setting-row"):
                     yield Label("Action Mode:")
@@ -166,7 +172,9 @@ class PIDetectionContent(SchemaDefaultsMixin, Container):
                 with Horizontal(classes="setting-row"):
                     yield Label("Score Threshold:")
                     yield Input(
-                        placeholder=default_placeholder("prompt_injection.max_score_threshold"),
+                        placeholder=default_placeholder(
+                            "prompt_injection.max_score_threshold"
+                        ),
                         id="score-threshold-input",
                     )
                     yield Static(
@@ -199,7 +207,9 @@ class PIDetectionContent(SchemaDefaultsMixin, Container):
                 )
 
             with Container(classes="section"):
-                yield Static("[bold]Detection Statistics[/bold]", classes="section-title")
+                yield Static(
+                    "[bold]Detection Statistics[/bold]", classes="section-title"
+                )
                 yield Static("", id="pi-detection-stats")
 
     def on_mount(self) -> None:
@@ -230,7 +240,7 @@ class PIDetectionContent(SchemaDefaultsMixin, Container):
         config = {}
         if config_path.exists():
             try:
-                with open(config_path, 'r', encoding='utf-8') as f:
+                with open(config_path, "r", encoding="utf-8") as f:
                     config = json.load(f)
             except Exception as e:
                 self.app.notify(f"Error loading config: {e}", severity="error")
@@ -258,8 +268,16 @@ class PIDetectionContent(SchemaDefaultsMixin, Container):
         except Exception:
             pass
 
-        files_text = "\n".join(f"  {f}" for f in ignore_files) if ignore_files else "[dim]No ignore patterns configured[/dim]"
-        tools_text = "\n".join(f"  {t}" for t in ignore_tools) if ignore_tools else "[dim]No ignored tools configured[/dim]"
+        files_text = (
+            "\n".join(f"  {f}" for f in ignore_files)
+            if ignore_files
+            else "[dim]No ignore patterns configured[/dim]"
+        )
+        tools_text = (
+            "\n".join(f"  {t}" for t in ignore_tools)
+            if ignore_tools
+            else "[dim]No ignored tools configured[/dim]"
+        )
         try:
             self.query_one("#ignore-files-list", Static).update(files_text)
             self.query_one("#ignore-tools-list", Static).update(tools_text)
@@ -272,15 +290,20 @@ class PIDetectionContent(SchemaDefaultsMixin, Container):
     def _load_statistics(self) -> None:
         try:
             from ai_guardian.violation_logger import ViolationLogger
+
             logger = ViolationLogger()
-            violations = logger.get_recent_violations(limit=1000, violation_type="prompt_injection", resolved=None)
+            violations = logger.get_recent_violations(
+                limit=1000, violation_type="prompt_injection", resolved=None
+            )
             total = len(violations)
             unresolved = len([v for v in violations if not v.get("resolved", False)])
             self.query_one("#pi-detection-stats", Static).update(
                 f"Total prompt injection violations: {total}\nUnresolved: {unresolved}"
             )
         except Exception as e:
-            self.query_one("#pi-detection-stats", Static).update(f"[dim]Error: {e}[/dim]")
+            self.query_one("#pi-detection-stats", Static).update(
+                f"[dim]Error: {e}[/dim]"
+            )
 
     def _save_field(self, field: str, value) -> None:
         if field == "enabled":
@@ -290,12 +313,12 @@ class PIDetectionContent(SchemaDefaultsMixin, Container):
         try:
             config = {}
             if config_path.exists():
-                with open(config_path, 'r', encoding='utf-8') as f:
+                with open(config_path, "r", encoding="utf-8") as f:
                     config = json.load(f)
             if "prompt_injection" not in config:
                 config["prompt_injection"] = {}
             config["prompt_injection"][field] = value
-            with open(config_path, 'w', encoding='utf-8') as f:
+            with open(config_path, "w", encoding="utf-8") as f:
                 json.dump(config, f, indent=2)
             self.app.notify(f"Saved {field}", severity="success")
         except Exception as e:
@@ -309,20 +332,23 @@ class PIDetectionContent(SchemaDefaultsMixin, Container):
             config_path = config_dir / "ai-guardian.json"
             config = {}
             if config_path.exists():
-                with open(config_path, 'r', encoding='utf-8') as f:
+                with open(config_path, "r", encoding="utf-8") as f:
                     config = json.load(f)
             if "prompt_injection" not in config:
                 config["prompt_injection"] = {}
             config["prompt_injection"]["detector"] = detector
             config["prompt_injection"]["sensitivity"] = sensitivity
-            with open(config_path, 'w', encoding='utf-8') as f:
+            with open(config_path, "w", encoding="utf-8") as f:
                 json.dump(config, f, indent=2)
-            self.app.notify(f"Updated detector: {detector}, sensitivity: {sensitivity}", severity="success")
+            self.app.notify(
+                f"Updated detector: {detector}, sensitivity: {sensitivity}",
+                severity="success",
+            )
         except Exception as e:
             self.app.notify(f"Error: {e}", severity="error")
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
-        if getattr(self, '_loading', False):
+        if getattr(self, "_loading", False):
             return
         bid = event.button.id
         if bid and "prompt_injection_enabled" in bid:
@@ -332,14 +358,14 @@ class PIDetectionContent(SchemaDefaultsMixin, Container):
             self._save_field("enabled", toggle.get_value())
 
     def on_select_changed(self, event) -> None:
-        if getattr(self, '_loading', False):
+        if getattr(self, "_loading", False):
             return
         sid = event.select.id
         if sid == "pi-action-select":
             self._save_field("action", event.value)
 
     def on_input_submitted(self, event: Input.Submitted) -> None:
-        if getattr(self, '_loading', False):
+        if getattr(self, "_loading", False):
             return
         iid = event.input.id
         if iid and "prompt_injection_enabled" in iid:
@@ -369,7 +395,7 @@ class PIDetectionContent(SchemaDefaultsMixin, Container):
         try:
             config = {}
             if config_path.exists():
-                with open(config_path, 'r', encoding='utf-8') as f:
+                with open(config_path, "r", encoding="utf-8") as f:
                     config = json.load(f)
             if "prompt_injection" not in config:
                 config["prompt_injection"] = {}
@@ -379,7 +405,7 @@ class PIDetectionContent(SchemaDefaultsMixin, Container):
                 self.app.notify("Already in list", severity="warning")
                 return
             config["prompt_injection"][field].append(value)
-            with open(config_path, 'w', encoding='utf-8') as f:
+            with open(config_path, "w", encoding="utf-8") as f:
                 json.dump(config, f, indent=2)
             input_widget.value = ""
             self.load_config()

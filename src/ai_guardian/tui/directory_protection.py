@@ -10,7 +10,7 @@ from pathlib import Path
 from typing import List
 
 from textual.app import ComposeResult
-from textual.containers import Container, Horizontal, VerticalScroll, Vertical
+from textual.containers import Container, Horizontal, VerticalScroll
 from textual.widgets import Static, Button, Input, Label, Checkbox
 from textual.message import Message
 
@@ -69,7 +69,9 @@ class PathEntry(Container):
         yield Static(f"[bold]{self.path}[/bold]", classes="path-text")
 
         with Horizontal(classes="button-row"):
-            yield Button("Remove", variant="error", id=f"remove_{self.index}", classes="compact")
+            yield Button(
+                "Remove", variant="error", id=f"remove_{self.index}", classes="compact"
+            )
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         """Handle button press."""
@@ -166,13 +168,17 @@ class DirectoryProtectionContent(Container):
             if project_path:
                 return project_path
             from ai_guardian.config_utils import _find_git_root
+
             root = _find_git_root() or Path.cwd()
             return root / ".ai-guardian" / "ai-guardian.json"
         return get_config_dir() / "ai-guardian.json"
 
     def compose(self) -> ComposeResult:
         """Compose the directory protection tab content."""
-        yield Static("[bold]Directory Protection & Exclusions[/bold]", id="directory-protection-header")
+        yield Static(
+            "[bold]Directory Protection & Exclusions[/bold]",
+            id="directory-protection-header",
+        )
 
         with VerticalScroll():
             # Warning section
@@ -185,7 +191,9 @@ class DirectoryProtectionContent(Container):
 
             # Exclusions toggle section
             with Container(classes="section"):
-                yield Static("[bold]Directory Exclusions[/bold]", classes="section-title")
+                yield Static(
+                    "[bold]Directory Exclusions[/bold]", classes="section-title"
+                )
 
                 with Horizontal(classes="setting-row"):
                     yield Label("Exclusions Enabled:")
@@ -201,7 +209,7 @@ class DirectoryProtectionContent(Container):
                 yield Static("[bold]Exclusion Paths[/bold]", classes="section-title")
                 yield Static(
                     "[dim]Directories to exclude from .ai-read-deny blocking (supports ~, *, **)[/dim]",
-                    classes="section-title"
+                    classes="section-title",
                 )
 
                 with VerticalScroll(id="paths-list"):
@@ -213,8 +221,7 @@ class DirectoryProtectionContent(Container):
 
                 with Horizontal(classes="setting-row"):
                     yield Input(
-                        placeholder="~/project/build/** or /tmp/*",
-                        id="new-path-input"
+                        placeholder="~/project/build/** or /tmp/*", id="new-path-input"
                     )
                     yield Button("Add Path", variant="success", id="add-path-button")
 
@@ -228,14 +235,18 @@ class DirectoryProtectionContent(Container):
 
             # Active markers section
             with Container(classes="section"):
-                yield Static("[bold]Active .ai-read-deny Markers[/bold]", classes="section-title")
+                yield Static(
+                    "[bold]Active .ai-read-deny Markers[/bold]", classes="section-title"
+                )
                 yield Static(
                     "[dim]Directories with .ai-read-deny files (scanned from current working directory)[/dim]",
-                    classes="section-title"
+                    classes="section-title",
                 )
 
                 yield Static("", id="markers-list")
-                yield Button("Scan for Markers", variant="primary", id="scan-markers-button")
+                yield Button(
+                    "Scan for Markers", variant="primary", id="scan-markers-button"
+                )
 
     def on_mount(self) -> None:
         """Load configuration when mounted."""
@@ -255,7 +266,7 @@ class DirectoryProtectionContent(Container):
         config = {}
         if config_path.exists():
             try:
-                with open(config_path, 'r', encoding='utf-8') as f:
+                with open(config_path, "r", encoding="utf-8") as f:
                     config = json.load(f)
             except Exception as e:
                 self.app.notify(f"Error loading config: {e}", severity="error")
@@ -308,9 +319,13 @@ class DirectoryProtectionContent(Container):
             markers_widget = self.query_one("#markers-list", Static)
             if markers:
                 markers_text = "\n".join(f"  • ./{path}" for path in sorted(markers))
-                markers_widget.update(f"[status-warn]Found {len(markers)} markers:[/status-warn]\n{markers_text}")
+                markers_widget.update(
+                    f"[status-warn]Found {len(markers)} markers:[/status-warn]\n{markers_text}"
+                )
             else:
-                markers_widget.update("[dim]No .ai-read-deny markers found in current directory[/dim]")
+                markers_widget.update(
+                    "[dim]No .ai-read-deny markers found in current directory[/dim]"
+                )
 
         except Exception as e:
             self.app.notify(f"Error scanning for markers: {e}", severity="error")
@@ -321,7 +336,9 @@ class DirectoryProtectionContent(Container):
             self.add_path()
         elif event.button.id == "scan-markers-button":
             self.scan_markers()
-            self.app.notify("✓ Scanned for .ai-read-deny markers", severity="information")
+            self.app.notify(
+                "✓ Scanned for .ai-read-deny markers", severity="information"
+            )
 
     def on_path_entry_remove_pressed(self, message: PathEntry.RemovePressed) -> None:
         """Handle remove button press on path entry."""
@@ -344,7 +361,7 @@ class DirectoryProtectionContent(Container):
 
         try:
             if config_path.exists():
-                with open(config_path, 'r', encoding='utf-8') as f:
+                with open(config_path, "r", encoding="utf-8") as f:
                     config = json.load(f)
             else:
                 config = {}
@@ -361,7 +378,7 @@ class DirectoryProtectionContent(Container):
 
             config["directory_exclusions"]["paths"].append(path)
 
-            with open(config_path, 'w', encoding='utf-8') as f:
+            with open(config_path, "w", encoding="utf-8") as f:
                 json.dump(config, f, indent=2)
 
             # Clear input
@@ -379,21 +396,26 @@ class DirectoryProtectionContent(Container):
 
         try:
             if config_path.exists():
-                with open(config_path, 'r', encoding='utf-8') as f:
+                with open(config_path, "r", encoding="utf-8") as f:
                     config = json.load(f)
             else:
                 return
 
-            if "directory_exclusions" in config and "paths" in config["directory_exclusions"]:
+            if (
+                "directory_exclusions" in config
+                and "paths" in config["directory_exclusions"]
+            ):
                 paths = config["directory_exclusions"]["paths"]
                 if 0 <= index < len(paths):
                     removed_path = paths.pop(index)
 
-                    with open(config_path, 'w', encoding='utf-8') as f:
+                    with open(config_path, "w", encoding="utf-8") as f:
                         json.dump(config, f, indent=2)
 
                     self.load_config()
-                    self.app.notify(f"✓ Removed exclusion path: {removed_path}", severity="success")
+                    self.app.notify(
+                        f"✓ Removed exclusion path: {removed_path}", severity="success"
+                    )
 
         except Exception as e:
             self.app.notify(f"Error removing path: {e}", severity="error")
@@ -404,7 +426,7 @@ class DirectoryProtectionContent(Container):
 
         try:
             if config_path.exists():
-                with open(config_path, 'r', encoding='utf-8') as f:
+                with open(config_path, "r", encoding="utf-8") as f:
                     config = json.load(f)
             else:
                 config = {}
@@ -414,7 +436,7 @@ class DirectoryProtectionContent(Container):
 
             config["directory_exclusions"]["enabled"] = enabled
 
-            with open(config_path, 'w', encoding='utf-8') as f:
+            with open(config_path, "w", encoding="utf-8") as f:
                 json.dump(config, f, indent=2)
 
             status = "enabled" if enabled else "disabled"

@@ -24,56 +24,82 @@ class TestLoadEditorTheme:
 
     def test_default_when_no_config(self):
         with tempfile.TemporaryDirectory() as tmpdir:
-            with patch("ai_guardian.tui.console_settings.get_config_dir", return_value=Path(tmpdir)):
+            with patch(
+                "ai_guardian.tui.console_settings.get_config_dir",
+                return_value=Path(tmpdir),
+            ):
                 assert load_editor_theme() == DEFAULT_THEME
 
     def test_reads_theme_from_config(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             config_path = Path(tmpdir) / "ai-guardian.json"
-            config_path.write_text(json.dumps({
-                "console": {"editor_theme": "dracula"}
-            }), encoding="utf-8")
-            with patch("ai_guardian.tui.console_settings.get_config_dir", return_value=Path(tmpdir)):
+            config_path.write_text(
+                json.dumps({"console": {"editor_theme": "dracula"}}), encoding="utf-8"
+            )
+            with patch(
+                "ai_guardian.tui.console_settings.get_config_dir",
+                return_value=Path(tmpdir),
+            ):
                 assert load_editor_theme() == "dracula"
 
     def test_default_when_console_section_missing(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             config_path = Path(tmpdir) / "ai-guardian.json"
-            config_path.write_text(json.dumps({"permissions": {"enabled": True}}), encoding="utf-8")
-            with patch("ai_guardian.tui.console_settings.get_config_dir", return_value=Path(tmpdir)):
+            config_path.write_text(
+                json.dumps({"permissions": {"enabled": True}}), encoding="utf-8"
+            )
+            with patch(
+                "ai_guardian.tui.console_settings.get_config_dir",
+                return_value=Path(tmpdir),
+            ):
                 assert load_editor_theme() == DEFAULT_THEME
 
     def test_default_when_editor_theme_missing(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             config_path = Path(tmpdir) / "ai-guardian.json"
             config_path.write_text(json.dumps({"console": {}}), encoding="utf-8")
-            with patch("ai_guardian.tui.console_settings.get_config_dir", return_value=Path(tmpdir)):
+            with patch(
+                "ai_guardian.tui.console_settings.get_config_dir",
+                return_value=Path(tmpdir),
+            ):
                 assert load_editor_theme() == DEFAULT_THEME
 
     def test_default_when_invalid_theme(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             config_path = Path(tmpdir) / "ai-guardian.json"
-            config_path.write_text(json.dumps({
-                "console": {"editor_theme": "nonexistent_theme"}
-            }), encoding="utf-8")
-            with patch("ai_guardian.tui.console_settings.get_config_dir", return_value=Path(tmpdir)):
+            config_path.write_text(
+                json.dumps({"console": {"editor_theme": "nonexistent_theme"}}),
+                encoding="utf-8",
+            )
+            with patch(
+                "ai_guardian.tui.console_settings.get_config_dir",
+                return_value=Path(tmpdir),
+            ):
                 assert load_editor_theme() == DEFAULT_THEME
 
     def test_default_when_invalid_json(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             config_path = Path(tmpdir) / "ai-guardian.json"
             config_path.write_text("not valid json{", encoding="utf-8")
-            with patch("ai_guardian.tui.console_settings.get_config_dir", return_value=Path(tmpdir)):
+            with patch(
+                "ai_guardian.tui.console_settings.get_config_dir",
+                return_value=Path(tmpdir),
+            ):
                 assert load_editor_theme() == DEFAULT_THEME
 
-    @pytest.mark.parametrize("theme", ["monokai", "vscode_dark", "dracula", "github_light"])
+    @pytest.mark.parametrize(
+        "theme", ["monokai", "vscode_dark", "dracula", "github_light"]
+    )
     def test_all_valid_themes(self, theme):
         with tempfile.TemporaryDirectory() as tmpdir:
             config_path = Path(tmpdir) / "ai-guardian.json"
-            config_path.write_text(json.dumps({
-                "console": {"editor_theme": theme}
-            }), encoding="utf-8")
-            with patch("ai_guardian.tui.console_settings.get_config_dir", return_value=Path(tmpdir)):
+            config_path.write_text(
+                json.dumps({"console": {"editor_theme": theme}}), encoding="utf-8"
+            )
+            with patch(
+                "ai_guardian.tui.console_settings.get_config_dir",
+                return_value=Path(tmpdir),
+            ):
                 assert load_editor_theme() == theme
 
 
@@ -82,7 +108,10 @@ class TestSaveEditorTheme:
 
     def test_save_to_new_config(self):
         with tempfile.TemporaryDirectory() as tmpdir:
-            with patch("ai_guardian.tui.console_settings.get_config_dir", return_value=Path(tmpdir)):
+            with patch(
+                "ai_guardian.tui.console_settings.get_config_dir",
+                return_value=Path(tmpdir),
+            ):
                 success, error = save_editor_theme("dracula")
                 assert success is True
                 assert error is None
@@ -94,11 +123,19 @@ class TestSaveEditorTheme:
     def test_save_preserves_existing_config(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             config_path = Path(tmpdir) / "ai-guardian.json"
-            config_path.write_text(json.dumps({
-                "permissions": {"enabled": True},
-                "console": {"editor_theme": "monokai"}
-            }), encoding="utf-8")
-            with patch("ai_guardian.tui.console_settings.get_config_dir", return_value=Path(tmpdir)):
+            config_path.write_text(
+                json.dumps(
+                    {
+                        "permissions": {"enabled": True},
+                        "console": {"editor_theme": "monokai"},
+                    }
+                ),
+                encoding="utf-8",
+            )
+            with patch(
+                "ai_guardian.tui.console_settings.get_config_dir",
+                return_value=Path(tmpdir),
+            ):
                 success, error = save_editor_theme("vscode_dark")
                 assert success is True
 
@@ -109,8 +146,13 @@ class TestSaveEditorTheme:
     def test_save_creates_console_section(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             config_path = Path(tmpdir) / "ai-guardian.json"
-            config_path.write_text(json.dumps({"permissions": {"enabled": True}}), encoding="utf-8")
-            with patch("ai_guardian.tui.console_settings.get_config_dir", return_value=Path(tmpdir)):
+            config_path.write_text(
+                json.dumps({"permissions": {"enabled": True}}), encoding="utf-8"
+            )
+            with patch(
+                "ai_guardian.tui.console_settings.get_config_dir",
+                return_value=Path(tmpdir),
+            ):
                 success, error = save_editor_theme("github_light")
                 assert success is True
 
@@ -120,7 +162,9 @@ class TestSaveEditorTheme:
     def test_save_creates_parent_dirs(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             nested = Path(tmpdir) / "subdir"
-            with patch("ai_guardian.tui.console_settings.get_config_dir", return_value=nested):
+            with patch(
+                "ai_guardian.tui.console_settings.get_config_dir", return_value=nested
+            ):
                 success, error = save_editor_theme("monokai")
                 assert success is True
                 assert (nested / "ai-guardian.json").exists()

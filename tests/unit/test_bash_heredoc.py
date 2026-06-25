@@ -114,22 +114,25 @@ EOF"""
             "hook_event_name": "PreToolUse",
             "tool_use": {
                 "name": "Bash",
-                "input": {
-                    "command": """cat <<'EOF' | pbcopy
+                "input": {"command": """cat <<'EOF' | pbcopy
 gh issue create --title "Documentation: Configure ai-guardian" --body "$(cat <<'EOFBODY'
 ## Problem
 Users are confused about ai-guardian configuration > setup process
 EOFBODY
 )"
-EOF"""
-                }
-            }
+EOF"""},
+            },
         }
 
-        is_allowed, error_msg, tool_name = self.policy_checker.check_tool_allowed(hook_data)
+        is_allowed, error_msg, tool_name = self.policy_checker.check_tool_allowed(
+            hook_data
+        )
 
         # This should be ALLOWED - heredoc content should not trigger blocking
-        self.assertTrue(is_allowed, f"Heredoc with ai-guardian mention should be allowed. Error: {error_msg}")
+        self.assertTrue(
+            is_allowed,
+            f"Heredoc with ai-guardian mention should be allowed. Error: {error_msg}",
+        )
 
     def test_actual_redirect_to_ai_guardian_is_blocked(self):
         """
@@ -141,13 +144,13 @@ EOF"""
             "hook_event_name": "PreToolUse",
             "tool_use": {
                 "name": "Bash",
-                "input": {
-                    "command": "echo 'malicious' > /tmp/ai-guardian.json"
-                }
-            }
+                "input": {"command": "echo 'malicious' > /tmp/ai-guardian.json"},
+            },
         }
 
-        is_allowed, error_msg, tool_name = self.policy_checker.check_tool_allowed(hook_data)
+        is_allowed, error_msg, tool_name = self.policy_checker.check_tool_allowed(
+            hook_data
+        )
 
         # This should be BLOCKED - actual redirect to ai-guardian file
         self.assertFalse(is_allowed, "Actual redirect to ai-guardian should be blocked")
@@ -163,19 +166,22 @@ EOF"""
             "hook_event_name": "PreToolUse",
             "tool_use": {
                 "name": "Bash",
-                "input": {
-                    "command": """cat <<EOF
+                "input": {"command": """cat <<EOF
 Markdown example:
 > This is a quote about ai-guardian
 > It should not be blocked
-EOF"""
-                }
-            }
+EOF"""},
+            },
         }
 
-        is_allowed, error_msg, tool_name = self.policy_checker.check_tool_allowed(hook_data)
+        is_allowed, error_msg, tool_name = self.policy_checker.check_tool_allowed(
+            hook_data
+        )
 
-        self.assertTrue(is_allowed, f"Heredoc with '>' in content should be allowed. Error: {error_msg}")
+        self.assertTrue(
+            is_allowed,
+            f"Heredoc with '>' in content should be allowed. Error: {error_msg}",
+        )
 
     def test_nested_heredoc_in_command_substitution(self):
         """
@@ -186,19 +192,21 @@ EOF"""
             "hook_event_name": "PreToolUse",
             "tool_use": {
                 "name": "Bash",
-                "input": {
-                    "command": """cat <<'EOF' | pbcopy
+                "input": {"command": """cat <<'EOF' | pbcopy
 gh issue create --title "Doc update" --body "Discussion of ai-guardian > redirect patterns"
-EOF"""
-                }
-            }
+EOF"""},
+            },
         }
 
-        is_allowed, error_msg, tool_name = self.policy_checker.check_tool_allowed(hook_data)
+        is_allowed, error_msg, tool_name = self.policy_checker.check_tool_allowed(
+            hook_data
+        )
 
-        self.assertTrue(is_allowed,
+        self.assertTrue(
+            is_allowed,
             "The exact command from issue #151 should be allowed. "
-            f"This is a false positive that was reported. Error: {error_msg}")
+            f"This is a false positive that was reported. Error: {error_msg}",
+        )
 
     def test_heredoc_strip_preserves_actual_command_blocking(self):
         """
@@ -209,20 +217,242 @@ EOF"""
             "hook_event_name": "PreToolUse",
             "tool_use": {
                 "name": "Bash",
-                "input": {
-                    "command": """rm /tmp/ai-guardian.json
+                "input": {"command": """rm /tmp/ai-guardian.json
 cat <<EOF
 This is just documentation
-EOF"""
-                }
-            }
+EOF"""},
+            },
         }
 
-        is_allowed, error_msg, tool_name = self.policy_checker.check_tool_allowed(hook_data)
+        is_allowed, error_msg, tool_name = self.policy_checker.check_tool_allowed(
+            hook_data
+        )
 
         # The rm command should still be blocked
-        self.assertFalse(is_allowed, "Dangerous commands should still be blocked even with heredocs")
+        self.assertFalse(
+            is_allowed, "Dangerous commands should still be blocked even with heredocs"
+        )
+
+    # ========================================================================
+    # Test: Heredoc bypass of immutable deny patterns (Issue #1350)
+    # ========================================================================
+
+    def test_heredoc_bypass_sed_on_config_blocked(self):
+        """
+        ISSUE #1350: sed on ai-guardian.json hidden inside heredoc must be blocked.
+        """
+        hook_data = {
+            "hook_event_name": "PreToolUse",
+            "tool_use": {
+                "name": "Bash",
+                "input": {"command": """bash <<'EOF'
+sed -i 's/enabled/disabled/' ~/.config/ai-guardian/ai-guardian.json
+EOF"""},
+            },
+        }
+
+        is_allowed, error_msg, tool_name = self.policy_checker.check_tool_allowed(
+            hook_data
+        )
+
+        self.assertFalse(
+            is_allowed,
+            "sed on ai-guardian.json inside heredoc should be blocked",
+        )
+
+    def test_heredoc_bypass_rm_on_hooks_blocked(self):
+        """
+        ISSUE #1350: rm on cursor hooks.json hidden inside heredoc must be blocked.
+        """
+        hook_data = {
+            "hook_event_name": "PreToolUse",
+            "tool_use": {
+                "name": "Bash",
+                "input": {"command": """bash <<EOF
+rm ~/.cursor/hooks.json
+EOF"""},
+            },
+        }
+
+        is_allowed, error_msg, tool_name = self.policy_checker.check_tool_allowed(
+            hook_data
+        )
+
+        self.assertFalse(
+            is_allowed,
+            "rm on cursor hooks.json inside heredoc should be blocked",
+        )
+
+    def test_heredoc_bypass_redirect_to_config_blocked(self):
+        """
+        ISSUE #1350: redirect to ai-guardian.json inside heredoc must be blocked.
+        """
+        hook_data = {
+            "hook_event_name": "PreToolUse",
+            "tool_use": {
+                "name": "Bash",
+                "input": {"command": """bash <<'EOF'
+echo '{}' > /tmp/ai-guardian.json
+EOF"""},
+            },
+        }
+
+        is_allowed, error_msg, tool_name = self.policy_checker.check_tool_allowed(
+            hook_data
+        )
+
+        self.assertFalse(
+            is_allowed,
+            "redirect to ai-guardian.json inside heredoc should be blocked",
+        )
+
+    def test_heredoc_bypass_chmod_on_config_blocked(self):
+        """
+        ISSUE #1350: chmod on ai-guardian.json inside heredoc must be blocked.
+        """
+        hook_data = {
+            "hook_event_name": "PreToolUse",
+            "tool_use": {
+                "name": "Bash",
+                "input": {"command": """bash <<'EOF'
+chmod 777 ai-guardian.json
+EOF"""},
+            },
+        }
+
+        is_allowed, error_msg, tool_name = self.policy_checker.check_tool_allowed(
+            hook_data
+        )
+
+        self.assertFalse(
+            is_allowed,
+            "chmod on ai-guardian.json inside heredoc should be blocked",
+        )
+
+    def test_heredoc_bypass_cat_config_read_blocked(self):
+        """
+        ISSUE #1350: cat on config dir inside heredoc must be blocked.
+        """
+        hook_data = {
+            "hook_event_name": "PreToolUse",
+            "tool_use": {
+                "name": "Bash",
+                "input": {"command": """bash <<'EOF'
+cat ~/.config/ai-guardian/ai-guardian.json
+EOF"""},
+            },
+        }
+
+        is_allowed, error_msg, tool_name = self.policy_checker.check_tool_allowed(
+            hook_data
+        )
+
+        self.assertFalse(
+            is_allowed,
+            "cat on ai-guardian config inside heredoc should be blocked",
+        )
+
+    def test_heredoc_bypass_mv_hooks_blocked(self):
+        """
+        ISSUE #1350: mv on settings.json inside heredoc must be blocked.
+        """
+        hook_data = {
+            "hook_event_name": "PreToolUse",
+            "tool_use": {
+                "name": "Bash",
+                "input": {"command": """bash <<'EOF'
+mv ~/.claude/settings.json /tmp/backup
+EOF"""},
+            },
+        }
+
+        is_allowed, error_msg, tool_name = self.policy_checker.check_tool_allowed(
+            hook_data
+        )
+
+        self.assertFalse(
+            is_allowed,
+            "mv on settings.json inside heredoc should be blocked",
+        )
+
+    def test_heredoc_bypass_with_dash_format_blocked(self):
+        """
+        ISSUE #1350: Dash heredoc (<<-EOF) bypass must also be blocked.
+        """
+        hook_data = {
+            "hook_event_name": "PreToolUse",
+            "tool_use": {
+                "name": "Bash",
+                "input": {"command": """bash <<-EOF
+	sed -i '' 's/x/y/' ai-guardian.json
+	EOF"""},
+            },
+        }
+
+        is_allowed, error_msg, tool_name = self.policy_checker.check_tool_allowed(
+            hook_data
+        )
+
+        self.assertFalse(
+            is_allowed,
+            "sed on ai-guardian.json inside dash heredoc should be blocked",
+        )
+
+    def test_legitimate_heredoc_still_allowed_after_fix(self):
+        """
+        Regression guard: Issue #151 fix still works after #1350 fix.
+
+        Heredoc content that merely mentions ai-guardian in safe context
+        (docs, comments) should remain allowed.
+        """
+        hook_data = {
+            "hook_event_name": "PreToolUse",
+            "tool_use": {
+                "name": "Bash",
+                "input": {"command": """cat <<'EOF'
+## How to configure ai-guardian
+
+1. Install ai-guardian
+2. Run the setup wizard
+3. Review your ai-guardian configuration
+EOF"""},
+            },
+        }
+
+        is_allowed, error_msg, tool_name = self.policy_checker.check_tool_allowed(
+            hook_data
+        )
+
+        self.assertTrue(
+            is_allowed,
+            f"Documentation heredoc mentioning ai-guardian should be allowed. Error: {error_msg}",
+        )
+
+    def test_heredoc_safe_content_with_quotes_allowed(self):
+        """
+        Heredoc with safe content that includes quotes around ai-guardian terms
+        should still be allowed.
+        """
+        hook_data = {
+            "hook_event_name": "PreToolUse",
+            "tool_use": {
+                "name": "Bash",
+                "input": {"command": """cat <<'EOF'
+The "ai-guardian" tool provides security scanning.
+It can detect prompt injection and secrets.
+EOF"""},
+            },
+        }
+
+        is_allowed, error_msg, tool_name = self.policy_checker.check_tool_allowed(
+            hook_data
+        )
+
+        self.assertTrue(
+            is_allowed,
+            f"Safe heredoc content should be allowed. Error: {error_msg}",
+        )
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()

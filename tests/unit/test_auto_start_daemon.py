@@ -9,31 +9,54 @@ from ai_guardian.cli import _ensure_daemon_started, _is_stop_requested
 
 class TestEnsureDaemonStarted:
     def test_starts_when_not_running(self):
-        with mock.patch("ai_guardian.cli._is_stop_requested", return_value=False), \
-             mock.patch("ai_guardian.daemon.client.is_daemon_running", return_value=False), \
-             mock.patch("ai_guardian.daemon.client.start_daemon_background") as mock_start:
+        with (
+            mock.patch("ai_guardian.cli._is_stop_requested", return_value=False),
+            mock.patch(
+                "ai_guardian.daemon.client.is_daemon_running", return_value=False
+            ),
+            mock.patch(
+                "ai_guardian.daemon.client.start_daemon_background"
+            ) as mock_start,
+        ):
             _ensure_daemon_started()
 
         mock_start.assert_called_once()
 
     def test_skips_when_already_running(self):
-        with mock.patch("ai_guardian.cli._is_stop_requested", return_value=False), \
-             mock.patch("ai_guardian.daemon.client.is_daemon_running", return_value=True), \
-             mock.patch("ai_guardian.daemon.client.start_daemon_background") as mock_start:
+        with (
+            mock.patch("ai_guardian.cli._is_stop_requested", return_value=False),
+            mock.patch(
+                "ai_guardian.daemon.client.is_daemon_running", return_value=True
+            ),
+            mock.patch(
+                "ai_guardian.daemon.client.start_daemon_background"
+            ) as mock_start,
+        ):
             _ensure_daemon_started()
 
         mock_start.assert_not_called()
 
     def test_silences_runtime_errors(self):
-        with mock.patch("ai_guardian.cli._is_stop_requested", return_value=False), \
-             mock.patch("ai_guardian.daemon.client.is_daemon_running", side_effect=RuntimeError("fail")):
+        with (
+            mock.patch("ai_guardian.cli._is_stop_requested", return_value=False),
+            mock.patch(
+                "ai_guardian.daemon.client.is_daemon_running",
+                side_effect=RuntimeError("fail"),
+            ),
+        ):
             _ensure_daemon_started()
 
     def test_skips_when_stop_requested(self):
         """Issue #775: auto-start skipped when daemon was recently stopped."""
-        with mock.patch("ai_guardian.cli._is_stop_requested", return_value=True), \
-             mock.patch("ai_guardian.daemon.client.is_daemon_running", return_value=False) as mock_check, \
-             mock.patch("ai_guardian.daemon.client.start_daemon_background") as mock_start:
+        with (
+            mock.patch("ai_guardian.cli._is_stop_requested", return_value=True),
+            mock.patch(
+                "ai_guardian.daemon.client.is_daemon_running", return_value=False
+            ) as mock_check,
+            mock.patch(
+                "ai_guardian.daemon.client.start_daemon_background"
+            ) as mock_start,
+        ):
             _ensure_daemon_started()
 
         mock_check.assert_not_called()
@@ -61,6 +84,7 @@ class TestIsStopRequested:
         # Backdate the marker — should still block auto-start
         old_time = time.time() - 600
         import os
+
         os.utime(marker, (old_time, old_time))
         assert _is_stop_requested() is True
 
@@ -70,10 +94,13 @@ class TestDaemonCommandsNoAutoStart:
 
     def _run_main_with_args(self, argv, mock_ensure):
         """Run main() with given sys.argv and a mocked _ensure_daemon_started."""
-        with mock.patch.object(sys, "argv", argv), \
-             mock.patch("ai_guardian.cli._ensure_daemon_started", mock_ensure), \
-             mock.patch("ai_guardian.cli._handle_daemon_command", return_value=0):
+        with (
+            mock.patch.object(sys, "argv", argv),
+            mock.patch("ai_guardian.cli._ensure_daemon_started", mock_ensure),
+            mock.patch("ai_guardian.cli._handle_daemon_command", return_value=0),
+        ):
             from ai_guardian.cli import main
+
             main()
 
     def test_daemon_status_no_autostart(self):
@@ -98,9 +125,12 @@ class TestDaemonCommandsNoAutoStart:
 
     def test_other_commands_do_autostart(self):
         mock_ensure = mock.MagicMock()
-        with mock.patch.object(sys, "argv", ["ai-guardian", "doctor"]), \
-             mock.patch("ai_guardian.cli._ensure_daemon_started", mock_ensure), \
-             mock.patch("ai_guardian.doctor.doctor_command", return_value=0):
+        with (
+            mock.patch.object(sys, "argv", ["ai-guardian", "doctor"]),
+            mock.patch("ai_guardian.cli._ensure_daemon_started", mock_ensure),
+            mock.patch("ai_guardian.doctor.doctor_command", return_value=0),
+        ):
             from ai_guardian.cli import main
+
             main()
         mock_ensure.assert_called_once()

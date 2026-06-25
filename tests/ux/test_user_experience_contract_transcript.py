@@ -18,9 +18,8 @@ import json
 import os
 import tempfile
 from io import StringIO
-from pathlib import Path
 from unittest import TestCase
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch
 
 import ai_guardian
 from ai_guardian import _save_transcript_positions
@@ -39,15 +38,20 @@ class TranscriptScanningUserExperienceTests(TestCase):
     6. Missing transcript_path is handled gracefully
     """
 
-    @patch('ai_guardian.hook_processing._scan_for_pii')
-    @patch('ai_guardian.hook_processing.check_secrets_with_gitleaks')
-    @patch('ai_guardian.hook_processing._load_secret_scanning_config')
-    @patch('ai_guardian.hook_processing._load_prompt_injection_config')
-    @patch('ai_guardian.hook_processing._load_pii_config')
-    @patch('ai_guardian.hook_processing._load_transcript_scanning_config')
+    @patch("ai_guardian.hook_processing._scan_for_pii")
+    @patch("ai_guardian.hook_processing.check_secrets_with_gitleaks")
+    @patch("ai_guardian.hook_processing._load_secret_scanning_config")
+    @patch("ai_guardian.hook_processing._load_prompt_injection_config")
+    @patch("ai_guardian.hook_processing._load_pii_config")
+    @patch("ai_guardian.hook_processing._load_transcript_scanning_config")
     def test_user_prompt_with_transcript_secret_warns_but_allows(
-        self, mock_ts_config, mock_pii_config, mock_pi_config,
-        mock_secret_config, mock_gitleaks, mock_pii
+        self,
+        mock_ts_config,
+        mock_pii_config,
+        mock_pi_config,
+        mock_secret_config,
+        mock_gitleaks,
+        mock_pii,
     ):
         """
         USER EXPERIENCE: Secret in transcript from ! command -> WARNING (not blocked)
@@ -75,7 +79,7 @@ class TranscriptScanningUserExperienceTests(TestCase):
             (True, "Secret detected: AWS access key"),  # Transcript scan: secret found
         ]
 
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.jsonl', delete=False) as f:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".jsonl", delete=False) as f:
             f.write(json.dumps({"text": "export AWS_KEY=AKIAIOSFODNN7EXAMPLE"}) + "\n")
             transcript_path = f.name
 
@@ -90,33 +94,40 @@ class TranscriptScanningUserExperienceTests(TestCase):
                 "transcript_path": transcript_path,
             }
 
-            with patch('sys.stdin', StringIO(json.dumps(hook_data))):
+            with patch("sys.stdin", StringIO(json.dumps(hook_data))):
                 result = ai_guardian.process_hook_input()
 
-            response = json.loads(result['output'])
+            response = json.loads(result["output"])
 
             # CONTRACT: Prompt is NOT blocked
-            assert "decision" not in response or response.get("decision") != "block", \
-                "Transcript secret should warn, NOT block the prompt"
+            assert (
+                "decision" not in response or response.get("decision") != "block"
+            ), "Transcript secret should warn, NOT block the prompt"
 
             # CONTRACT: Warning shown via systemMessage
             if mock_gitleaks.call_count >= 2:
                 system_msg = response.get("systemMessage", "")
-                assert system_msg, \
-                    "Should show systemMessage warning about transcript secret"
-                assert "transcript" in system_msg.lower() or "secret" in system_msg.lower(), \
-                    f"Warning should mention transcript or secret, got: {system_msg[:200]}"
+                assert (
+                    system_msg
+                ), "Should show systemMessage warning about transcript secret"
+                assert (
+                    "transcript" in system_msg.lower() or "secret" in system_msg.lower()
+                ), f"Warning should mention transcript or secret, got: {system_msg[:200]}"
         finally:
             os.unlink(transcript_path)
 
-    @patch('ai_guardian.hook_processing.check_secrets_with_gitleaks')
-    @patch('ai_guardian.hook_processing._load_secret_scanning_config')
-    @patch('ai_guardian.hook_processing._load_prompt_injection_config')
-    @patch('ai_guardian.hook_processing._load_pii_config')
-    @patch('ai_guardian.hook_processing._load_transcript_scanning_config')
+    @patch("ai_guardian.hook_processing.check_secrets_with_gitleaks")
+    @patch("ai_guardian.hook_processing._load_secret_scanning_config")
+    @patch("ai_guardian.hook_processing._load_prompt_injection_config")
+    @patch("ai_guardian.hook_processing._load_pii_config")
+    @patch("ai_guardian.hook_processing._load_transcript_scanning_config")
     def test_user_prompt_clean_transcript_no_warning(
-        self, mock_ts_config, mock_pii_config, mock_pi_config,
-        mock_secret_config, mock_gitleaks
+        self,
+        mock_ts_config,
+        mock_pii_config,
+        mock_pi_config,
+        mock_secret_config,
+        mock_gitleaks,
     ):
         """
         USER EXPERIENCE: Clean transcript -> NO warning
@@ -135,7 +146,7 @@ class TranscriptScanningUserExperienceTests(TestCase):
         mock_secret_config.return_value = ({"enabled": True}, None)
         mock_gitleaks.return_value = (False, None)
 
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.jsonl', delete=False) as f:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".jsonl", delete=False) as f:
             f.write(json.dumps({"text": "Hello, just a normal conversation"}) + "\n")
             transcript_path = f.name
 
@@ -146,29 +157,34 @@ class TranscriptScanningUserExperienceTests(TestCase):
                 "transcript_path": transcript_path,
             }
 
-            with patch('sys.stdin', StringIO(json.dumps(hook_data))):
+            with patch("sys.stdin", StringIO(json.dumps(hook_data))):
                 result = ai_guardian.process_hook_input()
 
-            response = json.loads(result['output'])
+            response = json.loads(result["output"])
 
             # CONTRACT: No blocking
             assert "decision" not in response or response.get("decision") != "block"
 
             # CONTRACT: No transcript warning in systemMessage
             system_msg = response.get("systemMessage", "")
-            assert "transcript" not in system_msg.lower(), \
-                f"Should not show transcript warning for clean transcript, got: {system_msg[:200]}"
+            assert (
+                "transcript" not in system_msg.lower()
+            ), f"Should not show transcript warning for clean transcript, got: {system_msg[:200]}"
         finally:
             os.unlink(transcript_path)
 
-    @patch('ai_guardian.hook_processing.check_secrets_with_gitleaks')
-    @patch('ai_guardian.hook_processing._load_secret_scanning_config')
-    @patch('ai_guardian.hook_processing._load_prompt_injection_config')
-    @patch('ai_guardian.hook_processing._load_pii_config')
-    @patch('ai_guardian.hook_processing._load_transcript_scanning_config')
+    @patch("ai_guardian.hook_processing.check_secrets_with_gitleaks")
+    @patch("ai_guardian.hook_processing._load_secret_scanning_config")
+    @patch("ai_guardian.hook_processing._load_prompt_injection_config")
+    @patch("ai_guardian.hook_processing._load_pii_config")
+    @patch("ai_guardian.hook_processing._load_transcript_scanning_config")
     def test_user_prompt_transcript_scanning_disabled(
-        self, mock_ts_config, mock_pii_config, mock_pi_config,
-        mock_secret_config, mock_gitleaks
+        self,
+        mock_ts_config,
+        mock_pii_config,
+        mock_pi_config,
+        mock_secret_config,
+        mock_gitleaks,
     ):
         """
         USER EXPERIENCE: transcript_scanning.enabled=false -> no scanning
@@ -183,7 +199,7 @@ class TranscriptScanningUserExperienceTests(TestCase):
         mock_secret_config.return_value = ({"enabled": True}, None)
         mock_gitleaks.return_value = (False, None)
 
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.jsonl', delete=False) as f:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".jsonl", delete=False) as f:
             f.write(json.dumps({"text": "export SECRET=mysupersecret"}) + "\n")
             transcript_path = f.name
 
@@ -194,8 +210,10 @@ class TranscriptScanningUserExperienceTests(TestCase):
                 "transcript_path": transcript_path,
             }
 
-            with patch('ai_guardian.hook_processing.scan_transcript_incremental') as mock_scan:
-                with patch('sys.stdin', StringIO(json.dumps(hook_data))):
+            with patch(
+                "ai_guardian.hook_processing.scan_transcript_incremental"
+            ) as mock_scan:
+                with patch("sys.stdin", StringIO(json.dumps(hook_data))):
                     result = ai_guardian.process_hook_input()
 
                 # CONTRACT: scan_transcript_incremental should NOT be called
@@ -203,14 +221,18 @@ class TranscriptScanningUserExperienceTests(TestCase):
         finally:
             os.unlink(transcript_path)
 
-    @patch('ai_guardian.hook_processing.check_secrets_with_gitleaks')
-    @patch('ai_guardian.hook_processing._load_secret_scanning_config')
-    @patch('ai_guardian.hook_processing._load_prompt_injection_config')
-    @patch('ai_guardian.hook_processing._load_pii_config')
-    @patch('ai_guardian.hook_processing._load_transcript_scanning_config')
+    @patch("ai_guardian.hook_processing.check_secrets_with_gitleaks")
+    @patch("ai_guardian.hook_processing._load_secret_scanning_config")
+    @patch("ai_guardian.hook_processing._load_prompt_injection_config")
+    @patch("ai_guardian.hook_processing._load_pii_config")
+    @patch("ai_guardian.hook_processing._load_transcript_scanning_config")
     def test_user_prompt_no_transcript_path_field(
-        self, mock_ts_config, mock_pii_config, mock_pi_config,
-        mock_secret_config, mock_gitleaks
+        self,
+        mock_ts_config,
+        mock_pii_config,
+        mock_pi_config,
+        mock_secret_config,
+        mock_gitleaks,
     ):
         """
         USER EXPERIENCE: Hook data without transcript_path -> no error
@@ -234,23 +256,28 @@ class TranscriptScanningUserExperienceTests(TestCase):
             # No transcript_path field
         }
 
-        with patch('sys.stdin', StringIO(json.dumps(hook_data))):
+        with patch("sys.stdin", StringIO(json.dumps(hook_data))):
             result = ai_guardian.process_hook_input()
 
-        response = json.loads(result['output'])
+        response = json.loads(result["output"])
 
         # CONTRACT: No blocking, no errors
         assert "decision" not in response or response.get("decision") != "block"
 
-    @patch('ai_guardian.hook_processing._scan_for_pii')
-    @patch('ai_guardian.hook_processing.check_secrets_with_gitleaks')
-    @patch('ai_guardian.hook_processing._load_secret_scanning_config')
-    @patch('ai_guardian.hook_processing._load_prompt_injection_config')
-    @patch('ai_guardian.hook_processing._load_pii_config')
-    @patch('ai_guardian.hook_processing._load_transcript_scanning_config')
+    @patch("ai_guardian.hook_processing._scan_for_pii")
+    @patch("ai_guardian.hook_processing.check_secrets_with_gitleaks")
+    @patch("ai_guardian.hook_processing._load_secret_scanning_config")
+    @patch("ai_guardian.hook_processing._load_prompt_injection_config")
+    @patch("ai_guardian.hook_processing._load_pii_config")
+    @patch("ai_guardian.hook_processing._load_transcript_scanning_config")
     def test_user_prompt_transcript_pii_warns_but_allows(
-        self, mock_ts_config, mock_pii_config, mock_pi_config,
-        mock_secret_config, mock_gitleaks, mock_pii
+        self,
+        mock_ts_config,
+        mock_pii_config,
+        mock_pi_config,
+        mock_secret_config,
+        mock_gitleaks,
+        mock_pii,
     ):
         """
         USER EXPERIENCE: PII in transcript -> WARNING (not blocked)
@@ -264,7 +291,10 @@ class TranscriptScanningUserExperienceTests(TestCase):
         ⚠️ User sees warning about PII in transcript
         """
         mock_ts_config.return_value = ({"enabled": True}, None)
-        mock_pii_config.return_value = ({"enabled": True, "pii_types": ["ssn"], "action": "warn"}, None)
+        mock_pii_config.return_value = (
+            {"enabled": True, "pii_types": ["ssn"], "action": "warn"},
+            None,
+        )
         mock_pi_config.return_value = ({"enabled": False}, None)
         mock_secret_config.return_value = ({"enabled": True}, None)
 
@@ -276,7 +306,7 @@ class TranscriptScanningUserExperienceTests(TestCase):
             (True, "redacted", [{"type": "ssn"}], "PII found"),  # Transcript PII scan
         ]
 
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.jsonl', delete=False) as f:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".jsonl", delete=False) as f:
             f.write(json.dumps({"text": "SSN: 123-45-6789"}) + "\n")
             transcript_path = f.name
 
@@ -290,14 +320,15 @@ class TranscriptScanningUserExperienceTests(TestCase):
                 "transcript_path": transcript_path,
             }
 
-            with patch('sys.stdin', StringIO(json.dumps(hook_data))):
+            with patch("sys.stdin", StringIO(json.dumps(hook_data))):
                 result = ai_guardian.process_hook_input()
 
-            response = json.loads(result['output'])
+            response = json.loads(result["output"])
 
             # CONTRACT: Prompt is NOT blocked
-            assert "decision" not in response or response.get("decision") != "block", \
-                "Transcript PII should warn, NOT block the prompt"
+            assert (
+                "decision" not in response or response.get("decision") != "block"
+            ), "Transcript PII should warn, NOT block the prompt"
         finally:
             os.unlink(transcript_path)
 
@@ -313,16 +344,22 @@ class CopilotCodexTranscriptScanningTests(TestCase):
     4. _advance_transcript_position works with adapter-injected paths
     """
 
-    @patch('ai_guardian.hook_processing._load_security_instructions_config')
-    @patch('ai_guardian.hook_processing._scan_for_pii')
-    @patch('ai_guardian.hook_processing.check_secrets_with_gitleaks')
-    @patch('ai_guardian.hook_processing._load_secret_scanning_config')
-    @patch('ai_guardian.hook_processing._load_prompt_injection_config')
-    @patch('ai_guardian.hook_processing._load_pii_config')
-    @patch('ai_guardian.hook_processing._load_transcript_scanning_config')
+    @patch("ai_guardian.hook_processing._load_security_instructions_config")
+    @patch("ai_guardian.hook_processing._scan_for_pii")
+    @patch("ai_guardian.hook_processing.check_secrets_with_gitleaks")
+    @patch("ai_guardian.hook_processing._load_secret_scanning_config")
+    @patch("ai_guardian.hook_processing._load_prompt_injection_config")
+    @patch("ai_guardian.hook_processing._load_pii_config")
+    @patch("ai_guardian.hook_processing._load_transcript_scanning_config")
     def test_copilot_cli_transcript_scanned_via_adapter_default(
-        self, mock_ts_config, mock_pii_config, mock_pi_config,
-        mock_secret_config, mock_gitleaks, mock_pii, mock_si_config
+        self,
+        mock_ts_config,
+        mock_pii_config,
+        mock_pi_config,
+        mock_secret_config,
+        mock_gitleaks,
+        mock_pii,
+        mock_si_config,
     ):
         """
         USER EXPERIENCE: Copilot CLI transcript scanned via default path
@@ -348,7 +385,7 @@ class CopilotCodexTranscriptScanningTests(TestCase):
         mock_si_config.return_value = (None, None)
 
         transcript_file = tempfile.NamedTemporaryFile(
-            mode='w', suffix='.jsonl', delete=False
+            mode="w", suffix=".jsonl", delete=False
         )
         try:
             transcript_file.write('{"text": "hello from copilot"}\n')
@@ -357,7 +394,9 @@ class CopilotCodexTranscriptScanningTests(TestCase):
             transcript_file.close()
 
             # Initialize position (simulate first-scan skip)
-            _save_transcript_positions({transcript_path: os.path.getsize(transcript_path)})
+            _save_transcript_positions(
+                {transcript_path: os.path.getsize(transcript_path)}
+            )
 
             # Hook data without transcript_path (Copilot doesn't provide it)
             hook_data = {
@@ -367,25 +406,32 @@ class CopilotCodexTranscriptScanningTests(TestCase):
             }
 
             with patch.object(CopilotAdapter, "TRANSCRIPT_PATH", transcript_path):
-                with patch('sys.stdin', StringIO(json.dumps(hook_data))):
+                with patch("sys.stdin", StringIO(json.dumps(hook_data))):
                     result = ai_guardian.process_hook_input()
 
             # CONTRACT: Prompt completes (not blocked)
-            assert result['exit_code'] == 0 or result['exit_code'] == 2, \
-                "Copilot transcript scanning should not crash"
+            assert (
+                result["exit_code"] == 0 or result["exit_code"] == 2
+            ), "Copilot transcript scanning should not crash"
         finally:
             os.unlink(transcript_path)
 
-    @patch('ai_guardian.hook_processing._load_security_instructions_config')
-    @patch('ai_guardian.hook_processing._scan_for_pii')
-    @patch('ai_guardian.hook_processing.check_secrets_with_gitleaks')
-    @patch('ai_guardian.hook_processing._load_secret_scanning_config')
-    @patch('ai_guardian.hook_processing._load_prompt_injection_config')
-    @patch('ai_guardian.hook_processing._load_pii_config')
-    @patch('ai_guardian.hook_processing._load_transcript_scanning_config')
+    @patch("ai_guardian.hook_processing._load_security_instructions_config")
+    @patch("ai_guardian.hook_processing._scan_for_pii")
+    @patch("ai_guardian.hook_processing.check_secrets_with_gitleaks")
+    @patch("ai_guardian.hook_processing._load_secret_scanning_config")
+    @patch("ai_guardian.hook_processing._load_prompt_injection_config")
+    @patch("ai_guardian.hook_processing._load_pii_config")
+    @patch("ai_guardian.hook_processing._load_transcript_scanning_config")
     def test_codex_transcript_scanned_via_adapter_default(
-        self, mock_ts_config, mock_pii_config, mock_pi_config,
-        mock_secret_config, mock_gitleaks, mock_pii, mock_si_config
+        self,
+        mock_ts_config,
+        mock_pii_config,
+        mock_pi_config,
+        mock_secret_config,
+        mock_gitleaks,
+        mock_pii,
+        mock_si_config,
     ):
         """
         USER EXPERIENCE: Codex transcript scanned via default path
@@ -414,7 +460,7 @@ class CopilotCodexTranscriptScanningTests(TestCase):
             session_dir = os.path.join(tmp, "2026", "06", "04")
             os.makedirs(session_dir)
             transcript = os.path.join(session_dir, "session-abc.jsonl")
-            with open(transcript, 'w') as f:
+            with open(transcript, "w") as f:
                 f.write('{"text": "hello from codex"}\n')
 
             # Initialize position
@@ -427,14 +473,16 @@ class CopilotCodexTranscriptScanningTests(TestCase):
             }
 
             with patch.object(CodexAdapter, "SESSIONS_DIR", tmp):
-                with patch('sys.stdin', StringIO(json.dumps(hook_data))):
+                with patch("sys.stdin", StringIO(json.dumps(hook_data))):
                     result = ai_guardian.process_hook_input()
 
             # CONTRACT: Prompt completes (not blocked)
-            assert result['exit_code'] == 0, \
-                "Codex transcript scanning should not crash"
+            assert (
+                result["exit_code"] == 0
+            ), "Codex transcript scanning should not crash"
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     import unittest
+
     unittest.main()

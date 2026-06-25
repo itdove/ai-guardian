@@ -1,7 +1,6 @@
 """Tests for Web Console Auto Directory Rules page."""
 
 import inspect
-import json
 import os
 import tempfile
 from unittest import mock
@@ -15,6 +14,7 @@ pytest.importorskip("nicegui", reason="NiceGUI requires Python >= 3.10")
 # Import / existence tests
 # ---------------------------------------------------------------------------
 
+
 class TestPageImport:
     """Verify the page module imports and exposes its create function."""
 
@@ -22,16 +22,19 @@ class TestPageImport:
         from ai_guardian.web.pages.auto_directory_rules import (
             create_auto_directory_rules_page,
         )
+
         assert callable(create_auto_directory_rules_page)
 
     def test_run_generator_helper_exists(self):
         from ai_guardian.web.pages.auto_directory_rules import _run_generator
+
         assert callable(_run_generator)
 
 
 # ---------------------------------------------------------------------------
 # Route / sidebar consistency
 # ---------------------------------------------------------------------------
+
 
 class TestRouteSidebarConsistency:
     """Verify the auto-directory-rules route is registered."""
@@ -74,6 +77,7 @@ class TestRouteSidebarConsistency:
 # ---------------------------------------------------------------------------
 # Helper function tests
 # ---------------------------------------------------------------------------
+
 
 class TestRunGenerator:
     """Test the _run_generator helper function."""
@@ -211,6 +215,8 @@ class TestRunGenerator:
             "sys.modules",
             {"ai_guardian.directory_rule_generator": None},
         ):
-            result = _run_generator({"permissions": {"auto_directory_rules": {"enabled": True}}})
+            result = _run_generator(
+                {"permissions": {"auto_directory_rules": {"enabled": True}}}
+            )
             assert isinstance(result, dict)
             assert result["error"] is not None or result["generated_rules"] == []

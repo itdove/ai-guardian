@@ -1,9 +1,7 @@
 """Tests for desktop shortcut and autostart integration."""
 
-import os
 import stat
 import sys
-from pathlib import Path
 from unittest import mock
 
 import pytest
@@ -22,29 +20,39 @@ from ai_guardian.daemon.desktop import (
 
 class TestGetDesktopIntegration:
     def test_returns_linux_on_linux(self):
-        with mock.patch("ai_guardian.daemon.desktop.platform.system", return_value="Linux"):
+        with mock.patch(
+            "ai_guardian.daemon.desktop.platform.system", return_value="Linux"
+        ):
             result = get_desktop_integration()
         assert isinstance(result, LinuxDesktop)
 
     def test_returns_macos_on_darwin(self):
-        with mock.patch("ai_guardian.daemon.desktop.platform.system", return_value="Darwin"):
+        with mock.patch(
+            "ai_guardian.daemon.desktop.platform.system", return_value="Darwin"
+        ):
             result = get_desktop_integration()
         assert isinstance(result, MacOSDesktop)
 
     def test_returns_windows_on_windows(self):
-        with mock.patch("ai_guardian.daemon.desktop.platform.system", return_value="Windows"):
+        with mock.patch(
+            "ai_guardian.daemon.desktop.platform.system", return_value="Windows"
+        ):
             result = get_desktop_integration()
         assert isinstance(result, WindowsDesktop)
 
     def test_returns_unsupported_on_unknown(self):
-        with mock.patch("ai_guardian.daemon.desktop.platform.system", return_value="FreeBSD"):
+        with mock.patch(
+            "ai_guardian.daemon.desktop.platform.system", return_value="FreeBSD"
+        ):
             result = get_desktop_integration()
         assert isinstance(result, _UnsupportedDesktop)
 
 
 class TestGetExecutableCommand:
     def test_uses_shutil_which_when_available(self):
-        with mock.patch("ai_guardian.daemon.shutil.which", return_value="/usr/local/bin/ai-guardian"):
+        with mock.patch(
+            "ai_guardian.daemon.shutil.which", return_value="/usr/local/bin/ai-guardian"
+        ):
             result = _get_executable_command()
         assert len(result) == 1
         assert result[0].endswith("ai-guardian")
@@ -80,7 +88,9 @@ class TestPrepareIcon:
 
     def test_returns_none_when_no_source_icon(self, tmp_path, monkeypatch):
         monkeypatch.setenv("AI_GUARDIAN_STATE_DIR", str(tmp_path))
-        with mock.patch("ai_guardian.daemon.desktop._find_banner_icon", return_value=None):
+        with mock.patch(
+            "ai_guardian.daemon.desktop._find_banner_icon", return_value=None
+        ):
             result = _prepare_icon(256)
         assert result is None
 
@@ -93,7 +103,10 @@ class TestPrepareIcon:
         source_path = tmp_path / "source.png"
         source_img.save(str(source_path))
 
-        with mock.patch("ai_guardian.daemon.desktop._find_banner_icon", return_value=str(source_path)):
+        with mock.patch(
+            "ai_guardian.daemon.desktop._find_banner_icon",
+            return_value=str(source_path),
+        ):
             result = _prepare_icon(256)
 
         assert result is not None
@@ -143,18 +156,26 @@ class TestLinuxDesktop:
         assert linux.shortcut_exists() is False
 
     def test_install_shortcut_creates_file(self, linux):
-        with mock.patch("ai_guardian.daemon.desktop._get_executable_command",
-                        return_value=["/usr/bin/ai-guardian"]):
-            with mock.patch("ai_guardian.daemon.desktop._prepare_icon", return_value=None):
+        with mock.patch(
+            "ai_guardian.daemon.desktop._get_executable_command",
+            return_value=["/usr/bin/ai-guardian"],
+        ):
+            with mock.patch(
+                "ai_guardian.daemon.desktop._prepare_icon", return_value=None
+            ):
                 result = linux.install_shortcut()
 
         assert result is True
         assert linux.shortcut_path.exists()
 
     def test_shortcut_exists_true_after_install(self, linux):
-        with mock.patch("ai_guardian.daemon.desktop._get_executable_command",
-                        return_value=["/usr/bin/ai-guardian"]):
-            with mock.patch("ai_guardian.daemon.desktop._prepare_icon", return_value=None):
+        with mock.patch(
+            "ai_guardian.daemon.desktop._get_executable_command",
+            return_value=["/usr/bin/ai-guardian"],
+        ):
+            with mock.patch(
+                "ai_guardian.daemon.desktop._prepare_icon", return_value=None
+            ):
                 linux.install_shortcut()
 
         assert linux.shortcut_exists() is True
@@ -162,9 +183,13 @@ class TestLinuxDesktop:
     def test_shortcut_content_has_required_fields(self, linux, tmp_path):
         icon = tmp_path / "icon.png"
         icon.write_text("fake")
-        with mock.patch("ai_guardian.daemon.desktop._get_executable_command",
-                        return_value=["/usr/bin/ai-guardian"]):
-            with mock.patch("ai_guardian.daemon.desktop._prepare_icon", return_value=icon):
+        with mock.patch(
+            "ai_guardian.daemon.desktop._get_executable_command",
+            return_value=["/usr/bin/ai-guardian"],
+        ):
+            with mock.patch(
+                "ai_guardian.daemon.desktop._prepare_icon", return_value=icon
+            ):
                 linux.install_shortcut()
 
         content = linux.shortcut_path.read_text()
@@ -175,38 +200,56 @@ class TestLinuxDesktop:
         assert "Terminal=false" in content
         assert f"Icon={icon}" in content
 
-    @pytest.mark.skipif(sys.platform == "win32", reason="Unix executable bit not applicable on Windows")
+    @pytest.mark.skipif(
+        sys.platform == "win32", reason="Unix executable bit not applicable on Windows"
+    )
     def test_shortcut_is_executable(self, linux):
-        with mock.patch("ai_guardian.daemon.desktop._get_executable_command",
-                        return_value=["/usr/bin/ai-guardian"]):
-            with mock.patch("ai_guardian.daemon.desktop._prepare_icon", return_value=None):
+        with mock.patch(
+            "ai_guardian.daemon.desktop._get_executable_command",
+            return_value=["/usr/bin/ai-guardian"],
+        ):
+            with mock.patch(
+                "ai_guardian.daemon.desktop._prepare_icon", return_value=None
+            ):
                 linux.install_shortcut()
 
         mode = linux.shortcut_path.stat().st_mode
         assert mode & stat.S_IXUSR
 
     def test_install_autostart_creates_file(self, linux):
-        with mock.patch("ai_guardian.daemon.desktop._get_executable_command",
-                        return_value=["/usr/bin/ai-guardian"]):
-            with mock.patch("ai_guardian.daemon.desktop._prepare_icon", return_value=None):
+        with mock.patch(
+            "ai_guardian.daemon.desktop._get_executable_command",
+            return_value=["/usr/bin/ai-guardian"],
+        ):
+            with mock.patch(
+                "ai_guardian.daemon.desktop._prepare_icon", return_value=None
+            ):
                 result = linux.install_autostart()
 
         assert result is True
         assert linux.autostart_path.exists()
 
     def test_autostart_content_has_gnome_flag(self, linux):
-        with mock.patch("ai_guardian.daemon.desktop._get_executable_command",
-                        return_value=["/usr/bin/ai-guardian"]):
-            with mock.patch("ai_guardian.daemon.desktop._prepare_icon", return_value=None):
+        with mock.patch(
+            "ai_guardian.daemon.desktop._get_executable_command",
+            return_value=["/usr/bin/ai-guardian"],
+        ):
+            with mock.patch(
+                "ai_guardian.daemon.desktop._prepare_icon", return_value=None
+            ):
                 linux.install_autostart()
 
         content = linux.autostart_path.read_text()
         assert "X-GNOME-Autostart-enabled=true" in content
 
     def test_uninstall_shortcut_removes_file(self, linux):
-        with mock.patch("ai_guardian.daemon.desktop._get_executable_command",
-                        return_value=["/usr/bin/ai-guardian"]):
-            with mock.patch("ai_guardian.daemon.desktop._prepare_icon", return_value=None):
+        with mock.patch(
+            "ai_guardian.daemon.desktop._get_executable_command",
+            return_value=["/usr/bin/ai-guardian"],
+        ):
+            with mock.patch(
+                "ai_guardian.daemon.desktop._prepare_icon", return_value=None
+            ):
                 linux.install_shortcut()
 
         result = linux.uninstall_shortcut()
@@ -217,9 +260,13 @@ class TestLinuxDesktop:
         assert linux.uninstall_shortcut() is False
 
     def test_uninstall_autostart_removes_file(self, linux):
-        with mock.patch("ai_guardian.daemon.desktop._get_executable_command",
-                        return_value=["/usr/bin/ai-guardian"]):
-            with mock.patch("ai_guardian.daemon.desktop._prepare_icon", return_value=None):
+        with mock.patch(
+            "ai_guardian.daemon.desktop._get_executable_command",
+            return_value=["/usr/bin/ai-guardian"],
+        ):
+            with mock.patch(
+                "ai_guardian.daemon.desktop._prepare_icon", return_value=None
+            ):
                 linux.install_autostart()
 
         result = linux.uninstall_autostart()
@@ -230,9 +277,13 @@ class TestLinuxDesktop:
         assert linux.uninstall_autostart() is False
 
     def test_shortcut_no_icon_line_when_icon_missing(self, linux):
-        with mock.patch("ai_guardian.daemon.desktop._get_executable_command",
-                        return_value=["/usr/bin/ai-guardian"]):
-            with mock.patch("ai_guardian.daemon.desktop._prepare_icon", return_value=None):
+        with mock.patch(
+            "ai_guardian.daemon.desktop._get_executable_command",
+            return_value=["/usr/bin/ai-guardian"],
+        ):
+            with mock.patch(
+                "ai_guardian.daemon.desktop._prepare_icon", return_value=None
+            ):
                 linux.install_shortcut()
 
         content = linux.shortcut_path.read_text()
@@ -251,9 +302,13 @@ class TestMacOSDesktop:
         assert macos.shortcut_exists() is False
 
     def test_install_shortcut_creates_app_bundle(self, macos):
-        with mock.patch("ai_guardian.daemon.desktop._get_executable_command",
-                        return_value=["/usr/local/bin/ai-guardian"]):
-            with mock.patch("ai_guardian.daemon.desktop._prepare_icon", return_value=None):
+        with mock.patch(
+            "ai_guardian.daemon.desktop._get_executable_command",
+            return_value=["/usr/local/bin/ai-guardian"],
+        ):
+            with mock.patch(
+                "ai_guardian.daemon.desktop._prepare_icon", return_value=None
+            ):
                 result = macos.install_shortcut()
 
         assert result is True
@@ -261,11 +316,17 @@ class TestMacOSDesktop:
         assert (macos.app_path / "Contents" / "MacOS" / "ai-guardian-tray").exists()
         assert (macos.app_path / "Contents" / "Info.plist").exists()
 
-    @pytest.mark.skipif(sys.platform == "win32", reason="Unix executable bit not applicable on Windows")
+    @pytest.mark.skipif(
+        sys.platform == "win32", reason="Unix executable bit not applicable on Windows"
+    )
     def test_app_bundle_script_is_executable(self, macos):
-        with mock.patch("ai_guardian.daemon.desktop._get_executable_command",
-                        return_value=["/usr/local/bin/ai-guardian"]):
-            with mock.patch("ai_guardian.daemon.desktop._prepare_icon", return_value=None):
+        with mock.patch(
+            "ai_guardian.daemon.desktop._get_executable_command",
+            return_value=["/usr/local/bin/ai-guardian"],
+        ):
+            with mock.patch(
+                "ai_guardian.daemon.desktop._prepare_icon", return_value=None
+            ):
                 macos.install_shortcut()
 
         script = macos.app_path / "Contents" / "MacOS" / "ai-guardian-tray"
@@ -273,9 +334,13 @@ class TestMacOSDesktop:
         assert mode & stat.S_IXUSR
 
     def test_app_bundle_script_content(self, macos):
-        with mock.patch("ai_guardian.daemon.desktop._get_executable_command",
-                        return_value=["/usr/local/bin/ai-guardian"]):
-            with mock.patch("ai_guardian.daemon.desktop._prepare_icon", return_value=None):
+        with mock.patch(
+            "ai_guardian.daemon.desktop._get_executable_command",
+            return_value=["/usr/local/bin/ai-guardian"],
+        ):
+            with mock.patch(
+                "ai_guardian.daemon.desktop._prepare_icon", return_value=None
+            ):
                 macos.install_shortcut()
 
         script = macos.app_path / "Contents" / "MacOS" / "ai-guardian-tray"
@@ -284,9 +349,13 @@ class TestMacOSDesktop:
         assert "from ai_guardian.__main__ import main" in content
 
     def test_app_bundle_script_augments_path(self, macos):
-        with mock.patch("ai_guardian.daemon.desktop._get_executable_command",
-                        return_value=["/usr/local/bin/ai-guardian"]):
-            with mock.patch("ai_guardian.daemon.desktop._prepare_icon", return_value=None):
+        with mock.patch(
+            "ai_guardian.daemon.desktop._get_executable_command",
+            return_value=["/usr/local/bin/ai-guardian"],
+        ):
+            with mock.patch(
+                "ai_guardian.daemon.desktop._prepare_icon", return_value=None
+            ):
                 macos.install_shortcut()
 
         script = macos.app_path / "Contents" / "MacOS" / "ai-guardian-tray"
@@ -298,9 +367,13 @@ class TestMacOSDesktop:
     def test_info_plist_has_lsuielement(self, macos):
         import plistlib
 
-        with mock.patch("ai_guardian.daemon.desktop._get_executable_command",
-                        return_value=["/usr/local/bin/ai-guardian"]):
-            with mock.patch("ai_guardian.daemon.desktop._prepare_icon", return_value=None):
+        with mock.patch(
+            "ai_guardian.daemon.desktop._get_executable_command",
+            return_value=["/usr/local/bin/ai-guardian"],
+        ):
+            with mock.patch(
+                "ai_guardian.daemon.desktop._prepare_icon", return_value=None
+            ):
                 macos.install_shortcut()
 
         with open(macos.app_path / "Contents" / "Info.plist", "rb") as f:
@@ -312,9 +385,13 @@ class TestMacOSDesktop:
     def test_info_plist_has_ns_principal_class(self, macos):
         import plistlib
 
-        with mock.patch("ai_guardian.daemon.desktop._get_executable_command",
-                        return_value=["/usr/local/bin/ai-guardian"]):
-            with mock.patch("ai_guardian.daemon.desktop._prepare_icon", return_value=None):
+        with mock.patch(
+            "ai_guardian.daemon.desktop._get_executable_command",
+            return_value=["/usr/local/bin/ai-guardian"],
+        ):
+            with mock.patch(
+                "ai_guardian.daemon.desktop._prepare_icon", return_value=None
+            ):
                 macos.install_shortcut()
 
         with open(macos.app_path / "Contents" / "Info.plist", "rb") as f:
@@ -325,8 +402,10 @@ class TestMacOSDesktop:
     def test_install_shortcut_copies_icon(self, macos, tmp_path):
         icon = tmp_path / "ai-guardian.icns"
         icon.write_bytes(b"ICNS_DATA")
-        with mock.patch("ai_guardian.daemon.desktop._get_executable_command",
-                        return_value=["/usr/local/bin/ai-guardian"]):
+        with mock.patch(
+            "ai_guardian.daemon.desktop._get_executable_command",
+            return_value=["/usr/local/bin/ai-guardian"],
+        ):
             with mock.patch.object(MacOSDesktop, "_find_icns", return_value=str(icon)):
                 macos.install_shortcut()
 
@@ -334,16 +413,22 @@ class TestMacOSDesktop:
         assert resources_icon.exists()
 
     def test_shortcut_exists_true_after_install(self, macos):
-        with mock.patch("ai_guardian.daemon.desktop._get_executable_command",
-                        return_value=["/usr/local/bin/ai-guardian"]):
-            with mock.patch("ai_guardian.daemon.desktop._prepare_icon", return_value=None):
+        with mock.patch(
+            "ai_guardian.daemon.desktop._get_executable_command",
+            return_value=["/usr/local/bin/ai-guardian"],
+        ):
+            with mock.patch(
+                "ai_guardian.daemon.desktop._prepare_icon", return_value=None
+            ):
                 macos.install_shortcut()
 
         assert macos.shortcut_exists() is True
 
     def test_install_autostart_creates_plist(self, macos):
-        with mock.patch("ai_guardian.daemon.desktop._get_executable_command",
-                        return_value=["/usr/local/bin/ai-guardian"]):
+        with mock.patch(
+            "ai_guardian.daemon.desktop._get_executable_command",
+            return_value=["/usr/local/bin/ai-guardian"],
+        ):
             result = macos.install_autostart()
 
         assert result is True
@@ -352,8 +437,10 @@ class TestMacOSDesktop:
     def test_plist_has_run_at_load(self, macos):
         import plistlib
 
-        with mock.patch("ai_guardian.daemon.desktop._get_executable_command",
-                        return_value=["/usr/local/bin/ai-guardian"]):
+        with mock.patch(
+            "ai_guardian.daemon.desktop._get_executable_command",
+            return_value=["/usr/local/bin/ai-guardian"],
+        ):
             macos.install_autostart()
 
         with open(macos.plist_path, "rb") as f:
@@ -365,20 +452,28 @@ class TestMacOSDesktop:
     def test_plist_has_correct_program_arguments(self, macos):
         import plistlib
 
-        with mock.patch("ai_guardian.daemon.desktop._get_executable_command",
-                        return_value=["/usr/local/bin/ai-guardian"]):
+        with mock.patch(
+            "ai_guardian.daemon.desktop._get_executable_command",
+            return_value=["/usr/local/bin/ai-guardian"],
+        ):
             macos.install_autostart()
 
         with open(macos.plist_path, "rb") as f:
             plist = plistlib.load(f)
 
-        assert plist["ProgramArguments"] == ["/usr/local/bin/ai-guardian", "tray", "start"]
+        assert plist["ProgramArguments"] == [
+            "/usr/local/bin/ai-guardian",
+            "tray",
+            "start",
+        ]
 
     def test_plist_has_environment_variables_with_path(self, macos):
         import plistlib
 
-        with mock.patch("ai_guardian.daemon.desktop._get_executable_command",
-                        return_value=["/usr/local/bin/ai-guardian"]):
+        with mock.patch(
+            "ai_guardian.daemon.desktop._get_executable_command",
+            return_value=["/usr/local/bin/ai-guardian"],
+        ):
             macos.install_autostart()
 
         with open(macos.plist_path, "rb") as f:
@@ -390,9 +485,13 @@ class TestMacOSDesktop:
         assert "/usr/local/bin" in path_value
 
     def test_uninstall_shortcut_removes_app_bundle(self, macos):
-        with mock.patch("ai_guardian.daemon.desktop._get_executable_command",
-                        return_value=["/usr/local/bin/ai-guardian"]):
-            with mock.patch("ai_guardian.daemon.desktop._prepare_icon", return_value=None):
+        with mock.patch(
+            "ai_guardian.daemon.desktop._get_executable_command",
+            return_value=["/usr/local/bin/ai-guardian"],
+        ):
+            with mock.patch(
+                "ai_guardian.daemon.desktop._prepare_icon", return_value=None
+            ):
                 macos.install_shortcut()
 
         result = macos.uninstall_shortcut()
@@ -403,8 +502,10 @@ class TestMacOSDesktop:
         assert macos.uninstall_shortcut() is False
 
     def test_uninstall_autostart_removes_plist(self, macos):
-        with mock.patch("ai_guardian.daemon.desktop._get_executable_command",
-                        return_value=["/usr/local/bin/ai-guardian"]):
+        with mock.patch(
+            "ai_guardian.daemon.desktop._get_executable_command",
+            return_value=["/usr/local/bin/ai-guardian"],
+        ):
             macos.install_autostart()
 
         with mock.patch("ai_guardian.daemon.desktop.subprocess.run"):
@@ -414,8 +515,10 @@ class TestMacOSDesktop:
         assert not macos.plist_path.exists()
 
     def test_uninstall_autostart_calls_launchctl(self, macos):
-        with mock.patch("ai_guardian.daemon.desktop._get_executable_command",
-                        return_value=["/usr/local/bin/ai-guardian"]):
+        with mock.patch(
+            "ai_guardian.daemon.desktop._get_executable_command",
+            return_value=["/usr/local/bin/ai-guardian"],
+        ):
             macos.install_autostart()
 
         with mock.patch("ai_guardian.daemon.desktop.subprocess.run") as mock_run:
@@ -437,22 +540,45 @@ class TestWindowsDesktop:
         return WindowsDesktop()
 
     def test_shortcut_path_in_start_menu(self, win, tmp_path):
-        expected = tmp_path / "Microsoft" / "Windows" / "Start Menu" / "Programs" / "AI Guardian Tray.lnk"
+        expected = (
+            tmp_path
+            / "Microsoft"
+            / "Windows"
+            / "Start Menu"
+            / "Programs"
+            / "AI Guardian Tray.lnk"
+        )
         assert win.shortcut_path == expected
 
     def test_autostart_path_in_startup(self, win, tmp_path):
-        expected = tmp_path / "Microsoft" / "Windows" / "Start Menu" / "Programs" / "Startup" / "AI Guardian Tray.lnk"
+        expected = (
+            tmp_path
+            / "Microsoft"
+            / "Windows"
+            / "Start Menu"
+            / "Programs"
+            / "Startup"
+            / "AI Guardian Tray.lnk"
+        )
         assert win.autostart_path == expected
 
     def test_shortcut_exists_false_when_missing(self, win):
         assert win.shortcut_exists() is False
 
     def test_install_shortcut_runs_powershell(self, win):
-        with mock.patch("ai_guardian.daemon.desktop._get_executable_command",
-                        return_value=["C:\\Python\\python.exe", "-m", "ai_guardian"]):
-            with mock.patch("ai_guardian.daemon.desktop._prepare_ico", return_value=None):
-                with mock.patch("ai_guardian.daemon.desktop.shutil.which", return_value=None):
-                    with mock.patch("ai_guardian.daemon.desktop.subprocess.run") as mock_run:
+        with mock.patch(
+            "ai_guardian.daemon.desktop._get_executable_command",
+            return_value=["C:\\Python\\python.exe", "-m", "ai_guardian"],
+        ):
+            with mock.patch(
+                "ai_guardian.daemon.desktop._prepare_ico", return_value=None
+            ):
+                with mock.patch(
+                    "ai_guardian.daemon.desktop.shutil.which", return_value=None
+                ):
+                    with mock.patch(
+                        "ai_guardian.daemon.desktop.subprocess.run"
+                    ) as mock_run:
                         mock_run.return_value = mock.Mock()
                         win.shortcut_path.parent.mkdir(parents=True, exist_ok=True)
                         win.shortcut_path.write_text("fake lnk")
@@ -484,7 +610,9 @@ class TestCLIInstallUninstall:
     def test_install_flag_calls_handler(self):
         from ai_guardian.cli_handlers import _handle_tray_install
 
-        with mock.patch("ai_guardian.daemon.desktop.get_desktop_integration") as mock_get:
+        with mock.patch(
+            "ai_guardian.daemon.desktop.get_desktop_integration"
+        ) as mock_get:
             desktop = mock.Mock()
             desktop.shortcut_exists.return_value = False
             desktop.install_shortcut.return_value = True
@@ -498,7 +626,9 @@ class TestCLIInstallUninstall:
     def test_install_with_autostart(self):
         from ai_guardian.cli_handlers import _handle_tray_install
 
-        with mock.patch("ai_guardian.daemon.desktop.get_desktop_integration") as mock_get:
+        with mock.patch(
+            "ai_guardian.daemon.desktop.get_desktop_integration"
+        ) as mock_get:
             desktop = mock.Mock()
             desktop.shortcut_exists.return_value = False
             desktop.install_shortcut.return_value = True
@@ -515,7 +645,9 @@ class TestCLIInstallUninstall:
     def test_install_already_exists(self, capsys):
         from ai_guardian.cli_handlers import _handle_tray_install
 
-        with mock.patch("ai_guardian.daemon.desktop.get_desktop_integration") as mock_get:
+        with mock.patch(
+            "ai_guardian.daemon.desktop.get_desktop_integration"
+        ) as mock_get:
             desktop = mock.Mock()
             desktop.shortcut_exists.return_value = True
             mock_get.return_value = desktop
@@ -528,7 +660,9 @@ class TestCLIInstallUninstall:
     def test_install_failure_returns_1(self):
         from ai_guardian.cli_handlers import _handle_tray_install
 
-        with mock.patch("ai_guardian.daemon.desktop.get_desktop_integration") as mock_get:
+        with mock.patch(
+            "ai_guardian.daemon.desktop.get_desktop_integration"
+        ) as mock_get:
             desktop = mock.Mock()
             desktop.shortcut_exists.return_value = False
             desktop.install_shortcut.return_value = False
@@ -541,7 +675,9 @@ class TestCLIInstallUninstall:
     def test_uninstall_removes_both(self, capsys):
         from ai_guardian.cli_handlers import _handle_tray_uninstall
 
-        with mock.patch("ai_guardian.daemon.desktop.get_desktop_integration") as mock_get:
+        with mock.patch(
+            "ai_guardian.daemon.desktop.get_desktop_integration"
+        ) as mock_get:
             desktop = mock.Mock()
             desktop.uninstall_shortcut.return_value = True
             desktop.uninstall_autostart.return_value = True
@@ -557,7 +693,9 @@ class TestCLIInstallUninstall:
     def test_uninstall_nothing_found(self, capsys):
         from ai_guardian.cli_handlers import _handle_tray_uninstall
 
-        with mock.patch("ai_guardian.daemon.desktop.get_desktop_integration") as mock_get:
+        with mock.patch(
+            "ai_guardian.daemon.desktop.get_desktop_integration"
+        ) as mock_get:
             desktop = mock.Mock()
             desktop.uninstall_shortcut.return_value = False
             desktop.uninstall_autostart.return_value = False
@@ -575,7 +713,9 @@ class TestFirstRunDetection:
         desktop.shortcut_exists.return_value = False
         desktop.install_shortcut.return_value = True
 
-        with mock.patch("ai_guardian.daemon.desktop.get_desktop_integration", return_value=desktop):
+        with mock.patch(
+            "ai_guardian.daemon.desktop.get_desktop_integration", return_value=desktop
+        ):
             with mock.patch("sys.stdin") as mock_stdin:
                 mock_stdin.isatty.return_value = True
                 with mock.patch("builtins.input", side_effect=["y", "n"]):
@@ -590,7 +730,9 @@ class TestFirstRunDetection:
         desktop = mock.Mock()
         desktop.shortcut_exists.return_value = True
 
-        with mock.patch("ai_guardian.daemon.desktop.get_desktop_integration", return_value=desktop):
+        with mock.patch(
+            "ai_guardian.daemon.desktop.get_desktop_integration", return_value=desktop
+        ):
             from ai_guardian.cli_handlers import _handle_tray_install
 
             result = _handle_tray_install(autostart=False)
@@ -603,7 +745,9 @@ class TestFirstRunDetection:
         desktop.shortcut_exists.return_value = False
         desktop.install_shortcut.return_value = False
 
-        with mock.patch("ai_guardian.daemon.desktop.get_desktop_integration", return_value=desktop):
+        with mock.patch(
+            "ai_guardian.daemon.desktop.get_desktop_integration", return_value=desktop
+        ):
             from ai_guardian.cli_handlers import _handle_tray_install
 
             result = _handle_tray_install(autostart=False)

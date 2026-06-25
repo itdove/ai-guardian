@@ -24,19 +24,24 @@ logger = logging.getLogger(__name__)
 
 try:
     import requests
+
     HAS_REQUESTS = True
 except ImportError:
     HAS_REQUESTS = False
-    logger.warning("requests library not installed - HTTP/HTTPS remote configs not available")
+    logger.warning(
+        "requests library not installed - HTTP/HTTPS remote configs not available"
+    )
 
 try:
     # Python 3.11+ has tomllib built-in
     import tomllib as toml
+
     HAS_TOML = True
 except ImportError:
     try:
         # Python < 3.11 uses tomli (backport)
         import tomli as toml
+
         HAS_TOML = True
     except ImportError:
         HAS_TOML = False
@@ -60,7 +65,9 @@ class RemoteFetcher:
             cache_dir: Optional cache directory. If None, uses XDG_CACHE_HOME.
         """
         if cache_dir is None:
-            cache_home = os.environ.get("XDG_CACHE_HOME", os.path.expanduser("~/.cache"))
+            cache_home = os.environ.get(
+                "XDG_CACHE_HOME", os.path.expanduser("~/.cache")
+            )
             cache_dir = Path(cache_home) / "ai-guardian" / "remote-configs"
 
         self.cache_dir = cache_dir
@@ -71,7 +78,7 @@ class RemoteFetcher:
         url: str,
         refresh_interval_hours: Optional[int] = None,
         expire_after_hours: Optional[int] = None,
-        headers: Optional[Dict] = None
+        headers: Optional[Dict] = None,
     ) -> Optional[Dict]:
         """
         Fetch remote configuration with caching.
@@ -107,13 +114,13 @@ class RemoteFetcher:
 
         # Read from environment variables if not provided
         if refresh_interval_hours is None:
-            refresh_interval_hours = int(os.environ.get(
-                "AI_GUARDIAN_REFRESH_INTERVAL_HOURS", "12"
-            ))
+            refresh_interval_hours = int(
+                os.environ.get("AI_GUARDIAN_REFRESH_INTERVAL_HOURS", "12")
+            )
         if expire_after_hours is None:
-            expire_after_hours = int(os.environ.get(
-                "AI_GUARDIAN_EXPIRE_AFTER_HOURS", "168"
-            ))
+            expire_after_hours = int(
+                os.environ.get("AI_GUARDIAN_EXPIRE_AFTER_HOURS", "168")
+            )
 
         # Check cache first
         cached_config, cache_age_hours = self._get_cached_config(url)
@@ -121,11 +128,15 @@ class RemoteFetcher:
         if cached_config is not None:
             # Check if cache is fresh (within refresh interval)
             if cache_age_hours < refresh_interval_hours:
-                logger.debug(f"Using fresh cache for {url} (age: {cache_age_hours:.1f}h)")
+                logger.debug(
+                    f"Using fresh cache for {url} (age: {cache_age_hours:.1f}h)"
+                )
                 return cached_config
 
             # Cache is stale - try to refresh
-            logger.info(f"Cache stale for {url} (age: {cache_age_hours:.1f}h), attempting refresh...")
+            logger.info(
+                f"Cache stale for {url} (age: {cache_age_hours:.1f}h), attempting refresh..."
+            )
             fresh_config = self._fetch_from_url(url, headers)
 
             if fresh_config is not None:
@@ -193,7 +204,7 @@ class RemoteFetcher:
             # Security: Resolve to absolute path and check it exists
             try:
                 file_path = file_path.resolve(strict=True)
-            except (FileNotFoundError, RuntimeError) as e:
+            except (FileNotFoundError, RuntimeError):
                 logger.error(f"Local config file not found: {path} -> {actual_path}")
                 return None
 
@@ -213,7 +224,7 @@ class RemoteFetcher:
 
             # Read and parse file
             logger.debug(f"Reading local config: {file_path}")
-            content = file_path.read_text(encoding='utf-8')
+            content = file_path.read_text(encoding="utf-8")
 
             # Try JSON first, then TOML
             config = None
@@ -229,7 +240,9 @@ class RemoteFetcher:
                         logger.error(f"Invalid JSON and TOML in {file_path}: {e}")
                         return None
                 else:
-                    logger.error(f"Content is not JSON and TOML library not available: {file_path}")
+                    logger.error(
+                        f"Content is not JSON and TOML library not available: {file_path}"
+                    )
                     return None
 
             logger.info(f"Successfully loaded local config: {file_path}")
@@ -239,7 +252,9 @@ class RemoteFetcher:
             logger.error(f"Error reading local config {path}: {e}")
             return None
 
-    def _fetch_from_url(self, url: str, custom_headers: Optional[Dict] = None) -> Optional[Dict]:
+    def _fetch_from_url(
+        self, url: str, custom_headers: Optional[Dict] = None
+    ) -> Optional[Dict]:
         """
         Fetch configuration from HTTP/HTTPS URL or local file path.
 
@@ -290,7 +305,9 @@ class RemoteFetcher:
 
             # Security: Enforce HTTPS for remote configs (reject http://)
             if url.startswith("http://"):
-                logger.error(f"HTTP URLs not allowed for remote configs (use HTTPS): {url}")
+                logger.error(
+                    f"HTTP URLs not allowed for remote configs (use HTTPS): {url}"
+                )
                 return None
 
             # Fetch with timeout and TLS verification enabled
@@ -329,7 +346,9 @@ class RemoteFetcher:
                         logger.error(f"Invalid JSON and TOML in {url}: {e}")
                         return None
                 else:
-                    logger.error(f"Content is not JSON and TOML library not available: {url}")
+                    logger.error(
+                        f"Content is not JSON and TOML library not available: {url}"
+                    )
                     return None
 
             return config
@@ -364,11 +383,11 @@ class RemoteFetcher:
 
         try:
             # Load cache metadata and content
-            with open(cache_file, 'r') as f:
+            with open(cache_file, "r") as f:
                 cache_data = json.load(f)
 
-            cached_at = cache_data.get('cached_at', 0)
-            cached_config = cache_data.get('config', {})
+            cached_at = cache_data.get("cached_at", 0)
+            cached_config = cache_data.get("config", {})
 
             # Calculate cache age
             now = time.time()
@@ -394,13 +413,13 @@ class RemoteFetcher:
 
             # Create cache data with metadata
             cache_data = {
-                'url': url,
-                'cached_at': time.time(),
-                'config': config,
+                "url": url,
+                "cached_at": time.time(),
+                "config": config,
             }
 
             # Write to cache
-            with open(cache_file, 'w') as f:
+            with open(cache_file, "w") as f:
                 json.dump(cache_data, f, indent=2)
 
             logger.debug(f"Saved cache for {url}")
@@ -422,9 +441,9 @@ class RemoteFetcher:
         url_hash = hashlib.sha256(url.encode()).hexdigest()[:16]
 
         # Use first part of URL as readable prefix
-        url_parts = url.split('//')
+        url_parts = url.split("//")
         if len(url_parts) > 1:
-            domain = url_parts[1].split('/')[0].replace(':', '_').replace('.', '_')
+            domain = url_parts[1].split("/")[0].replace(":", "_").replace(".", "_")
         else:
             domain = "unknown"
 
@@ -462,32 +481,34 @@ class RemoteFetcher:
             dict: Cache statistics
         """
         stats = {
-            'cache_dir': str(self.cache_dir),
-            'total_cached': 0,
-            'cache_files': [],
+            "cache_dir": str(self.cache_dir),
+            "total_cached": 0,
+            "cache_files": [],
         }
 
         try:
             for cache_file in self.cache_dir.glob("*.json"):
-                stats['total_cached'] += 1
+                stats["total_cached"] += 1
 
                 # Load cache metadata
-                with open(cache_file, 'r') as f:
+                with open(cache_file, "r") as f:
                     cache_data = json.load(f)
 
-                cached_at = cache_data.get('cached_at', 0)
-                url = cache_data.get('url', 'unknown')
+                cached_at = cache_data.get("cached_at", 0)
+                url = cache_data.get("url", "unknown")
 
                 # Calculate age
                 now = time.time()
                 age_hours = (now - cached_at) / 3600.0
 
-                stats['cache_files'].append({
-                    'url': url,
-                    'cached_at': cached_at,
-                    'age_hours': age_hours,
-                    'file': str(cache_file),
-                })
+                stats["cache_files"].append(
+                    {
+                        "url": url,
+                        "cached_at": cached_at,
+                        "age_hours": age_hours,
+                        "file": str(cache_file),
+                    }
+                )
 
         except Exception as e:
             logger.error(f"Error getting cache stats: {e}")

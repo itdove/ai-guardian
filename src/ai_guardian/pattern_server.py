@@ -16,14 +16,13 @@ This is a generic implementation that can work with any pattern server
 implementing a compatible API.
 """
 
-import json
 import logging
 import os
 import sys
 import time
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Optional, Tuple, Dict, Any
+from typing import Optional, Dict, Any
 
 from ai_guardian.config_utils import get_cache_dir, is_feature_enabled
 
@@ -31,6 +30,7 @@ logger = logging.getLogger(__name__)
 
 try:
     import requests
+
     HAS_REQUESTS = True
 except ImportError:
     HAS_REQUESTS = False
@@ -101,7 +101,9 @@ class PatternServerClient:
         self.base_url = config.get("url")
 
         # Get endpoint - use config value or default for pattern type
-        default_endpoint = self.DEFAULT_ENDPOINTS.get(pattern_type, f"/patterns/{pattern_type}/v1")
+        default_endpoint = self.DEFAULT_ENDPOINTS.get(
+            pattern_type, f"/patterns/{pattern_type}/v1"
+        )
         self.patterns_endpoint = config.get("patterns_endpoint", default_endpoint)
 
         # Warning configuration - enabled by default, can be disabled
@@ -110,18 +112,28 @@ class PatternServerClient:
         # Auth configuration
         auth_config = config.get("auth", {})
         self.token_env = auth_config.get("token_env", "AI_GUARDIAN_PATTERN_TOKEN")
-        self.token_file = Path(auth_config.get("token_file", "~/.config/ai-guardian/pattern-token")).expanduser()
+        self.token_file = Path(
+            auth_config.get("token_file", "~/.config/ai-guardian/pattern-token")
+        ).expanduser()
 
         # Cache configuration
         cache_config = config.get("cache", {})
 
         # Get cache path - use config value or default for pattern type
-        default_cache_file = self.DEFAULT_CACHE_FILES.get(pattern_type, f"{pattern_type}-patterns.toml")
+        default_cache_file = self.DEFAULT_CACHE_FILES.get(
+            pattern_type, f"{pattern_type}-patterns.toml"
+        )
         default_cache_path = str(get_cache_dir() / default_cache_file)
-        self.cache_path = Path(cache_config.get("path", default_cache_path)).expanduser()
+        self.cache_path = Path(
+            cache_config.get("path", default_cache_path)
+        ).expanduser()
 
-        self.refresh_interval = cache_config.get("refresh_interval_hours", 12) * 3600  # hours to seconds
-        self.expire_after = cache_config.get("expire_after_hours", 168) * 3600  # hours to seconds
+        self.refresh_interval = (
+            cache_config.get("refresh_interval_hours", 12) * 3600
+        )  # hours to seconds
+        self.expire_after = (
+            cache_config.get("expire_after_hours", 168) * 3600
+        )  # hours to seconds
 
     def get_patterns_path(self) -> Optional[Path]:
         """
@@ -134,7 +146,9 @@ class PatternServerClient:
         parse it themselves (e.g., Gitleaks). For parsed patterns, use get_patterns().
         """
         # Check if pattern server is enabled (supports time-based disabling)
-        if not is_feature_enabled(self.enabled_config, datetime.now(timezone.utc), default=False):
+        if not is_feature_enabled(
+            self.enabled_config, datetime.now(timezone.utc), default=False
+        ):
             logger.debug("Pattern server is disabled or temporarily disabled")
             return None
 
@@ -179,7 +193,9 @@ class PatternServerClient:
 
         # Parse TOML file
         if not HAS_TOML:
-            logger.warning(f"TOML library not available, cannot parse {self.pattern_type} patterns")
+            logger.warning(
+                f"TOML library not available, cannot parse {self.pattern_type} patterns"
+            )
             return None
 
         try:
@@ -187,12 +203,17 @@ class PatternServerClient:
             with open(patterns_path, "rb") as f:
                 patterns = tomllib.load(f)
 
-            logger.debug(f"Successfully parsed {self.pattern_type} patterns from {patterns_path}")
+            logger.debug(
+                f"Successfully parsed {self.pattern_type} patterns from {patterns_path}"
+            )
             return patterns
 
         except Exception as e:
-            logger.error(f"Error parsing {self.pattern_type} patterns from {patterns_path}: {e}")
+            logger.error(
+                f"Error parsing {self.pattern_type} patterns from {patterns_path}: {e}"
+            )
             import traceback
+
             logger.debug(traceback.format_exc())
             return None
 
@@ -260,25 +281,37 @@ class PatternServerClient:
                 headers["Authorization"] = f"Bearer {token}"
                 logger.debug("Using authentication for pattern server")
             else:
-                logger.debug("No authentication token - attempting unauthenticated request")
+                logger.debug(
+                    "No authentication token - attempting unauthenticated request"
+                )
 
             # Security: Enforce HTTPS for pattern server (reject http://)
             if url.startswith("http://"):
-                logger.error(f"HTTP URLs not allowed for pattern server (use HTTPS): {url}")
+                logger.error(
+                    f"HTTP URLs not allowed for pattern server (use HTTPS): {url}"
+                )
                 return False
 
-            logger.info(f"Fetching {self.pattern_type} patterns from pattern server: {self.base_url}")
+            logger.info(
+                f"Fetching {self.pattern_type} patterns from pattern server: {self.base_url}"
+            )
 
             # Fetch patterns with TLS verification enabled
             response = requests.get(url, headers=headers, timeout=10, verify=True)
 
             if response.status_code == 401:
                 if token:
-                    logger.error("Pattern server authentication failed (401 Unauthorized)")
+                    logger.error(
+                        "Pattern server authentication failed (401 Unauthorized)"
+                    )
                     logger.info("Please check your authentication token")
                 else:
-                    logger.error("Pattern server requires authentication but no token configured")
-                    logger.info(f"Set token via environment variable: export {self.token_env}='your-token'")
+                    logger.error(
+                        "Pattern server requires authentication but no token configured"
+                    )
+                    logger.info(
+                        f"Set token via environment variable: export {self.token_env}='your-token'"
+                    )
                     logger.info(f"Or save to file: {self.token_file}")
                 return False
             elif response.status_code == 403:
@@ -302,7 +335,9 @@ class PatternServerClient:
             self.cache_path.parent.mkdir(parents=True, exist_ok=True)
             self.cache_path.write_text(response.text)
 
-            logger.info(f"Successfully fetched and cached {self.pattern_type} patterns to {self.cache_path}")
+            logger.info(
+                f"Successfully fetched and cached {self.pattern_type} patterns to {self.cache_path}"
+            )
             return True
 
         except requests.exceptions.Timeout:
@@ -314,6 +349,7 @@ class PatternServerClient:
         except Exception as e:
             logger.error(f"Error fetching patterns: {e}")
             import traceback
+
             logger.debug(traceback.format_exc())
             return False
 

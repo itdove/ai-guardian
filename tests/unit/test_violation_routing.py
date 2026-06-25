@@ -22,6 +22,7 @@ class TestCategoryViolationRouting:
 
     def _call_log_finding(self, category, rule_id="test-rule", engine="toml-patterns"):
         from ai_guardian.hook_processing import _log_finding_violation
+
         mock_logger = MagicMock()
         details = {
             "rule_id": rule_id,
@@ -58,7 +59,9 @@ class TestCategoryViolationRouting:
         assert call_kwargs.kwargs["violation_type"] == ViolationType.SECRET_DETECTED
 
     def test_prompt_injection_category_routes_correctly(self):
-        mock_logger = self._call_log_finding("prompt_injection", rule_id="pi-critical-001")
+        mock_logger = self._call_log_finding(
+            "prompt_injection", rule_id="pi-critical-001"
+        )
         call_kwargs = mock_logger.log_violation.call_args
         assert call_kwargs.kwargs["violation_type"] == ViolationType.PROMPT_INJECTION
 
@@ -68,7 +71,9 @@ class TestCategoryViolationRouting:
         assert call_kwargs.kwargs["violation_type"] == ViolationType.PROMPT_INJECTION
 
     def test_config_exfil_category_routes_correctly(self):
-        mock_logger = self._call_log_finding("config_exfil", rule_id="curl_with_env_vars")
+        mock_logger = self._call_log_finding(
+            "config_exfil", rule_id="curl_with_env_vars"
+        )
         call_kwargs = mock_logger.log_violation.call_args
         assert call_kwargs.kwargs["violation_type"] == ViolationType.CONFIG_FILE_EXFIL
 
@@ -93,18 +98,24 @@ class TestSecretDetectionReasonString:
 
     def test_reason_uses_engine_name(self):
         from ai_guardian.hook_processing import _log_secret_detection_violation
+
         mock_logger = MagicMock()
         details = {"rule_id": "test", "engine": "toml-patterns"}
-        _log_secret_detection_violation("test.py", {}, details, violation_logger=mock_logger)
+        _log_secret_detection_violation(
+            "test.py", {}, details, violation_logger=mock_logger
+        )
         blocked = mock_logger.log_violation.call_args.kwargs["blocked"]
         assert "toml-patterns" in blocked["reason"]
         assert "Gitleaks" not in blocked["reason"]
 
     def test_reason_defaults_to_gitleaks(self):
         from ai_guardian.hook_processing import _log_secret_detection_violation
+
         mock_logger = MagicMock()
         details = {"rule_id": "test"}
-        _log_secret_detection_violation("test.py", {}, details, violation_logger=mock_logger)
+        _log_secret_detection_violation(
+            "test.py", {}, details, violation_logger=mock_logger
+        )
         blocked = mock_logger.log_violation.call_args.kwargs["blocked"]
         assert "Gitleaks" in blocked["reason"]
 
@@ -137,8 +148,16 @@ class TestErrorBannerCategoryAware:
 
     def _build(self, category, rule_id="test-rule"):
         from ai_guardian.hook_processing import _build_secret_detected_message
-        details = {"rule_id": rule_id, "file": "test.py", "line_number": 1, "category": category}
-        return _build_secret_detected_message("toml-patterns", details, "Built-in rules")
+
+        details = {
+            "rule_id": rule_id,
+            "file": "test.py",
+            "line_number": 1,
+            "category": category,
+        }
+        return _build_secret_detected_message(
+            "toml-patterns", details, "Built-in rules"
+        )
 
     def test_pii_banner_title(self):
         msg = self._build("pii", "pii-ssn")

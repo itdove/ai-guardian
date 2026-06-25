@@ -51,15 +51,13 @@ def create_directory_rules_page(service, daemon_name: str):
     create_header(daemon_name)
 
     with ui.row().classes("w-full min-h-screen no-wrap"):
-        create_sidebar(
-            daemon_name, current=f"/{daemon_name}/directory-rules"
-        )
+        create_sidebar(daemon_name, current=f"/{daemon_name}/directory-rules")
 
         with ui.column().classes("flex-grow p-6 gap-4"):
             ui.label("Directory Rules").classes("text-2xl font-bold")
-            ui.label(
-                "Control which file paths AI agents can access."
-            ).classes("text-xs text-grey-6")
+            ui.label("Control which file paths AI agents can access.").classes(
+                "text-xs text-grey-6"
+            )
 
             content = ui.column().classes("w-full gap-4")
 
@@ -69,7 +67,9 @@ def create_directory_rules_page(service, daemon_name: str):
 
                 with content:
                     dr = config.get("directory_rules", {})
-                    action = dr.get("action", "block") if isinstance(dr, dict) else "block"
+                    action = (
+                        dr.get("action", "block") if isinstance(dr, dict) else "block"
+                    )
 
                     # Action dropdown
                     with ui.card().classes("w-full"):
@@ -91,7 +91,9 @@ def create_directory_rules_page(service, daemon_name: str):
 
                         async def save_action(e):
                             cfg = await run.io_bound(load_web_config)
-                            if "directory_rules" not in cfg or not isinstance(cfg["directory_rules"], dict):
+                            if "directory_rules" not in cfg or not isinstance(
+                                cfg["directory_rules"], dict
+                            ):
                                 cfg["directory_rules"] = {}
                             cfg["directory_rules"]["action"] = e.value
                             await run.io_bound(save_web_config, cfg)
@@ -109,10 +111,13 @@ def create_directory_rules_page(service, daemon_name: str):
                         editable = _get_editable_rules(config)
                         rules_text = json.dumps(editable, indent=2)
 
-                        editor = ui.textarea(
-                            value=rules_text,
-                        ).props("outlined autogrow").classes("w-full").style(
-                            "font-family: monospace; min-height: 200px"
+                        editor = (
+                            ui.textarea(
+                                value=rules_text,
+                            )
+                            .props("outlined autogrow")
+                            .classes("w-full")
+                            .style("font-family: monospace; min-height: 200px")
                         )
 
                         status_label = ui.label(
@@ -125,7 +130,9 @@ def create_directory_rules_page(service, daemon_name: str):
                                 status_label.text = err
                                 status_label.classes(replace="text-xs text-red")
                             else:
-                                status_label.text = f"Valid JSON — {len(parsed)} rule(s)"
+                                status_label.text = (
+                                    f"Valid JSON — {len(parsed)} rule(s)"
+                                )
                                 status_label.classes(replace="text-xs text-green")
 
                         editor.on("update:model-value", on_edit)
@@ -139,7 +146,9 @@ def create_directory_rules_page(service, daemon_name: str):
                                     return
                                 cfg = await run.io_bound(load_web_config)
                                 preserved = _get_preserved_rules(cfg)
-                                if "directory_rules" not in cfg or not isinstance(cfg["directory_rules"], dict):
+                                if "directory_rules" not in cfg or not isinstance(
+                                    cfg["directory_rules"], dict
+                                ):
                                     cfg["directory_rules"] = {}
                                 cfg["directory_rules"]["rules"] = preserved + parsed
                                 await run.io_bound(save_web_config, cfg)
@@ -152,9 +161,9 @@ def create_directory_rules_page(service, daemon_name: str):
                                 await refresh()
                                 ui.notify("Rules reloaded", type="positive")
 
-                            ui.button(
-                                "Save", icon="save", on_click=save_rules
-                            ).props("dense")
+                            ui.button("Save", icon="save", on_click=save_rules).props(
+                                "dense"
+                            )
                             ui.button(
                                 "Reload", icon="refresh", on_click=reload_rules
                             ).props("dense flat")
@@ -173,10 +182,10 @@ def create_directory_rules_page(service, daemon_name: str):
                             ui.label(f"  {line}").classes("text-xs text-grey-6")
                         ui.label("Example:").classes("text-xs text-grey-6 mt-1")
                         ui.code(
-                            '[\n'
+                            "[\n"
                             '  {"mode": "deny", "paths": ["~/.ssh/**"]},\n'
                             '  {"mode": "allow", "paths": ["~/projects/**"]}\n'
-                            ']',
+                            "]",
                             language="json",
                         ).classes("text-xs")
 

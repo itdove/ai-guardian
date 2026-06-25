@@ -12,6 +12,7 @@ pytest.importorskip("nicegui", reason="NiceGUI requires Python >= 3.10")
 # Import / existence tests
 # ---------------------------------------------------------------------------
 
+
 class TestPageImports:
     """Verify each Phase 2 page module imports and exposes its create function."""
 
@@ -19,52 +20,62 @@ class TestPageImports:
         from ai_guardian.web.pages.permission_rules import (
             create_permission_rules_page,
         )
+
         assert callable(create_permission_rules_page)
 
     def test_skills_page_exists(self):
         from ai_guardian.web.pages.skills import create_skills_page
+
         assert callable(create_skills_page)
 
     def test_mcp_servers_page_exists(self):
         from ai_guardian.web.pages.mcp_servers import create_mcp_servers_page
+
         assert callable(create_mcp_servers_page)
 
     def test_mcp_security_page_exists(self):
         from ai_guardian.web.pages.mcp_security import create_mcp_security_page
+
         assert callable(create_mcp_security_page)
 
     def test_permissions_discovery_page_exists(self):
         from ai_guardian.web.pages.permissions_discovery import (
             create_permissions_discovery_page,
         )
+
         assert callable(create_permissions_discovery_page)
 
     def test_directory_rules_page_exists(self):
         from ai_guardian.web.pages.directory_rules import (
             create_directory_rules_page,
         )
+
         assert callable(create_directory_rules_page)
 
     def test_secrets_page_exists(self):
         from ai_guardian.web.pages.secrets import create_secrets_page
+
         assert callable(create_secrets_page)
 
     def test_secret_engines_page_exists(self):
         from ai_guardian.web.pages.secret_engines import (
             create_secret_engines_page,
         )
+
         assert callable(create_secret_engines_page)
 
     def test_secret_redaction_page_exists(self):
         from ai_guardian.web.pages.secret_redaction import (
             create_secret_redaction_page,
         )
+
         assert callable(create_secret_redaction_page)
 
 
 # ---------------------------------------------------------------------------
 # Route / sidebar consistency
 # ---------------------------------------------------------------------------
+
 
 class TestRouteSidebarConsistency:
     """Verify every Phase 2 route path appears in the sidebar and app."""
@@ -108,32 +119,29 @@ class TestRouteSidebarConsistency:
         from ai_guardian.web.components.header import NAV_GROUPS
 
         all_suffixes = [
-            suffix
-            for _group, items in NAV_GROUPS
-            for _label, suffix in items
+            suffix for _group, items in NAV_GROUPS for _label, suffix in items
         ]
         for route in self.SIDEBAR_ROUTES:
-            assert route in all_suffixes, (
-                f"Route {route} not found in sidebar navigation"
-            )
+            assert (
+                route in all_suffixes
+            ), f"Route {route} not found in sidebar navigation"
 
     def test_skills_route_not_in_sidebar(self):
         """Skills route should NOT be in sidebar (consolidated)."""
         from ai_guardian.web.components.header import NAV_GROUPS
 
         all_suffixes = [
-            suffix
-            for _group, items in NAV_GROUPS
-            for _label, suffix in items
+            suffix for _group, items in NAV_GROUPS for _label, suffix in items
         ]
-        assert "/skills" not in all_suffixes, (
-            "Legacy /skills route should not appear in sidebar"
-        )
+        assert (
+            "/skills" not in all_suffixes
+        ), "Legacy /skills route should not appear in sidebar"
 
 
 # ---------------------------------------------------------------------------
 # Permission Rules config logic (consolidated page)
 # ---------------------------------------------------------------------------
+
 
 class TestPermissionRulesConfigLogic:
     def test_get_all_rules_empty(self):
@@ -233,9 +241,7 @@ class TestPermissionRulesConfigLogic:
         assert _parse_duration("30m") == timedelta(minutes=30)
         assert _parse_duration("2h") == timedelta(hours=2)
         assert _parse_duration("1d") == timedelta(days=1)
-        assert _parse_duration("1d2h30m") == timedelta(
-            days=1, hours=2, minutes=30
-        )
+        assert _parse_duration("1d2h30m") == timedelta(days=1, hours=2, minutes=30)
 
     def test_parse_duration_plain_number(self):
         from ai_guardian.web.pages.permission_rules import _parse_duration
@@ -315,6 +321,7 @@ class TestPermissionRulesConfigLogic:
 # Skills config logic (legacy — still tested for backward compat)
 # ---------------------------------------------------------------------------
 
+
 class TestSkillsConfigLogic:
     def test_get_skill_patterns_empty(self):
         from ai_guardian.web.pages.skills import _get_skill_patterns
@@ -382,6 +389,7 @@ class TestSkillsConfigLogic:
 # MCP Servers config logic
 # ---------------------------------------------------------------------------
 
+
 class TestMCPServersConfigLogic:
     def test_get_mcp_rules_empty(self):
         from ai_guardian.web.pages.mcp_servers import _get_mcp_rules
@@ -409,6 +417,7 @@ class TestMCPServersConfigLogic:
 # ---------------------------------------------------------------------------
 # Directory Rules validation
 # ---------------------------------------------------------------------------
+
 
 class TestDirectoryRulesValidation:
     def test_validate_valid_rules(self):
@@ -443,9 +452,7 @@ class TestDirectoryRulesValidation:
     def test_validate_invalid_mode(self):
         from ai_guardian.web.pages.directory_rules import _validate_rules_json
 
-        parsed, err = _validate_rules_json(
-            '[{"mode": "maybe", "paths": ["/tmp"]}]'
-        )
+        parsed, err = _validate_rules_json('[{"mode": "maybe", "paths": ["/tmp"]}]')
         assert parsed is None
         assert "mode" in err
 
@@ -499,6 +506,7 @@ class TestDirectoryRulesValidation:
 # Secret Engines validation
 # ---------------------------------------------------------------------------
 
+
 class TestSecretEnginesValidation:
     def test_validate_simple_engines(self):
         from ai_guardian.web.pages.secret_engines import _validate_engines_json
@@ -548,6 +556,7 @@ class TestSecretEnginesValidation:
 # MCP Security audit wrapper
 # ---------------------------------------------------------------------------
 
+
 class TestMCPSecurityAudit:
     @mock.patch("ai_guardian.web.pages.mcp_security._run_audit")
     def test_run_audit_returns_tuple(self, mock_audit):
@@ -571,12 +580,16 @@ class TestMCPSecurityAudit:
 # Config load/save
 # ---------------------------------------------------------------------------
 
+
 class TestConfigLoadSave:
     def test_load_config_missing_file(self, tmp_path):
-        with mock.patch(
-            "ai_guardian.config_utils.get_config_dir", return_value=tmp_path
-        ), mock.patch(
-            "ai_guardian.config_writer.get_config_dir", return_value=tmp_path
+        with (
+            mock.patch(
+                "ai_guardian.config_utils.get_config_dir", return_value=tmp_path
+            ),
+            mock.patch(
+                "ai_guardian.config_writer.get_config_dir", return_value=tmp_path
+            ),
         ):
             from ai_guardian.web.config_helpers import load_web_config
 
@@ -586,10 +599,13 @@ class TestConfigLoadSave:
         config_file = tmp_path / "ai-guardian.json"
         config_file.write_text('{"secret_scanning": {"enabled": true}}')
 
-        with mock.patch(
-            "ai_guardian.config_utils.get_config_dir", return_value=tmp_path
-        ), mock.patch(
-            "ai_guardian.config_writer.get_config_dir", return_value=tmp_path
+        with (
+            mock.patch(
+                "ai_guardian.config_utils.get_config_dir", return_value=tmp_path
+            ),
+            mock.patch(
+                "ai_guardian.config_writer.get_config_dir", return_value=tmp_path
+            ),
         ):
             from ai_guardian.web.config_helpers import load_web_config
 
@@ -597,10 +613,13 @@ class TestConfigLoadSave:
             assert result["secret_scanning"]["enabled"] is True
 
     def test_save_config_creates_file(self, tmp_path):
-        with mock.patch(
-            "ai_guardian.config_utils.get_config_dir", return_value=tmp_path
-        ), mock.patch(
-            "ai_guardian.config_writer.get_config_dir", return_value=tmp_path
+        with (
+            mock.patch(
+                "ai_guardian.config_utils.get_config_dir", return_value=tmp_path
+            ),
+            mock.patch(
+                "ai_guardian.config_writer.get_config_dir", return_value=tmp_path
+            ),
         ):
             from ai_guardian.web.config_helpers import save_web_config
 
@@ -611,10 +630,13 @@ class TestConfigLoadSave:
             assert data["test"] is True
 
     def test_save_config_pretty_prints(self, tmp_path):
-        with mock.patch(
-            "ai_guardian.config_utils.get_config_dir", return_value=tmp_path
-        ), mock.patch(
-            "ai_guardian.config_writer.get_config_dir", return_value=tmp_path
+        with (
+            mock.patch(
+                "ai_guardian.config_utils.get_config_dir", return_value=tmp_path
+            ),
+            mock.patch(
+                "ai_guardian.config_writer.get_config_dir", return_value=tmp_path
+            ),
         ):
             from ai_guardian.web.config_helpers import save_web_config
 
@@ -628,6 +650,7 @@ class TestConfigLoadSave:
 # Secret Validation config logic (Issue #976)
 # ---------------------------------------------------------------------------
 
+
 class TestSecretValidationConfigLogic:
     """Tests for secret validation UI config read/write patterns."""
 
@@ -636,10 +659,13 @@ class TestSecretValidationConfigLogic:
         config_file = tmp_path / "ai-guardian.json"
         config_file.write_text('{"secret_scanning": {"enabled": true}}')
 
-        with mock.patch(
-            "ai_guardian.config_utils.get_config_dir", return_value=tmp_path
-        ), mock.patch(
-            "ai_guardian.config_writer.get_config_dir", return_value=tmp_path
+        with (
+            mock.patch(
+                "ai_guardian.config_utils.get_config_dir", return_value=tmp_path
+            ),
+            mock.patch(
+                "ai_guardian.config_writer.get_config_dir", return_value=tmp_path
+            ),
         ):
             from ai_guardian.web.config_helpers import load_web_config
 
@@ -652,10 +678,13 @@ class TestSecretValidationConfigLogic:
         config_file = tmp_path / "ai-guardian.json"
         config_file.write_text('{"secret_scanning": {}}')
 
-        with mock.patch(
-            "ai_guardian.config_utils.get_config_dir", return_value=tmp_path
-        ), mock.patch(
-            "ai_guardian.config_writer.get_config_dir", return_value=tmp_path
+        with (
+            mock.patch(
+                "ai_guardian.config_utils.get_config_dir", return_value=tmp_path
+            ),
+            mock.patch(
+                "ai_guardian.config_writer.get_config_dir", return_value=tmp_path
+            ),
         ):
             from ai_guardian.web.config_helpers import load_web_config, save_web_config
 
@@ -671,10 +700,13 @@ class TestSecretValidationConfigLogic:
         config_file = tmp_path / "ai-guardian.json"
         config_file.write_text('{"secret_scanning": {}}')
 
-        with mock.patch(
-            "ai_guardian.config_utils.get_config_dir", return_value=tmp_path
-        ), mock.patch(
-            "ai_guardian.config_writer.get_config_dir", return_value=tmp_path
+        with (
+            mock.patch(
+                "ai_guardian.config_utils.get_config_dir", return_value=tmp_path
+            ),
+            mock.patch(
+                "ai_guardian.config_writer.get_config_dir", return_value=tmp_path
+            ),
         ):
             from ai_guardian.web.config_helpers import load_web_config
 
@@ -687,10 +719,13 @@ class TestSecretValidationConfigLogic:
         config_file = tmp_path / "ai-guardian.json"
         config_file.write_text('{"secret_scanning": {}}')
 
-        with mock.patch(
-            "ai_guardian.config_utils.get_config_dir", return_value=tmp_path
-        ), mock.patch(
-            "ai_guardian.config_writer.get_config_dir", return_value=tmp_path
+        with (
+            mock.patch(
+                "ai_guardian.config_utils.get_config_dir", return_value=tmp_path
+            ),
+            mock.patch(
+                "ai_guardian.config_writer.get_config_dir", return_value=tmp_path
+            ),
         ):
             from ai_guardian.web.config_helpers import load_web_config, save_web_config
 
@@ -706,10 +741,13 @@ class TestSecretValidationConfigLogic:
         config_file = tmp_path / "ai-guardian.json"
         config_file.write_text('{"secret_scanning": {}}')
 
-        with mock.patch(
-            "ai_guardian.config_utils.get_config_dir", return_value=tmp_path
-        ), mock.patch(
-            "ai_guardian.config_writer.get_config_dir", return_value=tmp_path
+        with (
+            mock.patch(
+                "ai_guardian.config_utils.get_config_dir", return_value=tmp_path
+            ),
+            mock.patch(
+                "ai_guardian.config_writer.get_config_dir", return_value=tmp_path
+            ),
         ):
             from ai_guardian.web.config_helpers import load_web_config
 
@@ -722,10 +760,13 @@ class TestSecretValidationConfigLogic:
         config_file = tmp_path / "ai-guardian.json"
         config_file.write_text('{"secret_scanning": {}}')
 
-        with mock.patch(
-            "ai_guardian.config_utils.get_config_dir", return_value=tmp_path
-        ), mock.patch(
-            "ai_guardian.config_writer.get_config_dir", return_value=tmp_path
+        with (
+            mock.patch(
+                "ai_guardian.config_utils.get_config_dir", return_value=tmp_path
+            ),
+            mock.patch(
+                "ai_guardian.config_writer.get_config_dir", return_value=tmp_path
+            ),
         ):
             from ai_guardian.web.config_helpers import load_web_config, save_web_config
 
@@ -739,18 +780,25 @@ class TestSecretValidationConfigLogic:
     def test_validation_fields_preserve_other_config(self, tmp_path):
         """Saving validation fields does not clobber existing config."""
         config_file = tmp_path / "ai-guardian.json"
-        config_file.write_text(json.dumps({
-            "secret_scanning": {
-                "enabled": True,
-                "allowlist_patterns": ["pk_test_.*"],
-                "pattern_server": {"enabled": False},
-            }
-        }))
+        config_file.write_text(
+            json.dumps(
+                {
+                    "secret_scanning": {
+                        "enabled": True,
+                        "allowlist_patterns": ["pk_test_.*"],
+                        "pattern_server": {"enabled": False},
+                    }
+                }
+            )
+        )
 
-        with mock.patch(
-            "ai_guardian.config_utils.get_config_dir", return_value=tmp_path
-        ), mock.patch(
-            "ai_guardian.config_writer.get_config_dir", return_value=tmp_path
+        with (
+            mock.patch(
+                "ai_guardian.config_utils.get_config_dir", return_value=tmp_path
+            ),
+            mock.patch(
+                "ai_guardian.config_writer.get_config_dir", return_value=tmp_path
+            ),
         ):
             from ai_guardian.web.config_helpers import load_web_config, save_web_config
 
@@ -773,10 +821,13 @@ class TestSecretValidationConfigLogic:
 
     def test_validation_fields_in_empty_config(self, tmp_path):
         """Saving validation fields works when starting from empty config."""
-        with mock.patch(
-            "ai_guardian.config_utils.get_config_dir", return_value=tmp_path
-        ), mock.patch(
-            "ai_guardian.config_writer.get_config_dir", return_value=tmp_path
+        with (
+            mock.patch(
+                "ai_guardian.config_utils.get_config_dir", return_value=tmp_path
+            ),
+            mock.patch(
+                "ai_guardian.config_writer.get_config_dir", return_value=tmp_path
+            ),
         ):
             from ai_guardian.web.config_helpers import load_web_config, save_web_config
 

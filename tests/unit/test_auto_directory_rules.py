@@ -12,7 +12,7 @@ from unittest.mock import patch, MagicMock
 
 from ai_guardian.directory_rule_generator import (
     DirectoryRuleGenerator,
-    insert_generated_rules
+    insert_generated_rules,
 )
 
 
@@ -23,9 +23,7 @@ class TestDirectoryRuleGenerator:
         """Auto-generation should be disabled by default."""
         config = {
             "permissions": {
-                "rules": [
-                    {"matcher": "Skill", "mode": "allow", "patterns": ["daf-*"]}
-                ]
+                "rules": [{"matcher": "Skill", "mode": "allow", "patterns": ["daf-*"]}]
             }
         }
 
@@ -37,10 +35,7 @@ class TestDirectoryRuleGenerator:
     def test_generation_enabled_but_no_permissions(self):
         """Should return empty if enabled but no skill permissions."""
         config = {
-            "permissions": {
-                "auto_directory_rules": {"enabled": True},
-                "rules": []
-            }
+            "permissions": {"auto_directory_rules": {"enabled": True}, "rules": []}
         }
 
         generator = DirectoryRuleGenerator(config)
@@ -48,9 +43,9 @@ class TestDirectoryRuleGenerator:
 
         assert rules == []
 
-    @patch('ai_guardian.directory_rule_generator.Path.exists')
-    @patch('ai_guardian.directory_rule_generator.Path.is_dir')
-    @patch('ai_guardian.directory_rule_generator.Path.iterdir')
+    @patch("ai_guardian.directory_rule_generator.Path.exists")
+    @patch("ai_guardian.directory_rule_generator.Path.is_dir")
+    @patch("ai_guardian.directory_rule_generator.Path.iterdir")
     def test_basic_generation(self, mock_iterdir, mock_is_dir, mock_exists):
         """Should generate rules for matching skills."""
         # Mock skill directory
@@ -73,9 +68,7 @@ class TestDirectoryRuleGenerator:
         config = {
             "permissions": {
                 "auto_directory_rules": {"enabled": True},
-                "rules": [
-                    {"matcher": "Skill", "mode": "allow", "patterns": ["daf-*"]}
-                ]
+                "rules": [{"matcher": "Skill", "mode": "allow", "patterns": ["daf-*"]}],
             }
         }
 
@@ -98,9 +91,7 @@ class TestDirectoryRuleGenerator:
         config = {
             "permissions": {
                 "auto_directory_rules": {"enabled": True},
-                "rules": [
-                    {"matcher": "Skill", "mode": "allow", "patterns": ["*"]}
-                ]
+                "rules": [{"matcher": "Skill", "mode": "allow", "patterns": ["*"]}],
             }
         }
 
@@ -115,9 +106,13 @@ class TestDirectoryRuleGenerator:
         config = {
             "permissions": {
                 "rules": [
-                    {"matcher": "Skill", "mode": "allow", "patterns": ["daf-*", "gh-cli"]},
+                    {
+                        "matcher": "Skill",
+                        "mode": "allow",
+                        "patterns": ["daf-*", "gh-cli"],
+                    },
                     {"matcher": "Skill", "mode": "deny", "patterns": ["dangerous-*"]},
-                    {"matcher": "Bash", "mode": "allow", "patterns": ["*"]}
+                    {"matcher": "Bash", "mode": "allow", "patterns": ["*"]},
                 ]
             }
         }
@@ -137,7 +132,7 @@ class TestDirectoryRuleGenerator:
             "daf-git": [Path("~/.claude/skills/daf-git")],
             "daf-jira": [Path("~/.claude/skills/daf-jira")],
             "gh-cli": [Path("~/.claude/skills/gh-cli")],
-            "other-skill": [Path("~/.claude/skills/other-skill")]
+            "other-skill": [Path("~/.claude/skills/other-skill")],
         }
 
         patterns = ["daf-*", "gh-cli"]
@@ -150,9 +145,9 @@ class TestDirectoryRuleGenerator:
         assert "gh-cli" in matching
         assert "other-skill" not in matching
 
-    @patch('ai_guardian.directory_rule_generator.Path.exists')
-    @patch('ai_guardian.directory_rule_generator.Path.is_dir')
-    @patch('ai_guardian.directory_rule_generator.Path.iterdir')
+    @patch("ai_guardian.directory_rule_generator.Path.exists")
+    @patch("ai_guardian.directory_rule_generator.Path.is_dir")
+    @patch("ai_guardian.directory_rule_generator.Path.iterdir")
     def test_created_rules_structure(self, mock_iterdir, mock_is_dir, mock_exists):
         """Generated rules should have correct structure."""
         # Mock skill directory exists
@@ -175,9 +170,7 @@ class TestDirectoryRuleGenerator:
         config = {
             "permissions": {
                 "auto_directory_rules": {"enabled": True},
-                "rules": [
-                    {"matcher": "Skill", "mode": "allow", "patterns": ["daf-*"]}
-                ]
+                "rules": [{"matcher": "Skill", "mode": "allow", "patterns": ["daf-*"]}],
             }
         }
 
@@ -205,9 +198,9 @@ class TestDirectoryRuleGenerator:
                         "mode": "allow",
                         "patterns": [
                             {"pattern": "daf-*", "valid_until": "2099-12-31T23:59:59Z"}
-                        ]
+                        ],
                     }
-                ]
+                ],
             }
         }
 
@@ -228,13 +221,17 @@ class TestRuleInsertion:
                 "action": "block",
                 "rules": [
                     {"mode": "deny", "paths": ["~/.ssh/**"]},
-                    {"mode": "allow", "paths": ["~/.claude/skills/user-skill/**"]}
-                ]
+                    {"mode": "allow", "paths": ["~/.claude/skills/user-skill/**"]},
+                ],
             }
         }
 
         generated = [
-            {"mode": "allow", "paths": ["~/.claude/skills/daf-git/**"], "_generated": True}
+            {
+                "mode": "allow",
+                "paths": ["~/.claude/skills/daf-git/**"],
+                "_generated": True,
+            }
         ]
 
         result = insert_generated_rules(config, generated)
@@ -250,14 +247,14 @@ class TestRuleInsertion:
 
     def test_insert_after_user_rules_legacy_format(self):
         """Should convert legacy array format to object format."""
-        config = {
-            "directory_rules": [
-                {"mode": "deny", "paths": ["~/.ssh/**"]}
-            ]
-        }
+        config = {"directory_rules": [{"mode": "deny", "paths": ["~/.ssh/**"]}]}
 
         generated = [
-            {"mode": "allow", "paths": ["~/.claude/skills/daf-git/**"], "_generated": True}
+            {
+                "mode": "allow",
+                "paths": ["~/.claude/skills/daf-git/**"],
+                "_generated": True,
+            }
         ]
 
         result = insert_generated_rules(config, generated)
@@ -287,13 +284,17 @@ class TestRuleInsertion:
                 "rules": [
                     # User broadly denies all skills
                     {"mode": "deny", "paths": ["~/.claude/skills/**"]}
-                ]
+                ],
             }
         }
 
         generated = [
             # Generated allows specific permitted skills
-            {"mode": "allow", "paths": ["~/.claude/skills/daf-git/**"], "_generated": True}
+            {
+                "mode": "allow",
+                "paths": ["~/.claude/skills/daf-git/**"],
+                "_generated": True,
+            }
         ]
 
         result = insert_generated_rules(config, generated)
@@ -313,13 +314,17 @@ class TestRuleInsertion:
                 "action": "block",
                 "rules": [
                     {"mode": "deny", "paths": ["~/.claude/skills/**"]},
-                    {"mode": "deny", "paths": ["~/.ssh/**"], "_immutable": True}
-                ]
+                    {"mode": "deny", "paths": ["~/.ssh/**"], "_immutable": True},
+                ],
             }
         }
 
         generated = [
-            {"mode": "allow", "paths": ["~/.claude/skills/daf-git/**"], "_generated": True}
+            {
+                "mode": "allow",
+                "paths": ["~/.claude/skills/daf-git/**"],
+                "_generated": True,
+            }
         ]
 
         result = insert_generated_rules(config, generated)
@@ -340,13 +345,17 @@ class TestRuleInsertion:
                 "rules": [
                     {"mode": "allow", "paths": ["~/projects/**"]},
                     {"mode": "deny", "paths": ["~/.env/**"], "_immutable": True},
-                    {"mode": "deny", "paths": ["~/.ssh/**"], "_immutable": True}
-                ]
+                    {"mode": "deny", "paths": ["~/.ssh/**"], "_immutable": True},
+                ],
             }
         }
 
         generated = [
-            {"mode": "allow", "paths": ["~/.claude/skills/daf-git/**"], "_generated": True}
+            {
+                "mode": "allow",
+                "paths": ["~/.claude/skills/daf-git/**"],
+                "_generated": True,
+            }
         ]
 
         result = insert_generated_rules(config, generated)
@@ -372,7 +381,11 @@ class TestRuleInsertion:
         """Should create directory_rules section if missing."""
         config = {}
         generated = [
-            {"mode": "allow", "paths": ["~/.claude/skills/daf-git/**"], "_generated": True}
+            {
+                "mode": "allow",
+                "paths": ["~/.claude/skills/daf-git/**"],
+                "_generated": True,
+            }
         ]
 
         result = insert_generated_rules(config, generated)
@@ -386,12 +399,16 @@ class TestRuleInsertion:
         config = {
             "directory_rules": [
                 {"mode": "deny", "paths": ["~/.claude/skills/**"]},
-                {"mode": "deny", "paths": ["~/.ssh/**"], "_immutable": True}
+                {"mode": "deny", "paths": ["~/.ssh/**"], "_immutable": True},
             ]
         }
 
         generated = [
-            {"mode": "allow", "paths": ["~/.claude/skills/daf-git/**"], "_generated": True}
+            {
+                "mode": "allow",
+                "paths": ["~/.claude/skills/daf-git/**"],
+                "_generated": True,
+            }
         ]
 
         result = insert_generated_rules(config, generated)
@@ -410,24 +427,27 @@ class TestMultiIDESupport:
         "env_var, env_value, expected_substring",
         [
             pytest.param(
-                "CLAUDE_CONFIG_DIR", "/custom/claude",
+                "CLAUDE_CONFIG_DIR",
+                "/custom/claude",
                 "/custom/claude/skills",
                 id="CLAUDE_CONFIG_DIR",
             ),
             pytest.param(
-                "CURSOR_PROJECT_PATH", "/workspace/project",
+                "CURSOR_PROJECT_PATH",
+                "/workspace/project",
                 "/workspace/project/.cursor/skills",
                 id="CURSOR_PROJECT_PATH",
             ),
             pytest.param(
-                "VSCODE_CWD", "/workspace/vscode",
+                "VSCODE_CWD",
+                "/workspace/vscode",
                 "/workspace/vscode/.vscode/skills",
                 id="VSCODE_CWD",
             ),
         ],
     )
-    @patch('ai_guardian.directory_rule_generator.Path.is_dir')
-    @patch('ai_guardian.directory_rule_generator.Path.exists')
+    @patch("ai_guardian.directory_rule_generator.Path.is_dir")
+    @patch("ai_guardian.directory_rule_generator.Path.exists")
     def test_ide_env_var_skill_directory(
         self, mock_exists, mock_is_dir, env_var, env_value, expected_substring
     ):
@@ -441,14 +461,14 @@ class TestMultiIDESupport:
             }
         }
 
-        with patch.dict('os.environ', {env_var: env_value}):
+        with patch.dict("os.environ", {env_var: env_value}):
             generator = DirectoryRuleGenerator(config)
             dirs = generator._get_skill_directories({"skill_directories": "auto"})
 
         assert any(expected_substring.replace("/", os.sep) in str(d) for d in dirs)
 
-    @patch('ai_guardian.directory_rule_generator.Path.is_dir')
-    @patch('ai_guardian.directory_rule_generator.Path.exists')
+    @patch("ai_guardian.directory_rule_generator.Path.is_dir")
+    @patch("ai_guardian.directory_rule_generator.Path.exists")
     def test_all_ide_directories_included(self, mock_exists, mock_is_dir):
         """Should scan all IDE skill directories by default."""
         # Mock all paths as existing
@@ -473,8 +493,8 @@ class TestMultiIDESupport:
         assert any(".vscode/skills" in d for d in all_dirs)
         assert any(".windsurf/skills" in d for d in all_dirs)
 
-    @patch('ai_guardian.directory_rule_generator.Path.is_dir')
-    @patch('ai_guardian.directory_rule_generator.Path.exists')
+    @patch("ai_guardian.directory_rule_generator.Path.is_dir")
+    @patch("ai_guardian.directory_rule_generator.Path.exists")
     def test_explicit_skill_directories_override(self, mock_exists, mock_is_dir):
         """Should use explicit directories when configured."""
         # Mock all paths as existing
@@ -485,15 +505,18 @@ class TestMultiIDESupport:
             "permissions": {
                 "auto_directory_rules": {
                     "enabled": True,
-                    "skill_directories": ["/custom/path/skills", "/another/path/skills"]
+                    "skill_directories": [
+                        "/custom/path/skills",
+                        "/another/path/skills",
+                    ],
                 }
             }
         }
 
         generator = DirectoryRuleGenerator(config)
-        dirs = generator._get_skill_directories({
-            "skill_directories": ["/custom/path/skills", "/another/path/skills"]
-        })
+        dirs = generator._get_skill_directories(
+            {"skill_directories": ["/custom/path/skills", "/another/path/skills"]}
+        )
 
         # Should only include explicit paths
         assert len(dirs) == 2
@@ -517,14 +540,20 @@ class TestPluginCacheDiscovery:
             "permissions": {
                 "auto_directory_rules": {"enabled": True},
                 "rules": [
-                    {"matcher": "Skill", "mode": "allow", "patterns": ["bugfix-workflow", "code-review"]}
-                ]
+                    {
+                        "matcher": "Skill",
+                        "mode": "allow",
+                        "patterns": ["bugfix-workflow", "code-review"],
+                    }
+                ],
             }
         }
 
         generator = DirectoryRuleGenerator(config)
 
-        with patch('ai_guardian.directory_rule_generator.Path.home', return_value=tmp_path):
+        with patch(
+            "ai_guardian.directory_rule_generator.Path.home", return_value=tmp_path
+        ):
             rules = generator.generate_directory_rules()
 
         assert len(rules) > 0
@@ -540,11 +569,9 @@ class TestPluginCacheDiscovery:
             "permissions": {
                 "auto_directory_rules": {
                     "enabled": True,
-                    "skill_directories": [str(cache_dir)]
+                    "skill_directories": [str(cache_dir)],
                 },
-                "rules": [
-                    {"matcher": "Skill", "mode": "allow", "patterns": ["*"]}
-                ]
+                "rules": [{"matcher": "Skill", "mode": "allow", "patterns": ["*"]}],
             }
         }
 
@@ -561,11 +588,9 @@ class TestPluginCacheDiscovery:
             "permissions": {
                 "auto_directory_rules": {
                     "enabled": True,
-                    "skill_directories": [str(missing_dir)]
+                    "skill_directories": [str(missing_dir)],
                 },
-                "rules": [
-                    {"matcher": "Skill", "mode": "allow", "patterns": ["*"]}
-                ]
+                "rules": [{"matcher": "Skill", "mode": "allow", "patterns": ["*"]}],
             }
         }
 
@@ -578,9 +603,9 @@ class TestPluginCacheDiscovery:
 class TestSymlinkHandling:
     """Test allow_symlinks flag for container environments (Issue #324)."""
 
-    @patch('ai_guardian.directory_rule_generator.Path.exists')
-    @patch('ai_guardian.directory_rule_generator.Path.is_dir')
-    @patch('ai_guardian.directory_rule_generator.Path.iterdir')
+    @patch("ai_guardian.directory_rule_generator.Path.exists")
+    @patch("ai_guardian.directory_rule_generator.Path.is_dir")
+    @patch("ai_guardian.directory_rule_generator.Path.iterdir")
     def test_symlinks_allowed_by_default(self, mock_iterdir, mock_is_dir, mock_exists):
         """Symlinked skills should be discovered when allow_symlinks is not set (default: true)."""
         mock_exists.return_value = True
@@ -590,7 +615,9 @@ class TestSymlinkHandling:
         mock_symlink_skill.name = "daf-git"
         mock_symlink_skill.is_symlink.return_value = True
         mock_symlink_skill.is_dir.return_value = True
-        mock_symlink_skill.resolve.return_value = MagicMock(is_dir=MagicMock(return_value=True))
+        mock_symlink_skill.resolve.return_value = MagicMock(
+            is_dir=MagicMock(return_value=True)
+        )
 
         mock_real_skill = MagicMock()
         mock_real_skill.name = "gh-cli"
@@ -603,8 +630,12 @@ class TestSymlinkHandling:
             "permissions": {
                 "auto_directory_rules": {"enabled": True},
                 "rules": [
-                    {"matcher": "Skill", "mode": "allow", "patterns": ["daf-*", "gh-cli"]}
-                ]
+                    {
+                        "matcher": "Skill",
+                        "mode": "allow",
+                        "patterns": ["daf-*", "gh-cli"],
+                    }
+                ],
             }
         }
 
@@ -615,9 +646,9 @@ class TestSymlinkHandling:
         assert any("daf-git" in str(rule) for rule in rules)
         assert any("gh-cli" in str(rule) for rule in rules)
 
-    @patch('ai_guardian.directory_rule_generator.Path.exists')
-    @patch('ai_guardian.directory_rule_generator.Path.is_dir')
-    @patch('ai_guardian.directory_rule_generator.Path.iterdir')
+    @patch("ai_guardian.directory_rule_generator.Path.exists")
+    @patch("ai_guardian.directory_rule_generator.Path.is_dir")
+    @patch("ai_guardian.directory_rule_generator.Path.iterdir")
     def test_symlinks_allowed_explicitly(self, mock_iterdir, mock_is_dir, mock_exists):
         """Symlinked skills should be discovered when allow_symlinks is explicitly true."""
         mock_exists.return_value = True
@@ -627,16 +658,16 @@ class TestSymlinkHandling:
         mock_symlink_skill.name = "daf-jira"
         mock_symlink_skill.is_symlink.return_value = True
         mock_symlink_skill.is_dir.return_value = True
-        mock_symlink_skill.resolve.return_value = MagicMock(is_dir=MagicMock(return_value=True))
+        mock_symlink_skill.resolve.return_value = MagicMock(
+            is_dir=MagicMock(return_value=True)
+        )
 
         mock_iterdir.return_value = [mock_symlink_skill]
 
         config = {
             "permissions": {
                 "auto_directory_rules": {"enabled": True, "allow_symlinks": True},
-                "rules": [
-                    {"matcher": "Skill", "mode": "allow", "patterns": ["daf-*"]}
-                ]
+                "rules": [{"matcher": "Skill", "mode": "allow", "patterns": ["daf-*"]}],
             }
         }
 
@@ -646,10 +677,12 @@ class TestSymlinkHandling:
         assert len(rules) > 0
         assert any("daf-jira" in str(rule) for rule in rules)
 
-    @patch('ai_guardian.directory_rule_generator.Path.exists')
-    @patch('ai_guardian.directory_rule_generator.Path.is_dir')
-    @patch('ai_guardian.directory_rule_generator.Path.iterdir')
-    def test_symlinks_rejected_when_disabled(self, mock_iterdir, mock_is_dir, mock_exists):
+    @patch("ai_guardian.directory_rule_generator.Path.exists")
+    @patch("ai_guardian.directory_rule_generator.Path.is_dir")
+    @patch("ai_guardian.directory_rule_generator.Path.iterdir")
+    def test_symlinks_rejected_when_disabled(
+        self, mock_iterdir, mock_is_dir, mock_exists
+    ):
         """Symlinked skills should be skipped when allow_symlinks is false."""
         mock_exists.return_value = True
         mock_is_dir.return_value = True
@@ -670,8 +703,12 @@ class TestSymlinkHandling:
             "permissions": {
                 "auto_directory_rules": {"enabled": True, "allow_symlinks": False},
                 "rules": [
-                    {"matcher": "Skill", "mode": "allow", "patterns": ["daf-*", "gh-cli"]}
-                ]
+                    {
+                        "matcher": "Skill",
+                        "mode": "allow",
+                        "patterns": ["daf-*", "gh-cli"],
+                    }
+                ],
             }
         }
 
@@ -682,10 +719,12 @@ class TestSymlinkHandling:
         assert not any("daf-git" in str(rule) for rule in rules)
         assert any("gh-cli" in str(rule) for rule in rules)
 
-    @patch('ai_guardian.directory_rule_generator.Path.exists')
-    @patch('ai_guardian.directory_rule_generator.Path.is_dir')
-    @patch('ai_guardian.directory_rule_generator.Path.iterdir')
-    def test_broken_symlinks_always_skipped(self, mock_iterdir, mock_is_dir, mock_exists):
+    @patch("ai_guardian.directory_rule_generator.Path.exists")
+    @patch("ai_guardian.directory_rule_generator.Path.is_dir")
+    @patch("ai_guardian.directory_rule_generator.Path.iterdir")
+    def test_broken_symlinks_always_skipped(
+        self, mock_iterdir, mock_is_dir, mock_exists
+    ):
         """Broken symlinks should always be skipped regardless of allow_symlinks."""
         mock_exists.return_value = True
         mock_is_dir.return_value = True
@@ -694,7 +733,9 @@ class TestSymlinkHandling:
         mock_broken_symlink.name = "broken-skill"
         mock_broken_symlink.is_symlink.return_value = True
         mock_broken_symlink.is_dir.return_value = False
-        mock_broken_symlink.resolve.return_value = MagicMock(is_dir=MagicMock(return_value=False))
+        mock_broken_symlink.resolve.return_value = MagicMock(
+            is_dir=MagicMock(return_value=False)
+        )
 
         mock_real_skill = MagicMock()
         mock_real_skill.name = "daf-git"
@@ -706,9 +747,7 @@ class TestSymlinkHandling:
         config = {
             "permissions": {
                 "auto_directory_rules": {"enabled": True, "allow_symlinks": True},
-                "rules": [
-                    {"matcher": "Skill", "mode": "allow", "patterns": ["*"]}
-                ]
+                "rules": [{"matcher": "Skill", "mode": "allow", "patterns": ["*"]}],
             }
         }
 

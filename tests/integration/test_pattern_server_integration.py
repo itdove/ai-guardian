@@ -14,7 +14,7 @@ NEW in v1.8.0: Pattern server support for enterprise pattern management.
 import pytest
 import tempfile
 from pathlib import Path
-from unittest.mock import Mock, patch, MagicMock
+from unittest.mock import patch
 
 
 class TestPatternServerClient:
@@ -24,26 +24,38 @@ class TestPatternServerClient:
         """Test that default endpoints are set correctly for each pattern type."""
         from ai_guardian.pattern_server import PatternServerClient
 
-        ssrf_client = PatternServerClient({"url": "https://example.com"}, pattern_type="ssrf")
+        ssrf_client = PatternServerClient(
+            {"url": "https://example.com"}, pattern_type="ssrf"
+        )
         assert ssrf_client.patterns_endpoint == "/patterns/ssrf/v1"
 
-        unicode_client = PatternServerClient({"url": "https://example.com"}, pattern_type="unicode")
+        unicode_client = PatternServerClient(
+            {"url": "https://example.com"}, pattern_type="unicode"
+        )
         assert unicode_client.patterns_endpoint == "/patterns/unicode/v1"
 
-        secrets_client = PatternServerClient({"url": "https://example.com"}, pattern_type="secrets")
+        secrets_client = PatternServerClient(
+            {"url": "https://example.com"}, pattern_type="secrets"
+        )
         assert secrets_client.patterns_endpoint == "/patterns/secrets/v1"
 
-        config_client = PatternServerClient({"url": "https://example.com"}, pattern_type="config-exfil")
+        config_client = PatternServerClient(
+            {"url": "https://example.com"}, pattern_type="config-exfil"
+        )
         assert config_client.patterns_endpoint == "/patterns/config-exfil/v1"
 
     def test_default_cache_files(self):
         """Test that default cache filenames are set correctly."""
         from ai_guardian.pattern_server import PatternServerClient
 
-        ssrf_client = PatternServerClient({"url": "https://example.com"}, pattern_type="ssrf")
+        ssrf_client = PatternServerClient(
+            {"url": "https://example.com"}, pattern_type="ssrf"
+        )
         assert "ssrf-patterns.toml" in str(ssrf_client.cache_path)
 
-        secrets_client = PatternServerClient({"url": "https://example.com"}, pattern_type="secrets")
+        secrets_client = PatternServerClient(
+            {"url": "https://example.com"}, pattern_type="secrets"
+        )
         assert "secrets-patterns.toml" in str(secrets_client.cache_path)
 
     def test_pattern_server_disabled_by_default(self):
@@ -58,13 +70,13 @@ class TestPatternServerClient:
         redactor = SecretRedactor({})
         assert len(redactor.compiled_patterns) > 0
 
-    @patch('ai_guardian.pattern_server.requests')
+    @patch("ai_guardian.pattern_server.requests")
     def test_fallback_to_cache_on_server_failure(self, mock_requests):
         """Test fallback to cached patterns when server is unavailable."""
         from ai_guardian.pattern_server import PatternServerClient
 
         # Create a temp cache file
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.toml', delete=False) as f:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".toml", delete=False) as f:
             f.write('[metadata]\nversion = "1.0.0"\n')
             cache_path = Path(f.name)
 
@@ -72,10 +84,7 @@ class TestPatternServerClient:
             # Simulate server failure
             mock_requests.get.side_effect = Exception("Server unavailable")
 
-            config = {
-                "url": "https://example.com",
-                "cache": {"path": str(cache_path)}
-            }
+            config = {"url": "https://example.com", "cache": {"path": str(cache_path)}}
             client = PatternServerClient(config, pattern_type="ssrf")
 
             # Should return cache path despite server failure
@@ -93,7 +102,7 @@ class TestPatternServerClient:
         config = {
             "pattern_server": {
                 "url": "https://nonexistent.example.com",
-                "cache": {"path": "/tmp/nonexistent-cache-file.toml"}
+                "cache": {"path": "/tmp/nonexistent-cache-file.toml"},
             }
         }
 
@@ -119,7 +128,9 @@ class TestPatternLoaders:
 
         # Cloud metadata should be immutable
         assert any("169.254.0.0/16" in str(r) for r in immutable["blocked_ip_ranges"])
-        assert any("metadata.google.internal" in str(d) for d in immutable["blocked_domains"])
+        assert any(
+            "metadata.google.internal" in str(d) for d in immutable["blocked_domains"]
+        )
 
     def test_ssrf_pattern_loader_defaults(self):
         """Test that SSRF loader provides RFC 1918 defaults."""
@@ -186,13 +197,11 @@ class TestThreeTierMerge:
                 {"cidr": "172.16.0.0/12", "description": "Private Class B"},
                 # Intentionally omit 10.0.0.0/8
             ],
-            "blocked_domains": []
+            "blocked_domains": [],
         }
 
         # Local config additions
-        local_config = {
-            "additional_blocked_ips": ["198.18.0.0/15"]
-        }
+        local_config = {"additional_blocked_ips": ["198.18.0.0/15"]}
 
         # Merge
         immutable = loader.get_immutable_patterns()
@@ -218,8 +227,12 @@ class TestThreeTierMerge:
         server_patterns_extend = {
             "metadata": {"override_mode": "extend"},
             "patterns": [
-                {"regex": "(new-secret-[A-Z0-9]{32})", "strategy": "preserve_prefix_suffix", "secret_type": "New Secret"}
-            ]
+                {
+                    "regex": "(new-secret-[A-Z0-9]{32})",
+                    "strategy": "preserve_prefix_suffix",
+                    "secret_type": "New Secret",
+                }
+            ],
         }
 
         merged_extend = loader.merge_patterns({}, server_patterns_extend, None)
@@ -230,8 +243,12 @@ class TestThreeTierMerge:
         server_patterns_replace = {
             "metadata": {"override_mode": "replace"},
             "patterns": [
-                {"regex": "(only-this-[A-Z0-9]{32})", "strategy": "full_redact", "secret_type": "Only This"}
-            ]
+                {
+                    "regex": "(only-this-[A-Z0-9]{32})",
+                    "strategy": "full_redact",
+                    "secret_type": "Only This",
+                }
+            ],
         }
 
         merged_replace = loader.merge_patterns({}, server_patterns_replace, None)
@@ -249,9 +266,7 @@ class TestThreeTierMerge:
         local_config = {"additional_blocked_ips": ["10.20.30.0/24"]}
 
         merged = loader.merge_patterns(
-            loader.get_immutable_patterns(),
-            server_patterns,
-            local_config
+            loader.get_immutable_patterns(), server_patterns, local_config
         )
 
         # Local should be added
@@ -270,7 +285,7 @@ class TestFeatureIntegration:
         config = {
             "pattern_server": {
                 "url": "https://patterns.example.com",
-                "cache": {"path": "/tmp/nonexistent-ssrf-cache.toml"}
+                "cache": {"path": "/tmp/nonexistent-ssrf-cache.toml"},
             }
         }
 
@@ -286,7 +301,7 @@ class TestFeatureIntegration:
         config = {
             "pattern_server": {
                 "url": "https://patterns.example.com",
-                "cache": {"path": "/tmp/nonexistent-secrets-cache.toml"}
+                "cache": {"path": "/tmp/nonexistent-secrets-cache.toml"},
             }
         }
 
@@ -301,7 +316,7 @@ class TestFeatureIntegration:
         config = {
             "pattern_server": {
                 "url": "https://patterns.example.com",
-                "cache": {"path": "/tmp/nonexistent-unicode-cache.toml"}
+                "cache": {"path": "/tmp/nonexistent-unicode-cache.toml"},
             }
         }
 
@@ -316,7 +331,7 @@ class TestFeatureIntegration:
         config = {
             "pattern_server": {
                 "url": "https://patterns.example.com",
-                "cache": {"path": "/tmp/nonexistent-config-cache.toml"}
+                "cache": {"path": "/tmp/nonexistent-config-cache.toml"},
             }
         }
 
@@ -353,7 +368,9 @@ class TestBackwardCompatibility:
         protector = SSRFProtector({"action": "block"})
 
         # Should block metadata endpoints
-        should_block, reason = protector.check("Bash", {"command": "curl http://169.254.169.254/"})
+        should_block, reason = protector.check(
+            "Bash", {"command": "curl http://169.254.169.254/"}
+        )
         assert should_block
 
     def test_secrets_without_pattern_server(self):
@@ -366,7 +383,9 @@ class TestBackwardCompatibility:
         original_text = "API_KEY=xghp_XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"  # notsecret - test token
         result = redactor.redact(original_text)
         # Check that redaction occurred (text was modified or contains markers)
-        assert result["redacted_text"] != original_text or "***" in result["redacted_text"]
+        assert (
+            result["redacted_text"] != original_text or "***" in result["redacted_text"]
+        )
 
     def test_unicode_without_pattern_server(self):
         """Test unicode detection works without pattern server config."""
@@ -422,7 +441,7 @@ class TestConfigInspector:
 
         config = {
             "ssrf_protection": {"enabled": True},
-            "secret_redaction": {"enabled": True}
+            "secret_redaction": {"enabled": True},
         }
         inspector = ConfigInspector(config)
 

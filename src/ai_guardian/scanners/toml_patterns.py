@@ -14,17 +14,16 @@ Usage in ai-guardian.json:
 import logging
 import re
 import sys
-from pathlib import Path
 from typing import List, Optional
 
 if sys.version_info >= (3, 11):
-    import tomllib
+    pass
 else:
-    import tomli as tomllib
+    pass
 
 from ai_guardian.patterns import BUNDLED_FILES
 from ai_guardian.patterns.cache import PatternCache
-from ai_guardian.patterns.validators import MIN_STOPWORD_LENGTH, load_stopwords
+from ai_guardian.patterns.validators import load_stopwords
 from ai_guardian.scanners.sdk import Finding, Scanner
 
 logger = logging.getLogger(__name__)
@@ -56,8 +55,10 @@ class TomlPatternsScanner(Scanner):
         if toml_paths:
             self._cache.load(*toml_paths)
         self._stopwords = load_stopwords()
-        logger.info(f"TomlPatternsScanner: loaded {self._cache.rule_count} rules, "
-                     f"{len(self._stopwords)} stopwords")
+        logger.info(
+            f"TomlPatternsScanner: loaded {self._cache.rule_count} rules, "
+            f"{len(self._stopwords)} stopwords"
+        )
 
     def configure(self, config: dict) -> None:
         """Accept scanner-specific configuration.
@@ -80,6 +81,7 @@ class TomlPatternsScanner(Scanner):
         allowlist_raw = config.get("allowlist_patterns")
         if allowlist_raw:
             from ai_guardian.allowlist_utils import compile_allowlist
+
             self._compiled_allowlist = compile_allowlist(allowlist_raw)
         else:
             self._compiled_allowlist = []
@@ -110,7 +112,9 @@ class TomlPatternsScanner(Scanner):
                 rules = parser.parse(raw_data)
                 if rules:
                     self._cache.load_rules(rules, category="secrets")
-                    logger.info(f"TomlPatternsScanner: loaded {len(rules)} rules from server ({fmt})")
+                    logger.info(
+                        f"TomlPatternsScanner: loaded {len(rules)} rules from server ({fmt})"
+                    )
         except Exception as e:
             logger.warning(f"TomlPatternsScanner: failed to load from server: {e}")
 
@@ -126,6 +130,7 @@ class TomlPatternsScanner(Scanner):
         """
         if file_path and self._ignore_files:
             from ai_guardian.utils.path_matching import matches_ignore_files
+
             if matches_ignore_files(file_path, self._ignore_files):
                 return []
 
@@ -138,35 +143,41 @@ class TomlPatternsScanner(Scanner):
                     continue
             if self._min_entropy is not None and f.category == "secrets":
                 from ai_guardian.patterns.validators import shannon_entropy
+
                 if shannon_entropy(f.matched_text) < self._min_entropy:
                     continue
             start_col = None
             end_col = None
             if f.match_start is not None:
-                line_start = content.rfind('\n', 0, f.match_start) + 1
+                line_start = content.rfind("\n", 0, f.match_start) + 1
                 start_col = f.match_start - line_start
             if f.match_end is not None and f.match_end > 0:
-                end_line_start = content.rfind('\n', 0, f.match_end) + 1
+                end_line_start = content.rfind("\n", 0, f.match_end) + 1
                 end_col = f.match_end - end_line_start
-            findings.append(Finding(
-                rule_id=f.rule_id,
-                line_number=f.line_number,
-                matched_text=f.matched_text,
-                description=f.description or f.rule_id,
-                severity="warning",
-                start_column=start_col,
-                end_column=end_col,
-                category=f.category,
-            ))
+            findings.append(
+                Finding(
+                    rule_id=f.rule_id,
+                    line_number=f.line_number,
+                    matched_text=f.matched_text,
+                    description=f.description or f.rule_id,
+                    severity="warning",
+                    start_column=start_col,
+                    end_column=end_col,
+                    category=f.category,
+                )
+            )
 
         if findings and self._compiled_allowlist:
             from ai_guardian.allowlist_utils import check_allowlist
+
             content_lines = content.splitlines()
             filtered = []
             for f in findings:
                 line_idx = f.line_number - 1
                 if 0 <= line_idx < len(content_lines):
-                    if check_allowlist(content_lines[line_idx], self._compiled_allowlist):
+                    if check_allowlist(
+                        content_lines[line_idx], self._compiled_allowlist
+                    ):
                         continue
                 filtered.append(f)
             findings = filtered

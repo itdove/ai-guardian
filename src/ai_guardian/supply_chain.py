@@ -17,10 +17,9 @@ import fnmatch
 import logging
 import os
 import re
-from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
-from ai_guardian.config_utils import is_feature_enabled, validate_regex_pattern
+from ai_guardian.config_utils import is_feature_enabled
 
 logger = logging.getLogger(__name__)
 
@@ -55,47 +54,47 @@ SELF_ALLOWLIST = [
 
 _PATTERN_CATEGORIES = {
     "download_and_execute": [
-        (r'curl\s+.*\|\s*(?:ba)?sh', "curl piped to shell"),
-        (r'wget\s+.*\|\s*(?:ba)?sh', "wget piped to shell"),
-        (r'curl\s+.*\|\s*python', "curl piped to python"),
-        (r'curl\s+.*\|\s*node\s*-', "curl piped to node"),
-        (r'curl\s+.*\|\s*perl', "curl piped to perl"),
-        (r'fetch\s+.*\|\s*(?:ba)?sh', "fetch piped to shell"),
+        (r"curl\s+.*\|\s*(?:ba)?sh", "curl piped to shell"),
+        (r"wget\s+.*\|\s*(?:ba)?sh", "wget piped to shell"),
+        (r"curl\s+.*\|\s*python", "curl piped to python"),
+        (r"curl\s+.*\|\s*node\s*-", "curl piped to node"),
+        (r"curl\s+.*\|\s*perl", "curl piped to perl"),
+        (r"fetch\s+.*\|\s*(?:ba)?sh", "fetch piped to shell"),
     ],
     "obfuscation": [
-        (r'\beval\s*\(', "eval() call"),
+        (r"\beval\s*\(", "eval() call"),
         (r'\beval\s+["\']', "eval with string"),
-        (r'base64\s+(?:-d|--decode)', "base64 decode"),
-        (r'\$\(.*base64', "base64 in subshell"),
-        (r'echo\s+.*\|\s*base64.*\|\s*(?:ba)?sh', "echo base64 piped to shell"),
-        (r'printf\s+.*\\x[0-9a-f]', "printf hex escapes"),
+        (r"base64\s+(?:-d|--decode)", "base64 decode"),
+        (r"\$\(.*base64", "base64 in subshell"),
+        (r"echo\s+.*\|\s*base64.*\|\s*(?:ba)?sh", "echo base64 piped to shell"),
+        (r"printf\s+.*\\x[0-9a-f]", "printf hex escapes"),
         (r'python\s+-c\s+[\'"]import\s+base64', "python base64 one-liner"),
     ],
     "env_hijacking": [
-        (r'\bLD_PRELOAD=', "LD_PRELOAD hijack"),
-        (r'\bDYLD_INSERT_LIBRARIES=', "DYLD_INSERT_LIBRARIES hijack"),
-        (r'\bNODE_OPTIONS=.*--require', "NODE_OPTIONS --require hijack"),
-        (r'\bPYTHONSTARTUP=', "PYTHONSTARTUP hijack"),
-        (r'\bPYTHONPATH=.*:/tmp', "PYTHONPATH /tmp hijack"),
-        (r'\bPATH=.*:/tmp', "PATH /tmp hijack"),
-        (r'\bhttp_proxy=', "http_proxy hijack"),
-        (r'\bHTTPS_PROXY=', "HTTPS_PROXY hijack"),
+        (r"\bLD_PRELOAD=", "LD_PRELOAD hijack"),
+        (r"\bDYLD_INSERT_LIBRARIES=", "DYLD_INSERT_LIBRARIES hijack"),
+        (r"\bNODE_OPTIONS=.*--require", "NODE_OPTIONS --require hijack"),
+        (r"\bPYTHONSTARTUP=", "PYTHONSTARTUP hijack"),
+        (r"\bPYTHONPATH=.*:/tmp", "PYTHONPATH /tmp hijack"),
+        (r"\bPATH=.*:/tmp", "PATH /tmp hijack"),
+        (r"\bhttp_proxy=", "http_proxy hijack"),
+        (r"\bHTTPS_PROXY=", "HTTPS_PROXY hijack"),
     ],
     "network_exfil": [
-        (r'curl\s+.*--data.*\$', "curl POST with variable data"),
-        (r'curl\s+.*-d\s+.*\$', "curl -d with variable data"),
-        (r'curl\s+.*POST', "curl POST request"),
-        (r'wget\s+--post', "wget POST request"),
-        (r'nc\s+(?:-e|--exec)', "netcat exec"),
-        (r'ncat\s+(?:-e|--exec)', "ncat exec"),
-        (r'socat\s+EXEC', "socat EXEC"),
+        (r"curl\s+.*--data.*\$", "curl POST with variable data"),
+        (r"curl\s+.*-d\s+.*\$", "curl -d with variable data"),
+        (r"curl\s+.*POST", "curl POST request"),
+        (r"wget\s+--post", "wget POST request"),
+        (r"nc\s+(?:-e|--exec)", "netcat exec"),
+        (r"ncat\s+(?:-e|--exec)", "ncat exec"),
+        (r"socat\s+EXEC", "socat EXEC"),
     ],
     "mcp_suspicious": [
-        (r'npx\s+.*https?://', "npx with URL"),
-        (r'npx\s+-y\s+@[^/]+/', "npx -y scoped package"),
+        (r"npx\s+.*https?://", "npx with URL"),
+        (r"npx\s+-y\s+@[^/]+/", "npx -y scoped package"),
         (r'node\s+-e\s+[\'"]', "node -e inline code"),
         (r'python\s+-c\s+[\'"]', "python -c inline code"),
-        (r'uvx\s+.*https?://', "uvx with URL"),
+        (r"uvx\s+.*https?://", "uvx with URL"),
     ],
     "config_key_hijacking": [
         (r'"apiKeyHelper"\s*:', "apiKeyHelper key"),
@@ -105,19 +104,19 @@ _PATTERN_CATEGORIES = {
         (r'"command"\s*:\s*".*base64', "command with base64"),
     ],
     "reverse_shell": [
-        (r'/dev/tcp/', "/dev/tcp reverse shell"),
-        (r'bash\s+-i\s+>&', "bash interactive reverse shell"),
-        (r'mkfifo\s+/tmp', "mkfifo reverse shell pipe"),
-        (r'\btelnet\s+\d+\.\d+', "telnet to IP"),
+        (r"/dev/tcp/", "/dev/tcp reverse shell"),
+        (r"bash\s+-i\s+>&", "bash interactive reverse shell"),
+        (r"mkfifo\s+/tmp", "mkfifo reverse shell pipe"),
+        (r"\btelnet\s+\d+\.\d+", "telnet to IP"),
     ],
     "plugin_dangerous": [
         (r'require\s*\(\s*[\'"]child_process[\'"]\)', "require child_process"),
         (r'import.*from\s+[\'"]child_process[\'"]', "import child_process"),
         (r'require\s*\(\s*[\'"]net[\'"]\)', "require net"),
         (r'require\s*\(\s*[\'"]http[\'"]', "require http"),
-        (r'\.exec\s*\(', ".exec() call"),
-        (r'\.execSync\s*\(', ".execSync() call"),
-        (r'process\.env\[', "process.env[] access"),
+        (r"\.exec\s*\(", ".exec() call"),
+        (r"\.execSync\s*\(", ".execSync() call"),
+        (r"process\.env\[", "process.env[] access"),
     ],
 }
 
@@ -169,7 +168,7 @@ def _compile_patterns() -> Dict[str, List[Tuple[re.Pattern, str]]]:
 
 def _is_plugin_file(file_path: str) -> bool:
     lower = file_path.lower()
-    return lower.endswith(('.ts', '.js'))
+    return lower.endswith((".ts", ".js"))
 
 
 def _is_self_allowlisted(file_path: str) -> bool:
@@ -183,7 +182,9 @@ def _is_self_allowlisted(file_path: str) -> bool:
 def _matches_path_pattern(file_path: str, pattern: str) -> bool:
     normalized = file_path.replace("\\", "/")
     if "*" in pattern:
-        return fnmatch.fnmatch(normalized, f"*/{pattern}") or fnmatch.fnmatch(normalized, pattern)
+        return fnmatch.fnmatch(normalized, f"*/{pattern}") or fnmatch.fnmatch(
+            normalized, pattern
+        )
     return normalized.endswith(f"/{pattern}") or normalized == pattern
 
 
@@ -195,6 +196,7 @@ class SupplyChainScanner:
         self.enabled = config.get("enabled", True)
         if isinstance(self.enabled, dict):
             from datetime import datetime, timezone
+
             now = datetime.now(timezone.utc)
             self.enabled = is_feature_enabled(self.enabled, now, default=True)
 
@@ -271,8 +273,12 @@ class SupplyChainScanner:
 
         patterns = _compile_patterns()
         categories = [
-            "download_and_execute", "obfuscation", "env_hijacking",
-            "network_exfil", "mcp_suspicious", "config_key_hijacking",
+            "download_and_execute",
+            "obfuscation",
+            "env_hijacking",
+            "network_exfil",
+            "mcp_suspicious",
+            "config_key_hijacking",
             "reverse_shell",
         ]
         return self._match_patterns(content, label, patterns, categories)
@@ -314,10 +320,16 @@ class SupplyChainScanner:
 
         categories_to_scan = []
         if self.scan_hooks:
-            categories_to_scan.extend([
-                "download_and_execute", "obfuscation", "env_hijacking",
-                "network_exfil", "config_key_hijacking", "reverse_shell",
-            ])
+            categories_to_scan.extend(
+                [
+                    "download_and_execute",
+                    "obfuscation",
+                    "env_hijacking",
+                    "network_exfil",
+                    "config_key_hijacking",
+                    "reverse_shell",
+                ]
+            )
         if self.scan_mcp_configs:
             categories_to_scan.append("mcp_suspicious")
         if self.scan_plugins and is_plugin:
@@ -332,18 +344,22 @@ class SupplyChainScanner:
         patterns: Dict[str, List[Tuple[re.Pattern, str]]],
         categories: List[str],
     ) -> Tuple[bool, Optional[str], Optional[Dict[str, Any]]]:
-        lines = content.split('\n')
+        lines = content.split("\n")
 
         for category in categories:
             category_patterns = patterns.get(category, [])
             for compiled_re, description in category_patterns:
                 match = compiled_re.search(content)
                 if match:
-                    line_number = content[:match.start()].count('\n') + 1
+                    line_number = content[: match.start()].count("\n") + 1
                     matched_text = match.group(0)
-                    snippet = lines[line_number - 1].strip() if line_number <= len(lines) else ""
+                    snippet = (
+                        lines[line_number - 1].strip()
+                        if line_number <= len(lines)
+                        else ""
+                    )
 
-                    line_start = content.rfind('\n', 0, match.start()) + 1
+                    line_start = content.rfind("\n", 0, match.start()) + 1
                     start_column = match.start() - line_start
                     end_column = match.end() - line_start
 
@@ -351,18 +367,20 @@ class SupplyChainScanner:
                         f"Supply chain threat blocked: {description} "
                         f"in {os.path.basename(label)} (line {line_number})"
                     )
-                    self.findings.append({
-                        "category": category,
-                        "pattern": description,
-                        "matched_text": matched_text,
-                        "matched_pattern": compiled_re.pattern,
-                        "line_number": line_number,
-                        "start_column": start_column,
-                        "end_column": end_column,
-                        "snippet": snippet,
-                        "file_path": label,
-                        "error_message": error_msg,
-                    })
+                    self.findings.append(
+                        {
+                            "category": category,
+                            "pattern": description,
+                            "matched_text": matched_text,
+                            "matched_pattern": compiled_re.pattern,
+                            "line_number": line_number,
+                            "start_column": start_column,
+                            "end_column": end_column,
+                            "snippet": snippet,
+                            "file_path": label,
+                            "error_message": error_msg,
+                        }
+                    )
 
         if not self.findings:
             return False, None, None
@@ -375,7 +393,11 @@ class SupplyChainScanner:
         self.last_start_column = first["start_column"]
         self.last_end_column = first["end_column"]
 
-        details = {k: v for k, v in first.items() if k not in ("error_message", "matched_pattern")}
+        details = {
+            k: v
+            for k, v in first.items()
+            if k not in ("error_message", "matched_pattern")
+        }
         details["total_findings"] = len(self.findings)
 
         if self.action == "block":

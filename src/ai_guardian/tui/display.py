@@ -28,6 +28,7 @@ def get_preferred_ui() -> str:
 
     try:
         from ai_guardian.config_utils import get_config_dir
+
         config_path = get_config_dir() / "ai-guardian.json"
         if config_path.exists():
             with open(config_path, "r", encoding="utf-8") as f:
@@ -52,6 +53,7 @@ def _tkinter_available():
         return False
     try:
         import tkinter  # noqa: F401
+
         return True
     except ImportError:
         return False
@@ -63,6 +65,7 @@ def _nicegui_available():
         return False
     try:
         import nicegui  # noqa: F401
+
         return True
     except ImportError:
         return False
@@ -72,6 +75,7 @@ def _textual_available():
     """Return True if Textual can be imported and a TTY is present."""
     try:
         import textual  # noqa: F401
+
         return os.isatty(0)
     except ImportError:
         return False
@@ -106,6 +110,7 @@ def _ensure_tcl_library():
             pathlib.Path("/usr/local/opt/tcl-tk/lib/tcl8.6"),
         ]
         import glob
+
         for match in glob.glob("/opt/homebrew/Cellar/tcl-tk@8/*/lib/tcl8.6"):
             candidates.append(pathlib.Path(match))
     elif platform.system() == "Linux":

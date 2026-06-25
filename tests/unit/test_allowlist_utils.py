@@ -3,7 +3,6 @@
 import re
 from datetime import datetime, timezone, timedelta
 
-import pytest
 
 from ai_guardian.allowlist_utils import (
     extract_pattern_string,

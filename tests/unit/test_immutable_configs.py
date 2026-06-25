@@ -23,6 +23,7 @@ def checker():
 # Test: Per-Matcher Immutability
 # ============================================================================
 
+
 def test_immutable_matcher_blocks_local_override(checker):
     """Remote config with immutable matcher blocks local rules for that matcher"""
     remote_config = {
@@ -33,9 +34,9 @@ def test_immutable_matcher_blocks_local_override(checker):
                     "matcher": "Skill",
                     "mode": "allow",
                     "patterns": ["daf-*", "gh-cli"],
-                    "immutable": True
+                    "immutable": True,
                 }
-            ]
+            ],
         }
     }
 
@@ -43,12 +44,8 @@ def test_immutable_matcher_blocks_local_override(checker):
         "permissions": {
             "enabled": True,
             "rules": [
-                {
-                    "matcher": "Skill",
-                    "mode": "allow",
-                    "patterns": ["my-custom-skill"]
-                }
-            ]
+                {"matcher": "Skill", "mode": "allow", "patterns": ["my-custom-skill"]}
+            ],
         }
     }
 
@@ -60,7 +57,11 @@ def test_immutable_matcher_blocks_local_override(checker):
 
     skill_patterns = []
     permissions_obj = result.get("permissions", {})
-    rules = permissions_obj.get("rules", []) if isinstance(permissions_obj, dict) else permissions_obj
+    rules = (
+        permissions_obj.get("rules", [])
+        if isinstance(permissions_obj, dict)
+        else permissions_obj
+    )
     for rule in rules:
         if rule.get("matcher") == "Skill":
             skill_patterns.extend(rule.get("patterns", []))
@@ -80,9 +81,9 @@ def test_non_immutable_matcher_allows_local_rules(checker):
                     "matcher": "Skill",
                     "mode": "allow",
                     "patterns": ["daf-*"],
-                    "immutable": True
+                    "immutable": True,
                 }
-            ]
+            ],
         }
     }
 
@@ -93,9 +94,9 @@ def test_non_immutable_matcher_allows_local_rules(checker):
                 {
                     "matcher": "mcp__*",
                     "mode": "allow",
-                    "patterns": ["mcp__notebooklm-mcp__*"]
+                    "patterns": ["mcp__notebooklm-mcp__*"],
                 }
-            ]
+            ],
         }
     }
 
@@ -106,7 +107,11 @@ def test_non_immutable_matcher_allows_local_rules(checker):
 
     mcp_found = False
     permissions_obj = result.get("permissions", {})
-    rules = permissions_obj.get("rules", []) if isinstance(permissions_obj, dict) else permissions_obj
+    rules = (
+        permissions_obj.get("rules", [])
+        if isinstance(permissions_obj, dict)
+        else permissions_obj
+    )
     for rule in rules:
         if rule.get("matcher") == "mcp__*":
             mcp_found = True
@@ -125,15 +130,15 @@ def test_multiple_immutable_matchers(checker):
                     "matcher": "Skill",
                     "mode": "allow",
                     "patterns": ["daf-*"],
-                    "immutable": True
+                    "immutable": True,
                 },
                 {
                     "matcher": "Bash",
                     "mode": "deny",
                     "patterns": ["*rm -rf*"],
-                    "immutable": True
-                }
-            ]
+                    "immutable": True,
+                },
+            ],
         }
     }
 
@@ -141,17 +146,9 @@ def test_multiple_immutable_matchers(checker):
         "permissions": {
             "enabled": True,
             "rules": [
-                {
-                    "matcher": "Skill",
-                    "mode": "allow",
-                    "patterns": ["custom-*"]
-                },
-                {
-                    "matcher": "Bash",
-                    "mode": "allow",
-                    "patterns": ["*safe-command*"]
-                }
-            ]
+                {"matcher": "Skill", "mode": "allow", "patterns": ["custom-*"]},
+                {"matcher": "Bash", "mode": "allow", "patterns": ["*safe-command*"]},
+            ],
         }
     }
 
@@ -164,7 +161,11 @@ def test_multiple_immutable_matchers(checker):
     result = checker._merge_configs(result, remote_config, set(), set())
 
     permissions_obj = result.get("permissions", {})
-    rules = permissions_obj.get("rules", []) if isinstance(permissions_obj, dict) else permissions_obj
+    rules = (
+        permissions_obj.get("rules", [])
+        if isinstance(permissions_obj, dict)
+        else permissions_obj
+    )
     for rule in rules:
         if rule.get("matcher") == "Skill":
             assert "custom-*" not in rule.get("patterns", [])
@@ -176,6 +177,7 @@ def test_multiple_immutable_matchers(checker):
 # Test: Section Immutability
 # ============================================================================
 
+
 def test_immutable_section_blocks_local_override(checker):
     """Remote config with immutable section blocks entire section from local override"""
     remote_config = {
@@ -183,16 +185,11 @@ def test_immutable_section_blocks_local_override(checker):
             "enabled": True,
             "sensitivity": "high",
             "detector": "heuristic",
-            "immutable": True
+            "immutable": True,
         }
     }
 
-    local_config = {
-        "prompt_injection": {
-            "enabled": False,
-            "sensitivity": "low"
-        }
-    }
+    local_config = {"prompt_injection": {"enabled": False, "sensitivity": "low"}}
 
     immutable_sections = checker._get_immutable_sections([remote_config])
 
@@ -208,26 +205,17 @@ def test_immutable_section_blocks_local_override(checker):
 def test_multiple_immutable_sections(checker):
     """Multiple sections can be marked as immutable"""
     remote_config = {
-        "prompt_injection": {
-            "enabled": True,
-            "sensitivity": "high",
-            "immutable": True
-        },
+        "prompt_injection": {"enabled": True, "sensitivity": "high", "immutable": True},
         "pattern_server": {
             "enabled": True,
             "url": "https://company.com/patterns",
-            "immutable": True
-        }
+            "immutable": True,
+        },
     }
 
     local_config = {
-        "prompt_injection": {
-            "enabled": False
-        },
-        "pattern_server": {
-            "enabled": False,
-            "url": "https://local.com/patterns"
-        }
+        "prompt_injection": {"enabled": False},
+        "pattern_server": {"enabled": False, "url": "https://local.com/patterns"},
     }
 
     immutable_sections = checker._get_immutable_sections([remote_config])
@@ -244,17 +232,9 @@ def test_multiple_immutable_sections(checker):
 
 def test_non_immutable_section_allows_local_override(checker):
     """Sections without immutable flag can be overridden locally"""
-    remote_config = {
-        "secret_scanning": {
-            "enabled": True
-        }
-    }
+    remote_config = {"secret_scanning": {"enabled": True}}
 
-    local_config = {
-        "secret_scanning": {
-            "enabled": False
-        }
-    }
+    local_config = {"secret_scanning": {"enabled": False}}
 
     immutable_sections = checker._get_immutable_sections([remote_config])
 
@@ -279,10 +259,10 @@ IMMUTABLE_FIELD_CONFIGS = [
                     {
                         "matcher": "Skill",
                         "mode": "allow",
-                        "patterns": ["daf-*"]
+                        "patterns": ["daf-*"],
                         # No immutable field
                     }
-                ]
+                ],
             }
         },
         id="missing-immutable-field",
@@ -296,14 +276,11 @@ IMMUTABLE_FIELD_CONFIGS = [
                         "matcher": "Skill",
                         "mode": "allow",
                         "patterns": ["daf-*"],
-                        "immutable": False
+                        "immutable": False,
                     }
-                ]
+                ],
             },
-            "prompt_injection": {
-                "enabled": True,
-                "immutable": False
-            }
+            "prompt_injection": {"enabled": True, "immutable": False},
         },
         id="immutable-false",
     ),
@@ -326,6 +303,7 @@ def test_non_immutable_configs_have_no_constraints(checker, config):
 # Test: Integration with Config Loading
 # ============================================================================
 
+
 def test_get_immutable_matchers_extracts_correct_matchers(checker):
     """_get_immutable_matchers correctly identifies immutable matchers"""
     remote_configs = [
@@ -337,15 +315,15 @@ def test_get_immutable_matchers_extracts_correct_matchers(checker):
                         "matcher": "Skill",
                         "mode": "allow",
                         "patterns": ["daf-*"],
-                        "immutable": True
+                        "immutable": True,
                     },
                     {
                         "matcher": "Bash",
                         "mode": "deny",
                         "patterns": ["*rm -rf*"],
-                        "immutable": False
-                    }
-                ]
+                        "immutable": False,
+                    },
+                ],
             }
         }
     ]
@@ -360,17 +338,9 @@ def test_get_immutable_sections_extracts_correct_sections(checker):
     """_get_immutable_sections correctly identifies immutable sections"""
     remote_configs = [
         {
-            "prompt_injection": {
-                "enabled": True,
-                "immutable": True
-            },
-            "pattern_server": {
-                "enabled": True,
-                "immutable": False
-            },
-            "secret_scanning": {
-                "enabled": True
-            }
+            "prompt_injection": {"enabled": True, "immutable": True},
+            "pattern_server": {"enabled": True, "immutable": False},
+            "secret_scanning": {"enabled": True},
         }
     ]
 
@@ -385,6 +355,7 @@ def test_get_immutable_sections_extracts_correct_sections(checker):
 # Test: Schema Validation
 # ============================================================================
 
+
 def test_immutable_field_validates_in_schema(checker):
     """Configs with immutable field pass schema validation"""
     config = {
@@ -395,17 +366,14 @@ def test_immutable_field_validates_in_schema(checker):
                     "matcher": "Skill",
                     "mode": "allow",
                     "patterns": ["daf-*"],
-                    "immutable": True
+                    "immutable": True,
                 }
-            ]
+            ],
         },
-        "prompt_injection": {
-            "enabled": True,
-            "immutable": True
-        }
+        "prompt_injection": {"enabled": True, "immutable": True},
     }
 
-    with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as f:
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
         json.dump(config, f)
         temp_path = f.name
 
@@ -429,13 +397,13 @@ def test_invalid_immutable_type_rejected(checker):
                     "matcher": "Skill",
                     "mode": "allow",
                     "patterns": ["daf-*"],
-                    "immutable": "yes"  # Invalid: should be boolean
+                    "immutable": "yes",  # Invalid: should be boolean
                 }
-            ]
+            ],
         }
     }
 
-    with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as f:
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
         json.dump(config, f)
         temp_path = f.name
 
@@ -451,6 +419,7 @@ def test_invalid_immutable_type_rejected(checker):
 # Test: Enterprise Use Cases
 # ============================================================================
 
+
 def test_enterprise_skill_allowlist_enforcement(checker):
     """Enterprise can enforce skill allowlist that users cannot extend"""
     enterprise_config = {
@@ -461,9 +430,9 @@ def test_enterprise_skill_allowlist_enforcement(checker):
                     "matcher": "Skill",
                     "mode": "allow",
                     "patterns": ["daf-*", "gh-cli"],
-                    "immutable": True
+                    "immutable": True,
                 }
-            ]
+            ],
         }
     }
 
@@ -471,12 +440,8 @@ def test_enterprise_skill_allowlist_enforcement(checker):
         "permissions": {
             "enabled": True,
             "rules": [
-                {
-                    "matcher": "Skill",
-                    "mode": "allow",
-                    "patterns": ["my-custom-skill"]
-                }
-            ]
+                {"matcher": "Skill", "mode": "allow", "patterns": ["my-custom-skill"]}
+            ],
         }
     }
 
@@ -485,18 +450,10 @@ def test_enterprise_skill_allowlist_enforcement(checker):
     result = checker._merge_configs({}, user_config, immutable_matchers, set())
     result = checker._merge_configs(result, enterprise_config, set(), set())
 
-    hook_data_allowed = {
-        "tool_use": {
-            "name": "Skill",
-            "input": {"skill": "daf-jira"}
-        }
-    }
+    hook_data_allowed = {"tool_use": {"name": "Skill", "input": {"skill": "daf-jira"}}}
 
     hook_data_blocked = {
-        "tool_use": {
-            "name": "Skill",
-            "input": {"skill": "my-custom-skill"}
-        }
+        "tool_use": {"name": "Skill", "input": {"skill": "my-custom-skill"}}
     }
 
     checker_with_config = ToolPolicyChecker(config=result)
@@ -515,16 +472,11 @@ def test_enterprise_prompt_injection_enforcement(checker):
             "enabled": True,
             "sensitivity": "high",
             "detector": "heuristic",
-            "immutable": True
+            "immutable": True,
         }
     }
 
-    user_config = {
-        "prompt_injection": {
-            "enabled": False,
-            "sensitivity": "low"
-        }
-    }
+    user_config = {"prompt_injection": {"enabled": False, "sensitivity": "low"}}
 
     immutable_sections = checker._get_immutable_sections([enterprise_config])
 
@@ -546,7 +498,9 @@ CASCADING_PRIORITY_CASES = [
         {
             "system_urls": ["https://enterprise.com/policy.json"],
             "env_var": None,
-            "user_config": {"remote_configs": {"urls": ["https://user.com/bypass.json"]}},
+            "user_config": {
+                "remote_configs": {"urls": ["https://user.com/bypass.json"]}
+            },
             "local_config": {},
             "expected_fetched": ["https://enterprise.com/policy.json"],
             "expected_not_fetched": ["https://user.com/bypass.json"],
@@ -557,7 +511,9 @@ CASCADING_PRIORITY_CASES = [
         {
             "system_urls": None,
             "env_var": "https://env.com/policy.json",
-            "user_config": {"remote_configs": {"urls": ["https://user.com/config.json"]}},
+            "user_config": {
+                "remote_configs": {"urls": ["https://user.com/config.json"]}
+            },
             "local_config": {},
             "expected_fetched": ["https://env.com/policy.json"],
             "expected_not_fetched": ["https://user.com/config.json"],
@@ -568,7 +524,9 @@ CASCADING_PRIORITY_CASES = [
         {
             "system_urls": None,
             "env_var": None,
-            "user_config": {"remote_configs": {"urls": ["https://user.com/patterns.json"]}},
+            "user_config": {
+                "remote_configs": {"urls": ["https://user.com/patterns.json"]}
+            },
             "local_config": {},
             "expected_fetched": ["https://user.com/patterns.json"],
             "expected_not_fetched": [],
@@ -579,8 +537,12 @@ CASCADING_PRIORITY_CASES = [
         {
             "system_urls": None,
             "env_var": None,
-            "user_config": {"remote_configs": {"urls": ["https://user.com/user-config.json"]}},
-            "local_config": {"remote_configs": {"urls": ["https://local.com/local-config.json"]}},
+            "user_config": {
+                "remote_configs": {"urls": ["https://user.com/user-config.json"]}
+            },
+            "local_config": {
+                "remote_configs": {"urls": ["https://local.com/local-config.json"]}
+            },
             "expected_fetched": ["https://user.com/user-config.json"],
             "expected_not_fetched": ["https://local.com/local-config.json"],
         },
@@ -609,7 +571,9 @@ def test_cascading_priority(case):
     try:
         # Set up system config file if needed
         if case["system_urls"] is not None:
-            with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as f:
+            with tempfile.NamedTemporaryFile(
+                mode="w", suffix=".json", delete=False
+            ) as f:
                 json.dump({"urls": case["system_urls"]}, f)
                 system_config_path = f.name
 
@@ -623,9 +587,10 @@ def test_cascading_priority(case):
             fetched_urls.append(url)
             return None
 
-        with patch.object(checker, '_load_remote_config', side_effect=mock_load):
+        with patch.object(checker, "_load_remote_config", side_effect=mock_load):
             with patch.object(
-                checker, '_get_system_config_path',
+                checker,
+                "_get_system_config_path",
                 return_value=Path(system_config_path) if system_config_path else None,
             ):
                 checker._load_remote_configs(
@@ -644,5 +609,5 @@ def test_cascading_priority(case):
             os.environ.pop("AI_GUARDIAN_REMOTE_CONFIG_URLS", None)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     pytest.main([__file__])

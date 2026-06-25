@@ -17,7 +17,7 @@ class TestTruffleHogOutputParser(unittest.TestCase):
 
     def test_parse_empty_output(self):
         """Test parsing empty TruffleHog output (no secrets)."""
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as f:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
             # Empty file means no secrets found
             f.write("")
             temp_file = f.name
@@ -35,20 +35,13 @@ class TestTruffleHogOutputParser(unittest.TestCase):
     def test_parse_single_finding(self):
         """Test parsing TruffleHog output with single finding."""
         finding = {
-            "SourceMetadata": {
-                "Data": {
-                    "Filesystem": {
-                        "file": "test.txt",
-                        "line": 5
-                    }
-                }
-            },
+            "SourceMetadata": {"Data": {"Filesystem": {"file": "test.txt", "line": 5}}},
             "DetectorName": "AWS",
             "DetectorType": 2,
-            "Verified": False
+            "Verified": False,
         }
 
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as f:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
             f.write(json.dumps(finding) + "\n")
             temp_file = f.name
 
@@ -75,33 +68,23 @@ class TestTruffleHogOutputParser(unittest.TestCase):
         findings = [
             {
                 "SourceMetadata": {
-                    "Data": {
-                        "Filesystem": {
-                            "file": "test.txt",
-                            "line": 5
-                        }
-                    }
+                    "Data": {"Filesystem": {"file": "test.txt", "line": 5}}
                 },
                 "DetectorName": "AWS",
                 "DetectorType": 2,
-                "Verified": False
+                "Verified": False,
             },
             {
                 "SourceMetadata": {
-                    "Data": {
-                        "Filesystem": {
-                            "file": "config.py",
-                            "line": 10
-                        }
-                    }
+                    "Data": {"Filesystem": {"file": "config.py", "line": 10}}
                 },
                 "DetectorName": "GitHub",
                 "DetectorType": 13,
-                "Verified": True
-            }
+                "Verified": True,
+            },
         ]
 
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as f:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
             for finding in findings:
                 f.write(json.dumps(finding) + "\n")
             temp_file = f.name
@@ -130,19 +113,14 @@ class TestTruffleHogOutputParser(unittest.TestCase):
         """Test that verified findings are marked correctly."""
         finding = {
             "SourceMetadata": {
-                "Data": {
-                    "Filesystem": {
-                        "file": "creds.txt",
-                        "line": 1
-                    }
-                }
+                "Data": {"Filesystem": {"file": "creds.txt", "line": 1}}
             },
             "DetectorName": "Stripe",
             "DetectorType": 42,
-            "Verified": True
+            "Verified": True,
         }
 
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as f:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
             f.write(json.dumps(finding) + "\n")
             temp_file = f.name
 
@@ -160,10 +138,12 @@ class TestTruffleHogOutputParser(unittest.TestCase):
 
     def test_parse_malformed_json_line(self):
         """Test that parser handles malformed JSON gracefully."""
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as f:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
             f.write('{"valid": "json"}\n')
-            f.write('invalid json line\n')  # Malformed
-            f.write('{"SourceMetadata":{"Data":{"Filesystem":{"file":"test.txt","line":1}}},"DetectorName":"Test","Verified":false}\n')
+            f.write("invalid json line\n")  # Malformed
+            f.write(
+                '{"SourceMetadata":{"Data":{"Filesystem":{"file":"test.txt","line":1}}},"DetectorName":"Test","Verified":false}\n'
+            )
             temp_file = f.name
 
         try:
@@ -180,11 +160,11 @@ class TestTruffleHogOutputParser(unittest.TestCase):
         finding = {
             "DetectorName": "AWS",
             "DetectorType": 2,
-            "Verified": False
+            "Verified": False,
             # Missing SourceMetadata
         }
 
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as f:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
             f.write(json.dumps(finding) + "\n")
             temp_file = f.name
 
@@ -207,19 +187,12 @@ class TestTruffleHogOutputParser(unittest.TestCase):
     def test_rule_id_normalization(self):
         """Test that detector names are normalized to rule IDs."""
         finding = {
-            "SourceMetadata": {
-                "Data": {
-                    "Filesystem": {
-                        "file": "test.txt",
-                        "line": 1
-                    }
-                }
-            },
+            "SourceMetadata": {"Data": {"Filesystem": {"file": "test.txt", "line": 1}}},
             "DetectorName": "Generic API Key",
-            "Verified": False
+            "Verified": False,
         }
 
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as f:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
             f.write(json.dumps(finding) + "\n")
             temp_file = f.name
 
@@ -233,5 +206,5 @@ class TestTruffleHogOutputParser(unittest.TestCase):
             Path(temp_file).unlink()
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()

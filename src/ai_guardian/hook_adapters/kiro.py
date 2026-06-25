@@ -25,6 +25,7 @@ class KiroAdapter(HookAdapter):
     @property
     def ide_type(self):
         from ai_guardian.response_format import IDEType
+
         return IDEType.KIRO
 
     @property

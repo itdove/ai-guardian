@@ -26,7 +26,9 @@ DEFAULT_BLOCK_BEGIN_ALIASES: List[str] = []
 DEFAULT_BLOCK_END_ALIASES: List[str] = []
 
 
-def _build_alias_lists(config: Optional[Dict] = None) -> Tuple[List[str], List[str], List[str], List[str]]:
+def _build_alias_lists(
+    config: Optional[Dict] = None,
+) -> Tuple[List[str], List[str], List[str], List[str]]:
     """Build merged alias lists from defaults + user config."""
     if config is None:
         config = {}
@@ -92,7 +94,9 @@ def get_suppressed_lines(
         suppression_info: audit metadata (1-based line numbers for display)
         warnings: annotation warnings (e.g., unmatched begin-allow)
     """
-    inline_allow_aliases, secret_aliases, block_begin_aliases, block_end_aliases = _build_alias_lists(config)
+    inline_allow_aliases, secret_aliases, block_begin_aliases, block_end_aliases = (
+        _build_alias_lists(config)
+    )
 
     lines = content.splitlines()
     all_suppressed: Set[int] = set()
@@ -136,11 +140,13 @@ def get_suppressed_lines(
     for begin_idx, end_idx in matched_pairs:
         block_lines = list(range(begin_idx, end_idx + 1))
         all_suppressed.update(block_lines)
-        suppression_info.append({
-            "type": "block",
-            "lines": [ln + 1 for ln in block_lines],
-            "annotation_line": begin_idx + 1,
-        })
+        suppression_info.append(
+            {
+                "type": "block",
+                "lines": [ln + 1 for ln in block_lines],
+                "annotation_line": begin_idx + 1,
+            }
+        )
 
     # Second pass: inline annotations
     for i, line in enumerate(lines):
@@ -156,22 +162,26 @@ def get_suppressed_lines(
             if i + 1 < len(lines):
                 all_suppressed.add(i + 1)
                 suppressed_display.append(i + 2)
-            suppression_info.append({
-                "type": "inline",
-                "lines": suppressed_display,
-                "annotation_line": i + 1,
-            })
+            suppression_info.append(
+                {
+                    "type": "inline",
+                    "lines": suppressed_display,
+                    "annotation_line": i + 1,
+                }
+            )
         elif _is_secret_only(line, secret_aliases):
             secret_only_suppressed.add(i)
             suppressed_display = [i + 1]
             if i + 1 < len(lines):
                 secret_only_suppressed.add(i + 1)
                 suppressed_display.append(i + 2)
-            suppression_info.append({
-                "type": "inline_secrets",
-                "lines": suppressed_display,
-                "annotation_line": i + 1,
-            })
+            suppression_info.append(
+                {
+                    "type": "inline_secrets",
+                    "lines": suppressed_display,
+                    "annotation_line": i + 1,
+                }
+            )
 
     return all_suppressed, secret_only_suppressed, suppression_info, warnings
 
@@ -203,8 +213,8 @@ def process_annotations(
         suppression_info: audit metadata
         warnings: annotation warnings
     """
-    all_suppressed, secret_only_suppressed, suppression_info, warnings = get_suppressed_lines(
-        content, config
+    all_suppressed, secret_only_suppressed, suppression_info, warnings = (
+        get_suppressed_lines(content, config)
     )
 
     if not all_suppressed and not secret_only_suppressed:

@@ -12,9 +12,7 @@ import tempfile
 from io import StringIO
 from pathlib import Path
 from unittest import mock
-from unittest.mock import patch
 
-import pytest
 
 from ai_guardian.tui.hook_simulator import (
     HookSimulatorContent,
@@ -61,9 +59,7 @@ class TestBuildHookData:
         assert result["tool_use"]["parameters"]["file_path"] == "/tmp/test.py"
 
     def test_pretooluse_bash(self):
-        result = build_hook_data(
-            "PreToolUse", tool_name="Bash", content="ls -la"
-        )
+        result = build_hook_data("PreToolUse", tool_name="Bash", content="ls -la")
         assert result["hook_event_name"] == "PreToolUse"
         assert result["tool_use"]["name"] == "Bash"
         assert result["tool_use"]["parameters"]["command"] == "ls -la"
@@ -212,9 +208,9 @@ class TestSimulationIsolation:
 
                         logging.disable(logging.NOTSET)
 
-        assert not violations_path.exists(), (
-            "Simulation should not write to real state directory"
-        )
+        assert (
+            not violations_path.exists()
+        ), "Simulation should not write to real state directory"
 
         import shutil
 

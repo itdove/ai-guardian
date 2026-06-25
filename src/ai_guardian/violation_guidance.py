@@ -37,7 +37,9 @@ def get_resolution_instructions(violation: dict) -> Tuple[str, str]:
 
     if vtype == "tool_permission":
         rule = suggestion.get("rule", {})
-        snippet = json.dumps({"permissions": {"rules": [rule]}}, indent=2) if rule else ""
+        snippet = (
+            json.dumps({"permissions": {"rules": [rule]}}, indent=2) if rule else ""
+        )
         return "Add this rule to permissions.rules in ai-guardian.json:", snippet
 
     if vtype == "prompt_injection":
@@ -57,8 +59,11 @@ def get_resolution_instructions(violation: dict) -> Tuple[str, str]:
     if vtype == "secret_detected":
         secret_type = blocked.get("rule_id", blocked.get("secret_type", "unknown"))
         file_path = blocked.get("file_path")
-        placeholder = f"<regex-for-{secret_type}>" if secret_type != "unknown" else "<regex>"
+        placeholder = (
+            f"<regex-for-{secret_type}>" if secret_type != "unknown" else "<regex>"
+        )
         from ai_guardian.secret_type_names import get_secret_type_display
+
         instructions = (
             f"Secret type: {get_secret_type_display(secret_type)}\n\n"
             "Option 1: Add a regex pattern to ai-guardian.json:\n"
@@ -87,9 +92,17 @@ def get_resolution_instructions(violation: dict) -> Tuple[str, str]:
         file_path = blocked.get("file_path", "<file>")
         pii_types = blocked.get("pii_types", [])
         placeholders = _type_placeholders(pii_types)
-        cfg = {"scan_pii": {"allowlist_patterns": placeholders, "ignore_files": [file_path]}}
+        cfg = {
+            "scan_pii": {
+                "allowlist_patterns": placeholders,
+                "ignore_files": [file_path],
+            }
+        }
         snippet = json.dumps(cfg, indent=2)
-        return "Add pattern to scan_pii.allowlist_patterns or file to scan_pii.ignore_files:", snippet
+        return (
+            "Add pattern to scan_pii.allowlist_patterns or file to scan_pii.ignore_files:",
+            snippet,
+        )
 
     if vtype == "secret_redaction":
         redacted_types = blocked.get("redacted_types", [])
@@ -105,6 +118,7 @@ def get_resolution_instructions(violation: dict) -> Tuple[str, str]:
         if tool_value:
             try:
                 from urllib.parse import urlparse
+
                 parsed = urlparse(tool_value)
                 if parsed.hostname:
                     domain = parsed.hostname

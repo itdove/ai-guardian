@@ -7,7 +7,7 @@ Verifies that:
 4. Inactive secrets still produce a violation log entry
 """
 
-from unittest.mock import MagicMock, patch, PropertyMock
+from unittest.mock import MagicMock, patch
 from dataclasses import dataclass
 from enum import Enum
 
@@ -34,6 +34,7 @@ class TestApplySecretValidationReturnType:
 
     def test_returns_none_when_disabled(self):
         from ai_guardian.hook_processing import _apply_secret_validation
+
         result = _apply_secret_validation(
             {"validate_secrets": False},
             [{"rule_id": "test", "line_number": 1}],
@@ -43,11 +44,15 @@ class TestApplySecretValidationReturnType:
 
     def test_returns_none_when_no_config(self):
         from ai_guardian.hook_processing import _apply_secret_validation
-        result = _apply_secret_validation(None, [{"rule_id": "test", "line_number": 1}], "content")
+
+        result = _apply_secret_validation(
+            None, [{"rule_id": "test", "line_number": 1}], "content"
+        )
         assert result is None
 
     def test_returns_none_when_no_secrets(self):
         from ai_guardian.hook_processing import _apply_secret_validation
+
         result = _apply_secret_validation({"validate_secrets": True}, [], "content")
         assert result is None
 
@@ -58,8 +63,12 @@ class TestApplySecretValidationReturnType:
         mock_validator.enabled = True
         mock_validator.has_validator.return_value = False
 
-        with patch.dict("sys.modules", {"ai_guardian.scanners.secret_validator": MagicMock()}):
-            with patch("ai_guardian.hook_processing._apply_secret_validation") as mock_fn:
+        with patch.dict(
+            "sys.modules", {"ai_guardian.scanners.secret_validator": MagicMock()}
+        ):
+            with patch(
+                "ai_guardian.hook_processing._apply_secret_validation"
+            ) as mock_fn:
                 # Test the actual logic by importing fresh
                 pass
 
@@ -70,7 +79,9 @@ class TestApplySecretValidationReturnType:
         mock_module.SecretValidator.return_value = mock_validator
         mock_module.ValidationStatus = MockValidationStatus
 
-        with patch.dict("sys.modules", {"ai_guardian.scanners.secret_validator": mock_module}):
+        with patch.dict(
+            "sys.modules", {"ai_guardian.scanners.secret_validator": mock_module}
+        ):
             result = _apply_secret_validation(
                 {"validate_secrets": True},
                 [{"rule_id": "unknown-rule", "line_number": 1}],
@@ -97,7 +108,10 @@ class TestApplySecretValidationReturnType:
             elapsed_ms=150.0,
         )
         mock_validator.validate_secrets.return_value = [inactive_result]
-        mock_validator.filter_inactive.return_value = ([], [{"rule_id": "github-personal-token"}])
+        mock_validator.filter_inactive.return_value = (
+            [],
+            [{"rule_id": "github-personal-token"}],
+        )
 
         mock_module = MagicMock()
         mock_module.SecretValidator.return_value = mock_validator
@@ -105,7 +119,9 @@ class TestApplySecretValidationReturnType:
 
         from ai_guardian.hook_processing import _apply_secret_validation
 
-        with patch.dict("sys.modules", {"ai_guardian.scanners.secret_validator": mock_module}):
+        with patch.dict(
+            "sys.modules", {"ai_guardian.scanners.secret_validator": mock_module}
+        ):
             result = _apply_secret_validation(
                 {"validate_secrets": True},
                 [{"rule_id": "github-personal-token", "line_number": 1}],
@@ -132,7 +148,10 @@ class TestApplySecretValidationReturnType:
             elapsed_ms=200.0,
         )
         mock_validator.validate_secrets.return_value = [verified_result]
-        mock_validator.filter_inactive.return_value = ([{"rule_id": "github-personal-token"}], [])
+        mock_validator.filter_inactive.return_value = (
+            [{"rule_id": "github-personal-token"}],
+            [],
+        )
 
         mock_module = MagicMock()
         mock_module.SecretValidator.return_value = mock_validator
@@ -140,7 +159,9 @@ class TestApplySecretValidationReturnType:
 
         from ai_guardian.hook_processing import _apply_secret_validation
 
-        with patch.dict("sys.modules", {"ai_guardian.scanners.secret_validator": mock_module}):
+        with patch.dict(
+            "sys.modules", {"ai_guardian.scanners.secret_validator": mock_module}
+        ):
             result = _apply_secret_validation(
                 {"validate_secrets": True},
                 [{"rule_id": "github-personal-token", "line_number": 1}],
@@ -162,7 +183,9 @@ class TestApplySecretValidationReturnType:
 
         from ai_guardian.hook_processing import _apply_secret_validation
 
-        with patch.dict("sys.modules", {"ai_guardian.scanners.secret_validator": mock_module}):
+        with patch.dict(
+            "sys.modules", {"ai_guardian.scanners.secret_validator": mock_module}
+        ):
             result = _apply_secret_validation(
                 {"validate_secrets": True},
                 [{"rule_id": "github-personal-token", "line_number": 1}],
@@ -185,6 +208,7 @@ class TestValidationFieldInViolation:
 
     def test_secret_violation_includes_validation(self):
         from ai_guardian.hook_processing import _log_secret_detection_violation
+
         mock_logger = MagicMock()
         details = {
             "rule_id": "github-personal-token",
@@ -196,7 +220,9 @@ class TestValidationFieldInViolation:
                 "elapsed_ms": 156,
             },
         }
-        _log_secret_detection_violation("test.py", {}, details, violation_logger=mock_logger)
+        _log_secret_detection_violation(
+            "test.py", {}, details, violation_logger=mock_logger
+        )
         mock_logger.log_violation.assert_called_once()
         blocked = mock_logger.log_violation.call_args.kwargs["blocked"]
         assert "validation" in blocked
@@ -205,19 +231,23 @@ class TestValidationFieldInViolation:
 
     def test_secret_violation_no_validation_when_absent(self):
         from ai_guardian.hook_processing import _log_secret_detection_violation
+
         mock_logger = MagicMock()
         details = {
             "rule_id": "github-personal-token",
             "engine": "Gitleaks",
             "line_number": 42,
         }
-        _log_secret_detection_violation("test.py", {}, details, violation_logger=mock_logger)
+        _log_secret_detection_violation(
+            "test.py", {}, details, violation_logger=mock_logger
+        )
         mock_logger.log_violation.assert_called_once()
         blocked = mock_logger.log_violation.call_args.kwargs["blocked"]
         assert "validation" not in blocked
 
     def test_finding_violation_includes_validation(self):
         from ai_guardian.hook_processing import _log_finding_violation
+
         mock_logger = MagicMock()
         details = {
             "rule_id": "pii-ssn",
@@ -238,6 +268,7 @@ class TestValidationFieldInViolation:
 
     def test_finding_violation_no_validation_when_absent(self):
         from ai_guardian.hook_processing import _log_finding_violation
+
         mock_logger = MagicMock()
         details = {
             "rule_id": "pii-ssn",
@@ -253,6 +284,7 @@ class TestValidationFieldInViolation:
     def test_inactive_validation_status_in_violation(self):
         """Inactive secrets must still produce a violation log entry."""
         from ai_guardian.hook_processing import _log_secret_detection_violation
+
         mock_logger = MagicMock()
         details = {
             "rule_id": "github-personal-token",
@@ -264,7 +296,9 @@ class TestValidationFieldInViolation:
                 "elapsed_ms": 120,
             },
         }
-        _log_secret_detection_violation("test.py", {}, details, violation_logger=mock_logger)
+        _log_secret_detection_violation(
+            "test.py", {}, details, violation_logger=mock_logger
+        )
         mock_logger.log_violation.assert_called_once()
         blocked = mock_logger.log_violation.call_args.kwargs["blocked"]
         assert blocked["validation"]["status"] == "inactive"
@@ -272,6 +306,7 @@ class TestValidationFieldInViolation:
 
     def test_error_validation_status_in_violation(self):
         from ai_guardian.hook_processing import _log_secret_detection_violation
+
         mock_logger = MagicMock()
         details = {
             "rule_id": "github-personal-token",
@@ -283,7 +318,9 @@ class TestValidationFieldInViolation:
                 "elapsed_ms": 0,
             },
         }
-        _log_secret_detection_violation("test.py", {}, details, violation_logger=mock_logger)
+        _log_secret_detection_violation(
+            "test.py", {}, details, violation_logger=mock_logger
+        )
         mock_logger.log_violation.assert_called_once()
         blocked = mock_logger.log_violation.call_args.kwargs["blocked"]
         assert blocked["validation"]["status"] == "error"

@@ -36,8 +36,12 @@ _logger = logging.getLogger(__name__)
 T = TypeVar("T")
 
 
-def load_bundled_rules(category: str, transform: Callable[[List[dict]], T],
-                       fallback: T, feature_name: str = "") -> T:
+def load_bundled_rules(
+    category: str,
+    transform: Callable[[List[dict]], T],
+    fallback: T,
+    feature_name: str = "",
+) -> T:
     """Load rules from a bundled TOML file with fallback on error.
 
     Args:
@@ -51,15 +55,26 @@ def load_bundled_rules(category: str, transform: Callable[[List[dict]], T],
         if toml_path and toml_path.exists():
             raw_rules = load_toml_file(toml_path)
             result = transform(raw_rules)
-            _logger.info(f"{feature_name}: Loaded {len(result)} rules from {category}.toml")
+            _logger.info(
+                f"{feature_name}: Loaded {len(result)} rules from {category}.toml"
+            )
             return result
         else:
-            _logger.error(f"Bundled {category}.toml not found — patterns directory may be missing from install")
+            _logger.error(
+                f"Bundled {category}.toml not found — patterns directory may be missing from install"
+            )
             return fallback
     except Exception as e:
         _logger.error(f"Failed to load {category}.toml: {e}")
         return fallback
 
 
-__all__ = ["PatternCache", "CompiledRule", "load_toml_file", "compile_rule",
-           "DATA_DIR", "BUNDLED_FILES", "load_bundled_rules"]
+__all__ = [
+    "PatternCache",
+    "CompiledRule",
+    "load_toml_file",
+    "compile_rule",
+    "DATA_DIR",
+    "BUNDLED_FILES",
+    "load_bundled_rules",
+]

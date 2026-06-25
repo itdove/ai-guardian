@@ -6,7 +6,6 @@ View and configure prompt injection detection settings.
 """
 
 import json
-from pathlib import Path
 
 from textual.app import ComposeResult
 from textual.containers import Container, Horizontal, VerticalScroll
@@ -14,7 +13,9 @@ from textual.widgets import Static, Button, Input, Label, Select, Checkbox
 
 from ai_guardian.config_utils import get_config_dir
 from ai_guardian.tui.schema_defaults import (
-    SchemaDefaultsMixin, default_indicator, default_placeholder,
+    SchemaDefaultsMixin,
+    default_indicator,
+    default_placeholder,
     select_options_with_default,
 )
 from ai_guardian.tui.widgets import TimeBasedToggle, format_local_time
@@ -121,7 +122,10 @@ class PromptInjectionContent(SchemaDefaultsMixin, Container):
 
     def compose(self) -> ComposeResult:
         """Compose the prompt injection tab content."""
-        yield Static("[bold]Prompt Injection Detection Settings[/bold]", id="prompt-injection-header")
+        yield Static(
+            "[bold]Prompt Injection Detection Settings[/bold]",
+            id="prompt-injection-header",
+        )
 
         with VerticalScroll():
             # Detection toggle section (standalone)
@@ -135,13 +139,19 @@ class PromptInjectionContent(SchemaDefaultsMixin, Container):
 
             # Detection configuration section
             with Container(classes="section"):
-                yield Static("[bold]Detection Configuration[/bold]", classes="section-title")
+                yield Static(
+                    "[bold]Detection Configuration[/bold]", classes="section-title"
+                )
 
                 with Horizontal(classes="setting-row"):
                     yield Label("Detector:")
                     yield Select(
                         select_options_with_default(
-                            [("Heuristic (fast, local)", "heuristic"), ("Rebuff (ML-based)", "rebuff"), ("LLM Guard", "llm-guard")],
+                            [
+                                ("Heuristic (fast, local)", "heuristic"),
+                                ("Rebuff (ML-based)", "rebuff"),
+                                ("LLM Guard", "llm-guard"),
+                            ],
                             "prompt_injection.detector",
                         ),
                         value="heuristic",
@@ -164,7 +174,9 @@ class PromptInjectionContent(SchemaDefaultsMixin, Container):
                 with Horizontal(classes="setting-row"):
                     yield Label("Score Threshold:")
                     yield Input(
-                        placeholder=default_placeholder("prompt_injection.max_score_threshold"),
+                        placeholder=default_placeholder(
+                            "prompt_injection.max_score_threshold"
+                        ),
                         id="score-threshold-input",
                     )
                     yield Static(
@@ -174,33 +186,48 @@ class PromptInjectionContent(SchemaDefaultsMixin, Container):
 
             # Unicode Attack Detection section
             with Container(classes="section"):
-                yield Static("[bold]Unicode Attack Detection[/bold]", classes="section-title")
-                yield Static("[dim]Detect Unicode-based attacks that bypass pattern matching[/dim]", classes="setting-row")
+                yield Static(
+                    "[bold]Unicode Attack Detection[/bold]", classes="section-title"
+                )
+                yield Static(
+                    "[dim]Detect Unicode-based attacks that bypass pattern matching[/dim]",
+                    classes="setting-row",
+                )
 
                 with Horizontal(classes="setting-row"):
                     yield Label("Detect Zero-Width Chars:")
                     yield Checkbox("", id="detect-zero-width-checkbox", value=True)
-                    yield Static("[dim]Invisible characters that break pattern matching[/dim]")
+                    yield Static(
+                        "[dim]Invisible characters that break pattern matching[/dim]"
+                    )
 
                 with Horizontal(classes="setting-row"):
                     yield Label("Detect Bidi Override:")
                     yield Checkbox("", id="detect-bidi-override-checkbox", value=True)
-                    yield Static("[dim]Text display reversal for visual deception[/dim]")
+                    yield Static(
+                        "[dim]Text display reversal for visual deception[/dim]"
+                    )
 
                 with Horizontal(classes="setting-row"):
                     yield Label("Detect Tag Characters:")
                     yield Checkbox("", id="detect-tag-chars-checkbox", value=True)
-                    yield Static("[dim]Hidden data encoding in deprecated Unicode tags[/dim]")
+                    yield Static(
+                        "[dim]Hidden data encoding in deprecated Unicode tags[/dim]"
+                    )
 
                 with Horizontal(classes="setting-row"):
                     yield Label("Detect Homoglyphs:")
                     yield Checkbox("", id="detect-homoglyphs-checkbox", value=True)
-                    yield Static("[dim]Look-alike character substitution (Cyrillic/Greek)[/dim]")
+                    yield Static(
+                        "[dim]Look-alike character substitution (Cyrillic/Greek)[/dim]"
+                    )
 
                 with Horizontal(classes="setting-row"):
                     yield Label("Allow RTL Languages:")
                     yield Checkbox("", id="allow-rtl-languages-checkbox", value=True)
-                    yield Static("[dim]Allow legitimate right-to-left text (Arabic, Hebrew)[/dim]")
+                    yield Static(
+                        "[dim]Allow legitimate right-to-left text (Arabic, Hebrew)[/dim]"
+                    )
 
                 with Horizontal(classes="setting-row"):
                     yield Label("Allow Emoji:")
@@ -210,18 +237,32 @@ class PromptInjectionContent(SchemaDefaultsMixin, Container):
             # Allowlist patterns section
             with Container(classes="section"):
                 yield Static("[bold]Allowlist Patterns[/bold]", classes="section-title")
-                yield Static("Regex patterns to ignore (e.g., for documentation):", classes="setting-row")
+                yield Static(
+                    "Regex patterns to ignore (e.g., for documentation):",
+                    classes="setting-row",
+                )
                 with VerticalScroll(classes="list-scroll"):
                     yield Static("", id="allowlist-patterns")
-                yield Input(placeholder="Enter pattern to allowlist (press 'a' to add)", id="new-allowlist-input")
+                yield Input(
+                    placeholder="Enter pattern to allowlist (press 'a' to add)",
+                    id="new-allowlist-input",
+                )
 
             # Custom patterns section
             with Container(classes="section"):
-                yield Static("[bold]Custom Detection Patterns[/bold]", classes="section-title")
-                yield Static("Additional regex patterns to detect as injection:", classes="setting-row")
+                yield Static(
+                    "[bold]Custom Detection Patterns[/bold]", classes="section-title"
+                )
+                yield Static(
+                    "Additional regex patterns to detect as injection:",
+                    classes="setting-row",
+                )
                 with VerticalScroll(classes="list-scroll"):
                     yield Static("", id="custom-patterns")
-                yield Input(placeholder="Enter custom pattern to detect (press 'c' to add)", id="new-custom-input")
+                yield Input(
+                    placeholder="Enter custom pattern to detect (press 'c' to add)",
+                    id="new-custom-input",
+                )
 
             # Ignore files section
             with Container(classes="section"):
@@ -253,7 +294,9 @@ class PromptInjectionContent(SchemaDefaultsMixin, Container):
 
             # Statistics section
             with Container(classes="section"):
-                yield Static("[bold]Detection Statistics[/bold]", classes="section-title")
+                yield Static(
+                    "[bold]Detection Statistics[/bold]", classes="section-title"
+                )
                 yield Static("", id="detection-stats")
 
     def on_mount(self) -> None:
@@ -273,7 +316,7 @@ class PromptInjectionContent(SchemaDefaultsMixin, Container):
         config = {}
         if config_path.exists():
             try:
-                with open(config_path, 'r', encoding='utf-8') as f:
+                with open(config_path, "r", encoding="utf-8") as f:
                     config = json.load(f)
             except Exception as e:
                 self.app.notify(f"Error loading config: {e}", severity="error")
@@ -306,11 +349,21 @@ class PromptInjectionContent(SchemaDefaultsMixin, Container):
             self.query_one("#score-threshold-input", Input).value = str(score_threshold)
 
             # Update unicode detection checkboxes
-            self.query_one("#detect-zero-width-checkbox", Checkbox).value = detect_zero_width
-            self.query_one("#detect-bidi-override-checkbox", Checkbox).value = detect_bidi_override
-            self.query_one("#detect-tag-chars-checkbox", Checkbox).value = detect_tag_chars
-            self.query_one("#detect-homoglyphs-checkbox", Checkbox).value = detect_homoglyphs
-            self.query_one("#allow-rtl-languages-checkbox", Checkbox).value = allow_rtl_languages
+            self.query_one("#detect-zero-width-checkbox", Checkbox).value = (
+                detect_zero_width
+            )
+            self.query_one("#detect-bidi-override-checkbox", Checkbox).value = (
+                detect_bidi_override
+            )
+            self.query_one("#detect-tag-chars-checkbox", Checkbox).value = (
+                detect_tag_chars
+            )
+            self.query_one("#detect-homoglyphs-checkbox", Checkbox).value = (
+                detect_homoglyphs
+            )
+            self.query_one("#allow-rtl-languages-checkbox", Checkbox).value = (
+                allow_rtl_languages
+            )
             self.query_one("#allow-emoji-checkbox", Checkbox).value = allow_emoji
         except Exception:
             pass  # Widgets may not be fully mounted yet
@@ -328,21 +381,31 @@ class PromptInjectionContent(SchemaDefaultsMixin, Container):
 
                     if valid_until:
                         try:
-                            expiry_dt = datetime.fromisoformat(valid_until.replace('Z', '+00:00'))
+                            expiry_dt = datetime.fromisoformat(
+                                valid_until.replace("Z", "+00:00")
+                            )
                             now = datetime.now(timezone.utc)
 
                             if expiry_dt <= now:
                                 # Expired
-                                pattern_lines.append(f"  • {pattern_str} [status-error][EXPIRED][/status-error]")
+                                pattern_lines.append(
+                                    f"  • {pattern_str} [status-error][EXPIRED][/status-error]"
+                                )
                             else:
                                 # Check if expiring soon (within 24 hours)
                                 time_remaining = expiry_dt - now
                                 if time_remaining.total_seconds() < 86400:  # 24 hours
-                                    pattern_lines.append(f"  • {pattern_str} [status-warn][expires {format_local_time(valid_until)}][/status-warn]")
+                                    pattern_lines.append(
+                                        f"  • {pattern_str} [status-warn][expires {format_local_time(valid_until)}][/status-warn]"
+                                    )
                                 else:
-                                    pattern_lines.append(f"  • {pattern_str} [dim][until {format_local_time(valid_until)}][/dim]")
+                                    pattern_lines.append(
+                                        f"  • {pattern_str} [dim][until {format_local_time(valid_until)}][/dim]"
+                                    )
                         except Exception:
-                            pattern_lines.append(f"  • {pattern_str} [dim][until {format_local_time(valid_until)}][/dim]")
+                            pattern_lines.append(
+                                f"  • {pattern_str} [dim][until {format_local_time(valid_until)}][/dim]"
+                            )
                     else:
                         pattern_lines.append(f"  • {pattern_str}")
                 else:
@@ -387,16 +450,17 @@ class PromptInjectionContent(SchemaDefaultsMixin, Container):
 
         # Get violation stats
         from ai_guardian.violation_logger import ViolationLogger
+
         violation_logger = ViolationLogger()
         violations = violation_logger.get_recent_violations(
-            limit=1000,
-            violation_type="prompt_injection",
-            resolved=None
+            limit=1000, violation_type="prompt_injection", resolved=None
         )
         total = len(violations)
         unresolved = len([v for v in violations if not v.get("resolved", False)])
 
-        stats_text = f"Total prompt injection violations: {total}\nUnresolved: {unresolved}"
+        stats_text = (
+            f"Total prompt injection violations: {total}\nUnresolved: {unresolved}"
+        )
         self.query_one("#detection-stats", Static).update(stats_text)
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
@@ -424,7 +488,9 @@ class PromptInjectionContent(SchemaDefaultsMixin, Container):
                 if 0.0 <= threshold <= 1.0:
                     self.save_field("max_score_threshold", threshold)
                 else:
-                    self.app.notify("Threshold must be between 0.0 and 1.0", severity="error")
+                    self.app.notify(
+                        "Threshold must be between 0.0 and 1.0", severity="error"
+                    )
             except ValueError:
                 self.app.notify("Threshold must be a number", severity="error")
         elif event.input.id == "new-allowlist-input":
@@ -469,7 +535,9 @@ class PromptInjectionContent(SchemaDefaultsMixin, Container):
     def action_refresh(self) -> None:
         """Refresh configuration (triggered by 'r' key)."""
         self.load_config()
-        self.app.notify("Prompt injection configuration refreshed", severity="information")
+        self.app.notify(
+            "Prompt injection configuration refreshed", severity="information"
+        )
 
     def save_field(self, field: str, value) -> None:
         """Save a prompt injection field to config."""
@@ -478,7 +546,7 @@ class PromptInjectionContent(SchemaDefaultsMixin, Container):
 
         try:
             if config_path.exists():
-                with open(config_path, 'r', encoding='utf-8') as f:
+                with open(config_path, "r", encoding="utf-8") as f:
                     config = json.load(f)
             else:
                 config = {}
@@ -488,7 +556,7 @@ class PromptInjectionContent(SchemaDefaultsMixin, Container):
 
             config["prompt_injection"][field] = value
 
-            with open(config_path, 'w', encoding='utf-8') as f:
+            with open(config_path, "w", encoding="utf-8") as f:
                 json.dump(config, f, indent=2)
 
             self.app.notify(f"✓ Saved {field}", severity="success")
@@ -503,7 +571,7 @@ class PromptInjectionContent(SchemaDefaultsMixin, Container):
 
         try:
             if config_path.exists():
-                with open(config_path, 'r', encoding='utf-8') as f:
+                with open(config_path, "r", encoding="utf-8") as f:
                     config = json.load(f)
             else:
                 config = {}
@@ -516,15 +584,19 @@ class PromptInjectionContent(SchemaDefaultsMixin, Container):
 
             config["prompt_injection"]["unicode_detection"][field] = value
 
-            with open(config_path, 'w', encoding='utf-8') as f:
+            with open(config_path, "w", encoding="utf-8") as f:
                 json.dump(config, f, indent=2)
 
             # Convert field name to human-readable
             field_name = field.replace("_", " ").title()
-            self.app.notify(f"✓ Unicode detection: {field_name} = {value}", severity="success")
+            self.app.notify(
+                f"✓ Unicode detection: {field_name} = {value}", severity="success"
+            )
 
         except Exception as e:
-            self.app.notify(f"Error saving unicode detection {field}: {e}", severity="error")
+            self.app.notify(
+                f"Error saving unicode detection {field}: {e}", severity="error"
+            )
 
     def update_settings(self) -> None:
         """Update detector and sensitivity settings."""
@@ -536,7 +608,7 @@ class PromptInjectionContent(SchemaDefaultsMixin, Container):
 
         try:
             if config_path.exists():
-                with open(config_path, 'r', encoding='utf-8') as f:
+                with open(config_path, "r", encoding="utf-8") as f:
                     config = json.load(f)
             else:
                 config = {}
@@ -547,11 +619,14 @@ class PromptInjectionContent(SchemaDefaultsMixin, Container):
             config["prompt_injection"]["detector"] = detector
             config["prompt_injection"]["sensitivity"] = sensitivity
 
-            with open(config_path, 'w', encoding='utf-8') as f:
+            with open(config_path, "w", encoding="utf-8") as f:
                 json.dump(config, f, indent=2)
 
             self.load_config()
-            self.app.notify(f"✓ Updated detector: {detector}, sensitivity: {sensitivity}", severity="success")
+            self.app.notify(
+                f"✓ Updated detector: {detector}, sensitivity: {sensitivity}",
+                severity="success",
+            )
 
         except Exception as e:
             self.app.notify(f"Error updating settings: {e}", severity="error")
@@ -569,7 +644,7 @@ class PromptInjectionContent(SchemaDefaultsMixin, Container):
 
         try:
             if config_path.exists():
-                with open(config_path, 'r', encoding='utf-8') as f:
+                with open(config_path, "r", encoding="utf-8") as f:
                     config = json.load(f)
             else:
                 config = {}
@@ -587,14 +662,16 @@ class PromptInjectionContent(SchemaDefaultsMixin, Container):
 
             config["prompt_injection"]["allowlist_patterns"].append(pattern)
 
-            with open(config_path, 'w', encoding='utf-8') as f:
+            with open(config_path, "w", encoding="utf-8") as f:
                 json.dump(config, f, indent=2)
 
             # Clear input
             self.query_one("#new-allowlist-input", Input).value = ""
 
             self.load_config()
-            self.app.notify(f"✓ Added pattern to allowlist: {pattern}", severity="success")
+            self.app.notify(
+                f"✓ Added pattern to allowlist: {pattern}", severity="success"
+            )
 
         except Exception as e:
             self.app.notify(f"Error adding pattern: {e}", severity="error")
@@ -612,7 +689,7 @@ class PromptInjectionContent(SchemaDefaultsMixin, Container):
 
         try:
             if config_path.exists():
-                with open(config_path, 'r', encoding='utf-8') as f:
+                with open(config_path, "r", encoding="utf-8") as f:
                     config = json.load(f)
             else:
                 config = {}
@@ -630,7 +707,7 @@ class PromptInjectionContent(SchemaDefaultsMixin, Container):
 
             config["prompt_injection"]["custom_patterns"].append(pattern)
 
-            with open(config_path, 'w', encoding='utf-8') as f:
+            with open(config_path, "w", encoding="utf-8") as f:
                 json.dump(config, f, indent=2)
 
             # Clear input
@@ -655,7 +732,7 @@ class PromptInjectionContent(SchemaDefaultsMixin, Container):
         try:
             config = {}
             if config_path.exists():
-                with open(config_path, 'r', encoding='utf-8') as f:
+                with open(config_path, "r", encoding="utf-8") as f:
                     config = json.load(f)
 
             if "prompt_injection" not in config:
@@ -669,7 +746,7 @@ class PromptInjectionContent(SchemaDefaultsMixin, Container):
 
             config["prompt_injection"][field].append(value)
 
-            with open(config_path, 'w', encoding='utf-8') as f:
+            with open(config_path, "w", encoding="utf-8") as f:
                 json.dump(config, f, indent=2)
 
             input_widget.value = ""

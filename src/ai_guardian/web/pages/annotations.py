@@ -57,16 +57,18 @@ def _parse_enabled(raw):
     return False, None, "", bool(raw)
 
 
-
-def _render_toggle(label, desc, is_temp, until_dt, reason, is_enabled,
-                   save_fn, refresh_fn):
+def _render_toggle(
+    label, desc, is_temp, until_dt, reason, is_enabled, save_fn, refresh_fn
+):
     with ui.card().classes("w-full"):
         if is_temp and until_dt:
             remaining = _format_remaining(until_dt)
             with ui.row().classes("items-center gap-2 w-full"):
                 ui.icon("timer").classes("text-amber")
                 ui.label(label).classes("font-bold text-sm flex-grow")
-                ui.badge(f"TEMP DISABLED — {remaining}", color="amber").classes("text-xs")
+                ui.badge(f"TEMP DISABLED — {remaining}", color="amber").classes(
+                    "text-xs"
+                )
             ui.label(desc).classes("text-xs text-grey-6 ml-8")
             if reason:
                 ui.label(f"Reason: {reason}").classes("text-xs text-grey-7 ml-8")
@@ -76,8 +78,9 @@ def _render_toggle(label, desc, is_temp, until_dt, reason, is_enabled,
                 ui.notify(f"{label} re-enabled", type="positive")
                 await refresh_fn()
 
-            ui.button("Re-enable Now", icon="play_arrow", color="green",
-                      on_click=do_reenable).props("dense size=sm").classes("ml-8")
+            ui.button(
+                "Re-enable Now", icon="play_arrow", color="green", on_click=do_reenable
+            ).props("dense size=sm").classes("ml-8")
         else:
             with ui.row().classes("items-center gap-2 w-full"):
                 sw = ui.switch(label, value=bool(is_enabled)).classes("flex-grow")
@@ -93,24 +96,40 @@ def _render_toggle(label, desc, is_temp, until_dt, reason, is_enabled,
                 sw.on_value_change(on_toggle)
 
             with ui.row().classes("items-center gap-2 ml-8"):
-                dur = ui.input(placeholder="e.g. 30m, 2h, 1d").props("dense outlined").classes("w-32")
-                rsn = ui.input(placeholder="Reason").props("dense outlined").classes("w-40")
+                dur = (
+                    ui.input(placeholder="e.g. 30m, 2h, 1d")
+                    .props("dense outlined")
+                    .classes("w-32")
+                )
+                rsn = (
+                    ui.input(placeholder="Reason")
+                    .props("dense outlined")
+                    .classes("w-40")
+                )
 
                 async def do_temp(d=dur, r=rsn):
                     delta = _parse_duration(d.value or "30m")
                     if not delta:
-                        ui.notify("Invalid duration (e.g. 30m, 2h, 1d)", type="negative")
+                        ui.notify(
+                            "Invalid duration (e.g. 30m, 2h, 1d)", type="negative"
+                        )
                         return
-                    until_ts = (datetime.now(timezone.utc) + delta).strftime("%Y-%m-%dT%H:%M:%SZ")
+                    until_ts = (datetime.now(timezone.utc) + delta).strftime(
+                        "%Y-%m-%dT%H:%M:%SZ"
+                    )
                     entry = {"value": False, "disabled_until": until_ts}
                     rv = r.value.strip()
                     if rv:
                         entry["reason"] = rv
                     await run.io_bound(save_fn, entry)
-                    ui.notify(f"{label} temp disabled for {d.value or '30m'}", type="warning")
+                    ui.notify(
+                        f"{label} temp disabled for {d.value or '30m'}", type="warning"
+                    )
                     await refresh_fn()
 
-                ui.button("Temp Disable", icon="timer", on_click=do_temp).props("dense size=sm")
+                ui.button("Temp Disable", icon="timer", on_click=do_temp).props(
+                    "dense size=sm"
+                )
 
 
 def _render_alias_list(title, desc, config_section, config_key, refresh_fn):
@@ -146,16 +165,18 @@ def _render_alias_list(title, desc, config_section, config_key, refresh_fn):
                             ui.notify("Alias removed", type="positive")
                             await refresh_fn()
 
-                    ui.button(
-                        icon="delete", on_click=remove_alias, color="red"
-                    ).props("flat dense size=sm")
+                    ui.button(icon="delete", on_click=remove_alias, color="red").props(
+                        "flat dense size=sm"
+                    )
         else:
             ui.label("No aliases configured.").classes("text-grey-6 text-sm")
 
         with ui.row().classes("items-center gap-2 mt-2"):
-            alias_input = ui.input(
-                placeholder="Enter alias"
-            ).props("dense outlined").classes("flex-grow")
+            alias_input = (
+                ui.input(placeholder="Enter alias")
+                .props("dense outlined")
+                .classes("flex-grow")
+            )
 
             async def add_alias(inp=alias_input):
                 val = inp.value.strip()
@@ -221,23 +242,33 @@ def create_annotations_page(service, daemon_name: str):
                     _render_toggle(
                         "Annotations",
                         "Allow inline and block annotations to suppress secret and PII detections.",
-                        is_temp, until_dt, reason, is_enabled,
-                        save_enabled, refresh,
+                        is_temp,
+                        until_dt,
+                        reason,
+                        is_enabled,
+                        save_enabled,
+                        refresh,
                     )
 
                     with ui.card().classes("w-full"):
-                        ui.label("Built-in Markers (Always Active)").classes("text-lg font-bold")
+                        ui.label("Built-in Markers (Always Active)").classes(
+                            "text-lg font-bold"
+                        )
                         ui.label(
                             "These markers are hardcoded and cannot be removed."
                         ).classes("text-xs text-grey-6")
                         with ui.column().classes("gap-1 ml-4 mt-2"):
                             with ui.row().classes("items-center gap-1"):
-                                ui.icon("shield").classes("text-blue-4").style("font-size: 14px")
-                                ui.label("Inline: # ai-guardian:allow").classes("text-xs").style(
-                                    "font-family: monospace"
+                                ui.icon("shield").classes("text-blue-4").style(
+                                    "font-size: 14px"
                                 )
+                                ui.label("Inline: # ai-guardian:allow").classes(
+                                    "text-xs"
+                                ).style("font-family: monospace")
                             with ui.row().classes("items-center gap-1"):
-                                ui.icon("shield").classes("text-blue-4").style("font-size: 14px")
+                                ui.icon("shield").classes("text-blue-4").style(
+                                    "font-size: 14px"
+                                )
                                 ui.label(
                                     "Block: # ai-guardian:begin-allow ... # ai-guardian:end-allow"
                                 ).classes("text-xs").style("font-family: monospace")
@@ -249,25 +280,33 @@ def create_annotations_page(service, daemon_name: str):
                     _render_alias_list(
                         "Inline Allow Aliases (secrets + PII)",
                         "Additional comment markers that act as inline allow annotations.",
-                        "annotations", "inline_allow", refresh,
+                        "annotations",
+                        "inline_allow",
+                        refresh,
                     )
 
                     _render_alias_list(
                         "Inline Allow Secrets Aliases",
                         "Comment markers for suppressing only secret detections (default includes gitleaks:allow).",
-                        "annotations", "inline_allow_secrets", refresh,
+                        "annotations",
+                        "inline_allow_secrets",
+                        refresh,
                     )
 
                     _render_alias_list(
                         "Block Begin Aliases",
                         "Additional markers for beginning a block-level allow region.",
-                        "annotations", "block_begin", refresh,
+                        "annotations",
+                        "block_begin",
+                        refresh,
                     )
 
                     _render_alias_list(
                         "Block End Aliases",
                         "Additional markers for ending a block-level allow region.",
-                        "annotations", "block_end", refresh,
+                        "annotations",
+                        "block_end",
+                        refresh,
                     )
 
             ui.timer(0.1, refresh, once=True)

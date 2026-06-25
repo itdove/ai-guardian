@@ -29,8 +29,8 @@ class TestBashToolOutputScanning(unittest.TestCase):
             "tool_response": {
                 "stdout": "aws_access_key_id=AKIAIOSFODNN7EXAMPLE\n",
                 "stderr": "",
-                "exit_code": 0
-            }
+                "exit_code": 0,
+            },
         }
 
         output, tool_name = extract_tool_result(hook_data)
@@ -46,8 +46,8 @@ class TestBashToolOutputScanning(unittest.TestCase):
             "tool_response": {
                 "stdout": "",
                 "stderr": "Error: Connection failed with token abc123secret\n",
-                "exit_code": 1
-            }
+                "exit_code": 1,
+            },
         }
 
         output, tool_name = extract_tool_result(hook_data)
@@ -63,8 +63,8 @@ class TestBashToolOutputScanning(unittest.TestCase):
             "tool_response": {
                 "stdout": "Output line 1\n",
                 "stderr": "Warning: sensitive data\n",
-                "exit_code": 0
-            }
+                "exit_code": 0,
+            },
         }
 
         output, tool_name = extract_tool_result(hook_data)
@@ -79,9 +79,7 @@ class TestBashToolOutputScanning(unittest.TestCase):
         """Test that Read tool output field still works (regression test)."""
         hook_data = {
             "tool_name": "Read",
-            "tool_response": {
-                "output": "File contents with secret: xyz789\n"
-            }
+            "tool_response": {"output": "File contents with secret: xyz789\n"},
         }
 
         output, tool_name = extract_tool_result(hook_data)
@@ -94,9 +92,7 @@ class TestBashToolOutputScanning(unittest.TestCase):
         """Test that Read tool content field still works."""
         hook_data = {
             "tool_name": "Read",
-            "tool_response": {
-                "content": "File contents with password=secret123\n"
-            }
+            "tool_response": {"content": "File contents with password=secret123\n"},
         }
 
         output, tool_name = extract_tool_result(hook_data)
@@ -109,11 +105,7 @@ class TestBashToolOutputScanning(unittest.TestCase):
         """Test that empty Bash output returns None."""
         hook_data = {
             "tool_name": "Bash",
-            "tool_response": {
-                "stdout": "",
-                "stderr": "",
-                "exit_code": 0
-            }
+            "tool_response": {"stdout": "", "stderr": "", "exit_code": 0},
         }
 
         output, tool_name = extract_tool_result(hook_data)
@@ -129,8 +121,8 @@ class TestBashToolOutputScanning(unittest.TestCase):
                 "output": "Explicit output field",
                 "stdout": "stdout content",
                 "stderr": "stderr content",
-                "exit_code": 0
-            }
+                "exit_code": 0,
+            },
         }
 
         output, tool_name = extract_tool_result(hook_data)
@@ -143,10 +135,7 @@ class TestBashToolOutputScanning(unittest.TestCase):
         """Test that Write/Edit tools are still skipped (regression test)."""
         hook_data = {
             "tool_name": "Write",
-            "tool_response": {
-                "success": True,
-                "file_path": "/tmp/test.txt"
-            }
+            "tool_response": {"success": True, "file_path": "/tmp/test.txt"},
         }
 
         output, tool_name = extract_tool_result(hook_data)
@@ -168,8 +157,8 @@ class TestBashRealWorldScenarios(unittest.TestCase):
             "tool_response": {
                 "stdout": "[default]\naws_access_key_id=AKIAIOSFODNN7EXAMPLE\naws_secret_access_key=wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY\n",
                 "stderr": "",
-                "exit_code": 0
-            }
+                "exit_code": 0,
+            },
         }
 
         output, tool_name = extract_tool_result(hook_data)
@@ -186,8 +175,8 @@ class TestBashRealWorldScenarios(unittest.TestCase):
             "tool_response": {
                 "stdout": "/etc/config.yml:database_password: SuperSecret123!\n",
                 "stderr": "",
-                "exit_code": 0
-            }
+                "exit_code": 0,
+            },
         }
 
         output, tool_name = extract_tool_result(hook_data)
@@ -203,8 +192,8 @@ class TestBashRealWorldScenarios(unittest.TestCase):
             "tool_response": {
                 "stdout": "GITHUB_TOKEN=ghp_1234567890abcdefghijklmnopqrstuvwxyz\nAPI_TOKEN=sk-proj-abc123\n",  # notsecret
                 "stderr": "",
-                "exit_code": 0
-            }
+                "exit_code": 0,
+            },
         }
 
         output, tool_name = extract_tool_result(hook_data)
@@ -221,8 +210,8 @@ class TestBashRealWorldScenarios(unittest.TestCase):
             "tool_response": {
                 "stdout": "",
                 "stderr": "curl: (7) Failed to connect to api.example.com:443\nUsing token: Bearer sk-secret-token-here\n",
-                "exit_code": 7
-            }
+                "exit_code": 7,
+            },
         }
 
         output, tool_name = extract_tool_result(hook_data)
@@ -231,5 +220,5 @@ class TestBashRealWorldScenarios(unittest.TestCase):
         self.assertIn("sk-secret-token-here", output)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()

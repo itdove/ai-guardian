@@ -1,10 +1,8 @@
 """Tests for tray target selector TUI app and CLI handler."""
 
-import json
 import sys
 from unittest import mock
 
-import pytest
 
 from ai_guardian.tui.tray_target_selector import TrayTargetSelectorApp, _target_label
 
@@ -13,23 +11,39 @@ class TestTargetLabel:
     """Tests for the _target_label display formatter."""
 
     def test_container_with_different_name(self):
-        t = {"name": "my-project", "runtime": "container",
-             "container_engine": "podman", "container_name": "sandbox-1"}
+        t = {
+            "name": "my-project",
+            "runtime": "container",
+            "container_engine": "podman",
+            "container_name": "sandbox-1",
+        }
         assert _target_label(t) == "my-project (podman: sandbox-1)"
 
     def test_container_with_same_name(self):
-        t = {"name": "sandbox-1", "runtime": "container",
-             "container_engine": "docker", "container_name": "sandbox-1"}
+        t = {
+            "name": "sandbox-1",
+            "runtime": "container",
+            "container_engine": "docker",
+            "container_name": "sandbox-1",
+        }
         assert _target_label(t) == "sandbox-1 (docker)"
 
     def test_container_without_container_name(self):
-        t = {"name": "my-daemon", "runtime": "container",
-             "container_engine": "podman", "container_name": None}
+        t = {
+            "name": "my-daemon",
+            "runtime": "container",
+            "container_engine": "podman",
+            "container_name": None,
+        }
         assert _target_label(t) == "my-daemon (podman)"
 
     def test_container_without_engine(self):
-        t = {"name": "d", "runtime": "container",
-             "container_engine": None, "container_name": "c1"}
+        t = {
+            "name": "d",
+            "runtime": "container",
+            "container_engine": None,
+            "container_name": "c1",
+        }
         assert _target_label(t) == "d (container: c1)"
 
     def test_local_target(self):
@@ -37,8 +51,7 @@ class TestTargetLabel:
         assert _target_label(t) == "my-mac (local)"
 
     def test_kubernetes_with_pod(self):
-        t = {"name": "staging", "runtime": "kubernetes",
-             "pod_name": "guardian-abc"}
+        t = {"name": "staging", "runtime": "kubernetes", "pod_name": "guardian-abc"}
         assert _target_label(t) == "staging (k8s: guardian-abc)"
 
     def test_kubernetes_without_pod(self):
@@ -76,6 +89,7 @@ class TestHandleTrayTargetSelect:
 
     def test_rejects_invalid_json(self):
         from ai_guardian.cli_handlers import _handle_tray_target_select
+
         args = mock.MagicMock()
         args.targets = "not valid json"
         result = _handle_tray_target_select(args)
@@ -83,6 +97,7 @@ class TestHandleTrayTargetSelect:
 
     def test_rejects_non_array(self):
         from ai_guardian.cli_handlers import _handle_tray_target_select
+
         args = mock.MagicMock()
         args.targets = '{"name": "not-an-array"}'
         result = _handle_tray_target_select(args)
@@ -90,6 +105,7 @@ class TestHandleTrayTargetSelect:
 
     def test_rejects_non_tty(self):
         from ai_guardian.cli_handlers import _handle_tray_target_select
+
         args = mock.MagicMock()
         args.targets = '[{"name": "a", "runtime": "local"}]'
         with mock.patch.object(sys.stdin, "isatty", return_value=False):

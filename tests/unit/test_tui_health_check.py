@@ -8,9 +8,13 @@ without running the full Textual app.
 
 from unittest.mock import patch, MagicMock
 
-import pytest
 
-from ai_guardian.doctor import CheckResult, CheckStatus, DoctorReport, _CHECK_DISPLAY_NAMES
+from ai_guardian.doctor import (
+    CheckResult,
+    CheckStatus,
+    DoctorReport,
+    _CHECK_DISPLAY_NAMES,
+)
 from ai_guardian.tui.health_check import (
     HealthCheckContent,
     format_check_status,
@@ -92,10 +96,20 @@ class TestFormatCheckStatus:
 
     def test_all_display_names_mapped(self):
         known_checks = [
-            "config_file", "deprecated_fields", "scanners",
-            "pattern_server", "ps_cache_path", "ps_auth", "ps_url",
-            "ps_cache_freshness", "hooks", "state_dir", "cache_dir",
-            "permissions", "directory_rules", "console_deps",
+            "config_file",
+            "deprecated_fields",
+            "scanners",
+            "pattern_server",
+            "ps_cache_path",
+            "ps_auth",
+            "ps_url",
+            "ps_cache_freshness",
+            "hooks",
+            "state_dir",
+            "cache_dir",
+            "permissions",
+            "directory_rules",
+            "console_deps",
             "config_consistency",
         ]
         for name in known_checks:
@@ -177,21 +191,25 @@ class TestFormatSummary:
     """Test the format_summary() helper function."""
 
     def test_all_pass(self):
-        report = DoctorReport(checks=[
-            CheckResult(name="a", status=CheckStatus.PASS, message="OK"),
-            CheckResult(name="b", status=CheckStatus.PASS, message="OK"),
-        ])
+        report = DoctorReport(
+            checks=[
+                CheckResult(name="a", status=CheckStatus.PASS, message="OK"),
+                CheckResult(name="b", status=CheckStatus.PASS, message="OK"),
+            ]
+        )
         result = format_summary(report)
         assert "2 passed" in result
         assert "error" not in result
 
     def test_mixed_results(self):
-        report = DoctorReport(checks=[
-            CheckResult(name="a", status=CheckStatus.PASS, message="OK"),
-            CheckResult(name="b", status=CheckStatus.WARN, message="Warning"),
-            CheckResult(name="c", status=CheckStatus.FAIL, message="Error"),
-            CheckResult(name="d", status=CheckStatus.SKIP, message="Skipped"),
-        ])
+        report = DoctorReport(
+            checks=[
+                CheckResult(name="a", status=CheckStatus.PASS, message="OK"),
+                CheckResult(name="b", status=CheckStatus.WARN, message="Warning"),
+                CheckResult(name="c", status=CheckStatus.FAIL, message="Error"),
+                CheckResult(name="d", status=CheckStatus.SKIP, message="Skipped"),
+            ]
+        )
         result = format_summary(report)
         assert "1 passed" in result
         assert "1 error(s)" in result
@@ -199,9 +217,13 @@ class TestFormatSummary:
         assert "1 skipped" in result
 
     def test_with_fixed(self):
-        report = DoctorReport(checks=[
-            CheckResult(name="a", status=CheckStatus.PASS, message="OK", fixed=True),
-        ])
+        report = DoctorReport(
+            checks=[
+                CheckResult(
+                    name="a", status=CheckStatus.PASS, message="OK", fixed=True
+                ),
+            ]
+        )
         result = format_summary(report)
         assert "1 fixed" in result
 
@@ -218,9 +240,11 @@ class TestHealthCheckRunChecks:
     @patch("ai_guardian.tui.health_check.Doctor")
     def test_run_checks_calls_doctor(self, mock_doctor_cls, mock_display):
         mock_doctor = MagicMock()
-        report = DoctorReport(checks=[
-            CheckResult(name="config_file", status=CheckStatus.PASS, message="OK"),
-        ])
+        report = DoctorReport(
+            checks=[
+                CheckResult(name="config_file", status=CheckStatus.PASS, message="OK"),
+            ]
+        )
         mock_doctor.run_all.return_value = report
         mock_doctor_cls.return_value = mock_doctor
 

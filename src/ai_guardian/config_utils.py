@@ -14,7 +14,7 @@ import subprocess
 import threading
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Dict, FrozenSet, List, Optional, Set
+from typing import Dict, FrozenSet, List, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -23,14 +23,16 @@ SENSITIVITY_SEVERITY = {"low": 0, "medium": 1, "high": 2}
 
 # Sections that only make sense at the user/system level.
 # Project-level configs cannot override these.
-GLOBAL_ONLY_SECTIONS: FrozenSet[str] = frozenset({
-    "daemon",
-    "mcp_server",
-    "support",
-    "security_instructions",
-    "on_scan_error",
-    "remote_configs",
-})
+GLOBAL_ONLY_SECTIONS: FrozenSet[str] = frozenset(
+    {
+        "daemon",
+        "mcp_server",
+        "support",
+        "security_instructions",
+        "on_scan_error",
+        "remote_configs",
+    }
+)
 
 _project_config_path_cache: Optional[Path] = None
 _project_config_path_cached = False
@@ -57,7 +59,7 @@ def get_project_dir() -> str:
 
     Uses the per-thread daemon override when set, falls back to os.getcwd().
     """
-    return getattr(_thread_local, 'project_dir', None) or os.getcwd()
+    return getattr(_thread_local, "project_dir", None) or os.getcwd()
 
 
 def _clear_project_config_cache():
@@ -100,7 +102,7 @@ def get_project_config_path() -> Optional[Path]:
     """
     global _project_config_path_cache, _project_config_path_cached
 
-    override_dir = getattr(_thread_local, 'project_dir', None)
+    override_dir = getattr(_thread_local, "project_dir", None)
     if override_dir:
         return _discover_project_config_path()
 
@@ -123,7 +125,7 @@ def _discover_project_config_path() -> Optional[Path]:
     4. Git repo root
     5. CWD fallback
     """
-    override_dir = getattr(_thread_local, 'project_dir', None)
+    override_dir = getattr(_thread_local, "project_dir", None)
     if override_dir:
         result = _find_config_in_dir(Path(override_dir))
         if result:
@@ -140,7 +142,9 @@ def _discover_project_config_path() -> Optional[Path]:
         return None
 
     # Check IDE environment variables (Cursor, VS Code)
-    ide_project_path = os.environ.get("CURSOR_PROJECT_PATH") or os.environ.get("VSCODE_CWD")
+    ide_project_path = os.environ.get("CURSOR_PROJECT_PATH") or os.environ.get(
+        "VSCODE_CWD"
+    )
     if ide_project_path:
         ide_root = Path(ide_project_path)
         result = _find_config_in_dir(ide_root)
@@ -157,7 +161,8 @@ def _discover_project_config_path() -> Optional[Path]:
                 logger.warning(
                     "DEPRECATED: Project config at '%s'. "
                     "Move to '.ai-guardian/ai-guardian.json'. "
-                    "Legacy support will be removed in v2.0.0.", legacy_path
+                    "Legacy support will be removed in v2.0.0.",
+                    legacy_path,
                 )
             else:
                 logger.debug(f"Project config at git root: {result}")
@@ -171,7 +176,8 @@ def _discover_project_config_path() -> Optional[Path]:
             logger.warning(
                 "DEPRECATED: Project config at '%s'. "
                 "Move to '.ai-guardian/ai-guardian.json'. "
-                "Legacy support will be removed in v2.0.0.", legacy_path
+                "Legacy support will be removed in v2.0.0.",
+                legacy_path,
             )
         else:
             logger.debug(f"Project config at CWD: {result}")
@@ -185,7 +191,9 @@ def _find_git_root() -> Optional[Path]:
     try:
         result = subprocess.run(
             ["git", "rev-parse", "--show-toplevel"],
-            capture_output=True, text=True, timeout=5,
+            capture_output=True,
+            text=True,
+            timeout=5,
         )
         if result.returncode == 0:
             return Path(result.stdout.strip())
@@ -232,13 +240,18 @@ def deep_merge(
         section_locked, locked_fields, tighten_only = _get_immutable_info(base.get(key))
 
         if section_locked:
-            logger.debug(f"Project config: section '{key}' is immutable, skipping entirely")
+            logger.debug(
+                f"Project config: section '{key}' is immutable, skipping entirely"
+            )
             continue
 
         if key in result:
             if isinstance(result[key], dict) and isinstance(value, dict):
                 result[key] = _deep_merge_section(
-                    result[key], value, locked_fields, tighten_only,
+                    result[key],
+                    value,
+                    locked_fields,
+                    tighten_only,
                 )
             elif isinstance(result[key], list) and isinstance(value, list):
                 result[key] = result[key] + value
@@ -325,12 +338,16 @@ def _deep_merge_section(
             continue
 
         if locked_fields and key in locked_fields:
-            logger.debug(f"Project config: immutable field '{key}' cannot be overridden")
+            logger.debug(
+                f"Project config: immutable field '{key}' cannot be overridden"
+            )
             continue
 
         if key in result:
             if isinstance(result[key], dict) and isinstance(value, dict):
-                result[key] = _deep_merge_section(result[key], value, None, tighten_only)
+                result[key] = _deep_merge_section(
+                    result[key], value, None, tighten_only
+                )
             elif isinstance(result[key], list) and isinstance(value, list):
                 if tighten_only:
                     # Tighten-only: can add items but not remove existing ones
@@ -342,7 +359,9 @@ def _deep_merge_section(
                         removed = base_set - override_set
                         logger.warning(
                             "Config override blocked: %s cannot remove items %s "
-                            "(tighten-only policy)", key, removed,
+                            "(tighten-only policy)",
+                            key,
+                            removed,
                         )
                         new_items = [v for v in value if v not in base_set]
                         if new_items:
@@ -357,7 +376,9 @@ def _deep_merge_section(
                         logger.warning(
                             "Config override blocked: %s cannot be loosened "
                             "from '%s' to '%s' (tighten-only policy)",
-                            key, result[key], value,
+                            key,
+                            result[key],
+                            value,
                         )
                 else:
                     result[key] = copy.deepcopy(value)
@@ -540,8 +561,8 @@ def parse_iso8601(timestamp_str: str) -> Optional[datetime]:
     try:
         # Try parsing with fromisoformat (Python 3.7+)
         # Handle Z suffix (not supported by fromisoformat in Python < 3.11)
-        if timestamp_str.endswith('Z'):
-            timestamp_str = timestamp_str[:-1] + '+00:00'
+        if timestamp_str.endswith("Z"):
+            timestamp_str = timestamp_str[:-1] + "+00:00"
 
         dt = datetime.fromisoformat(timestamp_str)
 
@@ -586,7 +607,9 @@ def is_expired(valid_until: str, current_time: Optional[datetime] = None) -> boo
 
     # Fail-safe: if parsing fails, treat as non-expired
     if valid_until_dt is None:
-        logger.debug(f"Could not parse valid_until timestamp '{valid_until}', treating as non-expired")
+        logger.debug(
+            f"Could not parse valid_until timestamp '{valid_until}', treating as non-expired"
+        )
         return False
 
     # Use current time or default to now (UTC)
@@ -600,7 +623,9 @@ def is_expired(valid_until: str, current_time: Optional[datetime] = None) -> boo
     return current_time >= valid_until_dt
 
 
-def is_feature_enabled(feature_config, current_time: Optional[datetime] = None, default: bool = True) -> bool:
+def is_feature_enabled(
+    feature_config, current_time: Optional[datetime] = None, default: bool = True
+) -> bool:
     """
     Check if a feature is enabled (not temporarily disabled).
 
@@ -678,14 +703,22 @@ def is_feature_enabled(feature_config, current_time: Optional[datetime] = None, 
         return enabled_value
 
     # Unknown format - fail-safe to default
-    logger.warning(f"Unknown feature config format: {type(feature_config)}, using default: {default}")
+    logger.warning(
+        f"Unknown feature config format: {type(feature_config)}, using default: {default}"
+    )
     return default
 
 
 _FEATURE_KEYS = (
-    "secret_scanning", "scan_pii", "prompt_injection",
-    "config_file_scanning", "violation_logging", "ssrf_protection",
-    "secret_redaction", "transcript_scanning", "image_scanning",
+    "secret_scanning",
+    "scan_pii",
+    "prompt_injection",
+    "config_file_scanning",
+    "violation_logging",
+    "ssrf_protection",
+    "secret_redaction",
+    "transcript_scanning",
+    "image_scanning",
 )
 
 
@@ -755,14 +788,16 @@ def validate_regex_pattern(pattern: str, max_length: int = 500) -> bool:
     # Pattern: closing paren/bracket ) or ] followed by quantifier then another quantifier
     # BUT: allow non-greedy quantifiers which end in ? (those are safe)
     nested_quantifier_patterns = [
-        r'\)[+*][+*]',    # Consecutive quantifiers after closing paren like )++ or )+* (not greedy)
-        r'\][+*][+*]',    # Consecutive quantifiers after closing bracket like ]++ or ]+* (not greedy)
-        r'[+*?]\)[+*]',   # Quantifier before ) then non-greedy after, like +)+
+        r"\)[+*][+*]",  # Consecutive quantifiers after closing paren like )++ or )+* (not greedy)
+        r"\][+*][+*]",  # Consecutive quantifiers after closing bracket like ]++ or ]+* (not greedy)
+        r"[+*?]\)[+*]",  # Quantifier before ) then non-greedy after, like +)+
     ]
 
     for nested_pattern in nested_quantifier_patterns:
         if re.search(nested_pattern, pattern):
-            logger.warning(f"Nested quantifiers detected in pattern (potential ReDoS): {pattern[:100]}")
+            logger.warning(
+                f"Nested quantifiers detected in pattern (potential ReDoS): {pattern[:100]}"
+            )
             return False
 
     # Validate regex syntax by attempting to compile

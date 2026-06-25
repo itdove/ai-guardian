@@ -10,7 +10,6 @@ import tempfile
 import unittest
 import sys
 import os
-from pathlib import Path
 
 # Add parent directory to path for imports
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -19,7 +18,7 @@ from ai_guardian.scanners.output_parsers import (
     GitleaksOutputParser,
     LeakTKOutputParser,
     get_parser,
-    OUTPUT_PARSERS
+    OUTPUT_PARSERS,
 )
 
 
@@ -28,7 +27,7 @@ class TestGitleaksOutputParser(unittest.TestCase):
 
     def test_parse_empty_findings(self):
         """Test parsing when no secrets are found."""
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as f:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
             json.dump([], f)
             output_file = f.name
 
@@ -52,11 +51,11 @@ class TestGitleaksOutputParser(unittest.TestCase):
                 "StartLine": 5,
                 "EndLine": 5,
                 "Description": "AWS Access Key",
-                "Commit": "abc123"
+                "Commit": "abc123",
             }
         ]
 
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as f:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
             json.dump(gitleaks_output, f)
             output_file = f.name
 
@@ -85,18 +84,18 @@ class TestGitleaksOutputParser(unittest.TestCase):
                 "File": "test1.txt",
                 "StartLine": 5,
                 "EndLine": 5,
-                "Description": "AWS Access Key"
+                "Description": "AWS Access Key",
             },
             {
                 "RuleID": "github-pat",
                 "File": "test2.txt",
                 "StartLine": 10,
                 "EndLine": 10,
-                "Description": "GitHub Personal Access Token"
-            }
+                "Description": "GitHub Personal Access Token",
+            },
         ]
 
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as f:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
             json.dump(gitleaks_output, f)
             output_file = f.name
 
@@ -120,7 +119,7 @@ class TestGitleaksOutputParser(unittest.TestCase):
             }
         ]
 
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as f:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
             json.dump(gitleaks_output, f)
             output_file = f.name
 
@@ -146,7 +145,7 @@ class TestGitleaksOutputParser(unittest.TestCase):
 
     def test_parse_invalid_json(self):
         """Test parsing when JSON is invalid."""
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as f:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
             f.write("not valid json {")
             output_file = f.name
 
@@ -164,12 +163,9 @@ class TestLeakTKOutputParser(unittest.TestCase):
 
     def test_parse_empty_findings(self):
         """Test parsing when no secrets are found."""
-        leaktk_output = {
-            "findings": [],
-            "errors": []
-        }
+        leaktk_output = {"findings": [], "errors": []}
 
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as f:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
             json.dump(leaktk_output, f)
             output_file = f.name
 
@@ -193,13 +189,13 @@ class TestLeakTKOutputParser(unittest.TestCase):
                     "File": "config.txt",
                     "StartLine": 3,
                     "EndLine": 3,
-                    "Description": "AWS Access Key ID"
+                    "Description": "AWS Access Key ID",
                 }
             ],
-            "errors": []
+            "errors": [],
         }
 
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as f:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
             json.dump(leaktk_output, f)
             output_file = f.name
 
@@ -226,16 +222,13 @@ class TestLeakTKOutputParser(unittest.TestCase):
                     "RuleID": "test-secret",
                     "File": "test.txt",
                     "StartLine": 1,
-                    "Description": "Test Secret"
+                    "Description": "Test Secret",
                 }
             ],
-            "errors": [
-                "Failed to scan file: permission denied",
-                "Network timeout"
-            ]
+            "errors": ["Failed to scan file: permission denied", "Network timeout"],
         }
 
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as f:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
             json.dump(leaktk_output, f)
             output_file = f.name
 
@@ -258,25 +251,25 @@ class TestLeakTKOutputParser(unittest.TestCase):
                     "RuleID": "secret-1",
                     "File": "file1.txt",
                     "StartLine": 1,
-                    "Description": "Secret 1"
+                    "Description": "Secret 1",
                 },
                 {
                     "RuleID": "secret-2",
                     "File": "file2.txt",
                     "StartLine": 5,
-                    "Description": "Secret 2"
+                    "Description": "Secret 2",
                 },
                 {
                     "RuleID": "secret-3",
                     "File": "file3.txt",
                     "StartLine": 10,
-                    "Description": "Secret 3"
-                }
+                    "Description": "Secret 3",
+                },
             ],
-            "errors": []
+            "errors": [],
         }
 
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as f:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
             json.dump(leaktk_output, f)
             output_file = f.name
 
@@ -300,7 +293,7 @@ class TestLeakTKOutputParser(unittest.TestCase):
 
     def test_parse_invalid_json(self):
         """Test parsing when JSON is invalid."""
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as f:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
             f.write("invalid json")
             output_file = f.name
 
@@ -354,11 +347,11 @@ class TestParserOutputFormat(unittest.TestCase):
                 "StartLine": 1,
                 "EndLine": 1,
                 "Description": "Test",
-                "Commit": "abc"
+                "Commit": "abc",
             }
         ]
 
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as f:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
             json.dump(gitleaks_output, f)
             output_file = f.name
 
@@ -391,13 +384,13 @@ class TestParserOutputFormat(unittest.TestCase):
                     "RuleID": "test",
                     "File": "test.txt",
                     "StartLine": 1,
-                    "Description": "Test"
+                    "Description": "Test",
                 }
             ],
-            "errors": []
+            "errors": [],
         }
 
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as f:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
             json.dump(leaktk_output, f)
             output_file = f.name
 
@@ -420,5 +413,5 @@ class TestParserOutputFormat(unittest.TestCase):
             os.unlink(output_file)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()

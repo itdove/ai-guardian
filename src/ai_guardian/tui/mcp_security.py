@@ -123,7 +123,9 @@ class MCPSecurityContent(ScrollableContainer):
 
         summary = self.query_one("#mcp-sec-summary", Static)
         if not servers:
-            summary.update("[dim]No MCP servers found in IDE configuration files.[/dim]")
+            summary.update(
+                "[dim]No MCP servers found in IDE configuration files.[/dim]"
+            )
             return
 
         finding_text = ""
@@ -163,6 +165,7 @@ class MCPSecurityContent(ScrollableContainer):
             lines.append(f"  {s.name:<24s}  {s.command:<10s}  {trust:<22s}  {env_text}")
             if s.config_sources:
                 from ai_guardian.mcp_audit import MCPAuditor
+
                 sources_str = ", ".join(
                     f"{MCPAuditor.ide_label(p)}: {p}" for p in s.config_sources
                 )

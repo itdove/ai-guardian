@@ -43,6 +43,7 @@ class Finding:
         commit: Optional git commit hash (for git-aware scanners)
         category: Pattern category (e.g., "secrets", "pii") for violation routing
     """
+
     rule_id: str
     line_number: int
     matched_text: str
@@ -50,7 +51,7 @@ class Finding:
     severity: str = "warning"
     end_line: Optional[int] = None
     start_column: Optional[int] = None  # 0-based column, None if unavailable
-    end_column: Optional[int] = None    # 0-based column, None if unavailable
+    end_column: Optional[int] = None  # 0-based column, None if unavailable
     commit: Optional[str] = None
     category: Optional[str] = None
 

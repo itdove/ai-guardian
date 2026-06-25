@@ -10,9 +10,8 @@ import hashlib
 import json
 import logging
 import time
-from dataclasses import asdict
 from pathlib import Path
-from typing import Optional, Dict, Any, List
+from typing import Optional, Dict, Any
 
 from ai_guardian.config_utils import get_cache_dir
 from ai_guardian.scanners.strategies import ScanResult, SecretMatch
@@ -37,9 +36,7 @@ class ScanResultCache:
         if self.enabled:
             self.cache_dir.mkdir(parents=True, exist_ok=True)
 
-    def cache_key(
-        self, content_hash: str, engine_type: str, config_hash: str
-    ) -> str:
+    def cache_key(self, content_hash: str, engine_type: str, config_hash: str) -> str:
         combined = f"{content_hash}:{engine_type}:{config_hash}"
         return hashlib.sha256(combined.encode()).hexdigest()[:32]
 
@@ -75,15 +72,11 @@ class ScanResultCache:
             age_hours = (time.time() - cached_at) / 3600.0
             if age_hours > self.ttl_hours:
                 cache_file.unlink(missing_ok=True)
-                logger.debug(
-                    f"Cache expired for {engine_type} (age: {age_hours:.1f}h)"
-                )
+                logger.debug(f"Cache expired for {engine_type} (age: {age_hours:.1f}h)")
                 return None
 
             result_data = data["result"]
-            secrets = [
-                SecretMatch(**s) for s in result_data.get("secrets", [])
-            ]
+            secrets = [SecretMatch(**s) for s in result_data.get("secrets", [])]
             return ScanResult(
                 has_secrets=result_data["has_secrets"],
                 secrets=secrets,
@@ -136,9 +129,7 @@ class ScanResultCache:
                     "error": result.error,
                 },
             }
-            cache_file.write_text(
-                json.dumps(data), encoding="utf-8"
-            )
+            cache_file.write_text(json.dumps(data), encoding="utf-8")
         except Exception as e:
             logger.warning(f"Cache write error: {e}")
 
@@ -176,9 +167,7 @@ class FileStateTracker:
     def _load_states(self) -> Dict[str, Dict]:
         if self._state_file.exists():
             try:
-                return json.loads(
-                    self._state_file.read_text(encoding="utf-8")
-                )
+                return json.loads(self._state_file.read_text(encoding="utf-8"))
             except Exception:
                 return {}
         return {}

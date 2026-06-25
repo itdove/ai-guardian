@@ -44,9 +44,7 @@ def create_cache_status_page(service, daemon_name: str):
     create_header(daemon_name)
 
     with ui.row().classes("w-full min-h-screen no-wrap"):
-        create_sidebar(
-            daemon_name, current=f"/{daemon_name}/cache-status"
-        )
+        create_sidebar(daemon_name, current=f"/{daemon_name}/cache-status")
 
         with ui.column().classes("flex-grow p-6 gap-4"):
             ui.label("Config Cache Status").classes("text-2xl font-bold")
@@ -63,67 +61,48 @@ def create_cache_status_page(service, daemon_name: str):
                 if not target:
                     content.clear()
                     with content:
-                        ui.label("Daemon not found").classes(
-                            "text-red text-lg"
-                        )
+                        ui.label("Daemon not found").classes("text-red text-lg")
                     return
 
-                data = await run.io_bound(
-                    service.get_cache_status, target
-                )
+                data = await run.io_bound(service.get_cache_status, target)
 
                 summary_row.clear()
                 content.clear()
 
                 if not data:
                     with content:
-                        ui.label(
-                            "Could not fetch cache status from daemon"
-                        ).classes("text-orange text-lg")
+                        ui.label("Could not fetch cache status from daemon").classes(
+                            "text-orange text-lg"
+                        )
                     return
 
                 projects = data.get("projects", [])
                 total = data.get("total_tracked", 0)
-                last_reload = data.get(
-                    "last_project_config_reload_at"
-                )
+                last_reload = data.get("last_project_config_reload_at")
 
                 with summary_row:
                     with ui.card().classes("p-3"):
-                        ui.label("Projects Tracked").classes(
-                            "text-xs text-grey-6"
-                        )
-                        ui.label(str(total)).classes(
-                            "text-2xl font-bold"
-                        )
+                        ui.label("Projects Tracked").classes("text-xs text-grey-6")
+                        ui.label(str(total)).classes("text-2xl font-bold")
 
                     with ui.card().classes("p-3"):
                         overrides = sum(
-                            1 for p in projects
-                            if p.get("has_project_override")
+                            1 for p in projects if p.get("has_project_override")
                         )
-                        ui.label("With Project Override").classes(
-                            "text-xs text-grey-6"
-                        )
-                        ui.label(str(overrides)).classes(
-                            "text-2xl font-bold"
-                        )
+                        ui.label("With Project Override").classes("text-xs text-grey-6")
+                        ui.label(str(overrides)).classes("text-2xl font-bold")
 
                     with ui.card().classes("p-3"):
-                        ui.label("Last Config Reload").classes(
-                            "text-xs text-grey-6"
-                        )
+                        ui.label("Last Config Reload").classes("text-xs text-grey-6")
                         if last_reload:
                             dt = datetime.fromtimestamp(
                                 last_reload, tz=timezone.utc
                             ).astimezone()
-                            ui.label(
-                                dt.strftime("%H:%M:%S")
-                            ).classes("text-2xl font-bold")
-                        else:
-                            ui.label("—").classes(
-                                "text-2xl font-bold text-grey-6"
+                            ui.label(dt.strftime("%H:%M:%S")).classes(
+                                "text-2xl font-bold"
                             )
+                        else:
+                            ui.label("—").classes("text-2xl font-bold text-grey-6")
 
                 with content:
                     if not projects:
@@ -135,14 +114,10 @@ def create_cache_status_page(service, daemon_name: str):
 
                     for proj in projects:
                         project_dir = proj.get("project_dir", "?")
-                        has_override = proj.get(
-                            "has_project_override", False
-                        )
+                        has_override = proj.get("has_project_override", False)
 
                         with ui.card().classes("w-full"):
-                            with ui.row().classes(
-                                "items-center gap-2"
-                            ):
+                            with ui.row().classes("items-center gap-2"):
                                 ui.label(
                                     project_dir.rsplit("/", 1)[-1]
                                     if "/" in project_dir
@@ -166,82 +141,54 @@ def create_cache_status_page(service, daemon_name: str):
 
                             ui.separator()
 
-                            with ui.grid(columns=2).classes(
-                                "w-full gap-x-8 gap-y-2"
-                            ):
+                            with ui.grid(columns=2).classes("w-full gap-x-8 gap-y-2"):
                                 ui.label("Project Config").classes(
                                     "text-xs text-grey-6"
                                 )
-                                ui.label(
-                                    _short_path(
-                                        proj.get("config_path")
-                                    )
-                                ).classes("text-sm font-mono")
+                                ui.label(_short_path(proj.get("config_path"))).classes(
+                                    "text-sm font-mono"
+                                )
 
                                 ui.label("Config Modified").classes(
                                     "text-xs text-grey-6"
                                 )
                                 ui.label(
-                                    _format_mtime(
-                                        proj.get("config_mtime")
-                                    )
+                                    _format_mtime(proj.get("config_mtime"))
                                 ).classes("text-sm")
 
-                                ui.label("Last Seen").classes(
-                                    "text-xs text-grey-6"
-                                )
+                                ui.label("Last Seen").classes("text-xs text-grey-6")
                                 ui.label(
                                     _format_seconds_ago(
-                                        proj.get(
-                                            "last_seen_seconds_ago"
-                                        )
+                                        proj.get("last_seen_seconds_ago")
                                     )
                                 ).classes("text-sm")
 
                                 gp = proj.get("global_config_path")
                                 if gp:
-                                    ui.label(
-                                        "Global Config"
-                                    ).classes(
+                                    ui.label("Global Config").classes(
                                         "text-xs text-grey-6"
                                     )
-                                    ui.label(
-                                        _short_path(gp)
-                                    ).classes(
+                                    ui.label(_short_path(gp)).classes(
                                         "text-sm font-mono"
                                     )
 
-                                    ui.label(
-                                        "Global Modified"
-                                    ).classes(
+                                    ui.label("Global Modified").classes(
                                         "text-xs text-grey-6"
                                     )
                                     ui.label(
-                                        _format_mtime(
-                                            proj.get(
-                                                "global_config_mtime"
-                                            )
-                                        )
+                                        _format_mtime(proj.get("global_config_mtime"))
                                     ).classes("text-sm")
 
-                                cache_ago = proj.get(
-                                    "cache_last_accessed_seconds_ago"
-                                )
+                                cache_ago = proj.get("cache_last_accessed_seconds_ago")
                                 if cache_ago is not None:
-                                    ui.label(
-                                        "Cache Accessed"
-                                    ).classes(
+                                    ui.label("Cache Accessed").classes(
                                         "text-xs text-grey-6"
                                     )
-                                    ui.label(
-                                        _format_seconds_ago(
-                                            cache_ago
-                                        )
-                                    ).classes("text-sm")
+                                    ui.label(_format_seconds_ago(cache_ago)).classes(
+                                        "text-sm"
+                                    )
 
             with ui.row().classes("gap-2 mt-2"):
-                ui.button(
-                    "Refresh", on_click=refresh, icon="refresh"
-                ).props("outline")
+                ui.button("Refresh", on_click=refresh, icon="refresh").props("outline")
 
             ui.timer(0.1, refresh, once=True)

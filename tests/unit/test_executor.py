@@ -9,27 +9,24 @@ from unittest.mock import patch, MagicMock
 
 from ai_guardian.scanners.executor import run_single_engine, _parse_secrets_result
 from ai_guardian.scanners.engine_builder import EngineConfig, ENGINE_PRESETS
-from ai_guardian.scanners.strategies import ScanResult, SecretMatch
 
 
 class TestRunSingleEngine(unittest.TestCase):
     """Test run_single_engine() function."""
 
     def _make_report_file(self):
-        fd, path = tempfile.mkstemp(suffix='.json')
+        fd, path = tempfile.mkstemp(suffix=".json")
         os.close(fd)
         return path
 
-    @patch('ai_guardian.scanners.executor.subprocess.run')
+    @patch("ai_guardian.scanners.executor.subprocess.run")
     def test_no_secrets_found(self, mock_run):
         """Test engine returning success (no secrets)."""
         report = self._make_report_file()
-        with open(report, 'w') as f:
+        with open(report, "w") as f:
             json.dump([], f)
 
-        mock_run.return_value = MagicMock(
-            returncode=0, stdout='', stderr=''
-        )
+        mock_run.return_value = MagicMock(returncode=0, stdout="", stderr="")
 
         config = ENGINE_PRESETS["gitleaks"]
         result = run_single_engine(config, "/tmp/test.txt", report)
@@ -40,23 +37,23 @@ class TestRunSingleEngine(unittest.TestCase):
         self.assertGreaterEqual(result.scan_time_ms, 0)
         os.unlink(report)
 
-    @patch('ai_guardian.scanners.executor.subprocess.run')
+    @patch("ai_guardian.scanners.executor.subprocess.run")
     def test_secrets_found_gitleaks(self, mock_run):
         """Test gitleaks detecting secrets (exit code 42)."""
         report = self._make_report_file()
-        findings = [{
-            "RuleID": "aws-access-token",
-            "File": "test.txt",
-            "StartLine": 5,
-            "EndLine": 5,
-            "Description": "AWS Access Key"
-        }]
-        with open(report, 'w') as f:
+        findings = [
+            {
+                "RuleID": "aws-access-token",
+                "File": "test.txt",
+                "StartLine": 5,
+                "EndLine": 5,
+                "Description": "AWS Access Key",
+            }
+        ]
+        with open(report, "w") as f:
             json.dump(findings, f)
 
-        mock_run.return_value = MagicMock(
-            returncode=42, stdout='', stderr=''
-        )
+        mock_run.return_value = MagicMock(returncode=42, stdout="", stderr="")
 
         config = ENGINE_PRESETS["gitleaks"]
         result = run_single_engine(config, "/tmp/test.txt", report)
@@ -67,17 +64,23 @@ class TestRunSingleEngine(unittest.TestCase):
         self.assertEqual(result.secrets[0].engine, "gitleaks")
         os.unlink(report)
 
-    @patch('ai_guardian.scanners.executor.subprocess.run')
+    @patch("ai_guardian.scanners.executor.subprocess.run")
     def test_gitleaks_exit_code_1_treated_as_secrets(self, mock_run):
         """Test gitleaks exit code 1 special case (Issue #411)."""
         report = self._make_report_file()
-        findings = [{"RuleID": "generic-api-key", "File": "a.py", "StartLine": 1, "EndLine": 1, "Description": "API Key"}]
-        with open(report, 'w') as f:
+        findings = [
+            {
+                "RuleID": "generic-api-key",
+                "File": "a.py",
+                "StartLine": 1,
+                "EndLine": 1,
+                "Description": "API Key",
+            }
+        ]
+        with open(report, "w") as f:
             json.dump(findings, f)
 
-        mock_run.return_value = MagicMock(
-            returncode=1, stdout='', stderr=''
-        )
+        mock_run.return_value = MagicMock(returncode=1, stdout="", stderr="")
 
         config = ENGINE_PRESETS["gitleaks"]
         result = run_single_engine(config, "/tmp/test.txt", report)
@@ -85,17 +88,23 @@ class TestRunSingleEngine(unittest.TestCase):
         self.assertTrue(result.has_secrets)
         os.unlink(report)
 
-    @patch('ai_guardian.scanners.executor.subprocess.run')
+    @patch("ai_guardian.scanners.executor.subprocess.run")
     def test_betterleaks_exit_code_1_treated_as_secrets(self, mock_run):
         """Test betterleaks exit code 1 special case."""
         report = self._make_report_file()
-        findings = [{"RuleID": "generic-api-key", "File": "a.py", "StartLine": 1, "EndLine": 1, "Description": "Key"}]
-        with open(report, 'w') as f:
+        findings = [
+            {
+                "RuleID": "generic-api-key",
+                "File": "a.py",
+                "StartLine": 1,
+                "EndLine": 1,
+                "Description": "Key",
+            }
+        ]
+        with open(report, "w") as f:
             json.dump(findings, f)
 
-        mock_run.return_value = MagicMock(
-            returncode=1, stdout='', stderr=''
-        )
+        mock_run.return_value = MagicMock(returncode=1, stdout="", stderr="")
 
         config = ENGINE_PRESETS["betterleaks"]
         result = run_single_engine(config, "/tmp/test.txt", report)
@@ -103,7 +112,7 @@ class TestRunSingleEngine(unittest.TestCase):
         self.assertTrue(result.has_secrets)
         os.unlink(report)
 
-    @patch('ai_guardian.scanners.executor.subprocess.run')
+    @patch("ai_guardian.scanners.executor.subprocess.run")
     def test_betterleaks_exit_code_1_no_findings_returns_clean(self, mock_run):
         """Test betterleaks exit code 1 with no findings returns clean (Issue #520).
 
@@ -112,12 +121,11 @@ class TestRunSingleEngine(unittest.TestCase):
         """
         report = self._make_report_file()
         # Empty report — betterleaks crashed before writing findings
-        with open(report, 'w') as f:
+        with open(report, "w") as f:
             json.dump([], f)
 
         mock_run.return_value = MagicMock(
-            returncode=1, stdout='',
-            stderr='FTL failed to compile CEL filters'
+            returncode=1, stdout="", stderr="FTL failed to compile CEL filters"
         )
 
         config = ENGINE_PRESETS["betterleaks"]
@@ -127,14 +135,13 @@ class TestRunSingleEngine(unittest.TestCase):
         self.assertEqual(len(result.secrets), 0)
         os.unlink(report)
 
-    @patch('ai_guardian.scanners.executor.subprocess.run')
+    @patch("ai_guardian.scanners.executor.subprocess.run")
     def test_betterleaks_exit_code_1_missing_report_returns_clean(self, mock_run):
         """Test betterleaks exit code 1 with missing report file (Issue #520)."""
         report = "/tmp/nonexistent_report_520.json"
 
         mock_run.return_value = MagicMock(
-            returncode=1, stdout='',
-            stderr='FTL failed to compile CEL filters'
+            returncode=1, stdout="", stderr="FTL failed to compile CEL filters"
         )
 
         config = ENGINE_PRESETS["betterleaks"]
@@ -142,14 +149,14 @@ class TestRunSingleEngine(unittest.TestCase):
 
         self.assertFalse(result.has_secrets)
 
-    @patch('ai_guardian.scanners.executor.subprocess.run')
+    @patch("ai_guardian.scanners.executor.subprocess.run")
     def test_trufflehog_stdout_redirect(self, mock_run):
         """Test TruffleHog output is written from stdout to report file."""
         report = self._make_report_file()
         trufflehog_output = '{"SourceMetadata":{"Data":{"Filesystem":{"file":"t.txt","line":1}}},"DetectorName":"AWS","Verified":false}\n'
 
         mock_run.return_value = MagicMock(
-            returncode=183, stdout=trufflehog_output, stderr=''
+            returncode=183, stdout=trufflehog_output, stderr=""
         )
 
         config = ENGINE_PRESETS["trufflehog"]
@@ -160,22 +167,26 @@ class TestRunSingleEngine(unittest.TestCase):
         self.assertEqual(result.secrets[0].engine, "trufflehog")
         os.unlink(report)
 
-    @patch('ai_guardian.scanners.executor.subprocess.run')
+    @patch("ai_guardian.scanners.executor.subprocess.run")
     def test_detect_secrets_stdout_redirect(self, mock_run):
         """Test detect-secrets output is written from stdout to report file."""
         report = self._make_report_file()
-        ds_output = json.dumps({
-            "results": {
-                "config.py": [
-                    {"type": "AWS Access Key", "line_number": 3, "hashed_secret": "abc"}
-                ]
-            },
-            "version": "1.0.0"
-        })
-
-        mock_run.return_value = MagicMock(
-            returncode=0, stdout=ds_output, stderr=''
+        ds_output = json.dumps(
+            {
+                "results": {
+                    "config.py": [
+                        {
+                            "type": "AWS Access Key",
+                            "line_number": 3,
+                            "hashed_secret": "abc",
+                        }
+                    ]
+                },
+                "version": "1.0.0",
+            }
         )
+
+        mock_run.return_value = MagicMock(returncode=0, stdout=ds_output, stderr="")
 
         config = ENGINE_PRESETS["detect-secrets"]
         result = run_single_engine(config, "/tmp/test.txt", report)
@@ -186,7 +197,7 @@ class TestRunSingleEngine(unittest.TestCase):
         self.assertFalse(result.has_secrets)
         os.unlink(report)
 
-    @patch('ai_guardian.scanners.executor.subprocess.run')
+    @patch("ai_guardian.scanners.executor.subprocess.run")
     def test_timeout_handling(self, mock_run):
         """Test subprocess timeout is caught gracefully."""
         report = self._make_report_file()
@@ -199,15 +210,16 @@ class TestRunSingleEngine(unittest.TestCase):
         self.assertIn("Timed out", result.error)
         os.unlink(report)
 
-    @patch('ai_guardian.scanners.executor.subprocess.run')
+    @patch("ai_guardian.scanners.executor.subprocess.run")
     def test_binary_not_found(self, mock_run):
         """Test FileNotFoundError when binary doesn't exist."""
         report = self._make_report_file()
         mock_run.side_effect = FileNotFoundError("No such file: nonexistent")
 
         config = EngineConfig(
-            type="test", binary="nonexistent",
-            command_template=["{binary}", "{source_file}"]
+            type="test",
+            binary="nonexistent",
+            command_template=["{binary}", "{source_file}"],
         )
         result = run_single_engine(config, "/tmp/test.txt", report)
 
@@ -215,12 +227,12 @@ class TestRunSingleEngine(unittest.TestCase):
         self.assertIn("not found", result.error)
         os.unlink(report)
 
-    @patch('ai_guardian.scanners.executor.subprocess.run')
+    @patch("ai_guardian.scanners.executor.subprocess.run")
     def test_unexpected_exit_code(self, mock_run):
         """Test unexpected exit code returns error."""
         report = self._make_report_file()
         mock_run.return_value = MagicMock(
-            returncode=99, stdout='', stderr='Something went wrong'
+            returncode=99, stdout="", stderr="Something went wrong"
         )
 
         config = ENGINE_PRESETS["gitleaks"]
@@ -230,16 +242,14 @@ class TestRunSingleEngine(unittest.TestCase):
         self.assertIn("Unexpected exit code 99", result.error)
         os.unlink(report)
 
-    @patch('ai_guardian.scanners.executor.subprocess.run')
+    @patch("ai_guardian.scanners.executor.subprocess.run")
     def test_records_timing(self, mock_run):
         """Test that scan_time_ms is recorded."""
         report = self._make_report_file()
-        with open(report, 'w') as f:
+        with open(report, "w") as f:
             json.dump([], f)
 
-        mock_run.return_value = MagicMock(
-            returncode=0, stdout='', stderr=''
-        )
+        mock_run.return_value = MagicMock(returncode=0, stdout="", stderr="")
 
         config = ENGINE_PRESETS["gitleaks"]
         result = run_single_engine(config, "/tmp/test.txt", report)
@@ -253,8 +263,8 @@ class TestParseSecretsResult(unittest.TestCase):
 
     def test_parser_returns_no_findings(self):
         """Test when parser finds no secrets despite exit code."""
-        report = tempfile.mktemp(suffix='.json')
-        with open(report, 'w') as f:
+        report = tempfile.mktemp(suffix=".json")
+        with open(report, "w") as f:
             json.dump([], f)
 
         config = ENGINE_PRESETS["gitleaks"]
@@ -265,12 +275,24 @@ class TestParseSecretsResult(unittest.TestCase):
 
     def test_parser_returns_findings(self):
         """Test when parser finds secrets."""
-        report = tempfile.mktemp(suffix='.json')
+        report = tempfile.mktemp(suffix=".json")
         findings = [
-            {"RuleID": "generic-api-key", "File": "a.py", "StartLine": 1, "EndLine": 1, "Description": "API Key"},
-            {"RuleID": "aws-key", "File": "b.py", "StartLine": 5, "EndLine": 5, "Description": "AWS Key"}
+            {
+                "RuleID": "generic-api-key",
+                "File": "a.py",
+                "StartLine": 1,
+                "EndLine": 1,
+                "Description": "API Key",
+            },
+            {
+                "RuleID": "aws-key",
+                "File": "b.py",
+                "StartLine": 5,
+                "EndLine": 5,
+                "Description": "AWS Key",
+            },
         ]
-        with open(report, 'w') as f:
+        with open(report, "w") as f:
             json.dump(findings, f)
 
         config = ENGINE_PRESETS["gitleaks"]
@@ -296,5 +318,5 @@ class TestParseSecretsResult(unittest.TestCase):
         self.assertEqual(len(result.secrets), 0)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()

@@ -37,13 +37,16 @@ MIN_STOPWORD_LENGTH = 3
 
 # Module-level caches — per-project to avoid cross-project contamination (#1227)
 _project_roots: Dict[str, Optional[Path]] = {}  # cwd_str -> project_root
-_cached_allowlists: Dict[Path, tuple] = {}  # project_root -> (toml_path, mtime, GitleaksAllowlist)
+_cached_allowlists: Dict[Path, tuple] = (
+    {}
+)  # project_root -> (toml_path, mtime, GitleaksAllowlist)
 _cache_last_accessed: Dict[str, float] = {}  # cwd_str -> monotonic timestamp
 
 
 @dataclass
 class RuleAllowlist:
     """Per-rule allowlist from [[rules]] entries."""
+
     paths: List[str] = field(default_factory=list)
     regexes: List[re.Pattern] = field(default_factory=list)
     stopwords: List[str] = field(default_factory=list)
@@ -52,6 +55,7 @@ class RuleAllowlist:
 @dataclass
 class GitleaksAllowlist:
     """Parsed .gitleaks.toml allowlist data."""
+
     paths: List[str] = field(default_factory=list)
     regexes: List[re.Pattern] = field(default_factory=list)
     stopwords: List[str] = field(default_factory=list)
@@ -80,8 +84,12 @@ def find_project_root(cwd: Optional[str] = None) -> Optional[Path]:
             cwd=cwd,
         )
         result = Path(raw.decode().strip())
-    except (subprocess.CalledProcessError, FileNotFoundError,
-            subprocess.TimeoutExpired, OSError):
+    except (
+        subprocess.CalledProcessError,
+        FileNotFoundError,
+        subprocess.TimeoutExpired,
+        OSError,
+    ):
         result = Path(cache_key)
 
     _project_roots[cache_key] = result
@@ -93,14 +101,10 @@ def _compile_regexes(raw: List[str]) -> List[re.Pattern]:
     compiled = []
     for pattern_str in raw:
         if pattern_str in DANGEROUS_PATTERNS:
-            logger.warning(
-                f"Blocked dangerous .gitleaks.toml regex '{pattern_str}'"
-            )
+            logger.warning(f"Blocked dangerous .gitleaks.toml regex '{pattern_str}'")
             continue
         if not validate_regex_pattern(pattern_str):
-            logger.warning(
-                f"Blocked invalid .gitleaks.toml regex '{pattern_str}'"
-            )
+            logger.warning(f"Blocked invalid .gitleaks.toml regex '{pattern_str}'")
             continue
         try:
             compiled.append(re.compile(pattern_str, re.IGNORECASE))
@@ -128,9 +132,7 @@ def _validate_paths(raw: List[str]) -> List[str]:
     safe = []
     for p in raw:
         if ".." in p.split("/"):
-            logger.warning(
-                f"Blocked .gitleaks.toml path with '..': '{p}'"
-            )
+            logger.warning(f"Blocked .gitleaks.toml path with '..': '{p}'")
             continue
         safe.append(p)
     return safe
@@ -219,9 +221,7 @@ def _normalize_path(file_path: str, project_root: Path) -> str:
         return file_path
 
 
-def should_skip_file(
-    file_path: str, allowlist: GitleaksAllowlist
-) -> bool:
+def should_skip_file(file_path: str, allowlist: GitleaksAllowlist) -> bool:
     """Return True if *file_path* matches any global path pattern."""
     if not allowlist.paths:
         return False
@@ -282,16 +282,24 @@ def filter_findings(
     remaining = []
     for finding in findings:
         if _is_finding_allowlisted(
-            finding, content_lines, rel_path,
-            allowlist.paths, allowlist.regexes, allowlist.stopwords,
+            finding,
+            content_lines,
+            rel_path,
+            allowlist.paths,
+            allowlist.regexes,
+            allowlist.stopwords,
         ):
             continue
 
         rule_id = finding.get("rule_id", "")
         ral = allowlist.rule_allowlists.get(rule_id)
         if ral and _is_finding_allowlisted(
-            finding, content_lines, rel_path,
-            ral.paths, ral.regexes, ral.stopwords,
+            finding,
+            content_lines,
+            rel_path,
+            ral.paths,
+            ral.regexes,
+            ral.stopwords,
         ):
             continue
 
@@ -310,10 +318,7 @@ def reset_cache():
 def cleanup_stale_entries(max_age: float = 86400.0):
     """Remove cache entries not accessed within max_age seconds."""
     now = time.monotonic()
-    stale_keys = [
-        k for k, ts in _cache_last_accessed.items()
-        if now - ts > max_age
-    ]
+    stale_keys = [k for k, ts in _cache_last_accessed.items() if now - ts > max_age]
     for key in stale_keys:
         root = _project_roots.pop(key, None)
         if root is not None:

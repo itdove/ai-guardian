@@ -8,6 +8,7 @@ class TestTUIParseEngines:
 
     def test_parse_engines_import(self):
         from ai_guardian.tui.pi_ml_engines import PIMLEnginesContent
+
         panel = PIMLEnginesContent.__new__(PIMLEnginesContent)
         result, err = panel._parse_engines("[]")
         assert result == []
@@ -15,6 +16,7 @@ class TestTUIParseEngines:
 
     def test_parse_engines_valid(self):
         from ai_guardian.tui.pi_ml_engines import PIMLEnginesContent
+
         panel = PIMLEnginesContent.__new__(PIMLEnginesContent)
         result, err = panel._parse_engines(
             '[{"type": "llm-guard", "model": "test-model"}]'
@@ -24,6 +26,7 @@ class TestTUIParseEngines:
 
     def test_parse_engines_invalid_json(self):
         from ai_guardian.tui.pi_ml_engines import PIMLEnginesContent
+
         panel = PIMLEnginesContent.__new__(PIMLEnginesContent)
         result, err = panel._parse_engines("{bad")
         assert result is None
@@ -31,6 +34,7 @@ class TestTUIParseEngines:
 
     def test_parse_engines_missing_model(self):
         from ai_guardian.tui.pi_ml_engines import PIMLEnginesContent
+
         panel = PIMLEnginesContent.__new__(PIMLEnginesContent)
         result, err = panel._parse_engines('[{"type": "llm-guard"}]')
         assert result is None
@@ -38,15 +42,15 @@ class TestTUIParseEngines:
 
     def test_parse_engines_unknown_type(self):
         from ai_guardian.tui.pi_ml_engines import PIMLEnginesContent
+
         panel = PIMLEnginesContent.__new__(PIMLEnginesContent)
-        result, err = panel._parse_engines(
-            '[{"type": "bad-type", "model": "test"}]'
-        )
+        result, err = panel._parse_engines('[{"type": "bad-type", "model": "test"}]')
         assert result is None
         assert "unknown type" in err
 
     def test_parse_engines_empty_string(self):
         from ai_guardian.tui.pi_ml_engines import PIMLEnginesContent
+
         panel = PIMLEnginesContent.__new__(PIMLEnginesContent)
         result, err = panel._parse_engines("")
         assert result == []

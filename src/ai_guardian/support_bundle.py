@@ -342,9 +342,7 @@ def prepare_bundle(
                         "sanitized": count > 0,
                         "redactions": count,
                         "note": (
-                            f"Full log, {count} items redacted"
-                            if count
-                            else "Full log"
+                            f"Full log, {count} items redacted" if count else "Full log"
                         ),
                     }
                 )
@@ -850,9 +848,7 @@ def _zip_bundle(temp_path: Path, bundle_id: str) -> Path:
     return zip_path
 
 
-def _send_to_email(
-    bundle_id: str, temp_path: Path, destination: str
-) -> Dict:
+def _send_to_email(bundle_id: str, temp_path: Path, destination: str) -> Dict:
     """Send bundle via SMTP email as a zip attachment.
 
     Falls back to opening the system mailto: handler when no SMTP
@@ -865,14 +861,12 @@ def _send_to_email(
     # Determine recipient address
     to_addr = destination
     if to_addr.startswith("mailto:"):
-        to_addr = to_addr[len("mailto:"):]
+        to_addr = to_addr[len("mailto:") :]
 
     # --- Fallback: no SMTP configured → system mailto: ---
     if not smtp_host:
         zip_path = _zip_bundle(temp_path, bundle_id)
-        subject_prefix = email_config.get(
-            "subject_prefix", "[AI Guardian Support]"
-        )
+        subject_prefix = email_config.get("subject_prefix", "[AI Guardian Support]")
         subject = f"{subject_prefix} Bundle {bundle_id}"
 
         mailto_url = (
@@ -909,9 +903,7 @@ def _send_to_email(
         )
 
     from_addr = email_config.get("from", f"ai-guardian@{platform.node()}")
-    subject_prefix = email_config.get(
-        "subject_prefix", "[AI Guardian Support]"
-    )
+    subject_prefix = email_config.get("subject_prefix", "[AI Guardian Support]")
     subject = f"{subject_prefix} Bundle {bundle_id}"
 
     smtp_port = email_config.get("smtp_port", 587)
@@ -931,9 +923,7 @@ def _send_to_email(
 
     zip_data = zip_path.read_bytes()
     attachment = MIMEApplication(zip_data, Name=zip_path.name)
-    attachment["Content-Disposition"] = (
-        f'attachment; filename="{zip_path.name}"'
-    )
+    attachment["Content-Disposition"] = f'attachment; filename="{zip_path.name}"'
     msg.attach(attachment)
 
     # Resolve SMTP credentials
@@ -981,8 +971,7 @@ def _send_to_email(
         return {
             "status": "error",
             "message": (
-                f"SMTP send failed: {e}. "
-                f"Bundle zip available at: {zip_path}"
+                f"SMTP send failed: {e}. " f"Bundle zip available at: {zip_path}"
             ),
         }
 
@@ -1042,7 +1031,9 @@ def _format_status_human(status: Dict[str, Any]) -> str:
         f"  Pending bundles: {len(status['pending_bundles'])}",
     ]
     for b in status["pending_bundles"]:
-        lines.append(f"    {b['bundle_id']} ({b['file_count']} files) at {b['temp_path']}")
+        lines.append(
+            f"    {b['bundle_id']} ({b['file_count']} files) at {b['temp_path']}"
+        )
     return "\n".join(lines)
 
 

@@ -8,13 +8,10 @@ Display the effective runtime configuration, equivalent to
 
 import json
 import subprocess
-import sys
 
 from textual.app import ComposeResult
 from textual.containers import Container, VerticalScroll
 from textual.widgets import Static
-
-from ai_guardian.config_utils import get_config_dir
 
 
 class ConfigEffectiveContent(Container):

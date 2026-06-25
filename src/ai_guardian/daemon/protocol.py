@@ -7,7 +7,6 @@ embedded newlines.
 """
 
 import json
-import socket
 import struct
 
 HEADER_SIZE = 4
@@ -84,9 +83,7 @@ def _recv_exact(sock, n):
     while received < n:
         chunk = sock.recv(n - received)
         if not chunk:
-            raise ConnectionError(
-                f"Connection closed after {received}/{n} bytes"
-            )
+            raise ConnectionError(f"Connection closed after {received}/{n} bytes")
         chunks.append(chunk)
         received += len(chunk)
     return b"".join(chunks)

@@ -10,7 +10,7 @@ import json
 from typing import List, Dict, Any
 
 from textual.app import ComposeResult
-from textual.containers import Container, Horizontal, VerticalScroll, Vertical
+from textual.containers import Container, Horizontal, VerticalScroll
 from textual.widgets import Static, Button, Input, Label, Select
 from textual.message import Message
 
@@ -83,7 +83,7 @@ class DirectoryEntry(Container):
         badge_color = "status-ok" if mode == "allow" else "status-error"
         yield Static(
             f"[{badge_color}]{mode.upper()}[/{badge_color}] [bold]{matcher}[/bold]",
-            classes="entry-header"
+            classes="entry-header",
         )
 
         # Details
@@ -94,7 +94,12 @@ class DirectoryEntry(Container):
         yield Static(" | ".join(details), classes="entry-details")
 
         with Horizontal(classes="button-row"):
-            yield Button("Remove", variant="error", id=f"remove_{self.list_type}_{self.index}", classes="compact")
+            yield Button(
+                "Remove",
+                variant="error",
+                id=f"remove_{self.list_type}_{self.index}",
+                classes="compact",
+            )
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         """Handle button press."""
@@ -178,11 +183,15 @@ class PermissionsDiscoveryContent(Container):
 
     def compose(self) -> ComposeResult:
         """Compose the permissions discovery tab content."""
-        yield Static("[bold]Permissions Auto-Discovery[/bold]", id="permissions-discovery-header")
+        yield Static(
+            "[bold]Permissions Auto-Discovery[/bold]", id="permissions-discovery-header"
+        )
 
         # Status section
         with Container(classes="section"):
-            yield Static("[bold]📊 Auto-Discovery Status[/bold]", classes="section-title")
+            yield Static(
+                "[bold]📊 Auto-Discovery Status[/bold]", classes="section-title"
+            )
             yield Static("", id="discovery-status")
 
         # Info section
@@ -200,7 +209,7 @@ class PermissionsDiscoveryContent(Container):
             yield Static("[bold]Allow Directories[/bold]", classes="section-title")
             yield Static(
                 "[dim]Scan these directories and allow discovered tools[/dim]",
-                classes="section-title"
+                classes="section-title",
             )
 
             with VerticalScroll(id="allow-list", classes="list-container"):
@@ -211,7 +220,7 @@ class PermissionsDiscoveryContent(Container):
             yield Static("[bold]Deny Directories[/bold]", classes="section-title")
             yield Static(
                 "[dim]Scan these directories and deny discovered tools[/dim]",
-                classes="section-title"
+                classes="section-title",
             )
 
             with VerticalScroll(id="deny-list", classes="list-container"):
@@ -230,7 +239,7 @@ class PermissionsDiscoveryContent(Container):
                     value="allow",
                     allow_blank=False,
                     compact=True,
-                    id="list-type-select"
+                    id="list-type-select",
                 )
 
             with Horizontal(classes="input-row"):
@@ -245,12 +254,15 @@ class PermissionsDiscoveryContent(Container):
                     value="allow",
                     allow_blank=False,
                     compact=True,
-                    id="mode-select"
+                    id="mode-select",
                 )
 
             with Horizontal(classes="input-row"):
                 yield Label("URL:")
-                yield Input(placeholder="/path/to/dir or https://github.com/user/repo", id="url-input")
+                yield Input(
+                    placeholder="/path/to/dir or https://github.com/user/repo",
+                    id="url-input",
+                )
 
             with Horizontal(classes="input-row"):
                 yield Label("Token Env Var:")
@@ -302,7 +314,7 @@ class PermissionsDiscoveryContent(Container):
         config = {}
         if config_path.exists():
             try:
-                with open(config_path, 'r', encoding='utf-8') as f:
+                with open(config_path, "r", encoding="utf-8") as f:
                     config = json.load(f)
             except Exception as e:
                 self.app.notify(f"Error loading config: {e}", severity="error")
@@ -345,7 +357,9 @@ class PermissionsDiscoveryContent(Container):
         if event.button.id == "add-entry-button":
             self.add_entry()
 
-    def on_directory_entry_remove_pressed(self, message: DirectoryEntry.RemovePressed) -> None:
+    def on_directory_entry_remove_pressed(
+        self, message: DirectoryEntry.RemovePressed
+    ) -> None:
         """Handle remove button press on directory entry."""
         self.remove_entry(message.list_type, message.index)
 
@@ -370,7 +384,7 @@ class PermissionsDiscoveryContent(Container):
 
         try:
             if config_path.exists():
-                with open(config_path, 'r', encoding='utf-8') as f:
+                with open(config_path, "r", encoding="utf-8") as f:
                     config = json.load(f)
             else:
                 config = {}
@@ -381,17 +395,13 @@ class PermissionsDiscoveryContent(Container):
                 config["permissions_directories"][list_type] = []
 
             # Create entry
-            entry = {
-                "matcher": matcher,
-                "mode": mode,
-                "url": url
-            }
+            entry = {"matcher": matcher, "mode": mode, "url": url}
             if token_env:
                 entry["token_env"] = token_env
 
             config["permissions_directories"][list_type].append(entry)
 
-            with open(config_path, 'w', encoding='utf-8') as f:
+            with open(config_path, "w", encoding="utf-8") as f:
                 json.dump(config, f, indent=2)
 
             # Clear inputs
@@ -400,7 +410,9 @@ class PermissionsDiscoveryContent(Container):
             self.query_one("#token-env-input", Input).value = ""
 
             self.load_config()
-            self.app.notify(f"✓ Added {list_type} directory: {matcher}", severity="success")
+            self.app.notify(
+                f"✓ Added {list_type} directory: {matcher}", severity="success"
+            )
 
         except Exception as e:
             self.app.notify(f"Error adding entry: {e}", severity="error")
@@ -412,29 +424,34 @@ class PermissionsDiscoveryContent(Container):
 
         try:
             if config_path.exists():
-                with open(config_path, 'r', encoding='utf-8') as f:
+                with open(config_path, "r", encoding="utf-8") as f:
                     config = json.load(f)
             else:
                 return
 
-            if "permissions_directories" in config and list_type in config["permissions_directories"]:
+            if (
+                "permissions_directories" in config
+                and list_type in config["permissions_directories"]
+            ):
                 entries = config["permissions_directories"][list_type]
                 if 0 <= index < len(entries):
                     removed_entry = entries.pop(index)
 
-                    with open(config_path, 'w', encoding='utf-8') as f:
+                    with open(config_path, "w", encoding="utf-8") as f:
                         json.dump(config, f, indent=2)
 
                     self.load_config()
                     self.app.notify(
                         f"✓ Removed {list_type} directory: {removed_entry.get('matcher', '')}",
-                        severity="success"
+                        severity="success",
                     )
 
         except Exception as e:
             self.app.notify(f"Error removing entry: {e}", severity="error")
 
-    def update_status(self, allow_dirs: List[Dict[str, Any]], deny_dirs: List[Dict[str, Any]]) -> None:
+    def update_status(
+        self, allow_dirs: List[Dict[str, Any]], deny_dirs: List[Dict[str, Any]]
+    ) -> None:
         """Update the status display based on current configuration."""
         try:
             status_widget = self.query_one("#discovery-status", Static)

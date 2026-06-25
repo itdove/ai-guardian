@@ -14,43 +14,149 @@ from ai_guardian.web.config_helpers import (
 )
 
 FEATURE_GROUPS = [
-    ("Scanning", [
-        ("secret_scanning", "Secret Scanning", "Scan for API keys, tokens, credentials"),
-        ("scan_pii", "PII Detection", "GDPR/CCPA compliance scanning"),
-        ("image_scanning", "Image Scanning", "OCR-based scanning for secrets and PII in images"),
-        ("transcript_scanning", "Transcript Scanning", "Scan conversation for secrets/PII from ! commands"),
-    ]),
-    ("Threat Detection", [
-        ("prompt_injection", "Prompt Injection", "Detect and block prompt injection attacks"),
-        ("ssrf_protection", "SSRF Protection", "Block requests to private networks and metadata"),
-        ("config_file_scanning", "Config File Scanner", "Detect credential exfiltration in config files"),
-        ("context_poisoning", "Context Poisoning", "Detect context poisoning attempts"),
-        ("supply_chain", "Supply Chain", "Detect malicious patterns in agent config files"),
-    ]),
-    ("Response Protection", [
-        ("secret_redaction", "Secret Redaction", "Redact secrets from tool outputs"),
-        ("annotations", "Annotations", "Inline suppression for secrets and PII"),
-    ]),
-    ("Access Control", [
-        ("permissions", "Permissions", "Tool permission enforcement"),
-        ("security_instructions", "Security Instructions", "Inject security rules into AI context"),
-    ]),
-    ("Monitoring", [
-        ("violation_logging", "Violation Logging", "Log blocked operations for audit"),
-        ("latency_tracking", "Latency Tracking", "Record per-hook timing to latency.jsonl"),
-    ]),
+    (
+        "Scanning",
+        [
+            (
+                "secret_scanning",
+                "Secret Scanning",
+                "Scan for API keys, tokens, credentials",
+            ),
+            ("scan_pii", "PII Detection", "GDPR/CCPA compliance scanning"),
+            (
+                "image_scanning",
+                "Image Scanning",
+                "OCR-based scanning for secrets and PII in images",
+            ),
+            (
+                "transcript_scanning",
+                "Transcript Scanning",
+                "Scan conversation for secrets/PII from ! commands",
+            ),
+        ],
+    ),
+    (
+        "Threat Detection",
+        [
+            (
+                "prompt_injection",
+                "Prompt Injection",
+                "Detect and block prompt injection attacks",
+            ),
+            (
+                "ssrf_protection",
+                "SSRF Protection",
+                "Block requests to private networks and metadata",
+            ),
+            (
+                "config_file_scanning",
+                "Config File Scanner",
+                "Detect credential exfiltration in config files",
+            ),
+            (
+                "context_poisoning",
+                "Context Poisoning",
+                "Detect context poisoning attempts",
+            ),
+            (
+                "supply_chain",
+                "Supply Chain",
+                "Detect malicious patterns in agent config files",
+            ),
+        ],
+    ),
+    (
+        "Response Protection",
+        [
+            (
+                "secret_redaction",
+                "Secret Redaction",
+                "Redact secrets from tool outputs",
+            ),
+            ("annotations", "Annotations", "Inline suppression for secrets and PII"),
+        ],
+    ),
+    (
+        "Access Control",
+        [
+            ("permissions", "Permissions", "Tool permission enforcement"),
+            (
+                "security_instructions",
+                "Security Instructions",
+                "Inject security rules into AI context",
+            ),
+        ],
+    ),
+    (
+        "Monitoring",
+        [
+            (
+                "violation_logging",
+                "Violation Logging",
+                "Log blocked operations for audit",
+            ),
+            (
+                "latency_tracking",
+                "Latency Tracking",
+                "Record per-hook timing to latency.jsonl",
+            ),
+        ],
+    ),
 ]
 
 FEATURE_ACTIONS = {
-    "secret_scanning": {"block": "Block", "ask": "Ask (block if headless)", "ask:warn": "Ask (warn if headless)", "ask:log-only": "Ask (log-only if headless)", "warn": "Warn", "log-only": "Log Only"},
-    "prompt_injection": {"block": "Block", "ask": "Ask (block if headless)", "ask:warn": "Ask (warn if headless)", "ask:log-only": "Ask (log-only if headless)", "warn": "Warn", "log-only": "Log Only"},
+    "secret_scanning": {
+        "block": "Block",
+        "ask": "Ask (block if headless)",
+        "ask:warn": "Ask (warn if headless)",
+        "ask:log-only": "Ask (log-only if headless)",
+        "warn": "Warn",
+        "log-only": "Log Only",
+    },
+    "prompt_injection": {
+        "block": "Block",
+        "ask": "Ask (block if headless)",
+        "ask:warn": "Ask (warn if headless)",
+        "ask:log-only": "Ask (log-only if headless)",
+        "warn": "Warn",
+        "log-only": "Log Only",
+    },
     "ssrf_protection": {"block": "Block", "warn": "Warn", "log-only": "Log Only"},
-    "config_file_scanning": {"block": "Block", "ask": "Ask (block if headless)", "ask:warn": "Ask (warn if headless)", "ask:log-only": "Ask (log-only if headless)", "warn": "Warn", "log-only": "Log Only"},
-    "scan_pii": {"block": "Block", "ask": "Ask (block if headless)", "ask:warn": "Ask (warn if headless)", "ask:log-only": "Ask (log-only if headless)", "redact": "Redact", "warn": "Warn", "log-only": "Log Only"},
+    "config_file_scanning": {
+        "block": "Block",
+        "ask": "Ask (block if headless)",
+        "ask:warn": "Ask (warn if headless)",
+        "ask:log-only": "Ask (log-only if headless)",
+        "warn": "Warn",
+        "log-only": "Log Only",
+    },
+    "scan_pii": {
+        "block": "Block",
+        "ask": "Ask (block if headless)",
+        "ask:warn": "Ask (warn if headless)",
+        "ask:log-only": "Ask (log-only if headless)",
+        "redact": "Redact",
+        "warn": "Warn",
+        "log-only": "Log Only",
+    },
     "secret_redaction": {"warn": "Warn", "log-only": "Log Only"},
     "image_scanning": {"block": "Block", "warn": "Warn", "log-only": "Log Only"},
-    "context_poisoning": {"block": "Block", "ask": "Ask (block if headless)", "ask:warn": "Ask (warn if headless)", "ask:log-only": "Ask (log-only if headless)", "warn": "Warn", "log-only": "Log Only"},
-    "supply_chain": {"block": "Block", "ask": "Ask (block if headless)", "ask:warn": "Ask (warn if headless)", "ask:log-only": "Ask (log-only if headless)", "warn": "Warn", "log-only": "Log Only"},
+    "context_poisoning": {
+        "block": "Block",
+        "ask": "Ask (block if headless)",
+        "ask:warn": "Ask (warn if headless)",
+        "ask:log-only": "Ask (log-only if headless)",
+        "warn": "Warn",
+        "log-only": "Log Only",
+    },
+    "supply_chain": {
+        "block": "Block",
+        "ask": "Ask (block if headless)",
+        "ask:warn": "Ask (warn if headless)",
+        "ask:log-only": "Ask (log-only if headless)",
+        "warn": "Warn",
+        "log-only": "Log Only",
+    },
 }
 
 ACTION_DEFAULTS = {
@@ -80,7 +186,6 @@ def _parse_duration(text):
     if d == 0 and h == 0 and mi == 0:
         return None
     return timedelta(days=d, hours=h, minutes=mi)
-
 
 
 def _get_enabled(config, section):
@@ -187,9 +292,13 @@ def create_global_settings_page(service, daemon_name: str):
                 with content:
                     with ui.row().classes("items-center gap-2"):
                         from ai_guardian.config_utils import get_config_dir
+
                         path = get_config_dir() / "ai-guardian.json"
                         ui.label(f"Config: {path}").classes("text-xs text-grey-6")
-                        ui.badge(scope_label, color="green" if scope_label == "Global" else "blue").classes("text-xs")
+                        ui.badge(
+                            scope_label,
+                            color="green" if scope_label == "Global" else "blue",
+                        ).classes("text-xs")
 
                     # --- On Scan Error ---
                     with ui.card().classes("w-full"):
@@ -197,7 +306,10 @@ def create_global_settings_page(service, daemon_name: str):
                         with ui.row().classes("items-center gap-4"):
                             ui.label("On Scan Error:").classes("text-sm font-bold")
                             sel = ui.select(
-                                options={"allow": "Allow (fail-open)", "block": "Block (fail-closed)"},
+                                options={
+                                    "allow": "Allow (fail-open)",
+                                    "block": "Block (fail-closed)",
+                                },
                                 value=on_scan_error,
                             ).classes("w-48")
 
@@ -227,97 +339,185 @@ def create_global_settings_page(service, daemon_name: str):
                                     is_temp = False
                                     until = None
                                     reason = ""
-                                    is_enabled = bool(raw[0]) if isinstance(raw, tuple) else bool(raw)
+                                    is_enabled = (
+                                        bool(raw[0])
+                                        if isinstance(raw, tuple)
+                                        else bool(raw)
+                                    )
 
                                 if is_temp and until:
                                     with ui.row().classes("items-center gap-2 w-full"):
                                         ui.icon("timer").classes("text-amber")
-                                        ui.label(label).classes("font-bold text-sm flex-grow")
+                                        ui.label(label).classes(
+                                            "font-bold text-sm flex-grow"
+                                        )
                                         remaining = _format_remaining(until)
-                                        ui.badge(f"TEMP DISABLED — {remaining}", color="amber").classes("text-xs")
+                                        ui.badge(
+                                            f"TEMP DISABLED — {remaining}",
+                                            color="amber",
+                                        ).classes("text-xs")
                                     ui.label(desc).classes("text-xs text-grey-6 ml-8")
                                     if reason:
-                                        ui.label(f"Reason: {reason}").classes("text-xs text-grey-7 ml-8")
+                                        ui.label(f"Reason: {reason}").classes(
+                                            "text-xs text-grey-7 ml-8"
+                                        )
 
                                     async def do_reenable(sec=section):
-                                        await run.io_bound(_set_feature_enabled, sec, True)
+                                        await run.io_bound(
+                                            _set_feature_enabled, sec, True
+                                        )
                                         ui.notify(f"{sec}: re-enabled", type="positive")
                                         await refresh()
 
-                                    ui.button("Re-enable Now", icon="play_arrow", color="green",
-                                              on_click=do_reenable).props("dense size=sm").classes("ml-8")
+                                    ui.button(
+                                        "Re-enable Now",
+                                        icon="play_arrow",
+                                        color="green",
+                                        on_click=do_reenable,
+                                    ).props("dense size=sm").classes("ml-8")
                                 else:
                                     with ui.row().classes("items-center gap-2 w-full"):
-                                        sw = ui.switch(label, value=is_enabled).classes("flex-grow")
+                                        sw = ui.switch(label, value=is_enabled).classes(
+                                            "flex-grow"
+                                        )
                                         sect_prov = provenance.get(section, {})
-                                        prov_src = sect_prov if isinstance(sect_prov, str) else (sect_prov.get("enabled", "global") if isinstance(sect_prov, dict) else "global")
+                                        prov_src = (
+                                            sect_prov
+                                            if isinstance(sect_prov, str)
+                                            else (
+                                                sect_prov.get("enabled", "global")
+                                                if isinstance(sect_prov, dict)
+                                                else "global"
+                                            )
+                                        )
                                         if prov_src == "project":
-                                            ui.badge("P", color="blue").props("dense").classes("text-xs")
+                                            ui.badge("P", color="blue").props(
+                                                "dense"
+                                            ).classes("text-xs")
                                         ui.label(desc).classes("text-xs text-grey-6")
 
                                         async def on_toggle(e, sec=section):
-                                            await run.io_bound(_set_feature_enabled, sec, e.value)
-                                            ui.notify(f"{sec}: {'enabled' if e.value else 'disabled'}", type="positive")
+                                            await run.io_bound(
+                                                _set_feature_enabled, sec, e.value
+                                            )
+                                            ui.notify(
+                                                f"{sec}: {'enabled' if e.value else 'disabled'}",
+                                                type="positive",
+                                            )
 
                                         sw.on_value_change(on_toggle)
 
                                     with ui.row().classes("items-center gap-2 ml-8"):
-                                        dur = ui.input(placeholder="e.g. 30m, 2h, 1d").props("dense outlined").classes("w-32")
-                                        rsn = ui.input(placeholder="Reason").props("dense outlined").classes("w-40")
+                                        dur = (
+                                            ui.input(placeholder="e.g. 30m, 2h, 1d")
+                                            .props("dense outlined")
+                                            .classes("w-32")
+                                        )
+                                        rsn = (
+                                            ui.input(placeholder="Reason")
+                                            .props("dense outlined")
+                                            .classes("w-40")
+                                        )
 
                                         async def do_temp(sec=section, d=dur, r=rsn):
                                             delta = _parse_duration(d.value or "30m")
                                             if not delta:
-                                                ui.notify("Invalid duration (e.g. 30m, 2h, 1d)", type="negative")
+                                                ui.notify(
+                                                    "Invalid duration (e.g. 30m, 2h, 1d)",
+                                                    type="negative",
+                                                )
                                                 return
-                                            until_ts = (datetime.now(timezone.utc) + delta).strftime("%Y-%m-%dT%H:%M:%SZ")
-                                            entry = {"value": False, "disabled_until": until_ts}
+                                            until_ts = (
+                                                datetime.now(timezone.utc) + delta
+                                            ).strftime("%Y-%m-%dT%H:%M:%SZ")
+                                            entry = {
+                                                "value": False,
+                                                "disabled_until": until_ts,
+                                            }
                                             rv = r.value.strip()
                                             if rv:
                                                 entry["reason"] = rv
-                                            await run.io_bound(_set_feature_enabled, sec, entry)
-                                            ui.notify(f"{sec}: temp disabled for {d.value or '30m'}", type="warning")
+                                            await run.io_bound(
+                                                _set_feature_enabled, sec, entry
+                                            )
+                                            ui.notify(
+                                                f"{sec}: temp disabled for {d.value or '30m'}",
+                                                type="warning",
+                                            )
                                             await refresh()
 
-                                        ui.button("Temp Disable", icon="timer", on_click=do_temp).props("dense size=sm")
+                                        ui.button(
+                                            "Temp Disable",
+                                            icon="timer",
+                                            on_click=do_temp,
+                                        ).props("dense size=sm")
 
                                 # Action dropdown
                                 if section in FEATURE_ACTIONS:
                                     current_action = _get_action(config, section)
-                                    with ui.row().classes("items-center gap-2 ml-8 mt-1"):
-                                        ui.label("Action:").classes("text-sm text-grey-6")
+                                    with ui.row().classes(
+                                        "items-center gap-2 ml-8 mt-1"
+                                    ):
+                                        ui.label("Action:").classes(
+                                            "text-sm text-grey-6"
+                                        )
                                         act_sel = ui.select(
                                             options=FEATURE_ACTIONS[section],
                                             value=current_action,
                                         ).classes("w-36")
 
                                         async def on_action(e, sec=section):
-                                            await run.io_bound(_set_feature_action, sec, e.value)
-                                            ui.notify(f"{sec} action: {e.value}", type="positive")
+                                            await run.io_bound(
+                                                _set_feature_action, sec, e.value
+                                            )
+                                            ui.notify(
+                                                f"{sec} action: {e.value}",
+                                                type="positive",
+                                            )
 
                                         act_sel.on_value_change(on_action)
 
                                         act_prov = provenance.get(section, {})
-                                        act_prov_src = act_prov.get("action", "global") if isinstance(act_prov, dict) else "global"
+                                        act_prov_src = (
+                                            act_prov.get("action", "global")
+                                            if isinstance(act_prov, dict)
+                                            else "global"
+                                        )
                                         if act_prov_src == "project":
-                                            ui.badge("P", color="blue").props("dense").classes("text-xs")
+                                            ui.badge("P", color="blue").props(
+                                                "dense"
+                                            ).classes("text-xs")
 
                                             async def do_reset(sec=section):
-                                                from ai_guardian.config_writer import delete_project_override
-                                                await run.io_bound(delete_project_override, sec, "action")
-                                                ui.notify(f"Reset {sec}.action to global default", type="info")
+                                                from ai_guardian.config_writer import (
+                                                    delete_project_override,
+                                                )
+
+                                                await run.io_bound(
+                                                    delete_project_override,
+                                                    sec,
+                                                    "action",
+                                                )
+                                                ui.notify(
+                                                    f"Reset {sec}.action to global default",
+                                                    type="info",
+                                                )
                                                 await refresh()
 
-                                            ui.button("Reset", icon="undo", color="grey",
-                                                      on_click=do_reset).props("dense flat size=sm")
+                                            ui.button(
+                                                "Reset",
+                                                icon="undo",
+                                                color="grey",
+                                                on_click=do_reset,
+                                            ).props("dense flat size=sm")
 
             async def _refresh_and_scroll():
                 await refresh()
                 await ui.run_javascript(
-                    'if (location.hash) {'
-                    '  const el = document.querySelector(location.hash);'
+                    "if (location.hash) {"
+                    "  const el = document.querySelector(location.hash);"
                     '  if (el) el.scrollIntoView({behavior: "smooth", block: "center"});'
-                    '}'
+                    "}"
                 )
 
             ui.timer(0.1, _refresh_and_scroll, once=True)

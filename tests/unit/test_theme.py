@@ -63,7 +63,9 @@ class TestPaletteConstants:
 class TestSeverityColors:
     """Severity color mapping coverage."""
 
-    @pytest.mark.parametrize("sev", ["critical", "high", "warning", "medium", "low", "info"])
+    @pytest.mark.parametrize(
+        "sev", ["critical", "high", "warning", "medium", "low", "info"]
+    )
     def test_all_severities_mapped(self, sev):
         assert sev in SEVERITY_COLORS
         assert HEX_PATTERN.match(SEVERITY_COLORS[sev])
@@ -116,7 +118,8 @@ class TestButtonColors:
     """Button color mapping."""
 
     @pytest.mark.parametrize(
-        "key", ["block", "allow_once", "allow_always", "suppress_in_source", "ignore_file"]
+        "key",
+        ["block", "allow_once", "allow_always", "suppress_in_source", "ignore_file"],
     )
     def test_action_buttons_have_colors(self, key):
         assert key in BUTTON_COLORS

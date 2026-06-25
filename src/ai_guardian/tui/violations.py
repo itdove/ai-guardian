@@ -28,11 +28,20 @@ from ai_guardian.tui.pattern_editor import (
     PATTERN_TYPES,
 )
 
-_ALLOWLIST_TYPES = frozenset({
-    "secret_detected", "pii_detected", "prompt_injection", "jailbreak_detected",
-    "directory_blocking", "ssrf_blocked", "config_file_exfil",
-    "context_poisoning", "supply_chain", "tool_permission",
-})
+_ALLOWLIST_TYPES = frozenset(
+    {
+        "secret_detected",
+        "pii_detected",
+        "prompt_injection",
+        "jailbreak_detected",
+        "directory_blocking",
+        "ssrf_blocked",
+        "config_file_exfil",
+        "context_poisoning",
+        "supply_chain",
+        "tool_permission",
+    }
+)
 
 
 def _extract_matched_from_violation(violation: dict) -> str:
@@ -65,7 +74,8 @@ def _extract_matched_from_violation(violation: dict) -> str:
         if not url:
             reason = blocked.get("reason", "")
             import re
-            m = re.search(r'https?://\S+', reason)
+
+            m = re.search(r"https?://\S+", reason)
             if m:
                 url = m.group(0)
         return url
@@ -73,8 +83,12 @@ def _extract_matched_from_violation(violation: dict) -> str:
     if vtype == "directory_blocking":
         return blocked.get("denied_directory", "") or blocked.get("file_path", "")
 
-    if vtype in ("prompt_injection", "jailbreak_detected",
-                 "context_poisoning", "supply_chain"):
+    if vtype in (
+        "prompt_injection",
+        "jailbreak_detected",
+        "context_poisoning",
+        "supply_chain",
+    ):
         return blocked.get("pattern", "")
 
     if vtype == "pii_detected":
@@ -146,12 +160,18 @@ class ViolationDetailsModal(ModalScreen):
         instructions, snippet = get_resolution_instructions(self.violation)
 
         if not instructions:
-            return ("No specific resolution instructions available for this violation type.", "")
+            return (
+                "No specific resolution instructions available for this violation type.",
+                "",
+            )
 
         BOLD_KEYS = [
-            "permissions.rules", "prompt_injection.allowlist_patterns",
-            "secret_scanning.allowlist_patterns", "directory_rules.rules",
-            "scan_pii.allowlist_patterns", "scan_pii.ignore_files",
+            "permissions.rules",
+            "prompt_injection.allowlist_patterns",
+            "secret_scanning.allowlist_patterns",
+            "directory_rules.rules",
+            "scan_pii.allowlist_patterns",
+            "scan_pii.ignore_files",
             "ssrf_protection.additional_allowed_domains",
             "config_file_scanning.ignore_files",
             "image_scanning.ignore_files",
@@ -190,14 +210,21 @@ class ViolationDetailsModal(ModalScreen):
                     yield Button("Copy Snippet", id="copy-snippet", variant="success")
                 vtype = self.violation.get("violation_type", "")
                 if vtype in _ALLOWLIST_TYPES:
-                    yield Button("Always Allow...", id="always-allow", variant="warning")
+                    yield Button(
+                        "Always Allow...", id="always-allow", variant="warning"
+                    )
                 blocked = self.violation.get("blocked", {})
                 if isinstance(blocked, dict) and blocked.get("file_path"):
                     file_path = blocked["file_path"]
                     line_number = blocked.get("line_number")
                     from ai_guardian.tui.source_annotator import get_comment_prefix
+
                     if line_number and get_comment_prefix(file_path) is not None:
-                        yield Button("Suppress in Source...", id="suppress-source", variant="warning")
+                        yield Button(
+                            "Suppress in Source...",
+                            id="suppress-source",
+                            variant="warning",
+                        )
                     yield Button("Ignore File...", id="ignore-file", variant="warning")
                 yield Button("Close (ESC)", id="close-details", variant="primary")
 
@@ -206,12 +233,16 @@ class ViolationDetailsModal(ModalScreen):
         if event.button.id == "copy-details":
             details = json.dumps(self.violation, indent=2)
             if self.app.copy_to_clipboard(details):
-                self.app.notify("Violation details copied to clipboard", severity="information")
+                self.app.notify(
+                    "Violation details copied to clipboard", severity="information"
+                )
         elif event.button.id == "copy-snippet":
             _, snippet = self._get_resolution_instructions()
             if snippet:
                 if self.app.copy_to_clipboard(snippet):
-                    self.app.notify("Config snippet copied to clipboard", severity="information")
+                    self.app.notify(
+                        "Config snippet copied to clipboard", severity="information"
+                    )
         elif event.button.id == "always-allow":
             self._on_always_allow()
         elif event.button.id == "suppress-source":
@@ -241,6 +272,7 @@ class ViolationDetailsModal(ModalScreen):
 
         if not matched_text and file_path:
             from ai_guardian.daemon.violation_rescan import rescan_violation
+
             result = rescan_violation(
                 file_path=file_path,
                 line_number=line_number,
@@ -265,12 +297,12 @@ class ViolationDetailsModal(ModalScreen):
                 matched_text = result.get("matched_text", "")
 
         if not matched_text:
-            self.app.notify("No matched text available for this violation", severity="warning")
+            self.app.notify(
+                "No matched text available for this violation", severity="warning"
+            )
             return
 
-        self.app.push_screen(
-            ViolationPatternEditorModal(matched_text, config_section)
-        )
+        self.app.push_screen(ViolationPatternEditorModal(matched_text, config_section))
 
     def _on_suppress_in_source(self):
         """Insert annotation marker in source file."""
@@ -281,6 +313,7 @@ class ViolationDetailsModal(ModalScreen):
         line_number = blocked.get("line_number", 1) or 1
 
         from ai_guardian.tui.source_annotator import prepare_annotation
+
         result = prepare_annotation(file_path, line_number)
         if result is None:
             self.app.notify("Cannot annotate this file type", severity="warning")
@@ -288,9 +321,12 @@ class ViolationDetailsModal(ModalScreen):
 
         modified_content, _highlight_line, annotation_type = result
         from ai_guardian.tui.source_editor_modals import SourceAnnotationEditorModal
+
         self.app.push_screen(
             SourceAnnotationEditorModal(
-                file_path, modified_content, annotation_type,
+                file_path,
+                modified_content,
+                annotation_type,
                 preview_snippet="",
                 line_number=line_number,
             )
@@ -312,9 +348,8 @@ class ViolationDetailsModal(ModalScreen):
             return
 
         from ai_guardian.tui.ignore_file_modals import IgnoreFileEditorModal
-        self.app.push_screen(
-            IgnoreFileEditorModal(file_path, config_section)
-        )
+
+        self.app.push_screen(IgnoreFileEditorModal(file_path, config_section))
 
 
 class ViolationPatternEditorModal(ModalScreen):
@@ -351,7 +386,11 @@ class ViolationPatternEditorModal(ModalScreen):
 
     def compose(self) -> ComposeResult:
         ptype_label = PATTERN_TYPES.get(self.ptype, self.ptype)
-        suggested = suggest_pattern(self.matched_text, self.config_section) if self.matched_text else ""
+        suggested = (
+            suggest_pattern(self.matched_text, self.config_section)
+            if self.matched_text
+            else ""
+        )
 
         with Container(id="pattern-editor-container"):
             yield Static("[bold]Allow Always — Edit Pattern[/bold]", id="modal-header")
@@ -359,16 +398,23 @@ class ViolationPatternEditorModal(ModalScreen):
             yield Static(f"[bold]Pattern ({ptype_label}):[/bold]")
 
             from textual.widgets import Input, TextArea
+
             yield Input(value=suggested, id="pattern-input")
             yield Static("", id="pattern-status")
             yield Static("[bold]Config preview:[/bold]")
 
-            preview = generate_config_preview(suggested, self.config_section) if suggested else ""
+            preview = (
+                generate_config_preview(suggested, self.config_section)
+                if suggested
+                else ""
+            )
             yield TextArea(preview, id="pattern-preview", read_only=True)
 
             with Horizontal(id="modal-actions"):
                 yield Button("Test Pattern", id="test-pattern", variant="default")
-                yield Button("Add to Allowlist", id="confirm-pattern", variant="success")
+                yield Button(
+                    "Add to Allowlist", id="confirm-pattern", variant="success"
+                )
                 yield Button("Cancel", id="cancel-pattern", variant="primary")
 
     def on_mount(self) -> None:
@@ -376,6 +422,7 @@ class ViolationPatternEditorModal(ModalScreen):
 
     def _do_test(self):
         from textual.widgets import Input
+
         pattern_input = self.query_one("#pattern-input", Input)
         pat = pattern_input.value.strip()
         valid, msg = validate_pattern(pat, self.ptype, self.matched_text)
@@ -385,6 +432,7 @@ class ViolationPatternEditorModal(ModalScreen):
             status.update(f"[green]PASS: {msg}[/green]")
             preview = generate_config_preview(pat, self.config_section)
             from textual.widgets import TextArea
+
             self.query_one("#pattern-preview", TextArea).load_text(preview)
         else:
             status.update(f"[red]FAIL: {msg}[/red]")
@@ -399,17 +447,16 @@ class ViolationPatternEditorModal(ModalScreen):
 
     def _confirm(self):
         from textual.widgets import Input
+
         pattern_input = self.query_one("#pattern-input", Input)
         pat = pattern_input.value.strip()
         valid, msg = validate_pattern(pat, self.ptype, self.matched_text)
         if not valid:
             status = self.query_one("#pattern-status", Static)
-            status.update(f"[red]FAIL: Fix the pattern first[/red]")
+            status.update("[red]FAIL: Fix the pattern first[/red]")
             return
 
-        self.app.push_screen(
-            ViolationConfigEditorModal(pat, self.config_section)
-        )
+        self.app.push_screen(ViolationConfigEditorModal(pat, self.config_section))
 
 
 class ViolationConfigEditorModal(ModalScreen):
@@ -451,7 +498,8 @@ class ViolationConfigEditorModal(ModalScreen):
         self._scope_options = scope_options
 
         json_text, line_number = prepare_config_with_pattern(
-            self.pattern, self.config_section,
+            self.pattern,
+            self.config_section,
             config_path=self._selected_config_path,
         )
 
@@ -464,12 +512,14 @@ class ViolationConfigEditorModal(ModalScreen):
 
             if len(scope_options) > 1:
                 from textual.widgets import RadioSet, RadioButton
+
                 yield Static("[bold]Save to:[/bold]")
                 with RadioSet(id="config-scope-select"):
                     for i, (label, path_str) in enumerate(scope_options):
                         yield RadioButton(f"{label} ({path_str})", value=i == 0)
 
             from textual.widgets import TextArea
+
             editor = TextArea(json_text, id="config-editor-area", language="json")
             editor.cursor_location = (max(0, line_number - 1), 0)
             yield editor
@@ -483,15 +533,17 @@ class ViolationConfigEditorModal(ModalScreen):
     def on_radio_set_changed(self, event) -> None:
         if event.radio_set.id == "config-scope-select":
             idx = event.index
-            opts = getattr(self, '_scope_options', [])
+            opts = getattr(self, "_scope_options", [])
             if idx < len(opts):
                 self._selected_config_path = opts[idx][1]
                 json_text, line_number = prepare_config_with_pattern(
-                    self.pattern, self.config_section,
+                    self.pattern,
+                    self.config_section,
                     config_path=self._selected_config_path,
                 )
                 try:
                     from textual.widgets import TextArea
+
                     area = self.query_one("#config-editor-area", TextArea)
                     area.load_text(json_text)
                     area.cursor_location = (line_number - 1, 0)
@@ -507,6 +559,7 @@ class ViolationConfigEditorModal(ModalScreen):
 
     def _save(self):
         from textual.widgets import TextArea
+
         editor = self.query_one("#config-editor-area", TextArea)
         text = editor.text
 
@@ -518,8 +571,13 @@ class ViolationConfigEditorModal(ModalScreen):
             return
 
         from ai_guardian.tui.ask_dialog import _write_config_text
+
         if _write_config_text(text, config_path_str=self._selected_config_path):
-            target = "project" if "Project" in (self._selected_config_path or "") else "global"
+            target = (
+                "project"
+                if "Project" in (self._selected_config_path or "")
+                else "global"
+            )
             self.app.notify(f"Pattern saved to {target} config", severity="information")
             self.dismiss()
             parent = self.app.screen
@@ -563,12 +621,15 @@ class ViolationCard(Vertical):
         resolved = self.violation.get("resolved", False)
 
         from ai_guardian.theme import textual_severity_class, violation_badge
+
         severity_class = textual_severity_class(severity)
         icon, _ = violation_badge(vtype)
 
         # Title with color-coded severity and violation icon
-        vtype_display = vtype.upper().replace('_', ' ')
-        title_parts = [f"[{severity_class}]{icon}[/{severity_class}]" if severity_class else icon]
+        vtype_display = vtype.upper().replace("_", " ")
+        title_parts = [
+            f"[{severity_class}]{icon}[/{severity_class}]" if severity_class else icon
+        ]
         title_parts.append(vtype_display)
 
         if resolved:
@@ -577,7 +638,10 @@ class ViolationCard(Vertical):
         title = " ".join(title_parts)
 
         yield Static(f"[bold]{title}[/bold]", classes="violation-title")
-        yield Static(f"[muted]{format_local_time(timestamp)}[/muted]", classes="violation-timestamp")
+        yield Static(
+            f"[muted]{format_local_time(timestamp)}[/muted]",
+            classes="violation-timestamp",
+        )
 
         # Details based on violation type
         if vtype == "tool_permission":
@@ -603,15 +667,16 @@ class ViolationCard(Vertical):
                 rule = suggestion["rule"]
                 yield Static("\nSuggested rule:", classes="violation-detail")
                 yield Static(
-                    f"  {json.dumps(rule, indent=2)}",
-                    classes="violation-suggestion"
+                    f"  {json.dumps(rule, indent=2)}", classes="violation-suggestion"
                 )
 
         elif vtype == "directory_blocking":
             file_path = blocked.get("file_path", "Unknown")
             denied_dir = blocked.get("denied_directory", "")
             yield Static(f"File: {file_path}", classes="violation-detail")
-            yield Static(f"Denied by: {denied_dir}/.ai-read-deny", classes="violation-detail")
+            yield Static(
+                f"Denied by: {denied_dir}/.ai-read-deny", classes="violation-detail"
+            )
 
         elif vtype == "secret_detected":
             # Show source/location
@@ -654,20 +719,26 @@ class ViolationCard(Vertical):
             # Show secret type (human-readable name)
             if secret_type and secret_type != "Unknown":
                 from ai_guardian.secret_type_names import get_secret_type_display
-                yield Static(f"Type: {get_secret_type_display(secret_type)}", classes="violation-detail")
+
+                yield Static(
+                    f"Type: {get_secret_type_display(secret_type)}",
+                    classes="violation-detail",
+                )
 
             # Show detection info
-            yield Static(f"Detected by: Gitleaks scanner", classes="violation-detail")
+            yield Static("Detected by: Gitleaks scanner", classes="violation-detail")
 
             # Show total findings if multiple secrets detected
             if total_findings and total_findings > 1:
-                yield Static(f"Total findings: {total_findings}", classes="violation-detail")
+                yield Static(
+                    f"Total findings: {total_findings}", classes="violation-detail"
+                )
 
             # Note about limited detail
             yield Static(
                 "[dim]Note: Secret values are redacted for security. "
                 "Review the file at the line number shown above.[/dim]",
-                classes="violation-detail"
+                classes="violation-detail",
             )
 
         elif vtype == "prompt_injection":
@@ -694,11 +765,15 @@ class ViolationCard(Vertical):
                 yield Static(f"Source: {source}", classes="violation-detail")
             yield Static(f"Pattern: {pattern}", classes="violation-detail")
             if matched_text:
-                yield Static(f"Matched: {matched_text[:80]}", classes="violation-detail")
+                yield Static(
+                    f"Matched: {matched_text[:80]}", classes="violation-detail"
+                )
             if method:
                 yield Static(f"Method: {method}", classes="violation-detail")
             if confidence:
-                yield Static(f"Confidence: {confidence:.2f}", classes="violation-detail")
+                yield Static(
+                    f"Confidence: {confidence:.2f}", classes="violation-detail"
+                )
 
         elif vtype == "secret_redaction":
             tool = blocked.get("tool", "Unknown")
@@ -725,9 +800,13 @@ class ViolationCard(Vertical):
                 yield Static(location_text, classes="violation-detail")
             elif context_snippet:
                 yield Static(f"Context: {context_snippet}", classes="violation-detail")
-            yield Static(f"Redacted: {redaction_count} secret(s)", classes="violation-detail")
+            yield Static(
+                f"Redacted: {redaction_count} secret(s)", classes="violation-detail"
+            )
             if redacted_types:
-                yield Static(f"Types: {', '.join(redacted_types)}", classes="violation-detail")
+                yield Static(
+                    f"Types: {', '.join(redacted_types)}", classes="violation-detail"
+                )
 
         elif vtype == "pii_detected":
             tool = blocked.get("tool", "Unknown")
@@ -758,7 +837,9 @@ class ViolationCard(Vertical):
                 yield Static(f"Context: {context_snippet}", classes="violation-detail")
             yield Static(f"PII found: {pii_count} item(s)", classes="violation-detail")
             if pii_types:
-                yield Static(f"Types: {', '.join(pii_types)}", classes="violation-detail")
+                yield Static(
+                    f"Types: {', '.join(pii_types)}", classes="violation-detail"
+                )
 
         elif vtype == "jailbreak_detected":
             file_path = blocked.get("file_path")
@@ -781,9 +862,13 @@ class ViolationCard(Vertical):
                 tool = blocked.get("tool", "Unknown")
                 yield Static(f"Tool: {tool}", classes="violation-detail")
             if matched_text:
-                yield Static(f"Matched: {matched_text[:80]}", classes="violation-detail")
+                yield Static(
+                    f"Matched: {matched_text[:80]}", classes="violation-detail"
+                )
             if confidence:
-                yield Static(f"Confidence: {confidence:.2f}", classes="violation-detail")
+                yield Static(
+                    f"Confidence: {confidence:.2f}", classes="violation-detail"
+                )
 
         elif vtype == "ssrf_blocked":
             tool_name = blocked.get("tool_name", "Unknown")
@@ -826,7 +911,11 @@ class ViolationCard(Vertical):
             if file_path:
                 yield Static(f"File: {file_path}", classes="violation-detail")
             from ai_guardian.secret_type_names import get_secret_type_display
-            yield Static(f"Type: {get_secret_type_display(secret_type)}", classes="violation-detail")
+
+            yield Static(
+                f"Type: {get_secret_type_display(secret_type)}",
+                classes="violation-detail",
+            )
             yield Static(f"Source: {source}", classes="violation-detail")
 
         elif vtype == "pii_in_transcript":
@@ -837,14 +926,20 @@ class ViolationCard(Vertical):
                 yield Static(f"File: {file_path}", classes="violation-detail")
             yield Static(f"PII found: {pii_count} item(s)", classes="violation-detail")
             if pii_types:
-                yield Static(f"Types: {', '.join(pii_types)}", classes="violation-detail")
+                yield Static(
+                    f"Types: {', '.join(pii_types)}", classes="violation-detail"
+                )
 
         elif vtype == "image_secret_detected":
             file_path = blocked.get("file_path", "Unknown")
             secret_type = blocked.get("secret_type", "Unknown")
             yield Static(f"Image: {file_path}", classes="violation-detail")
             from ai_guardian.secret_type_names import get_secret_type_display
-            yield Static(f"Secret type: {get_secret_type_display(secret_type)}", classes="violation-detail")
+
+            yield Static(
+                f"Secret type: {get_secret_type_display(secret_type)}",
+                classes="violation-detail",
+            )
 
         elif vtype == "image_pii_detected":
             file_path = blocked.get("file_path", "Unknown")
@@ -853,7 +948,9 @@ class ViolationCard(Vertical):
             yield Static(f"Image: {file_path}", classes="violation-detail")
             yield Static(f"PII found: {pii_count} item(s)", classes="violation-detail")
             if pii_types:
-                yield Static(f"Types: {', '.join(pii_types)}", classes="violation-detail")
+                yield Static(
+                    f"Types: {', '.join(pii_types)}", classes="violation-detail"
+                )
 
         # Show correlation ID and button only when correlation data exists (#366)
         context = self.violation.get("context", {})
@@ -861,17 +958,21 @@ class ViolationCard(Vertical):
         hook_event = context.get("hook_event", "")
         has_correlation = bool(context.get("pretool_context"))
         if tool_use_id and has_correlation:
-            hook_label = hook_event.replace("posttooluse", "PostToolUse").replace("pretooluse", "PreToolUse")
+            hook_label = hook_event.replace("posttooluse", "PostToolUse").replace(
+                "pretooluse", "PreToolUse"
+            )
             yield Static(
                 f"[dim]Correlation: {tool_use_id[:16]}... ({hook_label})[/dim]",
-                classes="violation-detail"
+                classes="violation-detail",
             )
 
         # Action buttons
         with Horizontal(classes="violation-actions"):
             yield Button("Details", id=f"details-{timestamp_id}")
             if has_correlation:
-                yield Button("Correlated", id=f"correlated-{timestamp_id}", variant="default")
+                yield Button(
+                    "Correlated", id=f"correlated-{timestamp_id}", variant="default"
+                )
 
 
 class ViolationsContent(Container):
@@ -936,12 +1037,13 @@ class ViolationsContent(Container):
             "[dim]Historical log of blocked operations. "
             "Use sub-tabs to filter by type. "
             "Click Details on any violation for resolution instructions.[/dim]",
-            classes="violation-detail"
+            classes="violation-detail",
         )
 
         with Horizontal(classes="violation-actions"):
             yield Button(
-                "Scan File/Directory", id="scan-file-dir",
+                "Scan File/Directory",
+                id="scan-file-dir",
                 variant="primary",
             )
 
@@ -991,7 +1093,9 @@ class ViolationsContent(Container):
     def load_all_filters(self) -> None:
         """Load violations into all filter tabs."""
         # Load all violations
-        all_violations = self.violation_logger.get_recent_violations(limit=50, resolved=None)
+        all_violations = self.violation_logger.get_recent_violations(
+            limit=50, resolved=None
+        )
         self._populate_list("#violations-list-all", all_violations)
 
         # Load tool permission violations
@@ -1052,13 +1156,17 @@ class ViolationsContent(Container):
         transcript_secret_violations = self.violation_logger.get_recent_violations(
             limit=50, violation_type="secret_in_transcript", resolved=None
         )
-        self._populate_list("#violations-list-transcript-secret", transcript_secret_violations)
+        self._populate_list(
+            "#violations-list-transcript-secret", transcript_secret_violations
+        )
 
         # Load transcript PII violations
         transcript_pii_violations = self.violation_logger.get_recent_violations(
             limit=50, violation_type="pii_in_transcript", resolved=None
         )
-        self._populate_list("#violations-list-transcript-pii", transcript_pii_violations)
+        self._populate_list(
+            "#violations-list-transcript-pii", transcript_pii_violations
+        )
 
         # Load transcript prompt injection violations
         transcript_pi_violations = self.violation_logger.get_recent_violations(
@@ -1094,7 +1202,7 @@ class ViolationsContent(Container):
                 empty_msg = Static(
                     "No violations found.\n\n"
                     "[dim]Violations appear here when AI Guardian blocks an operation.[/dim]",
-                    classes="empty-state"
+                    classes="empty-state",
                 )
                 violations_list.mount(empty_msg)
                 return
@@ -1112,12 +1220,11 @@ class ViolationsContent(Container):
         if button_id == "scan-file-dir":
             try:
                 from textual.widgets import ContentSwitcher
+
                 switcher = self.app.query_one("#panels", ContentSwitcher)
                 switcher.current = "panel-directory-scan"
             except Exception:
-                self.app.notify(
-                    "Directory Scan panel not found", severity="warning"
-                )
+                self.app.notify("Directory Scan panel not found", severity="warning")
             return
 
         if button_id and button_id.startswith("details-"):
@@ -1133,7 +1240,9 @@ class ViolationsContent(Container):
     def _unsanitize_timestamp(self, timestamp_id: str) -> str:
         """Convert sanitized timestamp ID back to original format."""
         # Find matching violation by checking all recent violations
-        violations = self.violation_logger.get_recent_violations(limit=1000, resolved=None)
+        violations = self.violation_logger.get_recent_violations(
+            limit=1000, resolved=None
+        )
         for v in violations:
             original = v.get("timestamp", "")
             sanitized = original.replace(":", "-").replace(".", "-").replace("T", "-")
@@ -1291,8 +1400,12 @@ class ViolationsContent(Container):
 
     def show_violation_details(self, timestamp: str) -> None:
         """Show detailed information about a violation in a modal."""
-        violations = self.violation_logger.get_recent_violations(limit=1000, resolved=None)
-        violation = next((v for v in violations if v.get("timestamp") == timestamp), None)
+        violations = self.violation_logger.get_recent_violations(
+            limit=1000, resolved=None
+        )
+        violation = next(
+            (v for v in violations if v.get("timestamp") == timestamp), None
+        )
 
         if violation:
             self.app.push_screen(ViolationDetailsModal(violation))
@@ -1301,7 +1414,9 @@ class ViolationsContent(Container):
 
     def show_correlated_violation(self, timestamp: str) -> None:
         """Show correlated PreToolUse context or paired violation (#366)."""
-        violations = self.violation_logger.get_recent_violations(limit=1000, resolved=None)
+        violations = self.violation_logger.get_recent_violations(
+            limit=1000, resolved=None
+        )
         source = next((v for v in violations if v.get("timestamp") == timestamp), None)
 
         if not source:

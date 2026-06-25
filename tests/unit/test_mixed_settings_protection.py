@@ -11,7 +11,6 @@ Bash/PowerShell commands remain fully blocked for all settings files.
 
 import json
 import os
-import sys
 import tempfile
 import pytest
 
@@ -80,11 +79,14 @@ EDIT_ALLOWS_NON_HOOK = [
 @pytest.mark.parametrize("file_path,old_string,new_string", EDIT_ALLOWS_NON_HOOK)
 def test_edit_allows_non_hook_change(checker, file_path, old_string, new_string):
     """Edit tool allows non-hook modifications to mixed settings files."""
-    hook_data = _make_hook_data("Edit", {
-        "file_path": file_path,
-        "old_string": old_string,
-        "new_string": new_string,
-    })
+    hook_data = _make_hook_data(
+        "Edit",
+        {
+            "file_path": file_path,
+            "old_string": old_string,
+            "new_string": new_string,
+        },
+    )
     allowed, msg, _ = checker.check_tool_allowed(hook_data)
     assert allowed, f"Non-hook change should be allowed: {file_path}"
 
@@ -108,7 +110,7 @@ EDIT_BLOCKS_HOOK_CHANGES = [
     ),
     pytest.param(
         "/home/user/.claude/settings.json",
-        'old content',
+        "old content",
         '"PostToolUse": [{"matcher": "*"}]',
         id="claude-posttooluse-key",
     ),
@@ -154,11 +156,14 @@ EDIT_BLOCKS_HOOK_CHANGES = [
 @pytest.mark.parametrize("file_path,old_string,new_string", EDIT_BLOCKS_HOOK_CHANGES)
 def test_edit_blocks_hook_change(checker, file_path, old_string, new_string):
     """Edit tool blocks hook modifications in mixed settings files."""
-    hook_data = _make_hook_data("Edit", {
-        "file_path": file_path,
-        "old_string": old_string,
-        "new_string": new_string,
-    })
+    hook_data = _make_hook_data(
+        "Edit",
+        {
+            "file_path": file_path,
+            "old_string": old_string,
+            "new_string": new_string,
+        },
+    )
     allowed, msg, _ = checker.check_tool_allowed(hook_data)
     assert not allowed, f"Hook change should be blocked: {file_path}"
 
@@ -166,6 +171,7 @@ def test_edit_blocks_hook_change(checker, file_path, old_string, new_string):
 # ============================================================================
 # Write content-aware tests (unchanged - complex setup with tempfiles)
 # ============================================================================
+
 
 class TestWriteContentAware:
     """Write tool does content-aware checking for mixed settings files."""
@@ -180,19 +186,22 @@ class TestWriteContentAware:
         updated = {"hooks": hooks_config, "model": "new-model"}
 
         with tempfile.NamedTemporaryFile(
-            mode="w", suffix=".json", delete=False,
-            prefix=".claude_settings_"
+            mode="w", suffix=".json", delete=False, prefix=".claude_settings_"
         ) as f:
             json.dump(original, f)
             tmp_path = f.name
 
         try:
-            hook_data = _make_hook_data("Write", {
-                "file_path": tmp_path,
-                "content": json.dumps(updated),
-            })
+            hook_data = _make_hook_data(
+                "Write",
+                {
+                    "file_path": tmp_path,
+                    "content": json.dumps(updated),
+                },
+            )
 
             import ai_guardian.tool_policy as tp
+
             orig_patterns = tp.MIXED_SETTINGS_PATTERNS
             tp.MIXED_SETTINGS_PATTERNS = ["*"]
             try:
@@ -209,19 +218,22 @@ class TestWriteContentAware:
         updated = {"hooks": {"PreToolUse": []}, "model": "new"}
 
         with tempfile.NamedTemporaryFile(
-            mode="w", suffix=".json", delete=False,
-            prefix=".claude_settings_"
+            mode="w", suffix=".json", delete=False, prefix=".claude_settings_"
         ) as f:
             json.dump(original, f)
             tmp_path = f.name
 
         try:
-            hook_data = _make_hook_data("Write", {
-                "file_path": tmp_path,
-                "content": json.dumps(updated),
-            })
+            hook_data = _make_hook_data(
+                "Write",
+                {
+                    "file_path": tmp_path,
+                    "content": json.dumps(updated),
+                },
+            )
 
             import ai_guardian.tool_policy as tp
+
             orig_patterns = tp.MIXED_SETTINGS_PATTERNS
             tp.MIXED_SETTINGS_PATTERNS = ["*"]
             try:
@@ -238,19 +250,22 @@ class TestWriteContentAware:
         updated = {"model": "new"}
 
         with tempfile.NamedTemporaryFile(
-            mode="w", suffix=".json", delete=False,
-            prefix=".claude_settings_"
+            mode="w", suffix=".json", delete=False, prefix=".claude_settings_"
         ) as f:
             json.dump(original, f)
             tmp_path = f.name
 
         try:
-            hook_data = _make_hook_data("Write", {
-                "file_path": tmp_path,
-                "content": json.dumps(updated),
-            })
+            hook_data = _make_hook_data(
+                "Write",
+                {
+                    "file_path": tmp_path,
+                    "content": json.dumps(updated),
+                },
+            )
 
             import ai_guardian.tool_policy as tp
+
             orig_patterns = tp.MIXED_SETTINGS_PATTERNS
             tp.MIXED_SETTINGS_PATTERNS = ["*"]
             try:
@@ -266,12 +281,16 @@ class TestWriteContentAware:
         if os.path.exists(non_existent):
             os.unlink(non_existent)
 
-        hook_data = _make_hook_data("Write", {
-            "file_path": non_existent,
-            "content": json.dumps({"hooks": {"PreToolUse": []}, "model": "test"}),
-        })
+        hook_data = _make_hook_data(
+            "Write",
+            {
+                "file_path": non_existent,
+                "content": json.dumps({"hooks": {"PreToolUse": []}, "model": "test"}),
+            },
+        )
 
         import ai_guardian.tool_policy as tp
+
         orig_patterns = tp.MIXED_SETTINGS_PATTERNS
         tp.MIXED_SETTINGS_PATTERNS = ["*"]
         try:
@@ -285,12 +304,16 @@ class TestWriteContentAware:
         if os.path.exists(non_existent):
             os.unlink(non_existent)
 
-        hook_data = _make_hook_data("Write", {
-            "file_path": non_existent,
-            "content": json.dumps({"model": "test", "theme": "dark"}),
-        })
+        hook_data = _make_hook_data(
+            "Write",
+            {
+                "file_path": non_existent,
+                "content": json.dumps({"model": "test", "theme": "dark"}),
+            },
+        )
 
         import ai_guardian.tool_policy as tp
+
         orig_patterns = tp.MIXED_SETTINGS_PATTERNS
         tp.MIXED_SETTINGS_PATTERNS = ["*"]
         try:
@@ -300,27 +323,36 @@ class TestWriteContentAware:
             tp.MIXED_SETTINGS_PATTERNS = orig_patterns
 
     def test_write_blocks_invalid_json(self):
-        hook_data = _make_hook_data("Write", {
-            "file_path": "/home/user/.claude/settings.json",
-            "content": "not valid json {{{",
-        })
+        hook_data = _make_hook_data(
+            "Write",
+            {
+                "file_path": "/home/user/.claude/settings.json",
+                "content": "not valid json {{{",
+            },
+        )
         allowed, msg, _ = self.checker.check_tool_allowed(hook_data)
         assert not allowed, "Invalid JSON should fail-closed"
         assert "Hook Protection" in msg
         assert "cannot parse" in msg
 
     def test_write_blocks_empty_content(self):
-        hook_data = _make_hook_data("Write", {
-            "file_path": "/home/user/.claude/settings.json",
-            "content": "",
-        })
+        hook_data = _make_hook_data(
+            "Write",
+            {
+                "file_path": "/home/user/.claude/settings.json",
+                "content": "",
+            },
+        )
         allowed, msg, _ = self.checker.check_tool_allowed(hook_data)
         assert not allowed, "Empty content should fail-closed"
 
     def test_write_blocks_no_content_key(self):
-        hook_data = _make_hook_data("Write", {
-            "file_path": "/home/user/.claude/settings.json",
-        })
+        hook_data = _make_hook_data(
+            "Write",
+            {
+                "file_path": "/home/user/.claude/settings.json",
+            },
+        )
         allowed, msg, _ = self.checker.check_tool_allowed(hook_data)
         assert not allowed, "Missing content should fail-closed"
 
@@ -421,12 +453,16 @@ def test_powershell_blocks_settings(checker, command):
 # Hook protection error messages
 # ============================================================================
 
+
 def test_message_mentions_non_hook_settings_allowed(checker):
-    hook_data = _make_hook_data("Edit", {
-        "file_path": "/home/user/.claude/settings.json",
-        "old_string": '"hooks": {}',
-        "new_string": '"hooks": {"PreToolUse": []}',
-    })
+    hook_data = _make_hook_data(
+        "Edit",
+        {
+            "file_path": "/home/user/.claude/settings.json",
+            "old_string": '"hooks": {}',
+            "new_string": '"hooks": {"PreToolUse": []}',
+        },
+    )
     allowed, msg, _ = checker.check_tool_allowed(hook_data)
     assert not allowed
     assert "Non-hook settings" in msg
@@ -434,32 +470,41 @@ def test_message_mentions_non_hook_settings_allowed(checker):
 
 
 def test_message_mentions_hooks_key(checker):
-    hook_data = _make_hook_data("Edit", {
-        "file_path": "/home/user/.claude/settings.json",
-        "old_string": '"hooks": {}',
-        "new_string": '"hooks": {"PreToolUse": []}',
-    })
+    hook_data = _make_hook_data(
+        "Edit",
+        {
+            "file_path": "/home/user/.claude/settings.json",
+            "old_string": '"hooks": {}',
+            "new_string": '"hooks": {"PreToolUse": []}',
+        },
+    )
     allowed, msg, _ = checker.check_tool_allowed(hook_data)
     assert "hook" in msg.lower()
     assert "Hook Protection" in msg
 
 
 def test_message_file_path_shown(checker):
-    hook_data = _make_hook_data("Edit", {
-        "file_path": "/home/user/.claude/settings.json",
-        "old_string": '"hooks": {}',
-        "new_string": '"hooks": {"PreToolUse": []}',
-    })
+    hook_data = _make_hook_data(
+        "Edit",
+        {
+            "file_path": "/home/user/.claude/settings.json",
+            "old_string": '"hooks": {}',
+            "new_string": '"hooks": {"PreToolUse": []}',
+        },
+    )
     allowed, msg, _ = checker.check_tool_allowed(hook_data)
     assert "/home/user/.claude/settings.json" in msg
 
 
 def test_message_immutable_warning(checker):
-    hook_data = _make_hook_data("Edit", {
-        "file_path": "/home/user/.claude/settings.json",
-        "old_string": '"hooks": {}',
-        "new_string": '"hooks": {"PreToolUse": []}',
-    })
+    hook_data = _make_hook_data(
+        "Edit",
+        {
+            "file_path": "/home/user/.claude/settings.json",
+            "old_string": '"hooks": {}',
+            "new_string": '"hooks": {"PreToolUse": []}',
+        },
+    )
     allowed, msg, _ = checker.check_tool_allowed(hook_data)
     assert "cannot be disabled via configuration" in msg
 

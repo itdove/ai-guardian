@@ -101,7 +101,10 @@ class TestTempFileMode:
 
         assert mgr.get_pretool_context("toolu_01abc") is None
 
-    @pytest.mark.skipif(sys.platform == "win32", reason="Unix file permissions not applicable on Windows")
+    @pytest.mark.skipif(
+        sys.platform == "win32",
+        reason="Unix file permissions not applicable on Windows",
+    )
     def test_secure_file_permissions(self, tmp_path):
         # Create a context file in /tmp to test actual permissions
         mgr = HookContextManager(session_id="perm-test-12345")
@@ -177,6 +180,7 @@ class TestDaemonMode:
         mgr.save_pretool_context("t1", {"data": "test"})
         # No temp files should exist
         import glob
+
         assert not glob.glob("/tmp/ai-guardian-s1.json")
 
 

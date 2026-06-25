@@ -9,12 +9,11 @@ Uses a JSON editor for the rules array, matching the Config Editor pattern.
 import json
 import shutil
 from pathlib import Path
-from typing import List, Optional
 
 from textual.app import ComposeResult
 from textual.binding import Binding
-from textual.containers import Container, Horizontal, VerticalScroll
-from textual.widgets import Static, Button, Label, Select, TextArea
+from textual.containers import Container, Horizontal
+from textual.widgets import Static, Label, Select, TextArea
 
 from ai_guardian.config_utils import get_config_dir, get_project_config_path
 from ai_guardian.tui.console_settings import load_editor_theme
@@ -104,6 +103,7 @@ class DirectoryRulesContent(Container):
             if project_path:
                 return project_path
             from ai_guardian.config_utils import _find_git_root
+
             root = _find_git_root() or Path.cwd()
             return root / ".ai-guardian" / "ai-guardian.json"
         return get_config_dir() / "ai-guardian.json"
@@ -118,14 +118,18 @@ class DirectoryRulesContent(Container):
 
         with Container(classes="section"):
             yield Static("[bold]Violation Action[/bold]", classes="section-title")
-            yield Static(
-                "[dim]What happens when a directory rule denies access.[/dim]"
-            )
+            yield Static("[dim]What happens when a directory rule denies access.[/dim]")
             with Horizontal(classes="setting-row"):
                 yield Label("Action on deny:")
                 yield Select(
-                    [("block", "block"), ("warn", "warn"), ("log-only", "log-only"),
-                     ("ask", "ask"), ("ask:warn", "ask:warn"), ("ask:log-only", "ask:log-only")],
+                    [
+                        ("block", "block"),
+                        ("warn", "warn"),
+                        ("log-only", "log-only"),
+                        ("ask", "ask"),
+                        ("ask:warn", "ask:warn"),
+                        ("ask:log-only", "ask:log-only"),
+                    ],
                     value="block",
                     id="action-select",
                     allow_blank=False,
@@ -152,10 +156,10 @@ class DirectoryRulesContent(Container):
                 "If no rules match, access is ALLOWED (default permissive).\n"
                 "Common pattern: deny broad, then allow specific.\n\n"
                 "Example rules array:\n"
-                '[\n'
+                "[\n"
                 '  {"mode": "deny",  "paths": ["~/.ssh/**", "~/.aws/**"]},\n'
                 '  {"mode": "allow", "paths": ["~/dev/workspace/**"]}\n'
-                ']\n\n'
+                "]\n\n"
                 "Pattern syntax:\n"
                 "  ~   Expands to home directory\n"
                 "  *   Matches single directory level\n"
@@ -188,7 +192,7 @@ class DirectoryRulesContent(Container):
         config = {}
         if config_path.exists():
             try:
-                with open(config_path, 'r', encoding='utf-8') as f:
+                with open(config_path, "r", encoding="utf-8") as f:
                     config = json.load(f)
             except Exception as e:
                 self.app.notify(f"Error loading config: {e}", severity="error")
@@ -283,8 +287,11 @@ class DirectoryRulesContent(Container):
             dr = self._get_rules_section(config)
 
             # Preserve generated/immutable rules
-            preserved = [r for r in dr.get("rules", [])
-                         if isinstance(r, dict) and (r.get("_generated") or r.get("_immutable"))]
+            preserved = [
+                r
+                for r in dr.get("rules", [])
+                if isinstance(r, dict) and (r.get("_generated") or r.get("_immutable"))
+            ]
 
             dr["rules"] = rules + preserved
             config["directory_rules"] = dr
@@ -315,7 +322,7 @@ class DirectoryRulesContent(Container):
     def _load_config_dict(self) -> dict:
         config_path = self._get_config_path()
         if config_path.exists():
-            with open(config_path, 'r', encoding='utf-8') as f:
+            with open(config_path, "r", encoding="utf-8") as f:
                 return json.load(f)
         return {}
 
@@ -325,7 +332,7 @@ class DirectoryRulesContent(Container):
             backup_path = config_path.with_suffix(".json.bak")
             shutil.copy2(config_path, backup_path)
         config_path.parent.mkdir(parents=True, exist_ok=True)
-        with open(config_path, 'w', encoding='utf-8') as f:
+        with open(config_path, "w", encoding="utf-8") as f:
             json.dump(config, f, indent=2)
 
     def _get_rules_section(self, config: dict) -> dict:
