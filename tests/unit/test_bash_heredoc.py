@@ -233,7 +233,6 @@ EOF"""},
             is_allowed, "Dangerous commands should still be blocked even with heredocs"
         )
 
-
     # ========================================================================
     # Test: Heredoc bypass of immutable deny patterns (Issue #1350)
     # ========================================================================
