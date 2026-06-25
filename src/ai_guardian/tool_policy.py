@@ -1005,6 +1005,14 @@ class ToolPolicyChecker:
             # EXCEPT: Development source code can be edited (fork + PR workflow)
             check_value = self._extract_check_value(tool_name, tool_input, tool_name)
 
+            # For Bash/Shell: also check immutable deny patterns against the raw
+            # (un-stripped) command to prevent heredoc bypass (#1350)
+            raw_check_value = None
+            if tool_name in ("Bash", "Shell"):
+                raw_cmd = tool_input.get("command")
+                if raw_cmd and raw_cmd != check_value:
+                    raw_check_value = raw_cmd
+
             # For file-path tools (Edit/Write/Read/NotebookEdit), require check_value
             # If we can't extract file_path, fail-closed to prevent bypass (Issue #113)
             is_file_path_tool = tool_name in ["Write", "Read", "Edit", "NotebookEdit"]
@@ -1083,6 +1091,9 @@ class ToolPolicyChecker:
                         matches = Path(check_value).match(pattern)
                     else:
                         matches = fnmatch.fnmatch(check_value, pattern)
+
+                    if not matches and raw_check_value:
+                        matches = fnmatch.fnmatch(raw_check_value, pattern)
 
                     if matches:
                         error_msg = self._format_immutable_deny_message(
