@@ -1,0 +1,87 @@
+name: Feature Request
+description: Suggest a new feature or enhancement for AI Guardian
+title: "[Feature]: "
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Have an idea to improve AI Guardian? We'd love to hear it!
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem or Use Case
+      description: "What problem does this feature solve? What's the use case?"
+      placeholder: "I'm always frustrated when..."
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposed-solution
+    attributes:
+      label: Proposed Solution
+      description: "Describe what you'd like to happen."
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives Considered
+      description: "Any alternative solutions or workarounds you've considered."
+    validations:
+      required: false
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Feature Area
+      options:
+        - Secret Scanning
+        - Prompt Injection Detection
+        - SSRF Protection
+        - PII Scanning
+        - Context Poisoning Detection
+        - Supply Chain Scanning
+        - Directory / Path Rules
+        - Tool Permissions
+        - Daemon / Tray
+        - Web Console
+        - TUI Console
+        - Ask Dialog
+        - CLI
+        - SDK
+        - MCP Server
+        - Installation / Setup
+        - Documentation
+        - Other
+    validations:
+      required: true
+
+  - type: dropdown
+    id: ide
+    attributes:
+      label: IDE / Agent (if applicable)
+      options:
+        - Claude Code CLI
+        - VS Code (Claude Extension)
+        - Cursor
+        - Windsurf
+        - GitHub Copilot
+        - Gemini CLI
+        - Kiro
+        - Cline / ZooCode
+        - Aider / AiderDesk
+        - All / Not IDE-specific
+        - Other
+    validations:
+      required: false
+
+  - type: textarea
+    id: extra-context
+    attributes:
+      label: Extra Context
+      description: "Any additional context, mockups, screenshots, or references."
+    validations:
+      required: false

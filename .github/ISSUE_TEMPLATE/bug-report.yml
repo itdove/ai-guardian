@@ -1,0 +1,165 @@
+name: Bug Report
+description: Report a bug or unexpected behavior in AI Guardian
+title: "[Bug]: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting a bug! Please fill out the sections below so we can reproduce and fix it.
+
+  - type: dropdown
+    id: os
+    attributes:
+      label: Operating System
+      options:
+        - macOS
+        - Ubuntu / Debian
+        - Fedora / RHEL / CentOS
+        - Windows
+        - Other Linux
+        - Other
+    validations:
+      required: true
+
+  - type: input
+    id: arch
+    attributes:
+      label: Architecture
+      description: "Run `uname -m` (e.g. x86_64, arm64)"
+      placeholder: "e.g. arm64"
+    validations:
+      required: true
+
+  - type: input
+    id: python-version
+    attributes:
+      label: Python Version
+      description: "Run `python3 --version`"
+      placeholder: "e.g. 3.12.4"
+    validations:
+      required: true
+
+  - type: input
+    id: ag-version
+    attributes:
+      label: AI Guardian Version
+      description: "Run `ai-guardian --version`"
+      placeholder: "e.g. 1.12.0"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: ide
+    attributes:
+      label: IDE / Agent
+      options:
+        - Claude Code CLI
+        - VS Code (Claude Extension)
+        - Cursor
+        - Windsurf
+        - GitHub Copilot
+        - Gemini CLI
+        - Kiro
+        - Cline / ZooCode
+        - Aider / AiderDesk
+        - Other
+    validations:
+      required: true
+
+  - type: dropdown
+    id: install-method
+    attributes:
+      label: Install Method
+      options:
+        - install.sh (recommended)
+        - pip install
+        - pipx install
+        - uv pip install
+        - Manual / from source
+        - Other
+    validations:
+      required: true
+
+  - type: dropdown
+    id: daemon-mode
+    attributes:
+      label: Daemon Mode
+      description: "Run `ai-guardian daemon status` to check"
+      options:
+        - Running (daemon mode)
+        - Not running (hook mode)
+        - "N/A"
+    validations:
+      required: true
+
+  - type: textarea
+    id: doctor-output
+    attributes:
+      label: "ai-guardian doctor output"
+      description: "Run `ai-guardian doctor` and paste the output here."
+      render: text
+    validations:
+      required: false
+
+  - type: textarea
+    id: scenario
+    attributes:
+      label: Scenario
+      description: "Describe what you were doing when the bug occurred."
+    validations:
+      required: true
+
+  - type: textarea
+    id: current-result
+    attributes:
+      label: Current Result
+      description: "What actually happened. Include error messages if any."
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected-result
+    attributes:
+      label: Expected Result
+      description: "What you expected to happen."
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps-to-reproduce
+    attributes:
+      label: Steps to Reproduce
+      description: "Step-by-step instructions to reproduce the behavior."
+      value: |
+        1.
+        2.
+        3.
+    validations:
+      required: true
+
+  - type: textarea
+    id: relevant-log
+    attributes:
+      label: Relevant Log Output
+      description: "Paste any relevant log output. Check `~/.ai-guardian/ai-guardian.log` for daemon logs."
+      render: text
+    validations:
+      required: false
+
+  - type: textarea
+    id: config-snippet
+    attributes:
+      label: Configuration Snippet
+      description: "Paste relevant sections of your ai-guardian.json (redact any secrets)."
+      render: json
+    validations:
+      required: false
+
+  - type: textarea
+    id: extra-context
+    attributes:
+      label: Extra Context
+      description: "Any additional context, screenshots, or information that might help."
+    validations:
+      required: false
