@@ -66,9 +66,7 @@ class TestCLIWebFlag:
         assert args.port == 8080
 
 
-@pytest.mark.skipif(
-    not _has_nicegui, reason="NiceGUI requires Python >= 3.10"
-)
+@pytest.mark.skipif(not _has_nicegui, reason="NiceGUI requires Python >= 3.10")
 class TestNiceGUIStoragePath:
     def test_storage_path_set_when_unset(self, tmp_path, monkeypatch):
         """NICEGUI_STORAGE_PATH set to state_dir/.nicegui when not configured."""
