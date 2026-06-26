@@ -4,6 +4,8 @@ Terminal-based dialog for ask mode decisions with pattern editor
 and inline config editor using TextArea.
 """
 
+from rich.markup import escape
+
 from ai_guardian.theme import violation_badge
 from ai_guardian.tui.ask_dialog import (
     AskDecision,
@@ -128,9 +130,10 @@ class _TextualAskDialog:
                             if v.start_column is not None:
                                 loc += f":{v.start_column + 1}"
                         yield Static(
-                            f"[bold]Location:[/bold] {loc}", classes="detail-row"
+                            f"[bold]Location:[/bold] {escape(loc)}",
+                            classes="detail-row",
                         )
-                    yield Static(v.matched_text[:300], id="matched-text")
+                    yield Static(escape(v.matched_text[:300]), id="matched-text")
 
                     with Horizontal(id="button-bar"):
                         yield Button(

@@ -127,6 +127,24 @@ class TestFilterFindingsByStopwordsEntropy:
         )
         assert len(filtered) == 0
 
+    def test_systemd_private_path_filtered(self):
+        secrets = [_make_secret_match("systemd-private-abc123def456")]
+        filtered, sw, ent = filter_findings_by_stopwords_entropy(
+            secrets, load_stopwords(), 3.0
+        )
+        assert len(filtered) == 0
+        assert sw == 1
+
+    def test_systemd_private_hex_path_filtered(self):
+        secrets = [
+            _make_secret_match("/run/systemd-private-9a3b4c5d6e7f/tmp/something")
+        ]
+        filtered, sw, ent = filter_findings_by_stopwords_entropy(
+            secrets, load_stopwords(), 3.0
+        )
+        assert len(filtered) == 0
+        assert sw == 1
+
 
 class TestFilterFindingsDictsByStopwordsEntropy:
     def test_placeholder_dict_filtered(self):

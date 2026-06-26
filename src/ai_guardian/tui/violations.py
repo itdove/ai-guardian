@@ -8,6 +8,7 @@ Display all recent violations with filtering and resolution instructions.
 import json
 from typing import Dict
 
+from rich.markup import escape
 from textual.app import ComposeResult
 from textual.containers import Container, Horizontal, VerticalScroll, Vertical
 from textual.widgets import Button, Static, TabbedContent, TabPane
@@ -198,11 +199,11 @@ class ViolationDetailsModal(ModalScreen):
 
             details = json.dumps(self.violation, indent=2)
             with VerticalScroll(id="modal-content"):
-                yield Static(details, id="modal-content-text")
+                yield Static(escape(details), id="modal-content-text")
                 yield Static("\n[bold]--- How to Resolve ---[/bold]\n")
                 yield Static(instructions)
                 if snippet:
-                    yield Static(f"\n[bold]Config snippet:[/bold]\n{snippet}")
+                    yield Static(f"\n[bold]Config snippet:[/bold]\n{escape(snippet)}")
 
             with Horizontal(id="modal-actions"):
                 yield Button("Copy Details", id="copy-details", variant="default")
@@ -394,7 +395,9 @@ class ViolationPatternEditorModal(ModalScreen):
 
         with Container(id="pattern-editor-container"):
             yield Static("[bold]Allow Always — Edit Pattern[/bold]", id="modal-header")
-            yield Static(f"\n[bold]Matched text:[/bold]\n{self.matched_text[:200]}\n")
+            yield Static(
+                f"\n[bold]Matched text:[/bold]\n{escape(self.matched_text[:200])}\n"
+            )
             yield Static(f"[bold]Pattern ({ptype_label}):[/bold]")
 
             from textual.widgets import Input, TextArea
@@ -648,9 +651,12 @@ class ViolationCard(Vertical):
             tool_name = blocked.get("tool_name", "Unknown")
             tool_value = blocked.get("tool_value", "")
             reason = blocked.get("reason", "")
-            yield Static(f"Tool: {tool_name}/{tool_value}", classes="violation-detail")
+            yield Static(
+                f"Tool: {escape(tool_name)}/{escape(tool_value)}",
+                classes="violation-detail",
+            )
             if blocked.get("file_path"):
-                location_text = f"File: {blocked['file_path']}"
+                location_text = f"File: {escape(blocked['file_path'])}"
                 if blocked.get("line_number"):
                     start_col = blocked.get("start_column")
                     location_text += f" (line {blocked['line_number']}"
@@ -660,22 +666,24 @@ class ViolationCard(Vertical):
                         location_text += f", pos {blocked['position']}"
                     location_text += ")"
                 yield Static(location_text, classes="violation-detail")
-            yield Static(f"Reason: {reason}", classes="violation-detail")
+            yield Static(f"Reason: {escape(reason)}", classes="violation-detail")
 
             # Show suggested rule
             if suggestion and suggestion.get("rule"):
                 rule = suggestion["rule"]
                 yield Static("\nSuggested rule:", classes="violation-detail")
                 yield Static(
-                    f"  {json.dumps(rule, indent=2)}", classes="violation-suggestion"
+                    f"  {escape(json.dumps(rule, indent=2))}",
+                    classes="violation-suggestion",
                 )
 
         elif vtype == "directory_blocking":
             file_path = blocked.get("file_path", "Unknown")
             denied_dir = blocked.get("denied_directory", "")
-            yield Static(f"File: {file_path}", classes="violation-detail")
+            yield Static(f"File: {escape(file_path)}", classes="violation-detail")
             yield Static(
-                f"Denied by: {denied_dir}/.ai-read-deny", classes="violation-detail"
+                f"Denied by: {escape(denied_dir)}/.ai-read-deny",
+                classes="violation-detail",
             )
 
         elif vtype == "secret_detected":
@@ -691,7 +699,7 @@ class ViolationCard(Vertical):
             position = blocked.get("position")
             start_col = blocked.get("start_column")
             if file_path:
-                location_text = f"File: {file_path}"
+                location_text = f"File: {escape(file_path)}"
                 if line_number:
                     if end_line and end_line != line_number:
                         location_text += f" (lines {line_number}-{end_line}"
@@ -714,7 +722,7 @@ class ViolationCard(Vertical):
                     location_text += ")"
                 yield Static(location_text, classes="violation-detail")
             else:
-                yield Static(f"Location: {source}", classes="violation-detail")
+                yield Static(f"Location: {escape(source)}", classes="violation-detail")
 
             # Show secret type (human-readable name)
             if secret_type and secret_type != "Unknown":
@@ -752,7 +760,7 @@ class ViolationCard(Vertical):
             confidence = blocked.get("confidence")
             method = blocked.get("method")
             if file_path:
-                location_text = f"File: {file_path}"
+                location_text = f"File: {escape(file_path)}"
                 if line_number:
                     location_text += f" (line {line_number}"
                     if start_col is not None:
@@ -762,14 +770,15 @@ class ViolationCard(Vertical):
                     location_text += ")"
                 yield Static(location_text, classes="violation-detail")
             else:
-                yield Static(f"Source: {source}", classes="violation-detail")
-            yield Static(f"Pattern: {pattern}", classes="violation-detail")
+                yield Static(f"Source: {escape(source)}", classes="violation-detail")
+            yield Static(f"Pattern: {escape(pattern)}", classes="violation-detail")
             if matched_text:
                 yield Static(
-                    f"Matched: {matched_text[:80]}", classes="violation-detail"
+                    f"Matched: {escape(matched_text[:80])}",
+                    classes="violation-detail",
                 )
             if method:
-                yield Static(f"Method: {method}", classes="violation-detail")
+                yield Static(f"Method: {escape(method)}", classes="violation-detail")
             if confidence:
                 yield Static(
                     f"Confidence: {confidence:.2f}", classes="violation-detail"
@@ -785,11 +794,13 @@ class ViolationCard(Vertical):
             redacted_types = blocked.get("redacted_types", [])
             command = blocked.get("command")
             context_snippet = blocked.get("context_snippet")
-            yield Static(f"Tool: {tool}", classes="violation-detail")
+            yield Static(f"Tool: {escape(tool)}", classes="violation-detail")
             if command:
-                yield Static(f"Command: {command[:120]}", classes="violation-detail")
+                yield Static(
+                    f"Command: {escape(command[:120])}", classes="violation-detail"
+                )
             if file_path:
-                location_text = f"File: {file_path}"
+                location_text = f"File: {escape(file_path)}"
                 if line_number:
                     location_text += f" (line {line_number}"
                     if start_col is not None:
@@ -799,13 +810,17 @@ class ViolationCard(Vertical):
                     location_text += ")"
                 yield Static(location_text, classes="violation-detail")
             elif context_snippet:
-                yield Static(f"Context: {context_snippet}", classes="violation-detail")
+                yield Static(
+                    f"Context: {escape(context_snippet)}",
+                    classes="violation-detail",
+                )
             yield Static(
                 f"Redacted: {redaction_count} secret(s)", classes="violation-detail"
             )
             if redacted_types:
                 yield Static(
-                    f"Types: {', '.join(redacted_types)}", classes="violation-detail"
+                    f"Types: {escape(', '.join(redacted_types))}",
+                    classes="violation-detail",
                 )
 
         elif vtype == "pii_detected":
@@ -819,12 +834,14 @@ class ViolationCard(Vertical):
             pii_types = blocked.get("pii_types", [])
             command = blocked.get("command")
             context_snippet = blocked.get("context_snippet")
-            yield Static(f"Hook: {hook}", classes="violation-detail")
-            yield Static(f"Tool: {tool}", classes="violation-detail")
+            yield Static(f"Hook: {escape(hook)}", classes="violation-detail")
+            yield Static(f"Tool: {escape(tool)}", classes="violation-detail")
             if command:
-                yield Static(f"Command: {command[:120]}", classes="violation-detail")
+                yield Static(
+                    f"Command: {escape(command[:120])}", classes="violation-detail"
+                )
             if file_path:
-                location_text = f"File: {file_path}"
+                location_text = f"File: {escape(file_path)}"
                 if line_number:
                     location_text += f" (line {line_number}"
                     if start_col is not None:
@@ -834,11 +851,15 @@ class ViolationCard(Vertical):
                     location_text += ")"
                 yield Static(location_text, classes="violation-detail")
             elif context_snippet:
-                yield Static(f"Context: {context_snippet}", classes="violation-detail")
+                yield Static(
+                    f"Context: {escape(context_snippet)}",
+                    classes="violation-detail",
+                )
             yield Static(f"PII found: {pii_count} item(s)", classes="violation-detail")
             if pii_types:
                 yield Static(
-                    f"Types: {', '.join(pii_types)}", classes="violation-detail"
+                    f"Types: {escape(', '.join(pii_types))}",
+                    classes="violation-detail",
                 )
 
         elif vtype == "jailbreak_detected":
@@ -849,7 +870,7 @@ class ViolationCard(Vertical):
             confidence = blocked.get("confidence", 0.0)
             matched_text = blocked.get("matched_text", "")
             if file_path:
-                location_text = f"File: {file_path}"
+                location_text = f"File: {escape(file_path)}"
                 if line_number:
                     location_text += f" (line {line_number}"
                     if start_col is not None:
@@ -860,10 +881,11 @@ class ViolationCard(Vertical):
                 yield Static(location_text, classes="violation-detail")
             else:
                 tool = blocked.get("tool", "Unknown")
-                yield Static(f"Tool: {tool}", classes="violation-detail")
+                yield Static(f"Tool: {escape(tool)}", classes="violation-detail")
             if matched_text:
                 yield Static(
-                    f"Matched: {matched_text[:80]}", classes="violation-detail"
+                    f"Matched: {escape(matched_text[:80])}",
+                    classes="violation-detail",
                 )
             if confidence:
                 yield Static(
@@ -878,11 +900,13 @@ class ViolationCard(Vertical):
             start_col = blocked.get("start_column")
             position = blocked.get("position")
             reason = blocked.get("reason", "")
-            yield Static(f"Tool: {tool_name}", classes="violation-detail")
+            yield Static(f"Tool: {escape(tool_name)}", classes="violation-detail")
             if tool_value:
-                yield Static(f"Target: {tool_value[:120]}", classes="violation-detail")
+                yield Static(
+                    f"Target: {escape(tool_value[:120])}", classes="violation-detail"
+                )
             if file_path:
-                location_text = f"File: {file_path}"
+                location_text = f"File: {escape(file_path)}"
                 if line_number:
                     location_text += f" (line {line_number}"
                     if start_col is not None:
@@ -892,52 +916,55 @@ class ViolationCard(Vertical):
                     location_text += ")"
                 yield Static(location_text, classes="violation-detail")
             if reason:
-                yield Static(f"Reason: {reason}", classes="violation-detail")
+                yield Static(f"Reason: {escape(reason)}", classes="violation-detail")
 
         elif vtype == "config_file_exfil":
             file_path = blocked.get("file_path", "Unknown")
             reason = blocked.get("reason", "")
             details = blocked.get("details", "")
-            yield Static(f"File: {file_path}", classes="violation-detail")
+            yield Static(f"File: {escape(file_path)}", classes="violation-detail")
             if reason:
-                yield Static(f"Reason: {reason}", classes="violation-detail")
+                yield Static(f"Reason: {escape(reason)}", classes="violation-detail")
             if details:
-                yield Static(f"Details: {details[:120]}", classes="violation-detail")
+                yield Static(
+                    f"Details: {escape(details[:120])}", classes="violation-detail"
+                )
 
         elif vtype == "secret_in_transcript":
             file_path = blocked.get("file_path")
             secret_type = blocked.get("secret_type", "Unknown")
             source = blocked.get("source", "transcript")
             if file_path:
-                yield Static(f"File: {file_path}", classes="violation-detail")
+                yield Static(f"File: {escape(file_path)}", classes="violation-detail")
             from ai_guardian.secret_type_names import get_secret_type_display
 
             yield Static(
-                f"Type: {get_secret_type_display(secret_type)}",
+                f"Type: {escape(get_secret_type_display(secret_type))}",
                 classes="violation-detail",
             )
-            yield Static(f"Source: {source}", classes="violation-detail")
+            yield Static(f"Source: {escape(source)}", classes="violation-detail")
 
         elif vtype == "pii_in_transcript":
             file_path = blocked.get("file_path")
             pii_count = blocked.get("pii_count", 0)
             pii_types = blocked.get("pii_types", [])
             if file_path:
-                yield Static(f"File: {file_path}", classes="violation-detail")
+                yield Static(f"File: {escape(file_path)}", classes="violation-detail")
             yield Static(f"PII found: {pii_count} item(s)", classes="violation-detail")
             if pii_types:
                 yield Static(
-                    f"Types: {', '.join(pii_types)}", classes="violation-detail"
+                    f"Types: {escape(', '.join(pii_types))}",
+                    classes="violation-detail",
                 )
 
         elif vtype == "image_secret_detected":
             file_path = blocked.get("file_path", "Unknown")
             secret_type = blocked.get("secret_type", "Unknown")
-            yield Static(f"Image: {file_path}", classes="violation-detail")
+            yield Static(f"Image: {escape(file_path)}", classes="violation-detail")
             from ai_guardian.secret_type_names import get_secret_type_display
 
             yield Static(
-                f"Secret type: {get_secret_type_display(secret_type)}",
+                f"Secret type: {escape(get_secret_type_display(secret_type))}",
                 classes="violation-detail",
             )
 
@@ -945,11 +972,12 @@ class ViolationCard(Vertical):
             file_path = blocked.get("file_path", "Unknown")
             pii_count = blocked.get("pii_count", 0)
             pii_types = blocked.get("pii_types", [])
-            yield Static(f"Image: {file_path}", classes="violation-detail")
+            yield Static(f"Image: {escape(file_path)}", classes="violation-detail")
             yield Static(f"PII found: {pii_count} item(s)", classes="violation-detail")
             if pii_types:
                 yield Static(
-                    f"Types: {', '.join(pii_types)}", classes="violation-detail"
+                    f"Types: {escape(', '.join(pii_types))}",
+                    classes="violation-detail",
                 )
 
         # Show correlation ID and button only when correlation data exists (#366)

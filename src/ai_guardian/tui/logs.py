@@ -15,6 +15,8 @@ from textual.widgets import Button, Static
 from textual.screen import ModalScreen
 from textual.binding import Binding
 
+from rich.markup import escape
+
 from ai_guardian.config_utils import get_state_dir
 
 
@@ -108,7 +110,7 @@ class LogEntry(Static):
         level_color = level_colors.get(level, "")
 
         # Format the log line
-        log_line = f"[dim]{timestamp}[/dim] [{level_color}]{level:8}[/{level_color}] [cyan]{module}[/cyan] {message}"
+        log_line = f"[dim]{escape(timestamp)}[/dim] [{level_color}]{level:8}[/{level_color}] [cyan]{escape(module)}[/cyan] {escape(message)}"
 
         super().__init__(log_line, *args, **kwargs)
 
@@ -262,7 +264,7 @@ class LogsContent(Container):
             for timestamp, module, level, message in reversed(log_entries):
                 lc = level_colors.get(level, "")
                 output_lines.append(
-                    f"[dim]{timestamp}[/dim] [{lc}]{level:8}[/{lc}] [cyan]{module}[/cyan] {message}"
+                    f"[dim]{escape(timestamp)}[/dim] [{lc}]{level:8}[/{lc}] [cyan]{escape(module)}[/cyan] {escape(message)}"
                 )
             logs_display.update("\n".join(output_lines))
 

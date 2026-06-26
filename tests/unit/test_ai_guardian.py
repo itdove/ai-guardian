@@ -708,7 +708,7 @@ Yyv2dJ5Y2LtZ7YywIDAQABAoIBADCNMXk8y5K6lVZMsEHHWpdGIyDyUPsryXctAJAc
             modified_output="[HIDDEN SSN] found",
         )
         output = json.loads(response["output"])
-        self.assertEqual(output["systemMessage"], "PII detected")
+        self.assertEqual(output["systemMessage"], "[ai-guardian] PII detected")
         self.assertEqual(
             output["hookSpecificOutput"]["updatedToolOutput"], "[HIDDEN SSN] found"
         )
