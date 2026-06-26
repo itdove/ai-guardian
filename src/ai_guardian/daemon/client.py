@@ -31,6 +31,8 @@ from ai_guardian.daemon.protocol import (
 
 logger = logging.getLogger(__name__)
 
+_DEV_RESTART_COOLDOWN_SECS = 10
+
 
 def is_daemon_running():
     """Check if the daemon is running by testing PID file and socket connectivity.
@@ -377,6 +379,9 @@ def _check_dev_source_restart():
     of .py files in the ai_guardian package against the mtime recorded at
     daemon startup (stored in PID file).
 
+    Uses a cooldown marker file to prevent concurrent hook requests from
+    triggering multiple restarts (#1358).
+
     Returns:
         bool: True if daemon was restarted
     """
@@ -400,6 +405,24 @@ def _check_dev_source_restart():
         current_mtime = DaemonState.get_package_max_mtime()
         if current_mtime <= startup_mtime:
             return False
+
+        # Cooldown: skip if another caller already triggered a restart (#1358)
+        cooldown_path = pid_path.parent / "daemon.dev-restart"
+        if cooldown_path.exists():
+            try:
+                restart_time = float(cooldown_path.read_text().strip())
+                if time.time() - restart_time < _DEV_RESTART_COOLDOWN_SECS:
+                    logger.debug("Dev restart skipped: cooldown active")
+                    return False
+            except (ValueError, OSError):
+                pass
+
+        # Write cooldown marker before shutting down so concurrent callers
+        # see it immediately and back off.
+        try:
+            cooldown_path.write_text(str(time.time()))
+        except OSError:
+            pass
 
         logger.info("Dev mode: source files changed, restarting daemon")
         send_shutdown(timeout=2.0)
