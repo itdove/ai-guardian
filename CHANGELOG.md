@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.12.2] - 2026-06-26
+
+### Added
+
+- **Project directory selector in web console header** — dropdown to select active project scope for all daemons, populated from daemon stats (Issue #1359)
+- **Half-moon tray icon for partially paused daemons** — shows distinct icon when some directories are paused but daemon is running (Issue #1365)
+- **Bug report and feature request issue templates** — structured GitHub issue templates for consistent reporting (Issue #1373)
+
+### Fixed
+
+- **Rich markup escaping in TUI** — escape square brackets in violation text to prevent Rich markup interpretation errors; add warning prefix to warn/log-only messages (Issue #1375)
+- **Web console auto-restart when dead** — auto-restart web console process before opening panels if it died unexpectedly (Issue #1372)
+- **Performance settings for remote daemons** — performance page now correctly loads/saves latency settings for remote daemon targets (Issue #1369)
+- **NiceGUI storage path in read-only containers** — use temp directory for `.nicegui` storage when CWD is read-only (Issue #1368)
+- **Concurrent dev daemon restart cooldown** — prevent rapid restart loops when multiple panels trigger daemon restarts simultaneously (Issue #1367)
+- **REST endpoints track project directories** — SDK and scan REST endpoints now register project directories for daemon stats (Issue #1362)
+- **Web console remote daemon config routing** — config reads/writes correctly route through DaemonService for remote daemons instead of reading host filesystem (Issue #1355)
+
 ## [1.12.1] - 2026-06-24
 
 ### Changed
@@ -2638,7 +2656,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Preserves existing configuration
   - Interactive and non-interactive modes
 
-[Unreleased]: https://github.com/itdove/ai-guardian/compare/v1.12.1...HEAD
+[Unreleased]: https://github.com/itdove/ai-guardian/compare/v1.12.2...HEAD
+[1.12.2]: https://github.com/itdove/ai-guardian/compare/v1.12.1...v1.12.2
 [1.12.1]: https://github.com/itdove/ai-guardian/compare/v1.12.0...v1.12.1
 [1.12.0]: https://github.com/itdove/ai-guardian/compare/v1.11.1...v1.12.0
 [1.11.1]: https://github.com/itdove/ai-guardian/compare/v1.11.0...v1.11.1

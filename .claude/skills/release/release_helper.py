@@ -551,8 +551,9 @@ echo '{{}}'
 
         debug_entry = {"command": str(self.debug_script)}
 
+        hooks_obj = settings.setdefault("hooks", {})
         for event in self.EXPECTED_EVENTS:
-            event_hooks = settings.setdefault(event, [])
+            event_hooks = hooks_obj.setdefault(event, [])
             event_hooks.append(json.loads(json.dumps(debug_entry)))
 
         self.settings_path.write_text(json.dumps(settings, indent=2) + "\n")
@@ -673,18 +674,17 @@ echo '{{}}'
                 settings = json.loads(self.settings_path.read_text())
                 removed = 0
 
-                for event in list(settings.keys()):
-                    if not isinstance(settings[event], list):
+                hooks_obj = settings.get("hooks", {})
+                for event in list(hooks_obj.keys()):
+                    if not isinstance(hooks_obj[event], list):
                         continue
-                    original_len = len(settings[event])
-                    settings[event] = [
-                        entry for entry in settings[event]
+                    original_len = len(hooks_obj[event])
+                    hooks_obj[event] = [
+                        entry for entry in hooks_obj[event]
                         if not (isinstance(entry, dict)
                                 and self.DEBUG_HOOK_MARKER in entry.get("command", ""))
                     ]
-                    removed += original_len - len(settings[event])
-                    if not settings[event]:
-                        del settings[event]
+                    removed += original_len - len(hooks_obj[event])
 
                 self.settings_path.write_text(json.dumps(settings, indent=2) + "\n")
                 print(f"  Removed {removed} debug hook(s) from hooks.json", file=sys.stderr)
