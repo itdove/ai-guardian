@@ -33,4 +33,6 @@ words = [
     "CHANGE_ME",
     "PUT_YOUR",
     "ENTER_YOUR",
+    "systemd-private",
+    "systemd",
 ]

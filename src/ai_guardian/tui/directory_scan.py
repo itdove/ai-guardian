@@ -16,6 +16,7 @@ from collections import defaultdict
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
+from rich.markup import escape
 from textual.app import ComposeResult
 from textual.binding import Binding
 from textual.containers import (
@@ -198,7 +199,9 @@ class ScanPatternEditorModal(ModalScreen):
                 "[bold]Allow Always — Edit Pattern[/bold]",
                 id="modal-header",
             )
-            yield Static(f"\n[bold]Matched text:[/bold]\n{self.matched_text[:200]}\n")
+            yield Static(
+                f"\n[bold]Matched text:[/bold]\n{escape(self.matched_text[:200])}\n"
+            )
             yield Static(f"[bold]Pattern ({ptype_label}):[/bold]")
 
             yield Input(value=suggested, id="pattern-input")
@@ -733,10 +736,12 @@ class DirectoryScanContent(ScrollableContainer):
                 msg = f.get("message", "")
                 snippet = f.get("snippet", "")
 
-                parts = [f"  {icon} [{severity_color}]{location}[/{severity_color}]"]
-                parts.append(f"    [bold]{rule_id}[/bold] — {msg}")
+                parts = [
+                    f"  {icon} [{severity_color}]{escape(location)}[/{severity_color}]"
+                ]
+                parts.append(f"    [bold]{escape(rule_id)}[/bold] — {escape(msg)}")
                 if snippet:
-                    parts.append(f"    [dim]{snippet[:200]}[/dim]")
+                    parts.append(f"    [dim]{escape(snippet[:200])}[/dim]")
 
                 lines.append("\n".join(parts))
 

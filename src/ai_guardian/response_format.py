@@ -89,6 +89,9 @@ def format_response(
     """
     from ai_guardian.hook_adapters import get_adapter_by_ide_type
 
+    if warning_message and not warning_message.lstrip().startswith("[ai-guardian]"):
+        warning_message = f"[ai-guardian] {warning_message}"
+
     adapter = get_adapter_by_ide_type(ide_type)
     return adapter.format_response(
         has_secrets=has_secrets,
