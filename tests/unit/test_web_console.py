@@ -1,5 +1,14 @@
 """Tests for web console module."""
 
+import pytest
+
+try:
+    import nicegui  # noqa: F401
+
+    _has_nicegui = True
+except ImportError:
+    _has_nicegui = False
+
 
 class TestWebConsoleImportGuard:
     def test_has_nicegui_is_boolean(self):
@@ -57,6 +66,9 @@ class TestCLIWebFlag:
         assert args.port == 8080
 
 
+@pytest.mark.skipif(
+    not _has_nicegui, reason="NiceGUI requires Python >= 3.10"
+)
 class TestNiceGUIStoragePath:
     def test_storage_path_set_when_unset(self, tmp_path, monkeypatch):
         """NICEGUI_STORAGE_PATH set to state_dir/.nicegui when not configured."""
