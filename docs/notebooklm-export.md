@@ -21096,198 +21096,36 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [1.12.0] - 2026-06-24
+## [1.12.2] - 2026-06-26
 
 ### Added
 
-- **Interactive "ask" action mode** (Issue #1115)
-  - New `action: "ask"` config option for secret_scanning, prompt_injection, scan_pii, context_poisoning, ssrf, directory_rules, tool_permissions, supply_chain, and config_scanner
-  - When a violation is detected, shows an interactive dialog with Allow Once / Allow Always / Block choices
-  - "Allow Always" opens a pattern editor to craft and validate allowlist patterns before adding to config
-  - Supports compound syntax `ask:warn` or `ask:log-only` to set headless fallback behavior
-  - Three-tier dialog cascade: tkinter (native popup) → NiceGUI (browser) → Textual (terminal) → headless fallback
-  - Pattern editor reuses regex tester logic with ReDoS validation and config preview
-  - Safe config writer with file locking for concurrent hook subprocess writes
-  - Added `action` property to `secret_scanning` config section (previously always blocked)
-  - "Allow Always" support for permission rules, supply chain, config file scanning, and directory rules
-  - View File button in violation ask dialogs to open file at violation line (Issue #1176)
-  - Show hook event (PreToolUse/PostToolUse/Prompt) in ask dialog (Issue #1289)
-  - Show tool name and filename in ask dialog title (Issue #1317)
-  - Show line numbers in ask dialog file references
-  - Unified ask-mode routing via `_handle_ask_mode_auto` dispatcher (Issue #1315)
-  - Ask dialog tracking in daemon stats and tray menu
-  - Preferred UI toolkit selection via `preferred_ui` config option (Issue #1135)
-
-- **Agent-facing message delivery** (Issue #1337)
-  - Hook adapters now deliver sanitized block reasons and security warnings to AI agents
-  - Messages routed via `additionalContext` (Claude Code), `agent_message` (Cursor), or equivalent fields per IDE
-  - Block reasons sanitized via `_sanitize_block_reason()` to prevent leaking detection patterns (Issue #1341)
-  - Warn/log-only messages stripped of regex patterns, confidence scores, and matched text (Issue #1324, #1327)
-
-- **Multi-finding support** (Issue #1296)
-  - Accumulate all findings per scan instead of stopping at first match
-  - Multi-finding ask dialog shows per-finding decisions with aggregate result
-  - PromptInjectionDetector.detect() now collects all matches (Issue #1316)
-
-- **Column position tracking** (Issue #1261, #1280, #1281, #1291)
-  - Column-level location info in violation reports across all scanner types
-  - Column numbers displayed in ask dialog, web console, and TUI violations view
-  - Added to prompt injection, context poisoning, PII, SSRF, config exfil, and supply chain detectors
-
-- **Per-project config caching** (Issue #1227)
-  - Each project gets its own config cache keyed by project directory
-  - Config cache status dashboard in TUI and web console (Issue #1231)
-  - Force reload clears per-project caches (Issue #1310)
-  - Config cache invalidated after ask dialog saves patterns (Issue #1309)
-
-- **Effective config display with provenance** (Issue #1259)
-  - Deep-merged view of global + project config with per-key source annotations
-  - Available in TUI and web console
-
-- **PostToolUse scanning expansion** (Issue #1285, #1284)
-  - Prompt injection and context poisoning scanning on PostToolUse output
-  - Context poisoning detection extended to file reads (BeforeReadFile events)
-
-- **Supply chain scanning panel** (Issue #1133)
-  - New TUI and web console pages for supply chain scanning configuration
-  - Toggle enable/disable, action mode, and view violations
-
-- **Violation rescan and allowlist** (Issue #1146)
-  - Rescan files at violation location to retrieve matched text
-  - "Allow Always" button directly from violations view
-
-- **Source annotation editor** (Issue #1246)
-  - Enhanced editor with line numbers and syntax highlighting
-  - "Suppress in Source" adds inline `ai-guardian:allow` annotations
-
-- **Scanner filtering** (Issue #1286, #1292)
-  - `ignore_tools` and `ignore_files` filtering for all security scanners
-  - UI controls in TUI and web console scanner pages
-
-- **Secret scanning enhancements**
-  - Keyword, entropy, and stopword filters for secret and pattern scanning
-  - Stopword/entropy filtering for external scanner findings (Issue #1245)
-  - TOML regex flags honored in secret pattern compilation (Issue #1262)
-  - Entropy and stopword settings added to profile templates
-
-- **SSRF protection enhancements** (Issue #1134)
-  - Regex pattern support in `allowed_domains` configuration
-  - ReDoS validation on regex patterns before compilation
-
-- **Inline text and stdin scanning** (Issue #1260)
-  - `ai-guardian scan --text "content"` for inline scanning
-  - `echo "content" | ai-guardian scan -` for stdin pipe scanning
-
-- **SDK config overlay** (Issue #1139)
-  - Config overlay with deep-merge support via environment variable or inline dict
-
-- **Cursor IDE compatibility** (Issue #1180, #1181, #1198, #1219, #1220)
-  - Native Cursor `hooks.json` support instead of shared Claude settings
-  - Tool name synthesis for Cursor event-based hooks
-  - Hook dedup to prevent double-fire when Cursor reads Claude Code hooks
-  - Cursor hook compatibility verification in release workflow
-  - Doctor check for stale Cursor hooks
-  - Legacy Cursor hook cleanup during Claude setup
-
-- **Daemon improvements**
-  - Pause state persistence across daemon restarts (Issue #1319)
-  - `daemon reset` command for clean recovery from broken state
-  - Auto-restart daemon on source file changes in dev mode
-  - Daemon idle timeout disabled by default
-  - Atomic PID writes and thread-safe stop
-  - Version number display in TUI and web UI
-
-- **Doctor and installer enhancements**
-  - AST scanner health check in doctor
-  - INSTALL_GOBJECT flag and post-install GObject availability check for Linux
-  - JSON schema for `.aiguardignore.toml` with Taplo IDE support
-
-- **MCP server enhancements**
-  - `operation` parameter added to `check_path` MCP tool (read/write/edit)
-  - Fixed `tool_input` key usage in MCP server hook_data
-
-- **Image scanning** violation type mappings for `.aiguardignore.toml`
-
-### Changed
-
-- **Unified ask-mode routing** (Issue #1318) — single `_handle_ask_mode_auto` dispatcher replaces per-scanner ask handling
-- **Refactored ask dialog** — tier implementations extracted into separate modules (`ask_dialog_tk.py`, `ask_dialog_textual.py`, `ask_dialog_nicegui.py`)
-- **Unified visual theme** (Issue #1288, #1300) — shared theme constants and helpers across tkinter, NiceGUI, and TUI
-- **Unified prompt subcommand** — `tray-prompt` and `ask-prompt` merged into single `prompt` subcommand
-- **PII detection removed from TomlPatternsScanner** — PII scanning handled by dedicated PII scanner
-- **Regex conversion removed from pattern editor** — patterns written as-is to config sections
-- **Log levels audited across codebase** (Issue #1298) — dev-mode restart errors logged at ERROR, consistent levels throughout
-- **Tray menu reorganization** — Stop/Restart/Upgrade grouped into Maintenance submenu
-- **Documentation** — Claude Code upstream hook limitations documented (Issue #1335), last-match-wins rule evaluation order documented (Issue #1338)
+- **Project directory selector in web console header** — dropdown to select active project scope for all daemons, populated from daemon stats (Issue #1359)
+- **Half-moon tray icon for partially paused daemons** — shows distinct icon when some directories are paused but daemon is running (Issue #1365)
+- **Bug report and feature request issue templates** — structured GitHub issue templates for consistent reporting (Issue #1373)
 
 ### Fixed
 
-- **Security: warn/log-only message sanitization** (Issue #1324, #1327) — detection patterns, regex, matched text, and confidence scores no longer leaked to AI agents in warn/log-only modes
-- **Security: agent-facing message fields** (Issue #1339) — correct field names and block behavior across all IDE adapters
-- **Security: logging.disable for Cursor re-enabled** — `logging.disable(logging.CRITICAL)` now properly re-enabled in finally block, preventing permanent logging loss in daemon
-- **Security: ask dialog BLOCK honored for secrets** — user clicking "Block" now blocks the operation instead of falling through to redaction
-- **Security: SSRF allowed_domains ReDoS validation** — regex patterns in `allowed_domains` validated for ReDoS safety before compilation
-- **Security: config writer file locking on Windows** — `msvcrt.locking` fallback when `fcntl` unavailable
-- **Security: REST API /api/check sanitization fallback** — no longer returns original content when sanitization fails
-- **SecretRedactor position drift** (Issue #1228, #1235) — three-phase redaction engine eliminates position drift in multi-match scenarios
-- **Per-project config cache isolation** (Issue #1227, #1307, #1308, #1309, #1310) — correct project directory used instead of daemon CWD, cache invalidated after saves, force reload clears all caches
-- **PromptInjectionDetector stops at first match** (Issue #1316) — now collects all subsequent injections
-- **Inline-allow suppresses annotated line and next line** (Issue #1243) — correct scoping for multi-line findings
-- **Permission patterns merged into existing rules** (Issue #1192) — "Allow Always" merges into existing matcher instead of creating duplicates
-- **Config section defaults merged** — defaults merged instead of replaced, preventing loss of existing settings
-- **Config show displays auto-generated directory rules** (Issue #1333)
-- **Scanner installer Windows path handling** (Issue #1293) — correct path separators for Windows binaries
-- **Ask dialog macOS threading** — dialog delegated to subprocess to avoid NSApplication thread hang
-- **Ask dialog layout stability** — TK widget packing reordered for stable layout
-- **PII text in ask dialog** — actual PII text shown instead of warning message
-- **Daemon state cleanup** (Issue #1305) — state files cleaned when stop() called before _running set
-- **Daemon lifecycle hardening** — atomic PID writes, thread-safe stop, tray process wait
-- **SDK check_file double-append** — `try/finally` ensures results list stays consistent when SecurityViolation raised
-- **Latency logger rotation race** — rotation now runs inside lock, preventing data loss under concurrent writes
-- **diff_provider timeout handler** — `subprocess.TimeoutExpired` caught in `_detect_default_branch()`
-- **Pause persistence wall-clock drift** — remaining duration clamped to prevent negative values on macOS suspend/resume
-- **Ask dialog config write safety** — `_write_config_text` now routes through `_atomic_config_update` with JSON validation
-- **AskResult dataclass** — `per_finding_results` field declared instead of monkey-patched
-- **Cursor pre_tool_use response format** aligned with hook spec
-- **Empty hook files deleted during uninstall**
-- **Base64 image data stripped** before unicode/injection scanning
-- **Annotation pair syntax corrected**
-- **PII action set to block** when ask dialog returns Block
-- **NiceGUI web tests skipped on Python 3.9**
-- **Security: heredoc bypass of immutable Bash deny patterns** (Issue #1350) — raw (un-stripped) command checked against immutable deny patterns to prevent heredoc bypass
-- **Ask-mode block decisions logged to violations.jsonl** (Issue #1348) — user block choices in ask dialogs now create violation log entries
-- **CI: lint workflow enforces on PRs** (Issue #1349) — correct paths, removed continue-on-error, exit code enforcement
-- **Verified Cursor hook compatibility with Cursor v3.8.11**
+- **Rich markup escaping in TUI** — escape square brackets in violation text to prevent Rich markup interpretation errors; add warning prefix to warn/log-only messages (Issue #1375)
+- **Web console auto-restart when dead** — auto-restart web console process before opening panels if it died unexpectedly (Issue #1372)
+- **Performance settings for remote daemons** — performance page now correctly loads/saves latency settings for remote daemon targets (Issue #1369)
+- **NiceGUI storage path in read-only containers** — use temp directory for `.nicegui` storage when CWD is read-only (Issue #1368)
+- **Concurrent dev daemon restart cooldown** — prevent rapid restart loops when multiple panels trigger daemon restarts simultaneously (Issue #1367)
+- **REST endpoints track project directories** — SDK and scan REST endpoints now register project directories for daemon stats (Issue #1362)
+- **Web console remote daemon config routing** — config reads/writes correctly route through DaemonService for remote daemons instead of reading host filesystem (Issue #1355)
+- **Publish workflow: test tags no longer publish to production PyPI** — merged `publish.yml` and `publish-test.yml` into single workflow that routes to TestPyPI or PyPI based on tag format (`v*-test*` → TestPyPI, `v*` → PyPI)
+- **Release skill: cursor-verify-setup places hooks inside `hooks:{}` object** — debug hooks were placed at JSON top level where Cursor ignores them; now correctly added inside the `hooks` object
 
-## [1.11.1] - 2026-06-11
-
-### Added
-
-- **Curl file upload exfiltration detection** (Issue #1101)
-  - Detect `curl -F`, `curl --upload-file`, and `curl -T` patterns targeting external hosts
-  - New config-exfil patterns for file upload via HTTP
-
-- **Web console: auto-scroll active sidebar item into view** (Issue #1104)
-  - Active navigation item scrolls into view on page load
-
-- **Daemon Python resolution and version sync** (Issue #1103)
-  - Improved Python executable resolution using `shutil.which` for reliable path discovery
-  - Version sync between daemon and tray processes
-
-### Fixed
-
-- **Web console: defer codemirror editor initialization** (Issue #1102)
-  - Fix duplicate nicegui-codemirror ESM module assertion error
-
-- **Web console: make sidebar sticky with scrollable navigation** (Issue #1104)
-  - Sidebar stays fixed while content scrolls
+## [1.12.1] - 2026-06-24
 
 ### Changed
 
-- **README: curl install.sh should reference release tag, not main branch**
-  - Install command URLs now point to versioned release tags
+- **README install URLs point to release tag** — install commands now reference `v1.12.1` instead of `main` branch, ensuring stable installations from PyPI match the tagged source
 
-- **CI: add release-* branch trigger to workflows** (Issue #1108)
+### Fixed
+
+- **Release skill: install URL update must happen before tagging** — moved README URL update step before tag creation so PyPI receives correct URLs in package README
+- **Release skill: added TestPyPI verification step** — recommended pre-tag check to catch README rendering issues before publishing to production PyPI
 
 
 *(Earlier versions omitted — see CHANGELOG.md for full history)*
