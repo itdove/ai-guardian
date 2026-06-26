@@ -1063,6 +1063,143 @@ class TestPausedTargetMenuVisibility:
         label = DaemonTray._daemon_status_label(t)
         assert "..." in label
 
+    def test_daemon_status_label_partial_pause(self):
+        """Status label shows ◐ when running with paused directories."""
+        t = DaemonTarget(name="my-host", runtime="local", status="running")
+        label = DaemonTray._daemon_status_label(t, has_paused_dirs=True)
+        assert "◐" in label
+        assert "●" not in label
+
+    def test_daemon_status_label_partial_pause_not_when_globally_paused(self):
+        """Globally paused daemon shows ☾ even with paused dirs."""
+        t = DaemonTarget(name="my-host", runtime="local", status="paused")
+        label = DaemonTray._daemon_status_label(t, has_paused_dirs=True)
+        assert "☾" in label
+        assert "◐" not in label
+
+    def test_daemon_status_label_no_paused_dirs(self):
+        """Running daemon without paused dirs shows ●."""
+        t = DaemonTarget(name="my-host", runtime="local", status="running")
+        label = DaemonTray._daemon_status_label(t, has_paused_dirs=False)
+        assert "●" in label
+        assert "◐" not in label
+
+
+class TestSyncPauseUpdatesTargetStatus:
+    """Tests for _sync_pause_state updating target.status (#1356)."""
+
+    def test_sync_sets_target_paused(self):
+        """_sync_pause_state sets target.status to paused from stats."""
+        t = DaemonTarget(name="local", runtime="local", status="running")
+        tray = DaemonTray(
+            get_stats_callback=lambda: {"paused": True, "pause_remaining_seconds": 0},
+            stop_callback=lambda: None,
+            pause_callback=lambda mins: None,
+        )
+        tray._targets = [t]
+        tray._sync_pause_state()
+        tray._stop_pause_timer()
+        assert t.status == "paused"
+
+    def test_sync_sets_target_running(self):
+        """_sync_pause_state sets target.status to running when not paused."""
+        t = DaemonTarget(name="local", runtime="local", status="paused")
+        tray = DaemonTray(
+            get_stats_callback=lambda: {"paused": False},
+            stop_callback=lambda: None,
+            pause_callback=lambda mins: None,
+        )
+        tray._targets = [t]
+        tray._status = "paused"
+        tray._sync_pause_state()
+        assert t.status == "running"
+
+    def test_global_pause_updates_target_statuses(self):
+        """_update_global_pause_status sets each target.status."""
+        mc = mock.MagicMock()
+        tray = DaemonTray(
+            get_stats_callback=lambda: {},
+            stop_callback=lambda: None,
+            pause_callback=lambda mins: None,
+            multi_client=mc,
+        )
+        t1 = DaemonTarget(name="a", runtime="local", status="running")
+        t2 = DaemonTarget(name="b", runtime="container", status="running")
+        tray._targets = [t1, t2]
+        mc.get_status.side_effect = lambda t: (
+            {"paused": True} if t.name == "a" else {"paused": False}
+        )
+        tray._update_global_pause_status()
+        assert t1.status == "paused"
+        assert t2.status == "running"
+
+
+class TestTargetHasPausedDirs:
+    """Tests for _target_has_paused_dirs helper (#1356)."""
+
+    def test_has_paused_dirs_true(self):
+        t = DaemonTarget(name="local", runtime="local", status="running")
+        tray = DaemonTray(
+            get_stats_callback=lambda: {"paused_dirs": {"/proj": 0}},
+            stop_callback=lambda: None,
+            pause_callback=lambda mins: None,
+        )
+        tray._targets = [t]
+        assert tray._target_has_paused_dirs(t) is True
+
+    def test_has_paused_dirs_false_empty(self):
+        t = DaemonTarget(name="local", runtime="local", status="running")
+        tray = DaemonTray(
+            get_stats_callback=lambda: {"paused_dirs": {}},
+            stop_callback=lambda: None,
+            pause_callback=lambda mins: None,
+        )
+        tray._targets = [t]
+        assert tray._target_has_paused_dirs(t) is False
+
+    def test_has_paused_dirs_false_missing(self):
+        t = DaemonTarget(name="local", runtime="local", status="running")
+        tray = DaemonTray(
+            get_stats_callback=lambda: {},
+            stop_callback=lambda: None,
+            pause_callback=lambda mins: None,
+        )
+        tray._targets = [t]
+        assert tray._target_has_paused_dirs(t) is False
+
+
+class TestFormatDaemonListPauseIcons:
+    """Tests for _format_daemon_list with partial pause icons (#1356)."""
+
+    def test_format_shows_partial_pause_icon(self):
+        mc = mock.MagicMock()
+        tray = DaemonTray(
+            get_stats_callback=lambda: {},
+            stop_callback=lambda: None,
+            pause_callback=lambda mins: None,
+            multi_client=mc,
+        )
+        t = DaemonTarget(name="host-a", runtime="container", status="running")
+        tray._targets = [t]
+        mc.get_status.return_value = {"paused_dirs": {"/proj": 0}}
+        result = tray._format_daemon_list()
+        assert "◐" in result
+
+    def test_format_shows_running_icon_no_paused_dirs(self):
+        mc = mock.MagicMock()
+        tray = DaemonTray(
+            get_stats_callback=lambda: {},
+            stop_callback=lambda: None,
+            pause_callback=lambda mins: None,
+            multi_client=mc,
+        )
+        t = DaemonTarget(name="host-a", runtime="container", status="running")
+        tray._targets = [t]
+        mc.get_status.return_value = {"paused_dirs": {}}
+        result = tray._format_daemon_list()
+        assert "●" in result
+        assert "◐" not in result
+
 
 class TestWorkingDirApply:
     """Tests for _apply_working_dirs populating targets from state."""

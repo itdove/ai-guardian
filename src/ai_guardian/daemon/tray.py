@@ -1209,9 +1209,12 @@ class DaemonTray:
         for target in self._targets:
             key = (target.name, target.runtime)
             ver = self._daemon_versions.get(key, "?")
-            icon = {"running": "●", "paused": "☾", "stopped": "⚠"}.get(
-                target.status, "○"
-            )
+            if target.status == "running" and self._target_has_paused_dirs(target):
+                icon = "◐"
+            else:
+                icon = {"running": "●", "paused": "☾", "stopped": "⚠"}.get(
+                    target.status, "○"
+                )
             suffix = ""
             if key in self._version_mismatch_notified:
                 suffix = " ⟳"
@@ -1311,6 +1314,7 @@ class DaemonTray:
         """Build a hashable snapshot of menu-relevant state."""
         try:
             stats = self._get_stats()
+            paused_dirs = stats.get("paused_dirs") or {}
             return (
                 stats.get("request_count"),
                 stats.get("blocked_count"),
@@ -1322,6 +1326,7 @@ class DaemonTray:
                 self._status,
                 len(self._targets),
                 tuple((t.name, t.status) for t in self._targets),
+                tuple(sorted(paused_dirs.keys())) if paused_dirs else (),
             )
         except Exception:
             return None
@@ -1365,6 +1370,8 @@ class DaemonTray:
             self.update_status("paused")
         elif not is_paused and self._status == "paused":
             self.update_status("running")
+        if self._targets:
+            self._targets[0].status = "paused" if is_paused else "running"
 
     def _check_config_error_notification(self):
         """Show OS notification once when a config error is detected."""
@@ -1665,9 +1672,10 @@ class DaemonTray:
                 stats = self._multi_client.get_status(t) or {}
             else:
                 stats = self._get_stats()
-            if not stats.get("paused", False):
+            target_paused = stats.get("paused", False)
+            t.status = "paused" if target_paused else "running"
+            if not target_paused:
                 all_paused = False
-                break
         if all_paused:
             self.update_status("paused")
         else:
@@ -2008,18 +2016,21 @@ class DaemonTray:
         return len(self._targets) == 1
 
     @staticmethod
-    def _daemon_status_label(target):
+    def _daemon_status_label(target, has_paused_dirs=False):
         """Format a daemon target into a status header label."""
         from ai_guardian.daemon.working_dir import shorten_path
 
-        status_icon = {
-            "running": "●",
-            "paused": "☾",
-            "starting": "◌",
-            "stopped": "⚠",
-            "error": "✗",
-            "unknown": "○",
-        }.get(target.status, "○")
+        if target.status == "running" and has_paused_dirs:
+            status_icon = "◐"
+        else:
+            status_icon = {
+                "running": "●",
+                "paused": "☾",
+                "starting": "◌",
+                "stopped": "⚠",
+                "error": "✗",
+                "unknown": "○",
+            }.get(target.status, "○")
         if target.runtime == "container" and target.container_engine:
             runtime = f" ({target.container_engine})"
         elif target.runtime != "local":
@@ -2038,9 +2049,22 @@ class DaemonTray:
             label += f" — {short}"
         return label
 
+    def _get_target_stats(self, target):
+        """Get live stats dict for a specific daemon target."""
+        if self._multi_client and target.runtime != "local":
+            return self._multi_client.get_status(target) or {}
+        return self._get_stats()
+
+    def _target_has_paused_dirs(self, target):
+        """Check whether a daemon target has any paused directories."""
+        stats = self._get_target_stats(target)
+        return bool(stats.get("paused_dirs"))
+
     def _version_annotated_label(self, target):
         """Format daemon label with version mismatch indicator if needed."""
-        label = self._daemon_status_label(target)
+        label = self._daemon_status_label(
+            target, has_paused_dirs=self._target_has_paused_dirs(target)
+        )
         key = (target.name, target.runtime)
         if key in self._version_mismatch_notified:
             daemon_ver = self._daemon_versions.get(key, "")
