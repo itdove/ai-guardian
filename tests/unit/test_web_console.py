@@ -57,6 +57,61 @@ class TestCLIWebFlag:
         assert args.port == 8080
 
 
+class TestNiceGUIStoragePath:
+    def test_storage_path_set_when_unset(self, tmp_path, monkeypatch):
+        """NICEGUI_STORAGE_PATH set to state_dir/.nicegui when not configured."""
+        monkeypatch.delenv("NICEGUI_STORAGE_PATH", raising=False)
+        state_dir = tmp_path / "state"
+        state_dir.mkdir()
+        monkeypatch.setenv("AI_GUARDIAN_STATE_DIR", str(state_dir))
+
+        from unittest.mock import MagicMock, patch
+
+        mock_ui = MagicMock()
+        mock_app = MagicMock()
+        with (
+            patch("ai_guardian.web.app.ui", mock_ui),
+            patch("ai_guardian.web.app.app", mock_app),
+        ):
+            import os
+
+            from ai_guardian.web.app import WebConsole
+
+            console = WebConsole()
+            mock_ui.run.side_effect = lambda **kw: None
+            mock_ui.page = MagicMock(return_value=lambda f: f)
+            console.run(show=False)
+
+            expected = str(state_dir / ".nicegui")
+            assert os.environ.get("NICEGUI_STORAGE_PATH") == expected
+            assert (state_dir / ".nicegui").is_dir()
+
+        monkeypatch.delenv("NICEGUI_STORAGE_PATH", raising=False)
+
+    def test_storage_path_preserved_when_set(self, monkeypatch):
+        """NICEGUI_STORAGE_PATH not overwritten when already set."""
+        monkeypatch.setenv("NICEGUI_STORAGE_PATH", "/custom/path")
+
+        from unittest.mock import MagicMock, patch
+
+        mock_ui = MagicMock()
+        mock_app = MagicMock()
+        with (
+            patch("ai_guardian.web.app.ui", mock_ui),
+            patch("ai_guardian.web.app.app", mock_app),
+        ):
+            import os
+
+            from ai_guardian.web.app import WebConsole
+
+            console = WebConsole()
+            mock_ui.run.side_effect = lambda **kw: None
+            mock_ui.page = MagicMock(return_value=lambda f: f)
+            console.run(show=False)
+
+            assert os.environ.get("NICEGUI_STORAGE_PATH") == "/custom/path"
+
+
 class TestDaemonConstants:
     def test_default_web_console_port(self):
         from ai_guardian.daemon import DEFAULT_WEB_CONSOLE_PORT
