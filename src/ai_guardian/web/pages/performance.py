@@ -22,10 +22,10 @@ def _load_local_latency(since_days):
 
 
 def _load_latency_config():
-    from ai_guardian.latency_logger import LatencyLogger
+    from ai_guardian.web.config_helpers import load_web_config
 
-    ll = LatencyLogger()
-    return dict(ll.config)
+    config = load_web_config()
+    return config.get("latency_tracking", {})
 
 
 def _save_latency_config(updates):
@@ -143,17 +143,13 @@ def create_performance_page(service, daemon_name: str):
         with ui.column().classes("flex-grow p-6 gap-4"):
             ui.label("Performance").classes("text-2xl font-bold")
 
-            # --- Config controls (local daemons only) ---
+            # --- Config controls ---
             from ai_guardian.web.config_helpers import is_remote_daemon
 
             _is_remote = is_remote_daemon()
 
-            with (
-                ui.expansion("Settings", icon="settings")
-                .classes("w-full max-w-2xl")
-                .set_visibility(not _is_remote)
-            ):
-                cfg = _load_latency_config() if not _is_remote else {}
+            with ui.expansion("Settings", icon="settings").classes("w-full max-w-2xl"):
+                cfg = _load_latency_config()
 
                 with ui.row().classes("items-center gap-4"):
                     ui.label("Enabled")
@@ -211,19 +207,20 @@ def create_performance_page(service, daemon_name: str):
 
                     ret_input.on("blur", save_ret)
 
-                with ui.row().classes("mt-2 gap-2"):
+                if not _is_remote:
+                    with ui.row().classes("mt-2 gap-2"):
 
-                    async def clear_log():
-                        await run.io_bound(_clear_latency_log)
-                        ui.notify("Latency log cleared", type="warning")
-                        await load_data()
+                        async def clear_log():
+                            await run.io_bound(_clear_latency_log)
+                            ui.notify("Latency log cleared", type="warning")
+                            await load_data()
 
-                    ui.button(
-                        "Clear Log",
-                        icon="delete_sweep",
-                        on_click=clear_log,
-                        color="orange",
-                    ).props("flat")
+                        ui.button(
+                            "Clear Log",
+                            icon="delete_sweep",
+                            on_click=clear_log,
+                            color="orange",
+                        ).props("flat")
 
             current_range = {"days": 30}
 
