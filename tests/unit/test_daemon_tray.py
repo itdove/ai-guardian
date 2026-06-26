@@ -4093,6 +4093,150 @@ class TestWebConsoleVersionGating:
             DaemonTray._has_web_console = saved
 
 
+class TestWebConsoleAutoRestart:
+    """Web console auto-restart when dead (#1370)."""
+
+    def _make_tray(self, multi=False):
+        mc = mock.MagicMock() if multi else None
+        tray = DaemonTray(
+            get_stats_callback=lambda: {},
+            stop_callback=lambda: None,
+            pause_callback=lambda mins: None,
+            multi_client=mc,
+        )
+        targets = [
+            DaemonTarget(name="local", runtime="local", status="running"),
+        ]
+        if multi:
+            targets.append(
+                DaemonTarget(name="remote", runtime="container", status="running"),
+            )
+        tray._targets = targets
+        return tray
+
+    def test_ensure_web_console_ready_returns_true_when_already_ready(self):
+        tray = self._make_tray()
+        with mock.patch.object(DaemonTray, "_is_web_console_ready", return_value=True):
+            assert tray._ensure_web_console_ready() is True
+
+    def test_ensure_web_console_ready_restarts_when_dead(self):
+        tray = self._make_tray()
+        ready_calls = [False, False, True]
+        with (
+            mock.patch.object(
+                DaemonTray,
+                "_is_web_console_ready",
+                side_effect=ready_calls,
+            ),
+            mock.patch.object(tray, "_start_web_console") as mock_start,
+            mock.patch("ai_guardian.daemon.tray.time.sleep"),
+        ):
+            assert tray._ensure_web_console_ready() is True
+            mock_start.assert_called_once()
+
+    def test_ensure_web_console_ready_returns_false_after_timeout(self):
+        tray = self._make_tray()
+        with (
+            mock.patch.object(DaemonTray, "_is_web_console_ready", return_value=False),
+            mock.patch.object(tray, "_start_web_console") as mock_start,
+            mock.patch("ai_guardian.daemon.tray.time.sleep"),
+        ):
+            assert tray._ensure_web_console_ready() is False
+            mock_start.assert_called_once()
+
+    def test_single_daemon_open_panel_restarts_web_console(self):
+        tray = self._make_tray()
+        saved = DaemonTray._has_web_console
+        try:
+            DaemonTray._has_web_console = True
+            with (
+                mock.patch.object(
+                    tray, "_ensure_web_console_ready", return_value=True
+                ) as mock_ensure,
+                mock.patch.object(tray, "_check_and_autostart_daemon"),
+                mock.patch.object(DaemonTray, "_open_web_console") as mock_open,
+                mock.patch(
+                    "ai_guardian.daemon.tray.pystray", create=True
+                ) as mock_pystray,
+            ):
+                mock_pystray.MenuItem = mock.MagicMock()
+                mock_pystray.Menu = mock.MagicMock()
+                mock_pystray.Menu.SEPARATOR = mock.MagicMock()
+                items = tray._build_single_daemon_menu_items()
+
+                for call in mock_pystray.MenuItem.call_args_list:
+                    if isinstance(call[0][0], str) and call[0][0] == "Console":
+                        action_fn = call[0][1]
+                        action_fn(None, None)
+                        mock_ensure.assert_called()
+                        mock_open.assert_called_once()
+                        return
+                pytest.fail("Console menu item not found")
+        finally:
+            DaemonTray._has_web_console = saved
+
+    def test_single_daemon_falls_back_to_tui_when_restart_fails(self):
+        tray = self._make_tray()
+        saved = DaemonTray._has_web_console
+        try:
+            DaemonTray._has_web_console = True
+            with (
+                mock.patch.object(
+                    tray, "_ensure_web_console_ready", return_value=False
+                ),
+                mock.patch.object(tray, "_check_and_autostart_daemon"),
+                mock.patch.object(DaemonTray, "_open_web_console") as mock_open,
+                mock.patch.object(tray, "_launch_console") as mock_tui,
+                mock.patch(
+                    "ai_guardian.daemon.tray.pystray", create=True
+                ) as mock_pystray,
+            ):
+                mock_pystray.MenuItem = mock.MagicMock()
+                mock_pystray.Menu = mock.MagicMock()
+                mock_pystray.Menu.SEPARATOR = mock.MagicMock()
+                tray._build_single_daemon_menu_items()
+
+                for call in mock_pystray.MenuItem.call_args_list:
+                    if isinstance(call[0][0], str) and call[0][0] == "Console":
+                        action_fn = call[0][1]
+                        action_fn(None, None)
+                        mock_open.assert_not_called()
+                        mock_tui.assert_called_once()
+                        return
+                pytest.fail("Console menu item not found")
+        finally:
+            DaemonTray._has_web_console = saved
+
+    def test_multi_daemon_console_visible_when_dead(self):
+        """Console menu stays visible even when web console is dead (#1370)."""
+        tray = self._make_tray(multi=True)
+        saved = DaemonTray._has_web_console
+        try:
+            DaemonTray._has_web_console = True
+            with (
+                mock.patch.object(
+                    DaemonTray, "_is_web_console_ready", return_value=False
+                ),
+                mock.patch(
+                    "ai_guardian.daemon.tray.pystray", create=True
+                ) as mock_pystray,
+            ):
+                mock_pystray.MenuItem = mock.MagicMock()
+                mock_pystray.Menu = mock.MagicMock()
+                mock_pystray.Menu.SEPARATOR = mock.MagicMock()
+                tray._build_multi_daemon_menu_items()
+
+                for call in mock_pystray.MenuItem.call_args_list:
+                    if isinstance(call[0][0], str) and call[0][0] == "Console":
+                        vis = call[1].get("visible")
+                        if vis and callable(vis):
+                            assert vis(None) is True
+                            return
+                pytest.fail("Console menu item not found in multi-daemon menu")
+        finally:
+            DaemonTray._has_web_console = saved
+
+
 class TestGreyedOutMenuItems:
     """Tests for greyed-out menu items when daemon is not available (#868)."""
 

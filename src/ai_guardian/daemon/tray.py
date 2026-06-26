@@ -1077,6 +1077,19 @@ class DaemonTray:
             return False
         return DaemonTray._is_web_console_alive(port_file)
 
+    def _ensure_web_console_ready(self):
+        """Restart web console if dead, wait briefly, return readiness."""
+        if self._is_web_console_ready():
+            return True
+        logger.info("Web console not ready, attempting restart")
+        self._start_web_console()
+        for _ in range(5):
+            time.sleep(1)
+            if self._is_web_console_ready():
+                return True
+        logger.warning("Web console did not become ready after restart attempt")
+        return False
+
     _PANEL_TO_WEB_PATH = {
         "panel-violations": "violations",
         "panel-metrics": "metrics",
@@ -2154,13 +2167,11 @@ class DaemonTray:
         def _open_panel(panel=None):
             def action(_, __):
                 self._check_and_autostart_daemon()
-                # Try to open web console if available (for any panel including main console)
-                if self._has_web_console and self._is_web_console_ready():
+                if self._has_web_console and self._ensure_web_console_ready():
                     web_page = self._PANEL_TO_WEB_PATH.get(panel, "") if panel else ""
                     daemon_name = self._targets[0].name if self._targets else ""
                     self._open_web_console(daemon_name, web_page)
                     return
-                # Fall back to TUI console
                 if self._targets:
                     t = self._targets[0]
                     if self._multi_client:
@@ -2546,7 +2557,11 @@ class DaemonTray:
             def _mk_open_panel(panel=None, slot=idx):
                 def action(_, __):
                     self._check_and_autostart_daemon()
-                    if panel and self._has_web_console and self._is_web_console_ready():
+                    if (
+                        panel
+                        and self._has_web_console
+                        and self._ensure_web_console_ready()
+                    ):
                         web_page = self._PANEL_TO_WEB_PATH.get(panel, "")
                         daemon_name = (
                             self._targets[slot].name
@@ -2567,18 +2582,22 @@ class DaemonTray:
             def _mk_web_console_action(slot=idx):
                 def action(_, __):
                     self._check_and_autostart_daemon()
+                    if self._has_web_console and self._ensure_web_console_ready():
+                        if slot < len(self._targets):
+                            self._open_web_console(self._targets[slot].name)
+                        return
                     if slot < len(self._targets):
-                        self._open_web_console(self._targets[slot].name)
+                        t = self._targets[slot]
+                        if self._multi_client:
+                            self._multi_client.open_console(t)
+                        else:
+                            self._launch_console()
 
                 return action
 
             def _mk_web_console_visible(slot=idx):
                 def check(_):
-                    return (
-                        self._has_web_console
-                        and slot < len(self._targets)
-                        and self._is_web_console_ready()
-                    )
+                    return self._has_web_console and slot < len(self._targets)
 
                 return check
 
