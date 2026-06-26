@@ -1,22 +1,42 @@
-# GitHub Actions CI/CD - PyPI Publish Workflow
-# Publishes package to PyPI when a new tag is created
+# GitHub Actions CI/CD - Publish Workflow
+# Routes to PyPI or TestPyPI based on tag format:
+#   v1.2.3        → PyPI (production) + GitHub Release
+#   v1.2.3-test1  → TestPyPI only
 
-name: Publish to PyPI
+name: Publish Package
 
 on:
   push:
     tags:
-      - 'v*'  # Trigger on version tags (e.g., v1.0.0, v1.2.3)
+      - 'v*'
+  workflow_dispatch:
 
 jobs:
-  build-and-publish:
-    name: Build and Publish to PyPI
+  publish:
+    name: Build and Publish
     runs-on: ubuntu-latest
+    environment: ${{ contains(github.ref, '-test') && 'testpypi' || 'production' }}
     permissions:
-      id-token: write  # Required for trusted publishing
-      contents: write  # Required for creating GitHub releases
+      id-token: write
+      contents: write
 
     steps:
+      - name: Detect target
+        id: target
+        run: |
+          TAG="${GITHUB_REF#refs/tags/}"
+          if [[ "$TAG" == *-test* ]]; then
+            echo "registry=testpypi" >> "$GITHUB_OUTPUT"
+            echo "repository_url=https://test.pypi.org/legacy/" >> "$GITHUB_OUTPUT"
+            echo "create_release=false" >> "$GITHUB_OUTPUT"
+            echo "🧪 Test tag detected: $TAG → TestPyPI"
+          else
+            echo "registry=pypi" >> "$GITHUB_OUTPUT"
+            echo "repository_url=" >> "$GITHUB_OUTPUT"
+            echo "create_release=true" >> "$GITHUB_OUTPUT"
+            echo "📦 Production tag detected: $TAG → PyPI"
+          fi
+
       - name: Checkout code
         uses: actions/checkout@v6
 
@@ -31,38 +51,39 @@ jobs:
           pip install build twine
 
       - name: Build distribution packages
-        run: |
-          python -m build
+        run: python -m build
 
       - name: Check distribution packages
         run: |
           twine check dist/*
+          ls -la dist/
 
-      - name: Publish to PyPI
+      - name: Publish to ${{ steps.target.outputs.registry }}
         uses: pypa/gh-action-pypi-publish@release/v1
         with:
+          repository-url: ${{ steps.target.outputs.repository_url || '' }}
           skip-existing: true
           verbose: true
+          print-hash: true
 
       - name: Extract release notes from CHANGELOG
+        if: steps.target.outputs.create_release == 'true'
         id: extract-release-notes
         run: |
-          # Extract version from tag (remove 'v' prefix)
           VERSION="${GITHUB_REF#refs/tags/v}"
 
-          # Extract changelog section for this version
           awk -v ver="$VERSION" '
             /^## \['"$VERSION"'\]/ { flag=1; next }
             /^## \[/ && flag { exit }
             flag { print }
           ' CHANGELOG.md > release-notes.md
 
-          # If no release notes found, use a default message
           if [ ! -s release-notes.md ]; then
             echo "Release $VERSION" > release-notes.md
           fi
 
       - name: Create GitHub Release
+        if: steps.target.outputs.create_release == 'true'
         uses: softprops/action-gh-release@v3
         with:
           body_path: release-notes.md

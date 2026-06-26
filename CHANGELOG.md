@@ -24,6 +24,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Concurrent dev daemon restart cooldown** — prevent rapid restart loops when multiple panels trigger daemon restarts simultaneously (Issue #1367)
 - **REST endpoints track project directories** — SDK and scan REST endpoints now register project directories for daemon stats (Issue #1362)
 - **Web console remote daemon config routing** — config reads/writes correctly route through DaemonService for remote daemons instead of reading host filesystem (Issue #1355)
+- **Publish workflow: test tags no longer publish to production PyPI** — merged `publish.yml` and `publish-test.yml` into single workflow that routes to TestPyPI or PyPI based on tag format (`v*-test*` → TestPyPI, `v*` → PyPI)
+- **Release skill: cursor-verify-setup places hooks inside `hooks:{}` object** — debug hooks were placed at JSON top level where Cursor ignores them; now correctly added inside the `hooks` object
 
 ## [1.12.1] - 2026-06-24
 
