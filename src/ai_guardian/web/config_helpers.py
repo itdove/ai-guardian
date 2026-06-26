@@ -91,6 +91,16 @@ def _is_remote_target(target) -> bool:
     return target is not None and target.runtime != "local"
 
 
+def _is_target_expected() -> bool:
+    """Return True if a daemon name is set (page expects a daemon target).
+
+    When True and _get_current_target() returns None, the daemon is
+    unreachable — callers should show an error instead of falling back
+    to local filesystem data.
+    """
+    return bool(_daemon_service and _current_daemon_name)
+
+
 def _get_current_scope() -> str:
     """Derive config scope from project selection.
 
@@ -129,6 +139,9 @@ def load_web_config() -> dict:
         )
         return result if result is not None else {}
 
+    if _is_target_expected():
+        return {}
+
     from ai_guardian.config_utils import get_config_dir, get_project_config_path
     from ai_guardian.config_writer import _load_json_file
 
@@ -156,6 +169,9 @@ def load_web_config_global() -> dict:
     if target is not None and _daemon_service is not None:
         result = _daemon_service.get_config_scoped(target, "global")
         return result if result is not None else {}
+
+    if _is_target_expected():
+        return {}
 
     try:
         from ai_guardian.config_writer import load_scoped_config
@@ -195,6 +211,12 @@ def save_web_config(config: dict) -> None:
         else:
             _daemon_service.write_config_bulk(target, "global", config)
         _invalidate_config_cache_after_save(scope, project_dir)
+        return
+
+    if _is_target_expected():
+        logger.warning(
+            "Cannot save config: daemon '%s' unreachable", _current_daemon_name
+        )
         return
 
     scope = _get_current_scope()
@@ -261,6 +283,9 @@ def get_web_config_provenance() -> dict:
         result = _daemon_service.get_config_provenance(target, project_dir=project_dir)
         return result if result is not None else {}
 
+    if _is_target_expected():
+        return {}
+
     try:
         from ai_guardian.config_writer import compute_provenance
 
@@ -325,6 +350,8 @@ def load_web_violations(
         limit = _get_max_entries()
     target = _get_current_target()
     if target is None or _daemon_service is None:
+        if _is_target_expected():
+            return {"violations": [], "count": 0}
         return _local_violations(limit, violation_type)
     return _daemon_service.get_daemon_violations(target, limit, violation_type)
 
@@ -343,6 +370,8 @@ def load_web_metrics(since_days: Optional[int] = None) -> Optional[dict]:
     """Load metrics for the current daemon target."""
     target = _get_current_target()
     if target is None or _daemon_service is None:
+        if _is_target_expected():
+            return {"total_violations": 0, "by_type": {}}
         return _local_metrics(since_days)
     return _daemon_service.get_daemon_metrics(target, since_days)
 
@@ -366,6 +395,8 @@ def load_web_audit(
     """Load audit data for the current daemon target."""
     target = _get_current_target()
     if target is None or _daemon_service is None:
+        if _is_target_expected():
+            return {"summary": {"total": 0}, "security_posture": "UNKNOWN"}
         return _local_audit(since, until, violation_type, severity)
     return _daemon_service.get_daemon_audit(
         target, since, until, violation_type, severity
@@ -380,6 +411,72 @@ def _local_audit(since, until, violation_type, severity):
         return MultiDaemonClient._local_audit(since, until, violation_type, severity)
     except Exception:
         return {"summary": {"total": 0}, "security_posture": "UNKNOWN"}
+
+
+def load_web_health_check(fix: bool = False) -> Optional[dict]:
+    """Run health checks on the current daemon target."""
+    target = _get_current_target()
+    if target is None or _daemon_service is None:
+        if _is_target_expected():
+            return None
+        return _local_health_check(fix)
+    return _daemon_service.get_daemon_health_check(target, fix)
+
+
+def _local_health_check(fix):
+    """Fallback: run health check locally."""
+    try:
+        from ai_guardian.daemon.multi_client import MultiDaemonClient
+
+        return MultiDaemonClient._local_health_check(fix)
+    except Exception:
+        return {"checks": [], "version": "unknown"}
+
+
+def load_web_performance(since_days: int = 30) -> Optional[dict]:
+    """Load latency performance data for the current daemon target."""
+    target = _get_current_target()
+    if target is None or _daemon_service is None:
+        if _is_target_expected():
+            return None
+        return _local_performance(since_days)
+    return _daemon_service.get_daemon_performance(target, since_days)
+
+
+def _local_performance(since_days):
+    """Fallback: load performance from local filesystem."""
+    try:
+        from ai_guardian.daemon.multi_client import MultiDaemonClient
+
+        return MultiDaemonClient._local_performance(since_days)
+    except Exception:
+        return {"hook_stats": [], "check_stats": [], "invocation_count": 0}
+
+
+def load_web_logs(
+    limit: int = 500,
+    level: str = "INFO",
+) -> Optional[dict]:
+    """Load log entries for the current daemon target.
+
+    Routes through DaemonService for both local and remote targets.
+    """
+    target = _get_current_target()
+    if target is None or _daemon_service is None:
+        if _is_target_expected():
+            return None
+        return _local_logs(limit, level)
+    return _daemon_service.get_daemon_logs(target, limit, level)
+
+
+def _local_logs(limit, level):
+    """Fallback: load logs from local filesystem."""
+    try:
+        from ai_guardian.daemon.multi_client import MultiDaemonClient
+
+        return MultiDaemonClient._local_logs(limit, level)
+    except Exception:
+        return {"entries": [], "count": 0}
 
 
 def is_remote_daemon() -> bool:

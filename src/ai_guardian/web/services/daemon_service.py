@@ -113,6 +113,46 @@ class DaemonService:
         except Exception:
             return None
 
+    def get_daemon_logs(
+        self,
+        target: DaemonTarget,
+        limit: int = 500,
+        level: str = "INFO",
+    ) -> Optional[dict]:
+        try:
+            return self._client.get_logs(target, limit=limit, level=level)
+        except Exception:
+            return None
+
+    def refresh_pattern_cache(
+        self,
+        target: DaemonTarget,
+    ) -> Optional[dict]:
+        try:
+            return self._client.refresh_pattern_cache(target)
+        except Exception:
+            return None
+
+    def get_daemon_health_check(
+        self,
+        target: DaemonTarget,
+        fix: bool = False,
+    ) -> Optional[dict]:
+        try:
+            return self._client.get_health_check(target, fix=fix)
+        except Exception:
+            return None
+
+    def get_daemon_performance(
+        self,
+        target: DaemonTarget,
+        since_days: int = 30,
+    ) -> Optional[dict]:
+        try:
+            return self._client.get_performance(target, since_days=since_days)
+        except Exception:
+            return None
+
     def pause_daemon(self, target: DaemonTarget, minutes: int) -> bool:
         try:
             return self._client.send_pause(target, minutes)

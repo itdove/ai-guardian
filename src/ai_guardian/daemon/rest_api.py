@@ -94,6 +94,25 @@ class _RestHandler(BaseHTTPRequestHandler):
             self._send_json(self.server.daemon_state.get_ml_status())
         elif path == "/api/cache-status":
             self._send_json(self.server.daemon_state.get_project_cache_status())
+        elif path == "/api/logs":
+            qs = urllib.parse.parse_qs(parsed.query)
+            try:
+                limit = int(qs.get("limit", ["500"])[0])
+            except ValueError:
+                limit = 500
+            level = qs.get("level", ["INFO"])[0]
+            self._send_json(self._get_logs(limit, level))
+        elif path == "/api/performance":
+            qs = urllib.parse.parse_qs(parsed.query)
+            try:
+                since_days = int(qs.get("since_days", ["30"])[0])
+            except ValueError:
+                since_days = 30
+            self._send_json(self._get_performance(since_days))
+        elif path == "/api/health-check":
+            qs = urllib.parse.parse_qs(parsed.query)
+            fix = qs.get("fix", ["false"])[0].lower() == "true"
+            self._send_json(self._get_health_check(fix))
         else:
             self._send_error(404, "Not found")
 
@@ -210,6 +229,8 @@ class _RestHandler(BaseHTTPRequestHandler):
             if body is None:
                 return
             self._handle_scan(body)
+        elif self.path == "/api/patterns/refresh":
+            self._send_json(self._refresh_pattern_cache())
         else:
             self._send_error(404, "Not found")
 
@@ -453,6 +474,46 @@ class _RestHandler(BaseHTTPRequestHandler):
             return {"summary": {"total": 0}, "security_posture": "UNKNOWN"}
 
     @staticmethod
+    def _get_logs(limit, level):
+        try:
+            from ai_guardian.daemon.multi_client import MultiDaemonClient
+
+            return MultiDaemonClient._local_logs(limit, level)
+        except Exception as e:
+            logger.debug("Failed to get logs: %s", e)
+            return {"entries": [], "count": 0}
+
+    @staticmethod
+    def _get_performance(since_days):
+        try:
+            from ai_guardian.daemon.multi_client import MultiDaemonClient
+
+            return MultiDaemonClient._local_performance(since_days)
+        except Exception as e:
+            logger.debug("Failed to get performance: %s", e)
+            return {"hook_stats": [], "check_stats": [], "invocation_count": 0}
+
+    @staticmethod
+    def _get_health_check(fix):
+        try:
+            from ai_guardian.daemon.multi_client import MultiDaemonClient
+
+            return MultiDaemonClient._local_health_check(fix)
+        except Exception as e:
+            logger.debug("Failed to run health check: %s", e)
+            return {"checks": [], "version": "unknown"}
+
+    @staticmethod
+    def _refresh_pattern_cache():
+        try:
+            from ai_guardian.daemon.multi_client import MultiDaemonClient
+
+            return MultiDaemonClient._local_refresh_pattern_cache()
+        except Exception as e:
+            logger.debug("Failed to refresh pattern cache: %s", e)
+            return {"result": f"error: {e}"}
+
+    @staticmethod
     def _get_version():
         try:
             from ai_guardian import __version__
@@ -490,6 +551,10 @@ class _RestHandler(BaseHTTPRequestHandler):
         if action not in ("block", "warn", "log"):
             self._send_error(400, "action must be 'block', 'warn', or 'log'")
             return
+
+        project_dir = body.get("project_dir")
+        if project_dir:
+            self.server.daemon_state.check_project_config(project_dir)
 
         t0 = _time.monotonic()
 
@@ -653,6 +718,17 @@ class _RestHandler(BaseHTTPRequestHandler):
             if resolved_str == blocked or resolved_str.startswith(blocked + "/"):
                 self._send_error(403, "Scanning system directories is not allowed")
                 return
+
+        project_dir = body.get("project_dir")
+        if not project_dir:
+            try:
+                from ai_guardian.aiguardignore import find_project_root_for_file
+
+                project_dir = str(find_project_root_for_file(resolved_str))
+            except Exception:
+                pass
+        if project_dir:
+            self.server.daemon_state.check_project_config(project_dir)
 
         try:
             from ai_guardian.scanner import FileScanner

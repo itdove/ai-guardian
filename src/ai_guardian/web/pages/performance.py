@@ -227,8 +227,8 @@ def create_performance_page(service, daemon_name: str):
 
             current_range = {"days": 30}
 
-            # --- Export / Copy ---
-            with ui.row().classes("gap-2 items-center"):
+            # --- Export / Copy (local daemons only) ---
+            with ui.row().classes("gap-2 items-center").set_visibility(not _is_remote):
 
                 async def do_export(fmt):
                     since = current_range["days"]
@@ -306,23 +306,11 @@ def create_performance_page(service, daemon_name: str):
 
             async def load_data():
                 content.clear()
-                await run.io_bound(service.refresh_targets)
-                target = service.get_target_by_name(daemon_name)
                 since = current_range["days"]
 
-                if not target:
-                    with content:
-                        ui.label("No daemons discovered.").classes("text-grey-6")
-                    return
+                from ai_guardian.web.config_helpers import load_web_performance
 
-                if target.runtime != "local":
-                    with content:
-                        ui.label(
-                            "Latency data is not available for remote daemons."
-                        ).classes("text-grey-6")
-                    return
-
-                data = await run.io_bound(_load_local_latency, since)
+                data = await run.io_bound(load_web_performance, since)
 
                 with content:
                     if not data or (

@@ -433,17 +433,15 @@ class TestHealthCheckData:
 
     def test_get_status_icons_covers_all(self):
         from ai_guardian.doctor import CheckStatus
-        from ai_guardian.web.pages.health_check import _get_status_icons
+        from ai_guardian.web.pages.health_check import _STATUS_ICONS
 
-        icons = _get_status_icons()
         for status in CheckStatus:
-            assert status in icons, f"Missing icon for {status.name}"
+            assert status.value in _STATUS_ICONS, f"Missing icon for {status.name}"
 
     def test_get_status_icons_structure(self):
-        from ai_guardian.web.pages.health_check import _get_status_icons
+        from ai_guardian.web.pages.health_check import _STATUS_ICONS
 
-        icons = _get_status_icons()
-        for status, value in icons.items():
+        for status, value in _STATUS_ICONS.items():
             assert isinstance(value, tuple), f"{status} is not a tuple"
             assert len(value) == 2, f"{status} tuple wrong length"
             icon, color = value

@@ -147,6 +147,99 @@ class TestScanEndpointHandler:
             assert isinstance(result["findings"], list)
 
 
+class TestCheckEndpointProjectTracking:
+    """Test that POST /api/check registers project directories."""
+
+    def test_check_registers_project_dir(self):
+        from ai_guardian.daemon.rest_api import _RestHandler
+
+        handler = MagicMock(spec=_RestHandler)
+        handler._send_json = MagicMock()
+        handler._send_error = MagicMock()
+        handler.server = MagicMock()
+        handler.server.daemon_state = MagicMock()
+        handler.server.daemon_state.get_config.return_value = {
+            "secret_scanning": {"enabled": False},
+            "prompt_injection": {"enabled": False},
+            "context_poisoning": {"enabled": False},
+        }
+
+        _RestHandler._handle_check(
+            handler,
+            {
+                "content": "hello world",
+                "project_dir": "/some/project",
+            },
+        )
+
+        handler.server.daemon_state.check_project_config.assert_called_once_with(
+            "/some/project"
+        )
+
+    def test_check_without_project_dir_skips_registration(self):
+        from ai_guardian.daemon.rest_api import _RestHandler
+
+        handler = MagicMock(spec=_RestHandler)
+        handler._send_json = MagicMock()
+        handler._send_error = MagicMock()
+        handler.server = MagicMock()
+        handler.server.daemon_state = MagicMock()
+        handler.server.daemon_state.get_config.return_value = {
+            "secret_scanning": {"enabled": False},
+            "prompt_injection": {"enabled": False},
+            "context_poisoning": {"enabled": False},
+        }
+
+        _RestHandler._handle_check(handler, {"content": "hello world"})
+
+        handler.server.daemon_state.check_project_config.assert_not_called()
+
+
+class TestScanEndpointProjectTracking:
+    """Test that POST /api/scan registers project directories."""
+
+    def test_scan_infers_project_dir(self, tmp_path):
+        from ai_guardian.daemon.rest_api import _RestHandler
+
+        test_file = tmp_path / "clean.py"
+        test_file.write_text("x = 1")
+
+        handler = MagicMock(spec=_RestHandler)
+        handler._send_json = MagicMock()
+        handler._send_error = MagicMock()
+        handler.server = MagicMock()
+        handler.server.daemon_state = MagicMock()
+        handler.server.daemon_state.get_config.return_value = {}
+        handler._BLOCKED_SCAN_DIRS = _RestHandler._BLOCKED_SCAN_DIRS
+
+        _RestHandler._handle_scan(handler, {"path": str(tmp_path)})
+
+        handler.server.daemon_state.check_project_config.assert_called_once()
+
+    def test_scan_explicit_project_dir(self, tmp_path):
+        from ai_guardian.daemon.rest_api import _RestHandler
+
+        test_file = tmp_path / "clean.py"
+        test_file.write_text("x = 1")
+
+        handler = MagicMock(spec=_RestHandler)
+        handler._send_json = MagicMock()
+        handler._send_error = MagicMock()
+        handler.server = MagicMock()
+        handler.server.daemon_state = MagicMock()
+        handler.server.daemon_state.get_config.return_value = {}
+        handler._BLOCKED_SCAN_DIRS = _RestHandler._BLOCKED_SCAN_DIRS
+
+        _RestHandler._handle_scan(
+            handler,
+            {"path": str(tmp_path), "project_dir": "/explicit/project"},
+        )
+
+        handler.server.daemon_state.check_project_config.assert_called_once_with(
+            "/explicit/project"
+        )
+
+
 class TestMultiClientScanPath:
     """Test the scan_path method in MultiDaemonClient."""
 
@@ -172,6 +265,71 @@ class TestMultiClientScanPath:
 
         for f in result["findings"]:
             assert "config_section" in f
+
+
+class TestLogsEndpoint:
+    """Test GET /api/logs endpoint and _local_logs."""
+
+    def test_local_logs_returns_entries(self, tmp_path, monkeypatch):
+        from ai_guardian.daemon.multi_client import MultiDaemonClient
+        import ai_guardian.config_utils as cu
+
+        log_file = tmp_path / "ai-guardian.log"
+        log_file.write_text(
+            "2026-06-25 10:00:00 - ai_guardian - INFO - Server started\n"
+            "2026-06-25 10:00:01 - ai_guardian - DEBUG - Debug detail\n"
+            "2026-06-25 10:00:02 - ai_guardian - WARNING - Something odd\n"
+        )
+        monkeypatch.setattr(cu, "get_state_dir", lambda: tmp_path)
+
+        result = MultiDaemonClient._local_logs(500, "INFO")
+
+        assert result["count"] == 2
+        assert all(e["level"] in ("INFO", "WARNING") for e in result["entries"])
+
+    def test_local_logs_debug_includes_all(self, tmp_path, monkeypatch):
+        from ai_guardian.daemon.multi_client import MultiDaemonClient
+        import ai_guardian.config_utils as cu
+
+        log_file = tmp_path / "ai-guardian.log"
+        log_file.write_text(
+            "2026-06-25 10:00:00 - ai_guardian - INFO - Info line\n"
+            "2026-06-25 10:00:01 - ai_guardian - DEBUG - Debug line\n"
+        )
+        monkeypatch.setattr(cu, "get_state_dir", lambda: tmp_path)
+
+        result = MultiDaemonClient._local_logs(500, "DEBUG")
+
+        assert result["count"] == 2
+
+    def test_local_logs_missing_file(self, tmp_path, monkeypatch):
+        from ai_guardian.daemon.multi_client import MultiDaemonClient
+        import ai_guardian.config_utils as cu
+
+        monkeypatch.setattr(cu, "get_state_dir", lambda: tmp_path)
+
+        result = MultiDaemonClient._local_logs(500, "INFO")
+
+        assert result["count"] == 0
+        assert result["entries"] == []
+
+    def test_rest_handler_get_logs(self):
+        from ai_guardian.daemon.rest_api import _RestHandler
+
+        handler = MagicMock(spec=_RestHandler)
+        handler._send_json = MagicMock()
+
+        with MagicMock() as mock_client:
+            mock_client._local_logs.return_value = {
+                "entries": [{"level": "INFO", "message": "test"}],
+                "count": 1,
+            }
+            import ai_guardian.daemon.rest_api as ra
+
+            original = ra._RestHandler._get_logs
+
+            result = original(100, "INFO")
+            assert "entries" in result
 
 
 class TestRestRequestTimeout:
