@@ -16,6 +16,7 @@ _skip_no_unix_socket = pytest.mark.skipif(
 )
 
 from ai_guardian.daemon.client import (
+    _DEV_RESTART_COOLDOWN_SECS,
     _check_dev_source_restart,
     is_daemon_running,
     send_hook_request,
@@ -459,6 +460,113 @@ class TestDevSourceRestart:
         for version in ["1.12.0", "2.0.0", "1.12.0rc1"]:
             with mock.patch("ai_guardian.__version__", version):
                 assert _check_dev_source_restart() is False
+
+    def test_cooldown_prevents_double_restart(self, tmp_path, monkeypatch):
+        """Cooldown marker prevents concurrent restart (#1358)."""
+        import time
+
+        monkeypatch.setenv("AI_GUARDIAN_STATE_DIR", str(tmp_path))
+        pid_path = tmp_path / "daemon.pid"
+        pid_path.write_text(json.dumps({"pid": os.getpid(), "source_mtime": 1000.0}))
+        cooldown_path = tmp_path / "daemon.dev-restart"
+        cooldown_path.write_text(str(time.time()))
+
+        with mock.patch("ai_guardian.__version__", "1.12.0-dev"):
+            with mock.patch(
+                "ai_guardian.daemon.state.DaemonState.get_package_max_mtime",
+                return_value=2000.0,
+            ):
+                assert _check_dev_source_restart() is False
+
+    def test_expired_cooldown_allows_restart(self, tmp_path, monkeypatch):
+        """Expired cooldown marker does not block restart (#1358)."""
+        import time
+
+        monkeypatch.setenv("AI_GUARDIAN_STATE_DIR", str(tmp_path))
+        pid_path = tmp_path / "daemon.pid"
+        pid_path.write_text(json.dumps({"pid": os.getpid(), "source_mtime": 1000.0}))
+        cooldown_path = tmp_path / "daemon.dev-restart"
+        cooldown_path.write_text(str(time.time() - _DEV_RESTART_COOLDOWN_SECS - 1))
+
+        with mock.patch("ai_guardian.__version__", "1.12.0-dev"):
+            with mock.patch(
+                "ai_guardian.daemon.state.DaemonState.get_package_max_mtime",
+                return_value=2000.0,
+            ):
+                with mock.patch(
+                    "ai_guardian.daemon.client.send_shutdown",
+                    return_value=True,
+                ):
+                    with mock.patch(
+                        "ai_guardian.daemon.client.is_daemon_running",
+                        return_value=False,
+                    ):
+                        with mock.patch(
+                            "ai_guardian.daemon.client.start_daemon_background",
+                            return_value=True,
+                        ):
+                            assert _check_dev_source_restart() is True
+
+    def test_restart_writes_cooldown_marker(self, tmp_path, monkeypatch):
+        """Successful restart writes cooldown file (#1358)."""
+        import time
+
+        monkeypatch.setenv("AI_GUARDIAN_STATE_DIR", str(tmp_path))
+        pid_path = tmp_path / "daemon.pid"
+        pid_path.write_text(json.dumps({"pid": os.getpid(), "source_mtime": 1000.0}))
+        cooldown_path = tmp_path / "daemon.dev-restart"
+        assert not cooldown_path.exists()
+
+        before = time.time()
+        with mock.patch("ai_guardian.__version__", "1.12.0-dev"):
+            with mock.patch(
+                "ai_guardian.daemon.state.DaemonState.get_package_max_mtime",
+                return_value=2000.0,
+            ):
+                with mock.patch(
+                    "ai_guardian.daemon.client.send_shutdown",
+                    return_value=True,
+                ):
+                    with mock.patch(
+                        "ai_guardian.daemon.client.is_daemon_running",
+                        return_value=False,
+                    ):
+                        with mock.patch(
+                            "ai_guardian.daemon.client.start_daemon_background",
+                            return_value=True,
+                        ):
+                            _check_dev_source_restart()
+
+        assert cooldown_path.exists()
+        ts = float(cooldown_path.read_text().strip())
+        assert ts >= before
+
+    def test_corrupt_cooldown_file_ignored(self, tmp_path, monkeypatch):
+        """Corrupt cooldown file doesn't block restart (#1358)."""
+        monkeypatch.setenv("AI_GUARDIAN_STATE_DIR", str(tmp_path))
+        pid_path = tmp_path / "daemon.pid"
+        pid_path.write_text(json.dumps({"pid": os.getpid(), "source_mtime": 1000.0}))
+        cooldown_path = tmp_path / "daemon.dev-restart"
+        cooldown_path.write_text("not-a-number")
+
+        with mock.patch("ai_guardian.__version__", "1.12.0-dev"):
+            with mock.patch(
+                "ai_guardian.daemon.state.DaemonState.get_package_max_mtime",
+                return_value=2000.0,
+            ):
+                with mock.patch(
+                    "ai_guardian.daemon.client.send_shutdown",
+                    return_value=True,
+                ):
+                    with mock.patch(
+                        "ai_guardian.daemon.client.is_daemon_running",
+                        return_value=False,
+                    ):
+                        with mock.patch(
+                            "ai_guardian.daemon.client.start_daemon_background",
+                            return_value=True,
+                        ):
+                            assert _check_dev_source_restart() is True
 
 
 class TestGetPackageMaxMtime:
