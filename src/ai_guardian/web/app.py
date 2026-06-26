@@ -11,6 +11,7 @@ Multiple browser tabs can view different daemons simultaneously.
 import atexit
 import base64
 import logging
+import os
 import socket
 from pathlib import Path
 
@@ -82,6 +83,17 @@ class WebConsole:
                 favicon_value = f"data:image/png;base64,{b64}"
             except OSError:
                 pass  # intentionally silent — best-effort operation
+
+        if not os.environ.get("NICEGUI_STORAGE_PATH"):
+            from ai_guardian.config_utils import get_state_dir
+
+            storage_path = get_state_dir() / ".nicegui"
+            try:
+                storage_path.mkdir(parents=True, exist_ok=True)
+            except OSError:
+                storage_path = Path("/tmp/.nicegui")
+                storage_path.mkdir(parents=True, exist_ok=True)
+            os.environ["NICEGUI_STORAGE_PATH"] = str(storage_path)
 
         if show:
             from ai_guardian.desktop_utils import open_url
