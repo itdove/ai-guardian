@@ -429,6 +429,115 @@ class TestTrayRestartCommand:
         assert result == 0
 
 
+class TestPromptAskProjectPath:
+    """Issue #1379: prompt --mode ask must set project_dir_override from violation."""
+
+    def test_sets_project_dir_override(self, tmp_path):
+        """When violation has project_path, set_project_dir_override is called."""
+        from ai_guardian.cli_handlers import _handle_prompt_ask
+
+        project_dir = str(tmp_path / "my-project")
+        violation_json = json.dumps(
+            {
+                "violation_type": "secret_detected",
+                "summary": "test",
+                "matched_text": "SECRET",
+                "config_section": "secret_scanning",
+                "project_path": project_dir,
+            }
+        )
+
+        args = mock.MagicMock()
+        args.violation = violation_json
+        args.fallback = "block"
+        args.timeout = 5
+        args.output_file = None
+
+        with (
+            mock.patch(
+                "ai_guardian.tui.display.get_preferred_ui",
+                return_value="headless",
+            ),
+            mock.patch("ai_guardian.config_utils.set_project_dir_override") as mock_set,
+            mock.patch(
+                "ai_guardian.config_utils.clear_project_dir_override"
+            ) as mock_clear,
+        ):
+            _handle_prompt_ask(args)
+
+        mock_set.assert_called_once_with(project_dir)
+        mock_clear.assert_called_once()
+
+    def test_no_override_without_project_path(self):
+        """When violation has no project_path, override is not set."""
+        from ai_guardian.cli_handlers import _handle_prompt_ask
+
+        violation_json = json.dumps(
+            {
+                "violation_type": "secret_detected",
+                "summary": "test",
+                "matched_text": "SECRET",
+                "config_section": "secret_scanning",
+            }
+        )
+
+        args = mock.MagicMock()
+        args.violation = violation_json
+        args.fallback = "block"
+        args.timeout = 5
+        args.output_file = None
+
+        with (
+            mock.patch(
+                "ai_guardian.tui.display.get_preferred_ui",
+                return_value="headless",
+            ),
+            mock.patch("ai_guardian.config_utils.set_project_dir_override") as mock_set,
+        ):
+            _handle_prompt_ask(args)
+
+        mock_set.assert_not_called()
+
+    def test_override_cleared_on_exception(self, tmp_path):
+        """Override is cleared even if dialog raises."""
+        from ai_guardian.cli_handlers import _handle_prompt_ask
+
+        project_dir = str(tmp_path / "my-project")
+        violation_json = json.dumps(
+            {
+                "violation_type": "secret_detected",
+                "summary": "test",
+                "matched_text": "SECRET",
+                "config_section": "secret_scanning",
+                "project_path": project_dir,
+            }
+        )
+
+        args = mock.MagicMock()
+        args.violation = violation_json
+        args.fallback = "block"
+        args.timeout = 5
+        args.output_file = None
+
+        with (
+            mock.patch(
+                "ai_guardian.tui.display.get_preferred_ui",
+                side_effect=RuntimeError("boom"),
+            ),
+            mock.patch("ai_guardian.config_utils.set_project_dir_override") as mock_set,
+            mock.patch(
+                "ai_guardian.config_utils.clear_project_dir_override"
+            ) as mock_clear,
+        ):
+            try:
+                _handle_prompt_ask(args)
+            except RuntimeError:
+                pass
+
+        mock_set.assert_called_once_with(project_dir)
+        mock_clear.assert_called_once()
+
+
 class TestBackwardCompatImports:
     def test_import_from_package_level(self):
         from ai_guardian import _handle_violations_command as hvc

@@ -205,14 +205,23 @@ def suggest_domain(url_or_text: str) -> str:
 def get_config_scope_options() -> list:
     """Return available config scope options as (label, path_str) tuples.
 
-    Always includes global config. Includes project config only if it exists.
+    Always includes global config. Includes project config when one exists
+    or when a project directory is known (config will be created on save).
     """
-    from ai_guardian.config_utils import get_config_dir, get_project_config_path
+    from ai_guardian.config_utils import (
+        get_config_dir,
+        get_project_config_path,
+        get_project_dir,
+    )
 
     global_path = get_config_dir() / "ai-guardian.json"
     options = [("Global", str(global_path))]
 
     project_path = get_project_config_path()
+    if not project_path:
+        project_dir = get_project_dir()
+        if Path(project_dir).resolve() != global_path.parent.resolve():
+            project_path = Path(project_dir) / ".ai-guardian" / "ai-guardian.json"
     if project_path:
         options.insert(0, ("Project", str(project_path)))
 
