@@ -3751,10 +3751,8 @@ def check_secrets_with_gitleaks(
                                 return False, None
 
                         # Filter hash false positives (#1378)
-                        strategy_result.secrets, _hash_n = (
-                            filter_findings_by_hash(
-                                strategy_result.secrets, content
-                            )
+                        strategy_result.secrets, _hash_n = filter_findings_by_hash(
+                            strategy_result.secrets, content
                         )
                         if _hash_n:
                             logging.info(
@@ -4352,9 +4350,7 @@ def check_secrets_with_gitleaks(
                             )
                             return False, None
                         # Filter hash false positives (#1378) — legacy path (findings)
-                        _filt, _hash_n = filter_findings_dicts_by_hash(
-                            _filt, content
-                        )
+                        _filt, _hash_n = filter_findings_dicts_by_hash(_filt, content)
                         if _hash_n:
                             logging.info(
                                 f"External scanner: filtered {_hash_n} hash value findings (legacy path)"
@@ -4407,9 +4403,7 @@ def check_secrets_with_gitleaks(
                             )
                             return False, None
                         # Filter hash false positives (#1378) — legacy path (single)
-                        _filt, _hash_n = filter_findings_dicts_by_hash(
-                            _filt, content
-                        )
+                        _filt, _hash_n = filter_findings_dicts_by_hash(_filt, content)
                         if _hash_n:
                             logging.info(
                                 f"External scanner: filtered {_hash_n} hash value findings (legacy single)"
@@ -4544,10 +4538,8 @@ def check_secrets_with_gitleaks(
                                     return False, None
 
                             # Filter hash false positives (#1378) — fallthrough path 2
-                            fallback_result.secrets, _hash_n = (
-                                filter_findings_by_hash(
-                                    fallback_result.secrets, content
-                                )
+                            fallback_result.secrets, _hash_n = filter_findings_by_hash(
+                                fallback_result.secrets, content
                             )
                             if _hash_n:
                                 logging.info(
