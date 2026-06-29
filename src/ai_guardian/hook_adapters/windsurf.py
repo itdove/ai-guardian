@@ -5,12 +5,15 @@ hook_event_name. Windsurf communicates via exit codes and streams:
 exit 2 blocks (stderr reaches the agent), exit 0 allows.
 """
 
+import logging
 import sys
 from typing import ClassVar, Dict, List, Optional
 
 from ai_guardian.constants import HookEvent
 from ai_guardian.hook_adapters.base import NormalizedHookInput
 from ai_guardian.hook_adapters.claude_code import ClaudeCodeAdapter
+
+logger = logging.getLogger(__name__)
 
 _ACTION_MAP = {
     "pre_user_prompt": HookEvent.PROMPT,
@@ -93,6 +96,12 @@ class WindsurfAdapter(ClaudeCodeAdapter):
             parts.append(security_message)
         if warning_message:
             parts.append(warning_message)
+        if hook_event == HookEvent.POST_TOOL_USE and modified_output is not None:
+            logger.warning(
+                "%s: output replacement via stdout (no structured field)",
+                self.name,
+            )
+            parts.append(modified_output)
         output = "\n\n".join(parts) if parts else None
 
         return self._add_metadata(

@@ -5,10 +5,13 @@ and JSON responses with decision/permission/continue fields.
 """
 
 import json
+import logging
 from typing import ClassVar, Dict, List, Optional
 
 from ai_guardian.constants import HookEvent
 from ai_guardian.hook_adapters.base import HookAdapter, NormalizedHookInput
+
+logger = logging.getLogger(__name__)
 
 
 class CursorAdapter(HookAdapter):
@@ -131,6 +134,16 @@ class CursorAdapter(HookAdapter):
                     agent_parts.append(warning_message)
                 if agent_parts:
                     response["agent_message"] = "\n\n".join(agent_parts)
+                if (
+                    hook_event == HookEvent.POST_TOOL_USE
+                    and modified_output is not None
+                ):
+                    logger.warning(
+                        "%s: modified_output provided but output replacement "
+                        "may not be supported — redacted content sent as best-effort",
+                        self.name,
+                    )
+                    response["modifiedToolOutput"] = modified_output
 
         return self._add_metadata(
             {"output": json.dumps(response), "exit_code": 0},

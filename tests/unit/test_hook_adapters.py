@@ -736,6 +736,76 @@ class TestResponseFormatting:
         assert "redacted" in result["output"]
 
 
+# ── PostToolUse modified_output Delivery (#1398) ─────────────────────
+
+
+class TestModifiedOutputDelivery:
+    """Test that modified_output (redacted content) reaches each adapter's response."""
+
+    def test_windsurf_modified_output(self):
+        result = WindsurfAdapter().format_response(
+            has_secrets=False,
+            hook_event=HookEvent.POST_TOOL_USE,
+            modified_output="redacted content",
+        )
+        assert "redacted content" in result["output"]
+
+    def test_copilot_modified_output(self):
+        result = CopilotAdapter().format_response(
+            has_secrets=False,
+            hook_event=HookEvent.POST_TOOL_USE,
+            modified_output="redacted content",
+        )
+        data = json.loads(result["output"])
+        assert data["modifiedResult"] == "redacted content"
+
+    def test_cursor_modified_output(self):
+        result = CursorAdapter().format_response(
+            has_secrets=False,
+            hook_event=HookEvent.POST_TOOL_USE,
+            modified_output="redacted content",
+        )
+        data = json.loads(result["output"])
+        assert data["modifiedToolOutput"] == "redacted content"
+
+    def test_cline_modified_output(self):
+        result = ClineAdapter().format_response(
+            has_secrets=False,
+            hook_event=HookEvent.POST_TOOL_USE,
+            modified_output="redacted content",
+        )
+        data = json.loads(result["output"])
+        assert data["modifiedResult"] == "redacted content"
+
+    def test_gemini_modified_output(self):
+        result = GeminiCLIAdapter().format_response(
+            has_secrets=False,
+            hook_event=HookEvent.POST_TOOL_USE,
+            modified_output="redacted content",
+        )
+        data = json.loads(result["output"])
+        assert data["hookSpecificOutput"]["updatedToolOutput"] == "redacted content"
+
+    def test_modified_output_not_set_on_pretooluse(self):
+        """modified_output should only apply to PostToolUse events."""
+        result = CopilotAdapter().format_response(
+            has_secrets=False,
+            hook_event=HookEvent.PRE_TOOL_USE,
+            modified_output="should not appear",
+        )
+        data = json.loads(result["output"])
+        assert "modifiedResult" not in data
+
+    def test_modified_output_none_no_field(self):
+        """When modified_output is None, no replacement field should appear."""
+        result = CursorAdapter().format_response(
+            has_secrets=False,
+            hook_event=HookEvent.POST_TOOL_USE,
+        )
+        data = json.loads(result["output"])
+        assert "modifiedToolOutput" not in data
+
+
 # ── Agent-Facing Message Delivery (#1334) ──────────────────────────────
 
 
