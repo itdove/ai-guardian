@@ -3484,6 +3484,8 @@ def check_secrets_with_gitleaks(
             load_stopwords,
             filter_findings_by_stopwords_entropy,
             filter_findings_dicts_by_stopwords_entropy,
+            filter_findings_by_hash,
+            filter_findings_dicts_by_hash,
         )
 
         _ext_stopwords = load_stopwords(secret_config)
@@ -3747,6 +3749,22 @@ def check_secrets_with_gitleaks(
                                     "All external scanner findings filtered by stopwords/entropy — skipping"
                                 )
                                 return False, None
+
+                        # Filter hash false positives (#1378)
+                        strategy_result.secrets, _hash_n = (
+                            filter_findings_by_hash(
+                                strategy_result.secrets, content
+                            )
+                        )
+                        if _hash_n:
+                            logging.info(
+                                f"External scanner: filtered {_hash_n} hash value findings (strategy path)"
+                            )
+                        if not strategy_result.secrets:
+                            logging.info(
+                                "All external scanner findings filtered as hash values — skipping"
+                            )
+                            return False, None
 
                         # Secret liveness validation (Issue #971, #983)
                         secrets_for_validation = [
@@ -4153,6 +4171,22 @@ def check_secrets_with_gitleaks(
                                         )
                                         return False, None
 
+                                # Filter hash false positives (#1378) — fallthrough path 1
+                                fallback_result.secrets, _hash_n = (
+                                    filter_findings_by_hash(
+                                        fallback_result.secrets, content
+                                    )
+                                )
+                                if _hash_n:
+                                    logging.info(
+                                        f"External scanner: filtered {_hash_n} hash value findings (fallthrough 1)"
+                                    )
+                                if not fallback_result.secrets:
+                                    logging.info(
+                                        "All fallthrough-1 findings filtered as hash values — skipping"
+                                    )
+                                    return False, None
+
                                 # Secret liveness validation (Issue #971, #983) — fallthrough path 1
                                 fb_secrets = [
                                     {
@@ -4317,6 +4351,19 @@ def check_secrets_with_gitleaks(
                                 "All external scanner findings filtered by stopwords/entropy — skipping"
                             )
                             return False, None
+                        # Filter hash false positives (#1378) — legacy path (findings)
+                        _filt, _hash_n = filter_findings_dicts_by_hash(
+                            _filt, content
+                        )
+                        if _hash_n:
+                            logging.info(
+                                f"External scanner: filtered {_hash_n} hash value findings (legacy path)"
+                            )
+                        if not _filt:
+                            logging.info(
+                                "All legacy findings filtered as hash values — skipping"
+                            )
+                            return False, None
                         scan_result["findings"] = _filt
                         scan_result["total_findings"] = len(_filt)
                         first_finding = _filt[0]
@@ -4357,6 +4404,19 @@ def check_secrets_with_gitleaks(
                         if not _filt:
                             logging.info(
                                 "All external scanner findings filtered by stopwords/entropy — skipping"
+                            )
+                            return False, None
+                        # Filter hash false positives (#1378) — legacy path (single)
+                        _filt, _hash_n = filter_findings_dicts_by_hash(
+                            _filt, content
+                        )
+                        if _hash_n:
+                            logging.info(
+                                f"External scanner: filtered {_hash_n} hash value findings (legacy single)"
+                            )
+                        if not _filt:
+                            logging.info(
+                                "All legacy findings filtered as hash values — skipping"
                             )
                             return False, None
 
@@ -4482,6 +4542,22 @@ def check_secrets_with_gitleaks(
                                         "All fallthrough-2 findings filtered by stopwords/entropy — skipping"
                                     )
                                     return False, None
+
+                            # Filter hash false positives (#1378) — fallthrough path 2
+                            fallback_result.secrets, _hash_n = (
+                                filter_findings_by_hash(
+                                    fallback_result.secrets, content
+                                )
+                            )
+                            if _hash_n:
+                                logging.info(
+                                    f"External scanner: filtered {_hash_n} hash value findings (fallthrough 2)"
+                                )
+                            if not fallback_result.secrets:
+                                logging.info(
+                                    "All fallthrough-2 findings filtered as hash values — skipping"
+                                )
+                                return False, None
 
                             # Secret liveness validation (Issue #971, #983) — fallthrough path 2
                             fb2_secrets = [

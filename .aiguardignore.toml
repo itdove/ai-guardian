@@ -1,4 +1,5 @@
-# Skip for ALL scanners
-
 [allowlist]
-paths = ["tests/**"]
+paths = [
+    "tests/**",
+    "src/ai_guardian/patterns/data/secrets.toml",
+]
