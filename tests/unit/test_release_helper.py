@@ -385,7 +385,7 @@ class TestCursorHookVerifier:
 
         settings = json.loads(settings_path.read_text())
         for event in CursorHookVerifier.EXPECTED_EVENTS:
-            entries = settings[event]
+            entries = settings["hooks"][event]
             debug_entries = [
                 e
                 for e in entries
