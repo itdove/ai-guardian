@@ -5,10 +5,13 @@ and JSON responses with decision/systemMessage fields.
 """
 
 import json
+import logging
 from typing import ClassVar, Dict, List, Optional
 
 from ai_guardian.constants import HookEvent
 from ai_guardian.hook_adapters.base import HookAdapter, NormalizedHookInput
+
+logger = logging.getLogger(__name__)
 
 
 class GeminiCLIAdapter(HookAdapter):
@@ -103,6 +106,15 @@ class GeminiCLIAdapter(HookAdapter):
                 response["systemMessage"] = combined
                 if hook_event != HookEvent.PRE_TOOL_USE:
                     response["hookSpecificOutput"] = {"additionalContext": combined}
+            if hook_event == HookEvent.POST_TOOL_USE and modified_output is not None:
+                logger.warning(
+                    "%s: modified_output provided but output replacement "
+                    "may not be supported — redacted content sent as best-effort",
+                    self.name,
+                )
+                if "hookSpecificOutput" not in response:
+                    response["hookSpecificOutput"] = {}
+                response["hookSpecificOutput"]["updatedToolOutput"] = modified_output
 
         return self._add_metadata(
             {"output": json.dumps(response), "exit_code": 0},

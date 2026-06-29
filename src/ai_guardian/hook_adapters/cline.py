@@ -5,10 +5,13 @@ Detected by clineVersion field in hook data.
 """
 
 import json
+import logging
 from typing import ClassVar, Dict, List, Optional
 
 from ai_guardian.constants import HookEvent
 from ai_guardian.hook_adapters.base import HookAdapter, NormalizedHookInput
+
+logger = logging.getLogger(__name__)
 
 
 class ClineAdapter(HookAdapter):
@@ -95,6 +98,13 @@ class ClineAdapter(HookAdapter):
             if parts:
                 combined = "\n\n".join(parts)
                 response["contextModification"] = combined
+            if hook_event == HookEvent.POST_TOOL_USE and modified_output is not None:
+                logger.warning(
+                    "%s: modified_output provided but output replacement "
+                    "may not be supported — redacted content sent as best-effort",
+                    self.name,
+                )
+                response["modifiedResult"] = modified_output
 
         return self._add_metadata(
             {"output": json.dumps(response), "exit_code": 0},

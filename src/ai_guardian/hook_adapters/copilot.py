@@ -8,12 +8,15 @@ Copilot CLI stores JSONL transcripts at:
 """
 
 import json
+import logging
 import os
 import sys
 from typing import ClassVar, Dict, List, Optional
 
 from ai_guardian.constants import HookEvent
 from ai_guardian.hook_adapters.base import HookAdapter, NormalizedHookInput
+
+logger = logging.getLogger(__name__)
 
 
 class CopilotAdapter(HookAdapter):
@@ -151,6 +154,13 @@ class CopilotAdapter(HookAdapter):
                 agent_parts.append(warning_message)
             if agent_parts:
                 response["additionalContext"] = "\n\n".join(agent_parts)
+            if hook_event == HookEvent.POST_TOOL_USE and modified_output is not None:
+                logger.warning(
+                    "%s: modified_output provided but output replacement "
+                    "may not be supported — redacted content sent as best-effort",
+                    self.name,
+                )
+                response["modifiedResult"] = modified_output
             output = json.dumps(response) if response else None
             return self._add_metadata(
                 {"output": output, "exit_code": 0},
