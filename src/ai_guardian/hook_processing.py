@@ -2529,6 +2529,16 @@ def _handle_ask_mode_multi(
             aggregate.per_finding_results = per_finding_results
             return aggregate
 
+        if result.decision == AskDecision.IGNORE_FILE:
+            for skip_finding in findings[idx + 1 :]:
+                skipped = AskResult(decision=AskDecision.IGNORE_FILE)
+                skipped.dialog_wait_ms = 0.0
+                per_finding_results.append(skipped)
+            aggregate = AskResult(decision=AskDecision.ALLOW_ONCE)
+            aggregate.dialog_wait_ms = total_dialog_ms
+            aggregate.per_finding_results = per_finding_results
+            return aggregate
+
     aggregate = AskResult(decision=AskDecision.ALLOW_ONCE)
     aggregate.dialog_wait_ms = total_dialog_ms
     aggregate.per_finding_results = per_finding_results

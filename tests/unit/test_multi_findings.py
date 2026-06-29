@@ -536,6 +536,65 @@ class TestHandleAskModeMulti:
         assert violation_info2.total_findings == 2
 
     @patch("ai_guardian.tui.ask_dialog.show_ask_dialog")
+    @patch("ai_guardian.tui.ask_dialog._save_ignore_path")
+    def test_ignore_file_skips_remaining_findings(self, mock_save, mock_dialog):
+        from ai_guardian.hook_processing import _handle_ask_mode_multi
+        from ai_guardian.tui.ask_dialog import AskResult, AskDecision
+
+        mock_save.return_value = True
+        ignore_result = AskResult(decision=AskDecision.IGNORE_FILE)
+        ignore_result.ignore_path = "src/secrets.py"
+        ignore_result.ignore_scanner_types = ["secret_scanning"]
+        mock_dialog.return_value = ignore_result
+        findings = [
+            {"matched_text": "s1", "line_number": 1},
+            {"matched_text": "s2", "line_number": 5},
+            {"matched_text": "s3", "line_number": 10},
+        ]
+        result = _handle_ask_mode_multi(
+            "ask",
+            "secret_detected",
+            findings,
+            "secret_scanning",
+            "error",
+            file_path="src/secrets.py",
+        )
+        assert result.decision == AskDecision.ALLOW_ONCE
+        assert mock_dialog.call_count == 1
+        assert len(result.per_finding_results) == 3
+        assert result.per_finding_results[0].decision == AskDecision.IGNORE_FILE
+        assert result.per_finding_results[1].decision == AskDecision.IGNORE_FILE
+        assert result.per_finding_results[2].decision == AskDecision.IGNORE_FILE
+
+    @patch("ai_guardian.tui.ask_dialog.show_ask_dialog")
+    @patch("ai_guardian.tui.ask_dialog._save_ignore_path")
+    def test_ignore_file_on_last_finding_still_allows(self, mock_save, mock_dialog):
+        from ai_guardian.hook_processing import _handle_ask_mode_multi
+        from ai_guardian.tui.ask_dialog import AskResult, AskDecision
+
+        mock_save.return_value = True
+        allow_result = AskResult(decision=AskDecision.ALLOW_ONCE)
+        ignore_result = AskResult(decision=AskDecision.IGNORE_FILE)
+        ignore_result.ignore_path = "src/secrets.py"
+        ignore_result.ignore_scanner_types = ["secret_scanning"]
+        mock_dialog.side_effect = [allow_result, ignore_result]
+        findings = [
+            {"matched_text": "s1", "line_number": 1},
+            {"matched_text": "s2", "line_number": 5},
+        ]
+        result = _handle_ask_mode_multi(
+            "ask",
+            "secret_detected",
+            findings,
+            "secret_scanning",
+            "error",
+            file_path="src/secrets.py",
+        )
+        assert result.decision == AskDecision.ALLOW_ONCE
+        assert mock_dialog.call_count == 2
+        assert len(result.per_finding_results) == 2
+
+    @patch("ai_guardian.tui.ask_dialog.show_ask_dialog")
     def test_dialog_wait_ms_accumulated(self, mock_dialog):
         from ai_guardian.hook_processing import _handle_ask_mode_multi
         from ai_guardian.tui.ask_dialog import AskResult, AskDecision
