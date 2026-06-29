@@ -432,6 +432,129 @@ def filter_findings_dicts_by_stopwords_entropy(
     return filtered, sw_count, ent_count
 
 
+# --- SHA/Hash false-positive filter (Issue #1378) ---
+
+_HASH_HEX_LENGTHS = frozenset({32, 40, 64, 96, 128})
+
+_HEX_ONLY_RE = re.compile(r"^[a-fA-F0-9]+$")
+
+_HASH_CONTEXT_KEYWORDS = frozenset(
+    {
+        "sha256",
+        "sha512",
+        "sha1",
+        "sha384",
+        "sha-256",
+        "sha-512",
+        "sha-1",
+        "sha-384",
+        "md5",
+        "checksum",
+        "digest",
+        "hash",
+        "fingerprint",
+        "integrity",
+        "sha256sum",
+        "sha512sum",
+        "sha1sum",
+        "md5sum",
+        "subresource",
+        "sri",
+    }
+)
+
+
+def is_hash_value(matched_text: str, line_text: Optional[str] = None) -> bool:
+    """Check if matched_text is a SHA/MD5 hash value in a hash context.
+
+    Returns True (suppress) when BOTH conditions hold:
+    1. matched_text is exactly 32/40/64/96/128 hex characters
+    2. The surrounding line contains a hash-related keyword
+    """
+    if not matched_text:
+        return False
+
+    clean = matched_text.strip().strip("'\"")
+
+    if len(clean) not in _HASH_HEX_LENGTHS:
+        return False
+    if not _HEX_ONLY_RE.match(clean):
+        return False
+
+    if not line_text:
+        return False
+
+    line_lower = line_text.lower()
+    return any(kw in line_lower for kw in _HASH_CONTEXT_KEYWORDS)
+
+
+def filter_findings_by_hash(
+    secrets: list,
+    content: Optional[str] = None,
+) -> Tuple[list, int]:
+    """Filter SecretMatch objects that are SHA/MD5 hash false positives.
+
+    Returns:
+        (filtered_list, hash_filtered_count)
+    """
+    if not content:
+        return secrets, 0
+
+    lines = content.splitlines()
+    filtered = []
+    hash_count = 0
+
+    for s in secrets:
+        matched_text = getattr(s, "secret", None)
+        line_number = getattr(s, "line_number", 0)
+        category = getattr(s, "category", "secrets")
+
+        if (
+            matched_text
+            and category in ("secrets", None)
+            and 0 < line_number <= len(lines)
+        ):
+            line_text = lines[line_number - 1]
+            if is_hash_value(matched_text, line_text):
+                hash_count += 1
+                continue
+
+        filtered.append(s)
+
+    return filtered, hash_count
+
+
+def filter_findings_dicts_by_hash(
+    findings: List[Dict],
+    content: Optional[str] = None,
+) -> Tuple[List[Dict], int]:
+    """Filter finding dicts that are SHA/MD5 hash false positives.
+
+    Returns:
+        (filtered_list, hash_filtered_count)
+    """
+    if not content:
+        return findings, 0
+
+    lines = content.splitlines()
+    filtered = []
+    hash_count = 0
+
+    for f in findings:
+        matched_text = f.get("matched_text")
+        line_number = f.get("line_number", 0) or 0
+
+        if matched_text and 0 < line_number <= len(lines):
+            line_text = lines[line_number - 1]
+            if is_hash_value(matched_text, line_text):
+                hash_count += 1
+                continue
+
+        filtered.append(f)
+
+    return filtered, hash_count
+
+
 VALIDATOR_REGISTRY: dict = {
     "luhn": luhn_check,
     "iban": iban_check,
