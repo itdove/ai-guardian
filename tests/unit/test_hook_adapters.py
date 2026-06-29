@@ -1404,3 +1404,91 @@ class TestCursorToolNameExtraction:
         is_allowed, error_msg, tool_name = checker.check_tool_allowed(hook_data)
         assert "unable to determine tool name" not in (error_msg or "")
         assert tool_name == "Read"
+
+
+# ── Integration: _format_response dispatches to detected adapter (#1391) ──
+
+
+class TestFormatResponseDispatch:
+    """Verify _format_response uses the adapter from detect_adapter, not IDEType."""
+
+    def test_windsurf_block_dispatches_exit_code_2(self, capsys):
+        """WindsurfAdapter.format_response must be called, returning exit_code 2."""
+        from ai_guardian.hook_processing import _format_response
+
+        adapter = WindsurfAdapter()
+        result = _format_response(
+            adapter,
+            has_secrets=True,
+            error_message="Secret found",
+            hook_event=HookEvent.PRE_TOOL_USE,
+            violation_type="secret_detected",
+        )
+        assert result["exit_code"] == 2
+        assert result["output"] is None
+        assert result.get("_blocked") is True
+        captured = capsys.readouterr()
+        assert "Secret found" in captured.err
+
+    def test_windsurf_allow_dispatches_exit_code_0(self):
+        from ai_guardian.hook_processing import _format_response
+
+        adapter = WindsurfAdapter()
+        result = _format_response(
+            adapter,
+            has_secrets=False,
+            hook_event=HookEvent.PRE_TOOL_USE,
+        )
+        assert result["exit_code"] == 0
+        assert result["output"] is None
+
+    def test_format_response_adds_ai_guardian_prefix(self):
+        from ai_guardian.hook_processing import _format_response
+
+        adapter = ClaudeCodeAdapter()
+        result = _format_response(
+            adapter,
+            has_secrets=False,
+            hook_event=HookEvent.PRE_TOOL_USE,
+            warning_message="some warning",
+        )
+        output = json.loads(result["output"])
+        hook_output = output.get("hookSpecificOutput", {})
+        assert "[ai-guardian] some warning" in hook_output.get("additionalContext", "")
+
+    def test_format_response_no_double_prefix(self):
+        from ai_guardian.hook_processing import _format_response
+
+        adapter = ClaudeCodeAdapter()
+        result = _format_response(
+            adapter,
+            has_secrets=False,
+            hook_event=HookEvent.PRE_TOOL_USE,
+            warning_message="[ai-guardian] already prefixed",
+        )
+        output = json.loads(result["output"])
+        hook_output = output.get("hookSpecificOutput", {})
+        ctx = hook_output.get("additionalContext", "")
+        assert "[ai-guardian] [ai-guardian]" not in ctx
+        assert "[ai-guardian] already prefixed" in ctx
+
+    def test_detect_adapter_windsurf_returns_windsurf_adapter(self):
+        """detect_adapter returns WindsurfAdapter for Windsurf hook data."""
+        hook_data = {"agent_action_name": "pre_run_command", "cwd": "/tmp"}
+        adapter = detect_adapter(hook_data)
+        assert isinstance(adapter, WindsurfAdapter)
+        assert adapter.ide_type == IDEType.CLAUDE_CODE  # inherits, that's OK
+
+    def test_augment_block_uses_correct_adapter(self, capsys):
+        """AugmentAdapter (also inherits ClaudeCodeAdapter) must be dispatched."""
+        from ai_guardian.hook_processing import _format_response
+
+        adapter = AugmentAdapter()
+        result = _format_response(
+            adapter,
+            has_secrets=True,
+            error_message="Secret found",
+            hook_event=HookEvent.PRE_TOOL_USE,
+        )
+        assert result["exit_code"] == 0
+        assert result.get("_blocked") is True
