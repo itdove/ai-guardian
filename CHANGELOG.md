@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.12.3] - 2026-06-29
+
+### Fixed
+
+- **SHA hash values trigger false positive secret detection** — added entropy and stopword filtering to prevent SHA-256/SHA-512 commit hashes and checksums from being flagged as secrets (Issue #1378)
+- **IGNORE_FILE decision in multi-finding ask mode** — correctly handle "Ignore File" action when multiple findings are present in ask dialog (Issue #1387)
+- **Project dir override in prompt-ask handler** — set project directory override in prompt-ask handler so config writes target the correct project scope (Issue #1381)
+- **Cursor hook test settings dict key path** — correct the settings dictionary key path in cursor hook test to match actual structure (Issue #1386)
+
 ## [1.12.2] - 2026-06-26
 
 ### Added
@@ -2658,7 +2667,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Preserves existing configuration
   - Interactive and non-interactive modes
 
-[Unreleased]: https://github.com/itdove/ai-guardian/compare/v1.12.2...HEAD
+[Unreleased]: https://github.com/itdove/ai-guardian/compare/v1.12.3...HEAD
+[1.12.3]: https://github.com/itdove/ai-guardian/compare/v1.12.2...v1.12.3
 [1.12.2]: https://github.com/itdove/ai-guardian/compare/v1.12.1...v1.12.2
 [1.12.1]: https://github.com/itdove/ai-guardian/compare/v1.12.0...v1.12.1
 [1.12.0]: https://github.com/itdove/ai-guardian/compare/v1.11.1...v1.12.0
