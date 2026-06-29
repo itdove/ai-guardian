@@ -1454,9 +1454,7 @@ class TestFormatResponseDispatch:
         )
         output = json.loads(result["output"])
         hook_output = output.get("hookSpecificOutput", {})
-        assert "[ai-guardian] some warning" in hook_output.get(
-            "additionalContext", ""
-        )
+        assert "[ai-guardian] some warning" in hook_output.get("additionalContext", "")
 
     def test_format_response_no_double_prefix(self):
         from ai_guardian.hook_processing import _format_response
