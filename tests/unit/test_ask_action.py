@@ -2909,6 +2909,27 @@ class TestConfigScopeSelection:
     def test_get_config_scope_options_global_only(self):
         from ai_guardian.tui.pattern_editor import get_config_scope_options
 
+        global_dir = Path("/home/user/.config/ai-guardian")
+        with patch(
+            "ai_guardian.config_utils.get_project_config_path", return_value=None
+        ):
+            with patch(
+                "ai_guardian.config_utils.get_config_dir",
+                return_value=global_dir,
+            ):
+                with patch(
+                    "ai_guardian.config_utils.get_project_dir",
+                    return_value=str(global_dir),
+                ):
+                    options = get_config_scope_options()
+        assert len(options) == 1
+        assert options[0][0] == "Global"
+        assert "ai-guardian.json" in options[0][1]
+
+    def test_get_config_scope_options_no_config_but_project_dir(self):
+        """Issue #1379: project scope offered even when config doesn't exist yet."""
+        from ai_guardian.tui.pattern_editor import get_config_scope_options
+
         with patch(
             "ai_guardian.config_utils.get_project_config_path", return_value=None
         ):
@@ -2916,10 +2937,17 @@ class TestConfigScopeSelection:
                 "ai_guardian.config_utils.get_config_dir",
                 return_value=Path("/home/user/.config/ai-guardian"),
             ):
-                options = get_config_scope_options()
-        assert len(options) == 1
-        assert options[0][0] == "Global"
-        assert "ai-guardian.json" in options[0][1]
+                with patch(
+                    "ai_guardian.config_utils.get_project_dir",
+                    return_value="/projects/carbonite",
+                ):
+                    options = get_config_scope_options()
+        assert len(options) == 2
+        assert options[0][0] == "Project"
+        assert options[0][1] == str(
+            Path("/projects/carbonite/.ai-guardian/ai-guardian.json")
+        )
+        assert options[1][0] == "Global"
 
     def test_get_config_scope_options_with_project(self):
         from ai_guardian.tui.pattern_editor import get_config_scope_options

@@ -969,78 +969,90 @@ def _handle_prompt_ask(args):
         total_findings=violation_data.get("total_findings"),
     )
 
-    fallback = getattr(args, "fallback", "block")
-    timeout = int(getattr(args, "timeout", 300))
+    if violation.project_path:
+        from ai_guardian.config_utils import (
+            set_project_dir_override,
+            clear_project_dir_override,
+        )
 
-    preferred = get_preferred_ui()
-    result = None
+        set_project_dir_override(violation.project_path)
 
-    if preferred == "headless":
-        pass
-    elif preferred == "tkinter":
-        if _tkinter_available():
-            try:
-                result = _TkinterAskDialog(violation, timeout).run()
-            except Exception as e:
-                prompt_logger.warning("tkinter ask dialog failed: %s", e)
-    elif preferred == "nicegui":
-        if _nicegui_available():
-            try:
-                result = _NiceGuiAskDialog(violation, timeout).run()
-            except Exception as e:
-                prompt_logger.warning("NiceGUI ask dialog failed: %s", e)
-    elif preferred == "textual":
-        if sys.stdin.isatty():
-            try:
-                result = _TextualAskDialog(violation, timeout).run()
-            except Exception as e:
-                prompt_logger.warning("Textual ask dialog failed: %s", e)
-    else:
-        if _tkinter_available():
-            try:
-                result = _TkinterAskDialog(violation, timeout).run()
-            except Exception as e:
-                prompt_logger.warning("tkinter ask dialog failed: %s", e)
+    try:
+        fallback = getattr(args, "fallback", "block")
+        timeout = int(getattr(args, "timeout", 300))
 
-        if result is None and _nicegui_available():
-            try:
-                result = _NiceGuiAskDialog(violation, timeout).run()
-            except Exception as e:
-                prompt_logger.warning("NiceGUI ask dialog failed: %s", e)
+        preferred = get_preferred_ui()
+        result = None
 
-        if result is None and sys.stdin.isatty():
-            try:
-                result = _TextualAskDialog(violation, timeout).run()
-            except Exception as e:
-                prompt_logger.warning("Textual ask dialog failed: %s", e)
+        if preferred == "headless":
+            pass
+        elif preferred == "tkinter":
+            if _tkinter_available():
+                try:
+                    result = _TkinterAskDialog(violation, timeout).run()
+                except Exception as e:
+                    prompt_logger.warning("tkinter ask dialog failed: %s", e)
+        elif preferred == "nicegui":
+            if _nicegui_available():
+                try:
+                    result = _NiceGuiAskDialog(violation, timeout).run()
+                except Exception as e:
+                    prompt_logger.warning("NiceGUI ask dialog failed: %s", e)
+        elif preferred == "textual":
+            if sys.stdin.isatty():
+                try:
+                    result = _TextualAskDialog(violation, timeout).run()
+                except Exception as e:
+                    prompt_logger.warning("Textual ask dialog failed: %s", e)
+        else:
+            if _tkinter_available():
+                try:
+                    result = _TkinterAskDialog(violation, timeout).run()
+                except Exception as e:
+                    prompt_logger.warning("tkinter ask dialog failed: %s", e)
 
-    if result is None:
-        decision = _map_fallback_to_decision(fallback)
-        result = AskResult(decision=decision)
+            if result is None and _nicegui_available():
+                try:
+                    result = _NiceGuiAskDialog(violation, timeout).run()
+                except Exception as e:
+                    prompt_logger.warning("NiceGUI ask dialog failed: %s", e)
 
-    output = json.dumps(
-        {
-            "decision": result.decision.value,
-            "allowlist_pattern": result.allowlist_pattern,
-            "config_saved": getattr(result, "config_saved", False),
-            "source_annotation_saved": getattr(
-                result, "source_annotation_saved", False
-            ),
-            "ignore_path": getattr(result, "ignore_path", None),
-            "ignore_scanner_types": getattr(result, "ignore_scanner_types", None),
-        }
-    )
+            if result is None and sys.stdin.isatty():
+                try:
+                    result = _TextualAskDialog(violation, timeout).run()
+                except Exception as e:
+                    prompt_logger.warning("Textual ask dialog failed: %s", e)
 
-    output_file = getattr(args, "output_file", None)
-    if output_file:
-        tmp_fd, tmp_path = tempfile.mkstemp(dir=os.path.dirname(output_file))
-        os.write(tmp_fd, output.encode("utf-8"))
-        os.close(tmp_fd)
-        os.replace(tmp_path, output_file)
-    else:
-        print(output)
+        if result is None:
+            decision = _map_fallback_to_decision(fallback)
+            result = AskResult(decision=decision)
 
-    return 0
+        output = json.dumps(
+            {
+                "decision": result.decision.value,
+                "allowlist_pattern": result.allowlist_pattern,
+                "config_saved": getattr(result, "config_saved", False),
+                "source_annotation_saved": getattr(
+                    result, "source_annotation_saved", False
+                ),
+                "ignore_path": getattr(result, "ignore_path", None),
+                "ignore_scanner_types": getattr(result, "ignore_scanner_types", None),
+            }
+        )
+
+        output_file = getattr(args, "output_file", None)
+        if output_file:
+            tmp_fd, tmp_path = tempfile.mkstemp(dir=os.path.dirname(output_file))
+            os.write(tmp_fd, output.encode("utf-8"))
+            os.close(tmp_fd)
+            os.replace(tmp_path, output_file)
+        else:
+            print(output)
+
+        return 0
+    finally:
+        if violation.project_path:
+            clear_project_dir_override()
 
 
 def _handle_tray_target_select(args):
