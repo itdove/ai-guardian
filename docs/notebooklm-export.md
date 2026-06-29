@@ -21096,6 +21096,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.12.3] - 2026-06-29
+
+### Fixed
+
+- **SHA hash values trigger false positive secret detection** — added entropy and stopword filtering to prevent SHA-256/SHA-512 commit hashes and checksums from being flagged as secrets (Issue #1378)
+- **IGNORE_FILE decision in multi-finding ask mode** — correctly handle "Ignore File" action when multiple findings are present in ask dialog (Issue #1387)
+- **Project dir override in prompt-ask handler** — set project directory override in prompt-ask handler so config writes target the correct project scope (Issue #1381)
+- **Cursor hook test settings dict key path** — correct the settings dictionary key path in cursor hook test to match actual structure (Issue #1386)
+
 ## [1.12.2] - 2026-06-26
 
 ### Added
@@ -21115,17 +21124,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Web console remote daemon config routing** — config reads/writes correctly route through DaemonService for remote daemons instead of reading host filesystem (Issue #1355)
 - **Publish workflow: test tags no longer publish to production PyPI** — merged `publish.yml` and `publish-test.yml` into single workflow that routes to TestPyPI or PyPI based on tag format (`v*-test*` → TestPyPI, `v*` → PyPI)
 - **Release skill: cursor-verify-setup places hooks inside `hooks:{}` object** — debug hooks were placed at JSON top level where Cursor ignores them; now correctly added inside the `hooks` object
-
-## [1.12.1] - 2026-06-24
-
-### Changed
-
-- **README install URLs point to release tag** — install commands now reference `v1.12.1` instead of `main` branch, ensuring stable installations from PyPI match the tagged source
-
-### Fixed
-
-- **Release skill: install URL update must happen before tagging** — moved README URL update step before tag creation so PyPI receives correct URLs in package README
-- **Release skill: added TestPyPI verification step** — recommended pre-tag check to catch README rendering issues before publishing to production PyPI
 
 
 *(Earlier versions omitted — see CHANGELOG.md for full history)*
