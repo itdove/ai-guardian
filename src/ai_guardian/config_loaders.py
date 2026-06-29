@@ -19,6 +19,7 @@ from typing import Any, Dict, Optional
 from ai_guardian.config_utils import (
     get_config_dir,
     get_project_config_path,
+    get_project_dir,
     _clear_project_config_cache,
     deep_merge,
     is_feature_enabled,
@@ -34,11 +35,11 @@ except ImportError:
 logger = logging.getLogger(__name__)
 
 
-def _merge_aiguardignore(scanner_config, scanner_type):
+def _merge_aiguardignore(scanner_config, scanner_type, project_root=None):
     """Merge .aiguardignore.toml paths into a scanner config dict's ignore_files."""
     if not HAS_AIGUARDIGNORE:
         return scanner_config
-    extra = _aiguardignore_cfg.get_ignore_paths(scanner_type)
+    extra = _aiguardignore_cfg.get_ignore_paths(scanner_type, project_root=project_root)
     if not extra:
         return scanner_config
     if scanner_config is None:
@@ -478,7 +479,9 @@ def _load_config_section(key, defaults=None, merge_ignore=False):
     else:
         section = config.get(key)
     if merge_ignore and section is not None:
-        section = _merge_aiguardignore(section, key)
+        section = _merge_aiguardignore(
+            section, key, project_root=Path(get_project_dir())
+        )
     return section, None
 
 
