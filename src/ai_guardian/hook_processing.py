@@ -89,10 +89,23 @@ from ai_guardian.constants import parse_ask_action
 from ai_guardian.response_format import (
     _SECURITY_SYSTEM_MESSAGE,
     IDEType,
-    format_response,
 )
 from ai_guardian.hook_adapters import detect_adapter
 from ai_guardian.latency_logger import _CheckTimer
+
+
+def _format_response(adapter, **kwargs):
+    """Call adapter.format_response() with [ai-guardian] prefix on warning_message.
+
+    Replaces the backward-compat wrapper in response_format.py for internal
+    use, ensuring the correct adapter instance (from detect_adapter) is used
+    instead of re-resolving via IDEType enum.
+    """
+    wm = kwargs.get("warning_message")
+    if wm and not wm.lstrip().startswith("[ai-guardian]"):
+        kwargs["warning_message"] = f"[ai-guardian] {wm}"
+    return adapter.format_response(**kwargs)
+
 
 # Conditional imports for optional features
 try:
@@ -5014,8 +5027,8 @@ def process_hook_data(hook_data, daemon_state=None):
             if tool_output is None:
                 # No output to scan - allow
                 _advance_transcript_position(hook_data)
-                return format_response(
-                    ide_type, has_secrets=False, hook_event=hook_event
+                return _format_response(
+                    adapter, has_secrets=False, hook_event=hook_event
                 )
 
             # Create composite tool identifier for more granular ignore patterns
@@ -5116,8 +5129,8 @@ def process_hook_data(hook_data, daemon_state=None):
             ):
                 logging.info("Secret scanning is disabled - skipping PostToolUse scan")
                 _advance_transcript_position(hook_data)
-                return format_response(
-                    ide_type, has_secrets=False, hook_event=hook_event
+                return _format_response(
+                    adapter, has_secrets=False, hook_event=hook_event
                 )
 
             ignore_files = (
@@ -5182,8 +5195,8 @@ def process_hook_data(hook_data, daemon_state=None):
             if not has_secrets and error_message:
                 # Scanner not available - display warning but allow operation
                 _advance_transcript_position(hook_data)
-                return format_response(
-                    ide_type,
+                return _format_response(
+                    adapter,
                     has_secrets=False,
                     hook_event=hook_event,
                     warning_message=error_message,
@@ -5231,8 +5244,8 @@ def process_hook_data(hook_data, daemon_state=None):
                             line_number=_last_secret_line_number,
                             dialog_wait_ms=ask_result.dialog_wait_ms,
                         )
-                        return format_response(
-                            ide_type,
+                        return _format_response(
+                            adapter,
                             has_secrets=False,
                             hook_event=hook_event,
                             warning_message=info_msg,
@@ -5247,8 +5260,8 @@ def process_hook_data(hook_data, daemon_state=None):
                             line_number=_last_secret_line_number,
                             dialog_wait_ms=ask_result.dialog_wait_ms,
                         )
-                        result = format_response(
-                            ide_type,
+                        result = _format_response(
+                            adapter,
                             has_secrets=True,
                             error_message=error_message,
                             hook_event=hook_event,
@@ -5268,8 +5281,8 @@ def process_hook_data(hook_data, daemon_state=None):
                     logging.warning(
                         f"Secrets detected in {tool_identifier} output - blocking"
                     )
-                    result = format_response(
-                        ide_type,
+                    result = _format_response(
+                        adapter,
                         has_secrets=True,
                         error_message=error_message,
                         hook_event=hook_event,
@@ -5384,8 +5397,8 @@ def process_hook_data(hook_data, daemon_state=None):
                             logging.warning(f"WARN mode: {warning_msg}")
 
                         logging.info("✓ Secrets redacted, allowing output to continue")
-                        result = format_response(
-                            ide_type,
+                        result = _format_response(
+                            adapter,
                             has_secrets=False,
                             hook_event=hook_event,
                             warning_message=warning_msg,
@@ -5403,8 +5416,8 @@ def process_hook_data(hook_data, daemon_state=None):
                         logging.error(traceback.format_exc())
                         # Fall back to blocking on redaction errors
                         logging.warning("Redaction failed, falling back to blocking")
-                        result = format_response(
-                            ide_type,
+                        result = _format_response(
+                            adapter,
                             has_secrets=True,
                             error_message=error_message,
                             hook_event=hook_event,
@@ -5417,8 +5430,8 @@ def process_hook_data(hook_data, daemon_state=None):
                     logging.warning(
                         "Secrets detected and redaction disabled - blocking output"
                     )
-                    result = format_response(
-                        ide_type,
+                    result = _format_response(
+                        adapter,
                         has_secrets=True,
                         error_message=error_message,
                         hook_event=hook_event,
@@ -5462,8 +5475,8 @@ def process_hook_data(hook_data, daemon_state=None):
 
                     # Scan error with on_scan_error=block: block without logging a false violation (#507)
                     if has_pii and not pii_redactions:
-                        result = format_response(
-                            ide_type,
+                        result = _format_response(
+                            adapter,
                             has_secrets=True,
                             hook_event=hook_event,
                             error_message=pii_warning,
@@ -5568,8 +5581,8 @@ def process_hook_data(hook_data, daemon_state=None):
                                 )
 
                         if pii_action == "block":
-                            result = format_response(
-                                ide_type,
+                            result = _format_response(
+                                adapter,
                                 has_secrets=True,
                                 hook_event=hook_event,
                                 error_message=pii_warning,
@@ -5590,8 +5603,8 @@ def process_hook_data(hook_data, daemon_state=None):
                                             idx
                                         ]
                                 redacted_text = "\n".join(pii_redacted_lines)
-                            result = format_response(
-                                ide_type,
+                            result = _format_response(
+                                adapter,
                                 has_secrets=False,
                                 hook_event=hook_event,
                                 warning_message=pii_warning,
@@ -5602,8 +5615,8 @@ def process_hook_data(hook_data, daemon_state=None):
                             _advance_transcript_position(hook_data)
                             return result
                         elif pii_action == "warn":
-                            result = format_response(
-                                ide_type,
+                            result = _format_response(
+                                adapter,
                                 has_secrets=False,
                                 hook_event=hook_event,
                                 warning_message=pii_warning,
@@ -5613,8 +5626,8 @@ def process_hook_data(hook_data, daemon_state=None):
                             _advance_transcript_position(hook_data)
                             return result
                         elif pii_action == "log-only":
-                            result = format_response(
-                                ide_type, has_secrets=False, hook_event=hook_event
+                            result = _format_response(
+                                adapter, has_secrets=False, hook_event=hook_event
                             )
                             result["_log_only"] = 1
                             result["_violation_type"] = ViolationType.PII_DETECTED
@@ -5625,8 +5638,8 @@ def process_hook_data(hook_data, daemon_state=None):
                                 f"Unknown PII action '{pii_action}', allowing through"
                             )
                             _advance_transcript_position(hook_data)
-                            return format_response(
-                                ide_type, has_secrets=False, hook_event=hook_event
+                            return _format_response(
+                                adapter, has_secrets=False, hook_event=hook_event
                             )
 
             # Prompt injection and context poisoning scanning on PostToolUse output (#1285)
@@ -5755,8 +5768,8 @@ def process_hook_data(hook_data, daemon_state=None):
                                     logging.info(
                                         "PostToolUse: blocking due to prompt injection"
                                     )
-                                    result = format_response(
-                                        ide_type,
+                                    result = _format_response(
+                                        adapter,
                                         has_secrets=True,
                                         error_message=post_pi_error_msg,
                                         hook_event=hook_event,
@@ -5775,8 +5788,8 @@ def process_hook_data(hook_data, daemon_state=None):
                     on_error = _get_on_scan_error_action()
                     if on_error == ActionMode.BLOCK:
                         logging.error(f"PostToolUse PI check error (fail-closed): {e}")
-                        result = format_response(
-                            ide_type,
+                        result = _format_response(
+                            adapter,
                             has_secrets=True,
                             hook_event=hook_event,
                             error_message=f"PostToolUse prompt injection check failed (blocked): {e}",
@@ -5910,8 +5923,8 @@ def process_hook_data(hook_data, daemon_state=None):
                                         logging.info(
                                             "PostToolUse: blocking due to context poisoning"
                                         )
-                                        result = format_response(
-                                            ide_type,
+                                        result = _format_response(
+                                            adapter,
                                             has_secrets=True,
                                             error_message=post_cp_error_msg,
                                             hook_event=hook_event,
@@ -5927,8 +5940,8 @@ def process_hook_data(hook_data, daemon_state=None):
             _advance_transcript_position(hook_data)
             if post_warning_messages:
                 combined = "\n\n".join(post_warning_messages)
-                result = format_response(
-                    ide_type,
+                result = _format_response(
+                    adapter,
                     has_secrets=False,
                     hook_event=hook_event,
                     warning_message=combined,
@@ -5936,7 +5949,7 @@ def process_hook_data(hook_data, daemon_state=None):
                 result["_warning"] = True
                 result["_violation_type"] = "mixed"
                 return result
-            return format_response(ide_type, has_secrets=False, hook_event=hook_event)
+            return _format_response(adapter, has_secrets=False, hook_event=hook_event)
 
         # Accumulate warning messages from log mode checks (tool policy, prompt injection, etc.)
         warning_messages = []
@@ -6087,8 +6100,8 @@ def process_hook_data(hook_data, daemon_state=None):
                                 if warning_messages
                                 else None
                             )
-                            result = format_response(
-                                ide_type,
+                            result = _format_response(
+                                adapter,
                                 has_secrets=True,
                                 error_message=error_message,
                                 hook_event=hook_event,
@@ -6118,8 +6131,8 @@ def process_hook_data(hook_data, daemon_state=None):
                     logging.error(
                         f"Tool policy check error (fail-closed, on_scan_error=block): {e}"
                     )
-                    return format_response(
-                        ide_type,
+                    return _format_response(
+                        adapter,
                         has_secrets=True,
                         hook_event=hook_event,
                         error_message=f"Tool policy check failed (blocked by on_scan_error=block): {e}",
@@ -6207,8 +6220,8 @@ def process_hook_data(hook_data, daemon_state=None):
                                 if warning_messages
                                 else None
                             )
-                            result = format_response(
-                                ide_type,
+                            result = _format_response(
+                                adapter,
                                 has_secrets=True,
                                 error_message=exfil_error,
                                 hook_event=hook_event,
@@ -6284,8 +6297,8 @@ def process_hook_data(hook_data, daemon_state=None):
                     combined_warning = (
                         "\n\n".join(warning_messages) if warning_messages else None
                     )
-                    result = format_response(
-                        ide_type,
+                    result = _format_response(
+                        adapter,
                         has_secrets=True,
                         error_message=deny_reason,
                         hook_event=hook_event,
@@ -6309,8 +6322,8 @@ def process_hook_data(hook_data, daemon_state=None):
                     combined_warning = (
                         "\n\n".join(warning_messages) if warning_messages else None
                     )
-                    return format_response(
-                        ide_type,
+                    return _format_response(
+                        adapter,
                         has_secrets=False,
                         hook_event=hook_event,
                         warning_message=combined_warning,
@@ -6326,8 +6339,8 @@ def process_hook_data(hook_data, daemon_state=None):
                     combined_warning = (
                         "\n\n".join(warning_messages) if warning_messages else None
                     )
-                    return format_response(
-                        ide_type,
+                    return _format_response(
+                        adapter,
                         has_secrets=False,
                         hook_event=hook_event,
                         warning_message=combined_warning,
@@ -6401,8 +6414,8 @@ def process_hook_data(hook_data, daemon_state=None):
                                         if warning_messages
                                         else None
                                     )
-                                    return format_response(
-                                        ide_type,
+                                    return _format_response(
+                                        adapter,
                                         has_secrets=False,
                                         hook_event=hook_event,
                                         warning_message=combined_warning,
@@ -6415,8 +6428,8 @@ def process_hook_data(hook_data, daemon_state=None):
                                     logging.error(
                                         f"Image scanning error (fail-closed): {e}"
                                     )
-                                    return format_response(
-                                        ide_type,
+                                    return _format_response(
+                                        adapter,
                                         has_secrets=True,
                                         hook_event=hook_event,
                                         error_message=f"Image scanning failed (blocked by on_scan_error=block): {e}",
@@ -6431,8 +6444,8 @@ def process_hook_data(hook_data, daemon_state=None):
                                     if warning_messages
                                     else None
                                 )
-                                return format_response(
-                                    ide_type,
+                                return _format_response(
+                                    adapter,
                                     has_secrets=False,
                                     hook_event=hook_event,
                                     warning_message=combined_warning,
@@ -6552,8 +6565,8 @@ def process_hook_data(hook_data, daemon_state=None):
                 combined_warning = (
                     "\n\n".join(warning_messages) if warning_messages else None
                 )
-                return format_response(
-                    ide_type,
+                return _format_response(
+                    adapter,
                     has_secrets=False,
                     hook_event=hook_event,
                     warning_message=combined_warning,
@@ -6570,8 +6583,8 @@ def process_hook_data(hook_data, daemon_state=None):
 
             if not content_to_scan:
                 # No content to check - allow operation
-                return format_response(
-                    ide_type,
+                return _format_response(
+                    adapter,
                     has_secrets=False,
                     hook_event=hook_event,
                     security_message=security_message,
@@ -6751,8 +6764,8 @@ def process_hook_data(hook_data, daemon_state=None):
                         combined_warning = (
                             "\n\n".join(warning_messages) if warning_messages else None
                         )
-                        result = format_response(
-                            ide_type,
+                        result = _format_response(
+                            adapter,
                             has_secrets=True,
                             error_message=injection_error,
                             hook_event=hook_event,
@@ -6778,8 +6791,8 @@ def process_hook_data(hook_data, daemon_state=None):
                     logging.error(
                         f"Prompt injection check error (fail-closed, on_scan_error=block): {e}"
                     )
-                    return format_response(
-                        ide_type,
+                    return _format_response(
+                        adapter,
                         has_secrets=True,
                         hook_event=hook_event,
                         error_message=f"Prompt injection check failed (blocked by on_scan_error=block): {e}",
@@ -6893,8 +6906,8 @@ def process_hook_data(hook_data, daemon_state=None):
                                 if warning_messages
                                 else None
                             )
-                            result = format_response(
-                                ide_type,
+                            result = _format_response(
+                                adapter,
                                 has_secrets=True,
                                 error_message=cp_error_msg,
                                 hook_event=hook_event,
@@ -7008,8 +7021,8 @@ def process_hook_data(hook_data, daemon_state=None):
                         combined_warning = (
                             "\n\n".join(warning_messages) if warning_messages else None
                         )
-                        result = format_response(
-                            ide_type,
+                        result = _format_response(
+                            adapter,
                             has_secrets=True,
                             error_message=sc_error_msg,
                             hook_event=hook_event,
@@ -7176,8 +7189,8 @@ def process_hook_data(hook_data, daemon_state=None):
                         combined_warning = (
                             "\n\n".join(warning_messages) if warning_messages else None
                         )
-                        result = format_response(
-                            ide_type,
+                        result = _format_response(
+                            adapter,
                             has_secrets=True,
                             error_message=config_error,
                             hook_event=hook_event,
@@ -7202,8 +7215,8 @@ def process_hook_data(hook_data, daemon_state=None):
                     logging.error(
                         f"Config file scanning error (fail-closed, on_scan_error=block): {e}"
                     )
-                    return format_response(
-                        ide_type,
+                    return _format_response(
+                        adapter,
                         has_secrets=True,
                         hook_event=hook_event,
                         error_message=f"Config file scanning failed (blocked by on_scan_error=block): {e}",
@@ -7318,8 +7331,8 @@ def process_hook_data(hook_data, daemon_state=None):
                 combined_warning = (
                     "\n\n".join(warning_messages) if warning_messages else None
                 )
-                result = format_response(
-                    ide_type,
+                result = _format_response(
+                    adapter,
                     has_secrets=True,
                     error_message=error_message,
                     hook_event=hook_event,
@@ -7373,8 +7386,8 @@ def process_hook_data(hook_data, daemon_state=None):
 
                     # Scan error with on_scan_error=block: block without logging a false violation (#507)
                     if has_pii and not pii_redactions:
-                        result = format_response(
-                            ide_type,
+                        result = _format_response(
+                            adapter,
                             has_secrets=True,
                             error_message=pii_warning,
                             hook_event=hook_event,
@@ -7477,8 +7490,8 @@ def process_hook_data(hook_data, daemon_state=None):
                             final_error = pii_warning
                             if combined_warning:
                                 final_error = f"{combined_warning}\n\n{final_error}"
-                            result = format_response(
-                                ide_type,
+                            result = _format_response(
+                                adapter,
                                 has_secrets=True,
                                 error_message=final_error,
                                 hook_event=hook_event,
@@ -7558,8 +7571,8 @@ def process_hook_data(hook_data, daemon_state=None):
                     logging.error(
                         f"Transcript scanning error (fail-closed, on_scan_error=block): {e}"
                     )
-                    return format_response(
-                        ide_type,
+                    return _format_response(
+                        adapter,
                         has_secrets=True,
                         hook_event=hook_event,
                         error_message=f"Transcript scanning failed (blocked by on_scan_error=block): {e}",
@@ -7635,8 +7648,8 @@ def process_hook_data(hook_data, daemon_state=None):
                     logging.error(
                         f"OpenCode transcript scanning error (fail-closed): {e}"
                     )
-                    return format_response(
-                        ide_type,
+                    return _format_response(
+                        adapter,
                         has_secrets=True,
                         hook_event=hook_event,
                         error_message=f"OpenCode transcript scanning failed (blocked): {e}",
@@ -7695,8 +7708,8 @@ def process_hook_data(hook_data, daemon_state=None):
         # Combine all warning messages if any exist
         combined_warning = "\n\n".join(warning_messages) if warning_messages else None
 
-        result = format_response(
-            ide_type,
+        result = _format_response(
+            adapter,
             has_secrets=False,
             hook_event=hook_event,
             warning_message=combined_warning,
