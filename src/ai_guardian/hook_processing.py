@@ -1418,6 +1418,7 @@ def scan_transcript_incremental(
     secret_config: Optional[Dict] = None,
     pii_config: Optional[Dict] = None,
     hook_context: Optional[Dict] = None,
+    allowed_findings: Optional[set] = None,
 ) -> list:
     """
     Incrementally scan transcript file for secrets and PII.
@@ -1433,6 +1434,7 @@ def scan_transcript_incremental(
         secret_config: Secret scanning config (for allowlist, ignore patterns)
         pii_config: PII scanning config
         hook_context: Optional dict with session_id for correlation
+        allowed_findings: Optional set of fingerprints to skip (from ask dialog allows)
 
     Returns:
         List of warning message strings (empty if nothing found)
@@ -1510,7 +1512,12 @@ def scan_transcript_incremental(
         return warnings
 
     warnings = _scan_transcript_text(
-        combined_text, transcript_path, secret_config, pii_config, hook_context
+        combined_text,
+        transcript_path,
+        secret_config,
+        pii_config,
+        hook_context,
+        allowed_findings=allowed_findings,
     )
 
     # Update position to actual bytes read
@@ -1526,6 +1533,7 @@ def _scan_transcript_text(
     secret_config: Optional[Dict] = None,
     pii_config: Optional[Dict] = None,
     hook_context: Optional[Dict] = None,
+    allowed_findings: Optional[set] = None,
 ) -> list:
     """Scan combined text for secrets and PII with deduplication.
 
@@ -1537,6 +1545,7 @@ def _scan_transcript_text(
         secret_config: Secret scanning config.
         pii_config: PII scanning config.
         hook_context: Optional context with session_id for correlation.
+        allowed_findings: Optional set of fingerprints to skip (from ask dialog allows).
 
     Returns:
         List of warning message strings.
@@ -1567,7 +1576,7 @@ def _scan_transcript_text(
                 fp = _finding_fingerprint(
                     "secret", _extract_secret_type_from_error(secret_error)
                 )
-                if fp not in seen:
+                if fp not in seen and fp not in (allowed_findings or ()):
                     warning_msg = (
                         f"\n{'='*70}\n"
                         f"🔍 SECRET DETECTED IN CONVERSATION TRANSCRIPT\n"
@@ -1609,7 +1618,7 @@ def _scan_transcript_text(
                         else r.get("type", "")
                     )
                     fp = _finding_fingerprint("pii", f"{r['type']}:{original_value}")
-                    if fp not in seen:
+                    if fp not in seen and fp not in (allowed_findings or ()):
                         new_redactions.append(r)
                         seen[fp] = now_iso
 
@@ -1654,6 +1663,7 @@ def scan_opencode_transcript_incremental(
     secret_config: Optional[Dict] = None,
     pii_config: Optional[Dict] = None,
     hook_context: Optional[Dict] = None,
+    allowed_findings: Optional[set] = None,
 ) -> list:
     """Incrementally scan OpenCode session transcript via SQLite.
 
@@ -1667,6 +1677,7 @@ def scan_opencode_transcript_incremental(
         secret_config: Secret scanning config.
         pii_config: PII scanning config.
         hook_context: Optional context with session_id for correlation.
+        allowed_findings: Optional set of fingerprints to skip (from ask dialog allows).
 
     Returns:
         List of warning message strings (empty if nothing found).
@@ -1698,7 +1709,12 @@ def scan_opencode_transcript_incremental(
         return warnings
 
     warnings = _scan_transcript_text(
-        combined_text, pos_key, secret_config, pii_config, hook_context
+        combined_text,
+        pos_key,
+        secret_config,
+        pii_config,
+        hook_context,
+        allowed_findings=allowed_findings,
     )
 
     # Advance cursor
@@ -2654,8 +2670,15 @@ def _log_ask_decision(
     file_path=None,
     line_number=None,
     dialog_wait_ms=0.0,
+    daemon_state=None,
+    session_id=None,
+    finding_fingerprints=None,
 ):
-    """Log an ask-mode decision (allow or block) to violations.jsonl."""
+    """Log an ask-mode decision (allow or block) to violations.jsonl.
+
+    When an allow decision is made and daemon_state is provided, records
+    finding fingerprints to suppress transcript scanner re-alerts (#1364).
+    """
     if not HAS_VIOLATION_LOGGER:
         return
     try:
@@ -2697,8 +2720,68 @@ def _log_ask_decision(
             context=ctx,
             severity="info",
         )
+
+        # Record allowed findings for transcript scanner dedup (#1364)
+        if action_taken == "allowed" and daemon_state and session_id:
+            _record_allowed_for_transcript(
+                daemon_state,
+                session_id,
+                violation_type,
+                error_msg,
+                matched_text,
+                finding_fingerprints,
+            )
     except Exception as e:
         logging.error(f"Failed to log ask decision: {e}")
+
+
+def _record_allowed_for_transcript(
+    daemon_state,
+    session_id,
+    violation_type,
+    error_msg,
+    matched_text,
+    finding_fingerprints=None,
+):
+    """Record allowed finding fingerprints in DaemonState for transcript dedup.
+
+    Uses pre-computed fingerprints if provided, otherwise auto-computes
+    from violation_type and error_msg/matched_text.
+    """
+    try:
+        if finding_fingerprints:
+            for fp in finding_fingerprints:
+                daemon_state.add_allowed_finding(session_id, fp)
+            return
+
+        if violation_type in (
+            ViolationType.SECRET_DETECTED,
+            ViolationType.SECRET_IN_TRANSCRIPT,
+        ):
+            rule_id = _extract_secret_type_from_error(error_msg)
+            if rule_id and rule_id != "unknown":
+                fp = _finding_fingerprint("secret", rule_id)
+                daemon_state.add_allowed_finding(session_id, fp)
+    except Exception as e:
+        logging.debug(f"Failed to record allowed finding: {e}")
+
+
+def _compute_pii_transcript_fingerprints(pii_redactions, content):
+    """Compute transcript-compatible fingerprints from PII redactions.
+
+    Mirrors the fingerprint logic in _scan_transcript_text() so the
+    transcript scanner recognizes allowed PII findings.
+    """
+    fps = []
+    for r in pii_redactions or []:
+        pos = r.get("position", 0)
+        length = r.get("original_length", 0)
+        original_value = (
+            content[pos : pos + length] if length and content else r.get("type", "")
+        )
+        fp = _finding_fingerprint("pii", f"{r['type']}:{original_value}")
+        fps.append(fp)
+    return fps
 
 
 def _log_prompt_injection_violation(
@@ -5243,6 +5326,8 @@ def process_hook_data(hook_data, daemon_state=None):
                             file_path=file_path if "file_path" in dir() else None,
                             line_number=_last_secret_line_number,
                             dialog_wait_ms=ask_result.dialog_wait_ms,
+                            daemon_state=daemon_state,
+                            session_id=hook_session_id,
                         )
                         return _format_response(
                             adapter,
@@ -5567,6 +5652,11 @@ def process_hook_data(hook_data, daemon_state=None):
                                     file_path=pii_file_path,
                                     line_number=pii_line_number,
                                     dialog_wait_ms=pii_ask_result.dialog_wait_ms,
+                                    daemon_state=daemon_state,
+                                    session_id=hook_session_id,
+                                    finding_fingerprints=_compute_pii_transcript_fingerprints(
+                                        pii_redactions, tool_output
+                                    ),
                                 )
                             else:
                                 pii_action = "block"
@@ -7315,6 +7405,8 @@ def process_hook_data(hook_data, daemon_state=None):
                             file_path=file_path,
                             line_number=_last_secret_line_number,
                             dialog_wait_ms=ask_result_pre.dialog_wait_ms,
+                            daemon_state=daemon_state,
+                            session_id=hook_session_id,
                         )
                     else:
                         _log_ask_decision(
@@ -7468,6 +7560,11 @@ def process_hook_data(hook_data, daemon_state=None):
                                     file_path=pii_file_path2,
                                     line_number=pii_line_number2,
                                     dialog_wait_ms=pii_ask_result2.dialog_wait_ms,
+                                    daemon_state=daemon_state,
+                                    session_id=hook_session_id,
+                                    finding_fingerprints=_compute_pii_transcript_fingerprints(
+                                        pii_redactions, pii_scan_content
+                                    ),
                                 )
                             else:
                                 pii_action = "block"
@@ -7542,6 +7639,11 @@ def process_hook_data(hook_data, daemon_state=None):
                     except NameError:
                         ts_pii_config, _ = _load_pii_config()
 
+                    ts_allowed = (
+                        daemon_state.get_allowed_findings(hook_session_id)
+                        if daemon_state and hook_session_id
+                        else None
+                    )
                     for ts_path in transcript_paths_to_scan:
                         with _latency_timer.check("transcript_scanning"):
                             transcript_warnings = scan_transcript_incremental(
@@ -7553,6 +7655,7 @@ def process_hook_data(hook_data, daemon_state=None):
                                     if hook_session_id
                                     else None
                                 ),
+                                allowed_findings=ts_allowed,
                             )
                         if transcript_warnings:
                             warning_messages.extend(transcript_warnings)
@@ -7616,6 +7719,11 @@ def process_hook_data(hook_data, daemon_state=None):
                         except NameError:
                             ts_pii_config, _ = _load_pii_config()
 
+                        oc_allowed = (
+                            daemon_state.get_allowed_findings(hook_session_id)
+                            if daemon_state and hook_session_id
+                            else None
+                        )
                         transcript_warnings = scan_opencode_transcript_incremental(
                             oc_db_path,
                             oc_session_id,
@@ -7626,6 +7734,7 @@ def process_hook_data(hook_data, daemon_state=None):
                                 if hook_session_id
                                 else None
                             ),
+                            allowed_findings=oc_allowed,
                         )
                         if transcript_warnings:
                             warning_messages.extend(transcript_warnings)

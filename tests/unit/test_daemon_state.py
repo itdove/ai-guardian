@@ -1113,3 +1113,62 @@ class TestVersionInStats:
         assert "version" in stats
         assert isinstance(stats["version"], str)
         assert stats["version"] != ""
+
+
+class TestAllowedFindings:
+    """Tests for allowed transcript findings tracking (#1364)."""
+
+    def test_add_and_get(self, tmp_path):
+        state = DaemonState(config_path=tmp_path / "nonexistent.json")
+        state.add_allowed_finding("sess1", "fp_abc123")
+        result = state.get_allowed_findings("sess1")
+        assert "fp_abc123" in result
+
+    def test_get_empty_session(self, tmp_path):
+        state = DaemonState(config_path=tmp_path / "nonexistent.json")
+        result = state.get_allowed_findings("nonexistent")
+        assert result == set()
+
+    def test_get_none_session(self, tmp_path):
+        state = DaemonState(config_path=tmp_path / "nonexistent.json")
+        result = state.get_allowed_findings(None)
+        assert result == set()
+
+    def test_add_none_session_noop(self, tmp_path):
+        state = DaemonState(config_path=tmp_path / "nonexistent.json")
+        state.add_allowed_finding(None, "fp_abc")
+        state.add_allowed_finding("sess1", None)
+        assert state.get_allowed_findings("sess1") == set()
+
+    def test_multiple_fingerprints(self, tmp_path):
+        state = DaemonState(config_path=tmp_path / "nonexistent.json")
+        state.add_allowed_finding("sess1", "fp_a")
+        state.add_allowed_finding("sess1", "fp_b")
+        state.add_allowed_finding("sess1", "fp_c")
+        result = state.get_allowed_findings("sess1")
+        assert result == {"fp_a", "fp_b", "fp_c"}
+
+    def test_sessions_isolated(self, tmp_path):
+        state = DaemonState(config_path=tmp_path / "nonexistent.json")
+        state.add_allowed_finding("sess1", "fp_a")
+        state.add_allowed_finding("sess2", "fp_b")
+        assert state.get_allowed_findings("sess1") == {"fp_a"}
+        assert state.get_allowed_findings("sess2") == {"fp_b"}
+
+    def test_cleanup_clears_allowed(self, tmp_path):
+        state = DaemonState(
+            config_path=tmp_path / "nonexistent.json",
+            sessions_file=tmp_path / "sessions.json",
+        )
+        state.add_allowed_finding("sess1", "fp_a")
+        state.add_allowed_finding("sess1", "fp_b")
+        assert len(state.get_allowed_findings("sess1")) == 2
+        state.cleanup_session_state("sess1")
+        assert state.get_allowed_findings("sess1") == set()
+
+    def test_get_returns_copy(self, tmp_path):
+        state = DaemonState(config_path=tmp_path / "nonexistent.json")
+        state.add_allowed_finding("sess1", "fp_a")
+        result = state.get_allowed_findings("sess1")
+        result.add("fp_external")
+        assert "fp_external" not in state.get_allowed_findings("sess1")

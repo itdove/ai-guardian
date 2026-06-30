@@ -108,6 +108,10 @@ class DaemonState:
         self._security_injected_sessions = set()
         self._security_reinject_sessions = set()
 
+        # Allowed transcript findings (#1364) — prevents re-alerting on
+        # secrets/PII that were allowed via ask dialog
+        self._allowed_findings = {}  # session_id -> set of fingerprints
+
         # Pause state persistence (#1319)
         self._pause_file = pause_file or self._default_pause_path()
 
@@ -236,7 +240,38 @@ class DaemonState:
             self._security_injected_sessions.discard(session_key)
             self._security_reinject_sessions.discard(session_key)
             self._session_last_activity.pop(session_key, None)
+            self._allowed_findings.pop(session_key, None)
         self._schedule_persist()
+
+    # --- Allowed transcript findings (#1364) ---
+
+    def add_allowed_finding(self, session_id, fingerprint):
+        """Record an allowed finding to suppress transcript scanner re-alerts.
+
+        Args:
+            session_id: IDE session identifier
+            fingerprint: Finding fingerprint (from _finding_fingerprint())
+        """
+        if not session_id or not fingerprint:
+            return
+        with self._lock:
+            if session_id not in self._allowed_findings:
+                self._allowed_findings[session_id] = set()
+            self._allowed_findings[session_id].add(fingerprint)
+
+    def get_allowed_findings(self, session_id):
+        """Return set of allowed finding fingerprints for a session.
+
+        Args:
+            session_id: IDE session identifier
+
+        Returns:
+            Set of fingerprint strings (copy, safe for concurrent use).
+        """
+        if not session_id:
+            return set()
+        with self._lock:
+            return set(self._allowed_findings.get(session_id, ()))
 
     # --- Security injection tracking (#584) ---
 
