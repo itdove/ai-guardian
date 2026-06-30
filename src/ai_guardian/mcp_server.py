@@ -422,8 +422,25 @@ def create_server() -> "FastMCP":
                 default=True,
             )
 
-            action = config.get("action", "block")
-            features["action_mode"] = action
+            scanner_action_keys = [
+                "secret_scanning",
+                "secret_redaction",
+                "scan_pii",
+                "prompt_injection",
+                "context_poisoning",
+                "ssrf_protection",
+                "supply_chain",
+                "config_file_scanning",
+            ]
+            global_action = config.get("action", "block")
+            scanner_actions = {}
+            for key in scanner_action_keys:
+                section = config.get(key, {})
+                if isinstance(section, dict):
+                    scanner_actions[key] = section.get("action", global_action)
+                else:
+                    scanner_actions[key] = global_action
+            features["scanner_actions"] = scanner_actions
 
             mcp_section = config.get("mcp_server", {})
             features["mcp_server"] = True

@@ -222,9 +222,13 @@ class TestConfigEndpoint:
                 data = json.loads(resp.read())
         assert "features" in data
 
-    def test_get_config_includes_action_mode(self, rest_api):
+    def test_get_config_includes_scanner_actions(self, rest_api):
         api, port, state = rest_api
-        cfg = {"action": {"mode": "log"}}
+        cfg = {
+            "action": {"mode": "log"},
+            "secret_scanning": {"action": "ask"},
+            "prompt_injection": {"action": "warn"},
+        }
         with mock.patch(
             "ai_guardian.config_loaders._load_config_file",
             return_value=(cfg, None),
@@ -232,7 +236,10 @@ class TestConfigEndpoint:
             url = f"http://127.0.0.1:{port}/api/config"
             with urlopen(url, timeout=5) as resp:
                 data = json.loads(resp.read())
-        assert data["features"]["action_mode"] == "log"
+        scanner_actions = data["features"]["scanner_actions"]
+        assert scanner_actions["secret_scanning"] == "ask"
+        assert scanner_actions["prompt_injection"] == "warn"
+        assert scanner_actions["scan_pii"] == "log"  # falls back to global
 
     def test_get_config_includes_proactive_level(self, rest_api):
         api, port, state = rest_api

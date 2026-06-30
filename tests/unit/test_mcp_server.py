@@ -653,11 +653,11 @@ class TestGetConfig:
     @patch("ai_guardian.mcp_server._load_full_config")
     def test_returns_feature_booleans(self, mock_config):
         mock_config.return_value = {
-            "secret_scanning": {"enabled": True},
-            "prompt_injection": {"enabled": False},
+            "secret_scanning": {"enabled": True, "action": "ask"},
+            "prompt_injection": {"enabled": False, "action": "warn"},
             "scan_pii": {"enabled": True},
             "security_instructions": {"inject_on_prompt": True},
-            "action": "warn",
+            "action": "block",
             "mcp_server": {"proactive_level": "low"},
         }
 
@@ -668,7 +668,11 @@ class TestGetConfig:
         assert features["secret_scanning"] is True
         assert features["prompt_injection"] is False
         assert features["security_instructions"] is True
-        assert features["action_mode"] == "warn"
+        assert "action_mode" not in features
+        scanner_actions = features["scanner_actions"]
+        assert scanner_actions["secret_scanning"] == "ask"
+        assert scanner_actions["prompt_injection"] == "warn"
+        assert scanner_actions["scan_pii"] == "block"  # falls back to global
 
     @patch("ai_guardian.mcp_server._load_full_config")
     def test_no_rules_or_patterns_exposed(self, mock_config):
