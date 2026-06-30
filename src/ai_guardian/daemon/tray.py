@@ -1257,6 +1257,9 @@ class DaemonTray:
 
             while self._pause_timer_running and self._status == "paused":
                 stats = self._get_stats()
+                if not stats:
+                    time.sleep(1)
+                    continue
                 remaining = stats.get("pause_remaining_seconds", 0)
                 still_paused = stats.get("paused", False)
                 if remaining <= 0 and self._status == "paused" and not still_paused:
@@ -1378,6 +1381,8 @@ class DaemonTray:
             self._update_global_pause_status()
             return
         stats = self._get_stats()
+        if not stats:
+            return
         is_paused = stats.get("paused", False)
         if is_paused and self._status != "paused":
             self.update_status("paused")
@@ -1958,6 +1963,10 @@ class DaemonTray:
         self._stop_discovery_animation()
         self._is_initial_discovery = False
         self._targets = targets
+        if self._status == "paused":
+            for t in self._targets:
+                if t.runtime == "local" and t.status == "running":
+                    t.status = "paused"
         self._apply_working_dirs()
         self._auto_select_target()
         self._poll_plugins()
