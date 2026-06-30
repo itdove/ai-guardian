@@ -79,6 +79,17 @@ The tray auto-discovers running daemons and shows per-daemon submenus with Stati
 
 > **Breaking change in v1.8.0**: `daemon start` no longer launches the tray automatically. Run `ai-guardian tray start -b` separately, or use `ai-guardian tray --install --autostart` for a permanent desktop shortcut with login startup.
 
+### Container
+
+A pre-built support container includes ai-guardian with all headless-capable IDEs (Claude Code, OpenCode, Gemini CLI, Codex CLI, Kiro CLI, OpenClaw):
+
+```bash
+podman build -t ai-guardian-support support/
+podman run -it -p 63152:63152 -e AI_GUARDIAN_IDE=claude ai-guardian-support
+```
+
+See [support/README.md](https://github.com/itdove/ai-guardian/blob/main/support/README.md) for build args, IDE selection, and multi-arch builds.
+
 ### Security Profiles
 
 Choose a profile that matches your environment:
@@ -122,6 +133,7 @@ ai-guardian setup --ide claude --create-config --profile @strict --install-scann
 | Tray Plugins | Custom menu items with native tkinter popup forms (Textual terminal fallback), platform-aware commands | [docs/MULTI_DAEMON_TRAY.md](https://github.com/itdove/ai-guardian/blob/main/docs/MULTI_DAEMON_TRAY.md#tray-plugins) |
 | TOML Pattern Engine | Built-in Python scanner with 267 pre-compiled patterns, no binary required | [docs/TOML_PATTERNS.md](https://github.com/itdove/ai-guardian/blob/main/docs/TOML_PATTERNS.md) |
 | Multi-Agent Support | Hook adapters for 12 AI coding agents with normalized input/output | [docs/AGENT_SUPPORT.md](https://github.com/itdove/ai-guardian/blob/main/docs/AGENT_SUPPORT.md) |
+| Support Container | UBI-based reproduction image with all headless IDEs and scanners | [support/README.md](https://github.com/itdove/ai-guardian/blob/main/support/README.md) |
 | Supply Chain Scanning | Detect malicious patterns in agent hooks, MCP configs, and plugin files | [docs/CONFIGURATION.md](https://github.com/itdove/ai-guardian/blob/main/docs/CONFIGURATION.md#supply-chain-scanning) |
 | Context Poisoning Detection | Detect persistent instruction injection in conversation context (OWASP LLM03) | [docs/security/CONTEXT_POISONING.md](https://github.com/itdove/ai-guardian/blob/main/docs/security/CONTEXT_POISONING.md) |
 | Security SDK & REST API | Programmatic security checking for Python agents and multi-language support | [docs/SDK.md](https://github.com/itdove/ai-guardian/blob/main/docs/SDK.md) |

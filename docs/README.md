@@ -58,6 +58,12 @@ This directory contains detailed documentation for AI Guardian. The main [README
 | [Multi-Engine Support](MULTI_ENGINE_SUPPORT.md) | Scanner engine options and future plans |
 | [Pattern Server](PATTERN_SERVER.md) | Enterprise pattern server configuration |
 
+## Container
+
+| Document | Description |
+|----------|-------------|
+| [Support Container](../support/README.md) | UBI-based reproduction image with all headless IDEs |
+
 ## Development
 
 | Document | Description |

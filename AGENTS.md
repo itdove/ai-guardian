@@ -1157,7 +1157,7 @@ Some LLM tools (e.g., NotebookLM) require single-file upload rather than crawlin
   echo ""
   echo "Auto-generated combined export of all project documentation."
   echo ""
-  for f in README.md $(find docs -name '*.md' -not -name 'notebooklm-export.md' | sort); do
+  for f in README.md support/README.md $(find docs -name '*.md' -not -name 'notebooklm-export.md' | sort); do
     echo ""
     echo "# === $f ==="
     echo ""
@@ -1187,10 +1187,11 @@ Some LLM tools (e.g., NotebookLM) require single-file upload rather than crawlin
 
 **What's included:**
 1. `README.md`
-2. All `docs/*.md` and `docs/security/*.md` files (alphabetically)
-3. `ai-guardian-example.json` (wrapped in a JSON code block)
-4. `aiguardignore.schema.json` (JSON schema for `.aiguardignore.toml`)
-5. `CHANGELOG.md` (trimmed to last 2 released versions)
+2. `support/README.md` (container image docs)
+3. All `docs/*.md` and `docs/security/*.md` files (alphabetically)
+4. `ai-guardian-example.json` (wrapped in a JSON code block)
+5. `aiguardignore.schema.json` (JSON schema for `.aiguardignore.toml`)
+6. `CHANGELOG.md` (trimmed to last 2 released versions)
 
 Each file is separated by a `# === filename ===` header. Total output is ~76k words, well under the 500k-word limit of most LLM tools.
 
