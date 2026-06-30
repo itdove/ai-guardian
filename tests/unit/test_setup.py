@@ -2046,7 +2046,7 @@ class TestCreateDefaultConfig:
                 mock_instance.setup_ide_hooks.assert_called_once()
 
     def test_create_config_exists_does_not_block_mcp(self, tmp_path):
-        """Test --create-config failure (config exists) does not block --mcp installation (Issue #561)."""
+        """Test --create-config failure (config exists) does not block MCP installation (Issue #561)."""
         from ai_guardian.setup import setup_hooks
 
         config_file = tmp_path / "ai-guardian.json"
@@ -2072,7 +2072,6 @@ class TestCreateDefaultConfig:
                         permissive=False,
                         dry_run=False,
                         interactive=False,
-                        mcp=True,
                     )
 
                     assert success is True
@@ -2828,10 +2827,10 @@ class TestMcpMigrationWarning:
 
 
 class TestMcpDefaultOn:
-    """Tests for MCP server installed by default (Issue #808)."""
+    """Tests for MCP server always installed by default (Issue #808, #1377)."""
 
     def test_mcp_installed_by_default(self, tmp_path):
-        """MCP server is installed when no --mcp/--no-mcp flags given."""
+        """MCP server is always installed by default."""
         ide_config_file = tmp_path / "settings.json"
 
         with mock.patch("ai_guardian.setup.IDESetup") as MockSetup:
@@ -2853,8 +2852,6 @@ class TestMcpDefaultOn:
                 mock_mcp.assert_called_once_with(
                     mock_instance,
                     "claude",
-                    mcp=True,
-                    no_mcp=False,
                     dry_run=False,
                 )
 
@@ -2882,37 +2879,7 @@ class TestMcpDefaultOn:
                 mock_mcp.assert_called_once_with(
                     mock_instance,
                     "claude",
-                    mcp=False,
                     no_mcp=True,
-                    dry_run=False,
-                )
-
-    def test_explicit_mcp_flag_accepted(self, tmp_path):
-        """--mcp flag still accepted for backward compat, same as default."""
-        ide_config_file = tmp_path / "settings.json"
-
-        with mock.patch("ai_guardian.setup.IDESetup") as MockSetup:
-            mock_instance = MockSetup.return_value
-            mock_instance.list_detected_ides.return_value = ["claude"]
-            mock_instance.IDE_CONFIGS = {
-                "claude": {"name": "Claude Code", "config_path": str(ide_config_file)}
-            }
-            mock_instance.setup_ide_hooks.return_value = (True, "Success")
-            mock_instance.get_config_path.return_value = str(ide_config_file)
-
-            with mock.patch("ai_guardian.setup._handle_mcp_setup") as mock_mcp:
-                success = setup_hooks(
-                    ide_type="claude",
-                    interactive=False,
-                    mcp=True,
-                )
-
-                assert success is True
-                mock_mcp.assert_called_once_with(
-                    mock_instance,
-                    "claude",
-                    mcp=True,
-                    no_mcp=False,
                     dry_run=False,
                 )
 
@@ -2941,9 +2908,6 @@ class TestMcpDefaultOn:
 
                 assert success is True
                 mock_mcp.assert_called_once()
-                call_kwargs = mock_mcp.call_args
-                assert call_kwargs[1]["mcp"] is True
-                assert call_kwargs[1]["no_mcp"] is False
 
     def test_mcp_not_installed_when_hooks_fail(self, tmp_path):
         """MCP setup is skipped when hook setup fails."""
@@ -2965,6 +2929,114 @@ class TestMcpDefaultOn:
                 )
 
                 mock_mcp.assert_not_called()
+
+
+class TestOpenCodeMcpConfig:
+    """Tests for OpenCode MCP config handling (#1377)."""
+
+    def test_writes_to_existing_json_not_jsonc(self, tmp_path):
+        """When opencode.json exists but .jsonc does not, write to .json."""
+        from ai_guardian.setup import _install_mcp_config
+
+        opencode_dir = tmp_path / ".config" / "opencode"
+        opencode_dir.mkdir(parents=True)
+        legacy = opencode_dir / "opencode.json"
+        legacy.write_text('{"mcp": {}}')
+
+        with mock.patch(
+            "ai_guardian.setup._MCP_IDE_CONFIGS",
+            {
+                "opencode": {
+                    "config_file": str(opencode_dir / "opencode.jsonc"),
+                    "config_key": "mcp",
+                },
+            },
+        ):
+            with mock.patch(
+                "ai_guardian.setup._resolve_binary_path",
+                return_value="/usr/bin/ai-guardian",
+            ):
+                _install_mcp_config(mock.MagicMock(), "opencode")
+
+        assert legacy.exists()
+        jsonc_path = opencode_dir / "opencode.jsonc"
+        assert not jsonc_path.exists()
+        config = json.loads(legacy.read_text())
+        assert "ai-guardian" in config["mcp"]
+
+    def test_prefers_jsonc_when_both_exist(self, tmp_path):
+        """When both .json and .jsonc exist, write to .jsonc."""
+        from ai_guardian.setup import _install_mcp_config
+
+        opencode_dir = tmp_path / ".config" / "opencode"
+        opencode_dir.mkdir(parents=True)
+        legacy = opencode_dir / "opencode.json"
+        legacy.write_text('{"old": true}')
+        jsonc = opencode_dir / "opencode.jsonc"
+        jsonc.write_text('{"mcp": {}}')
+
+        with mock.patch(
+            "ai_guardian.setup._MCP_IDE_CONFIGS",
+            {
+                "opencode": {
+                    "config_file": str(jsonc),
+                    "config_key": "mcp",
+                },
+            },
+        ):
+            with mock.patch(
+                "ai_guardian.setup._resolve_binary_path",
+                return_value="/usr/bin/ai-guardian",
+            ):
+                _install_mcp_config(mock.MagicMock(), "opencode")
+
+        config = json.loads(jsonc.read_text())
+        assert "ai-guardian" in config["mcp"]
+
+    def test_creates_jsonc_when_neither_exists(self, tmp_path):
+        """When no config exists, create opencode.jsonc."""
+        from ai_guardian.setup import _install_mcp_config
+
+        opencode_dir = tmp_path / ".config" / "opencode"
+        opencode_dir.mkdir(parents=True)
+
+        with mock.patch(
+            "ai_guardian.setup._MCP_IDE_CONFIGS",
+            {
+                "opencode": {
+                    "config_file": str(opencode_dir / "opencode.jsonc"),
+                    "config_key": "mcp",
+                },
+            },
+        ):
+            with mock.patch(
+                "ai_guardian.setup._resolve_binary_path",
+                return_value="/usr/bin/ai-guardian",
+            ):
+                _install_mcp_config(mock.MagicMock(), "opencode")
+
+        jsonc_path = opencode_dir / "opencode.jsonc"
+        assert jsonc_path.exists()
+        config = json.loads(jsonc_path.read_text())
+        assert "ai-guardian" in config["mcp"]
+
+    def test_skip_silently_when_no_config_path(self):
+        """IDEs without MCP config path skip silently (no output)."""
+        from ai_guardian.setup import _install_mcp_config
+
+        with mock.patch(
+            "ai_guardian.setup._MCP_IDE_CONFIGS",
+            {
+                "copilot": {"config_key": "mcpServers"},
+            },
+        ):
+            _install_mcp_config(mock.MagicMock(), "copilot")
+
+    def test_skip_silently_when_unknown_ide(self):
+        """Unknown IDE types skip silently."""
+        from ai_guardian.setup import _install_mcp_config
+
+        _install_mcp_config(mock.MagicMock(), "unknown_ide")
 
 
 class TestResolveBinaryPath:

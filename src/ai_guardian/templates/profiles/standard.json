@@ -283,7 +283,7 @@
     "security_instructions": {
         "inject_on_prompt": true
     },
-    "_comment_mcp_server": "MCP security advisor server. Exposes read-only security tools for AI agents. Install via: ai-guardian setup --ide claude --mcp. (NEW in v1.7.0, Issue #477)",
+    "_comment_mcp_server": "MCP security advisor server. Exposes read-only security tools for AI agents. Installed by default during setup. Use --no-mcp to skip. (NEW in v1.7.0, Issue #477)",
     "mcp_server": {
         "proactive_level": "low"
     },

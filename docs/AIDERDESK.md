@@ -32,8 +32,8 @@ ai-guardian setup --ide aiderdesk
 cd ~/.aider-desk/extensions/ai-guardian
 npm install
 
-# Optional: also install MCP server
-ai-guardian setup --ide aiderdesk --mcp
+# MCP server is installed by default (use --no-mcp to skip)
+ai-guardian setup --ide aiderdesk
 ```
 
 The extension installs to `~/.aider-desk/extensions/ai-guardian/` (global scope). AiderDesk automatically detects and hot-reloads extensions.
