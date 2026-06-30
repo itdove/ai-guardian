@@ -60,6 +60,154 @@ class TestFindProjectRootPerCwd:
         assert str(tmp_path) in _project_roots
 
 
+class TestFindProjectRootDaemonOverride:
+    """find_project_root() uses get_project_dir() override in daemon mode (#1399)."""
+
+    def setup_method(self):
+        from ai_guardian.gitleaks_config import reset_cache
+
+        reset_cache()
+
+    def teardown_method(self):
+        from ai_guardian.config_utils import clear_project_dir_override
+
+        clear_project_dir_override()
+
+    def test_uses_daemon_override_when_set(self, tmp_path):
+        from ai_guardian.config_utils import set_project_dir_override
+        from ai_guardian.gitleaks_config import find_project_root, _project_roots
+
+        daemon_cwd = tmp_path / "daemon_startup"
+        client_cwd = tmp_path / "client_project"
+        daemon_cwd.mkdir()
+        client_cwd.mkdir()
+
+        set_project_dir_override(str(client_cwd))
+
+        with patch("subprocess.check_output", side_effect=FileNotFoundError("no git")):
+            root = find_project_root()
+
+        assert root == Path(str(client_cwd))
+        assert str(client_cwd) in _project_roots
+
+    def test_load_aiguardignore_uses_daemon_override(self, tmp_path):
+        from ai_guardian.aiguardignore import load_aiguardignore, reset_cache
+        from ai_guardian.config_utils import set_project_dir_override
+
+        reset_cache()
+
+        client_project = tmp_path / "client_project"
+        client_project.mkdir()
+        (client_project / ".aiguardignore.toml").write_text(
+            '[allowlist]\npaths = ["client_tests/**"]\n'
+        )
+
+        set_project_dir_override(str(client_project))
+
+        with patch(
+            "subprocess.check_output", return_value=str(client_project).encode()
+        ):
+            config = load_aiguardignore()
+
+        assert config is not None
+        assert config.global_paths == ["client_tests/**"]
+
+    def test_get_ignore_paths_accepts_project_root(self, tmp_path):
+        from ai_guardian.aiguardignore import get_ignore_paths, reset_cache
+
+        reset_cache()
+
+        project = tmp_path / "my_project"
+        project.mkdir()
+        (project / ".aiguardignore.toml").write_text(
+            '[allowlist]\npaths = ["vendor/**"]\n'
+            '[secret_scanning.allowlist]\npaths = ["keys/**"]\n'
+        )
+
+        paths = get_ignore_paths("secret_scanning", project_root=project)
+        assert "vendor/**" in paths
+        assert "keys/**" in paths
+
+    def test_load_gitleaks_allowlist_uses_daemon_override(self, tmp_path):
+        from ai_guardian.config_utils import set_project_dir_override
+        from ai_guardian.gitleaks_config import load_gitleaks_allowlist, reset_cache
+
+        reset_cache()
+
+        client_project = tmp_path / "client_project"
+        client_project.mkdir()
+        (client_project / ".gitleaks.toml").write_text(
+            '[allowlist]\npaths = ["vendor/**"]\n'
+        )
+
+        set_project_dir_override(str(client_project))
+
+        with patch(
+            "subprocess.check_output", return_value=str(client_project).encode()
+        ):
+            al = load_gitleaks_allowlist()
+
+        assert al is not None
+        assert al.paths == ["vendor/**"]
+
+    def test_should_skip_file_uses_daemon_override(self, tmp_path):
+        from ai_guardian.config_utils import set_project_dir_override
+        from ai_guardian.gitleaks_config import (
+            GitleaksAllowlist,
+            should_skip_file,
+            reset_cache,
+        )
+
+        reset_cache()
+
+        client_project = tmp_path / "client_project"
+        client_project.mkdir()
+
+        set_project_dir_override(str(client_project))
+
+        allowlist = GitleaksAllowlist(paths=["vendor/**"])
+
+        with patch(
+            "subprocess.check_output", return_value=str(client_project).encode()
+        ):
+            result = should_skip_file(
+                str(client_project / "vendor" / "lib.py"), allowlist
+            )
+
+        assert result is True
+
+    def test_filter_findings_uses_daemon_override(self, tmp_path):
+        from ai_guardian.config_utils import set_project_dir_override
+        from ai_guardian.gitleaks_config import (
+            GitleaksAllowlist,
+            filter_findings,
+            reset_cache,
+        )
+
+        reset_cache()
+
+        client_project = tmp_path / "client_project"
+        client_project.mkdir()
+
+        set_project_dir_override(str(client_project))
+
+        allowlist = GitleaksAllowlist(paths=["vendor/**"])
+        findings = [{"rule_id": "test", "line_number": 1, "file": "vendor/lib.py"}]
+        content_lines = ["secret = 'abc123'"]
+
+        with patch(
+            "subprocess.check_output", return_value=str(client_project).encode()
+        ):
+            remaining = filter_findings(
+                findings,
+                content_lines,
+                str(client_project / "vendor" / "lib.py"),
+                allowlist,
+            )
+
+        assert len(remaining) == 0
+
+
 class TestAiguardignorePerProject:
     """load_aiguardignore() caches per-project root."""
 

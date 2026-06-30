@@ -165,13 +165,15 @@ def load_aiguardignore(
     return result
 
 
-def get_ignore_paths(scanner_type: str) -> List[str]:
+def get_ignore_paths(
+    scanner_type: str, project_root: Optional[Path] = None
+) -> List[str]:
     """Return combined global + scanner-specific paths for a scanner type.
 
     Returns an empty list when no .aiguardignore.toml exists or when
     there are no matching paths.
     """
-    config = load_aiguardignore()
+    config = load_aiguardignore(project_root=project_root)
     if config is None:
         return []
 

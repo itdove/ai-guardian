@@ -18,7 +18,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Dict, List, Optional
 
-from ai_guardian.config_utils import validate_regex_pattern
+from ai_guardian.config_utils import get_project_dir, validate_regex_pattern
 from ai_guardian.utils.path_matching import match_ignore_pattern
 
 logger = logging.getLogger(__name__)
@@ -70,7 +70,7 @@ def find_project_root(cwd: Optional[str] = None) -> Optional[Path]:
              pass the client's CWD so git rev-parse runs in the correct project.
              Defaults to os.getcwd().
     """
-    cache_key = str(cwd) if cwd else os.getcwd()
+    cache_key = str(cwd) if cwd else get_project_dir()
 
     if cache_key in _project_roots:
         _cache_last_accessed[cache_key] = time.monotonic()
@@ -226,7 +226,7 @@ def should_skip_file(file_path: str, allowlist: GitleaksAllowlist) -> bool:
     if not allowlist.paths:
         return False
 
-    root = find_project_root()
+    root = find_project_root(cwd=get_project_dir())
     rel_path = _normalize_path(file_path, root) if root else file_path
 
     for pattern in allowlist.paths:
@@ -276,7 +276,7 @@ def filter_findings(
     allowlist: GitleaksAllowlist,
 ) -> List[dict]:
     """Return only findings NOT suppressed by the .gitleaks.toml allowlist."""
-    root = find_project_root()
+    root = find_project_root(cwd=get_project_dir())
     rel_path = _normalize_path(file_path, root) if root and file_path else file_path
 
     remaining = []
