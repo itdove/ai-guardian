@@ -281,12 +281,6 @@ def create_violations_page(service, daemon_name: str):
                     )
                     buttons[label] = btn
 
-            ui.button(
-                "Scan File/Directory",
-                icon="search",
-                on_click=lambda: ui.navigate.to(f"/{daemon_name}/directory-scan"),
-            ).props("dense outline color=positive")
-
             cards_container = ui.column().classes("w-full gap-1")
 
             async def load_violations():
@@ -322,6 +316,18 @@ def create_violations_page(service, daemon_name: str):
                         _render_violation_card(v, service, daemon_name)
 
                 inject_local_time_js()
+
+            with ui.row().classes("gap-2"):
+                ui.button(
+                    "Refresh",
+                    icon="refresh",
+                    on_click=load_violations,
+                ).props("dense outline")
+                ui.button(
+                    "Scan File/Directory",
+                    icon="search",
+                    on_click=lambda: ui.navigate.to(f"/{daemon_name}/directory-scan"),
+                ).props("dense outline color=positive")
 
             ui.timer(0.1, load_violations, once=True)
 

@@ -1070,6 +1070,11 @@ class ViolationsContent(Container):
 
         with Horizontal(classes="violation-actions"):
             yield Button(
+                "Refresh",
+                id="refresh-violations",
+                variant="default",
+            )
+            yield Button(
                 "Scan File/Directory",
                 id="scan-file-dir",
                 variant="primary",
@@ -1244,6 +1249,11 @@ class ViolationsContent(Container):
     def on_button_pressed(self, event: Button.Pressed) -> None:
         """Handle button presses (details and correlated on violation cards)."""
         button_id = event.button.id
+
+        if button_id == "refresh-violations":
+            self.load_all_filters()
+            self.app.notify("Violations refreshed", severity="information")
+            return
 
         if button_id == "scan-file-dir":
             try:
