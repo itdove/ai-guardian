@@ -4520,10 +4520,6 @@ def check_secrets_with_gitleaks(
                             )
                             return False, None
 
-                # Replace temp scan path with original file path (Issue #882)
-                if secret_details:
-                    secret_details["file"] = file_path or filename
-
                 # Secret liveness validation (Issue #971, #983) — legacy subprocess path
                 if secret_details:
                     secrets_for_validation = [secret_details]
