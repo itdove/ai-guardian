@@ -5845,7 +5845,7 @@ Set `"run_on_target": true` — the tray automatically wraps the command for the
     },
     {
       "label": "Show Config",
-      "command": "ai-guardian show-config",
+      "command": "ai-guardian config show --summary",
       "run_on_target": true,
       "type": "modal"
     }

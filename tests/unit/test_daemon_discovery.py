@@ -984,7 +984,7 @@ class TestSdkExecInstanceName:
         c.exec_run.return_value = (0, b"my-daemon\n")
         assert DaemonDiscovery._sdk_exec_instance_name(c) == "my-daemon"
 
-    def test_fallback_to_show_config(self):
+    def test_fallback_to_config_show_summary(self):
         c = mock.MagicMock()
         c.exec_run.side_effect = [
             (1, b""),
@@ -1001,9 +1001,9 @@ class TestSdkExecInstanceName:
         c = mock.MagicMock()
         c.exec_run.side_effect = [
             (0, b"\n"),
-            (0, json.dumps({"daemon": {"name": "from-show-config"}}).encode()),
+            (0, json.dumps({"daemon": {"name": "from-config-show"}}).encode()),
         ]
-        assert DaemonDiscovery._sdk_exec_instance_name(c) == "from-show-config"
+        assert DaemonDiscovery._sdk_exec_instance_name(c) == "from-config-show"
 
 
 class TestDiscoverKubernetes:

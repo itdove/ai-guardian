@@ -149,7 +149,7 @@ class PatternLoader(ABC):
         # Merge all tiers
         final_patterns = self.merge_patterns(immutable, default_patterns, local_config)
 
-        # Store source attribution for show-config command
+        # Store source attribution for 'config show --summary' command
         final_patterns["_pattern_sources"] = self.pattern_sources
 
         logger.debug(

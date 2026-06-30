@@ -8,12 +8,12 @@
 #   podman build --build-arg AI_GUARDIAN_VERSION=1.13.0 -t ai-guardian-support support/
 #
 # Run:
-#   podman run -it -p 63152:63152 ai-guardian-support
-#   podman run -it -p 63152:63152 -e AI_GUARDIAN_IDE=opencode ai-guardian-support
+#   podman run -it -p 63152 ai-guardian-support
+#   podman run -it -p 63152 -e AI_GUARDIAN_IDE=opencode ai-guardian-support
 #
 # Local wheel:
-#   cp dist/ai_guardian-*.whl support/
-#   podman build --build-arg AI_GUARDIAN_VERSION=ai_guardian-1.13.0-py3-none-any.whl -t ai-guardian-support support/
+#   python -m build --wheel && cp dist/ai_guardian-*.whl support/vendor/
+#   podman build --build-arg AI_GUARDIAN_VERSION=ai_guardian-1.13.0.dev0-py3-none-any.whl -t ai-guardian-support support/
 
 FROM registry.access.redhat.com/ubi10/ubi-minimal:latest
 
@@ -100,8 +100,14 @@ RUN npm install -g @google/gemini-cli @openai/codex openclaw 2>/dev/null \
 
 # Kiro CLI
 USER sandbox
-RUN curl -fsSL https://cli.kiro.dev/install | bash 2>/dev/null \
-    && (kiro --version 2>/dev/null || echo "Kiro CLI installed")
+RUN ARCH=$(uname -m) && \
+    curl --proto '=https' --tlsv1.2 -sSf \
+      "https://desktop-release.q.us-east-1.amazonaws.com/latest/kirocli-${ARCH}-linux.zip" \
+      -o /tmp/kirocli.zip && \
+    cd /tmp && python3 -c "import zipfile; zipfile.ZipFile('kirocli.zip').extractall()" && \
+    chmod +x kirocli/install.sh && ./kirocli/install.sh --no-confirm && \
+    rm -rf /tmp/kirocli* && \
+    (kiro --version 2>/dev/null || echo "Kiro CLI installed")
 
 # Prepare config directories
 USER root

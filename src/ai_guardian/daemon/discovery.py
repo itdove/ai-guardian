@@ -438,7 +438,7 @@ class DaemonDiscovery:
 
         try:
             exit_code, output = container.exec_run(
-                ["ai-guardian", "show-config", "--json"],
+                ["ai-guardian", "config", "show", "--summary", "--json"],
                 demux=False,
             )
             if exit_code == 0:
