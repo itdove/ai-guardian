@@ -476,6 +476,10 @@ def is_hash_value(matched_text: str, line_text: Optional[str] = None) -> bool:
 
     clean = matched_text.strip().strip("'\"")
 
+    # Env-variable patterns capture KEY=VALUE — extract value after =
+    if "=" in clean:
+        clean = clean.split("=", 1)[1]
+
     if len(clean) not in _HASH_HEX_LENGTHS:
         return False
     if not _HEX_ONLY_RE.match(clean):

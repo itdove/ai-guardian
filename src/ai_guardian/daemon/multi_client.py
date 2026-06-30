@@ -373,10 +373,27 @@ class MultiDaemonClient:
         )
         mcp_cfg = cfg.get("mcp_server", {})
         features["mcp_server"] = bool(mcp_cfg) if mcp_cfg is not None else True
-        action = cfg.get("action", "block")
-        if isinstance(action, dict):
-            action = action.get("mode", "block")
-        features["action_mode"] = action
+        scanner_action_keys = [
+            "secret_scanning",
+            "secret_redaction",
+            "scan_pii",
+            "prompt_injection",
+            "context_poisoning",
+            "ssrf_protection",
+            "supply_chain",
+            "config_file_scanning",
+        ]
+        global_action = cfg.get("action", "block")
+        if isinstance(global_action, dict):
+            global_action = global_action.get("mode", "block")
+        scanner_actions = {}
+        for key in scanner_action_keys:
+            section = cfg.get(key, {})
+            if isinstance(section, dict):
+                scanner_actions[key] = section.get("action", global_action)
+            else:
+                scanner_actions[key] = global_action
+        features["scanner_actions"] = scanner_actions
         if isinstance(mcp_cfg, dict):
             features["proactive_level"] = mcp_cfg.get("proactive_level", "low")
         else:
