@@ -11,7 +11,7 @@ from ai_guardian.hook_adapters import (
     ADAPTER_CLASSES,
     detect_adapter,
     get_adapter_by_ide_type,
-    ClaudeCodeAdapter,
+    BaseAgentAdapter,
     CursorAdapter,
     CopilotAdapter,
     CodexAdapter,
@@ -80,12 +80,12 @@ class TestAdapterRegistry:
 
     def test_default_fallback_is_claude_code(self):
         adapter = detect_adapter({})
-        assert isinstance(adapter, ClaudeCodeAdapter)
+        assert isinstance(adapter, BaseAgentAdapter)
 
     def test_env_var_override_claude(self):
         with mock.patch.dict(os.environ, {"AI_GUARDIAN_IDE_TYPE": "claude"}):
             adapter = detect_adapter({})
-            assert isinstance(adapter, ClaudeCodeAdapter)
+            assert isinstance(adapter, BaseAgentAdapter)
 
     def test_env_var_override_cursor(self):
         with mock.patch.dict(os.environ, {"AI_GUARDIAN_IDE_TYPE": "cursor"}):
@@ -217,11 +217,11 @@ class TestAdapterRegistry:
 
     def test_ide_type_field_unknown_value_falls_through(self):
         adapter = detect_adapter({"_ide_type": "unknown_ide"})
-        assert isinstance(adapter, ClaudeCodeAdapter)
+        assert isinstance(adapter, BaseAgentAdapter)
 
     def test_get_adapter_by_ide_type(self):
         assert isinstance(
-            get_adapter_by_ide_type(IDEType.CLAUDE_CODE), ClaudeCodeAdapter
+            get_adapter_by_ide_type(IDEType.CLAUDE_CODE), BaseAgentAdapter
         )
         assert isinstance(get_adapter_by_ide_type(IDEType.CURSOR), CursorAdapter)
         assert isinstance(
@@ -230,7 +230,7 @@ class TestAdapterRegistry:
         assert isinstance(get_adapter_by_ide_type(IDEType.GEMINI_CLI), GeminiCLIAdapter)
         assert isinstance(get_adapter_by_ide_type(IDEType.CLINE), ClineAdapter)
         assert isinstance(get_adapter_by_ide_type(IDEType.KIRO), KiroAdapter)
-        assert isinstance(get_adapter_by_ide_type(IDEType.UNKNOWN), ClaudeCodeAdapter)
+        assert isinstance(get_adapter_by_ide_type(IDEType.UNKNOWN), BaseAgentAdapter)
 
     def test_adapter_classes_list_not_empty(self):
         assert len(ADAPTER_CLASSES) >= 8
@@ -303,7 +303,7 @@ class TestAutoDetection:
                 "tool_name": "Bash",
             }
         )
-        assert isinstance(adapter, ClaudeCodeAdapter)
+        assert isinstance(adapter, BaseAgentAdapter)
 
     def test_detect_opencode_from_opencode_version(self):
         adapter = detect_adapter({"opencode_version": "1.0.0"})
@@ -319,11 +319,11 @@ class TestAutoDetection:
 
     def test_detect_claude_from_pretooluse(self):
         adapter = detect_adapter({"hook_event_name": "PreToolUse"})
-        assert isinstance(adapter, ClaudeCodeAdapter)
+        assert isinstance(adapter, BaseAgentAdapter)
 
     def test_detect_claude_from_userpromptsubmit(self):
         adapter = detect_adapter({"hook_event_name": "UserPromptSubmit"})
-        assert isinstance(adapter, ClaudeCodeAdapter)
+        assert isinstance(adapter, BaseAgentAdapter)
 
 
 # ── Normalization ────────────────────────────────────────────────────────
@@ -341,7 +341,7 @@ class TestNormalization:
             "session_id": "s1",
             "tool_use_id": "tu1",
         }
-        n = ClaudeCodeAdapter().normalize_input(data)
+        n = BaseAgentAdapter().normalize_input(data)
         assert n.event == HookEvent.PRE_TOOL_USE
         assert n.tool_name == "Bash"
         assert n.tool_input == {"command": "ls -la"}
@@ -355,7 +355,7 @@ class TestNormalization:
             "prompt": "help me fix the bug",
             "session_id": "s2",
         }
-        n = ClaudeCodeAdapter().normalize_input(data)
+        n = BaseAgentAdapter().normalize_input(data)
         assert n.event == HookEvent.PROMPT
         assert n.prompt_text == "help me fix the bug"
 
@@ -365,7 +365,7 @@ class TestNormalization:
             "tool_name": "Read",
             "tool_response": {"output": "file contents"},
         }
-        n = ClaudeCodeAdapter().normalize_input(data)
+        n = BaseAgentAdapter().normalize_input(data)
         assert n.event == HookEvent.POST_TOOL_USE
         assert n.tool_response == {"output": "file contents"}
 
@@ -532,7 +532,7 @@ class TestResponseFormatting:
     """Test format_response() across all adapters."""
 
     def test_claude_code_pretooluse_block(self):
-        result = ClaudeCodeAdapter().format_response(
+        result = BaseAgentAdapter().format_response(
             has_secrets=True,
             error_message="Secret found",
             hook_event=HookEvent.PRE_TOOL_USE,
@@ -549,7 +549,7 @@ class TestResponseFormatting:
         assert result["_blocked"] is True
 
     def test_claude_code_pretooluse_allow(self):
-        result = ClaudeCodeAdapter().format_response(
+        result = BaseAgentAdapter().format_response(
             has_secrets=False,
             hook_event=HookEvent.PRE_TOOL_USE,
         )
@@ -558,7 +558,7 @@ class TestResponseFormatting:
         assert data == {}
 
     def test_claude_code_prompt_block(self):
-        result = ClaudeCodeAdapter().format_response(
+        result = BaseAgentAdapter().format_response(
             has_secrets=True,
             error_message="Injection detected",
             hook_event=HookEvent.PROMPT,
@@ -568,7 +568,7 @@ class TestResponseFormatting:
         assert "Injection detected" in data["reason"]
 
     def test_claude_code_prompt_security_message(self):
-        result = ClaudeCodeAdapter().format_response(
+        result = BaseAgentAdapter().format_response(
             has_secrets=False,
             hook_event=HookEvent.PROMPT,
             security_message="SECURITY RULES",
@@ -577,7 +577,7 @@ class TestResponseFormatting:
         assert "SECURITY RULES" in data["systemMessage"]
 
     def test_claude_code_posttooluse_redaction(self):
-        result = ClaudeCodeAdapter().format_response(
+        result = BaseAgentAdapter().format_response(
             has_secrets=False,
             hook_event=HookEvent.POST_TOOL_USE,
             modified_output="redacted content",
@@ -815,7 +815,7 @@ class TestAgentFacingMessages:
     # -- Claude Code: additionalContext --
 
     def test_claude_code_prompt_security_has_additional_context(self):
-        result = ClaudeCodeAdapter().format_response(
+        result = BaseAgentAdapter().format_response(
             has_secrets=False,
             hook_event=HookEvent.PROMPT,
             security_message="SECURITY RULES",
@@ -826,7 +826,7 @@ class TestAgentFacingMessages:
         assert data["hookSpecificOutput"]["hookEventName"] == "UserPromptSubmit"
 
     def test_claude_code_prompt_security_and_warning_has_additional_context(self):
-        result = ClaudeCodeAdapter().format_response(
+        result = BaseAgentAdapter().format_response(
             has_secrets=False,
             hook_event=HookEvent.PROMPT,
             security_message="SECURITY RULES",
@@ -837,7 +837,7 @@ class TestAgentFacingMessages:
         assert "Config warning" in data["hookSpecificOutput"]["additionalContext"]
 
     def test_claude_code_pretooluse_warn_has_additional_context(self):
-        result = ClaudeCodeAdapter().format_response(
+        result = BaseAgentAdapter().format_response(
             has_secrets=False,
             hook_event=HookEvent.PRE_TOOL_USE,
             warning_message="Log mode: tool policy violation",
@@ -851,7 +851,7 @@ class TestAgentFacingMessages:
         assert data["hookSpecificOutput"]["hookEventName"] == "PreToolUse"
 
     def test_claude_code_posttooluse_warn_has_additional_context(self):
-        result = ClaudeCodeAdapter().format_response(
+        result = BaseAgentAdapter().format_response(
             has_secrets=False,
             hook_event=HookEvent.POST_TOOL_USE,
             warning_message="Log mode: secret detected in output",
@@ -864,7 +864,7 @@ class TestAgentFacingMessages:
         )
 
     def test_claude_code_pretooluse_allow_no_additional_context(self):
-        result = ClaudeCodeAdapter().format_response(
+        result = BaseAgentAdapter().format_response(
             has_secrets=False,
             hook_event=HookEvent.PRE_TOOL_USE,
         )
@@ -872,7 +872,7 @@ class TestAgentFacingMessages:
         assert data == {}
 
     def test_claude_code_pretooluse_block_has_sanitized_context(self):
-        result = ClaudeCodeAdapter().format_response(
+        result = BaseAgentAdapter().format_response(
             has_secrets=True,
             error_message="Secret found: matched pattern /sk-[a-z]+/",
             hook_event=HookEvent.PRE_TOOL_USE,
@@ -918,7 +918,7 @@ class TestAgentFacingMessages:
         assert "agent_message" not in data
 
     def test_claude_code_posttooluse_block_no_additional_context(self):
-        result = ClaudeCodeAdapter().format_response(
+        result = BaseAgentAdapter().format_response(
             has_secrets=True,
             error_message="Secret in output",
             hook_event=HookEvent.POST_TOOL_USE,
@@ -1060,7 +1060,7 @@ class TestAgentFacingMessages:
     # -- Sanitized block reason helper --
 
     def test_sanitize_block_reason_known_types(self):
-        adapter = ClaudeCodeAdapter()
+        adapter = BaseAgentAdapter()
         assert (
             adapter._sanitize_block_reason("secret_detected")
             == "Operation blocked by ai-guardian: secret detected"
@@ -1083,12 +1083,12 @@ class TestAgentFacingMessages:
         )
 
     def test_sanitize_block_reason_unknown_type(self):
-        assert "security violation" in ClaudeCodeAdapter._sanitize_block_reason(
+        assert "security violation" in BaseAgentAdapter._sanitize_block_reason(
             "unknown_type"
         )
 
     def test_sanitize_block_reason_none(self):
-        assert "security violation" in ClaudeCodeAdapter._sanitize_block_reason(None)
+        assert "security violation" in BaseAgentAdapter._sanitize_block_reason(None)
 
 
 # ── Warning + Error Combination ─────────────────────────────────────────
@@ -1098,7 +1098,7 @@ class TestWarningCombination:
     """Test that warning_message is prepended to error_message."""
 
     def test_claude_code_warning_prepended(self):
-        result = ClaudeCodeAdapter().format_response(
+        result = BaseAgentAdapter().format_response(
             has_secrets=True,
             error_message="Secret found",
             warning_message="Log mode active",
@@ -1127,7 +1127,7 @@ class TestMetadata:
     """Test daemon metadata attachment."""
 
     def test_blocked_metadata(self):
-        result = ClaudeCodeAdapter().format_response(
+        result = BaseAgentAdapter().format_response(
             has_secrets=True,
             error_message="Blocked",
             hook_event=HookEvent.PRE_TOOL_USE,
@@ -1135,7 +1135,7 @@ class TestMetadata:
         assert result["_blocked"] is True
 
     def test_violation_type_metadata(self):
-        result = ClaudeCodeAdapter().format_response(
+        result = BaseAgentAdapter().format_response(
             has_secrets=True,
             error_message="Blocked",
             hook_event=HookEvent.PRE_TOOL_USE,
@@ -1144,7 +1144,7 @@ class TestMetadata:
         assert result["_violation_type"] == "secret_detected"
 
     def test_no_blocked_when_allowed(self):
-        result = ClaudeCodeAdapter().format_response(
+        result = BaseAgentAdapter().format_response(
             has_secrets=False,
             hook_event=HookEvent.PRE_TOOL_USE,
         )
@@ -1158,7 +1158,7 @@ class TestIDETypeProperties:
     """Test that each adapter reports the correct IDEType."""
 
     def test_claude_code_ide_type(self):
-        assert ClaudeCodeAdapter().ide_type == IDEType.CLAUDE_CODE
+        assert BaseAgentAdapter().ide_type == IDEType.CLAUDE_CODE
 
     def test_cursor_ide_type(self):
         assert CursorAdapter().ide_type == IDEType.CURSOR
@@ -1196,7 +1196,7 @@ class TestAdapterNames:
 
     def test_all_adapters_have_names(self):
         adapters = [
-            ClaudeCodeAdapter(),
+            BaseAgentAdapter(),
             CursorAdapter(),
             CopilotAdapter(),
             CodexAdapter(),
@@ -1326,7 +1326,7 @@ class TestDefaultTranscriptPaths:
 
     def test_base_adapter_returns_empty(self):
         """Base adapter returns empty list (no defaults)."""
-        adapter = ClaudeCodeAdapter()
+        adapter = BaseAgentAdapter()
         assert adapter.get_default_transcript_paths() == []
 
     def test_copilot_returns_path_when_file_exists(self, tmp_path):
@@ -1515,7 +1515,7 @@ class TestFormatResponseDispatch:
     def test_format_response_adds_ai_guardian_prefix(self):
         from ai_guardian.hook_processing import _format_response
 
-        adapter = ClaudeCodeAdapter()
+        adapter = BaseAgentAdapter()
         result = _format_response(
             adapter,
             has_secrets=False,
@@ -1529,7 +1529,7 @@ class TestFormatResponseDispatch:
     def test_format_response_no_double_prefix(self):
         from ai_guardian.hook_processing import _format_response
 
-        adapter = ClaudeCodeAdapter()
+        adapter = BaseAgentAdapter()
         result = _format_response(
             adapter,
             has_secrets=False,
@@ -1550,7 +1550,7 @@ class TestFormatResponseDispatch:
         assert adapter.ide_type == IDEType.CLAUDE_CODE  # inherits, that's OK
 
     def test_augment_block_uses_correct_adapter(self, capsys):
-        """AugmentAdapter (also inherits ClaudeCodeAdapter) must be dispatched."""
+        """AugmentAdapter (also inherits BaseAgentAdapter) must be dispatched."""
         from ai_guardian.hook_processing import _format_response
 
         adapter = AugmentAdapter()

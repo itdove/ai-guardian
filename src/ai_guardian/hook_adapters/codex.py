@@ -1,7 +1,7 @@
 """OpenAI Codex hook adapter.
 
 Codex uses the same PascalCase format and JSON response structure as
-Claude Code, so this adapter extends ClaudeCodeAdapter.
+Claude Code, so this adapter extends BaseAgentAdapter.
 
 Codex stores JSONL transcripts at:
     ~/.codex/sessions/YYYY/MM/DD/*.jsonl
@@ -11,10 +11,10 @@ import glob
 import os
 from typing import ClassVar, Dict, List
 
-from ai_guardian.hook_adapters.claude_code import ClaudeCodeAdapter
+from ai_guardian.hook_adapters.base_agent import BaseAgentAdapter
 
 
-class CodexAdapter(ClaudeCodeAdapter):
+class CodexAdapter(BaseAgentAdapter):
     """Adapter for OpenAI Codex.
 
     Codex shares Claude Code's hook format (PascalCase events, same
