@@ -838,18 +838,123 @@ class TestDiscoverPausedState:
     @mock.patch("ai_guardian.daemon.discovery.get_pid_path")
     @mock.patch("ai_guardian.daemon.client.is_daemon_running", return_value=True)
     def test_local_daemon_no_port_stays_running(self, mock_running, mock_pid, tmp_path):
-        """Local daemon without REST port cannot check pause, defaults to running."""
+        """Local daemon without REST port falls back to socket check."""
         config_dir = tmp_path / "config"
         config_dir.mkdir()
         (config_dir / "ai-guardian.json").write_text("{}", encoding="utf-8")
         mock_pid.return_value = mock.MagicMock(exists=lambda: False)
 
         d = DaemonDiscovery()
-        with mock.patch(
-            "ai_guardian.config_utils.get_config_dir", return_value=config_dir
+        with (
+            mock.patch(
+                "ai_guardian.config_utils.get_config_dir", return_value=config_dir
+            ),
+            mock.patch.object(d, "_check_pause_via_socket", return_value=False),
         ):
             target = d.discover_local()
         assert target.status == "running"
+
+    @mock.patch("ai_guardian.daemon.discovery.get_pid_path")
+    @mock.patch("ai_guardian.daemon.client.is_daemon_running", return_value=True)
+    def test_local_probe_fail_socket_fallback_paused(
+        self, mock_running, mock_pid, tmp_path
+    ):
+        """Probe failure falls back to socket check — paused detected."""
+        config_dir = tmp_path / "config"
+        config_dir.mkdir()
+        (config_dir / "ai-guardian.json").write_text("{}", encoding="utf-8")
+
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".pid", delete=False) as f:
+            json.dump({"pid": 12345, "rest_port": 54321}, f)
+            f.flush()
+            from pathlib import Path
+
+            mock_pid.return_value = Path(f.name)
+
+        try:
+            d = DaemonDiscovery()
+            with (
+                mock.patch(
+                    "ai_guardian.config_utils.get_config_dir", return_value=config_dir
+                ),
+                mock.patch.object(d, "_probe_daemon", return_value=None),
+                mock.patch.object(d, "_check_pause_via_socket", return_value=True),
+            ):
+                target = d.discover_local()
+            assert target.status == "paused"
+        finally:
+            os.unlink(f.name)
+
+    @mock.patch("ai_guardian.daemon.discovery.get_pid_path")
+    @mock.patch("ai_guardian.daemon.client.is_daemon_running", return_value=True)
+    def test_local_no_port_socket_fallback_paused(
+        self, mock_running, mock_pid, tmp_path
+    ):
+        """No REST port falls back to socket check — paused detected."""
+        config_dir = tmp_path / "config"
+        config_dir.mkdir()
+        (config_dir / "ai-guardian.json").write_text("{}", encoding="utf-8")
+        mock_pid.return_value = mock.MagicMock(exists=lambda: False)
+
+        d = DaemonDiscovery()
+        with (
+            mock.patch(
+                "ai_guardian.config_utils.get_config_dir", return_value=config_dir
+            ),
+            mock.patch.object(d, "_check_pause_via_socket", return_value=True),
+        ):
+            target = d.discover_local()
+        assert target.status == "paused"
+
+    @mock.patch("ai_guardian.daemon.discovery.get_pid_path")
+    def test_in_process_shortcut_checks_pause(self, mock_pid, tmp_path):
+        """In-process shortcut (local_pid == os.getpid()) checks pause state."""
+        config_dir = tmp_path / "config"
+        config_dir.mkdir()
+        (config_dir / "ai-guardian.json").write_text("{}", encoding="utf-8")
+
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".pid", delete=False) as f:
+            json.dump({"pid": os.getpid(), "rest_port": 54321}, f)
+            f.flush()
+            from pathlib import Path
+
+            mock_pid.return_value = Path(f.name)
+
+        try:
+            d = DaemonDiscovery()
+            with (
+                mock.patch(
+                    "ai_guardian.config_utils.get_config_dir", return_value=config_dir
+                ),
+                mock.patch.object(d, "_check_pause_via_socket", return_value=True),
+            ):
+                target = d.discover_local()
+            assert target.status == "paused"
+        finally:
+            os.unlink(f.name)
+
+    def test_check_pause_via_socket_returns_true(self):
+        """_check_pause_via_socket returns True when daemon reports paused."""
+        with mock.patch(
+            "ai_guardian.daemon.client.send_status_request",
+            return_value={"paused": True},
+        ):
+            assert DaemonDiscovery._check_pause_via_socket() is True
+
+    def test_check_pause_via_socket_returns_false(self):
+        """_check_pause_via_socket returns False when daemon is running."""
+        with mock.patch(
+            "ai_guardian.daemon.client.send_status_request",
+            return_value={"paused": False},
+        ):
+            assert DaemonDiscovery._check_pause_via_socket() is False
+
+    def test_check_pause_via_socket_returns_false_on_failure(self):
+        """_check_pause_via_socket returns False when socket fails."""
+        with mock.patch(
+            "ai_guardian.daemon.client.send_status_request", return_value=None
+        ):
+            assert DaemonDiscovery._check_pause_via_socket() is False
 
 
 class TestSdkFindHostPort:

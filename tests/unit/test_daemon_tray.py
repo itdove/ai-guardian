@@ -5282,3 +5282,100 @@ class TestDaemonUpgrade:
             mock_thread.return_value = mock.MagicMock()
             fn(None, None)
             assert mock_thread.call_args[1]["name"] == "daemon-upgrade-0"
+
+
+class TestPauseFlickerFixes:
+    """Tests for tray icon flicker when daemon is paused (#1376)."""
+
+    def test_on_targets_updated_preserves_pause_state(self):
+        """Discovery targets get pause state applied when tray is paused."""
+        tray = DaemonTray(
+            get_stats_callback=lambda: {"paused": True},
+            stop_callback=lambda: None,
+            pause_callback=lambda mins: None,
+        )
+        tray._status = "paused"
+        targets = [DaemonTarget(name="local", runtime="local", status="running")]
+        with (
+            mock.patch.object(tray, "_apply_working_dirs"),
+            mock.patch.object(tray, "_auto_select_target"),
+            mock.patch.object(tray, "_poll_plugins"),
+            mock.patch.object(tray, "_dispatch_to_main"),
+            mock.patch.object(tray, "_stop_discovery_animation"),
+        ):
+            tray._on_targets_updated(targets)
+        assert targets[0].status == "paused"
+
+    def test_on_targets_updated_no_change_when_running(self):
+        """Discovery targets keep status when tray is running."""
+        tray = DaemonTray(
+            get_stats_callback=lambda: {"paused": False},
+            stop_callback=lambda: None,
+            pause_callback=lambda mins: None,
+        )
+        tray._status = "running"
+        targets = [DaemonTarget(name="local", runtime="local", status="running")]
+        with (
+            mock.patch.object(tray, "_apply_working_dirs"),
+            mock.patch.object(tray, "_auto_select_target"),
+            mock.patch.object(tray, "_poll_plugins"),
+            mock.patch.object(tray, "_dispatch_to_main"),
+            mock.patch.object(tray, "_stop_discovery_animation"),
+        ):
+            tray._on_targets_updated(targets)
+        assert targets[0].status == "running"
+
+    def test_on_targets_updated_skips_non_local(self):
+        """Container targets don't get pause override from tray status."""
+        tray = DaemonTray(
+            get_stats_callback=lambda: {"paused": True},
+            stop_callback=lambda: None,
+            pause_callback=lambda mins: None,
+        )
+        tray._status = "paused"
+        targets = [DaemonTarget(name="remote", runtime="container", status="running")]
+        with (
+            mock.patch.object(tray, "_apply_working_dirs"),
+            mock.patch.object(tray, "_auto_select_target"),
+            mock.patch.object(tray, "_poll_plugins"),
+            mock.patch.object(tray, "_dispatch_to_main"),
+            mock.patch.object(tray, "_stop_discovery_animation"),
+        ):
+            tray._on_targets_updated(targets)
+        assert targets[0].status == "running"
+
+    def test_sync_pause_state_ignores_empty_stats(self):
+        """_sync_pause_state does not change status on empty stats (socket failure)."""
+        tray = DaemonTray(
+            get_stats_callback=lambda: {},
+            stop_callback=lambda: None,
+            pause_callback=lambda mins: None,
+        )
+        tray._targets = [DaemonTarget(name="local", runtime="local", status="paused")]
+        tray._status = "paused"
+        with mock.patch.object(tray, "update_status") as mock_update:
+            tray._sync_pause_state()
+            mock_update.assert_not_called()
+        assert tray._targets[0].status == "paused"
+
+    def test_pause_timer_skips_empty_stats(self):
+        """Pause timer continues loop on empty stats instead of auto-resuming."""
+        call_count = 0
+        stats_sequence = [{}, {"paused": True, "pause_remaining_seconds": 60}]
+
+        def fake_stats():
+            nonlocal call_count
+            idx = min(call_count, len(stats_sequence) - 1)
+            call_count += 1
+            return stats_sequence[idx]
+
+        tray = DaemonTray(
+            get_stats_callback=fake_stats,
+            stop_callback=lambda: None,
+            pause_callback=lambda mins: None,
+        )
+        tray._status = "paused"
+        tray._start_pause_timer()
+        time.sleep(0.15)
+        tray._stop_pause_timer()
+        assert tray._status == "paused"
