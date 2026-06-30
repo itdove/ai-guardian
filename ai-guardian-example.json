@@ -1045,8 +1045,8 @@
   "_comment_mcp_server": "MCP (Model Context Protocol) security advisor server (NEW in v1.7.0, Issue #477)",
   "_comment_mcp_server2": "Exposes read-only security tools that AI agents can use proactively",
   "_comment_mcp_server3": "The AI checks security BEFORE acting — instead of being blocked and retrying",
-  "_comment_mcp_server4": "Install via: ai-guardian setup --ide claude --mcp",
-  "_comment_mcp_server5": "Install: ai-guardian setup --ide claude --mcp",
+  "_comment_mcp_server4": "Installed by default during setup. Use --no-mcp to skip",
+  "_comment_mcp_server5": "Installed by default during setup. Use --no-mcp to skip",
   "mcp_server": {
     "proactive_level": "low"
   },
