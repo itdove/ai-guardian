@@ -2,4 +2,5 @@
 paths = [
     "tests/**",
     "src/ai_guardian/patterns/data/secrets.toml",
+    "docs/notebooklm-export.md",
 ]
