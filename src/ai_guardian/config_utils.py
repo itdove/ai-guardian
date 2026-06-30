@@ -21,6 +21,32 @@ logger = logging.getLogger(__name__)
 ACTION_SEVERITY = {"allow": 0, "log-only": 1, "warn": 2, "redact": 3, "block": 4}
 SENSITIVITY_SEVERITY = {"low": 0, "medium": 1, "high": 2}
 
+
+def _ordinal_comparator(severity_map):
+    def compare(base, override):
+        b, o = severity_map.get(base), severity_map.get(override)
+        if b is not None and o is not None:
+            return o >= b
+        return False
+
+    return compare
+
+
+def _enabled_comparator(base, override):
+    if isinstance(base, bool) and isinstance(override, bool):
+        if not base and override:
+            return True
+        if base and not override:
+            return False
+    return base == override
+
+
+_TIGHTENING_COMPARATORS = {
+    "action": _ordinal_comparator(ACTION_SEVERITY),
+    "sensitivity": _ordinal_comparator(SENSITIVITY_SEVERITY),
+    "enabled": _enabled_comparator,
+}
+
 # Sections that only make sense at the user/system level.
 # Project-level configs cannot override these.
 GLOBAL_ONLY_SECTIONS: FrozenSet[str] = frozenset(
@@ -294,31 +320,10 @@ def _is_tightening(key: str, base_value, override_value) -> bool:
     """
     if base_value == override_value:
         return True
-
-    if key == "action":
-        base_sev = ACTION_SEVERITY.get(base_value)
-        over_sev = ACTION_SEVERITY.get(override_value)
-        if base_sev is not None and over_sev is not None:
-            return over_sev >= base_sev
+    comparator = _TIGHTENING_COMPARATORS.get(key)
+    if comparator is None:
         return False
-
-    if key == "sensitivity":
-        base_sev = SENSITIVITY_SEVERITY.get(base_value)
-        over_sev = SENSITIVITY_SEVERITY.get(override_value)
-        if base_sev is not None and over_sev is not None:
-            return over_sev >= base_sev
-        return False
-
-    if key == "enabled":
-        if isinstance(base_value, bool) and isinstance(override_value, bool):
-            # Enabling a protection is tightening; disabling is loosening
-            if not base_value and override_value:
-                return True
-            if base_value and not override_value:
-                return False
-        return base_value == override_value
-
-    return False
+    return comparator(base_value, override_value)
 
 
 def _deep_merge_section(
