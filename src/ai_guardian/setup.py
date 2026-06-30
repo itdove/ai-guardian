@@ -1986,7 +1986,7 @@ def _get_default_config_template(permissive: bool = False) -> Dict:
         "_comment_remote_configs": "Load additional policies from remote URLs (for enterprise/team policies)",
         "remote_configs": {"urls": []},
         "_comment_console": "Console settings (editor theme, web console)",
-        "console": {"editor_theme": "monokai", "web": {"port": 0, "host": "127.0.0.1"}},
+        "console": {"editor_theme": "monokai", "preferred_theme": "default", "web": {"port": 0, "host": "127.0.0.1"}},
         "_comment_transcript_scanning": "Scan conversation transcript for secrets, PII, and prompt injection from ! shell commands (NEW in v1.7.0, Issue #430)",
         "transcript_scanning": {
             "enabled": True,

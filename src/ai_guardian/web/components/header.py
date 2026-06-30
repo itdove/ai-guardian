@@ -131,6 +131,9 @@ def _init_scope_state():
 
 def create_header(daemon_name: str = ""):
     """Create the shared header bar showing current daemon and scope toggle."""
+    from ai_guardian.theme import apply_quasar_theme
+
+    apply_quasar_theme()
     _init_scope_state()
 
     from ai_guardian.web.config_helpers import (

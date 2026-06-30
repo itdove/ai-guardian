@@ -53,6 +53,26 @@ class WebConsole:
         from ai_guardian.web.config_helpers import set_daemon_service
 
         set_daemon_service(self._service)
+        self._load_saved_theme()
+
+    @staticmethod
+    def _load_saved_theme():
+        """Load preferred_theme from config and apply it."""
+        try:
+            from ai_guardian.config_utils import get_config_dir
+            import json
+
+            config_path = get_config_dir() / "ai-guardian.json"
+            if config_path.exists():
+                with open(config_path, "r", encoding="utf-8") as f:
+                    config = json.load(f)
+                name = config.get("console", {}).get("preferred_theme", "default")
+                if name != "default":
+                    from ai_guardian.theme import set_active_theme
+
+                    set_active_theme(name)
+        except Exception as e:
+            logger.debug("Failed to load saved theme: %s", e)
 
     def run(self, host: str = "127.0.0.1", port: int = 0, show: bool = True):
         if host != "127.0.0.1":

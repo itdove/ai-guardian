@@ -165,7 +165,8 @@
     },
     "_comment_console": "Console settings (editor theme preference)",
     "console": {
-        "editor_theme": "monokai"
+        "editor_theme": "monokai",
+        "preferred_theme": "default"
     },
     "_comment_transcript_scanning": "Scan conversation transcript for secrets, PII, and prompt injection from ! shell commands (NEW in v1.7.0, Issue #430)",
     "transcript_scanning": {
