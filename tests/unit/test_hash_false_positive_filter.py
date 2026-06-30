@@ -103,6 +103,25 @@ class TestIsHashValue:
     def test_subresource_keyword(self):
         assert is_hash_value(SHA256_HASH, f"subresource integrity: {SHA256_HASH}")
 
+    def test_env_variable_key_equals_hash(self):
+        env_match = f"GCLOUD_SHA256_X86_64={SHA256_HASH}"
+        assert is_hash_value(env_match, f"export {env_match}")
+
+    def test_env_variable_checksum_keyword(self):
+        env_match = f"CHECKSUM={MD5_HASH}"
+        assert is_hash_value(env_match, f"export {env_match}")
+
+    def test_env_variable_no_hash_keyword(self):
+        env_match = f"API_TOKEN={SHA256_HASH}"
+        assert not is_hash_value(env_match, f"export {env_match}")
+
+    def test_env_variable_digest_keyword(self):
+        env_match = f"DIGEST_VALUE={SHA256_HASH}"
+        assert is_hash_value(env_match, f"{env_match}")
+
+    def test_equals_in_value_no_key(self):
+        assert is_hash_value(SHA256_HASH, f"sha256: {SHA256_HASH}")
+
 
 class TestFilterFindingsByHash:
     def test_hash_finding_suppressed(self):
