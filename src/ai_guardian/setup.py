@@ -1298,7 +1298,7 @@ class IDESetup:
             if ide_config.get("mcp_only"):
                 msg = (
                     f"{ide_name} does not support hooks.\n"
-                    f"MCP server will be installed by default. Use --no-mcp to skip.\n"
+                    f"MCP server will be installed. Use --no-mcp to skip.\n"
                     f"Use --rules to install guidelines file.\n"
                     f"  ai-guardian setup --ide {ide_type} --rules"
                 )
@@ -2049,7 +2049,7 @@ def _get_default_config_template(permissive: bool = False) -> Dict:
         "security_instructions": {
             "inject_on_prompt": True,
         },
-        "_comment_mcp_server": "MCP security advisor server. Exposes read-only security tools for AI agents. Install via: ai-guardian setup --ide claude --mcp. (NEW in v1.7.0, Issue #477)",
+        "_comment_mcp_server": "MCP security advisor server. Exposes read-only security tools for AI agents. Installed by default during setup. Use --no-mcp to skip. (NEW in v1.7.0, Issue #477)",
         "mcp_server": {
             "proactive_level": "low",
         },
@@ -2490,7 +2490,6 @@ def setup_hooks(
     profile: Optional[str] = None,
     save_profile: Optional[str] = None,
     list_profiles: bool = False,
-    mcp: Optional[bool] = None,
     no_mcp: Optional[bool] = None,
     rules: Optional[bool] = None,
 ) -> bool:
@@ -2514,8 +2513,7 @@ def setup_hooks(
         profile: Optional security profile to apply (use with create_config)
         save_profile: Optional name to save current config as a custom profile
         list_profiles: If True, list available security profiles
-        mcp: If True, enable MCP server configuration
-        no_mcp: If True, disable MCP server configuration
+        no_mcp: If True, skip MCP server installation (MCP is installed by default)
 
     Returns:
         bool: True if successful, False otherwise
@@ -2529,7 +2527,6 @@ def setup_hooks(
             create_config=create_config,
             permissive=permissive,
             profile=profile,
-            mcp=mcp,
             no_mcp=no_mcp,
             rules=rules,
         )
@@ -2677,7 +2674,6 @@ def setup_hooks(
                 ide_type is None
                 and not remote_config_url
                 and not migrate_pattern_server
-                and not mcp
                 and not no_mcp
             ):
                 return False
@@ -2687,7 +2683,6 @@ def setup_hooks(
                 ide_type is None
                 and not remote_config_url
                 and not migrate_pattern_server
-                and not mcp
                 and not no_mcp
             ):
                 if config_success:
@@ -2786,12 +2781,12 @@ def setup_hooks(
     success, message = setup.setup_ide_hooks(ide_type, dry_run=dry_run, force=force)
     print(message)
 
-    # Handle MCP server installation (Issue #477, #808: default-on)
+    # MCP server always installed by default (Issue #477, #808, #1377)
     if success:
         if no_mcp:
-            _handle_mcp_setup(setup, ide_type, mcp=False, no_mcp=True, dry_run=dry_run)
+            _handle_mcp_setup(setup, ide_type, no_mcp=True, dry_run=dry_run)
         else:
-            _handle_mcp_setup(setup, ide_type, mcp=True, no_mcp=False, dry_run=dry_run)
+            _handle_mcp_setup(setup, ide_type, dry_run=dry_run)
 
     # Handle rules/guidelines file installation (Issue #637)
     if success and rules:
@@ -2810,7 +2805,6 @@ def _setup_hooks_json_output(
     create_config: bool = False,
     permissive: bool = False,
     profile: Optional[str] = None,
-    mcp: Optional[bool] = None,
     no_mcp: Optional[bool] = None,
     rules: Optional[bool] = None,
 ) -> bool:
@@ -2913,25 +2907,13 @@ def _setup_hooks_json_output(
     elif not success:
         result["error"] = message
 
-    # Handle MCP server setup (Issue #808: default-on)
+    # MCP server always installed by default (Issue #477, #808, #1377)
     if success:
         with contextlib.redirect_stdout(_devnull), contextlib.redirect_stderr(_devnull):
             if no_mcp:
-                _handle_mcp_setup(
-                    setup,
-                    ide_type,
-                    mcp=False,
-                    no_mcp=True,
-                    dry_run=dry_run,
-                )
+                _handle_mcp_setup(setup, ide_type, no_mcp=True, dry_run=dry_run)
             else:
-                _handle_mcp_setup(
-                    setup,
-                    ide_type,
-                    mcp=True,
-                    no_mcp=False,
-                    dry_run=dry_run,
-                )
+                _handle_mcp_setup(setup, ide_type, dry_run=dry_run)
 
     # Always include MCP server config in JSON output (unless --no-mcp)
     if success and not no_mcp:
@@ -3040,14 +3022,13 @@ _MCP_SERVER_ENTRY = {
 def _handle_mcp_setup(
     setup: IDESetup,
     ide_type: str,
-    mcp: Optional[bool] = None,
-    no_mcp: Optional[bool] = None,
+    no_mcp: bool = False,
     dry_run: bool = False,
 ) -> None:
     """Install or remove MCP server config for an IDE."""
     if no_mcp:
         _remove_mcp_config(setup, ide_type, dry_run)
-    elif mcp:
+    else:
         _install_mcp_config(setup, ide_type, dry_run)
 
 
@@ -3055,15 +3036,19 @@ def _install_mcp_config(setup: IDESetup, ide_type: str, dry_run: bool = False) -
     """Add MCP server entry to IDE config and enable in ai-guardian config."""
     mcp_ide = _MCP_IDE_CONFIGS.get(ide_type)
     if not mcp_ide:
-        print(f"  MCP: IDE '{ide_type}' not supported for MCP server")
         return
 
     config_file = mcp_ide.get("config_file", "")
     if not config_file:
-        print(f"  MCP: IDE '{ide_type}' has no user-level MCP config path, skipping")
         return
 
     config_path = Path(config_file).expanduser()
+
+    # OpenCode: prefer existing opencode.json over creating opencode.jsonc
+    if ide_type == "opencode" and config_path.suffix == ".jsonc":
+        legacy_path = config_path.with_suffix(".json")
+        if legacy_path.exists() and not config_path.exists():
+            config_path = legacy_path
 
     if dry_run:
         print(f"  MCP: Would add ai-guardian MCP server to {config_path}")

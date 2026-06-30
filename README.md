@@ -190,11 +190,11 @@ ai-guardian setup --ide claude       # Claude Code
 ai-guardian setup --ide cursor       # Cursor IDE
 ai-guardian setup --ide copilot      # GitHub Copilot
 ai-guardian setup --dry-run          # Preview changes
-ai-guardian setup --ide claude --mcp # Enable MCP security advisor (opt-in)
+ai-guardian setup --ide claude       # MCP security advisor installed by default
 ai-guardian setup --remote-config-url https://example.com/policy.json
 ```
 
-Run `ai-guardian setup` after upgrading to get the latest hooks. Use `--mcp` to enable the MCP security advisor server — the AI can then check security proactively before acting. See [docs/MCP_SERVER.md](https://github.com/itdove/ai-guardian/blob/main/docs/MCP_SERVER.md) for details and [docs/CONFIGURATION.md](https://github.com/itdove/ai-guardian/blob/main/docs/CONFIGURATION.md) for other setup options.
+Run `ai-guardian setup` after upgrading to get the latest hooks. The MCP security advisor server is installed by default — the AI can check security proactively before acting. Use `--no-mcp` to skip. See [docs/MCP_SERVER.md](https://github.com/itdove/ai-guardian/blob/main/docs/MCP_SERVER.md) for details and [docs/CONFIGURATION.md](https://github.com/itdove/ai-guardian/blob/main/docs/CONFIGURATION.md) for other setup options.
 
 ## Action Modes
 

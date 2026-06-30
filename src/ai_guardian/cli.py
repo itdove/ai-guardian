@@ -306,12 +306,6 @@ def main():
             help="List available security profiles (built-in and custom)",
         )
         setup_parser.add_argument(
-            "--mcp",
-            action="store_true",
-            default=None,
-            help="Install MCP server (default, accepted for backward compatibility)",
-        )
-        setup_parser.add_argument(
             "--no-mcp",
             action="store_true",
             default=None,
@@ -1226,7 +1220,6 @@ def main():
                 profile=args.profile,
                 save_profile=args.save_profile,
                 list_profiles=args.list_profiles,
-                mcp=args.mcp or None,
                 no_mcp=args.no_mcp or None,
                 rules=args.rules if args.rules else None,
             )

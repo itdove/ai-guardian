@@ -15,10 +15,10 @@ AI Guardian includes an MCP (Model Context Protocol) server that exposes read-on
 ### Install with hooks
 
 ```bash
-ai-guardian setup --ide claude --mcp
+ai-guardian setup --ide claude
 ```
 
-This adds the MCP server to your IDE config and enables it in `ai-guardian.json`.
+The MCP server is installed by default during setup. Use `--no-mcp` to skip.
 
 ### Manual setup
 
@@ -61,7 +61,7 @@ Add to `~/.claude.json` (or `~/.claude/settings.json`):
 The MCP server is controlled by IDE config. Install/uninstall via:
 
 ```bash
-ai-guardian setup --ide claude --mcp      # Install
+ai-guardian setup --ide claude             # Install (default)
 ai-guardian setup --ide claude --no-mcp   # Uninstall
 ```
 
