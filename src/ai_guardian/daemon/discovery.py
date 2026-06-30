@@ -209,7 +209,9 @@ class DaemonDiscovery:
 
                 local_pid = pid_info.get("pid", 0)
                 if local_pid == os.getpid():
-                    target.status = "running"
+                    target.status = (
+                        "paused" if self._check_pause_via_socket() else "running"
+                    )
                     target.last_seen = time.monotonic()
                     return target
             except (json.JSONDecodeError, OSError) as e:
@@ -218,14 +220,16 @@ class DaemonDiscovery:
         from ai_guardian.daemon.client import is_daemon_running
 
         if is_daemon_running():
+            paused = False
             if target.port:
                 api_data = self._probe_daemon(target.port)
-                if api_data and api_data.get("paused"):
-                    target.status = "paused"
+                if api_data is not None:
+                    paused = api_data.get("paused", False)
                 else:
-                    target.status = "running"
+                    paused = self._check_pause_via_socket()
             else:
-                target.status = "running"
+                paused = self._check_pause_via_socket()
+            target.status = "paused" if paused else "running"
             target.last_seen = time.monotonic()
         else:
             if local_pid and is_pid_alive(local_pid):
@@ -477,6 +481,17 @@ class DaemonDiscovery:
                 return json_mod.loads(resp.read().decode("utf-8"))
         except Exception:
             return None
+
+    @staticmethod
+    def _check_pause_via_socket():
+        """Check daemon pause state via Unix socket (fallback for REST probe)."""
+        try:
+            from ai_guardian.daemon.client import send_status_request
+
+            stats = send_status_request() or {}
+            return stats.get("paused", False)
+        except Exception:
+            return False
 
     def discover_kubernetes(self) -> List[DaemonTarget]:
         """Discover Kubernetes pod daemons via kubectl."""
