@@ -7,10 +7,10 @@ as Claude Code. Detection relies on opencode_version field or env var.
 
 from typing import ClassVar, Dict, List
 
-from ai_guardian.hook_adapters.claude_code import ClaudeCodeAdapter
+from ai_guardian.hook_adapters.base_agent import BaseAgentAdapter
 
 
-class OpenCodeAdapter(ClaudeCodeAdapter):
+class OpenCodeAdapter(BaseAgentAdapter):
     """Adapter for OpenCode.
 
     OpenCode shares Claude Code's JSON response structure via the bridge

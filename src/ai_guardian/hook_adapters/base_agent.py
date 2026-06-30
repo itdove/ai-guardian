@@ -1,10 +1,11 @@
-"""Claude Code hook adapter.
+"""Base agent adapter (default response format).
 
-Claude Code uses PascalCase event names (UserPromptSubmit, PreToolUse,
-PostToolUse) and JSON responses on stdout. Exit code is always 0;
-blocking is communicated via hookSpecificOutput.permissionDecision.
+Uses PascalCase event names (UserPromptSubmit, PreToolUse, PostToolUse)
+and JSON responses on stdout. Exit code is always 0; blocking is
+communicated via hookSpecificOutput.permissionDecision.
 
-Also used as the base format for Codex and Windsurf (via subclasses).
+Serves as the shared base for Claude Code, Codex, Windsurf, Augment,
+and OpenCode adapters.
 """
 
 import json
@@ -14,11 +15,11 @@ from ai_guardian.constants import HookEvent
 from ai_guardian.hook_adapters.base import HookAdapter, NormalizedHookInput
 
 
-class ClaudeCodeAdapter(HookAdapter):
-    """Adapter for Claude Code (Anthropic).
+class BaseAgentAdapter(HookAdapter):
+    """Default adapter and shared base for agents using PascalCase events.
 
     Detection: hook_event_name in {UserPromptSubmit, PreToolUse, PostToolUse}
-    or fallback (default adapter).
+    or fallback (default adapter). Also the concrete adapter for Claude Code.
     """
 
     ENV_ALIASES: ClassVar[List[str]] = ["claude"]

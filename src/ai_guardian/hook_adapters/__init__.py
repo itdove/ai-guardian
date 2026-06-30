@@ -18,7 +18,7 @@ from ai_guardian.hook_adapters.cursor import CursorAdapter
 from ai_guardian.hook_adapters.kiro import KiroAdapter
 from ai_guardian.hook_adapters.augment import AugmentAdapter
 from ai_guardian.hook_adapters.codex import CodexAdapter
-from ai_guardian.hook_adapters.claude_code import ClaudeCodeAdapter
+from ai_guardian.hook_adapters.base_agent import BaseAgentAdapter
 from ai_guardian.hook_adapters.opencode import OpenCodeAdapter
 from ai_guardian.hook_adapters.junie import JunieAdapter
 
@@ -35,7 +35,7 @@ ADAPTER_CLASSES = [
     KiroAdapter,  # kiro_hook_type or kiro_version
     AugmentAdapter,  # is_mcp_tool + tool_name
     OpenCodeAdapter,  # opencode_version or hook_source
-    ClaudeCodeAdapter,  # PascalCase hook_event_name (fallback)
+    BaseAgentAdapter,  # PascalCase hook_event_name (fallback)
 ]
 
 # Env var value → adapter class (includes aliases like "copilot" → CopilotAdapter)
@@ -52,7 +52,7 @@ def detect_adapter(hook_data: Dict) -> HookAdapter:
     1. Explicit _ide_type field in hook_data (from --ide CLI parameter)
     2. AI_GUARDIAN_IDE_TYPE environment variable override
     3. Auto-detection via each adapter's can_handle() method
-    4. ClaudeCodeAdapter as default fallback
+    4. BaseAgentAdapter as default fallback
 
     Args:
         hook_data: Parsed JSON hook input from the IDE
@@ -88,8 +88,8 @@ def detect_adapter(hook_data: Dict) -> HookAdapter:
             return adapter
 
     # 4. Default fallback
-    logger.debug("No adapter matched, falling back to ClaudeCodeAdapter")
-    return ClaudeCodeAdapter()
+    logger.debug("No adapter matched, falling back to BaseAgentAdapter")
+    return BaseAgentAdapter()
 
 
 def get_adapter_by_ide_type(ide_type) -> HookAdapter:
@@ -106,15 +106,15 @@ def get_adapter_by_ide_type(ide_type) -> HookAdapter:
     from ai_guardian.response_format import IDEType
 
     _IDE_TYPE_MAP = {
-        IDEType.CLAUDE_CODE: ClaudeCodeAdapter,
+        IDEType.CLAUDE_CODE: BaseAgentAdapter,
         IDEType.CURSOR: CursorAdapter,
         IDEType.GITHUB_COPILOT: CopilotAdapter,
         IDEType.GEMINI_CLI: GeminiCLIAdapter,
         IDEType.CLINE: ClineAdapter,
         IDEType.KIRO: KiroAdapter,
-        IDEType.UNKNOWN: ClaudeCodeAdapter,
+        IDEType.UNKNOWN: BaseAgentAdapter,
     }
-    adapter_cls = _IDE_TYPE_MAP.get(ide_type, ClaudeCodeAdapter)
+    adapter_cls = _IDE_TYPE_MAP.get(ide_type, BaseAgentAdapter)
     return adapter_cls()
 
 
@@ -123,7 +123,7 @@ __all__ = [
     "NormalizedHookInput",
     "detect_adapter",
     "get_adapter_by_ide_type",
-    "ClaudeCodeAdapter",
+    "BaseAgentAdapter",
     "CursorAdapter",
     "CopilotAdapter",
     "CodexAdapter",

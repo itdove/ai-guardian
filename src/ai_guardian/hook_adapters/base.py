@@ -46,7 +46,7 @@ class HookAdapter(ABC):
     """
 
     # Subclasses set this to map env var values to the adapter.
-    # e.g., ClaudeCodeAdapter.ENV_ALIASES = ["claude", "codex", "windsurf"]
+    # e.g., BaseAgentAdapter.ENV_ALIASES = ["claude"]
     ENV_ALIASES: ClassVar[List[str]] = []
 
     @property
@@ -265,7 +265,7 @@ class HookAdapter(ABC):
         """Detect hook event from any known event name format.
 
         This is the universal fallback that handles event names from all
-        supported agents. Used by the default adapter (ClaudeCodeAdapter)
+        supported agents. Used by the default adapter (BaseAgentAdapter)
         and any adapter that doesn't fully override normalize_input().
         """
         # Windsurf: agent_action_name field
