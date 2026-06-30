@@ -559,12 +559,32 @@ def filter_findings_dicts_by_hash(
     return filtered, hash_count
 
 
+_BASE64_CONTEXT_PREFIX_RE = re.compile(
+    r"^(?:secret|key|token|password|credential)[\s\"'=:]+",
+    re.IGNORECASE,
+)
+
+
+def base64_not_file_path(matched_text: str) -> bool:
+    """Return False (skip) if the base64 'secret' part is actually a file path."""
+    m = _BASE64_CONTEXT_PREFIX_RE.match(matched_text)
+    if m:
+        value = matched_text[m.end() :]
+    else:
+        value = matched_text
+    value = value.strip().strip("'\"")
+    if not value:
+        return True
+    return not _is_file_path(value)
+
+
 VALIDATOR_REGISTRY: dict = {
     "luhn": luhn_check,
     "iban": iban_check,
     "credit_card": credit_card_check,
     "aadhaar": aadhaar_check,
     "env_not_file_path": env_not_file_path,
+    "base64_not_file_path": base64_not_file_path,
     "connection_not_placeholder": connection_not_placeholder,
     "token_not_placeholder": token_not_placeholder,
 }
