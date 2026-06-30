@@ -14,5 +14,10 @@
       "__globals__",
       "__import__"
     ]
+  },
+  "secret_scanning": {
+    "allowlist_patterns": [
+      "xoxb\\-123456789012\\-1234567890123\\-\\d{12}"
+    ]
   }
 }
