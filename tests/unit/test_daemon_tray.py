@@ -1084,6 +1084,58 @@ class TestPausedTargetMenuVisibility:
         assert "●" in label
         assert "◐" not in label
 
+    @mock.patch("ai_guardian.daemon.working_dir.shorten_path")
+    def test_daemon_status_label_shows_active_project_dir(self, mock_shorten):
+        """Label shows active project dir instead of working dir when available."""
+        mock_shorten.return_value = "~/dev/my-project"
+        t = DaemonTarget(
+            name="my-host",
+            runtime="local",
+            status="running",
+            working_dir="/Users/me",
+        )
+        label = DaemonTray._daemon_status_label(
+            t, active_project_dir="/Users/me/dev/my-project"
+        )
+        assert "~/dev/my-project" in label
+        mock_shorten.assert_called_with("/Users/me/dev/my-project")
+
+    @mock.patch("ai_guardian.daemon.working_dir.shorten_path")
+    def test_daemon_status_label_multiple_projects(self, mock_shorten):
+        """Label shows (+N more) when multiple active projects."""
+        mock_shorten.return_value = "~/project-a"
+        t = DaemonTarget(name="my-host", runtime="local", status="running")
+        label = DaemonTray._daemon_status_label(
+            t, active_project_dir="/home/user/project-a", project_count=3
+        )
+        assert "~/project-a" in label
+        assert "(+2 more)" in label
+
+    @mock.patch("ai_guardian.daemon.working_dir.shorten_path")
+    def test_daemon_status_label_single_project_no_count(self, mock_shorten):
+        """Label omits count suffix when only one active project."""
+        mock_shorten.return_value = "~/project"
+        t = DaemonTarget(name="my-host", runtime="local", status="running")
+        label = DaemonTray._daemon_status_label(
+            t, active_project_dir="/home/user/project", project_count=1
+        )
+        assert "~/project" in label
+        assert "more" not in label
+
+    @mock.patch("ai_guardian.daemon.working_dir.shorten_path")
+    def test_daemon_status_label_falls_back_to_working_dir(self, mock_shorten):
+        """Label falls back to working_dir when no active project."""
+        mock_shorten.return_value = "~"
+        t = DaemonTarget(
+            name="my-host",
+            runtime="local",
+            status="running",
+            working_dir="/Users/me",
+        )
+        label = DaemonTray._daemon_status_label(t, active_project_dir=None)
+        assert "~" in label
+        mock_shorten.assert_called_with("/Users/me")
+
 
 class TestSyncPauseUpdatesTargetStatus:
     """Tests for _sync_pause_state updating target.status (#1356)."""

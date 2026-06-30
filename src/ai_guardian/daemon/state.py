@@ -877,7 +877,19 @@ class DaemonState:
                 "config_error": self._config_error,
                 "mcp_installed": self._mcp_installed,
                 "paused_dirs": self._get_paused_dirs_locked(),
-                "active_project_dirs": list(self._project_dir_last_seen.keys()),
+                "active_project_dirs": sorted(
+                    self._project_dir_last_seen.keys(),
+                    key=lambda d: self._project_dir_last_seen[d],
+                    reverse=True,
+                ),
+                "most_recent_project_dir": (
+                    max(
+                        self._project_dir_last_seen,
+                        key=self._project_dir_last_seen.get,
+                    )
+                    if self._project_dir_last_seen
+                    else None
+                ),
                 "ml_model_loaded": self._ml_engine_manager is not None,
                 "ml_load_error": self._ml_load_error,
                 "ask_dialog_count": self._ask_dialog_count,

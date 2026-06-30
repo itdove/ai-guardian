@@ -571,6 +571,28 @@ class TestStats:
         dirs = stats["active_project_dirs"]
         assert set(dirs) == {"/home/user/project-a", "/home/user/project-b"}
 
+    def test_active_project_dirs_sorted_by_recency(self, tmp_path):
+        """Most recently seen project dir appears first."""
+        state = DaemonState(config_path=tmp_path / "nonexistent.json")
+        state.check_project_config("/home/user/project-a")
+        state.check_project_config("/home/user/project-b")
+        state._project_dir_last_seen["/home/user/project-a"] = 300.0
+        state._project_dir_last_seen["/home/user/project-b"] = 200.0
+        stats = state.get_stats()
+        assert stats["active_project_dirs"][0] == "/home/user/project-a"
+
+    def test_most_recent_project_dir_in_stats(self, tmp_path):
+        """Stats include most_recent_project_dir field."""
+        state = DaemonState(config_path=tmp_path / "nonexistent.json")
+        assert state.get_stats()["most_recent_project_dir"] is None
+        state.check_project_config("/home/user/project-a")
+        state.check_project_config("/home/user/project-b")
+        state._project_dir_last_seen["/home/user/project-b"] = 200.0
+        state._project_dir_last_seen["/home/user/project-a"] = 100.0
+        assert state.get_stats()["most_recent_project_dir"] == "/home/user/project-b"
+        state._project_dir_last_seen["/home/user/project-a"] = 300.0
+        assert state.get_stats()["most_recent_project_dir"] == "/home/user/project-a"
+
     def test_stats_accumulate(self, tmp_path):
         state = DaemonState(config_path=tmp_path / "nonexistent.json")
         state.record_activity()
