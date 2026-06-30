@@ -541,10 +541,10 @@ def main():
             help="Filter findings to only lines changed in the diff",
         )
 
-        # Show-config subcommand (NEW in v1.5.0)
+        # Show-config subcommand (NEW in v1.5.0, DEPRECATED in v1.13.0)
         show_config_parser = subparsers.add_parser(
             "show-config",
-            help="Display effective configuration with source attribution",
+            help="[DEPRECATED: use 'config show --summary'] Display effective configuration",
         )
         show_config_parser.add_argument(
             "--feature",
@@ -596,6 +596,27 @@ def main():
         )
         config_show_parser.add_argument(
             "--json", action="store_true", help="Output configuration as JSON"
+        )
+        config_show_parser.add_argument(
+            "--summary",
+            action="store_true",
+            help="Display scanner feature summaries (SSRF, secrets, unicode, config-scanner)",
+        )
+        config_show_parser.add_argument(
+            "--feature",
+            choices=["ssrf", "secrets", "unicode", "config-scanner", "all"],
+            default="all",
+            help="Which feature to show with --summary (default: all)",
+        )
+        config_show_parser.add_argument(
+            "--show-sources",
+            action="store_true",
+            help="Show source attribution with --summary (IMMUTABLE, SERVER, DEFAULT)",
+        )
+        config_show_parser.add_argument(
+            "--config",
+            metavar="FILE",
+            help="Path to ai-guardian.json config file (default: auto-detect)",
         )
 
         # Scanner subcommand (NEW in v1.6.0)
@@ -1304,8 +1325,13 @@ def main():
                 traceback.print_exc()
                 return 1
 
-        # Handle show-config command (NEW in v1.5.0)
+        # Handle show-config command (NEW in v1.5.0, DEPRECATED in v1.13.0)
         if args.command == "show-config":
+            print(
+                "WARNING: 'show-config' is deprecated. "
+                "Use 'config show --summary' instead.",
+                file=sys.stderr,
+            )
             try:
                 from ai_guardian.config_inspector import ConfigInspector
 
@@ -1381,7 +1407,88 @@ def main():
                     return 1
 
                 if args.config_command == "show":
-                    display = ConfigDisplay()
+                    # Summary mode: scanner feature summaries (replaces show-config)
+                    if getattr(args, "summary", False):
+                        from ai_guardian.config_inspector import ConfigInspector
+
+                        if getattr(args, "config", None):
+                            config_path = Path(args.config)
+                            if config_path.exists():
+                                config = json.loads(config_path.read_text())
+                            else:
+                                print(
+                                    f"Error: Config file not found: {config_path}",
+                                    file=sys.stderr,
+                                )
+                                return 1
+                        else:
+                            config, config_error = _load_config_file()
+                            if config_error:
+                                print(f"Warning: {config_error}", file=sys.stderr)
+                            if config is None:
+                                config = {}
+
+                        inspector = ConfigInspector(config)
+
+                        if args.json:
+                            print(inspector.export_json())
+                        else:
+                            feature = getattr(args, "feature", "all")
+                            show_sources = getattr(args, "show_sources", False)
+                            if feature == "ssrf":
+                                print(
+                                    inspector.show_ssrf_config(
+                                        show_sources=show_sources
+                                    )
+                                )
+                            elif feature == "secrets":
+                                print(
+                                    inspector.show_secret_config(
+                                        show_sources=show_sources
+                                    )
+                                )
+                            elif feature == "unicode":
+                                print(
+                                    inspector.show_unicode_config(
+                                        show_sources=show_sources
+                                    )
+                                )
+                            elif feature == "config-scanner":
+                                print(
+                                    inspector.show_config_scanner_config(
+                                        show_sources=show_sources
+                                    )
+                                )
+                            else:
+                                print(inspector.show_all(show_sources=show_sources))
+                        return 0
+
+                    # Warn if summary-only flags used without --summary
+                    if (
+                        getattr(args, "show_sources", False)
+                        or getattr(args, "feature", "all") != "all"
+                    ):
+                        print(
+                            "Warning: --feature and --show-sources only apply "
+                            "with --summary",
+                            file=sys.stderr,
+                        )
+
+                    # Merged config display (default)
+                    if getattr(args, "config", None):
+                        config_path = Path(args.config)
+                        if config_path.exists():
+                            config = json.loads(config_path.read_text())
+                            display = ConfigDisplay(config)
+                        else:
+                            print(
+                                f"Error: Config file not found: {config_path}",
+                                file=sys.stderr,
+                            )
+                            return 1
+                    else:
+                        display = ConfigDisplay()
+
                     output = display.show(
                         show_all=args.all,
                         section=args.section,

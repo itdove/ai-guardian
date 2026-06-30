@@ -5,6 +5,7 @@ __pycache__/
 .Python
 build/
 dist/
+support/vendor/ai_guardian-*.whl
 *.egg-info/
 
 # Virtual environments
