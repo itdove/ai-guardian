@@ -2029,7 +2029,9 @@ class DaemonTray:
         return len(self._targets) == 1
 
     @staticmethod
-    def _daemon_status_label(target, has_paused_dirs=False):
+    def _daemon_status_label(
+        target, has_paused_dirs=False, active_project_dir=None, project_count=0
+    ):
         """Format a daemon target into a status header label."""
         from ai_guardian.daemon.working_dir import shorten_path
 
@@ -2055,6 +2057,13 @@ class DaemonTray:
             label += " — daemon not running"
         elif target.status == "starting":
             label += " — starting..."
+        elif active_project_dir:
+            short = shorten_path(active_project_dir)
+            if len(short) > 40:
+                short = short[:37] + "..."
+            label += f" — {short}"
+            if project_count > 1:
+                label += f" (+{project_count - 1} more)"
         elif getattr(target, "working_dir", None):
             short = shorten_path(target.working_dir)
             if len(short) > 40:
@@ -2075,8 +2084,13 @@ class DaemonTray:
 
     def _version_annotated_label(self, target):
         """Format daemon label with version mismatch indicator if needed."""
+        stats = self._get_target_stats(target)
+        active_dirs = stats.get("active_project_dirs") or []
         label = self._daemon_status_label(
-            target, has_paused_dirs=self._target_has_paused_dirs(target)
+            target,
+            has_paused_dirs=bool(stats.get("paused_dirs")),
+            active_project_dir=active_dirs[0] if active_dirs else None,
+            project_count=len(active_dirs),
         )
         key = (target.name, target.runtime)
         if key in self._version_mismatch_notified:
