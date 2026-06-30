@@ -318,10 +318,16 @@ def create_daemon_detail_page(service, daemon_name: str):
                                             ui.icon(icon).classes(f"{color} text-sm")
                                             ui.label(label).classes("text-sm")
 
-                                action_mode = features.get("action_mode", "block")
+                                scanner_actions = features.get("scanner_actions", {})
                                 proactive = features.get("proactive_level", "low")
+                                unique_actions = (
+                                    sorted(set(scanner_actions.values()))
+                                    if scanner_actions
+                                    else ["block"]
+                                )
+                                actions_summary = ", ".join(unique_actions)
                                 with ui.row().classes("gap-4 text-sm text-grey-6 mt-1"):
-                                    ui.label(f"Action mode: {action_mode}")
+                                    ui.label(f"Actions: {actions_summary}")
                                     ui.label(f"Proactive level: {proactive}")
 
                 # Rebuild controls only (small section)
