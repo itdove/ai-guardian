@@ -560,6 +560,7 @@ class TestDaemonStateCleanupSession(TestCase):
                     "sess-1": time.time(),
                     "sess-2": time.time(),
                 }
+                state._allowed_findings = {"sess-1": {"fp_a"}}
                 state._sessions_dirty = False
                 state._debounce_timer = None
                 state._sessions_file = None
@@ -569,6 +570,7 @@ class TestDaemonStateCleanupSession(TestCase):
                 assert "sess-1" not in state._security_injected_sessions
                 assert "sess-1" not in state._security_reinject_sessions
                 assert "sess-1" not in state._session_last_activity
+                assert "sess-1" not in state._allowed_findings
                 assert "sess-2" in state._security_injected_sessions
                 assert "sess-2" in state._session_last_activity
 
@@ -585,6 +587,7 @@ class TestDaemonStateCleanupSession(TestCase):
                 state._security_injected_sessions = {"sess-1"}
                 state._security_reinject_sessions = set()
                 state._session_last_activity = {}
+                state._allowed_findings = {}
                 state._sessions_dirty = False
                 state._debounce_timer = None
                 state._sessions_file = None
