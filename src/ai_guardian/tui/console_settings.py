@@ -2,7 +2,7 @@
 """
 Console Settings Panel
 
-Manage console preferences: editor color theme.
+Manage console preferences: editor color theme, UI color theme, preferred UI toolkit.
 """
 
 import logging
@@ -33,6 +33,15 @@ UI_TOOLKIT_OPTIONS = [
 ]
 
 DEFAULT_UI_TOOLKIT = "auto"
+
+COLOR_THEME_OPTIONS = [
+    ("Default (Blue)", "default"),
+    ("Classic Green", "classic_green"),
+    ("High Contrast", "high_contrast"),
+    ("Solarized", "solarized"),
+]
+
+DEFAULT_COLOR_THEME = "default"
 
 
 def load_editor_theme() -> str:
@@ -67,6 +76,23 @@ def load_preferred_ui() -> str:
         except Exception as e:
             logging.warning("Failed to read config: %s", e)
     return DEFAULT_UI_TOOLKIT
+
+
+def load_preferred_color_theme() -> str:
+    """Load the preferred color theme from config. Returns default if not set."""
+    config_dir = get_config_dir()
+    config_path = config_dir / "ai-guardian.json"
+    if config_path.exists():
+        try:
+            with open(config_path, "r", encoding="utf-8") as f:
+                config = json.load(f)
+            val = config.get("console", {}).get("preferred_theme", DEFAULT_COLOR_THEME)
+            valid = [t[1] for t in COLOR_THEME_OPTIONS]
+            if val in valid:
+                return val
+        except Exception as e:
+            logging.warning("Failed to read config: %s", e)
+    return DEFAULT_COLOR_THEME
 
 
 def save_preferred_ui(value: str) -> tuple:
@@ -113,11 +139,33 @@ def save_editor_theme(theme: str) -> tuple:
         return False, str(e)
 
 
+def save_preferred_color_theme(theme: str) -> tuple:
+    """Save the preferred color theme to config. Returns (success, error_message)."""
+    config_dir = get_config_dir()
+    config_path = config_dir / "ai-guardian.json"
+    try:
+        config = {}
+        if config_path.exists():
+            with open(config_path, "r", encoding="utf-8") as f:
+                config = json.load(f)
+
+        if "console" not in config or not isinstance(config["console"], dict):
+            config["console"] = {}
+        config["console"]["preferred_theme"] = theme
+
+        config_path.parent.mkdir(parents=True, exist_ok=True)
+        with open(config_path, "w", encoding="utf-8") as f:
+            json.dump(config, f, indent=2)
+        return True, None
+    except Exception as e:
+        return False, str(e)
+
+
 class ConsoleSettingsContent(SchemaDefaultsMixin, Container):
     """Content widget for Console Settings panel."""
 
     SCHEMA_SECTION = "console"
-    SCHEMA_FIELDS = ["editor_theme", "preferred_ui"]
+    SCHEMA_FIELDS = ["editor_theme", "preferred_ui", "preferred_theme"]
 
     CSS = """
     ConsoleSettingsContent {
@@ -163,6 +211,15 @@ class ConsoleSettingsContent(SchemaDefaultsMixin, Container):
 
         with VerticalScroll():
             with Horizontal(classes="setting-row"):
+                yield Label("Color Theme:")
+                yield Select(
+                    COLOR_THEME_OPTIONS,
+                    value=DEFAULT_COLOR_THEME,
+                    id="color-theme-select",
+                    allow_blank=False,
+                )
+
+            with Horizontal(classes="setting-row"):
                 yield Label("Editor Theme:")
                 yield Select(
                     THEME_OPTIONS,
@@ -183,7 +240,12 @@ class ConsoleSettingsContent(SchemaDefaultsMixin, Container):
             yield Static("", id="console-status")
 
             yield Static(
-                "[bold]Theme Options[/bold]\n\n"
+                "[bold]Color Theme Options[/bold]\n\n"
+                "  [bold]Default (Blue)[/bold] — Material dark with blue accents (default)\n"
+                "  [bold]Classic Green[/bold] — Original AI Guardian green brand palette\n"
+                "  [bold]High Contrast[/bold] — WCAG AA accessible, maximum contrast\n"
+                "  [bold]Solarized[/bold] — Solarized dark variant with teal accents\n\n"
+                "[bold]Editor Theme Options[/bold]\n\n"
                 "  [bold]Monokai[/bold] — Dark theme with vibrant colors (default)\n"
                 "  [bold]VS Code Dark[/bold] — Dark theme matching VS Code defaults\n"
                 "  [bold]Dracula[/bold] — Dark purple-accented theme\n"
@@ -194,7 +256,9 @@ class ConsoleSettingsContent(SchemaDefaultsMixin, Container):
                 "  [bold]NiceGUI[/bold] — Browser-based dialog\n"
                 "  [bold]Textual[/bold] — Terminal TUI (requires TTY)\n"
                 "  [bold]Headless[/bold] — No interactive dialogs; ask actions use fallback\n\n"
-                "[dim]Override with env var AI_GUARDIAN_PREFERRED_UI.\n"
+                "[dim]Color theme affects TUI, web console, and ask dialogs.\n"
+                "Editor theme affects JSON config editors only.\n"
+                "Override UI toolkit with env var AI_GUARDIAN_PREFERRED_UI.\n"
                 "Changes are saved immediately.[/dim]",
                 id="console-info",
             )
@@ -219,14 +283,22 @@ class ConsoleSettingsContent(SchemaDefaultsMixin, Container):
             select.value = ui_pref
         except Exception:
             pass
-        self._set_status(f"Theme: {theme}, UI: {ui_pref}", "success")
+        color_theme = load_preferred_color_theme()
+        try:
+            select = self.query_one("#color-theme-select", Select)
+            select.value = color_theme
+        except Exception:
+            pass
+        self._set_status(
+            f"Color: {color_theme}, Editor: {theme}, UI: {ui_pref}", "success"
+        )
 
     def on_select_changed(self, event: Select.Changed) -> None:
         if event.select.id == "editor-theme-select":
             theme = str(event.value)
             success, error = save_editor_theme(theme)
             if success:
-                self._set_status(f"Theme saved: {theme}", "success")
+                self._set_status(f"Editor theme saved: {theme}", "success")
                 self.app.notify(f"Editor theme set to {theme}", severity="information")
             else:
                 self._set_status(f"Save failed: {error}", "error")
@@ -241,6 +313,20 @@ class ConsoleSettingsContent(SchemaDefaultsMixin, Container):
                 self._set_status(f"Save failed: {error}", "error")
                 self.app.notify(
                     f"Failed to save UI preference: {error}", severity="error"
+                )
+        elif event.select.id == "color-theme-select":
+            value = str(event.value)
+            success, error = save_preferred_color_theme(value)
+            if success:
+                from ai_guardian.theme import set_active_theme
+
+                set_active_theme(value)
+                self._set_status(f"Color theme saved: {value}", "success")
+                self.app.notify(f"Color theme set to {value}", severity="information")
+            else:
+                self._set_status(f"Save failed: {error}", "error")
+                self.app.notify(
+                    f"Failed to save color theme: {error}", severity="error"
                 )
 
     def _set_status(self, message: str, level: str) -> None:

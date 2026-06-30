@@ -218,6 +218,7 @@
     "_comment_console": "Console settings (editor theme, web console)",
     "console": {
         "editor_theme": "monokai",
+        "preferred_theme": "default",
         "web": {
             "port": 0,
             "host": "127.0.0.1"

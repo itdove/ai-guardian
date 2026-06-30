@@ -1866,6 +1866,12 @@
           "default": "monokai",
           "description": "Color theme for the JSON config editor. Options: monokai, vscode_dark, dracula, github_light"
         },
+        "preferred_theme": {
+          "type": "string",
+          "enum": ["default", "classic_green", "high_contrast", "solarized"],
+          "default": "default",
+          "description": "Color theme preset for AI Guardian UI. Affects TUI console, web console, and ask dialogs. default = Material dark blue, classic_green = original AI Guardian brand, high_contrast = WCAG AA accessibility, solarized = Solarized dark variant"
+        },
         "web": {
           "type": "object",
           "description": "Web console settings. Launch with: ai-guardian console --web",

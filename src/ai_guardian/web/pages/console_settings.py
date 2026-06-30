@@ -1,4 +1,4 @@
-"""Console Settings page — editor theme and display preferences."""
+"""Console Settings page — editor theme, color theme, and display preferences."""
 
 from nicegui import run, ui
 
@@ -17,6 +17,20 @@ THEME_DESCRIPTIONS = {
     "vscode_dark": "Dark theme matching Visual Studio Code's default dark color scheme.",
     "dracula": "Dark theme with vibrant purple, pink, and cyan highlights.",
     "github_light": "Light theme matching GitHub's code viewing style — good for bright environments.",
+}
+
+COLOR_THEMES = {
+    "default": "Default (Blue)",
+    "classic_green": "Classic Green",
+    "high_contrast": "High Contrast",
+    "solarized": "Solarized",
+}
+
+COLOR_THEME_DESCRIPTIONS = {
+    "default": "Material dark theme with blue accents — the standard AI Guardian look.",
+    "classic_green": "Original AI Guardian brand palette with green primary color.",
+    "high_contrast": "Maximum contrast for accessibility — meets WCAG AA standards.",
+    "solarized": "Solarized dark variant with teal and warm accents — easy on the eyes.",
 }
 
 UI_TOOLKITS = {
@@ -56,6 +70,48 @@ def create_console_settings_page(service, daemon_name: str):
                 config = await run.io_bound(load_web_config)
 
                 with content:
+                    with ui.card().classes("w-full"):
+                        ui.label("Color Theme").classes("text-lg font-bold")
+                        ui.label(
+                            "UI color palette for TUI console, web console, "
+                            "and ask dialogs."
+                        ).classes("text-xs text-grey-6")
+
+                        color_current = config.get("console", {}).get(
+                            "preferred_theme", "default"
+                        )
+                        color_sel = ui.select(
+                            options=COLOR_THEMES,
+                            value=color_current,
+                        ).classes("w-64")
+
+                        color_desc_label = ui.label(
+                            COLOR_THEME_DESCRIPTIONS.get(color_current, "")
+                        ).classes("text-sm text-grey-4 mt-1")
+
+                        async def save_color_theme(e):
+                            cfg = await run.io_bound(load_web_config)
+                            console = cfg.get("console", {})
+                            if not isinstance(console, dict):
+                                console = {}
+                            console["preferred_theme"] = e.value
+                            cfg["console"] = console
+                            await run.io_bound(save_web_config, cfg)
+                            from ai_guardian.theme import set_active_theme
+
+                            set_active_theme(e.value)
+                            ui.notify(
+                                f"Color theme: "
+                                f"{COLOR_THEMES.get(e.value, e.value)}. "
+                                f"Reloading...",
+                                type="positive",
+                            )
+                            await ui.run_javascript(
+                                "setTimeout(() => location.reload(), 500)"
+                            )
+
+                        color_sel.on_value_change(save_color_theme)
+
                     with ui.card().classes("w-full"):
                         ui.label("Editor Theme").classes("text-lg font-bold")
                         ui.label("Theme used for JSON editors in the console.").classes(
