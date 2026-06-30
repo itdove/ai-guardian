@@ -11,7 +11,7 @@ from typing import ClassVar, Dict, List, Optional
 
 from ai_guardian.constants import HookEvent
 from ai_guardian.hook_adapters.base import NormalizedHookInput
-from ai_guardian.hook_adapters.claude_code import ClaudeCodeAdapter
+from ai_guardian.hook_adapters.base_agent import BaseAgentAdapter
 
 logger = logging.getLogger(__name__)
 
@@ -28,7 +28,7 @@ _ACTION_MAP = {
 }
 
 
-class WindsurfAdapter(ClaudeCodeAdapter):
+class WindsurfAdapter(BaseAgentAdapter):
     """Adapter for Windsurf (Codeium).
 
     Detection: agent_action_name field in hook data.

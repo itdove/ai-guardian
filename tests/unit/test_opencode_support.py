@@ -101,7 +101,7 @@ class TestOpenCodeNormalization:
 
 
 class TestOpenCodeResponseFormatting:
-    """Test OpenCode response formatting (inherits ClaudeCodeAdapter format)."""
+    """Test OpenCode response formatting (inherits BaseAgentAdapter format)."""
 
     def test_pretooluse_block(self):
         result = OpenCodeAdapter().format_response(

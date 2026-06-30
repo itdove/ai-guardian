@@ -6,7 +6,7 @@ from unittest import TestCase
 from unittest.mock import MagicMock, patch
 
 from ai_guardian.constants import ALL_HOOK_EVENTS, HookEvent
-from ai_guardian.hook_adapters.claude_code import ClaudeCodeAdapter
+from ai_guardian.hook_adapters.base_agent import BaseAgentAdapter
 from ai_guardian.hook_adapters.base import HookAdapter
 
 
@@ -43,21 +43,21 @@ class TestClaudeCodeStopDetection(TestCase):
     """Claude Code adapter handles Stop event."""
 
     def test_can_handle_stop(self):
-        assert ClaudeCodeAdapter.can_handle({"hook_event_name": "Stop"})
+        assert BaseAgentAdapter.can_handle({"hook_event_name": "Stop"})
 
     def test_can_handle_session_end(self):
-        assert ClaudeCodeAdapter.can_handle({"hook_event_name": "SessionEnd"})
+        assert BaseAgentAdapter.can_handle({"hook_event_name": "SessionEnd"})
 
     def test_can_handle_post_compact(self):
-        assert ClaudeCodeAdapter.can_handle({"hook_event_name": "PostCompact"})
+        assert BaseAgentAdapter.can_handle({"hook_event_name": "PostCompact"})
 
     def test_can_handle_still_handles_existing_events(self):
-        assert ClaudeCodeAdapter.can_handle({"hook_event_name": "PreToolUse"})
-        assert ClaudeCodeAdapter.can_handle({"hook_event_name": "PostToolUse"})
-        assert ClaudeCodeAdapter.can_handle({"hook_event_name": "UserPromptSubmit"})
+        assert BaseAgentAdapter.can_handle({"hook_event_name": "PreToolUse"})
+        assert BaseAgentAdapter.can_handle({"hook_event_name": "PostToolUse"})
+        assert BaseAgentAdapter.can_handle({"hook_event_name": "UserPromptSubmit"})
 
     def test_normalize_stop_event(self):
-        adapter = ClaudeCodeAdapter()
+        adapter = BaseAgentAdapter()
         normalized = adapter.normalize_input(
             {
                 "hook_event_name": "Stop",
@@ -68,7 +68,7 @@ class TestClaudeCodeStopDetection(TestCase):
         assert normalized.session_id == "sess-123"
 
     def test_normalize_session_end_event(self):
-        adapter = ClaudeCodeAdapter()
+        adapter = BaseAgentAdapter()
         normalized = adapter.normalize_input(
             {
                 "hook_event_name": "SessionEnd",
@@ -79,7 +79,7 @@ class TestClaudeCodeStopDetection(TestCase):
         assert normalized.session_id == "sess-456"
 
     def test_normalize_post_compact_event(self):
-        adapter = ClaudeCodeAdapter()
+        adapter = BaseAgentAdapter()
         normalized = adapter.normalize_input(
             {
                 "hook_event_name": "PostCompact",

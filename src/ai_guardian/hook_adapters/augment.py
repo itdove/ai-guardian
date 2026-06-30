@@ -8,12 +8,12 @@ from typing import ClassVar, Dict, List
 
 from ai_guardian.constants import AUGMENT_TOOL_MAP
 from ai_guardian.hook_adapters.base import NormalizedHookInput
-from ai_guardian.hook_adapters.claude_code import ClaudeCodeAdapter
+from ai_guardian.hook_adapters.base_agent import BaseAgentAdapter
 
 _AUGMENT_TOOL_MAP = AUGMENT_TOOL_MAP
 
 
-class AugmentAdapter(ClaudeCodeAdapter):
+class AugmentAdapter(BaseAgentAdapter):
     """Adapter for Augment Code.
 
     Detection: is_mcp_tool + tool_name fields in hook data.
