@@ -2239,7 +2239,11 @@ class DaemonTray:
 
     @staticmethod
     def _daemon_status_label(
-        target, has_paused_dirs=False, active_project_dir=None, project_count=0
+        target,
+        has_paused_dirs=False,
+        active_project_dir=None,
+        project_count=0,
+        has_forwarding=False,
     ):
         """Format a daemon target into a status header label."""
         from ai_guardian.daemon.working_dir import shorten_path
@@ -2261,7 +2265,8 @@ class DaemonTray:
             runtime = f" ({target.runtime})"
         else:
             runtime = ""
-        label = f"{status_icon} {target.name}{runtime}"
+        forwarding_badge = " 🔔" if has_forwarding else ""
+        label = f"{status_icon} {target.name}{runtime}{forwarding_badge}"
         if target.status == "stopped":
             label += " — daemon not running"
         elif target.status == "starting":
@@ -2300,6 +2305,7 @@ class DaemonTray:
             has_paused_dirs=bool(stats.get("paused_dirs")),
             active_project_dir=active_dirs[0] if active_dirs else None,
             project_count=len(active_dirs),
+            has_forwarding=target.name in self._ask_forwarding_targets,
         )
         key = (target.name, target.runtime)
         if key in self._version_mismatch_notified:
