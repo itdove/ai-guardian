@@ -146,7 +146,7 @@ ai-guardian provides protection **immediately** with zero configuration:
 
 | Feature | Default | Notes |
 |---------|---------|-------|
-| Secret scanning | Enabled | Requires gitleaks/scanner installed |
+| Secret scanning | Enabled | Built-in `toml-patterns` scanner works without external tools |
 | Prompt injection detection | Enabled | Heuristic detector |
 | Config file scanning | Enabled | Detects exfiltration patterns |
 | SSRF protection | Enabled | Blocks private IPs, metadata endpoints |
