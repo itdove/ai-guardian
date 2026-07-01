@@ -445,3 +445,95 @@ ai-guardian tray start            # Separate tray process
 ```
 
 To restore the old behavior, add both commands to your startup/login items.
+
+## Ask Dialog Forwarding
+
+When `action=ask` is triggered on a **headless or container daemon**, there is
+no display available to show the dialog. The host tray bridges this gap by
+acting as a display proxy: it receives the prompt, shows the full dialog on
+the host, and sends the user's decision back to the daemon.
+
+### Local daemon (host has display)
+
+The hook runs inside the daemon process. The daemon calls its own REST API to
+delegate dialog rendering to a subprocess, which shows the native UI.
+
+```
+┌─────────────────── host ──────────────────────────┐
+│                                                    │
+│  Hook (daemon process)                             │
+│    └─ show_ask_dialog()                            │
+│         ├─ _show_via_tray_forwarding()  → None     │
+│         │    (local tray not registered            │
+│         │     with local daemon)                   │
+│         ├─ _is_headless_env()  → False             │
+│         └─ _show_via_daemon()                      │
+│              └─ POST /api/prompt  ──────────────┐  │
+│                                                 │  │
+│              ┌──── daemon REST ─────────────────┘  │
+│              │  _handle_prompt()                   │
+│              │    └─ _show_via_subprocess()         │
+│              │         └─ ai-guardian prompt        │
+│              │              --mode ask              │
+│              │              └─ tkinter / NiceGUI    │
+│              │              └─ user responds        │
+│              │         └─ AskResult                 │
+│              └─ HTTP response                       │
+│         └─ decision applied to hook                │
+└────────────────────────────────────────────────────┘
+```
+
+### Remote daemon (container / Kubernetes)
+
+The hook runs inside the container. Because the container has no display, it
+queues the prompt and waits. The host tray polls for pending prompts, shows
+the dialog on the host machine, and POSTs the decision back.
+
+```
+┌──── container ─────────────────────────┐   ┌──── host ──────────────────────────────┐
+│                                        │   │                                        │
+│  Hook                                  │   │  Tray                                  │
+│    └─ show_ask_dialog()                │   │    └─ every ~30s:                      │
+│         └─ _show_via_tray_forwarding() │   │         POST /api/register-tray ──────>│
+│              └─ is_tray_registered()   │   │              (sets is_tray_registered) │
+│                    → True              │   │                                        │
+│              └─ queue_prompt()         │   │    └─ every 2.5s:                      │
+│              └─ decision_event.wait() <│───│─        GET /api/pending-prompts       │
+│                                        │   │         └─ _handle_remote_prompt()     │
+│                                        │   │              └─ _show_via_subprocess() │
+│                                        │   │                   (NiceGUI on macOS,   │
+│                                        │   │                    auto on Linux)       │
+│                                        │   │              └─ user responds           │
+│              └─ resolve_prompt()  <────│───│─        POST /api/prompt-decision      │
+│              └─ decision_event.set()   │   │                                        │
+│         └─ AskResult returned          │   │                                        │
+│    └─ decision applied to hook         │   │                                        │
+└────────────────────────────────────────┘   └────────────────────────────────────────┘
+```
+
+### No tray registered
+
+If no tray has registered with the daemon (tray not running, or remote daemon
+not yet discovered), `_show_via_tray_forwarding()` returns `None` immediately.
+On a headless host (Linux + no `DISPLAY`), the hook falls through to the
+configured `fallback_action` (default: `block`) with zero delay.
+
+```
+show_ask_dialog()
+  └─ _show_via_tray_forwarding()  → None  (is_tray_registered = False)
+  └─ _is_headless_env()           → True
+  └─ fallback_action applied immediately  (no blocking)
+```
+
+### Platform notes
+
+| Host OS | Dialog shown by tray |
+|---|---|
+| macOS 14+ | NiceGUI browser tab (tkinter suppressed — pystray is NSAccessory, cannot steal focus) |
+| Linux KDE/GNOME | tkinter / NiceGUI / Textual per `preferred_ui` config |
+| macOS < 14 | tkinter / NiceGUI / Textual per `preferred_ui` config |
+
+The full dialog is shown in all cases: Allow Once, Allow Always (with pattern
+editor), Suppress in Source, Ignore File, and Block. Pattern saving and source
+annotations are applied by the **triggering daemon** (not the host), so they
+land in the correct config files and source tree.
