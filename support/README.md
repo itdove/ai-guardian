@@ -124,17 +124,22 @@ You can also pass a custom profile name or path if you have saved custom profile
 
 ## Authentication
 
-Pass authentication credentials as environment variables at runtime:
+Pass authentication credentials as environment variables at runtime.
 
-| Variable | Description |
-|----------|-------------|
-| `ANTHROPIC_API_KEY` | Anthropic API key (direct API access) |
-| `CLAUDE_CODE_USE_VERTEX` | Set to `1` to use Google Vertex AI |
-| `ANTHROPIC_VERTEX_PROJECT_ID` | GCP project ID (with Vertex AI) |
-| `CLOUD_ML_REGION` | GCP region, e.g. `global` (with Vertex AI) |
-| `GOOGLE_APPLICATION_CREDENTIALS` | Path to GCP service account JSON key file (with Vertex AI) |
+> **Tested configurations:** Anthropic API key and Google Vertex AI have been
+> validated with this image. Other providers (AWS Bedrock, Azure, self-hosted)
+> may require additional environment variables or volume mounts — consult the
+> IDE's documentation for the required configuration.
 
-Claude Code reads these directly at runtime. For Vertex AI, mount the credentials file into the container:
+### Anthropic API (direct)
+
+```bash
+podman run -it -p 63152:63152 \
+    -e ANTHROPIC_API_KEY=sk-ant-... \
+    ai-guardian-support
+```
+
+### Google Vertex AI ✓ tested
 
 ```bash
 podman run -it -p 63152:63152 \
@@ -145,6 +150,21 @@ podman run -it -p 63152:63152 \
     -v ~/my-gcp-key.json:/sandbox/gcp-key.json:ro \
     ai-guardian-support
 ```
+
+### Other providers (untested)
+
+Other Claude-compatible providers may work by passing the appropriate env vars.
+The container does not pre-configure any provider-specific tooling beyond
+Claude Code, so extra setup (CLI login, credential files, proxy config) may be
+needed inside the container after startup.
+
+| Variable | Description |
+|----------|-------------|
+| `ANTHROPIC_API_KEY` | Anthropic API key (direct API access) |
+| `CLAUDE_CODE_USE_VERTEX` | Set to `1` to use Google Vertex AI |
+| `ANTHROPIC_VERTEX_PROJECT_ID` | GCP project ID (with Vertex AI) |
+| `CLOUD_ML_REGION` | GCP region, e.g. `global` (with Vertex AI) |
+| `GOOGLE_APPLICATION_CREDENTIALS` | Path to GCP service account JSON key file (with Vertex AI) |
 
 ## Web Console
 
