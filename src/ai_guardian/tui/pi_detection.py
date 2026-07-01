@@ -149,14 +149,19 @@ class PIDetectionContent(SchemaDefaultsMixin, Container):
                         select_options_with_default(
                             [
                                 ("Heuristic (fast, local)", "heuristic"),
-                                ("Rebuff (ML-based)", "rebuff"),
-                                ("LLM Guard", "llm-guard"),
+                                ("ML (DeBERTa via daemon)", "ml"),
+                                ("Hybrid (heuristic + ML)", "hybrid"),
                             ],
                             "prompt_injection.detector",
                         ),
                         value="heuristic",
                         id="detector-select",
                     )
+                yield Static(
+                    "[dim]Requires daemon mode and [bold]ai-guardian ml download[/bold][/dim]",
+                    id="detector-ml-hint",
+                    classes="",
+                )
 
                 with Horizontal(classes="setting-row"):
                     yield Label("Sensitivity:")
@@ -265,6 +270,7 @@ class PIDetectionContent(SchemaDefaultsMixin, Container):
             self.query_one("#sensitivity-select", Select).value = sensitivity
             self.query_one("#score-threshold-input", Input).value = str(score_threshold)
             self.query_one("#pi-action-select", Select).value = action
+            self._update_detector_hint(detector)
         except Exception:
             pass
 
@@ -357,12 +363,24 @@ class PIDetectionContent(SchemaDefaultsMixin, Container):
                 return
             self._save_field("enabled", toggle.get_value())
 
+    def _update_detector_hint(self, detector: str) -> None:
+        try:
+            hint = self.query_one("#detector-ml-hint", Static)
+            if detector in ("ml", "hybrid"):
+                hint.display = True
+            else:
+                hint.display = False
+        except Exception:
+            pass
+
     def on_select_changed(self, event) -> None:
         if getattr(self, "_loading", False):
             return
         sid = event.select.id
         if sid == "pi-action-select":
             self._save_field("action", event.value)
+        elif sid == "detector-select":
+            self._update_detector_hint(event.value)
 
     def on_input_submitted(self, event: Input.Submitted) -> None:
         if getattr(self, "_loading", False):

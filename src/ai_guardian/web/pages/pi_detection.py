@@ -234,11 +234,15 @@ def create_pi_detection_page(service, daemon_name: str):
                         det_sel = ui.select(
                             options={
                                 "heuristic": "Heuristic (built-in)",
-                                "rebuff": "Rebuff",
-                                "llm-guard": "LLM Guard",
+                                "ml": "ML (DeBERTa via daemon)",
+                                "hybrid": "Hybrid (heuristic + ML)",
                             },
                             value=detector,
                         ).classes("w-64")
+                        ml_hint = ui.label(
+                            "Requires daemon mode and ai-guardian ml download"
+                        ).classes("text-xs text-orange-7 mt-1")
+                        ml_hint.visible = detector in ("ml", "hybrid")
 
                         async def save_detector(e):
                             cfg = await run.io_bound(load_web_config)
@@ -248,6 +252,7 @@ def create_pi_detection_page(service, daemon_name: str):
                             sect["detector"] = e.value
                             cfg["prompt_injection"] = sect
                             await run.io_bound(save_web_config, cfg)
+                            ml_hint.visible = e.value in ("ml", "hybrid")
                             ui.notify(f"Detector: {e.value}", type="positive")
 
                         det_sel.on_value_change(save_detector)
