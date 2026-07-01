@@ -10,13 +10,14 @@ set -euo pipefail
 #   ./support/run.sh --ide gemini --profile @minimal
 #   ./support/run.sh --repo ~/myproject
 #   ./support/run.sh --api-key sk-ant-...         # direct Anthropic API
-#   ./support/run.sh --                           # pass extra args to podman run
+#   ./support/run.sh --                           # pass extra args to container run
 #   ./support/run.sh -- bash -c "ai-guardian scan ."
 
 IMAGE="${AI_GUARDIAN_SUPPORT_IMAGE:-ai-guardian-support}"
 IDE="${AI_GUARDIAN_IDE:-claude}"
 PROFILE="${AI_GUARDIAN_PROFILE:-}"
 REST_PORT="${AI_GUARDIAN_REST_PORT:-63152}"
+CONTAINER_ENGINE="${CONTAINER_ENGINE:-podman}"
 REPO_PATH=""
 API_KEY="${ANTHROPIC_API_KEY:-}"
 EXTRA_ARGS=()
@@ -83,6 +84,7 @@ echo "  AI Guardian Support Container"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo ""
 echo "  Image:    ${IMAGE}"
+echo "  Engine:   ${CONTAINER_ENGINE}"
 echo "  IDE:      ${IDE}"
 echo "  Profile:  ${PROFILE:-standard (default)}"
 echo "  Port:     ${REST_PORT}"
@@ -97,7 +99,7 @@ echo "  Port:     ${REST_PORT}"
     || echo "  GitLab:   no token (export GITLAB_TOKEN to enable)"
 echo ""
 
-exec podman run -it --rm \
+exec $CONTAINER_ENGINE run -it --rm \
     -p "${REST_PORT}" \
     "${env_args[@]}" \
     "${volume_args[@]+"${volume_args[@]}"}" \
