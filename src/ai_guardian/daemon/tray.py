@@ -316,9 +316,8 @@ class DaemonTray:
         self._in_flight_prompts = set()
         self._prompt_poll_running = False
         self._PROMPT_POLL_INTERVAL = 2.5
-        self._ask_forwarding_targets: set = (
-            set()
-        )  # target names with active tray registration
+        self._ask_forwarding_targets: set = set()  # registered successfully
+        self._ask_forwarding_failed: set = set()  # remote running but registration failed
 
     def start(self):
         """Start tray icon in a background thread.
@@ -2024,6 +2023,7 @@ class DaemonTray:
         if not self._multi_client:
             return
         registered = set()
+        failed = set()
         for target in self._targets:
             if (
                 target.runtime in ("container", "kubernetes", "manual")
@@ -2040,16 +2040,19 @@ class DaemonTray:
                             tray_host,
                         )
                     else:
+                        failed.add(target.name)
                         logger.warning(
                             "Ask forwarding registration FAILED for %s — "
                             "container may be running old code without /api/register-tray",
                             target.name,
                         )
                 except Exception as e:
+                    failed.add(target.name)
                     logger.warning(
                         "Ask forwarding registration error for %s: %s", target.name, e
                     )
         self._ask_forwarding_targets = registered
+        self._ask_forwarding_failed = failed
 
     @staticmethod
     def _resolve_tray_host(target):
@@ -2243,7 +2246,7 @@ class DaemonTray:
         has_paused_dirs=False,
         active_project_dir=None,
         project_count=0,
-        has_forwarding=False,
+        forwarding_failed=False,
     ):
         """Format a daemon target into a status header label."""
         from ai_guardian.daemon.working_dir import shorten_path
@@ -2265,7 +2268,7 @@ class DaemonTray:
             runtime = f" ({target.runtime})"
         else:
             runtime = ""
-        forwarding_badge = " 🔔" if has_forwarding else ""
+        forwarding_badge = " ⚠" if forwarding_failed else ""
         label = f"{status_icon} {target.name}{runtime}{forwarding_badge}"
         if target.status == "stopped":
             label += " — daemon not running"
@@ -2305,7 +2308,7 @@ class DaemonTray:
             has_paused_dirs=bool(stats.get("paused_dirs")),
             active_project_dir=active_dirs[0] if active_dirs else None,
             project_count=len(active_dirs),
-            has_forwarding=target.name in self._ask_forwarding_targets,
+            forwarding_failed=target.name in self._ask_forwarding_failed,
         )
         key = (target.name, target.runtime)
         if key in self._version_mismatch_notified:
