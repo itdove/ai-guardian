@@ -1,8 +1,7 @@
 # GitHub Actions CI/CD - Build Container Image
 # Publishes to quay.io/itdove/ai-guardian:
-#   - :dev     on every successful merge to main  (triggered by Build Wheel)
-#   - :VERSION on clean release tags (v1.2.3)
-#   - :latest  on clean release tags (v1.2.3)
+#   - :dev + :latest  on every successful merge to main  (triggered by Build Wheel)
+#   - :VERSION + :latest  on clean release tags (v1.2.3)
 #
 # Required secrets: QUAY_USERNAME, QUAY_PASSWORD
 # Required: quay.io/itdove/ai-guardian repo created and set to public
@@ -126,7 +125,7 @@ jobs:
           username: ${{ secrets.QUAY_USERNAME }}
           password: ${{ secrets.QUAY_PASSWORD }}
 
-      # --- Build and push dev image (:dev) ---
+      # --- Build and push dev image (:dev + :latest) ---
       - name: Build and push dev image
         if: steps.params.outputs.skip != 'true' && steps.params.outputs.push_latest != 'true'
         uses: docker/build-push-action@v6
@@ -134,7 +133,9 @@ jobs:
           context: container/
           platforms: linux/amd64,linux/arm64
           push: true
-          tags: quay.io/itdove/ai-guardian:${{ steps.params.outputs.image_tag }}
+          tags: |
+            quay.io/itdove/ai-guardian:${{ steps.params.outputs.image_tag }}
+            quay.io/itdove/ai-guardian:latest
           build-args: |
             AI_GUARDIAN_VERSION=${{ steps.wheel.outputs.version }}
 
