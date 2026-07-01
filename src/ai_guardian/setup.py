@@ -261,7 +261,7 @@ class IDESetup:
                             {
                                 "type": "command",
                                 "command": "ai-guardian",
-                                "timeout": 30,
+                                "timeout": 300,
                                 "statusMessage": "🛡️ Scanning prompt...",
                             }
                         ]
@@ -274,7 +274,7 @@ class IDESetup:
                             {
                                 "type": "command",
                                 "command": "ai-guardian",
-                                "timeout": 30,
+                                "timeout": 300,
                                 "statusMessage": "🛡️ Checking tool permissions...",
                             }
                         ],
@@ -287,7 +287,7 @@ class IDESetup:
                             {
                                 "type": "command",
                                 "command": "ai-guardian",
-                                "timeout": 30,
+                                "timeout": 60,
                                 "statusMessage": "🛡️ Scanning tool output...",
                             }
                         ],

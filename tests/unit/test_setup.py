@@ -1012,11 +1012,11 @@ class TestCodexSetup:
         assert "matcher" not in hooks["UserPromptSubmit"][0]
 
     def test_codex_hooks_have_timeout(self):
-        """Verify Codex hooks include timeout field."""
+        """Verify Codex hooks include timeout field with event-appropriate values."""
         hooks = IDESetup.IDE_CONFIGS["codex"]["hooks"]
-        for event in ["UserPromptSubmit", "PreToolUse", "PostToolUse"]:
-            hook_entry = hooks[event][0]["hooks"][0]
-            assert hook_entry["timeout"] == 30
+        assert hooks["UserPromptSubmit"][0]["hooks"][0]["timeout"] == 300
+        assert hooks["PreToolUse"][0]["hooks"][0]["timeout"] == 300
+        assert hooks["PostToolUse"][0]["hooks"][0]["timeout"] == 60
 
     def test_merge_hooks_codex_preserves_other_hooks(self, tmp_path):
         """Test that merging Codex hooks preserves existing non-ai-guardian hooks."""
