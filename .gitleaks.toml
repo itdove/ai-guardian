@@ -11,6 +11,6 @@
         "tests/fixtures/attack_constants.py",
         "tests/unit/test_column_support.py",
         ".github/workflows/smoke-tests.yml",
-        "support/scenarios/basic-secret.yaml",
-        "support/scenarios/tool-policy.yaml"
+        "container/scenarios/basic-secret.yaml",
+        "container/scenarios/tool-policy.yaml"
     ]

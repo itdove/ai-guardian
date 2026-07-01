@@ -1,0 +1,153 @@
+# GitHub Actions CI/CD - Build Container Image
+# Publishes to quay.io/itdove/ai-guardian:
+#   - :dev     on every successful merge to main  (triggered by Build Wheel)
+#   - :VERSION on clean release tags (v1.2.3)
+#   - :latest  on clean release tags (v1.2.3)
+#
+# Required secrets: QUAY_USERNAME, QUAY_PASSWORD
+# Required: quay.io/itdove/ai-guardian repo created and set to public
+
+name: Build Container Image
+
+on:
+  workflow_run:
+    workflows: ["Build Wheel"]
+    types: [completed]
+    branches: [main]
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      image_tag:
+        description: "Image tag override (default: dev)"
+        required: false
+        default: "dev"
+
+jobs:
+  build-and-push:
+    name: Build and Push
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    # For workflow_run: only run when Build Wheel succeeded.
+    # For push/dispatch: always run (tag filtering handled in steps).
+    if: |
+      (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success') ||
+      github.event_name == 'push' ||
+      github.event_name == 'workflow_dispatch'
+
+    steps:
+      - name: Determine build parameters
+        id: params
+        run: |
+          if [[ "$GITHUB_EVENT_NAME" == "workflow_run" ]]; then
+            echo "image_tag=dev" >> "$GITHUB_OUTPUT"
+            echo "wheel_source=artifact" >> "$GITHUB_OUTPUT"
+            echo "push_latest=false" >> "$GITHUB_OUTPUT"
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+
+          elif [[ "$GITHUB_EVENT_NAME" == "push" ]]; then
+            TAG="${GITHUB_REF#refs/tags/v}"
+            if [[ "$TAG" == *-test* ]]; then
+              echo "skip=true" >> "$GITHUB_OUTPUT"
+              echo "Skipping test tag: $TAG"
+            else
+              echo "image_tag=${TAG}" >> "$GITHUB_OUTPUT"
+              echo "wheel_source=build" >> "$GITHUB_OUTPUT"
+              echo "push_latest=true" >> "$GITHUB_OUTPUT"
+              echo "skip=false" >> "$GITHUB_OUTPUT"
+            fi
+
+          else
+            # workflow_dispatch
+            TAG="${{ github.event.inputs.image_tag }}"
+            echo "image_tag=${TAG:-dev}" >> "$GITHUB_OUTPUT"
+            echo "wheel_source=build" >> "$GITHUB_OUTPUT"
+            echo "push_latest=false" >> "$GITHUB_OUTPUT"
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Checkout code
+        if: steps.params.outputs.skip != 'true'
+        uses: actions/checkout@v7
+
+      # --- Dev image: download wheel from Build Wheel artifact ---
+      - name: Download dev wheel
+        if: steps.params.outputs.skip != 'true' && steps.params.outputs.wheel_source == 'artifact'
+        uses: actions/download-artifact@v4
+        with:
+          name: ai-guardian-dev-wheel
+          path: container/vendor/
+          run-id: ${{ github.event.workflow_run.id }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      # --- Release image: build wheel from source ---
+      - name: Set up Python
+        if: steps.params.outputs.skip != 'true' && steps.params.outputs.wheel_source == 'build'
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Build release wheel
+        if: steps.params.outputs.skip != 'true' && steps.params.outputs.wheel_source == 'build'
+        run: |
+          pip install build
+          python -m build --wheel
+          cp dist/*.whl container/vendor/
+
+      # --- Resolve wheel filename for AI_GUARDIAN_VERSION build-arg ---
+      - name: Resolve wheel filename
+        if: steps.params.outputs.skip != 'true'
+        id: wheel
+        run: |
+          WHL=$(ls container/vendor/ai_guardian-*.whl 2>/dev/null | xargs basename 2>/dev/null || true)
+          if [[ -n "$WHL" ]]; then
+            echo "version=$WHL" >> "$GITHUB_OUTPUT"
+          else
+            # No wheel in vendor/ — install from PyPI using the image tag as version
+            echo "version=${{ steps.params.outputs.image_tag }}" >> "$GITHUB_OUTPUT"
+          fi
+
+      # --- Multi-arch build setup ---
+      - name: Set up QEMU
+        if: steps.params.outputs.skip != 'true'
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        if: steps.params.outputs.skip != 'true'
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to quay.io
+        if: steps.params.outputs.skip != 'true'
+        uses: docker/login-action@v3
+        with:
+          registry: quay.io
+          username: ${{ secrets.QUAY_USERNAME }}
+          password: ${{ secrets.QUAY_PASSWORD }}
+
+      # --- Build and push dev image (:dev) ---
+      - name: Build and push dev image
+        if: steps.params.outputs.skip != 'true' && steps.params.outputs.push_latest != 'true'
+        uses: docker/build-push-action@v6
+        with:
+          context: container/
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: quay.io/itdove/ai-guardian:${{ steps.params.outputs.image_tag }}
+          build-args: |
+            AI_GUARDIAN_VERSION=${{ steps.wheel.outputs.version }}
+
+      # --- Build and push release image (:VERSION + :latest) ---
+      - name: Build and push release image
+        if: steps.params.outputs.skip != 'true' && steps.params.outputs.push_latest == 'true'
+        uses: docker/build-push-action@v6
+        with:
+          context: container/
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: |
+            quay.io/itdove/ai-guardian:${{ steps.params.outputs.image_tag }}
+            quay.io/itdove/ai-guardian:latest
+          build-args: |
+            AI_GUARDIAN_VERSION=${{ steps.wheel.outputs.version }}
