@@ -56,7 +56,19 @@ pip install ai-guardian                    # alternative
 ai-guardian setup --ide claude --create-config --install-scanner
 ```
 
-This:
+Or use the container image (no Python setup required):
+
+```bash
+podman pull quay.io/itdove/ai-guardian:latest
+podman run -it -p 63152:63152 \
+    -v $(pwd):/workspace:z \
+    -e AI_GUARDIAN_IDE=claude \
+    quay.io/itdove/ai-guardian:latest
+```
+
+See [container/README.md](https://github.com/itdove/ai-guardian/blob/main/container/README.md) for IDE selection, auth, and multi-arch details.
+
+The pip/uv install:
 - Installs a scanner engine (gitleaks)
 - Creates `ai-guardian.json` config with secure defaults
 - Installs IDE hooks (PreToolUse, PostToolUse, UserPromptSubmit)
@@ -81,14 +93,19 @@ The tray auto-discovers running daemons and shows per-daemon submenus with Stati
 
 ### Container
 
-A pre-built support container includes ai-guardian with all headless-capable IDEs (Claude Code, OpenCode, Gemini CLI, Codex CLI, Kiro CLI, OpenClaw):
+A pre-built container image is published to [quay.io/itdove/ai-guardian](https://quay.io/itdove/ai-guardian) with all headless-capable IDEs (Claude Code, OpenCode, Gemini CLI, Codex CLI, Kiro CLI, OpenClaw):
 
 ```bash
-podman build -t ai-guardian-support support/
-podman run -it -p 63152:63152 -e AI_GUARDIAN_IDE=claude ai-guardian-support
+# Pull and run (no build required)
+podman pull quay.io/itdove/ai-guardian:latest
+podman run -it -p 63152:63152 -e AI_GUARDIAN_IDE=claude quay.io/itdove/ai-guardian:latest
+
+# Or build from source
+podman build -t ai-guardian container/
+podman run -it -p 63152:63152 -e AI_GUARDIAN_IDE=claude ai-guardian
 ```
 
-See [support/README.md](https://github.com/itdove/ai-guardian/blob/main/support/README.md) for build args, IDE selection, and multi-arch builds.
+See [container/README.md](https://github.com/itdove/ai-guardian/blob/main/container/README.md) for IDE selection, auth, and multi-arch builds.
 
 ### Security Profiles
 
@@ -134,7 +151,7 @@ ai-guardian setup --ide claude --create-config --profile @strict --install-scann
 | Tray Plugins | Custom menu items with native tkinter popup forms (Textual terminal fallback), platform-aware commands | [docs/MULTI_DAEMON_TRAY.md](https://github.com/itdove/ai-guardian/blob/main/docs/MULTI_DAEMON_TRAY.md#tray-plugins) |
 | TOML Pattern Engine | Built-in Python scanner with 267 pre-compiled patterns, no binary required | [docs/TOML_PATTERNS.md](https://github.com/itdove/ai-guardian/blob/main/docs/TOML_PATTERNS.md) |
 | Multi-Agent Support | Hook adapters for 12 AI coding agents with normalized input/output | [docs/AGENT_SUPPORT.md](https://github.com/itdove/ai-guardian/blob/main/docs/AGENT_SUPPORT.md) |
-| Support Container | UBI-based reproduction image with all headless IDEs and scanners | [support/README.md](https://github.com/itdove/ai-guardian/blob/main/support/README.md) |
+| Container Image | UBI-based image with all headless IDEs and scanners, published to quay.io | [container/README.md](https://github.com/itdove/ai-guardian/blob/main/container/README.md) |
 | Supply Chain Scanning | Detect malicious patterns in agent hooks, MCP configs, and plugin files | [docs/CONFIGURATION.md](https://github.com/itdove/ai-guardian/blob/main/docs/CONFIGURATION.md#supply-chain-scanning) |
 | Context Poisoning Detection | Detect persistent instruction injection in conversation context (OWASP LLM03) | [docs/security/CONTEXT_POISONING.md](https://github.com/itdove/ai-guardian/blob/main/docs/security/CONTEXT_POISONING.md) |
 | Security SDK & REST API | Programmatic security checking for Python agents and multi-language support | [docs/SDK.md](https://github.com/itdove/ai-guardian/blob/main/docs/SDK.md) |

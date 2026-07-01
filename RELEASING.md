@@ -291,20 +291,26 @@ See CHANGELOG.md for details.
 git push origin v1.0.0
 ```
 
-**Important:** Pushing the tag will automatically trigger the GitHub Actions workflow that:
-1. Builds the distribution packages
-2. Publishes to PyPI (requires PyPI trusted publishing to be configured)
-3. Creates a GitHub Release with changelog notes
+**Important:** Pushing the tag will automatically trigger two GitHub Actions workflows:
+1. **Publish Package** — builds and publishes to PyPI, creates a GitHub Release
+2. **Build Container Image** — builds and pushes `quay.io/itdove/ai-guardian:<version>` + `:latest`
 
-#### 7. Verify GitHub Actions Workflow
+#### 7. Verify GitHub Actions Workflows
 
 After pushing the tag:
 
 1. Go to GitHub Actions: https://github.com/itdove/ai-guardian/actions
-2. Check the "Publish to PyPI" workflow run
-3. Verify it completes successfully
+2. Check the "Publish Package" workflow run — verify it completes successfully
+3. Check the "Build Container Image" workflow run — verify it completes successfully
 4. Check PyPI: https://pypi.org/project/ai-guardian/
 5. Check GitHub Releases: https://github.com/itdove/ai-guardian/releases
+6. Verify the container image on quay.io:
+   ```bash
+   podman pull quay.io/itdove/ai-guardian:<version>
+   podman run -it quay.io/itdove/ai-guardian:<version> ai-guardian --version
+   podman pull quay.io/itdove/ai-guardian:latest
+   podman run -it quay.io/itdove/ai-guardian:latest ai-guardian --version
+   ```
 
 If the workflow fails, you may need to:
 - Fix the issue

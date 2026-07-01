@@ -62,7 +62,7 @@ This directory contains detailed documentation for AI Guardian. The main [README
 
 | Document | Description |
 |----------|-------------|
-| [Support Container](../support/README.md) | UBI-based reproduction image with all headless IDEs |
+| [Container Image](../container/README.md) | UBI-based image with all headless IDEs, published to quay.io |
 
 ## Development
 

@@ -1,12 +1,12 @@
-# ai-guardian hook-testing image (NOT for distribution — see issue #1423)
+# ai-guardian hook-testing image (NOT for distribution)
 #
-# Extends the base support image with bundled dummy-agent test scenarios.
+# Extends the base container image with bundled dummy-agent test scenarios.
 # Use this image for local CI regression and e2e hook testing only.
 # Do NOT publish this image to a public registry.
 #
 # Build:
-#   podman build -f support/Dockerfile.test -t ai-guardian-test support/
-#   docker  build -f support/Dockerfile.test -t ai-guardian-test support/
+#   podman build -f container/Dockerfile.test -t ai-guardian-test container/
+#   docker  build -f container/Dockerfile.test -t ai-guardian-test container/
 #
 # Run (interactive REPL):
 #   podman run -it ai-guardian-test ai-guardian dummy-agent
@@ -18,7 +18,7 @@
 # Run all bundled scenarios:
 #   podman run --rm ai-guardian-test /sandbox/run-scenarios.sh
 
-ARG BASE_IMAGE=ai-guardian-support:latest
+ARG BASE_IMAGE=ai-guardian:latest
 FROM ${BASE_IMAGE}
 
 # Bundled hook test scenarios — not in base image (issue #1423)

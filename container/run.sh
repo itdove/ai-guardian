@@ -1,19 +1,19 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# ai-guardian support container launcher
+# ai-guardian container launcher
 #
 # Usage:
-#   ./support/run.sh                              # defaults: claude, standard profile
-#   ./support/run.sh --ide opencode
-#   ./support/run.sh --profile @strict
-#   ./support/run.sh --ide gemini --profile @minimal
-#   ./support/run.sh --repo ~/myproject
-#   ./support/run.sh --api-key sk-ant-...         # direct Anthropic API
-#   ./support/run.sh --                           # pass extra args to container run
-#   ./support/run.sh -- bash -c "ai-guardian scan ."
+#   ./container/run.sh                              # defaults: claude, standard profile
+#   ./container/run.sh --ide opencode
+#   ./container/run.sh --profile @strict
+#   ./container/run.sh --ide gemini --profile @minimal
+#   ./container/run.sh --repo ~/myproject
+#   ./container/run.sh --api-key sk-ant-...         # direct Anthropic API
+#   ./container/run.sh --                           # pass extra args to container run
+#   ./container/run.sh -- bash -c "ai-guardian scan ."
 
-IMAGE="${AI_GUARDIAN_SUPPORT_IMAGE:-ai-guardian-support}"
+IMAGE="${AI_GUARDIAN_IMAGE:-quay.io/itdove/ai-guardian:latest}"
 IDE="${AI_GUARDIAN_IDE:-claude}"
 PROFILE="${AI_GUARDIAN_PROFILE:-}"
 REST_PORT="${AI_GUARDIAN_REST_PORT:-63152}"

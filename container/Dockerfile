@@ -1,13 +1,17 @@
-# ai-guardian support reproduction image
+# ai-guardian container image
 #
-# Minimal UBI-based container with ai-guardian and all headless-capable IDEs
-# for reproducing user-reported issues across environments and architectures.
+# UBI-based container with ai-guardian and all headless-capable IDEs.
+# Published to quay.io/itdove/ai-guardian on every merge and release.
 #
-# Build:
-#   Podman: podman build -t ai-guardian-support support/
-#   Docker:  docker build -t ai-guardian-support support/
-#   Podman: podman build --build-arg AI_GUARDIAN_VERSION=1.13.0 -t ai-guardian-support support/
-#   Docker:  docker build --build-arg AI_GUARDIAN_VERSION=1.13.0 -t ai-guardian-support support/
+# Pull:
+#   podman pull quay.io/itdove/ai-guardian:latest
+#   podman pull quay.io/itdove/ai-guardian:dev
+#
+# Build locally:
+#   Podman: podman build -t ai-guardian container/
+#   Docker:  docker build -t ai-guardian container/
+#   Podman: podman build --build-arg AI_GUARDIAN_VERSION=1.13.0 -t ai-guardian container/
+#   Docker:  docker build --build-arg AI_GUARDIAN_VERSION=1.13.0 -t ai-guardian container/
 #
 # Run:
 #   Podman: podman run -it -p 63152 ai-guardian-support
@@ -22,12 +26,12 @@
 #   Docker:  docker port <container-name>
 #
 # Using run.sh (handles both engines):
-#   ./support/run.sh                         # uses podman by default
-#   CONTAINER_ENGINE=docker ./support/run.sh # use docker instead
+#   ./container/run.sh                         # uses podman by default
+#   CONTAINER_ENGINE=docker ./container/run.sh # use docker instead
 #
 # Local wheel:
-#   python -m build --wheel && cp dist/ai_guardian-*.whl support/vendor/
-#   podman build --build-arg AI_GUARDIAN_VERSION=ai_guardian-1.13.0.dev0-py3-none-any.whl -t ai-guardian-support support/
+#   python -m build --wheel && cp dist/ai_guardian-*.whl container/vendor/
+#   podman build --build-arg AI_GUARDIAN_VERSION=ai_guardian-1.13.0.dev0-py3-none-any.whl -t ai-guardian container/
 
 FROM registry.access.redhat.com/ubi10/ubi-minimal:latest
 

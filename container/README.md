@@ -1,6 +1,7 @@
-# AI Guardian Support Reproduction Image
+# AI Guardian Container Image
 
-Minimal UBI-based container for reproducing user-reported ai-guardian issues across IDEs and architectures.
+UBI-based container image with ai-guardian and all headless-capable IDEs.
+Published to [quay.io/itdove/ai-guardian](https://quay.io/itdove/ai-guardian) on every merge and release.
 
 ## What's Included
 
@@ -16,22 +17,35 @@ Minimal UBI-based container for reproducing user-reported ai-guardian issues acr
 | OpenClaw | Open-source AI assistant |
 | rapidocr-onnxruntime | Image scanning support (x86_64 + aarch64) |
 
-## Build
+## Pull
+
+```bash
+# Latest release
+podman pull quay.io/itdove/ai-guardian:latest
+
+# Specific version
+podman pull quay.io/itdove/ai-guardian:1.13.0
+
+# Latest dev build (from main branch)
+podman pull quay.io/itdove/ai-guardian:dev
+```
+
+## Build Locally
 
 ```bash
 # Default (latest release)
-podman build -t ai-guardian-support support/
+podman build -t ai-guardian container/
 
 # Specific version
-podman build --build-arg AI_GUARDIAN_VERSION=1.13.0 -t ai-guardian-support support/
+podman build --build-arg AI_GUARDIAN_VERSION=1.13.0 -t ai-guardian container/
 
-# Local wheel (copy wheel into support/ first)
-cp dist/ai_guardian-1.13.0-py3-none-any.whl support/vendor/
+# Local wheel (copy wheel into container/ first)
+cp dist/ai_guardian-1.13.0-py3-none-any.whl container/vendor/
 podman build --build-arg AI_GUARDIAN_VERSION=ai_guardian-1.13.0-py3-none-any.whl \
-    -t ai-guardian-support support/
+    -t ai-guardian container/
 
 # Multi-arch
-podman build --platform linux/amd64,linux/arm64 -t ai-guardian-support support/
+podman build --platform linux/amd64,linux/arm64 -t ai-guardian container/
 ```
 
 ## Run
@@ -39,13 +53,13 @@ podman build --platform linux/amd64,linux/arm64 -t ai-guardian-support support/
 Using `run.sh` (recommended):
 
 ```bash
-./support/run.sh                                    # defaults: claude, standard
-./support/run.sh --ide opencode                     # select IDE
-./support/run.sh --profile @strict                  # select profile
-./support/run.sh --repo ~/myproject                 # mount a repo
-./support/run.sh --api-key sk-ant-...               # Anthropic API auth
-./support/run.sh --ide gemini --profile @minimal    # combine options
-./support/run.sh -- ai-guardian doctor              # run a command
+./container/run.sh                                    # defaults: claude, standard
+./container/run.sh --ide opencode                     # select IDE
+./container/run.sh --profile @strict                  # select profile
+./container/run.sh --repo ~/myproject                 # mount a repo
+./container/run.sh --api-key sk-ant-...               # Anthropic API auth
+./container/run.sh --ide gemini --profile @minimal    # combine options
+./container/run.sh -- ai-guardian doctor              # run a command
 ```
 
 Vertex AI auth is auto-detected from environment variables (see [Authentication](#authentication)).
@@ -55,16 +69,16 @@ Vertex AI auth is auto-detected from environment variables (see [Authentication]
 
 ```bash
 # Default (Claude Code hooks)
-podman run -it -p 63152 ai-guardian-support
+podman run -it -p 63152 ai-guardian
 
 # Select IDE
-podman run -it -p 63152 -e AI_GUARDIAN_IDE=opencode ai-guardian-support
+podman run -it -p 63152 -e AI_GUARDIAN_IDE=opencode ai-guardian
 
 # Select configuration profile
-podman run -it -p 63152 -e AI_GUARDIAN_PROFILE=@strict ai-guardian-support
+podman run -it -p 63152 -e AI_GUARDIAN_PROFILE=@strict ai-guardian
 
 # Authenticate with Anthropic API
-podman run -it -p 63152 -e ANTHROPIC_API_KEY=sk-ant-... ai-guardian-support
+podman run -it -p 63152 -e ANTHROPIC_API_KEY=sk-ant-... ai-guardian
 
 # Authenticate with Vertex AI
 podman run -it -p 63152 \
@@ -73,13 +87,13 @@ podman run -it -p 63152 \
     -e CLOUD_ML_REGION=global \
     -e GOOGLE_APPLICATION_CREDENTIALS=/sandbox/gcp-key.json \
     -v ~/gcp-key.json:/sandbox/gcp-key.json:ro \
-    ai-guardian-support
+    ai-guardian
 
 # Mount a repo to test
-podman run -it -p 63152 -v ~/myrepo:/sandbox/repo ai-guardian-support
+podman run -it -p 63152 -v ~/myrepo:/sandbox/repo ai-guardian
 
 # Run doctor
-podman run -it ai-guardian-support ai-guardian doctor
+podman run -it ai-guardian ai-guardian doctor
 ```
 
 </details>
@@ -89,10 +103,10 @@ podman run -it ai-guardian-support ai-guardian doctor
 By default, `run.sh` uses Podman. To use Docker instead:
 
 ```bash
-CONTAINER_ENGINE=docker ./support/run.sh
+CONTAINER_ENGINE=docker ./container/run.sh
 # or export for the session:
 export CONTAINER_ENGINE=docker
-./support/run.sh --ide claude
+./container/run.sh --ide claude
 ```
 
 Both engines support the same `-p` syntax for port mapping. Use `docker port <container>` (instead of `podman port`) to find the mapped host port when using Docker.
@@ -149,7 +163,7 @@ Pass authentication credentials as environment variables at runtime.
 ```bash
 podman run -it -p 63152 \
     -e ANTHROPIC_API_KEY=sk-ant-... \
-    ai-guardian-support
+    ai-guardian
 ```
 
 ### Google Vertex AI ✓ tested
@@ -161,7 +175,7 @@ podman run -it -p 63152 \
     -e CLOUD_ML_REGION=global \
     -e GOOGLE_APPLICATION_CREDENTIALS=/sandbox/gcp-key.json \
     -v ~/my-gcp-key.json:/sandbox/gcp-key.json:ro \
-    ai-guardian-support
+    ai-guardian
 ```
 
 ### Other providers (untested)
