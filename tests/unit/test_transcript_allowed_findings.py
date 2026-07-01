@@ -139,108 +139,78 @@ class TestScanTranscriptTextAllowedFindings:
 
 
 class TestRecordAllowedForTranscript:
-    """Tests for _record_allowed_for_transcript helper."""
+    """Tests for _record_allowed_for_transcript helper (#1439: uses plain set)."""
 
     def test_secret_fingerprint_recorded(self):
         from ai_guardian.hook_processing import (
             _record_allowed_for_transcript,
             ViolationType,
         )
-        from ai_guardian.daemon.state import DaemonState
 
-        state = DaemonState.__new__(DaemonState)
-        import threading
-
-        state._lock = threading.Lock()
-        state._allowed_findings = {}
-
+        result_set = set()
         _record_allowed_for_transcript(
-            state,
-            "sess1",
+            result_set,
             ViolationType.SECRET_DETECTED,
             "Secret detected\nSecret Type: aws-access-token\n",
             "AKIAIOSFODNN7EXAMPLE",
         )
 
-        allowed = state.get_allowed_findings("sess1")
         expected_fp = _finding_fingerprint("secret", "aws-access-token")
-        assert expected_fp in allowed
+        assert expected_fp in result_set
 
     def test_pii_fingerprints_recorded(self):
         from ai_guardian.hook_processing import (
             _record_allowed_for_transcript,
             ViolationType,
         )
-        from ai_guardian.daemon.state import DaemonState
-
-        state = DaemonState.__new__(DaemonState)
-        import threading
-
-        state._lock = threading.Lock()
-        state._allowed_findings = {}
 
         # ai-guardian:begin-allow
         pii_value = "078-05-1120"
         # ai-guardian:end-allow
         fp = _finding_fingerprint("pii", f"SSN:{pii_value}")
 
+        result_set = set()
         _record_allowed_for_transcript(
-            state,
-            "sess1",
+            result_set,
             ViolationType.PII_DETECTED,
             "PII found",
             pii_value,
             finding_fingerprints=[fp],
         )
 
-        allowed = state.get_allowed_findings("sess1")
-        assert fp in allowed
+        assert fp in result_set
 
     def test_unknown_secret_type_not_recorded(self):
         from ai_guardian.hook_processing import (
             _record_allowed_for_transcript,
             ViolationType,
         )
-        from ai_guardian.daemon.state import DaemonState
 
-        state = DaemonState.__new__(DaemonState)
-        import threading
-
-        state._lock = threading.Lock()
-        state._allowed_findings = {}
-
+        result_set = set()
         _record_allowed_for_transcript(
-            state,
-            "sess1",
+            result_set,
             ViolationType.SECRET_DETECTED,
             "no secret type info here",
             "some_value",
         )
 
-        assert state.get_allowed_findings("sess1") == set()
+        assert result_set == set()
 
     def test_non_secret_violation_type_noop(self):
         from ai_guardian.hook_processing import (
             _record_allowed_for_transcript,
             ViolationType,
         )
-        from ai_guardian.daemon.state import DaemonState
 
-        state = DaemonState.__new__(DaemonState)
-        import threading
-
-        state._lock = threading.Lock()
-        state._allowed_findings = {}
-
+        result_set = set()
         _record_allowed_for_transcript(
-            state,
-            "sess1",
+            result_set,
             ViolationType.PROMPT_INJECTION,
             "some error",
             "some text",
         )
 
-        assert state.get_allowed_findings("sess1") == set()
+        assert result_set == set()
 
 
 class TestComputePiiTranscriptFingerprints:
@@ -283,19 +253,13 @@ class TestComputePiiTranscriptFingerprints:
 
 
 class TestLogAskDecisionAllowedFindings:
-    """Tests for _log_ask_decision recording to DaemonState."""
+    """Tests for _log_ask_decision recording to invocation_allowed_findings set (#1439)."""
 
     def test_allow_once_records_finding(self):
         from ai_guardian.hook_processing import _log_ask_decision, ViolationType
         from ai_guardian.tui.ask_dialog import AskDecision
-        from ai_guardian.daemon.state import DaemonState
 
-        state = DaemonState.__new__(DaemonState)
-        import threading
-
-        state._lock = threading.Lock()
-        state._allowed_findings = {}
-
+        allowed_set = set()
         with mock.patch("ai_guardian.hook_processing.HAS_VIOLATION_LOGGER", True):
             with mock.patch("ai_guardian.hook_processing.ViolationLogger"):
                 _log_ask_decision(
@@ -303,24 +267,17 @@ class TestLogAskDecisionAllowedFindings:
                     AskDecision.ALLOW_ONCE,
                     matched_text="AKIAIOSFODNN7EXAMPLE",
                     error_msg="Secret Type: aws-access-token",
-                    daemon_state=state,
-                    session_id="sess1",
+                    invocation_allowed_findings=allowed_set,
                 )
 
         expected_fp = _finding_fingerprint("secret", "aws-access-token")
-        assert expected_fp in state.get_allowed_findings("sess1")
+        assert expected_fp in allowed_set
 
     def test_block_does_not_record(self):
         from ai_guardian.hook_processing import _log_ask_decision, ViolationType
         from ai_guardian.tui.ask_dialog import AskDecision
-        from ai_guardian.daemon.state import DaemonState
 
-        state = DaemonState.__new__(DaemonState)
-        import threading
-
-        state._lock = threading.Lock()
-        state._allowed_findings = {}
-
+        allowed_set = set()
         with mock.patch("ai_guardian.hook_processing.HAS_VIOLATION_LOGGER", True):
             with mock.patch("ai_guardian.hook_processing.ViolationLogger"):
                 _log_ask_decision(
@@ -328,14 +285,13 @@ class TestLogAskDecisionAllowedFindings:
                     AskDecision.BLOCK,
                     matched_text="AKIAIOSFODNN7EXAMPLE",
                     error_msg="Secret Type: aws-access-token",
-                    daemon_state=state,
-                    session_id="sess1",
+                    invocation_allowed_findings=allowed_set,
                 )
 
-        assert state.get_allowed_findings("sess1") == set()
+        assert allowed_set == set()
 
-    def test_no_daemon_state_noop(self):
-        """Without daemon_state, should still log normally without error."""
+    def test_no_invocation_set_noop(self):
+        """Without invocation_allowed_findings, allow decisions log without error."""
         from ai_guardian.hook_processing import _log_ask_decision, ViolationType
         from ai_guardian.tui.ask_dialog import AskDecision
 
@@ -346,6 +302,4 @@ class TestLogAskDecisionAllowedFindings:
                     AskDecision.ALLOW_ONCE,
                     matched_text="AKIAIOSFODNN7EXAMPLE",
                     error_msg="Secret Type: aws-access-token",
-                    daemon_state=None,
-                    session_id=None,
                 )

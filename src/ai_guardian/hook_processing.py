@@ -2687,11 +2687,13 @@ def _log_ask_decision(
     daemon_state=None,
     session_id=None,
     finding_fingerprints=None,
+    invocation_allowed_findings=None,
 ):
     """Log an ask-mode decision (allow or block) to violations.jsonl.
 
-    When an allow decision is made and daemon_state is provided, records
-    finding fingerprints to suppress transcript scanner re-alerts (#1364).
+    When an allow decision is made and invocation_allowed_findings is provided,
+    records finding fingerprints in that set for transcript scanner dedup within
+    the current hook invocation only (#1364, #1439).
     """
     if not HAS_VIOLATION_LOGGER:
         return
@@ -2735,11 +2737,11 @@ def _log_ask_decision(
             severity="info",
         )
 
-        # Record allowed findings for transcript scanner dedup (#1364)
-        if action_taken == "allowed" and daemon_state and session_id:
+        # Record allowed findings for transcript scanner dedup within this invocation (#1364, #1439).
+        # Uses invocation_allowed_findings (local set) so Allow Once does not persist to next invocation.
+        if action_taken == "allowed" and invocation_allowed_findings is not None:
             _record_allowed_for_transcript(
-                daemon_state,
-                session_id,
+                invocation_allowed_findings,
                 violation_type,
                 error_msg,
                 matched_text,
@@ -2750,22 +2752,22 @@ def _log_ask_decision(
 
 
 def _record_allowed_for_transcript(
-    daemon_state,
-    session_id,
+    result_set,
     violation_type,
     error_msg,
     matched_text,
     finding_fingerprints=None,
 ):
-    """Record allowed finding fingerprints in DaemonState for transcript dedup.
+    """Record allowed finding fingerprints into result_set for transcript dedup.
 
     Uses pre-computed fingerprints if provided, otherwise auto-computes
     from violation_type and error_msg/matched_text.
+    result_set is a plain set() scoped to the current hook invocation (#1439).
     """
     try:
         if finding_fingerprints:
             for fp in finding_fingerprints:
-                daemon_state.add_allowed_finding(session_id, fp)
+                result_set.add(fp)
             return
 
         if violation_type in (
@@ -2775,7 +2777,7 @@ def _record_allowed_for_transcript(
             rule_id = _extract_secret_type_from_error(error_msg)
             if rule_id and rule_id != "unknown":
                 fp = _finding_fingerprint("secret", rule_id)
-                daemon_state.add_allowed_finding(session_id, fp)
+                result_set.add(fp)
     except Exception as e:
         logging.debug(f"Failed to record allowed finding: {e}")
 
@@ -5553,6 +5555,10 @@ def process_hook_data(hook_data, daemon_state=None):
         hook_tool_use_id = normalized.tool_use_id or hook_data.get("tool_use_id")
         hook_session_id = normalized.session_id or hook_data.get("session_id")
 
+        # Allowed findings scoped to this invocation only — prevents Allow Once
+        # from persisting to the next hook invocation via daemon_state (#1439).
+        _invocation_allowed: set = set()
+
         # Handle session lifecycle events — early return, no scanning
         if hook_event == HookEvent.SESSION_END:
             return _handle_session_end(
@@ -5903,8 +5909,7 @@ def process_hook_data(hook_data, daemon_state=None):
                                 else None
                             ),
                             dialog_wait_ms=ask_result.dialog_wait_ms,
-                            daemon_state=daemon_state,
-                            session_id=hook_session_id,
+                            invocation_allowed_findings=_invocation_allowed,
                         )
                         return _format_response(
                             adapter,
@@ -6231,8 +6236,7 @@ def process_hook_data(hook_data, daemon_state=None):
                                     file_path=pii_file_path,
                                     line_number=pii_line_number,
                                     dialog_wait_ms=pii_ask_result.dialog_wait_ms,
-                                    daemon_state=daemon_state,
-                                    session_id=hook_session_id,
+                                    invocation_allowed_findings=_invocation_allowed,
                                     finding_fingerprints=_compute_pii_transcript_fingerprints(
                                         pii_redactions, tool_output
                                     ),
@@ -7813,8 +7817,7 @@ def process_hook_data(hook_data, daemon_state=None):
                             file_path=file_path,
                             line_number=pre_secret_result.line_number,
                             dialog_wait_ms=ask_result_pre.dialog_wait_ms,
-                            daemon_state=daemon_state,
-                            session_id=hook_session_id,
+                            invocation_allowed_findings=_invocation_allowed,
                         )
                     else:
                         _log_ask_decision(
@@ -7962,8 +7965,7 @@ def process_hook_data(hook_data, daemon_state=None):
                                 file_path=pii_file_path2,
                                 line_number=pii_line_number2,
                                 dialog_wait_ms=pii_ask_result2.dialog_wait_ms,
-                                daemon_state=daemon_state,
-                                session_id=hook_session_id,
+                                invocation_allowed_findings=_invocation_allowed,
                                 finding_fingerprints=_compute_pii_transcript_fingerprints(
                                     pii_redactions, pii_scan_content
                                 ),
@@ -8039,11 +8041,7 @@ def process_hook_data(hook_data, daemon_state=None):
                     except NameError:
                         ts_pii_config, _ = _load_pii_config()
 
-                    ts_allowed = (
-                        daemon_state.get_allowed_findings(hook_session_id)
-                        if daemon_state and hook_session_id
-                        else None
-                    )
+                    ts_allowed = _invocation_allowed or None
                     for ts_path in transcript_paths_to_scan:
                         with _latency_timer.check("transcript_scanning"):
                             transcript_warnings = scan_transcript_incremental(
@@ -8119,11 +8117,7 @@ def process_hook_data(hook_data, daemon_state=None):
                         except NameError:
                             ts_pii_config, _ = _load_pii_config()
 
-                        oc_allowed = (
-                            daemon_state.get_allowed_findings(hook_session_id)
-                            if daemon_state and hook_session_id
-                            else None
-                        )
+                        oc_allowed = _invocation_allowed or None
                         transcript_warnings = scan_opencode_transcript_incremental(
                             oc_db_path,
                             oc_session_id,
