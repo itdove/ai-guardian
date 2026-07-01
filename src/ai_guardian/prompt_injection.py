@@ -797,7 +797,7 @@ class PromptInjectionDetector:
             config: Optional configuration dictionary with keys:
                 - enabled: bool (default True)
                 - sensitivity: str - "low", "medium", "high" (default "medium")
-                - detector: str - "heuristic", "rebuff", "llm-guard" (default "heuristic")
+                - detector: str - "heuristic", "ml", "hybrid" (default "heuristic")
                 - allowlist_patterns: list of regex patterns to ignore
                 - custom_patterns: list of additional regex patterns to check
                 - max_score_threshold: float (0.0-1.0, default 0.75)
@@ -1611,13 +1611,9 @@ class PromptInjectionDetector:
                     end_column,
                 ) = self._ml_or_hybrid_detection(content_to_check, source_type)
             else:
-                if self.detector_type not in ("heuristic", "rebuff", "llm-guard"):
+                if self.detector_type != "heuristic":
                     logger.warning(
                         f"Unknown detector type '{self.detector_type}', using heuristic"
-                    )
-                elif self.detector_type != "heuristic":
-                    logger.warning(
-                        f"{self.detector_type} detector not implemented yet, falling back to heuristic"
                     )
                 (
                     is_injection,
