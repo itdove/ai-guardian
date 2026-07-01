@@ -1020,6 +1020,23 @@ def main():
             help="Write selected target indices (JSON array) to this file",
         )
 
+        # Dummy Agent subcommand (Issue #1438)
+        dummy_agent_parser = subparsers.add_parser(
+            "dummy-agent",
+            help="Interactive fake IDE for hook testing without LLM",
+        )
+        dummy_agent_parser.add_argument(
+            "--script",
+            metavar="YAML",
+            default=None,
+            help="Run predefined scenarios from a YAML file (script mode)",
+        )
+        dummy_agent_parser.add_argument(
+            "--no-color",
+            action="store_true",
+            help="Disable colored output",
+        )
+
         # MCP server subcommand (Issue #477)
         subparsers.add_parser(
             "mcp-server", help="Start MCP security advisor server (stdio transport)"
@@ -1191,7 +1208,7 @@ def main():
         args = parser.parse_args()
 
         # Auto-start daemon for CLI commands (Issue #680)
-        _no_autostart = {"daemon", "mcp-server", "tray", "setup"}
+        _no_autostart = {"daemon", "mcp-server", "tray", "setup", "dummy-agent"}
         if args.command and args.command not in _no_autostart:
             _ensure_daemon_started()
 
@@ -1699,6 +1716,16 @@ def main():
         # Handle tray-target-select command (Issue #760)
         if args.command == "tray-target-select":
             return _handle_tray_target_select(args)
+
+        # Handle dummy-agent command (Issue #1438)
+        if args.command == "dummy-agent":
+            from ai_guardian.dummy_agent import run_interactive, run_script
+
+            colors = not getattr(args, "no_color", False)
+            if args.script:
+                return run_script(args.script, colors=colors)
+            run_interactive(colors=colors)
+            return 0
 
         # Handle mcp-server command (Issue #477)
         if args.command == "mcp-server":

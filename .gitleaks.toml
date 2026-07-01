@@ -10,5 +10,7 @@
         "tests/integration/test_integration_mcp.py",
         "tests/fixtures/attack_constants.py",
         "tests/unit/test_column_support.py",
-        ".github/workflows/smoke-tests.yml"
+        ".github/workflows/smoke-tests.yml",
+        "support/scenarios/basic-secret.yaml",
+        "support/scenarios/tool-policy.yaml"
     ]
