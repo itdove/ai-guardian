@@ -71,6 +71,12 @@ elif [[ -n "${ANTHROPIC_VERTEX_PROJECT_ID:-}" ]]; then
     fi
 fi
 
+# --- Forge tokens (all optional — forward from host if set) ---
+[[ -n "${GH_TOKEN:-}" ]]       && env_args+=(-e "GH_TOKEN=${GH_TOKEN}")
+[[ -n "${GITHUB_TOKEN:-}" ]]   && env_args+=(-e "GITHUB_TOKEN=${GITHUB_TOKEN}")
+[[ -n "${GITLAB_TOKEN:-}" ]]   && env_args+=(-e "GITLAB_TOKEN=${GITLAB_TOKEN}")
+[[ -n "${GITLAB_HOST:-}" ]]    && env_args+=(-e "GITLAB_HOST=${GITLAB_HOST}")
+
 # --- Launch ---
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo "  AI Guardian Support Container"
@@ -83,6 +89,12 @@ echo "  Port:     ${REST_PORT}"
 [[ -n "$REPO_PATH" ]] && echo "  Repo:     ${REPO_PATH}"
 [[ -n "$API_KEY" ]] && echo "  Auth:     Anthropic API key"
 [[ -n "${ANTHROPIC_VERTEX_PROJECT_ID:-}" && -z "$API_KEY" ]] && echo "  Auth:     Vertex AI"
+[[ -n "${GH_TOKEN:-}${GITHUB_TOKEN:-}" ]] \
+    && echo "  GitHub:   token set" \
+    || echo "  GitHub:   no token (export GH_TOKEN to enable)"
+[[ -n "${GITLAB_TOKEN:-}" ]] \
+    && echo "  GitLab:   token set${GITLAB_HOST:+ (${GITLAB_HOST})}" \
+    || echo "  GitLab:   no token (export GITLAB_TOKEN to enable)"
 echo ""
 
 exec podman run -it --rm \

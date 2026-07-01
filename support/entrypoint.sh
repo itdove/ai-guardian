@@ -11,6 +11,13 @@ if ! echo "$SUPPORTED_IDES" | grep -qw "$IDE"; then
     exit 1
 fi
 
+# Custom GitLab host — glab needs explicit config since it can't infer the host from GITLAB_TOKEN alone
+if [[ -n "${GITLAB_TOKEN:-}" && -n "${GITLAB_HOST:-}" ]]; then
+    glab auth login --hostname "$GITLAB_HOST" --token "$GITLAB_TOKEN" 2>/dev/null || true
+fi
+# gitlab.com: glab reads GITLAB_TOKEN natively, no action needed
+# gh: reads GH_TOKEN / GITHUB_TOKEN natively, no action needed
+
 SETUP_ARGS="--ide $IDE --create-config --force --yes"
 if [ -n "$PROFILE" ]; then
     SETUP_ARGS="$SETUP_ARGS --profile $PROFILE"
@@ -36,6 +43,12 @@ elif [ -n "${ANTHROPIC_VERTEX_PROJECT_ID:-}" ]; then
     echo "  Auth:         Vertex AI"
 else
     echo "  Auth:         not configured"
+fi
+if [ -n "${GH_TOKEN:-}${GITHUB_TOKEN:-}" ]; then
+    echo "  GitHub:       token set"
+fi
+if [ -n "${GITLAB_TOKEN:-}" ]; then
+    echo "  GitLab:       token set${GITLAB_HOST:+ (${GITLAB_HOST})}"
 fi
 echo "  Web console:  http://localhost:${REST_PORT} (internal port to find host port run: podman port \$(hostname))"
 echo "  Doctor:       ai-guardian doctor"
