@@ -347,6 +347,31 @@ class MultiDaemonClient:
 
         return get_about_info()
 
+    # --- Tray ask forwarding (#1342) ---
+
+    def register_tray(self, target, tray_host, tray_port):
+        """Register this tray with a remote daemon for ask dialog forwarding."""
+        result = self._rest_request(
+            target,
+            "POST",
+            "/api/register-tray",
+            {"host": tray_host, "port": int(tray_port)},
+        )
+        return result is not None
+
+    def get_pending_prompts(self, target):
+        """Poll for pending ask prompts from a remote daemon."""
+        result = self._rest_request(target, "GET", "/api/pending-prompts", timeout=3.0)
+        if result:
+            return result.get("prompts", [])
+        return None
+
+    def send_prompt_decision(self, target, prompt_id, decision_data):
+        """Send ask dialog decision back to a remote daemon."""
+        body = {"prompt_id": prompt_id, **decision_data}
+        result = self._rest_request(target, "POST", "/api/prompt-decision", body)
+        return result is not None and result.get("status") == "accepted"
+
     def get_config(self, target: DaemonTarget) -> Optional[dict]:
         """Get feature configuration flags from a daemon."""
         if target.runtime == "local":

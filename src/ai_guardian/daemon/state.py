@@ -14,7 +14,9 @@ import stat
 import tempfile
 import threading
 import time
+from dataclasses import dataclass, field
 from pathlib import Path
+from typing import Optional
 
 from ai_guardian.config_loaders import _clear_config_cache
 from ai_guardian.config_utils import get_config_dir, get_state_dir, _find_config_in_dir
@@ -29,6 +31,21 @@ PROJECT_CONFIG_TTL = 86400  # 24 hours — prune stale project entries
 PERSIST_DEBOUNCE = 2.0  # seconds before writing to disk
 DAEMON_SESSIONS_FILENAME = "daemon_sessions.json"
 DAEMON_PAUSE_FILENAME = "daemon.paused"
+
+DEFAULT_TRAY_REGISTRATION_TTL = 120.0  # seconds
+
+
+@dataclass
+class PendingPrompt:
+    """Ask prompt queued for host tray pickup (#1342)."""
+
+    prompt_id: str
+    violation: dict
+    fallback_action: str
+    timeout_seconds: int
+    created_at: float
+    decision_event: threading.Event = field(default_factory=threading.Event)
+    result: Optional[dict] = None
 
 
 class DaemonState:
@@ -111,6 +128,15 @@ class DaemonState:
         # Allowed transcript findings (#1364) — prevents re-alerting on
         # secrets/PII that were allowed via ask dialog
         self._allowed_findings = {}  # session_id -> set of fingerprints
+
+        # Tray registration for remote ask forwarding (#1342)
+        self._registered_tray = None  # {"host", "port", "registered_at"}
+        self._tray_registration_ttl = DEFAULT_TRAY_REGISTRATION_TTL
+
+        # Pending ask prompts waiting for host tray decision (#1342)
+        self._pending_prompts = {}  # prompt_id -> PendingPrompt
+        self._pending_prompts_lock = threading.Lock()
+        self._prompt_counter = 0
 
         # Pause state persistence (#1319)
         self._pause_file = pause_file or self._default_pause_path()
@@ -207,6 +233,7 @@ class DaemonState:
             if expired:
                 logger.debug(f"Cleaned up {len(expired)} expired hook contexts")
         self._cleanup_stale_project_configs()
+        self.cleanup_expired_prompts()
 
     def cleanup_session_contexts(self, session_id):
         """Remove all hook contexts for a specific session.
@@ -272,6 +299,104 @@ class DaemonState:
             return set()
         with self._lock:
             return set(self._allowed_findings.get(session_id, ()))
+
+    # --- Tray registration & prompt queue (#1342) ---
+
+    def register_tray(self, host, port):
+        """Register a host tray for ask dialog forwarding."""
+        with self._lock:
+            self._registered_tray = {
+                "host": host,
+                "port": int(port),
+                "registered_at": time.monotonic(),
+            }
+        logger.info("Tray registered: %s:%s", host, port)
+
+    def unregister_tray(self):
+        """Clear tray registration."""
+        with self._lock:
+            self._registered_tray = None
+        logger.info("Tray unregistered")
+
+    def is_tray_registered(self):
+        """Check if a host tray is registered and TTL has not expired."""
+        with self._lock:
+            if self._registered_tray is None:
+                return False
+            age = time.monotonic() - self._registered_tray["registered_at"]
+            if age > self._tray_registration_ttl:
+                self._registered_tray = None
+                return False
+            return True
+
+    def queue_prompt(self, violation_dict, fallback_action, timeout_seconds):
+        """Queue an ask prompt for host tray pickup.
+
+        Returns a PendingPrompt whose decision_event the caller should wait on.
+        """
+        with self._pending_prompts_lock:
+            self._prompt_counter += 1
+            prompt_id = f"prompt-{self._prompt_counter}"
+            pending = PendingPrompt(
+                prompt_id=prompt_id,
+                violation=violation_dict,
+                fallback_action=fallback_action,
+                timeout_seconds=timeout_seconds,
+                created_at=time.monotonic(),
+            )
+            self._pending_prompts[prompt_id] = pending
+        logger.info("Queued ask prompt %s for tray pickup", prompt_id)
+        return pending
+
+    def get_pending_prompts(self):
+        """Return list of pending prompts that are not yet resolved or expired."""
+        now = time.monotonic()
+        result = []
+        with self._pending_prompts_lock:
+            for p in self._pending_prompts.values():
+                if p.result is not None:
+                    continue
+                if now - p.created_at > p.timeout_seconds:
+                    continue
+                result.append(
+                    {
+                        "prompt_id": p.prompt_id,
+                        "violation": p.violation,
+                        "fallback_action": p.fallback_action,
+                        "timeout_seconds": p.timeout_seconds,
+                        "age_seconds": round(now - p.created_at, 1),
+                    }
+                )
+        return result
+
+    def resolve_prompt(self, prompt_id, decision_dict):
+        """Deliver a tray decision for a pending prompt.
+
+        Returns True if the prompt was found and resolved.
+        """
+        with self._pending_prompts_lock:
+            pending = self._pending_prompts.get(prompt_id)
+            if pending is None or pending.result is not None:
+                return False
+            pending.result = decision_dict
+            pending.decision_event.set()
+        logger.info("Resolved prompt %s: %s", prompt_id, decision_dict.get("decision"))
+        return True
+
+    def cleanup_expired_prompts(self):
+        """Remove expired pending prompts and unblock their waiting threads."""
+        now = time.monotonic()
+        with self._pending_prompts_lock:
+            expired = [
+                pid
+                for pid, p in self._pending_prompts.items()
+                if now - p.created_at > p.timeout_seconds
+            ]
+            for pid in expired:
+                prompt = self._pending_prompts.pop(pid)
+                prompt.decision_event.set()
+            if expired:
+                logger.debug("Cleaned up %d expired pending prompts", len(expired))
 
     # --- Security injection tracking (#584) ---
 

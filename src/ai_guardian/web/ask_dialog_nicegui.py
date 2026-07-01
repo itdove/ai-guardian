@@ -546,8 +546,17 @@ class _NiceGuiAskDialog:
                             "Block All", on_click=lambda: decide(AskDecision.BLOCK_ALL)
                         ).props(f"color={quasar_button('block')}")
 
+            # Auto-dismiss: block after timeout if user doesn't respond
+            if dialog_self._timeout > 0:
+
+                def _auto_block():
+                    if dialog_self._result is None:
+                        dialog_self._result = AskResult(decision=AskDecision.BLOCK)
+                    app.shutdown()
+
+                ui.timer(dialog_self._timeout, _auto_block, once=True)
+
         import subprocess as _sp
-        import webbrowser
 
         front_app = None
         if platform.system() == "Darwin":
@@ -565,10 +574,10 @@ class _NiceGuiAskDialog:
             except Exception:
                 pass  # intentionally silent — best-effort operation
 
-        webbrowser.open(f"http://127.0.0.1:{port}")
-
+        # show=True: NiceGUI opens the browser after the server is ready,
+        # avoiding the race condition from webbrowser.open() before ui.run().
         ui.run(
-            port=port, show=False, reload=False, dark=True, title=build_dialog_title(v)
+            port=port, show=True, reload=False, dark=True, title=build_dialog_title(v)
         )
 
         if front_app and platform.system() == "Darwin":

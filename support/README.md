@@ -36,26 +36,53 @@ podman build --platform linux/amd64,linux/arm64 -t ai-guardian-support support/
 
 ## Run
 
+Using `run.sh` (recommended):
+
+```bash
+./support/run.sh                                    # defaults: claude, standard
+./support/run.sh --ide opencode                     # select IDE
+./support/run.sh --profile @strict                  # select profile
+./support/run.sh --repo ~/myproject                 # mount a repo
+./support/run.sh --api-key sk-ant-...               # Anthropic API auth
+./support/run.sh --ide gemini --profile @minimal    # combine options
+./support/run.sh -- ai-guardian doctor              # run a command
+```
+
+Vertex AI auth is auto-detected from environment variables (see [Authentication](#authentication)).
+
+<details>
+<summary>Manual podman run</summary>
+
 ```bash
 # Default (Claude Code hooks)
-podman run -it -p 63152:63152 ai-guardian-support
+podman run -it -p 63152 ai-guardian-support
 
 # Select IDE
-podman run -it -p 63152:63152 -e AI_GUARDIAN_IDE=opencode ai-guardian-support
-podman run -it -p 63152:63152 -e AI_GUARDIAN_IDE=gemini ai-guardian-support
-podman run -it -p 63152:63152 -e AI_GUARDIAN_IDE=codex ai-guardian-support
-podman run -it -p 63152:63152 -e AI_GUARDIAN_IDE=kiro ai-guardian-support
-podman run -it -p 63152:63152 -e AI_GUARDIAN_IDE=openclaw ai-guardian-support
+podman run -it -p 63152 -e AI_GUARDIAN_IDE=opencode ai-guardian-support
+
+# Select configuration profile
+podman run -it -p 63152 -e AI_GUARDIAN_PROFILE=@strict ai-guardian-support
+
+# Authenticate with Anthropic API
+podman run -it -p 63152 -e ANTHROPIC_API_KEY=sk-ant-... ai-guardian-support
+
+# Authenticate with Vertex AI
+podman run -it -p 63152 \
+    -e CLAUDE_CODE_USE_VERTEX=1 \
+    -e ANTHROPIC_VERTEX_PROJECT_ID=my-gcp-project \
+    -e CLOUD_ML_REGION=global \
+    -e GOOGLE_APPLICATION_CREDENTIALS=/sandbox/gcp-key.json \
+    -v ~/gcp-key.json:/sandbox/gcp-key.json:ro \
+    ai-guardian-support
 
 # Mount a repo to test
-podman run -it -p 63152:63152 -v ~/myrepo:/sandbox/repo ai-guardian-support
+podman run -it -p 63152 -v ~/myrepo:/sandbox/repo ai-guardian-support
 
 # Run doctor
 podman run -it ai-guardian-support ai-guardian doctor
-
-# Custom command
-podman run -it ai-guardian-support ai-guardian scan /sandbox/repo
 ```
+
+</details>
 
 ## IDE Selection
 
@@ -81,6 +108,63 @@ Set `AI_GUARDIAN_IDE` to configure hooks for a specific IDE at container start:
 IDEs marked "hooks only" are not installed in the image (they require a GUI) but
 ai-guardian hooks are configured for them. Mount the IDE binary into the container
 if needed.
+
+## Configuration Profile
+
+Set `AI_GUARDIAN_PROFILE` to apply a security profile at container start:
+
+| Value | Description |
+|-------|-------------|
+| (unset) | Standard profile (default) |
+| `@minimal` | Minimal — fewer checks, lower false positive rate |
+| `@standard` | Standard — balanced security and usability |
+| `@strict` | Strict — maximum security, all checks enabled |
+
+You can also pass a custom profile name or path if you have saved custom profiles.
+
+## Authentication
+
+Pass authentication credentials as environment variables at runtime.
+
+> **Tested configurations:** Anthropic API key and Google Vertex AI have been
+> validated with this image. Other providers (AWS Bedrock, Azure, self-hosted)
+> may require additional environment variables or volume mounts — consult the
+> IDE's documentation for the required configuration.
+
+### Anthropic API (direct)
+
+```bash
+podman run -it -p 63152 \
+    -e ANTHROPIC_API_KEY=sk-ant-... \
+    ai-guardian-support
+```
+
+### Google Vertex AI ✓ tested
+
+```bash
+podman run -it -p 63152 \
+    -e CLAUDE_CODE_USE_VERTEX=1 \
+    -e ANTHROPIC_VERTEX_PROJECT_ID=my-gcp-project \
+    -e CLOUD_ML_REGION=global \
+    -e GOOGLE_APPLICATION_CREDENTIALS=/sandbox/gcp-key.json \
+    -v ~/my-gcp-key.json:/sandbox/gcp-key.json:ro \
+    ai-guardian-support
+```
+
+### Other providers (untested)
+
+Other Claude-compatible providers may work by passing the appropriate env vars.
+The container does not pre-configure any provider-specific tooling beyond
+Claude Code, so extra setup (CLI login, credential files, proxy config) may be
+needed inside the container after startup.
+
+| Variable | Description |
+|----------|-------------|
+| `ANTHROPIC_API_KEY` | Anthropic API key (direct API access) |
+| `CLAUDE_CODE_USE_VERTEX` | Set to `1` to use Google Vertex AI |
+| `ANTHROPIC_VERTEX_PROJECT_ID` | GCP project ID (with Vertex AI) |
+| `CLOUD_ML_REGION` | GCP region, e.g. `global` (with Vertex AI) |
+| `GOOGLE_APPLICATION_CREDENTIALS` | Path to GCP service account JSON key file (with Vertex AI) |
 
 ## Web Console
 

@@ -59,6 +59,10 @@ class DaemonServer:
         self._tcp_port = 0
         self.state = DaemonState(idle_timeout=idle_timeout)
 
+        from ai_guardian.daemon import set_daemon_state
+
+        set_daemon_state(self.state)
+
     def start(self):
         """Start the daemon server (blocking).
 
@@ -115,6 +119,10 @@ class DaemonServer:
 
         self._shutdown_event.set()
         logger.info("Daemon shutting down...")
+
+        from ai_guardian.daemon import set_daemon_state
+
+        set_daemon_state(None)
 
         # Flush pending session state to disk before cleanup (#592)
         try:

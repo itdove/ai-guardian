@@ -312,6 +312,15 @@ class DaemonTray:
         self._last_autostart_attempt = 0.0
         self._last_stats_snapshot = None
 
+        # Remote ask prompt forwarding (#1342)
+        self._in_flight_prompts = set()
+        self._prompt_poll_running = False
+        self._PROMPT_POLL_INTERVAL = 2.5
+        self._ask_forwarding_targets: set = set()  # registered successfully
+        self._ask_forwarding_failed: set = (
+            set()
+        )  # remote running but registration failed
+
     def start(self):
         """Start tray icon in a background thread.
 
@@ -357,6 +366,7 @@ class DaemonTray:
         """Stop tray icon."""
         self._stop_discovery_animation()
         self._stats_refresh_running = False
+        self._prompt_poll_running = False
         self._unregister_wake_handler()
         self._stop_web_console()
         if self._discovery:
@@ -532,6 +542,7 @@ class DaemonTray:
             self._start_discovery_animation(delay=0)
             self._discovery.start_background_discovery(self._on_targets_updated)
         self._start_stats_refresh()
+        self._start_prompt_poll()
         self._start_web_console()
         self._register_wake_handler()
         import platform
@@ -1772,6 +1783,7 @@ class DaemonTray:
                     self._check_pypi_version()
                     self._poll_plugins()
                     self._request_discovery_refresh(wait=False)
+                    self._register_tray_with_remotes()
                     self._dispatch_to_main(self._refresh_menu_if_changed)
 
         thread = threading.Thread(target=_refresh, daemon=True, name="stats-refresh")
@@ -1975,6 +1987,7 @@ class DaemonTray:
         logger.info(f"Discovery updated: {len(targets)} target(s) found")
         for t in targets:
             logger.info(f"  {t.name} ({t.runtime}) status={t.status} port={t.port}")
+        self._register_tray_with_remotes()
 
     def _auto_select_target(self):
         """Auto-select the best running daemon target.
@@ -2004,6 +2017,198 @@ class DaemonTray:
             self._active_target = self._targets[0]
         else:
             self._active_target = None
+
+    # --- Remote ask prompt forwarding (#1342) ---
+
+    def _register_tray_with_remotes(self):
+        """Register this tray with remote daemons for ask dialog forwarding."""
+        if not self._multi_client:
+            return
+        registered = set()
+        failed = set()
+        for target in self._targets:
+            if (
+                target.runtime in ("container", "kubernetes", "manual")
+                and target.status == "running"
+            ):
+                tray_host = self._resolve_tray_host(target)
+                try:
+                    ok = self._multi_client.register_tray(target, tray_host, 0)
+                    if ok:
+                        registered.add(target.name)
+                        logger.info(
+                            "Ask forwarding registered with %s (host=%s)",
+                            target.name,
+                            tray_host,
+                        )
+                    else:
+                        failed.add(target.name)
+                        logger.warning(
+                            "Ask forwarding registration FAILED for %s — "
+                            "container may be running old code without /api/register-tray",
+                            target.name,
+                        )
+                except Exception as e:
+                    failed.add(target.name)
+                    logger.warning(
+                        "Ask forwarding registration error for %s: %s", target.name, e
+                    )
+        self._ask_forwarding_targets = registered
+        self._ask_forwarding_failed = failed
+
+    @staticmethod
+    def _resolve_tray_host(target):
+        """Determine host address the remote daemon can use to reach this tray."""
+        if target.runtime == "container":
+            return "host.docker.internal"
+        return "127.0.0.1"
+
+    def _start_prompt_poll(self):
+        """Start background thread that fast-polls remote daemons for pending ask prompts."""
+        self._prompt_poll_running = True
+
+        def _poll():
+            while self._prompt_poll_running:
+                time.sleep(self._PROMPT_POLL_INTERVAL)
+                if not self._prompt_poll_running:
+                    break
+                try:
+                    self._poll_remote_prompts()
+                except Exception as e:
+                    logger.debug("Prompt poll error: %s", e)
+
+        thread = threading.Thread(target=_poll, daemon=True, name="prompt-poll")
+        thread.start()
+
+    def _poll_remote_prompts(self):
+        """Check remote daemons for pending ask prompts and show dialogs."""
+        if not self._multi_client:
+            return
+        for target in self._targets:
+            if target.runtime not in ("container", "kubernetes", "manual"):
+                continue
+            if target.status != "running":
+                continue
+            try:
+                prompts = self._multi_client.get_pending_prompts(target)
+            except Exception as e:
+                logger.debug("get_pending_prompts failed for %s: %s", target.name, e)
+                continue
+            if not prompts:
+                continue
+            logger.info(
+                "Found %d pending ask prompt(s) on %s", len(prompts), target.name
+            )
+            for prompt_data in prompts:
+                self._handle_remote_prompt(target, prompt_data)
+
+    def _handle_remote_prompt(self, target, prompt_data):
+        """Show ask dialog for a remote daemon's pending prompt."""
+        prompt_id = prompt_data.get("prompt_id")
+        if not prompt_id or prompt_id in self._in_flight_prompts:
+            return
+        self._in_flight_prompts.add(prompt_id)
+
+        def _show_and_respond():
+            try:
+                from ai_guardian.tui.ask_dialog import (
+                    AskViolationInfo,
+                    _show_via_subprocess,
+                    _map_fallback_to_decision,
+                )
+
+                logger.info(
+                    "Remote ask prompt %s received from %s — showing dialog",
+                    prompt_id,
+                    target.name,
+                )
+
+                v = prompt_data.get("violation", {})
+                violation = AskViolationInfo(
+                    violation_type=v.get("violation_type", ""),
+                    summary=v.get("summary", ""),
+                    matched_text=v.get("matched_text", ""),
+                    config_section=v.get("config_section", ""),
+                    error_message=v.get("error_message", ""),
+                    matched_pattern=v.get("matched_pattern", ""),
+                    file_path=v.get("file_path"),
+                    line_number=v.get("line_number"),
+                    start_column=v.get("start_column"),
+                    project_path=v.get("project_path"),
+                    session_id=v.get("session_id"),
+                    tool_name=v.get("tool_name"),
+                    hook_event=v.get("hook_event"),
+                    finding_index=v.get("finding_index"),
+                    total_findings=v.get("total_findings"),
+                )
+
+                fallback = prompt_data.get("fallback_action", "block")
+                timeout = prompt_data.get("timeout_seconds", 300)
+
+                # macOS only: pystray runs as NSApplicationActivationPolicyAccessory
+                # (no dock icon). On macOS 14+, activateIgnoringOtherApps_ is deprecated
+                # so tkinter subprocesses can't steal focus. Force NiceGUI browser tab
+                # which is always foreground regardless of parent activation policy.
+                # On Linux/Windows, pystray is a regular process — tkinter works fine,
+                # so let preferred_ui auto-select (tkinter/NiceGUI/Textual per config).
+                import platform as _platform
+
+                extra_env = {}
+                if _platform.system() == "Darwin":
+                    # pystray = NSApplicationActivationPolicyAccessory on macOS 14+:
+                    # tkinter subprocesses can't steal focus (activateIgnoringOtherApps_
+                    # deprecated). Skip tkinter; preferred_ui otherwise respected
+                    # (NiceGUI browser tab, Textual, etc.).
+                    extra_env["AI_GUARDIAN_NO_TKINTER"] = "1"
+                    logger.info(
+                        "Remote ask %s: macOS — tkinter suppressed, using preferred_ui",
+                        prompt_id,
+                    )
+                else:
+                    logger.info(
+                        "Remote ask %s: using preferred_ui auto-selection", prompt_id
+                    )
+                result = _show_via_subprocess(
+                    violation, fallback, timeout, extra_env=extra_env or None
+                )
+                logger.info(
+                    "Remote ask %s: subprocess returned decision=%s",
+                    prompt_id,
+                    result.decision.value if result else "None (fallback)",
+                )
+
+                if result is None:
+                    decision = _map_fallback_to_decision(fallback)
+                    decision_data = {"decision": decision.value}
+                else:
+                    # config_saved / source_annotation_saved are intentionally
+                    # False: the subprocess ran on the host (wrong machine).
+                    # The triggering daemon owns its own filesystem — hook_processing
+                    # checks `not config_saved` and saves the pattern/annotation
+                    # locally when it processes the returned AskResult (#1342).
+                    decision_data = {
+                        "decision": result.decision.value,
+                        "allowlist_pattern": result.allowlist_pattern,
+                        "config_saved": False,
+                        "config_path": None,
+                        "source_annotation_saved": False,
+                        "ignore_path": result.ignore_path,
+                        "ignore_scanner_types": result.ignore_scanner_types,
+                    }
+
+                self._multi_client.send_prompt_decision(
+                    target, prompt_id, decision_data
+                )
+            except Exception as e:
+                logger.warning("Failed to handle remote prompt %s: %s", prompt_id, e)
+            finally:
+                self._in_flight_prompts.discard(prompt_id)
+
+        threading.Thread(
+            target=_show_and_respond,
+            daemon=True,
+            name=f"remote-prompt-{prompt_id[:8]}",
+        ).start()
 
     def _get_active_stats(self):
         """Get stats from the active target (local or remote).
@@ -2039,7 +2244,11 @@ class DaemonTray:
 
     @staticmethod
     def _daemon_status_label(
-        target, has_paused_dirs=False, active_project_dir=None, project_count=0
+        target,
+        has_paused_dirs=False,
+        active_project_dir=None,
+        project_count=0,
+        forwarding_failed=False,
     ):
         """Format a daemon target into a status header label."""
         from ai_guardian.daemon.working_dir import shorten_path
@@ -2061,7 +2270,8 @@ class DaemonTray:
             runtime = f" ({target.runtime})"
         else:
             runtime = ""
-        label = f"{status_icon} {target.name}{runtime}"
+        forwarding_badge = " ⚠" if forwarding_failed else ""
+        label = f"{status_icon} {target.name}{runtime}{forwarding_badge}"
         if target.status == "stopped":
             label += " — daemon not running"
         elif target.status == "starting":
@@ -2100,6 +2310,7 @@ class DaemonTray:
             has_paused_dirs=bool(stats.get("paused_dirs")),
             active_project_dir=active_dirs[0] if active_dirs else None,
             project_count=len(active_dirs),
+            forwarding_failed=target.name in self._ask_forwarding_failed,
         )
         key = (target.name, target.runtime)
         if key in self._version_mismatch_notified:

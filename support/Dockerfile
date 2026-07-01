@@ -10,6 +10,9 @@
 # Run:
 #   podman run -it -p 63152 ai-guardian-support
 #   podman run -it -p 63152 -e AI_GUARDIAN_IDE=opencode ai-guardian-support
+#   podman run -it -p 63152 -e AI_GUARDIAN_PROFILE=@strict ai-guardian-support
+#   podman run -it -p 63152 -e ANTHROPIC_API_KEY=sk-ant-... ai-guardian-support
+#   podman run -it -p 63152 -e CLAUDE_CODE_USE_VERTEX=1 -e ANTHROPIC_VERTEX_PROJECT_ID=my-proj -e CLOUD_ML_REGION=global -e GOOGLE_APPLICATION_CREDENTIALS=/sandbox/gcp-key.json -v ~/gcp-key.json:/sandbox/gcp-key.json:ro ai-guardian-support
 #
 # Local wheel:
 #   python -m build --wheel && cp dist/ai_guardian-*.whl support/vendor/

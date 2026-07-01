@@ -8,6 +8,7 @@ Uses only stdlib http.server — no additional dependencies.
 
 import json
 import logging
+import socketserver
 import threading
 import urllib.parse
 from http.server import HTTPServer, BaseHTTPRequestHandler
@@ -113,6 +114,9 @@ class _RestHandler(BaseHTTPRequestHandler):
             qs = urllib.parse.parse_qs(parsed.query)
             fix = qs.get("fix", ["false"])[0].lower() == "true"
             self._send_json(self._get_health_check(fix))
+        elif path == "/api/pending-prompts":
+            prompts = self.server.daemon_state.get_pending_prompts()
+            self._send_json({"prompts": prompts})
         else:
             self._send_error(404, "Not found")
 
@@ -231,6 +235,16 @@ class _RestHandler(BaseHTTPRequestHandler):
             self._handle_scan(body)
         elif self.path == "/api/patterns/refresh":
             self._send_json(self._refresh_pattern_cache())
+        elif self.path == "/api/register-tray":
+            body = self._read_body()
+            if body is None:
+                return
+            self._handle_register_tray(body)
+        elif self.path == "/api/prompt-decision":
+            body = self._read_body()
+            if body is None:
+                return
+            self._handle_prompt_decision(body)
         else:
             self._send_error(404, "Not found")
 
@@ -809,7 +823,18 @@ class _RestHandler(BaseHTTPRequestHandler):
             total_findings=violation_data.get("total_findings"),
         )
 
-        result = _show_via_subprocess(violation, fallback, timeout)
+        # If a host tray is registered, delegate to it regardless of preferred_ui.
+        # This handles headless/container daemons where preferred_ui=="auto" routes
+        # through _show_via_daemon → here, but no local display exists (#1342).
+        daemon_state = self.server.daemon_state
+        result = None
+        if daemon_state and daemon_state.is_tray_registered():
+            from ai_guardian.tui.ask_dialog import _show_via_tray_forwarding
+
+            result = _show_via_tray_forwarding(violation, fallback, timeout)
+
+        if result is None:
+            result = _show_via_subprocess(violation, fallback, timeout)
 
         if result is None:
             decision = _map_fallback_to_decision(fallback)
@@ -839,6 +864,32 @@ class _RestHandler(BaseHTTPRequestHandler):
                     "source": "daemon",
                 }
             )
+
+    def _handle_register_tray(self, body):
+        """Handle POST /api/register-tray — tray registers for ask forwarding."""
+        host = body.get("host")
+        port = body.get("port")
+        if not host or port is None:
+            self._send_error(400, "host and port are required")
+            return
+        self.server.daemon_state.register_tray(host, int(port))
+        self._send_json({"status": "registered", "host": host, "port": int(port)})
+
+    def _handle_prompt_decision(self, body):
+        """Handle POST /api/prompt-decision — tray sends ask dialog decision."""
+        prompt_id = body.get("prompt_id")
+        if not prompt_id:
+            self._send_error(400, "prompt_id is required")
+            return
+        decision = body.get("decision")
+        if not decision:
+            self._send_error(400, "decision is required")
+            return
+        found = self.server.daemon_state.resolve_prompt(prompt_id, body)
+        if found:
+            self._send_json({"status": "accepted", "prompt_id": prompt_id})
+        else:
+            self._send_error(404, "Prompt not found or already resolved")
 
     def _handle_redact(self, body):
         """Handle POST /api/redact — text sanitization."""
@@ -932,7 +983,14 @@ class DaemonRestAPI:
 
     def start(self) -> int:
         """Start HTTP server in background thread. Returns bound port."""
-        self._server = HTTPServer((self._host, self._port), _RestHandler)
+
+        class _ThreadedHTTPServer(socketserver.ThreadingMixIn, HTTPServer):
+            """Thread-per-request so long-running handlers (e.g. ask-dialog
+            wait) don't block health checks or pending-prompts polls."""
+
+            daemon_threads = True
+
+        self._server = _ThreadedHTTPServer((self._host, self._port), _RestHandler)
         self._server.daemon_state = self._state
         self._server.instance_name = self._name
         self._server.auth_token = self._auth_token

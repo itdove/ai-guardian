@@ -214,6 +214,80 @@ def _write_aiguardignore_text(
         return False
 
 
+def _serialize_violation(violation: AskViolationInfo) -> dict:
+    """Serialize AskViolationInfo to a JSON-safe dict."""
+    return {
+        "violation_type": violation.violation_type,
+        "summary": violation.summary,
+        "matched_text": violation.matched_text,
+        "config_section": violation.config_section,
+        "error_message": violation.error_message,
+        "matched_pattern": violation.matched_pattern,
+        "file_path": violation.file_path,
+        "line_number": violation.line_number,
+        "start_column": violation.start_column,
+        "project_path": violation.project_path,
+        "session_id": violation.session_id,
+        "tool_name": violation.tool_name,
+        "hook_event": violation.hook_event,
+        "finding_index": violation.finding_index,
+        "total_findings": violation.total_findings,
+    }
+
+
+def _show_via_tray_forwarding(
+    violation: AskViolationInfo,
+    fallback_action: str = "block",
+    timeout_seconds: int = 300,
+) -> Optional[AskResult]:
+    """Queue prompt for host tray pickup on headless remote daemon (#1342).
+
+    Returns None if no tray registered or decision timed out (caller falls
+    through to existing headless fallback with zero delay).
+    """
+    try:
+        from ai_guardian.daemon import get_daemon_state
+
+        daemon_state = get_daemon_state()
+    except Exception:
+        return None
+
+    if daemon_state is None or not daemon_state.is_tray_registered():
+        return None
+
+    violation_dict = _serialize_violation(violation)
+    pending = daemon_state.queue_prompt(
+        violation_dict, fallback_action, timeout_seconds
+    )
+
+    resolved = pending.decision_event.wait(timeout=timeout_seconds)
+
+    if not resolved or pending.result is None:
+        logger.info(
+            "Tray prompt %s timed out, falling back to %s",
+            pending.prompt_id,
+            fallback_action,
+        )
+        return None
+
+    data = pending.result
+    decision_str = data.get("decision", "block")
+    try:
+        decision = AskDecision(decision_str)
+    except ValueError:
+        decision = AskDecision.BLOCK
+
+    return AskResult(
+        decision=decision,
+        allowlist_pattern=data.get("allowlist_pattern"),
+        config_saved=data.get("config_saved", False),
+        source_annotation_saved=data.get("source_annotation_saved", False),
+        ignore_path=data.get("ignore_path"),
+        ignore_scanner_types=data.get("ignore_scanner_types"),
+        config_path=data.get("config_path"),
+    )
+
+
 def _show_via_daemon(
     violation: AskViolationInfo,
     fallback_action: str = "block",
@@ -311,11 +385,13 @@ def _show_via_subprocess(
     violation: AskViolationInfo,
     fallback_action: str = "block",
     timeout_seconds: int = 300,
+    extra_env: Optional[dict] = None,
 ) -> Optional[AskResult]:
     """Launch prompt --mode ask as a separate subprocess with display access.
 
-    The hook subprocess can't show GUI directly — this delegates to a
-    fresh process via 'ai-guardian prompt --mode ask'.
+    extra_env: optional env overrides (e.g. AI_GUARDIAN_PREFERRED_UI=nicegui
+    when called from the tray, where pystray's NSAccessory activation policy
+    prevents tkinter subprocesses from appearing in front on macOS 14+).
     """
     import json
     import shutil
@@ -363,11 +439,17 @@ def _show_via_subprocess(
         str(timeout_seconds),
     ]
 
+    env = None
+    if extra_env:
+        env = os.environ.copy()
+        env.update(extra_env)
+
     try:
         proc = subprocess.Popen(
             cmd,
             stdin=subprocess.DEVNULL,
             stderr=subprocess.PIPE,
+            env=env,
         )
         _, stderr_out = proc.communicate(timeout=timeout_seconds + 10)
         if proc.returncode != 0 and stderr_out:
@@ -411,6 +493,28 @@ def _show_via_subprocess(
     return None
 
 
+def _is_headless_env() -> bool:
+    """Return True when running in a display-less environment.
+
+    Covers explicit configuration and auto-detection: on Linux without a
+    DISPLAY or WAYLAND_DISPLAY, no GUI tier can show windows, so the caller
+    should fall back to tray-forwarding or the configured fallback action.
+    """
+    from ai_guardian.tui.display import get_preferred_ui
+
+    preferred = get_preferred_ui()
+    if preferred == "headless":
+        return True
+    if preferred != "auto":
+        return False
+    # Auto-detect: Linux container / SSH session without graphical display
+    import sys
+
+    if sys.platform != "linux":
+        return False
+    return not os.environ.get("DISPLAY") and not os.environ.get("WAYLAND_DISPLAY")
+
+
 def show_ask_dialog(
     violation: AskViolationInfo,
     fallback_action: str = "block",
@@ -418,8 +522,44 @@ def show_ask_dialog(
 ) -> AskResult:
     """Show interactive dialog for a violation, falling back if headless.
 
-    Tries the daemon REST API first (direct call, no subprocess overhead),
-    then falls back to subprocess spawn, then to headless action.
+    Two execution paths depending on whether a host tray is registered:
+
+    LOCAL (daemon + display on same host)
+    ─────────────────────────────────────
+    Hook (runs inside daemon process)
+      └─ show_ask_dialog()
+           ├─ _show_via_tray_forwarding()  → None  (local tray not registered
+           │                                         with local daemon)
+           ├─ _is_headless_env()           → False (display available)
+           └─ _show_via_daemon()
+                └─ POST /api/prompt  (daemon calls its own REST endpoint)
+                     └─ _handle_prompt()
+                          └─ _show_via_subprocess()
+                               └─ ai-guardian prompt --mode ask
+                                    └─ tkinter / NiceGUI / Textual dialog
+                                    └─ user responds
+                               └─ AskResult → HTTP response
+                └─ AskResult returned to hook
+
+    REMOTE (container/K8s daemon, host tray)
+    ─────────────────────────────────────────
+    Host tray                              Container daemon
+    ─────────                              ────────────────
+    POST /api/register-tray (every ~30s)→  is_tray_registered() = True
+                                           Hook fires
+                                             └─ show_ask_dialog()
+                                                  └─ _show_via_tray_forwarding()
+                                                       └─ queue_prompt()
+    GET /api/pending-prompts (every 2.5s) ←──────────── decision_event.wait()
+      └─ _handle_remote_prompt()
+           └─ _show_via_subprocess()        (AI_GUARDIAN_NO_TKINTER=1 on macOS)
+                └─ NiceGUI / auto dialog
+                └─ user responds
+      └─ POST /api/prompt-decision ────────→ resolve_prompt()
+                                             decision_event.set()
+                                             AskResult returned to hook
+
+    No tray registered + headless env → immediate fallback (no block).
 
     Args:
         violation: Violation details to display.
@@ -429,13 +569,15 @@ def show_ask_dialog(
     Returns:
         AskResult with the user's decision and optional allowlist pattern.
     """
-    from ai_guardian.tui.display import get_preferred_ui
+    # Tray forwarding: try early so containers/headless daemons get a visible
+    # dialog on the host without needing explicit preferred_ui=headless.
+    result = _show_via_tray_forwarding(violation, fallback_action, timeout_seconds)
+    if result is not None:
+        return result
 
-    if get_preferred_ui() == "headless":
+    if _is_headless_env():
         decision = _map_fallback_to_decision(fallback_action)
-        logger.info(
-            "preferred_ui=headless, using fallback: %s -> %s", fallback_action, decision
-        )
+        logger.info("headless env, using fallback: %s -> %s", fallback_action, decision)
         return AskResult(decision=decision)
 
     result = _show_via_daemon(violation, fallback_action, timeout_seconds)
