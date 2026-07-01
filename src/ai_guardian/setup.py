@@ -426,6 +426,14 @@ class IDESetup:
                 }
             },
         },
+        "dummy-agent": {
+            "name": "Dummy Agent",
+            # No external config file — the dummy agent fires hooks internally.
+            "config_path": None,
+            "config_dir_env_var": None,
+            "config_filename": None,
+            "hooks": {},
+        },
     }
 
     @staticmethod
@@ -522,7 +530,10 @@ class IDESetup:
         detected_ides = []
 
         for ide_type in self.IDE_CONFIGS.keys():
-            config_path = Path(self.get_config_path(ide_type)).expanduser()
+            raw_path = self.get_config_path(ide_type)
+            if not raw_path:
+                continue
+            config_path = Path(raw_path).expanduser()
             if config_path.parent.exists():
                 detected_ides.append(ide_type)
 
@@ -543,7 +554,10 @@ class IDESetup:
         """
         detected = []
         for ide_type in self.IDE_CONFIGS.keys():
-            config_path = Path(self.get_config_path(ide_type)).expanduser()
+            raw_path = self.get_config_path(ide_type)
+            if not raw_path:
+                continue
+            config_path = Path(raw_path).expanduser()
             if config_path.parent.exists():
                 detected.append(ide_type)
         return detected
@@ -1290,6 +1304,18 @@ class IDESetup:
         try:
             if ide_type not in self.IDE_CONFIGS:
                 return False, f"Unknown IDE type: {ide_type}"
+
+            # Dummy agent fires hooks internally — no config file to write.
+            if ide_type == "dummy-agent":
+                import shutil
+
+                binary = shutil.which("ai-guardian")
+                if binary:
+                    return (
+                        True,
+                        "Dummy Agent is built into ai-guardian. Run: ai-guardian dummy-agent",
+                    )
+                return False, "ai-guardian binary not found in PATH"
 
             ide_config = self.IDE_CONFIGS[ide_type]
             config_path = Path(self.get_config_path(ide_type)).expanduser()

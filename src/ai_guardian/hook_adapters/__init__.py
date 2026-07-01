@@ -21,6 +21,7 @@ from ai_guardian.hook_adapters.codex import CodexAdapter
 from ai_guardian.hook_adapters.base_agent import BaseAgentAdapter
 from ai_guardian.hook_adapters.opencode import OpenCodeAdapter
 from ai_guardian.hook_adapters.junie import JunieAdapter
+from ai_guardian.hook_adapters.dummy_agent import DummyAgentAdapter
 
 logger = logging.getLogger(__name__)
 
@@ -35,12 +36,13 @@ ADAPTER_CLASSES = [
     KiroAdapter,  # kiro_hook_type or kiro_version
     AugmentAdapter,  # is_mcp_tool + tool_name
     OpenCodeAdapter,  # opencode_version or hook_source
+    DummyAgentAdapter,  # dummy_agent field (simulated IDE)
     BaseAgentAdapter,  # PascalCase hook_event_name (fallback)
 ]
 
 # Env var value → adapter class (includes aliases like "copilot" → CopilotAdapter)
 _ENV_ALIAS_MAP: Dict[str, type] = {}
-for _cls in ADAPTER_CLASSES + [CodexAdapter, JunieAdapter]:
+for _cls in ADAPTER_CLASSES + [CodexAdapter, JunieAdapter, DummyAgentAdapter]:
     for _alias in _cls.ENV_ALIASES:
         _ENV_ALIAS_MAP[_alias] = _cls
 
@@ -134,5 +136,6 @@ __all__ = [
     "AugmentAdapter",
     "OpenCodeAdapter",
     "JunieAdapter",
+    "DummyAgentAdapter",
     "ADAPTER_CLASSES",
 ]

@@ -4,11 +4,29 @@ set -euo pipefail
 IDE="${AI_GUARDIAN_IDE:-claude}"
 PROFILE="${AI_GUARDIAN_PROFILE:-}"
 
-SUPPORTED_IDES="claude opencode gemini codex kiro openclaw cursor copilot windsurf augment cline zoocode junie aiderdesk"
+SUPPORTED_IDES="claude opencode gemini codex kiro openclaw cursor copilot windsurf augment cline zoocode junie aiderdesk dummy-agent"
 if ! echo "$SUPPORTED_IDES" | grep -qw "$IDE"; then
     echo "Error: unsupported IDE '$IDE'"
     echo "Supported: $SUPPORTED_IDES"
     exit 1
+fi
+
+# dummy-agent: no API key required — launch REPL directly
+if [ "$IDE" = "dummy-agent" ]; then
+    echo "Starting ai-guardian daemon..."
+    ai-guardian daemon start --background 2>/dev/null || true
+    REST_PORT="${AI_GUARDIAN_REST_PORT:-63152}"
+    echo ""
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    echo "  AI Guardian dummy-agent ready (no LLM needed)"
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    echo ""
+    echo "  Interactive: ai-guardian dummy-agent"
+    echo "  Script mode: ai-guardian dummy-agent --script /sandbox/scenarios/basic-secret.yaml"
+    echo "  Web console: http://localhost:${REST_PORT}"
+    echo "  Version:     $(ai-guardian --version 2>/dev/null || echo 'unknown')"
+    echo ""
+    exec "$@"
 fi
 
 # Custom GitLab host — glab needs explicit config since it can't infer the host from GITLAB_TOKEN alone
@@ -18,13 +36,14 @@ fi
 # gitlab.com: glab reads GITLAB_TOKEN natively, no action needed
 # gh: reads GH_TOKEN / GITHUB_TOKEN natively, no action needed
 
-SETUP_ARGS="--ide $IDE --create-config --force --yes"
-if [ -n "$PROFILE" ]; then
-    SETUP_ARGS="$SETUP_ARGS --profile $PROFILE"
+if [ "$IDE" != "dummy-agent" ]; then
+    SETUP_ARGS="--ide $IDE --create-config --force --yes"
+    if [ -n "$PROFILE" ]; then
+        SETUP_ARGS="$SETUP_ARGS --profile $PROFILE"
+    fi
+    echo "Configuring ai-guardian for IDE: $IDE${PROFILE:+ (profile: $PROFILE)}"
+    eval "ai-guardian setup $SETUP_ARGS" 2>&1 | tail -3
 fi
-
-echo "Configuring ai-guardian for IDE: $IDE${PROFILE:+ (profile: $PROFILE)}"
-eval "ai-guardian setup $SETUP_ARGS" 2>&1 | tail -3
 
 echo "Starting ai-guardian daemon..."
 ai-guardian daemon start --background 2>/dev/null || true

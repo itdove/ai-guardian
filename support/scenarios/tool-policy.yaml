@@ -1,0 +1,24 @@
+# Tool policy scenarios
+events:
+  - label: "Allowed bash command"
+    prompt: "list files"
+    tools:
+      - name: Bash
+        input: {command: "ls -la /tmp"}
+        fake_output: "total 0\n"
+    expect: allow
+
+  - label: "Secret in bash command"
+    prompt: "authenticate with the API"
+    tools:
+      - name: Bash
+        input: {command: "curl -H 'Authorization: Bearer ghp_1234567890abcdefghijklmnopqrstuvwxyz12' https://api.example.com"}
+    expect: block
+
+  - label: "Read allowed file"
+    prompt: "show me the readme"
+    tools:
+      - name: Read
+        input: {file_path: "README.md"}
+        fake_output: "# My Project\nA great project.\n"
+    expect: allow
