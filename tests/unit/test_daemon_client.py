@@ -411,6 +411,13 @@ class TestDevSourceRestart:
                 }
             )
         )
+
+        def fake_shutdown(timeout=2.0):
+            # Simulate old daemon deleting PID file on shutdown so the wait
+            # loop exits immediately rather than timing out.
+            pid_path.unlink(missing_ok=True)
+            return True
+
         with mock.patch("ai_guardian.__version__", "1.12.0-dev"):
             with mock.patch(
                 "ai_guardian.daemon.state.DaemonState.get_package_max_mtime",
@@ -418,19 +425,68 @@ class TestDevSourceRestart:
             ):
                 with mock.patch(
                     "ai_guardian.daemon.client.send_shutdown",
-                    return_value=True,
+                    side_effect=fake_shutdown,
                 ):
                     with mock.patch(
-                        "ai_guardian.daemon.client.is_daemon_running",
-                        return_value=False,
+                        "ai_guardian.daemon.client.start_daemon_background",
+                        return_value=True,
+                    ) as mock_start:
+                        result = _check_dev_source_restart()
+                        assert result is True
+                        mock_start.assert_called_once()
+
+    def test_waits_for_pid_file_not_socket(self, tmp_path, monkeypatch):
+        """Restart loop waits for PID file to disappear, not socket connectivity.
+
+        Regression test for #1425: waiting only for socket connectivity caused
+        start_daemon_background() to fire while the old daemon's PID file still
+        existed, triggering a false 'PID recycled' path in _cleanup_stale() and
+        orphaning the new daemon's socket.
+        """
+        import time
+
+        monkeypatch.setenv("AI_GUARDIAN_STATE_DIR", str(tmp_path))
+        pid_path = tmp_path / "daemon.pid"
+        pid_path.write_text(json.dumps({"pid": os.getpid(), "source_mtime": 1000.0}))
+
+        call_times = []
+
+        def fake_shutdown(timeout=2.0):
+            # Delete PID after a short delay to simulate the old daemon still
+            # running when shutdown is called (socket already gone by this point).
+            def _delete_pid():
+                time.sleep(0.15)
+                pid_path.unlink(missing_ok=True)
+
+            import threading
+
+            threading.Thread(target=_delete_pid, daemon=True).start()
+            return True
+
+        def fake_start():
+            call_times.append(pid_path.exists())
+            return True
+
+        with mock.patch("ai_guardian.__version__", "1.12.0-dev"):
+            with mock.patch(
+                "ai_guardian.daemon.state.DaemonState.get_package_max_mtime",
+                return_value=2000.0,
+            ):
+                with mock.patch(
+                    "ai_guardian.daemon.client.send_shutdown",
+                    side_effect=fake_shutdown,
+                ):
+                    with mock.patch(
+                        "ai_guardian.daemon.client.start_daemon_background",
+                        side_effect=fake_start,
                     ):
-                        with mock.patch(
-                            "ai_guardian.daemon.client.start_daemon_background",
-                            return_value=True,
-                        ) as mock_start:
-                            result = _check_dev_source_restart()
-                            assert result is True
-                            mock_start.assert_called_once()
+                        _check_dev_source_restart()
+
+        # start_daemon_background must be called AFTER PID file is gone
+        assert call_times, "start_daemon_background was never called"
+        assert not call_times[
+            0
+        ], "start_daemon_background fired while PID file still existed"
 
     def test_exception_logged_at_error_level(self, tmp_path, monkeypatch, caplog):
         """Failed restart exceptions logged at ERROR, not DEBUG (#1297)."""

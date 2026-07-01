@@ -173,6 +173,43 @@ class TestDaemonServerLifecycle:
         server.stop()  # second call must be a no-op
         thread.join(timeout=3)
 
+    def test_cleanup_state_files_deletes_pid_before_socket(self, short_state_dir):
+        """PID file must be deleted before socket file (#1425).
+
+        The client-side dev-restart loop uses PID file absence as the
+        authoritative signal that the old daemon is fully gone. If socket is
+        deleted first, the loop can fire start_daemon_background() while the
+        PID file still exists, triggering a false 'PID recycled' path in
+        _cleanup_stale() and orphaning the new daemon.
+        """
+        from pathlib import Path
+
+        delete_order = []
+        pid_path = Path(short_state_dir) / "daemon.pid"
+        sock_path = Path(short_state_dir) / "daemon.sock"
+
+        pid_path.write_text(json.dumps({"pid": os.getpid()}))
+        sock_path.write_text("")
+
+        original_unlink = Path.unlink
+
+        def tracking_unlink(self_path, missing_ok=False):
+            if self_path.name in ("daemon.pid", "daemon.sock"):
+                delete_order.append(self_path.name)
+            return original_unlink(self_path, missing_ok=missing_ok)
+
+        server = DaemonServer(idle_timeout=5, enable_rest_api=False)
+        with mock.patch.object(Path, "unlink", tracking_unlink):
+            server._cleanup_state_files()
+
+        assert "daemon.pid" in delete_order, "PID file was not deleted"
+        assert "daemon.sock" in delete_order, "Socket file was not deleted"
+        pid_idx = delete_order.index("daemon.pid")
+        sock_idx = delete_order.index("daemon.sock")
+        assert (
+            pid_idx < sock_idx
+        ), f"PID must be deleted before socket (got order: {delete_order})"
+
     def test_stop_cleans_lock_file(self, short_state_dir, monkeypatch):
         """Lock file is deleted when daemon stops."""
         from pathlib import Path

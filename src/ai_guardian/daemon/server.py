@@ -149,10 +149,16 @@ class DaemonServer:
         logger.info("Daemon stopped")
 
     def _cleanup_state_files(self):
-        """Remove socket, PID, and lock files (idempotent)."""
+        """Remove socket, PID, and lock files (idempotent).
+
+        PID is deleted first so that _cleanup_stale() in a concurrently starting
+        daemon sees no PID file and skips the recycled-PID path. The client-side
+        restart loop also uses PID existence as the authoritative "old daemon is
+        fully gone" signal, so deleting it first narrows the race window.
+        """
+        get_pid_path().unlink(missing_ok=True)
         if not self._use_tcp:
             get_socket_path().unlink(missing_ok=True)
-        get_pid_path().unlink(missing_ok=True)
         lock_path = getattr(self, "_lock_path", None)
         if lock_path:
             try:
