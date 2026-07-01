@@ -1,5 +1,7 @@
 # Scanner Installation Guide
 
+> **No external scanner required.** ai-guardian includes a built-in `toml-patterns` engine (267+ regex patterns, pure Python) that provides comprehensive secret scanning without installing any external binary. External scanners like gitleaks and betterleaks are optional — they add additional pattern coverage but are not required.
+
 AI Guardian provides automated installation and management of secret scanner engines to make setup as easy as possible.
 
 ## Supported Scanners

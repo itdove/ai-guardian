@@ -29,6 +29,20 @@ AI Guardian provides comprehensive secret scanning to prevent sensitive informat
 
 ---
 
+## Zero-Install Scanning
+
+**No external scanner required.** ai-guardian ships with a built-in `toml-patterns` engine — a pure Python scanner with 267+ pre-compiled regex patterns covering all major secret types (AWS keys, GitHub tokens, Slack tokens, private keys, and more). It requires no binary installation and works immediately after `pip install ai-guardian`.
+
+External scanners (gitleaks, betterleaks, leaktk) are **optional**. They are tried after `toml-patterns` in the default engine list and gracefully skipped when not installed. Install them only if you want additional pattern coverage or faster scanning on large repos.
+
+```
+Default engine order: ["toml-patterns", "gitleaks"]
+                           ↑
+                     Always available — no install needed
+```
+
+---
+
 ## Scanner Engines
 
 **NEW in v1.4.0:** AI Guardian now supports multiple scanner engines with automatic fallback.
@@ -125,10 +139,10 @@ AI Guardian provides comprehensive secret scanning to prevent sensitive informat
 
 AI Guardian automatically selects the first available scanner from your `engines` list:
 
-1. **Defaults to gitleaks:** If no `engines` configured, uses `["gitleaks"]`
+1. **Defaults to toml-patterns:** If no `engines` configured, uses `["toml-patterns", "gitleaks"]` — `toml-patterns` is always available (pure Python, no binary)
 2. **Checks availability:** Tries each scanner binary in order
 3. **Selects first found:** Uses the first scanner that exists in PATH
-4. **Blocks if none found:** Shows error with installation instructions
+4. **Falls back gracefully:** If an external scanner is not installed, the next engine in the list is tried; `toml-patterns` always provides a working fallback
 
 **Example:**
 ```bash
@@ -1134,13 +1148,14 @@ When modifying secret scanning code:
 # 1. Is secret_scanning enabled?
 cat ~/.config/ai-guardian/ai-guardian.json | jq .secret_scanning.enabled
 
-# 2. Is Gitleaks installed?
-which gitleaks
-gitleaks version
+# 2. Check which scanner engines are active (toml-patterns is built-in, no install needed)
+ai-guardian scanner list
 
 # 3. Check logs
 tail -f ~/.config/ai-guardian/ai-guardian.log
 ```
+
+**Note:** `toml-patterns` is always available and requires no external binary. If secret scanning reports no engines, ensure ai-guardian itself is installed correctly.
 
 ### Pattern server not being used
 
