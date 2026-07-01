@@ -20,15 +20,16 @@ Published to [quay.io/itdove/ai-guardian](https://quay.io/itdove/ai-guardian) on
 ## Pull
 
 ```bash
-# Latest release
+# Latest build from main branch
 podman pull quay.io/itdove/ai-guardian:latest
 
-# Specific version
+# Specific release version
 podman pull quay.io/itdove/ai-guardian:1.13.0
-
-# Latest dev build (from main branch)
-podman pull quay.io/itdove/ai-guardian:dev
 ```
+
+Tag conventions:
+- `:latest` — tracks main branch (updated on every merge)
+- `:<version>` — pinned stable release (e.g. `1.13.0`)
 
 ## Build Locally
 

@@ -96,9 +96,13 @@ The tray auto-discovers running daemons and shows per-daemon submenus with Stati
 A pre-built container image is published to [quay.io/itdove/ai-guardian](https://quay.io/itdove/ai-guardian) with all headless-capable IDEs (Claude Code, OpenCode, Gemini CLI, Codex CLI, Kiro CLI, OpenClaw):
 
 ```bash
-# Pull and run (no build required)
+# Latest (tracks main branch)
 podman pull quay.io/itdove/ai-guardian:latest
 podman run -it -p 63152:63152 -e AI_GUARDIAN_IDE=claude quay.io/itdove/ai-guardian:latest
+
+# Pinned release
+podman pull quay.io/itdove/ai-guardian:1.13.0
+podman run -it -p 63152:63152 -e AI_GUARDIAN_IDE=claude quay.io/itdove/ai-guardian:1.13.0
 
 # Or build from source
 podman build -t ai-guardian container/
