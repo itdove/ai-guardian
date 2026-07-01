@@ -24,6 +24,8 @@ ARG AI_GUARDIAN_VERSION=1.13.0
 ARG AI_GUARDIAN_REST_PORT=63152
 ARG UV_VERSION=0.11.16
 ARG OPENCODE_VERSION=1.17.3
+ARG GH_VERSION=2.74.1
+ARG GLAB_VERSION=1.91.0
 
 USER root
 
@@ -100,6 +102,31 @@ RUN npm install -g @google/gemini-cli @openai/codex openclaw 2>/dev/null \
     && (gemini --version 2>/dev/null || echo "Gemini CLI installed") \
     && (codex --version 2>/dev/null || echo "Codex CLI installed") \
     && (openclaw --version 2>/dev/null || echo "OpenClaw installed")
+
+# Forge CLIs — gh and glab for issue tracker integration
+USER root
+RUN ARCH=$(uname -m | sed 's/aarch64/arm64/;s/x86_64/amd64/') \
+    \
+    # glab CLI
+    && curl -fsSL -o /tmp/glab.tar.gz \
+        "https://gitlab.com/gitlab-org/cli/-/releases/v${GLAB_VERSION}/downloads/glab_${GLAB_VERSION}_linux_${ARCH}.tar.gz" \
+    && tar -xzf /tmp/glab.tar.gz -C /usr/local bin/glab \
+    && rm /tmp/glab.tar.gz \
+    \
+    # gh CLI (with checksum verification)
+    && TARBALL="gh_${GH_VERSION}_linux_${ARCH}.tar.gz" \
+    && curl -fsSL -o "/tmp/${TARBALL}" \
+        "https://github.com/cli/cli/releases/download/v${GH_VERSION}/${TARBALL}" \
+    && curl -fsSL -o /tmp/gh_checksums.txt \
+        "https://github.com/cli/cli/releases/download/v${GH_VERSION}/gh_${GH_VERSION}_checksums.txt" \
+    && cd /tmp && grep -F " ${TARBALL}" gh_checksums.txt | sha256sum -c - \
+    && tar -xzf "/tmp/${TARBALL}" -C /usr/local/bin --strip-components=2 \
+        "gh_${GH_VERSION}_linux_${ARCH}/bin/gh" \
+    && ln -sf /usr/local/bin/gh /usr/bin/gh \
+    && rm "/tmp/${TARBALL}" /tmp/gh_checksums.txt \
+    \
+    && (gh --version 2>/dev/null || echo "gh CLI installed") \
+    && (glab --version 2>/dev/null || echo "glab CLI installed")
 
 # Kiro CLI
 USER sandbox
