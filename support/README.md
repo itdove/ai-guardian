@@ -51,7 +51,7 @@ Using `run.sh` (recommended):
 Vertex AI auth is auto-detected from environment variables (see [Authentication](#authentication)).
 
 <details>
-<summary>Manual podman run</summary>
+<summary>Manual container run (podman / docker)</summary>
 
 ```bash
 # Default (Claude Code hooks)
@@ -83,6 +83,19 @@ podman run -it ai-guardian-support ai-guardian doctor
 ```
 
 </details>
+
+## Container Engine
+
+By default, `run.sh` uses Podman. To use Docker instead:
+
+```bash
+CONTAINER_ENGINE=docker ./support/run.sh
+# or export for the session:
+export CONTAINER_ENGINE=docker
+./support/run.sh --ide claude
+```
+
+Both engines support the same `-p` syntax for port mapping. Use `docker port <container>` (instead of `podman port`) to find the mapped host port when using Docker.
 
 ## IDE Selection
 

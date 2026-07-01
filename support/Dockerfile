@@ -4,15 +4,26 @@
 # for reproducing user-reported issues across environments and architectures.
 #
 # Build:
-#   podman build -t ai-guardian-support support/
-#   podman build --build-arg AI_GUARDIAN_VERSION=1.13.0 -t ai-guardian-support support/
+#   Podman: podman build -t ai-guardian-support support/
+#   Docker:  docker build -t ai-guardian-support support/
+#   Podman: podman build --build-arg AI_GUARDIAN_VERSION=1.13.0 -t ai-guardian-support support/
+#   Docker:  docker build --build-arg AI_GUARDIAN_VERSION=1.13.0 -t ai-guardian-support support/
 #
 # Run:
-#   podman run -it -p 63152 ai-guardian-support
-#   podman run -it -p 63152 -e AI_GUARDIAN_IDE=opencode ai-guardian-support
-#   podman run -it -p 63152 -e AI_GUARDIAN_PROFILE=@strict ai-guardian-support
-#   podman run -it -p 63152 -e ANTHROPIC_API_KEY=sk-ant-... ai-guardian-support
-#   podman run -it -p 63152 -e CLAUDE_CODE_USE_VERTEX=1 -e ANTHROPIC_VERTEX_PROJECT_ID=my-proj -e CLOUD_ML_REGION=global -e GOOGLE_APPLICATION_CREDENTIALS=/sandbox/gcp-key.json -v ~/gcp-key.json:/sandbox/gcp-key.json:ro ai-guardian-support
+#   Podman: podman run -it -p 63152 ai-guardian-support
+#   Docker:  docker run -it -p 63152 ai-guardian-support
+#
+#   With IDE:
+#   Podman: podman run -it -p 63152 -e AI_GUARDIAN_IDE=opencode ai-guardian-support
+#   Docker:  docker run -it -p 63152 -e AI_GUARDIAN_IDE=opencode ai-guardian-support
+#
+#   Find mapped port:
+#   Podman: podman port <container-name>
+#   Docker:  docker port <container-name>
+#
+# Using run.sh (handles both engines):
+#   ./support/run.sh                         # uses podman by default
+#   CONTAINER_ENGINE=docker ./support/run.sh # use docker instead
 #
 # Local wheel:
 #   python -m build --wheel && cp dist/ai_guardian-*.whl support/vendor/
