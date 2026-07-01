@@ -15,6 +15,19 @@ from ai_guardian.config_utils import get_config_dir, get_state_dir
 DEFAULT_REST_PORT = 63152
 DEFAULT_WEB_CONSOLE_PORT = 0
 
+_current_daemon_state = None
+
+
+def set_daemon_state(state):
+    """Set the process-global DaemonState instance (one per daemon process)."""
+    global _current_daemon_state
+    _current_daemon_state = state
+
+
+def get_daemon_state():
+    """Get the process-global DaemonState instance, or None."""
+    return _current_daemon_state
+
 
 def is_pid_alive(pid):
     """Check if a process with the given PID is running.
