@@ -427,9 +427,16 @@ def _check_dev_source_restart():
         logger.info("Dev mode: source files changed, restarting daemon")
         send_shutdown(timeout=2.0)
 
-        for _ in range(30):
+        # Wait for PID file to disappear, not just socket connectivity.
+        # is_daemon_running() returns False as soon as the socket is gone (even
+        # while the PID file still exists), which creates a race: the new daemon
+        # starts before the old one finishes deleting its state files, triggering
+        # the false "PID recycled" path in _cleanup_stale() and orphaning the new
+        # daemon's socket. The PID file is the authoritative signal — it is the
+        # last thing the old daemon deletes before exiting.
+        for _ in range(50):  # up to 5 seconds
             time.sleep(0.1)
-            if not is_daemon_running():
+            if not get_pid_path().exists():
                 break
 
         return start_daemon_background()
