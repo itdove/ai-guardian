@@ -254,7 +254,7 @@ class TestShowViaTrayForwarding:
 
         t.join()
         assert result.decision == AskDecision.ALLOW_ALWAYS
-        assert result.allowlist_pattern == "AKIA.*"
+        assert result.allowlist_pattern == "FAKE_SECRET.*"
         assert result.config_saved is True
 
 

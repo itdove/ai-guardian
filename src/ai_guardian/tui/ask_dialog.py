@@ -522,13 +522,44 @@ def show_ask_dialog(
 ) -> AskResult:
     """Show interactive dialog for a violation, falling back if headless.
 
-    Priority:
-    1. Tray forwarding — tried first whenever a host tray is registered,
-       regardless of preferred_ui.  This handles containers and headless
-       daemons transparently without requiring explicit configuration.
-    2. Daemon REST API — direct call to local daemon (avoids subprocess).
-    3. Subprocess — spawns 'ai-guardian prompt --mode ask'.
-    4. Headless fallback — immediate decision via fallback_action.
+    Two execution paths depending on whether a host tray is registered:
+
+    LOCAL (daemon + display on same host)
+    ─────────────────────────────────────
+    Hook (runs inside daemon process)
+      └─ show_ask_dialog()
+           ├─ _show_via_tray_forwarding()  → None  (local tray not registered
+           │                                         with local daemon)
+           ├─ _is_headless_env()           → False (display available)
+           └─ _show_via_daemon()
+                └─ POST /api/prompt  (daemon calls its own REST endpoint)
+                     └─ _handle_prompt()
+                          └─ _show_via_subprocess()
+                               └─ ai-guardian prompt --mode ask
+                                    └─ tkinter / NiceGUI / Textual dialog
+                                    └─ user responds
+                               └─ AskResult → HTTP response
+                └─ AskResult returned to hook
+
+    REMOTE (container/K8s daemon, host tray)
+    ─────────────────────────────────────────
+    Host tray                              Container daemon
+    ─────────                              ────────────────
+    POST /api/register-tray (every ~30s)→  is_tray_registered() = True
+                                           Hook fires
+                                             └─ show_ask_dialog()
+                                                  └─ _show_via_tray_forwarding()
+                                                       └─ queue_prompt()
+    GET /api/pending-prompts (every 2.5s) ←──────────── decision_event.wait()
+      └─ _handle_remote_prompt()
+           └─ _show_via_subprocess()        (AI_GUARDIAN_NO_TKINTER=1 on macOS)
+                └─ NiceGUI / auto dialog
+                └─ user responds
+      └─ POST /api/prompt-decision ────────→ resolve_prompt()
+                                             decision_event.set()
+                                             AskResult returned to hook
+
+    No tray registered + headless env → immediate fallback (no block).
 
     Args:
         violation: Violation details to display.
