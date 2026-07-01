@@ -228,9 +228,9 @@ class TestListProfiles:
     def test_list_builtin_only(self):
         profiles = list_profiles()
         builtin = [p for p in profiles if p["type"] == "builtin"]
-        assert len(builtin) == 3
+        assert len(builtin) == 4
         names = {p["name"] for p in builtin}
-        assert names == {"@minimal", "@standard", "@strict"}
+        assert names == {"@minimal", "@standard", "@strict", "@moderator"}
 
     def test_list_with_custom(self, tmp_path):
         profiles_dir = tmp_path / "auto_config" / "profiles"
@@ -262,6 +262,7 @@ class TestFormatProfileList:
         assert "@minimal" in output
         assert "@standard" in output
         assert "@strict" in output
+        assert "@moderator" in output
         assert "Built-in:" in output
 
     def test_format_includes_custom(self, tmp_path):

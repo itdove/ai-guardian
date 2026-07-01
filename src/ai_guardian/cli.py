@@ -293,7 +293,7 @@ def main():
         setup_parser.add_argument(
             "--profile",
             metavar="PROFILE",
-            help="Security profile to apply: @minimal, @standard, @strict, custom name, or file path (use with --create-config)",
+            help="Security profile to apply: @minimal, @standard, @strict, @moderator, custom name, or file path (use with --create-config)",
         )
         setup_parser.add_argument(
             "--save-profile",
