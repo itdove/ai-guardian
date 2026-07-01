@@ -30,13 +30,21 @@ DOCKER_SOCKET = "/var/run/docker.sock"
 PODMAN_ROOTFUL_SOCKET = "/run/podman/podman.sock"
 
 
-def _get_podman_socket():
-    """Get the rootless Podman socket path."""
+def _get_podman_socket() -> Optional[str]:
+    """Return the rootless Podman socket path.
+
+    Prefers XDG_RUNTIME_DIR (the correct Linux runtime-dir variable) over a
+    hardcoded uid-based path so non-standard configurations are handled.
+    """
+    xdg = os.environ.get("XDG_RUNTIME_DIR")
+    if xdg:
+        return os.path.join(xdg, "podman", "podman.sock")
     try:
         uid = os.getuid()
     except AttributeError:
         return None
     return f"/run/user/{uid}/podman/podman.sock"
+
 
 
 def _engine_from_source(source: str) -> str:
@@ -300,9 +308,7 @@ class DaemonDiscovery:
                 logger.debug("DOCKER_HOST=%s unreachable", docker_host)
 
         podman_socket = _get_podman_socket()
-        sockets = [
-            DOCKER_SOCKET,
-        ]
+        sockets = [DOCKER_SOCKET]
         if podman_socket:
             sockets.append(podman_socket)
         sockets.append(PODMAN_ROOTFUL_SOCKET)

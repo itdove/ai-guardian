@@ -301,13 +301,22 @@ class TestDetectEngine:
 
 
 class TestGetPodmanSocket:
+    def test_prefers_xdg_runtime_dir(self):
+        with mock.patch.dict(os.environ, {"XDG_RUNTIME_DIR": "/run/user/5000"}):
+            assert _get_podman_socket() == "/run/user/5000/podman/podman.sock"
+
     @mock.patch("os.getuid", create=True, return_value=1000)
-    def test_returns_rootless_path(self, mock_uid):
-        assert _get_podman_socket() == "/run/user/1000/podman/podman.sock"
+    def test_falls_back_to_uid_path_when_no_xdg(self, mock_uid):
+        env = {k: v for k, v in os.environ.items() if k != "XDG_RUNTIME_DIR"}
+        with mock.patch.dict(os.environ, env, clear=True):
+            assert _get_podman_socket() == "/run/user/1000/podman/podman.sock"
 
     def test_returns_none_on_windows(self):
-        with mock.patch("os.getuid", create=True, side_effect=AttributeError):
-            assert _get_podman_socket() is None
+        env = {k: v for k, v in os.environ.items() if k != "XDG_RUNTIME_DIR"}
+        with mock.patch.dict(os.environ, env, clear=True):
+            with mock.patch("os.getuid", create=True, side_effect=AttributeError):
+                assert _get_podman_socket() is None
+
 
 
 class TestDiscoverContainers:

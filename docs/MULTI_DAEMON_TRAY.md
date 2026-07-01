@@ -94,6 +94,40 @@ Optional labels:
 - `ai-guardian.name=my-sandbox` — display name in tray (defaults to container name)
 - `ai-guardian.rest-port=8080` — custom REST port (defaults to 63152)
 
+### Linux: Podman Container Discovery
+
+On Linux, the tray uses the Docker SDK to communicate with Podman. For discovery
+to work, the rootless Podman socket service must be active.
+
+**Enable the Podman socket** (once, as a user service):
+
+```bash
+systemctl --user enable --now podman.socket
+```
+
+After enabling the socket, restart the tray — it will find the socket at the
+standard XDG path (`$XDG_RUNTIME_DIR/podman/podman.sock`) automatically.
+
+**If containers still do not appear**, the socket may be at a non-standard path.
+Find it:
+
+```bash
+podman info --format '{{.Host.RemoteSocket.Path}}'
+```
+
+Export `DOCKER_HOST` before starting the tray:
+
+```bash
+export DOCKER_HOST=unix://$(podman info --format '{{.Host.RemoteSocket.Path}}')
+ai-guardian tray start
+```
+
+To make this permanent, add the export to your shell profile (`~/.bashrc`,
+`~/.zshrc`, etc.) or to a systemd user service that starts the tray.
+
+> **macOS with Podman Desktop:** `DOCKER_HOST` is set automatically — no manual
+> setup needed.
+
 ### Kubernetes Discovery
 
 Disabled by default. Enable in config:
