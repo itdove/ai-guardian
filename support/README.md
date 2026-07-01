@@ -55,19 +55,19 @@ Vertex AI auth is auto-detected from environment variables (see [Authentication]
 
 ```bash
 # Default (Claude Code hooks)
-podman run -it -p 63152:63152 ai-guardian-support
+podman run -it -p 63152 ai-guardian-support
 
 # Select IDE
-podman run -it -p 63152:63152 -e AI_GUARDIAN_IDE=opencode ai-guardian-support
+podman run -it -p 63152 -e AI_GUARDIAN_IDE=opencode ai-guardian-support
 
 # Select configuration profile
-podman run -it -p 63152:63152 -e AI_GUARDIAN_PROFILE=@strict ai-guardian-support
+podman run -it -p 63152 -e AI_GUARDIAN_PROFILE=@strict ai-guardian-support
 
 # Authenticate with Anthropic API
-podman run -it -p 63152:63152 -e ANTHROPIC_API_KEY=sk-ant-... ai-guardian-support
+podman run -it -p 63152 -e ANTHROPIC_API_KEY=sk-ant-... ai-guardian-support
 
 # Authenticate with Vertex AI
-podman run -it -p 63152:63152 \
+podman run -it -p 63152 \
     -e CLAUDE_CODE_USE_VERTEX=1 \
     -e ANTHROPIC_VERTEX_PROJECT_ID=my-gcp-project \
     -e CLOUD_ML_REGION=global \
@@ -76,7 +76,7 @@ podman run -it -p 63152:63152 \
     ai-guardian-support
 
 # Mount a repo to test
-podman run -it -p 63152:63152 -v ~/myrepo:/sandbox/repo ai-guardian-support
+podman run -it -p 63152 -v ~/myrepo:/sandbox/repo ai-guardian-support
 
 # Run doctor
 podman run -it ai-guardian-support ai-guardian doctor
@@ -134,7 +134,7 @@ Pass authentication credentials as environment variables at runtime.
 ### Anthropic API (direct)
 
 ```bash
-podman run -it -p 63152:63152 \
+podman run -it -p 63152 \
     -e ANTHROPIC_API_KEY=sk-ant-... \
     ai-guardian-support
 ```
@@ -142,7 +142,7 @@ podman run -it -p 63152:63152 \
 ### Google Vertex AI ✓ tested
 
 ```bash
-podman run -it -p 63152:63152 \
+podman run -it -p 63152 \
     -e CLAUDE_CODE_USE_VERTEX=1 \
     -e ANTHROPIC_VERTEX_PROJECT_ID=my-gcp-project \
     -e CLOUD_ML_REGION=global \
