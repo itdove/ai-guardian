@@ -3544,3 +3544,185 @@ class TestLogAskDecisionBlock:
         call_kwargs = mock_vl.log_violation.call_args[1]
         assert call_kwargs["context"]["ask_decision"] == "allow_once"
         assert call_kwargs["context"]["action_taken"] == "allowed"
+
+
+class TestHandleAskModeMultiDedup:
+    """Tests for finding deduplication in _handle_ask_mode_multi (#1427).
+
+    The same secret can appear in both the user message and the transcript
+    scan for UserPromptSubmit, or be detected by multiple scanner engines.
+    Findings with the same matched_text must produce only ONE dialog.
+    """
+
+    @patch("ai_guardian.tui.ask_dialog._show_via_daemon", return_value=None)
+    @patch("ai_guardian.tui.ask_dialog._show_via_subprocess", return_value=None)
+    def test_duplicate_matched_text_shows_one_dialog(self, _sub, _daemon):
+        """Two findings with identical matched_text → single ask dialog."""
+        from ai_guardian.hook_processing import _handle_ask_mode_multi
+        from ai_guardian.tui.ask_dialog import AskDecision
+
+        findings = [
+            {
+                "matched_text": "sk-proj-abc123",
+                "matched_pattern": "openai-api-key",
+                "line_number": 1,
+            },
+            {
+                "matched_text": "sk-proj-abc123",
+                "matched_pattern": "openai-api-key",
+                "line_number": 5,
+            },
+        ]
+
+        with patch("ai_guardian.hook_processing._handle_ask_mode") as mock_ask:
+            from ai_guardian.tui.ask_dialog import AskResult
+
+            mock_ask.return_value = AskResult(decision=AskDecision.ALLOW_ONCE)
+            _handle_ask_mode_multi(
+                "ask",
+                "secret_detected",
+                findings,
+                "secret_scanning",
+                "Secret detected",
+            )
+
+        assert mock_ask.call_count == 1
+
+    @patch("ai_guardian.tui.ask_dialog._show_via_daemon", return_value=None)
+    @patch("ai_guardian.tui.ask_dialog._show_via_subprocess", return_value=None)
+    def test_distinct_matched_text_shows_multiple_dialogs(self, _sub, _daemon):
+        """Two findings with different matched_text → two separate dialogs."""
+        from ai_guardian.hook_processing import _handle_ask_mode_multi
+        from ai_guardian.tui.ask_dialog import AskDecision
+
+        findings = [
+            {
+                "matched_text": "sk-proj-abc123",
+                "matched_pattern": "openai-api-key",
+                "line_number": 1,
+            },
+            {
+                "matched_text": "AKIA0000000000EXAMPLE",
+                "matched_pattern": "aws-access-token",
+                "line_number": 3,
+            },
+        ]
+
+        with patch("ai_guardian.hook_processing._handle_ask_mode") as mock_ask:
+            from ai_guardian.tui.ask_dialog import AskResult
+
+            mock_ask.return_value = AskResult(decision=AskDecision.ALLOW_ONCE)
+            _handle_ask_mode_multi(
+                "ask",
+                "secret_detected",
+                findings,
+                "secret_scanning",
+                "Secrets detected",
+            )
+
+        assert mock_ask.call_count == 2
+
+    @patch("ai_guardian.tui.ask_dialog._show_via_daemon", return_value=None)
+    @patch("ai_guardian.tui.ask_dialog._show_via_subprocess", return_value=None)
+    def test_three_same_one_different_shows_two_dialogs(self, _sub, _daemon):
+        """Three duplicates + one unique → two dialogs total."""
+        from ai_guardian.hook_processing import _handle_ask_mode_multi
+        from ai_guardian.tui.ask_dialog import AskDecision
+
+        findings = [
+            {
+                "matched_text": "sk-proj-abc123",
+                "matched_pattern": "openai-api-key",
+                "line_number": 1,
+            },
+            {
+                "matched_text": "sk-proj-abc123",
+                "matched_pattern": "openai-api-key",
+                "line_number": 2,
+            },
+            {
+                "matched_text": "sk-proj-abc123",
+                "matched_pattern": "openai-api-key",
+                "line_number": 3,
+            },
+            {
+                "matched_text": "AKIA0000000000EXAMPLE",
+                "matched_pattern": "aws-access-token",
+                "line_number": 4,
+            },
+        ]
+
+        with patch("ai_guardian.hook_processing._handle_ask_mode") as mock_ask:
+            from ai_guardian.tui.ask_dialog import AskResult
+
+            mock_ask.return_value = AskResult(decision=AskDecision.ALLOW_ONCE)
+            _handle_ask_mode_multi(
+                "ask",
+                "secret_detected",
+                findings,
+                "secret_scanning",
+                "Secrets detected",
+            )
+
+        assert mock_ask.call_count == 2
+
+    @patch("ai_guardian.tui.ask_dialog._show_via_daemon", return_value=None)
+    @patch("ai_guardian.tui.ask_dialog._show_via_subprocess", return_value=None)
+    def test_non_ask_action_returns_none_without_dedup(self, _sub, _daemon):
+        """Non-ask action returns None before dedup runs."""
+        from ai_guardian.hook_processing import _handle_ask_mode_multi
+
+        findings = [
+            {"matched_text": "sk-proj-abc123", "matched_pattern": "openai-api-key"},
+            {"matched_text": "sk-proj-abc123", "matched_pattern": "openai-api-key"},
+        ]
+
+        result = _handle_ask_mode_multi(
+            "block",
+            "secret_detected",
+            findings,
+            "secret_scanning",
+            "error",
+        )
+        assert result is None
+
+    @patch("ai_guardian.tui.ask_dialog._show_via_daemon", return_value=None)
+    @patch("ai_guardian.tui.ask_dialog._show_via_subprocess", return_value=None)
+    def test_dedup_preserves_first_occurrence(self, _sub, _daemon):
+        """Dedup keeps the first finding for each unique matched_text."""
+        from ai_guardian.hook_processing import _handle_ask_mode_multi
+        from ai_guardian.tui.ask_dialog import AskDecision
+
+        findings = [
+            {
+                "matched_text": "sk-proj-abc123",
+                "matched_pattern": "openai-api-key",
+                "line_number": 1,
+            },
+            {
+                "matched_text": "sk-proj-abc123",
+                "matched_pattern": "openai-api-key-v2",
+                "line_number": 9,
+            },
+        ]
+
+        captured_calls = []
+
+        with patch("ai_guardian.hook_processing._handle_ask_mode") as mock_ask:
+            from ai_guardian.tui.ask_dialog import AskResult
+
+            def capture(*args, **kwargs):
+                captured_calls.append(kwargs)
+                return AskResult(decision=AskDecision.ALLOW_ONCE)
+
+            mock_ask.side_effect = capture
+            _handle_ask_mode_multi(
+                "ask",
+                "secret_detected",
+                findings,
+                "secret_scanning",
+                "Secret detected",
+            )
+
+        assert mock_ask.call_count == 1
+        assert captured_calls[0].get("line_number") == 1

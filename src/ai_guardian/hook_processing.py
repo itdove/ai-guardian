@@ -2510,6 +2510,19 @@ def _handle_ask_mode_multi(
     if primary_action != ActionMode.ASK:
         return None
 
+    # Deduplicate findings by matched_text — the same secret value can appear
+    # in both the user message scan and the transcript scan for UserPromptSubmit,
+    # or be detected by multiple scanner engines, producing duplicate dialogs.
+    if findings and len(findings) > 1:
+        seen_values: set = set()
+        deduped = []
+        for f in findings:
+            key = (f.get("matched_text") or "").strip()
+            if key not in seen_values:
+                seen_values.add(key)
+                deduped.append(f)
+        findings = deduped
+
     if not findings or len(findings) <= 1:
         single_finding = findings[0] if findings else {}
         return _handle_ask_mode(
