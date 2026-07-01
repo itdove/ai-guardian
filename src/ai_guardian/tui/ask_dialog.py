@@ -518,7 +518,7 @@ def _is_headless_env() -> bool:
 def show_ask_dialog(
     violation: AskViolationInfo,
     fallback_action: str = "block",
-    timeout_seconds: int = 300,
+    timeout_seconds: int = 270,
 ) -> AskResult:
     """Show interactive dialog for a violation, falling back if headless.
 
