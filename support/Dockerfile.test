@@ -1,0 +1,35 @@
+# ai-guardian hook-testing image (NOT for distribution — see issue #1423)
+#
+# Extends the base support image with bundled dummy-agent test scenarios.
+# Use this image for local CI regression and e2e hook testing only.
+# Do NOT publish this image to a public registry.
+#
+# Build:
+#   podman build -f support/Dockerfile.test -t ai-guardian-test support/
+#   docker  build -f support/Dockerfile.test -t ai-guardian-test support/
+#
+# Run (interactive REPL):
+#   podman run -it ai-guardian-test ai-guardian dummy-agent
+#
+# Run (script mode):
+#   podman run --rm ai-guardian-test \
+#     ai-guardian dummy-agent --script /sandbox/scenarios/basic-secret.yaml
+#
+# Run all bundled scenarios:
+#   podman run --rm ai-guardian-test /sandbox/run-scenarios.sh
+
+ARG BASE_IMAGE=ai-guardian-support:latest
+FROM ${BASE_IMAGE}
+
+# Bundled hook test scenarios — not in base image (issue #1423)
+USER root
+COPY scenarios/ /sandbox/scenarios/
+RUN chown -R sandbox:sandbox /sandbox/scenarios
+
+# Convenience script to run all bundled scenarios
+RUN printf '#!/usr/bin/env bash\nset -e\nfor f in /sandbox/scenarios/*.yaml; do\n  echo "=== $f ==="\n  ai-guardian dummy-agent --script "$f"\ndone\n' \
+    > /sandbox/run-scenarios.sh \
+    && chmod +x /sandbox/run-scenarios.sh \
+    && chown sandbox:sandbox /sandbox/run-scenarios.sh
+
+USER sandbox
