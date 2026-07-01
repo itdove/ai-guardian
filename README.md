@@ -104,6 +104,7 @@ ai-guardian setup --ide claude --create-config --profile @strict --install-scann
 | @minimal | block | warn | low | warn |
 | @standard (default) | block | block | medium | block |
 | @strict | block | block | high | block |
+| @moderator | ask | ask | medium | ask |
 
 ## Features
 
@@ -167,6 +168,7 @@ ai-guardian setup --create-config                          # Secure defaults (Sk
 ai-guardian setup --create-config --permissive              # Permissive (all tools allowed)
 ai-guardian setup --create-config --profile @minimal        # Personal projects, low friction
 ai-guardian setup --create-config --profile @strict         # Enterprise SOC2/compliance
+ai-guardian setup --create-config --profile @moderator      # Human-in-the-loop, ask on every finding
 ai-guardian setup --list-profiles                           # List available profiles
 ```
 

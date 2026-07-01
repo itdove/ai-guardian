@@ -2,7 +2,7 @@
 """
 Security profile manager for ai-guardian.
 
-Handles built-in (@minimal, @standard, @strict) and custom security profiles.
+Handles built-in (@minimal, @standard, @strict, @moderator) and custom security profiles.
 Built-in profiles are immutable JSON data files shipped with the package.
 Custom profiles are stored in ~/.config/ai-guardian/profiles/.
 """
@@ -15,12 +15,13 @@ from typing import Dict, List, Optional, Tuple
 
 from ai_guardian.config_utils import get_cache_dir, get_profiles_dir
 
-BUILT_IN_PROFILES = ("minimal", "standard", "strict")
+BUILT_IN_PROFILES = ("minimal", "standard", "strict", "moderator")
 
 PROFILE_DESCRIPTIONS = {
     "minimal": "Personal projects, low friction",
     "standard": "Team development, moderate security",
     "strict": "Enterprise SOC2/compliance, fail-closed",
+    "moderator": "Human-in-the-loop, ask on every finding",
 }
 
 SCHEMA_PLACEHOLDER = "__SCHEMA_URI__"

@@ -109,6 +109,36 @@ A TOML file for declaring which files to skip during scanning, using a structure
 
 Remote configurations enable centralized policy management. Enterprises can deploy security policies that users automatically receive.
 
+## Security Profiles
+
+Built-in profiles let you apply a complete security posture in one command:
+
+```bash
+ai-guardian setup --create-config --profile @minimal        # Personal projects, low friction
+ai-guardian setup --create-config --profile @standard       # Team development (default)
+ai-guardian setup --create-config --profile @strict         # Enterprise SOC2/compliance
+ai-guardian setup --create-config --profile @moderator      # Human-in-the-loop review
+ai-guardian setup --list-profiles                           # List all available profiles
+```
+
+| Profile | Secrets | PII | Prompt Injection | SSRF | Use case |
+|---------|---------|-----|------------------|------|----------|
+| `@minimal` | block | warn | low | warn | Personal projects, low friction |
+| `@standard` (default) | block | block | medium | block | Team development |
+| `@strict` | block | block | high | block | Enterprise SOC2/compliance |
+| `@moderator` | ask | ask | medium | ask | Human review, training, onboarding |
+
+### @moderator Profile
+
+The `@moderator` profile sets every scanner action to `ask`, routing each finding through an interactive dialog where the user decides allow or block. It is designed for:
+
+- **New users** learning what ai-guardian catches — see every finding, decide case by case
+- **Teams evaluating** detection accuracy before committing to block/allow policies
+- **Compliance review** where each finding needs explicit human sign-off
+- **Training and onboarding** — understand the tool's coverage interactively
+
+> **Note:** `ask` mode requires the daemon tray for the interactive dialog. Without daemon mode, findings fall back to the `on_scan_error` behavior (`allow` by default). Run `ai-guardian daemon start` before using this profile for the full moderator experience.
+
 ## Remote Config URL Cascading Priority (Security Feature)
 
 **⚠️ IMPORTANT**: Remote config URLs use **cascading priority** to prevent users from bypassing enterprise policies.
