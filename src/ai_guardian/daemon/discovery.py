@@ -38,13 +38,12 @@ def _get_podman_socket() -> Optional[str]:
     """
     xdg = os.environ.get("XDG_RUNTIME_DIR")
     if xdg:
-        return os.path.join(xdg, "podman", "podman.sock")
+        return f"{xdg}/podman/podman.sock"
     try:
         uid = os.getuid()
     except AttributeError:
         return None
     return f"/run/user/{uid}/podman/podman.sock"
-
 
 
 def _engine_from_source(source: str) -> str:

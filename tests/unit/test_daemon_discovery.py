@@ -318,7 +318,6 @@ class TestGetPodmanSocket:
                 assert _get_podman_socket() is None
 
 
-
 class TestDiscoverContainers:
     """Tests for SDK-based container discovery.
 
