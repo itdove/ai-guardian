@@ -163,11 +163,19 @@ class TestAskDialogHeadless:
         mock_result = AskResult(decision=AskDecision.ALLOW_ONCE)
         with patch("ai_guardian.tui.display.get_preferred_ui", return_value="auto"):
             with patch(
-                "ai_guardian.tui.ask_dialog._show_via_daemon", return_value=mock_result
-            ) as mock_daemon:
-                result = show_ask_dialog(violation)
-                mock_daemon.assert_called_once()
-                assert result.decision == AskDecision.ALLOW_ONCE
+                "ai_guardian.tui.ask_dialog._show_via_tray_forwarding",
+                return_value=None,
+            ):
+                with patch(
+                    "ai_guardian.tui.ask_dialog._is_headless_env", return_value=False
+                ):
+                    with patch(
+                        "ai_guardian.tui.ask_dialog._show_via_daemon",
+                        return_value=mock_result,
+                    ) as mock_daemon:
+                        result = show_ask_dialog(violation)
+                        mock_daemon.assert_called_once()
+                        assert result.decision == AskDecision.ALLOW_ONCE
 
 
 class TestCliHandlerPreferredUi:

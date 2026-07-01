@@ -317,7 +317,9 @@ class DaemonTray:
         self._prompt_poll_running = False
         self._PROMPT_POLL_INTERVAL = 2.5
         self._ask_forwarding_targets: set = set()  # registered successfully
-        self._ask_forwarding_failed: set = set()  # remote running but registration failed
+        self._ask_forwarding_failed: set = (
+            set()
+        )  # remote running but registration failed
 
     def start(self):
         """Start tray icon in a background thread.
