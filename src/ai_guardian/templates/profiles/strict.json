@@ -128,6 +128,14 @@
         "scan_plugins": true,
         "allowlist_paths": []
     },
+    "_comment_code_scanning": "Python code security scanning with Bandit — detects insecure patterns (eval, subprocess shell injection, weak crypto, SQL injection, etc.) (NEW in v1.13.0, Issue #828)",
+    "code_scanning": {
+        "enabled": true,
+        "action": "block",
+        "severity_threshold": "LOW",
+        "allowlist": [],
+        "ignore_files": []
+    },
     "_comment_permissions": "Control which tools (Skills, MCP servers, Bash, etc.) are allowed to run. Rules evaluated in order, last match wins. Strict: no catch-all allow, explicit allow required for each tool.",
     "permissions": {
         "enabled": true,

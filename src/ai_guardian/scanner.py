@@ -54,6 +54,7 @@ try:
         create_pii_finding,
         create_prompt_injection_finding,
         create_supply_chain_finding,
+        create_code_security_finding,
     )
 
     HAS_SARIF = True
@@ -107,6 +108,7 @@ try:
 except ImportError:
     HAS_ANNOTATIONS = False
 
+from ai_guardian.bandit_scanner import BanditScanner
 
 logger = logging.getLogger(__name__)
 
@@ -191,6 +193,12 @@ class FileScanner:
 
         self._image_config: Optional[Dict[str, Any]] = None
         self._image_config_loaded = False
+
+        code_cfg = config.get("code_scanning", {})
+        code_enabled = code_cfg.get("enabled", True)
+        if HAS_ANNOTATIONS:
+            code_enabled = is_feature_enabled(code_cfg.get("enabled"), default=True)
+        self._code_scanner = BanditScanner(code_cfg) if code_enabled else None
 
     _IMAGE_DEFAULTS: Dict[str, Any] = {
         "enabled": True,
@@ -621,6 +629,10 @@ class FileScanner:
             if HAS_SUPPLY_CHAIN:
                 self._check_supply_chain(str(file_path), content)
 
+            # Check for Python code security issues (Bandit)
+            if self._code_scanner and file_path.suffix == ".py":
+                self._check_code_security(relative_path, content)
+
         except Exception as e:
             if self.verbose:
                 logger.error(f"Error scanning {file_path}: {e}")
@@ -951,6 +963,37 @@ class FileScanner:
                     print(f"  [SUPPLY-CHAIN] {reason}")
         except Exception as e:
             logger.warning(f"Error checking supply chain: {e}")
+
+    def _check_code_security(self, file_path: str, content: str) -> None:
+        """Check Python code for security issues using Bandit."""
+        try:
+            code_findings = self._code_scanner.scan(content, file_path=file_path)
+            for f in code_findings:
+                if HAS_SARIF:
+                    finding = create_code_security_finding(
+                        rule_id=f.rule_id,
+                        description=f.description,
+                        severity=f.severity,
+                        confidence=f.confidence,
+                        file_path=file_path,
+                        line_number=f.line_number or None,
+                        start_column=f.start_column,
+                        snippet=f.snippet,
+                    )
+                else:
+                    finding = {
+                        "rule_id": f.rule_id,
+                        "level": "error" if f.severity == "HIGH" else "warning",
+                        "message": f"Code security issue ({f.severity}): {f.description}",
+                        "file_path": file_path,
+                        "line_number": f.line_number or None,
+                        "snippet": f.snippet,
+                    }
+                self.findings.append(finding)
+            if code_findings and self.verbose:
+                print(f"  [CODE-SECURITY] {len(code_findings)} issue(s) found (bandit)")
+        except Exception as e:
+            logger.warning(f"Error checking code security: {e}")
 
     def scan_agent_configs(self) -> None:
         """Scan known agent configuration files for supply chain threats."""

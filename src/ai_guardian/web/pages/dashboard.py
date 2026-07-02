@@ -57,6 +57,11 @@ FEATURE_GROUPS = [
                 "Supply Chain",
                 "Detect malicious hooks, MCP servers, and plugins",
             ),
+            (
+                "code_scanning",
+                "Code Security",
+                "Python code security scanning (Bandit)",
+            ),
         ],
     ),
     (
@@ -116,6 +121,7 @@ FEATURE_PAGE_SLUGS = {
     "directory_rules": "directory-rules",
     "violation_logging": "violation-logging",
     "latency_tracking": "performance",
+    "code_scanning": "code-security",
 }
 
 
@@ -165,6 +171,7 @@ _DEFAULT_ACTIONS = {
     "config_file_scanning": "block",
     "context_poisoning": "warn",
     "supply_chain": "block",
+    "code_scanning": "warn",
     "secret_redaction": "warn",
     "annotations": "suppress",
     "permissions": "enforce",
@@ -208,6 +215,8 @@ def _categorize_violation(reason):
         return "Permissions"
     if "directory" in r:
         return "Directory Blocking"
+    if "bandit" in r or "code security" in r or "insecure" in r:
+        return "Code Security"
     return "Other"
 
 

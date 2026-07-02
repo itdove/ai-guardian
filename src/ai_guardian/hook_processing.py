@@ -82,6 +82,7 @@ from ai_guardian.config_loaders import (
     _load_security_instructions_config,
     _load_context_poisoning_config,
     _load_supply_chain_config,
+    _load_code_scanning_config,
     _get_on_scan_error_action,
     _load_config_file,  # noqa: F401 — patched by tests via this namespace
 )
@@ -2653,6 +2654,7 @@ _ASK_VIOLATION_LABELS = {
     ViolationType.PROMPT_INJECTION: "Prompt injection",
     ViolationType.CONTEXT_POISONING: "Context poisoning",
     ViolationType.SUPPLY_CHAIN: "Supply chain",
+    ViolationType.CODE_SECURITY: "Code security",
     ViolationType.CONFIG_FILE_EXFIL: "Config file scanning",
     ViolationType.SSRF_BLOCKED: "SSRF protection",
 }
@@ -5165,6 +5167,126 @@ def run_supply_chain_scan(
     return result
 
 
+def _log_code_security_violation(
+    file_path,
+    rule_id,
+    description,
+    severity,
+    line_number=None,
+    start_column=None,
+    hook_context=None,
+    violation_logger=None,
+):
+    """Log a code security (Bandit) violation."""
+    if not HAS_VIOLATION_LOGGER:
+        return
+    try:
+        blocked_entry = {
+            "file_path": file_path,
+            "rule_id": rule_id,
+            "line_number": line_number,
+            "severity": severity,
+            "reason": description,
+        }
+        if start_column is not None:
+            blocked_entry["start_column"] = start_column
+        violation_logger = violation_logger or ViolationLogger()
+        violation_logger.log_violation(
+            violation_type=ViolationType.CODE_SECURITY,
+            blocked=blocked_entry,
+            context=_build_violation_context(
+                {"file_path": file_path, "hook_event": "pretooluse"},
+                hook_context,
+            ),
+            suggestion={
+                "action": "nosec_or_allowlist",
+                "note": (
+                    f"Suppress with  # nosec {rule_id}  or add to "
+                    "code_scanning.allowlist in ai-guardian.json"
+                ),
+            },
+            severity="high" if severity == "HIGH" else "medium",
+        )
+    except Exception as e:
+        logger.error(f"Failed to log code security violation: {e}")
+
+
+def run_code_security_scan(
+    content,
+    file_path,
+    *,
+    config=None,
+    latency_timer=None,
+):
+    """Run Bandit code security scan on Python content.
+
+    Called from PreToolUse on Write/Edit tools when the target file is .py.
+
+    Args:
+        content: Python source code to scan (new_string for Edit, content for Write).
+        file_path: Target file path.
+        config: Pre-loaded code_scanning config dict, or None to load internally.
+        latency_timer: Optional _CheckTimer for performance tracking.
+
+    Returns:
+        None if disabled or no Python file.
+        ScanResult with detection details otherwise (one entry per finding).
+    """
+    if not content:
+        return None
+    if not file_path or not file_path.endswith(".py"):
+        return None
+
+    if config is None:
+        try:
+            from ai_guardian.config_loaders import _load_code_scanning_config
+
+            config, config_error = _load_code_scanning_config()
+            if config_error:
+                logging.warning(f"Code scanning config error: {config_error}")
+        except ImportError:
+            try:
+                full_cfg, _ = _load_config()
+                config = (full_cfg or {}).get("code_scanning", {})
+            except Exception:
+                config = {}
+
+    if not config or not is_feature_enabled(config.get("enabled"), default=True):
+        return None
+
+    from ai_guardian.bandit_scanner import BanditScanner
+
+    scanner = BanditScanner(config)
+
+    if latency_timer:
+        with latency_timer.check("code_security"):
+            findings = scanner.scan(content, file_path=file_path)
+    else:
+        findings = scanner.scan(content, file_path=file_path)
+
+    if not findings:
+        return ScanResult.clean("code_security", file_path=file_path)
+
+    # Wrap first finding; caller iterates all findings from scanner directly.
+    # Store full list in extra for multi-finding consumers.
+    first = findings[0]
+    result = ScanResult(
+        detected=True,
+        violation_type="code_security",
+        should_block=True,
+        error_message=f"[{first.rule_id}] {first.description}",
+        rule_id=first.rule_id,
+        line_number=first.line_number,
+        start_column=first.start_column,
+        severity=first.severity,
+        file_path=file_path,
+        total_findings=len(findings),
+    )
+    result.extra["action"] = config.get("action", "warn")
+    result.extra["all_findings"] = findings
+    return result
+
+
 def run_config_file_scan(
     file_path,
     content,
@@ -7232,6 +7354,125 @@ def process_hook_data(hook_data, daemon_state=None):
                         )
                     except Exception:
                         pass  # intentionally silent — best-effort operation
+
+                # Code security scan for Write/Edit writing Python files
+                if tool_name in ("Write", "Edit") and isinstance(tool_input, dict):
+                    cs_file_path = tool_input.get("file_path", "") or ""
+                    if cs_file_path.endswith(".py"):
+                        cs_content = (
+                            tool_input.get("content", "")
+                            if tool_name == "Write"
+                            else tool_input.get("new_string", "")
+                        )
+                        if cs_content:
+                            try:
+                                cs_config, cs_config_err = _load_code_scanning_config()
+                                if cs_config_err:
+                                    logging.warning(
+                                        f"Code scanning config error: {cs_config_err}"
+                                    )
+                                cs_result = run_code_security_scan(
+                                    cs_content,
+                                    cs_file_path,
+                                    config=cs_config,
+                                    latency_timer=_latency_timer,
+                                )
+                                if cs_result is not None and cs_result.detected:
+                                    all_findings = cs_result.extra.get(
+                                        "all_findings", []
+                                    )
+                                    cs_hook_ctx = {
+                                        "hook_event": hook_event,
+                                        "tool_name": tool_name,
+                                    }
+                                    if hook_tool_use_id:
+                                        cs_hook_ctx["tool_use_id"] = hook_tool_use_id
+                                    if hook_session_id:
+                                        cs_hook_ctx["session_id"] = hook_session_id
+                                    for f in all_findings:
+                                        _log_code_security_violation(
+                                            cs_file_path,
+                                            rule_id=f.rule_id,
+                                            description=f.description,
+                                            severity=f.severity,
+                                            line_number=f.line_number,
+                                            start_column=f.start_column,
+                                            hook_context=cs_hook_ctx,
+                                        )
+                                    cs_action = cs_result.extra.get("action", "warn")
+                                    cs_ask_result = _handle_ask_mode_auto(
+                                        cs_action,
+                                        ViolationType.CODE_SECURITY,
+                                        config_section="code_scanning",
+                                        error_msg=cs_result.error_message,
+                                        file_path=cs_file_path,
+                                        matched_text=cs_result.matched_text,
+                                        line_number=cs_result.line_number,
+                                        matched_pattern=cs_result.rule_id,
+                                        latency_timer=_latency_timer,
+                                        hook_context={
+                                            "session_id": hook_session_id,
+                                            "project_path": get_project_dir(),
+                                            "hook_event": hook_event,
+                                            "tool_name": tool_name,
+                                        },
+                                    )
+                                    cs_should_block = cs_result.should_block
+                                    if cs_ask_result is not None:
+                                        from ai_guardian.tui.ask_dialog import (
+                                            AskDecision,
+                                        )
+
+                                        if cs_ask_result.decision not in (
+                                            AskDecision.BLOCK,
+                                            AskDecision.BLOCK_ALL,
+                                        ):
+                                            cs_should_block = False
+                                            warning_messages.append(
+                                                _format_ask_info_message(
+                                                    ViolationType.CODE_SECURITY,
+                                                    cs_ask_result.decision,
+                                                )
+                                            )
+                                        _log_ask_decision(
+                                            ViolationType.CODE_SECURITY,
+                                            cs_ask_result.decision,
+                                            matched_text=cs_result.matched_text,
+                                            error_msg=cs_result.error_message,
+                                            file_path=cs_file_path,
+                                            line_number=cs_result.line_number,
+                                            dialog_wait_ms=cs_ask_result.dialog_wait_ms,
+                                        )
+
+                                    if cs_should_block and cs_action == "block":
+                                        combined_warning = (
+                                            "\n\n".join(warning_messages)
+                                            if warning_messages
+                                            else None
+                                        )
+                                        return _format_response(
+                                            adapter,
+                                            has_secrets=True,
+                                            error_message=cs_result.error_message,
+                                            hook_event=hook_event,
+                                            warning_message=combined_warning,
+                                            violation_type=ViolationType.CODE_SECURITY,
+                                            security_message=security_message,
+                                        )
+                                    elif cs_should_block or cs_action in (
+                                        "warn",
+                                        "log-only",
+                                    ):
+                                        if cs_action != "log-only":
+                                            n = cs_result.total_findings
+                                            warning_messages.append(
+                                                f"Code security: {n} issue(s) found in "
+                                                f"{cs_file_path} — {cs_result.error_message}"
+                                            )
+                            except Exception as e:
+                                logging.warning(
+                                    f"Code security check error (fail-open): {e}"
+                                )
 
                 # No content to scan for these tools in PreToolUse
                 # Allow operation (secret scanning happens for Bash in PostToolUse if enabled)

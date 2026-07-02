@@ -500,3 +500,31 @@ def create_supply_chain_finding(
         "snippet": snippet,
         "details": {"category": category, "reason": reason},
     }
+
+
+def create_code_security_finding(
+    rule_id: str,
+    description: str,
+    severity: str,
+    confidence: str,
+    file_path: str,
+    line_number: Optional[int] = None,
+    start_column: Optional[int] = None,
+    snippet: Optional[str] = None,
+) -> Dict[str, Any]:
+    """Create a finding dict for code security (Bandit) issues."""
+    level = "error" if severity.upper() == "HIGH" else "warning"
+    return {
+        "rule_id": rule_id,
+        "level": level,
+        "message": f"Code security issue ({severity}): {description}",
+        "file_path": file_path,
+        "line_number": line_number,
+        "start_column": start_column,
+        "snippet": snippet,
+        "details": {
+            "severity": severity,
+            "confidence": confidence,
+            "scanner": "bandit",
+        },
+    }

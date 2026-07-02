@@ -40,6 +40,7 @@ _ALLOWLIST_TYPES = frozenset(
         "config_file_exfil",
         "context_poisoning",
         "supply_chain",
+        "code_security",
         "tool_permission",
     }
 )
@@ -91,6 +92,9 @@ def _extract_matched_from_violation(violation: dict) -> str:
         "supply_chain",
     ):
         return blocked.get("pattern", "")
+
+    if vtype == "code_security":
+        return blocked.get("rule_id", "") or blocked.get("file_path", "")
 
     if vtype == "pii_detected":
         pii_types = blocked.get("pii_types", [])
@@ -1114,6 +1118,8 @@ class ViolationsContent(Container):
                 yield VerticalScroll(id="violations-list-image-secret")
             with TabPane("Image PII", id="filter-image-pii"):
                 yield VerticalScroll(id="violations-list-image-pii")
+            with TabPane("Code Security", id="filter-code-security"):
+                yield VerticalScroll(id="violations-list-code-security")
 
     def on_mount(self) -> None:
         """Load violations when mounted."""
@@ -1224,6 +1230,12 @@ class ViolationsContent(Container):
             limit=50, violation_type="image_pii_detected", resolved=None
         )
         self._populate_list("#violations-list-image-pii", image_pii_violations)
+
+        # Load code security violations
+        code_security_violations = self.violation_logger.get_recent_violations(
+            limit=50, violation_type="code_security", resolved=None
+        )
+        self._populate_list("#violations-list-code-security", code_security_violations)
 
     def _populate_list(self, list_id: str, violations: list) -> None:
         """Populate a violations list."""

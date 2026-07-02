@@ -611,6 +611,22 @@ def _load_supply_chain_config():
     )
 
 
+_CODE_SCANNING_DEFAULTS = {
+    "enabled": True,
+    "action": "warn",
+    "severity_threshold": "MEDIUM",
+    "allowlist": [],
+    "ignore_files": [],
+}
+
+
+def _load_code_scanning_config():
+    """Load code security scanning (Bandit) configuration. Returns defaults when section is absent."""
+    return _load_config_section(
+        "code_scanning", defaults=_CODE_SCANNING_DEFAULTS, merge_ignore=True
+    )
+
+
 def _load_security_instructions_config():
     """Load security instructions configuration from ai-guardian.json."""
     return _load_config_section("security_instructions")

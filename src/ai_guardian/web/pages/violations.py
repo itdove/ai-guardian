@@ -81,6 +81,11 @@ FILTER_TABS = [
         "Secret detected in image via OCR scanning",
     ),
     ("Image PII", "image_pii_detected", "PII detected in image via OCR scanning"),
+    (
+        "Code Security",
+        "code_security",
+        "Insecure Python code patterns detected by Bandit (eval, shell injection, weak crypto)",
+    ),
 ]
 
 DETAIL_FIELDS = {
@@ -181,6 +186,13 @@ DETAIL_FIELDS = {
         ("File", "file_path"),
         ("Count", "pii_count"),
         ("Types", "pii_types"),
+    ],
+    "code_security": [
+        ("File", "file_path"),
+        ("Rule", "rule_id"),
+        ("Line", "line_number"),
+        ("Severity", "severity"),
+        ("Reason", "reason"),
     ],
 }
 
@@ -343,6 +355,7 @@ _ALLOWLIST_TYPES = frozenset(
         "config_file_exfil",
         "context_poisoning",
         "supply_chain",
+        "code_security",
         "tool_permission",
     }
 )
@@ -678,6 +691,9 @@ def _extract_matched_from_violation(violation: dict) -> str:
         "supply_chain",
     ):
         return blocked.get("pattern", "")
+
+    if vtype == "code_security":
+        return blocked.get("rule_id", "") or blocked.get("file_path", "")
 
     if vtype == "pii_detected":
         pii_types = blocked.get("pii_types", [])

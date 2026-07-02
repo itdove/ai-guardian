@@ -491,6 +491,29 @@
     "_allowlist_note": "File paths to skip (supports ~ expansion and globs). ai-guardian's own plugin files are always skipped."
   },
 
+  "code_scanning": {
+    "_comment": "Python code security scanning with Bandit (NEW in v1.13.0, Issue #828)",
+    "_comment2": "Detects insecure code patterns in .py files written by the AI agent: eval/exec, subprocess shell injection,",
+    "_comment3": "weak crypto (md5/sha1), SQL injection, hardcoded credentials, path traversal, XML vulnerabilities",
+    "_comment4": "Runs on PreToolUse Write/Edit and ai-guardian scan. Uses Bandit (Apache-2.0, fixed dependency).",
+    "enabled": true,
+    "action": "warn",
+    "_action_options": ["block", "warn", "log-only", "ask", "ask:warn", "ask:log-only"],
+    "_action_note": "block = prevent Write/Edit. warn = allow with warning (recommended). ask = interactive prompt.",
+    "severity_threshold": "MEDIUM",
+    "_severity_note": "LOW = all findings. MEDIUM = medium+high (recommended). HIGH = critical only.",
+    "allowlist": [],
+    "_allowlist_note": "Suppress specific Bandit test IDs, optionally scoped to a file prefix.",
+    "_allowlist_example": [
+      {"test_id": "B101", "file": "tests/", "reason": "assert in tests is expected"},
+      {"test_id": "B324", "reason": "md5 used for checksums, not crypto"}
+    ],
+    "ignore_files": [],
+    "_ignore_files_note": "Glob patterns for .py files to skip (e.g. tests/**/*.py, migrations/)",
+    "_nosec_note": "Bandit's native # nosec and # nosec B101 inline annotations are always honored.",
+    "_aiguard_note": "# ai-guardian:allow on a line suppresses all ai-guardian checks including Bandit."
+  },
+
   "scan_pii": {
     "_comment": "PII detection for GDPR/CCPA compliance (v1.6.0+, Phase 2 in v1.8.0)",
     "_comment2": "Scans user prompts, file reads, and tool outputs for personally identifiable information",

@@ -1344,6 +1344,61 @@
         }
       }
     },
+    "code_scanning": {
+      "type": "object",
+      "description": "Python code security scanning with Bandit (NEW in v1.13.0, Issue #828). Detects insecure code patterns in .py files: eval/exec, subprocess shell injection, weak crypto (md5/sha1), SQL injection, hardcoded credentials, path traversal, and XML vulnerabilities. Runs on PreToolUse Write/Edit and ai-guardian scan.",
+      "additionalProperties": true,
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable/disable Python code security scanning"
+        },
+        "action": {
+          "type": "string",
+          "enum": ["block", "warn", "log-only", "ask", "ask:warn", "ask:log-only"],
+          "default": "warn",
+          "description": "Action when insecure code is detected. block = prevent Write/Edit, warn = allow with warning, log-only = silent logging, ask = interactive prompt."
+        },
+        "severity_threshold": {
+          "type": "string",
+          "enum": ["LOW", "MEDIUM", "HIGH"],
+          "default": "MEDIUM",
+          "description": "Minimum Bandit severity to report. LOW = all findings, MEDIUM = medium+high (recommended), HIGH = critical only."
+        },
+        "allowlist": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "test_id": {
+                "type": "string",
+                "description": "Bandit test ID to suppress (e.g. B101, B324)"
+              },
+              "file": {
+                "type": "string",
+                "description": "Optional file path prefix to scope the suppression (e.g. tests/)"
+              },
+              "reason": {
+                "type": "string",
+                "description": "Human-readable explanation of why this finding is safe"
+              }
+            },
+            "required": ["test_id"]
+          },
+          "default": [],
+          "description": "Allowlist entries to suppress specific Bandit findings by test ID, optionally scoped to a file path prefix. Bandit's native # nosec annotation is also honored."
+        },
+        "ignore_files": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [],
+          "description": "Glob patterns for Python files to skip (e.g. tests/**/*.py, migrations/)"
+        }
+      }
+    },
     "config_file_scanning": {
       "type": "object",
       "description": "Config file scanning configuration (NEW in v1.5.0, Phase 3 of Hermes integration). Detects credential exfiltration commands in AI configuration files (CLAUDE.md, AGENTS.md, .cursorrules) that could cause persistent credential theft across all AI sessions. Scans for 8 core patterns: curl/wget with env vars, env|curl, printenv exfil, file exfil, base64 exfil, AWS S3, GCP Storage.",
@@ -1617,9 +1672,9 @@
           "description": "Types of violations to log. Empty array logs all types.",
           "items": {
             "type": "string",
-            "enum": ["tool_permission", "directory_blocking", "secret_detected", "secret_redaction", "prompt_injection", "jailbreak_detected", "ssrf_blocked", "config_file_exfil", "pii_detected", "secret_in_transcript", "pii_in_transcript", "prompt_injection_in_transcript", "annotation_suppressed", "image_secret_detected", "image_pii_detected", "context_poisoning", "supply_chain"]
+            "enum": ["tool_permission", "directory_blocking", "secret_detected", "secret_redaction", "prompt_injection", "jailbreak_detected", "ssrf_blocked", "config_file_exfil", "pii_detected", "secret_in_transcript", "pii_in_transcript", "prompt_injection_in_transcript", "annotation_suppressed", "image_secret_detected", "image_pii_detected", "context_poisoning", "supply_chain", "code_security"]
           },
-          "default": ["tool_permission", "directory_blocking", "secret_detected", "secret_redaction", "prompt_injection", "jailbreak_detected", "ssrf_blocked", "config_file_exfil", "pii_detected", "secret_in_transcript", "pii_in_transcript", "prompt_injection_in_transcript", "annotation_suppressed", "context_poisoning", "supply_chain"]
+          "default": ["tool_permission", "directory_blocking", "secret_detected", "secret_redaction", "prompt_injection", "jailbreak_detected", "ssrf_blocked", "config_file_exfil", "pii_detected", "secret_in_transcript", "pii_in_transcript", "prompt_injection_in_transcript", "annotation_suppressed", "context_poisoning", "supply_chain", "code_security"]
         }
       },
       "additionalProperties": false
