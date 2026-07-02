@@ -56,6 +56,7 @@ try:
         create_supply_chain_finding,
         create_code_security_finding,
         create_offensive_language_finding,
+        create_canary_detection_finding,
     )
 
     HAS_SARIF = True
@@ -99,6 +100,13 @@ try:
     HAS_SUPPLY_CHAIN = True
 except ImportError:
     HAS_SUPPLY_CHAIN = False
+
+try:
+    from ai_guardian.canary_detection import CanaryTokenScanner as _CanaryScanner
+
+    HAS_CANARY_DETECTION = True
+except ImportError:
+    HAS_CANARY_DETECTION = False
 
 try:
     from ai_guardian.offensive_language import (
@@ -643,6 +651,10 @@ class FileScanner:
             if HAS_OFFENSIVE_LANGUAGE:
                 self._check_offensive_language(relative_path, content)
 
+            # Check for canary tokens
+            if HAS_CANARY_DETECTION:
+                self._check_canary_detection(relative_path, content)
+
             # Check for Python code security issues (Bandit)
             if self._code_scanner and file_path.suffix == ".py":
                 self._check_code_security(relative_path, content)
@@ -1047,6 +1059,51 @@ class FileScanner:
                 print(f"  [OFFENSIVE-LANGUAGE] {len(findings)} match(es) found")
         except Exception as e:
             logger.warning(f"Error checking offensive language: {e}")
+
+    def _check_canary_detection(self, file_path: str, content: str) -> None:
+        """Check content for user-registered canary tokens."""
+        try:
+            cd_config = self.config.get("canary_detection") if self.config else None
+            if not cd_config:
+                from ai_guardian.config_loaders import _load_canary_detection_config
+
+                cd_config, _ = _load_canary_detection_config()
+            if not cd_config or not cd_config.get("enabled", False):
+                return
+            if not cd_config.get("tokens"):
+                return
+            scanner = _CanaryScanner(cd_config)
+            should_block, error_msg, details = scanner.scan(content, file_path)
+            if details:
+                matched_text = scanner.last_matched_text or ""
+                token = scanner.last_matched_token or ""
+                description = scanner.last_description or ""
+                line_number = scanner.last_line_number
+                start_column = scanner.last_start_column
+
+                if HAS_SARIF:
+                    finding = create_canary_detection_finding(
+                        token=token,
+                        description=description,
+                        file_path=file_path,
+                        line_number=line_number,
+                        start_column=start_column,
+                        matched_text=matched_text,
+                    )
+                else:
+                    finding = {
+                        "rule_id": "canary_detected",
+                        "level": "error",
+                        "message": f"Canary token detected: {description!r}",
+                        "file_path": file_path,
+                        "line_number": line_number,
+                        "matched_text": matched_text,
+                    }
+                self.findings.append(finding)
+                if self.verbose:
+                    print(f"  [CANARY] canary token detected in {file_path}")
+        except Exception as e:
+            logger.warning(f"Error checking canary tokens: {e}")
 
     def scan_agent_configs(self) -> None:
         """Scan known agent configuration files for supply chain threats."""

@@ -67,6 +67,11 @@ FEATURE_GROUPS = [
                 "Offensive Language",
                 "Detect profanity, slurs, and non-inclusive terminology",
             ),
+            (
+                "canary_detection",
+                "Canary Detection",
+                "Detect user-registered tripwire values to catch data exfiltration",
+            ),
         ],
     ),
     (
@@ -128,6 +133,7 @@ FEATURE_PAGE_SLUGS = {
     "latency_tracking": "performance",
     "code_scanning": "code-security",
     "scan_offensive": "offensive-language",
+    "canary_detection": "canary-detection",
 }
 
 
@@ -179,6 +185,7 @@ _DEFAULT_ACTIONS = {
     "supply_chain": "block",
     "code_scanning": "warn",
     "scan_offensive": "log",
+    "canary_detection": "block",
     "secret_redaction": "warn",
     "annotations": "suppress",
     "permissions": "enforce",

@@ -1444,6 +1444,54 @@
         }
       }
     },
+    "canary_detection": {
+      "type": "object",
+      "description": "Canary token detection (NEW in v1.14.0, Issue #1392). Detects user-registered tripwire values in AI output to catch data exfiltration. Disabled by default — requires at least one token to be useful.",
+      "additionalProperties": true,
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "default": false,
+          "description": "Enable/disable canary token detection. Off by default — set to true after registering at least one token."
+        },
+        "action": {
+          "type": "string",
+          "oneOf": [
+            {"enum": ["block", "warn", "log-only"]},
+            {
+              "type": "string",
+              "pattern": "^ask(:(block|warn|log-only))?$",
+              "description": "Interactive ask mode"
+            }
+          ],
+          "default": "block",
+          "description": "Action when a canary token is detected. 'block' prevents the operation (default and recommended)."
+        },
+        "tokens": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "type": "string",
+                "description": "Exact string to match (case-sensitive)."
+              },
+              "pattern": {
+                "type": "string",
+                "description": "Regex pattern to match canary-format values."
+              },
+              "description": {
+                "type": "string",
+                "description": "Human-readable label for this token (shown in violation logs)."
+              }
+            },
+            "additionalProperties": false
+          },
+          "default": [],
+          "description": "List of canary tokens. Each entry must have either 'value' (exact match) or 'pattern' (regex), plus an optional 'description'."
+        }
+      }
+    },
     "config_file_scanning": {
       "type": "object",
       "description": "Config file scanning configuration (NEW in v1.5.0, Phase 3 of Hermes integration). Detects credential exfiltration commands in AI configuration files (CLAUDE.md, AGENTS.md, .cursorrules) that could cause persistent credential theft across all AI sessions. Scans for 8 core patterns: curl/wget with env vars, env|curl, printenv exfil, file exfil, base64 exfil, AWS S3, GCP Storage.",
@@ -1717,9 +1765,9 @@
           "description": "Types of violations to log. Empty array logs all types.",
           "items": {
             "type": "string",
-            "enum": ["tool_permission", "directory_blocking", "secret_detected", "secret_redaction", "prompt_injection", "jailbreak_detected", "ssrf_blocked", "config_file_exfil", "pii_detected", "secret_in_transcript", "pii_in_transcript", "prompt_injection_in_transcript", "annotation_suppressed", "image_secret_detected", "image_pii_detected", "context_poisoning", "supply_chain", "code_security", "offensive_language"]
+            "enum": ["tool_permission", "directory_blocking", "secret_detected", "secret_redaction", "prompt_injection", "jailbreak_detected", "ssrf_blocked", "config_file_exfil", "pii_detected", "secret_in_transcript", "pii_in_transcript", "prompt_injection_in_transcript", "annotation_suppressed", "image_secret_detected", "image_pii_detected", "context_poisoning", "supply_chain", "code_security", "offensive_language", "canary_detected"]
           },
-          "default": ["tool_permission", "directory_blocking", "secret_detected", "secret_redaction", "prompt_injection", "jailbreak_detected", "ssrf_blocked", "config_file_exfil", "pii_detected", "secret_in_transcript", "pii_in_transcript", "prompt_injection_in_transcript", "annotation_suppressed", "context_poisoning", "supply_chain", "code_security", "offensive_language"]
+          "default": ["tool_permission", "directory_blocking", "secret_detected", "secret_redaction", "prompt_injection", "jailbreak_detected", "ssrf_blocked", "config_file_exfil", "pii_detected", "secret_in_transcript", "pii_in_transcript", "prompt_injection_in_transcript", "annotation_suppressed", "context_poisoning", "supply_chain", "code_security", "offensive_language", "canary_detected"]
         }
       },
       "additionalProperties": false

@@ -554,3 +554,27 @@ def create_offensive_language_finding(
             "matched_text": matched_text or "",
         },
     }
+
+
+def create_canary_detection_finding(
+    token: str,
+    description: str,
+    file_path: str,
+    line_number: Optional[int] = None,
+    start_column: Optional[int] = None,
+    matched_text: Optional[str] = None,
+) -> Dict[str, Any]:
+    """Create a finding dict for canary token detections."""
+    return {
+        "rule_id": "canary_detected",
+        "level": "error",
+        "message": f"Canary token detected: {description!r}",
+        "file_path": file_path,
+        "line_number": line_number,
+        "start_column": start_column,
+        "details": {
+            "token": token,
+            "description": description,
+            "matched_text": matched_text or "",
+        },
+    }

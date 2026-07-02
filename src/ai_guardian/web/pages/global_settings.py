@@ -73,6 +73,11 @@ FEATURE_GROUPS = [
                 "Offensive Language",
                 "Detect profanity, slurs, and non-inclusive terminology",
             ),
+            (
+                "canary_detection",
+                "Canary Detection",
+                "Detect user-registered tripwire values to catch data exfiltration",
+            ),
         ],
     ),
     (
@@ -184,6 +189,14 @@ FEATURE_ACTIONS = {
         "log": "Log",
         "log-only": "Log Only",
     },
+    "canary_detection": {
+        "block": "Block",
+        "ask": "Ask (block if headless)",
+        "ask:warn": "Ask (warn if headless)",
+        "ask:log-only": "Ask (log-only if headless)",
+        "warn": "Warn",
+        "log-only": "Log Only",
+    },
 }
 
 ACTION_DEFAULTS = {
@@ -198,6 +211,7 @@ ACTION_DEFAULTS = {
     "supply_chain": "block",
     "code_scanning": "warn",
     "scan_offensive": "log",
+    "canary_detection": "block",
 }
 
 DURATION_RE = re.compile(r"^(?:(\d+)d)?(?:(\d+)h)?(?:(\d+)m)?$", re.IGNORECASE)

@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Canary token detection** — new `canary_detection` config section catches data exfiltration by detecting user-registered tripwire values in AI output. Supports exact-value matching and regex patterns. Complements secret scanning: canary detection uses user-registered values and bypasses entropy thresholds, making it effective for low-entropy strings that secret scanner intentionally filters. Disabled by default — enable after registering at least one token. New `canary_detected` violation type in constants, violations log, TUI, and web console. Wired into PreToolUse, PostToolUse, and UserPromptSubmit hooks (Issue #1392).
+
 - **Offensive language scanner** — new `scan_offensive` config section detects profanity, slurs, and non-inclusive terminology in code, comments, and variable names. Disabled by default; opt in via `enabled: true`. Three categories: `profanity`, `slurs` (on by default when enabled), `inclusive_language` (opt-in). Includes `suggestion` field in violation messages for inclusive language replacements. Works with `.aiguardignore.toml`, ask mode, and existing allowlist mechanisms. Pattern files excluded from self-scan via `.aiguardignore.toml`. New `offensive_language` violation type in constants, violations log, TUI, and web console (Issue #1417).
 
 ## [1.12.3] - 2026-06-29

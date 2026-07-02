@@ -84,6 +84,7 @@ from ai_guardian.config_loaders import (
     _load_supply_chain_config,
     _load_code_scanning_config,
     _load_offensive_language_config,
+    _load_canary_detection_config,
     _get_on_scan_error_action,
     _load_config_file,  # noqa: F401 — patched by tests via this namespace
 )
@@ -172,6 +173,13 @@ try:
     HAS_OFFENSIVE_LANGUAGE = True
 except ImportError:
     HAS_OFFENSIVE_LANGUAGE = False
+
+try:
+    from ai_guardian.canary_detection import CanaryTokenScanner
+
+    HAS_CANARY_DETECTION = True
+except ImportError:
+    HAS_CANARY_DETECTION = False
 
 try:
     from ai_guardian.violation_logger import ViolationLogger
@@ -2666,6 +2674,7 @@ _ASK_VIOLATION_LABELS = {
     ViolationType.CONFIG_FILE_EXFIL: "Config file scanning",
     ViolationType.SSRF_BLOCKED: "SSRF protection",
     ViolationType.OFFENSIVE_LANGUAGE: "Offensive language",
+    ViolationType.CANARY_DETECTED: "Canary token",
 }
 
 
@@ -5313,6 +5322,117 @@ def run_offensive_language_scan(
         action=action,
         file_path=file_path,
     )
+    return result
+
+
+def _log_canary_detection_violation(
+    source: str,
+    matched_token: Optional[str] = None,
+    matched_text: Optional[str] = None,
+    description: Optional[str] = None,
+    line_number: Optional[int] = None,
+    start_column: Optional[int] = None,
+    end_column: Optional[int] = None,
+    context: Optional[Dict] = None,
+    hook_context: Optional[Dict] = None,
+    violation_logger=None,
+):
+    """Log a canary token detection violation."""
+    if not HAS_VIOLATION_LOGGER:
+        return
+    try:
+        ctx = context or {}
+        blocked_entry = {
+            "file_path": ctx.get("file_path", source),
+            "line_number": line_number,
+            "token": matched_token or "unknown",
+            "description": description or "canary token",
+            "reason": "Canary token detected — possible data exfiltration",
+        }
+        if start_column is not None:
+            blocked_entry["start_column"] = start_column
+        if end_column is not None:
+            blocked_entry["end_column"] = end_column
+        if matched_text:
+            blocked_entry["matched_text"] = matched_text[:100]
+        violation_logger = violation_logger or ViolationLogger()
+        violation_logger.log_violation(
+            violation_type=ViolationType.CANARY_DETECTED,
+            blocked=blocked_entry,
+            context=_build_violation_context(context, hook_context),
+            suggestion={
+                "action": "investigate_exfiltration",
+                "note": (
+                    "A registered canary token was detected in AI output. "
+                    "This may indicate data exfiltration. Check your canary_detection.tokens config."
+                ),
+            },
+            severity="high",
+        )
+    except Exception as e:
+        logger.error(f"Failed to log canary detection violation: {e}")
+
+
+def run_canary_detection_scan(
+    content,
+    source,
+    *,
+    config=None,
+    latency_timer=None,
+):
+    """Run canary token detection scan on content.
+
+    Args:
+        content: Text to scan for canary tokens.
+        source: Label for source (file path, tool name, etc.).
+        config: Pre-loaded canary_detection config dict, or None to load internally.
+        latency_timer: Optional _CheckTimer for performance tracking.
+
+    Returns:
+        None if scanner unavailable, disabled, no tokens configured, or no content.
+        ScanResult with detection details otherwise.
+    """
+    if not HAS_CANARY_DETECTION:
+        return None
+    if not content:
+        return None
+
+    now = datetime.now(timezone.utc)
+    if config is None:
+        config, config_error = _load_canary_detection_config()
+        if config_error:
+            logging.warning(f"Canary detection config error: {config_error}")
+    if not config or not is_feature_enabled(config.get("enabled"), now, default=False):
+        return None
+    if not config.get("tokens"):
+        return None
+
+    scanner = CanaryTokenScanner(config)
+
+    if latency_timer:
+        with latency_timer.check("canary_detection"):
+            should_block, error_msg, detected = scanner.scan(content, source)
+    else:
+        should_block, error_msg, detected = scanner.scan(content, source)
+
+    result = ScanResult.from_canary_detection(
+        should_block=should_block,
+        error_message=error_msg,
+        details=(
+            {
+                "matched_text": scanner.last_matched_text or "",
+                "token": scanner.last_matched_token or "",
+                "description": scanner.last_description or "",
+                "line_number": scanner.last_line_number,
+                "start_column": scanner.last_start_column,
+                "end_column": scanner.last_end_column,
+            }
+            if detected
+            else None
+        ),
+        source=source,
+    )
+    result.extra["action"] = config.get("action", "block")
     return result
 
 
@@ -8215,6 +8335,103 @@ def process_hook_data(hook_data, daemon_state=None):
 
         except Exception as e:
             logging.warning(f"Offensive language check error (fail-open): {e}")
+
+        # Check for canary tokens (user-registered tripwire values detecting exfiltration)
+        try:
+            cd_source = file_path or filename or "content"
+            cd_result = run_canary_detection_scan(
+                content_to_scan,
+                cd_source,
+                latency_timer=_latency_timer,
+            )
+
+            if cd_result is not None and cd_result.detected:
+                cd_hook_ctx = {"hook_event": hook_event, "tool_name": tool_name}
+                if hook_tool_use_id:
+                    cd_hook_ctx["tool_use_id"] = hook_tool_use_id
+                if hook_session_id:
+                    cd_hook_ctx["session_id"] = hook_session_id
+                _log_canary_detection_violation(
+                    cd_source,
+                    matched_token=cd_result.matched_pattern,
+                    matched_text=cd_result.matched_text,
+                    description=cd_result.attack_type,
+                    line_number=cd_result.line_number,
+                    start_column=cd_result.start_column,
+                    end_column=cd_result.end_column,
+                    context={
+                        "ide_type": ide_type.value,
+                        "hook_event": hook_event,
+                        "file_path": cd_source,
+                    },
+                    hook_context=cd_hook_ctx,
+                )
+
+                cd_should_block = cd_result.should_block
+                cd_error_msg = cd_result.error_message
+                cd_action = cd_result.extra.get("action", "block")
+                cd_ask_result = _handle_ask_mode_auto(
+                    cd_action,
+                    ViolationType.CANARY_DETECTED,
+                    config_section="canary_detection",
+                    error_msg=cd_error_msg,
+                    file_path=cd_source,
+                    matched_text=cd_result.matched_text,
+                    line_number=cd_result.line_number,
+                    matched_pattern=cd_result.matched_pattern,
+                    latency_timer=_latency_timer,
+                    hook_context={
+                        "session_id": hook_session_id,
+                        "project_path": get_project_dir(),
+                        "hook_event": hook_event,
+                        "tool_name": tool_name,
+                    },
+                )
+                if cd_ask_result is not None:
+                    from ai_guardian.tui.ask_dialog import AskDecision
+
+                    if cd_ask_result.decision not in (
+                        AskDecision.BLOCK,
+                        AskDecision.BLOCK_ALL,
+                    ):
+                        cd_should_block = False
+                        warning_messages.append(
+                            _format_ask_info_message(
+                                ViolationType.CANARY_DETECTED,
+                                cd_ask_result.decision,
+                                detail=cd_source,
+                            )
+                        )
+                        _log_ask_decision(
+                            ViolationType.CANARY_DETECTED,
+                            cd_ask_result.decision,
+                            matched_text=cd_result.matched_text,
+                            error_msg=cd_error_msg or "",
+                            file_path=cd_source,
+                            line_number=cd_result.line_number,
+                            dialog_wait_ms=cd_ask_result.dialog_wait_ms,
+                        )
+
+                if cd_should_block:
+                    logging.info("Blocking operation due to canary token detection")
+                    combined_warning = (
+                        "\n\n".join(warning_messages) if warning_messages else None
+                    )
+                    result = _format_response(
+                        adapter,
+                        has_secrets=True,
+                        error_message=cd_error_msg,
+                        hook_event=hook_event,
+                        warning_message=combined_warning,
+                        violation_type=ViolationType.CANARY_DETECTED,
+                        security_message=security_message,
+                    )
+                    return result
+                elif cd_error_msg:
+                    warning_messages.append(cd_error_msg)
+
+        except Exception as e:
+            logging.warning(f"Canary detection check error (fail-open): {e}")
 
         # Check for config file threats (credential exfiltration patterns in AI config files)
         if (

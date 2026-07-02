@@ -18,7 +18,8 @@
   "secret_scanning": {
     "allowlist_patterns": [
       "xoxb\\-123456789012\\-1234567890123\\-\\d{12}",
-      "DAF_SESSION_NAME\\s*="
+      "DAF_SESSION_NAME\\s*=",
+      "AKIAIOSFODNN7CANARY1"
     ]
   }
 }

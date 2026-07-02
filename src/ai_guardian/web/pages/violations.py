@@ -91,6 +91,11 @@ FILTER_TABS = [
         "offensive_language",
         "Profanity, slurs, or non-inclusive terminology detected",
     ),
+    (
+        "Canary Detected",
+        "canary_detected",
+        "User-registered canary token found in AI output — possible data exfiltration",
+    ),
 ]
 
 DETAIL_FIELDS = {
@@ -207,6 +212,13 @@ DETAIL_FIELDS = {
         ("Matched", "matched_text"),
         ("Suggestion", "suggestion"),
     ],
+    "canary_detected": [
+        ("File", "file_path"),
+        ("Token", "token"),
+        ("Description", "description"),
+        ("Line", "line_number"),
+        ("Matched", "matched_text"),
+    ],
 }
 
 
@@ -276,35 +288,22 @@ def create_violations_page(service, daemon_name: str):
             ).classes("text-xs text-grey-6")
 
             active_filter = {"vtype": None}
-            buttons = {}
 
-            with ui.row().classes("gap-1 flex-wrap"):
-                for label, vtype, tooltip in FILTER_TABS:
+            filter_options = {label: vtype for label, vtype, _ in FILTER_TABS}
+            sorted_options = ["All"] + sorted(
+                k for k in filter_options if k != "All"
+            )
+            filter_select = ui.select(
+                options=sorted_options,
+                value="All",
+                label="Filter by type",
+            ).classes("w-64")
 
-                    async def on_click(vt=vtype, lbl=label):
-                        active_filter["vtype"] = vt
-                        for bl, b in buttons.items():
-                            if bl == lbl:
-                                b.props("color=primary")
-                                b.props(remove="outline")
-                            else:
-                                b.props(remove="color=primary")
-                                b.props("outline")
-                        await load_violations()
+            async def on_filter_change(e):
+                active_filter["vtype"] = filter_options.get(e.value)
+                await load_violations()
 
-                    is_all = label == "All"
-                    btn = (
-                        ui.button(
-                            label,
-                            on_click=on_click,
-                        )
-                        .props(
-                            "dense size=sm no-caps"
-                            + (" color=primary" if is_all else " outline")
-                        )
-                        .tooltip(tooltip)
-                    )
-                    buttons[label] = btn
+            filter_select.on_value_change(on_filter_change)
 
             cards_container = ui.column().classes("w-full gap-1")
 
@@ -370,6 +369,7 @@ _ALLOWLIST_TYPES = frozenset(
         "supply_chain",
         "code_security",
         "offensive_language",
+        "canary_detected",
         "tool_permission",
     }
 )
@@ -711,6 +711,9 @@ def _extract_matched_from_violation(violation: dict) -> str:
 
     if vtype == "offensive_language":
         return blocked.get("matched_text", "") or blocked.get("rule_id", "")
+
+    if vtype == "canary_detected":
+        return blocked.get("matched_text", "") or blocked.get("token", "")
 
     if vtype == "pii_detected":
         pii_types = blocked.get("pii_types", [])

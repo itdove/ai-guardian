@@ -68,6 +68,7 @@ class ViolationType(str, Enum):
     SUPPLY_CHAIN = "supply_chain"
     CODE_SECURITY = "code_security"
     OFFENSIVE_LANGUAGE = "offensive_language"
+    CANARY_DETECTED = "canary_detected"
 
 
 class HookEvent(str, Enum):

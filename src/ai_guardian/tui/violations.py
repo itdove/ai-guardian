@@ -42,6 +42,7 @@ _ALLOWLIST_TYPES = frozenset(
         "supply_chain",
         "code_security",
         "offensive_language",
+        "canary_detected",
         "tool_permission",
     }
 )
@@ -99,6 +100,9 @@ def _extract_matched_from_violation(violation: dict) -> str:
 
     if vtype == "offensive_language":
         return blocked.get("matched_text", "") or blocked.get("rule_id", "")
+
+    if vtype == "canary_detected":
+        return blocked.get("matched_text", "") or blocked.get("token", "")
 
     if vtype == "pii_detected":
         pii_types = blocked.get("pii_types", [])
@@ -1127,6 +1131,9 @@ class ViolationsContent(Container):
             with TabPane("Offensive Language", id="filter-offensive-language"):
                 yield VerticalScroll(id="violations-list-offensive-language")
 
+            with TabPane("Canary Detection", id="filter-canary-detected"):
+                yield VerticalScroll(id="violations-list-canary-detected")
+
     def on_mount(self) -> None:
         """Load violations when mounted."""
         self.load_all_filters()
@@ -1248,6 +1255,12 @@ class ViolationsContent(Container):
             limit=50, violation_type="offensive_language", resolved=None
         )
         self._populate_list("#violations-list-offensive-language", offensive_violations)
+
+        # Load canary detection violations
+        canary_violations = self.violation_logger.get_recent_violations(
+            limit=50, violation_type="canary_detected", resolved=None
+        )
+        self._populate_list("#violations-list-canary-detected", canary_violations)
 
     def _populate_list(self, list_id: str, violations: list) -> None:
         """Populate a violations list."""

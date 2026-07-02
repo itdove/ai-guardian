@@ -62,6 +62,7 @@ NAV_GROUPS = [
             ("PII Detection", "/scan-pii"),
             ("Code Security", "/code-security"),
             ("Offensive Language", "/offensive-language"),
+            ("Canary Detection", "/canary-detection"),
             ("Annotations", "/annotations"),
         ],
     ),

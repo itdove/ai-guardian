@@ -36,6 +36,7 @@ _SAFE_SUGGESTIONS: Dict[str, str] = {
     "supply_chain": "This agent configuration file contains suspicious supply chain patterns",
     "code_security": "Add # nosec or an allowlist entry in code_scanning.allowlist to suppress known-safe patterns",
     "offensive_language": "Replace the term with a neutral alternative; see the 'suggestion' field for recommended replacements",
+    "canary_detected": "A registered canary token was detected — investigate potential data exfiltration",
 }
 
 try:
