@@ -1,0 +1,106 @@
+# Offensive Language: Non-Inclusive Terminology Patterns
+# Detects legacy/non-inclusive terms in code, comments, and variable names.
+# Off by default — must opt in via categories config.
+# ai-guardian:begin-allow offensive_language
+
+[[rules]]
+id = "inclusive-master-slave"
+match_type = "regex"
+regex = '''\b(master|slave)\b'''
+case_insensitive = true
+description = "Non-inclusive: master/slave terminology"
+suggestion = "primary/replica, main/secondary, leader/follower"
+category_tag = "inclusive_language"
+re2_compat = false
+
+[[rules]]
+id = "inclusive-blacklist-whitelist"
+match_type = "regex"
+regex = '''\b(blacklist|whitelist)\b'''
+case_insensitive = true
+description = "Non-inclusive: blacklist/whitelist terminology"
+suggestion = "blocklist/allowlist, denylist/permitlist"
+category_tag = "inclusive_language"
+re2_compat = false
+
+[[rules]]
+id = "inclusive-sanity-check"
+match_type = "regex"
+regex = '''\bsanity[_\- ]?check(s|ing|ed)?\b'''
+case_insensitive = true
+description = "Non-inclusive: sanity check"
+suggestion = "validation, correctness check, confidence check"
+category_tag = "inclusive_language"
+re2_compat = false
+
+[[rules]]
+id = "inclusive-dummy"
+match_type = "regex"
+regex = '''\bdummy\b'''
+case_insensitive = true
+description = "Non-inclusive: dummy variable/value"
+suggestion = "placeholder, stub, example, sample"
+category_tag = "inclusive_language"
+re2_compat = false
+
+[[rules]]
+id = "inclusive-grandfathered"
+match_type = "regex"
+regex = '''\bgrandfathered\b'''
+case_insensitive = true
+description = "Non-inclusive: grandfathered"
+suggestion = "legacy, exempted, pre-existing"
+category_tag = "inclusive_language"
+re2_compat = false
+
+[[rules]]
+id = "inclusive-man-hours"
+match_type = "regex"
+regex = '''\bman[_\- ]?hours?\b'''
+case_insensitive = true
+description = "Non-inclusive: man-hours"
+suggestion = "person-hours, effort-hours, engineering hours"
+category_tag = "inclusive_language"
+re2_compat = false
+
+[[rules]]
+id = "inclusive-manpower"
+match_type = "regex"
+regex = '''\bmanpower\b'''
+case_insensitive = true
+description = "Non-inclusive: manpower"
+suggestion = "workforce, staffing, personnel, capacity"
+category_tag = "inclusive_language"
+re2_compat = false
+
+[[rules]]
+id = "inclusive-chairman"
+match_type = "regex"
+regex = '''\bchairman\b'''
+case_insensitive = true
+description = "Non-inclusive: chairman"
+suggestion = "chair, chairperson"
+category_tag = "inclusive_language"
+re2_compat = false
+
+[[rules]]
+id = "inclusive-crippled"
+match_type = "regex"
+regex = '''\bcrippled?\b'''
+case_insensitive = true
+description = "Non-inclusive: cripple/crippled (when used figuratively)"
+suggestion = "degraded, impaired, limited, constrained"
+category_tag = "inclusive_language"
+re2_compat = false
+
+[[rules]]
+id = "inclusive-native"
+match_type = "regex"
+regex = '''\bnative[_\- ]?code\b'''
+case_insensitive = true
+description = "Non-inclusive: native (in native code context)"
+suggestion = "compiled code, machine code, platform-native"
+category_tag = "inclusive_language"
+re2_compat = false
+
+# ai-guardian:end-allow

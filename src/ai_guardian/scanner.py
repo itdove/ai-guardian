@@ -55,6 +55,7 @@ try:
         create_prompt_injection_finding,
         create_supply_chain_finding,
         create_code_security_finding,
+        create_offensive_language_finding,
     )
 
     HAS_SARIF = True
@@ -98,6 +99,15 @@ try:
     HAS_SUPPLY_CHAIN = True
 except ImportError:
     HAS_SUPPLY_CHAIN = False
+
+try:
+    from ai_guardian.offensive_language import (
+        OffensiveLanguageScanner as _OffensiveLangScanner,
+    )
+
+    HAS_OFFENSIVE_LANGUAGE = True
+except ImportError:
+    HAS_OFFENSIVE_LANGUAGE = False
 
 try:
     from ai_guardian.annotations import process_annotations
@@ -629,6 +639,10 @@ class FileScanner:
             if HAS_SUPPLY_CHAIN:
                 self._check_supply_chain(str(file_path), content)
 
+            # Check for offensive language
+            if HAS_OFFENSIVE_LANGUAGE:
+                self._check_offensive_language(relative_path, content)
+
             # Check for Python code security issues (Bandit)
             if self._code_scanner and file_path.suffix == ".py":
                 self._check_code_security(relative_path, content)
@@ -994,6 +1008,45 @@ class FileScanner:
                 print(f"  [CODE-SECURITY] {len(code_findings)} issue(s) found (bandit)")
         except Exception as e:
             logger.warning(f"Error checking code security: {e}")
+
+    def _check_offensive_language(self, file_path: str, content: str) -> None:
+        """Check content for offensive language patterns."""
+        try:
+            ol_config = self.config.get("scan_offensive") if self.config else None
+            if not ol_config:
+                from ai_guardian.config_loaders import _load_offensive_language_config
+
+                ol_config, _ = _load_offensive_language_config()
+            if not ol_config or not ol_config.get("enabled", False):
+                return
+            scanner = _OffensiveLangScanner(ol_config)
+            findings = scanner.scan(content, file_path=file_path)
+            for f in findings:
+                if HAS_SARIF:
+                    finding = create_offensive_language_finding(
+                        rule_id=f["rule_id"],
+                        description=f["description"],
+                        category=f["category_tag"],
+                        suggestion=f.get("suggestion", ""),
+                        file_path=file_path,
+                        line_number=f.get("line_number"),
+                        start_column=f.get("start_column"),
+                        matched_text=f.get("matched_text", ""),
+                    )
+                else:
+                    finding = {
+                        "rule_id": f["rule_id"],
+                        "level": "warning",
+                        "message": f"Offensive language ({f['category_tag']}): {f['description']}",
+                        "file_path": file_path,
+                        "line_number": f.get("line_number"),
+                        "suggestion": f.get("suggestion", ""),
+                    }
+                self.findings.append(finding)
+            if findings and self.verbose:
+                print(f"  [OFFENSIVE-LANGUAGE] {len(findings)} match(es) found")
+        except Exception as e:
+            logger.warning(f"Error checking offensive language: {e}")
 
     def scan_agent_configs(self) -> None:
         """Scan known agent configuration files for supply chain threats."""

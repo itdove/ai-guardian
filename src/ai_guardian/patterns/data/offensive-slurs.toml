@@ -1,0 +1,117 @@
+# Offensive Language: Slur Patterns
+# These are DETECTION patterns used by the offensive language scanner.
+# This file intentionally contains offensive terms for pattern matching purposes.
+# Content reviewed and approved for use as detection patterns only.
+# ai-guardian:begin-allow offensive_language
+# ai-guardian:begin-allow secret_detected
+
+[[rules]]
+id = "slur-racial-nword-hard"
+match_type = "regex"
+regex = '''\bn[i!1]gg[e3]r(s)?\b'''
+case_insensitive = true
+description = "Racial slur: n-word (hard r)"
+category_tag = "slurs"
+re2_compat = false
+
+[[rules]]
+id = "slur-racial-nword-soft"
+match_type = "regex"
+regex = '''\bn[i!1]gg[ae3](s)?\b'''
+case_insensitive = true
+description = "Racial slur: n-word variant"
+category_tag = "slurs"
+re2_compat = false
+
+[[rules]]
+id = "slur-racial-spic"
+match_type = "regex"
+regex = '''\bsp[i!1]c(s)?\b'''
+case_insensitive = true
+description = "Racial/ethnic slur"
+category_tag = "slurs"
+re2_compat = false
+
+[[rules]]
+id = "slur-racial-chink"
+match_type = "regex"
+regex = '''\bch[i!1]nk(s)?\b'''
+case_insensitive = true
+description = "Racial/ethnic slur"
+category_tag = "slurs"
+re2_compat = false
+
+[[rules]]
+id = "slur-racial-kike"
+match_type = "regex"
+regex = '''\bk[i!1]ke(s)?\b'''
+case_insensitive = true
+description = "Antisemitic slur"
+category_tag = "slurs"
+re2_compat = false
+
+[[rules]]
+id = "slur-racial-gook"
+match_type = "regex"
+regex = '''\bg[o0]ok(s)?\b'''
+case_insensitive = true
+description = "Racial/ethnic slur"
+category_tag = "slurs"
+re2_compat = false
+
+[[rules]]
+id = "slur-gender-cword"
+match_type = "regex"
+regex = '''\bc[u]nt(s|y)?\b'''
+case_insensitive = true
+description = "Gendered slur: c-word"
+category_tag = "slurs"
+re2_compat = false
+
+[[rules]]
+id = "slur-homophobic-fword"
+match_type = "regex"
+regex = '''\bf[a@]g(g[o0]t|g[oi]ts|s)?\b'''
+case_insensitive = true
+description = "Homophobic slur"
+category_tag = "slurs"
+re2_compat = false
+
+[[rules]]
+id = "slur-homophobic-dyke"
+match_type = "regex"
+regex = '''\bd[yi][ky]e(s)?\b'''
+case_insensitive = true
+description = "Homophobic slur"
+category_tag = "slurs"
+re2_compat = false
+
+[[rules]]
+id = "slur-ableist-retard"
+match_type = "regex"
+regex = '''\bret[a@]rd(ed|s|ing)?\b'''
+case_insensitive = true
+description = "Ableist slur"
+category_tag = "slurs"
+re2_compat = false
+
+[[rules]]
+id = "slur-ableist-moron"
+match_type = "regex"
+regex = '''\bmoron(ic|s)?\b'''
+case_insensitive = true
+description = "Ableist slur"
+category_tag = "slurs"
+re2_compat = false
+
+[[rules]]
+id = "slur-ableist-idiot"
+match_type = "regex"
+regex = '''\bidiot(ic|s)?\b'''
+case_insensitive = true
+description = "Ableist slur"
+category_tag = "slurs"
+re2_compat = false
+
+# ai-guardian:end-allow
+# ai-guardian:end-allow

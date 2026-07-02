@@ -627,6 +627,23 @@ def _load_code_scanning_config():
     )
 
 
+_OFFENSIVE_LANGUAGE_DEFAULTS = {
+    "enabled": False,
+    "action": "log",
+    "categories": ["profanity", "slurs", "inclusive_language"],
+    "ignore_files": [],
+    "ignore_tools": [],
+    "allowlist_patterns": [],
+}
+
+
+def _load_offensive_language_config():
+    """Load offensive language scanning configuration. Returns defaults when section is absent."""
+    return _load_config_section(
+        "scan_offensive", defaults=_OFFENSIVE_LANGUAGE_DEFAULTS, merge_ignore=True
+    )
+
+
 def _load_security_instructions_config():
     """Load security instructions configuration from ai-guardian.json."""
     return _load_config_section("security_instructions")

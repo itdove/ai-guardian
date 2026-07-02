@@ -1399,6 +1399,51 @@
         }
       }
     },
+    "scan_offensive": {
+      "type": "object",
+      "description": "Offensive language scanner (NEW in v1.13.0, Issue #1417). Detects profanity, slurs, and non-inclusive terminology in code, comments, and variable names. Disabled by default — must opt in.",
+      "additionalProperties": true,
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "default": false,
+          "description": "Enable/disable offensive language scanning. Off by default."
+        },
+        "action": {
+          "type": "string",
+          "enum": ["block", "warn", "log", "log-only", "ask", "ask:warn", "ask:log-only"],
+          "default": "log",
+          "description": "Action when offensive language is detected."
+        },
+        "categories": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": ["profanity", "slurs", "inclusive_language"]
+          },
+          "default": ["profanity", "slurs", "inclusive_language"],
+          "description": "Pattern categories to enable. All three categories enabled by default when scanner is on. inclusive_language detects master/slave, blacklist/whitelist, dummy, etc."
+        },
+        "ignore_files": {
+          "type": "array",
+          "items": { "type": "string" },
+          "default": [],
+          "description": "Glob patterns for files to skip."
+        },
+        "ignore_tools": {
+          "type": "array",
+          "items": { "type": "string" },
+          "default": [],
+          "description": "Tool names to skip offensive language scanning for."
+        },
+        "allowlist_patterns": {
+          "type": "array",
+          "items": { "type": "string" },
+          "default": [],
+          "description": "Regex patterns to suppress specific matches."
+        }
+      }
+    },
     "config_file_scanning": {
       "type": "object",
       "description": "Config file scanning configuration (NEW in v1.5.0, Phase 3 of Hermes integration). Detects credential exfiltration commands in AI configuration files (CLAUDE.md, AGENTS.md, .cursorrules) that could cause persistent credential theft across all AI sessions. Scans for 8 core patterns: curl/wget with env vars, env|curl, printenv exfil, file exfil, base64 exfil, AWS S3, GCP Storage.",
@@ -1672,9 +1717,9 @@
           "description": "Types of violations to log. Empty array logs all types.",
           "items": {
             "type": "string",
-            "enum": ["tool_permission", "directory_blocking", "secret_detected", "secret_redaction", "prompt_injection", "jailbreak_detected", "ssrf_blocked", "config_file_exfil", "pii_detected", "secret_in_transcript", "pii_in_transcript", "prompt_injection_in_transcript", "annotation_suppressed", "image_secret_detected", "image_pii_detected", "context_poisoning", "supply_chain", "code_security"]
+            "enum": ["tool_permission", "directory_blocking", "secret_detected", "secret_redaction", "prompt_injection", "jailbreak_detected", "ssrf_blocked", "config_file_exfil", "pii_detected", "secret_in_transcript", "pii_in_transcript", "prompt_injection_in_transcript", "annotation_suppressed", "image_secret_detected", "image_pii_detected", "context_poisoning", "supply_chain", "code_security", "offensive_language"]
           },
-          "default": ["tool_permission", "directory_blocking", "secret_detected", "secret_redaction", "prompt_injection", "jailbreak_detected", "ssrf_blocked", "config_file_exfil", "pii_detected", "secret_in_transcript", "pii_in_transcript", "prompt_injection_in_transcript", "annotation_suppressed", "context_poisoning", "supply_chain", "code_security"]
+          "default": ["tool_permission", "directory_blocking", "secret_detected", "secret_redaction", "prompt_injection", "jailbreak_detected", "ssrf_blocked", "config_file_exfil", "pii_detected", "secret_in_transcript", "pii_in_transcript", "prompt_injection_in_transcript", "annotation_suppressed", "context_poisoning", "supply_chain", "code_security", "offensive_language"]
         }
       },
       "additionalProperties": false

@@ -163,6 +163,7 @@ NAV_GROUPS = [
             ("Config Scanner", "panel-config-scanner"),
             ("PII Detection", "panel-scan-pii"),
             ("Code Security", "panel-code-security"),
+            ("Offensive Language", "panel-offensive-language"),
             ("Annotations", "panel-annotations"),
         ],
     ),
@@ -556,6 +557,22 @@ HELP_DOCS = {
         "[bold]Note:[/bold]\n"
         "  This panel is read-only. Use the web console or edit\n"
         "  ai-guardian.json to change code security settings."
+    ),
+    "panel-offensive-language": (
+        "[bold]Offensive Language Scanner[/bold]\n\n"
+        "Detect profanity, slurs, and non-inclusive terminology in code,\n"
+        "comments, and variable names. Disabled by default.\n\n"
+        "[bold]Categories:[/bold]\n"
+        "  profanity          — Explicit profanity\n"
+        "  slurs              — Racial, ethnic, gender, ableist slurs\n"
+        "  inclusive_language — master/slave, blacklist, dummy (opt-in)\n\n"
+        "[bold]Suppression:[/bold]\n"
+        "  # ai-guardian:allow — Suppress on a specific line\n"
+        "  scan_offensive.allowlist_patterns — Regex allowlist\n"
+        "  scan_offensive.ignore_files — File glob exclusions\n\n"
+        "[bold]Note:[/bold]\n"
+        "  This panel is read-only. Edit ai-guardian.json to\n"
+        "  configure scan_offensive settings."
     ),
     "panel-annotations": (
         "[bold]Annotation Suppression[/bold]\n\n"
@@ -1290,6 +1307,13 @@ class AIGuardianTUI(App):
                     from ai_guardian.tui.code_security import CodeSecurityContent
 
                     yield CodeSecurityContent()
+
+                with Container(id="panel-offensive-language"):
+                    from ai_guardian.tui.offensive_language import (
+                        OffensiveLanguageContent,
+                    )
+
+                    yield OffensiveLanguageContent()
 
                 with Container(id="panel-annotations"):
                     from ai_guardian.tui.annotations import AnnotationsContent

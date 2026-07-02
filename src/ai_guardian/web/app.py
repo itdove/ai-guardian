@@ -330,6 +330,14 @@ class WebConsole:
 
             create_code_security_page(service, daemon_name)
 
+        @ui.page("/{daemon_name}/offensive-language")
+        def offensive_language_page(daemon_name: str):
+            from ai_guardian.web.pages.offensive_language import (
+                create_offensive_language_page,
+            )
+
+            create_offensive_language_page(service, daemon_name)
+
         @ui.page("/{daemon_name}/ssrf")
         def ssrf_page(daemon_name: str):
             from ai_guardian.web.pages.ssrf import create_ssrf_page

@@ -62,6 +62,11 @@ FEATURE_GROUPS = [
                 "Code Security",
                 "Python code security scanning (Bandit)",
             ),
+            (
+                "scan_offensive",
+                "Offensive Language",
+                "Detect profanity, slurs, and non-inclusive terminology",
+            ),
         ],
     ),
     (
@@ -122,6 +127,7 @@ FEATURE_PAGE_SLUGS = {
     "violation_logging": "violation-logging",
     "latency_tracking": "performance",
     "code_scanning": "code-security",
+    "scan_offensive": "offensive-language",
 }
 
 
@@ -172,6 +178,7 @@ _DEFAULT_ACTIONS = {
     "context_poisoning": "warn",
     "supply_chain": "block",
     "code_scanning": "warn",
+    "scan_offensive": "log",
     "secret_redaction": "warn",
     "annotations": "suppress",
     "permissions": "enforce",

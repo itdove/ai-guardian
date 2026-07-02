@@ -2,6 +2,9 @@
 paths = [
     "tests/**",
     "src/ai_guardian/patterns/data/secrets.toml",
+    "src/ai_guardian/patterns/data/offensive-profanity.toml",
+    "src/ai_guardian/patterns/data/offensive-slurs.toml",
+    "src/ai_guardian/patterns/data/offensive-inclusive-language.toml",
     "docs/notebooklm-export.md",
 ]
 
