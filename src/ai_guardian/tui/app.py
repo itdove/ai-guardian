@@ -162,6 +162,7 @@ NAV_GROUPS = [
             ("Supply Chain", "panel-supply-chain"),
             ("Config Scanner", "panel-config-scanner"),
             ("PII Detection", "panel-scan-pii"),
+            ("Code Security", "panel-code-security"),
             ("Annotations", "panel-annotations"),
         ],
     ),
@@ -539,6 +540,22 @@ HELP_DOCS = {
         "[bold]Configuration:[/bold]\n"
         "  - Enable/disable individual PII types\n"
         "  - Ignore files via glob patterns (e.g., tests/**)"
+    ),
+    "panel-code-security": (
+        "[bold]Code Security Scanning (Bandit)[/bold]\n\n"
+        "Detect insecure Python code patterns: eval/exec, subprocess shell "
+        "injection, weak crypto, SQL injection, hardcoded credentials, etc.\n\n"
+        "[bold]Severity levels:[/bold]\n"
+        "  HIGH   — Critical vulnerabilities (shell injection, eval)\n"
+        "  MEDIUM — Important issues (weak crypto, unsafe deserialization)\n"
+        "  LOW    — Minor concerns (bare except, debug mode)\n\n"
+        "[bold]Suppression:[/bold]\n"
+        "  # nosec           — Suppress all Bandit checks on a line\n"
+        "  # nosec B101      — Suppress a specific check\n"
+        "  # ai-guardian:allow — Suppress all ai-guardian checks on a line\n\n"
+        "[bold]Note:[/bold]\n"
+        "  This panel is read-only. Use the web console or edit\n"
+        "  ai-guardian.json to change code security settings."
     ),
     "panel-annotations": (
         "[bold]Annotation Suppression[/bold]\n\n"
@@ -1268,6 +1285,11 @@ class AIGuardianTUI(App):
                     from ai_guardian.tui.scan_pii import ScanPIIContent
 
                     yield ScanPIIContent()
+
+                with Container(id="panel-code-security"):
+                    from ai_guardian.tui.code_security import CodeSecurityContent
+
+                    yield CodeSecurityContent()
 
                 with Container(id="panel-annotations"):
                     from ai_guardian.tui.annotations import AnnotationsContent

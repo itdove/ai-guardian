@@ -34,6 +34,7 @@ _SAFE_SUGGESTIONS: Dict[str, str] = {
     "config_file_exfil": "This configuration file is protected from exfiltration",
     "jailbreak_detected": "The content contains patterns that match jailbreak detection",
     "supply_chain": "This agent configuration file contains suspicious supply chain patterns",
+    "code_security": "Add # nosec or an allowlist entry in code_scanning.allowlist to suppress known-safe patterns",
 }
 
 try:

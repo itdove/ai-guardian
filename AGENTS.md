@@ -1097,6 +1097,89 @@ When adding any new feature, check:
 - [ ] **Violation type documentation** — Adding a new violation type? → Add a row to the Violation Type Coverage Matrix in `docs/AGENT_SUPPORT.md` and document any agent-specific limitations.
 - [ ] **`.aiguardignore.toml` scanner type** — Adding a new violation/scanner type that scans file content (not URL-based or tool-based)? → Add it to `SCANNER_TYPES` in `src/ai_guardian/aiguardignore.py` so `.aiguardignore.toml` can filter it.
 
+### Adding a New Security Scanner
+
+A scanner is a new detection engine that integrates into the hook pipeline and `ai-guardian scan`. Use `supply_chain` (Issue #1055) and `code_scanning` (Issue #828) as reference implementations. Every item below is required — missing any one causes a broken or incomplete feature.
+
+#### 1. Dependency
+- [ ] `pyproject.toml` — add fixed or optional dependency
+
+#### 2. Scanner module
+- [ ] `src/ai_guardian/<scanner>.py` — scanner class with `scan(content, file_path)` → returns findings
+
+#### 3. Violation type
+- [ ] `src/ai_guardian/constants.py` — add `ViolationType.<SCANNER> = "<scanner>"` to enum
+- [ ] `src/ai_guardian/hook_processing.py` — add entry to `_ASK_VIOLATION_LABELS`
+
+#### 4. Config loading
+- [ ] `src/ai_guardian/config_loaders.py` — add `_<SCANNER>_DEFAULTS` dict + `_load_<scanner>_config()` function
+
+#### 5. Hook integration
+- [ ] `src/ai_guardian/hook_processing.py`:
+  - Import `_load_<scanner>_config` at top of file
+  - Add `_log_<scanner>_violation()` (follow `_log_supply_chain_violation` pattern)
+  - Add `run_<scanner>_scan()` returning `ScanResult` with `result.extra["action"]` set
+  - Wire into the correct hook path (PreToolUse Write/Edit, PostToolUse Bash, UserPromptSubmit, etc.)
+  - Use `_handle_ask_mode_auto()` → `_log_ask_decision()` for ask-mode dispatch
+
+#### 6. Batch scan (`ai-guardian scan`)
+- [ ] `src/ai_guardian/scanner.py` — add import, `_check_<scanner>()` method, call it in `_scan_file()` (and `_scan_image_file()` if applicable)
+- [ ] `src/ai_guardian/sarif_formatter.py` — add `create_<scanner>_finding()` factory; import it in `scanner.py` inside the `HAS_SARIF` try block
+
+#### 7. MCP server
+- [ ] `src/ai_guardian/mcp_server.py` — add suggestion string to `_SAFE_SUGGESTIONS` dict; `scan_directory` picks up new findings automatically via `FileScanner`
+
+#### 8. Config defaults & schema
+- [ ] `src/ai_guardian/setup.py` — add `"_comment_<scanner>"` + `"<scanner>"` section to `_create_default_config()`
+- [ ] `src/ai_guardian/schemas/ai-guardian-config.schema.json`:
+  - Add `"<scanner>"` object with full property definitions
+  - Add `"<scanner>"` to the `violation_type` enum array (two places: `enum` + `default`)
+- [ ] `ai-guardian-example.json` — add fully-commented example block for the new section
+- [ ] All four profile templates: `src/ai_guardian/templates/profiles/{minimal,standard,strict,moderator}.json`
+
+#### 9. TUI console
+- [ ] `src/ai_guardian/tui/<scanner>.py` — new `*Content(Container)` panel (config status, violations, inline help)
+- [ ] `src/ai_guardian/tui/app.py`:
+  - Add `("Label", "panel-<scanner>")` to the relevant `NAV_GROUPS` section
+  - Add `with Container(id="panel-<scanner>"): yield <Scanner>Content()` in the compose tree
+  - Add `"panel-<scanner>": ("...")` entry to `PANEL_DESCRIPTIONS`
+- [ ] `src/ai_guardian/tui/global_settings.py`:
+  - Add `("<scanner>", "gs_<scanner>", "emoji Label")` to `FEATURE_TOGGLES`
+  - Add `"<scanner>": {"schema_path": ..., "options": [...], "default": ...}` to `FEATURE_ACTIONS`
+- [ ] `src/ai_guardian/tui/violations.py`:
+  - Add `"<scanner>"` to `KNOWN_VIOLATION_TYPES`
+  - Handle `vtype == "<scanner>"` in `_extract_matched_from_violation()`
+  - Add `TabPane("Label", id="filter-<scanner>")` + `VerticalScroll(id="violations-list-<scanner>")` in compose
+  - Add load call in `load_all_filters()`
+- [ ] `tests/unit/test_tui.py` — update nav leaf count assertion
+
+#### 10. Web console
+- [ ] `src/ai_guardian/web/pages/<scanner>.py` — new `create_<scanner>_page(service, daemon_name)` with enable toggle, action selector, config options
+- [ ] `src/ai_guardian/web/app.py` — add `@ui.page("/{daemon_name}/<slug>")` route
+- [ ] `src/ai_guardian/web/components/header.py` — add `("Label", "/<slug>")` to the relevant nav group
+- [ ] `src/ai_guardian/web/pages/global_settings.py`:
+  - Add `("<scanner>", "Label", "description")` to the relevant `DASHBOARD_SECTIONS` group
+  - Add `"<scanner>": {...}` to `ACTION_MODES`
+  - Add `"<scanner>": "<default>"` to `ACTION_DEFAULTS`
+- [ ] `src/ai_guardian/web/pages/dashboard.py`:
+  - Add `("<scanner>", "Label", "description")` to `DASHBOARD_SECTIONS`
+  - Add `"<scanner>": "<slug>"` to `FEATURE_PAGE_SLUGS`
+  - Add `"<scanner>": "<default_action>"` to `_DEFAULT_ACTIONS`
+  - Handle the scanner in `_get_scanner_label()` if it produces violations
+- [ ] `src/ai_guardian/web/pages/violations.py`:
+  - Add `"<scanner>"` to `KNOWN_VIOLATION_TYPES`
+  - Add `("Label", "<scanner>", "description")` to `FILTER_TABS`
+  - Add `"<scanner>": [("Field", "key"), ...]` to `DETAIL_FIELDS`
+  - Handle `vtype == "<scanner>"` in `_extract_matched_from_violation()`
+
+#### 11. Tests
+- [ ] `tests/unit/test_<scanner>.py` — unit tests: clean input, known-bad input, config options (threshold, allowlist), suppression annotations, robustness (empty input, parse errors)
+
+#### 12. Don't forget
+- [ ] `.aiguardignore.toml` scanner type — add to `SCANNER_TYPES` in `aiguardignore.py` if file-content based
+- [ ] `docs/AGENT_SUPPORT.md` — add row to Violation Type Coverage Matrix
+- [ ] `CHANGELOG.md` — add entry under `[Unreleased]`
+
 ### TUI and Web Console Coexistence
 
 **IMPORTANT**: The TUI console (`src/ai_guardian/tui/`) MUST NOT be removed while Python 3.9 is still supported. The web console (`src/ai_guardian/web/`) requires NiceGUI, which requires Python >= 3.10. macOS Xcode Command Line Tools bundles Python 3.9.6, so many macOS users will only have 3.9 available. The TUI (Textual) works on all supported Python versions including 3.9.

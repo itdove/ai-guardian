@@ -324,6 +324,12 @@ class WebConsole:
 
             create_supply_chain_page(service, daemon_name)
 
+        @ui.page("/{daemon_name}/code-security")
+        def code_security_page(daemon_name: str):
+            from ai_guardian.web.pages.code_security import create_code_security_page
+
+            create_code_security_page(service, daemon_name)
+
         @ui.page("/{daemon_name}/ssrf")
         def ssrf_page(daemon_name: str):
             from ai_guardian.web.pages.ssrf import create_ssrf_page

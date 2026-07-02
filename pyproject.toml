@@ -38,6 +38,7 @@ dependencies = [
   "nicegui>=3.0.0; python_version >= '3.10'",
   "tokenizers>=0.15.0; python_version >= '3.10'",
   "boto3>=1.28.0",
+  "bandit>=1.7.0",
 ]
 keywords = ["ai", "security", "claude", "cursor", "secrets", "gitleaks", "hooks"]
 classifiers = [

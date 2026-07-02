@@ -1947,6 +1947,14 @@ def _get_default_config_template(permissive: bool = False) -> Dict:
             "scan_plugins": True,
             "allowlist_paths": [],
         },
+        "_comment_code_scanning": "Python code security scanning with Bandit — detects insecure patterns (eval, subprocess shell injection, weak crypto, SQL injection, etc.) (NEW in v1.13.0, Issue #828)",
+        "code_scanning": {
+            "enabled": True,
+            "action": "warn",
+            "severity_threshold": "MEDIUM",
+            "allowlist": [],
+            "ignore_files": [],
+        },
         "_comment_permissions": "Control which tools (Skills, MCP servers, Bash, etc.) are allowed to run. Rules evaluated in order, last match wins.",
         "permissions": {
             "enabled": not permissive,

@@ -60,6 +60,7 @@ NAV_GROUPS = [
             ("Supply Chain", "/supply-chain"),
             ("Config Scanner", "/config-scanner"),
             ("PII Detection", "/scan-pii"),
+            ("Code Security", "/code-security"),
             ("Annotations", "/annotations"),
         ],
     ),
