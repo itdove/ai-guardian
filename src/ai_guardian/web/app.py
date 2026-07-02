@@ -338,6 +338,14 @@ class WebConsole:
 
             create_offensive_language_page(service, daemon_name)
 
+        @ui.page("/{daemon_name}/canary-detection")
+        def canary_detection_page(daemon_name: str):
+            from ai_guardian.web.pages.canary_detection import (
+                create_canary_detection_page,
+            )
+
+            create_canary_detection_page(service, daemon_name)
+
         @ui.page("/{daemon_name}/ssrf")
         def ssrf_page(daemon_name: str):
             from ai_guardian.web.pages.ssrf import create_ssrf_page

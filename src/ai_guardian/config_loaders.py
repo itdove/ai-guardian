@@ -627,6 +627,20 @@ def _load_code_scanning_config():
     )
 
 
+_CANARY_DETECTION_DEFAULTS = {
+    "enabled": False,
+    "action": "block",
+    "tokens": [],
+}
+
+
+def _load_canary_detection_config():
+    """Load canary token detection configuration. Returns defaults when section is absent."""
+    return _load_config_section(
+        "canary_detection", defaults=_CANARY_DETECTION_DEFAULTS, merge_ignore=True
+    )
+
+
 _OFFENSIVE_LANGUAGE_DEFAULTS = {
     "enabled": False,
     "action": "log",

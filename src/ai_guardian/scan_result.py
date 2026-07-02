@@ -298,6 +298,43 @@ class ScanResult:
         )
 
     @classmethod
+    def from_canary_detection(
+        cls,
+        should_block: bool,
+        error_message: Optional[str],
+        details: Optional[Dict[str, Any]],
+        source: Optional[str] = None,
+    ) -> "ScanResult":
+        """Wrap canary token detector result."""
+        matched_text = ""
+        matched_token = ""
+        description = ""
+        line_number = None
+        start_column = None
+        end_column = None
+        if details:
+            matched_text = details.get("matched_text", "")
+            matched_token = details.get("token", "")
+            description = details.get("description", "")
+            line_number = details.get("line_number")
+            start_column = details.get("start_column")
+            end_column = details.get("end_column")
+        return cls(
+            detected=should_block or bool(details),
+            violation_type="canary_detected",
+            should_block=should_block,
+            error_message=error_message or "",
+            matched_text=matched_text,
+            matched_pattern=matched_token,
+            line_number=line_number,
+            start_column=start_column,
+            end_column=end_column,
+            config_section="canary_detection",
+            attack_type=description,
+            file_path=source,
+        )
+
+    @classmethod
     def from_directory_rules(
         cls,
         decision: Optional[str],

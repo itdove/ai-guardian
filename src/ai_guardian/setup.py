@@ -1964,6 +1964,12 @@ def _get_default_config_template(permissive: bool = False) -> Dict:
             "allowlist": [],
             "ignore_files": [],
         },
+        "_comment_canary_detection": "Canary token detection — detects user-registered tripwire values in AI output to catch data exfiltration (NEW in v1.14.0, Issue #1392). Disabled by default — add your own tokens to enable.",
+        "canary_detection": {
+            "enabled": False,
+            "action": "block",
+            "tokens": [],
+        },
         "_comment_permissions": "Control which tools (Skills, MCP servers, Bash, etc.) are allowed to run. Rules evaluated in order, last match wins.",
         "permissions": {
             "enabled": not permissive,

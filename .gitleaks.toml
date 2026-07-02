@@ -12,5 +12,6 @@
         "tests/unit/test_column_support.py",
         ".github/workflows/smoke-tests.yml",
         "container/scenarios/basic-secret.yaml",
-        "container/scenarios/tool-policy.yaml"
+        "container/scenarios/tool-policy.yaml",
+        ".ai-guardian/ai-guardian.json"
     ]

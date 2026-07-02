@@ -164,6 +164,7 @@ NAV_GROUPS = [
             ("PII Detection", "panel-scan-pii"),
             ("Code Security", "panel-code-security"),
             ("Offensive Language", "panel-offensive-language"),
+            ("Canary Detection", "panel-canary-detection"),
             ("Annotations", "panel-annotations"),
         ],
     ),
@@ -573,6 +574,20 @@ HELP_DOCS = {
         "[bold]Note:[/bold]\n"
         "  This panel is read-only. Edit ai-guardian.json to\n"
         "  configure scan_offensive settings."
+    ),
+    "panel-canary-detection": (
+        "[bold]Canary Token Detection[/bold]\n\n"
+        "Register tripwire values in sensitive files. If the AI ever\n"
+        "outputs those values, data exfiltration is detected.\n\n"
+        "[bold]Token Types:[/bold]\n"
+        "  value   — exact string match (low-entropy values secret scanner misses)\n"
+        "  pattern — regex match (e.g. CANARY_[A-Z0-9]{8})\n\n"
+        "[bold]Why not secret scanning?[/bold]\n"
+        "  Secret scanner filters low-entropy strings. Canary detection\n"
+        "  uses exact user-registered values, bypassing entropy checks.\n\n"
+        "[bold]Note:[/bold]\n"
+        "  Disabled by default. Enable after adding at least one token.\n"
+        "  Edit ai-guardian.json → canary_detection section."
     ),
     "panel-annotations": (
         "[bold]Annotation Suppression[/bold]\n\n"
@@ -1314,6 +1329,13 @@ class AIGuardianTUI(App):
                     )
 
                     yield OffensiveLanguageContent()
+
+                with Container(id="panel-canary-detection"):
+                    from ai_guardian.tui.canary_detection import (
+                        CanaryDetectionContent,
+                    )
+
+                    yield CanaryDetectionContent()
 
                 with Container(id="panel-annotations"):
                     from ai_guardian.tui.annotations import AnnotationsContent

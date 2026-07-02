@@ -620,6 +620,32 @@
     }
   },
 
+  "canary_detection": {
+    "_comment": "Canary token detection (NEW in v1.14.0, Issue #1392). Detects user-registered tripwire values in AI output.",
+    "_comment2": "DISABLED BY DEFAULT — requires at least one token. Enable after adding your tokens.",
+    "_comment3": "Use exact 'value' for low-entropy strings that secret scanner would miss (SENTINEL_PROD_DB_2026).",
+    "_comment4": "Use 'pattern' for regex-format canaries (CANARY_[A-Z0-9]{8}).",
+    "_comment5": "Threat model: plant a value in a config/credential file. If AI outputs it in a curl command, exfil is detected.",
+    "enabled": false,
+    "action": "block",
+    "_comment_action": "block (default) = prevent the operation. warn = allow but alert. log-only = record silently.",
+    "tokens": [
+      {
+        "value": "CANARYTOK_my-db-password-canary",
+        "description": "Production DB password canary (exact match, low entropy — secret scanner misses this)"
+      },
+      {
+        "value": "SENTINEL_PROD_DB_2026",
+        "description": "Config file canary (plain text phrase, no pattern)"
+      },
+      {
+        "pattern": "CANARY_[A-Z0-9]{8}",
+        "description": "Regex pattern matching any 8-char uppercase canary"
+      }
+    ],
+    "_comment_tokens": "Each token needs 'value' (exact) OR 'pattern' (regex), plus optional 'description'."
+  },
+
   "scan_offensive": {
     "_comment": "Offensive language scanner (NEW in v1.13.0, Issue #1417). Detects profanity, slurs, and non-inclusive terminology.",
     "_comment2": "DISABLED BY DEFAULT — unlike secrets/PII, offensive language is context-dependent. Enable only when your org requires it.",
