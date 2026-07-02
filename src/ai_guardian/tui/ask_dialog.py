@@ -512,7 +512,19 @@ def _is_headless_env() -> bool:
 
     if sys.platform != "linux":
         return False
-    return not os.environ.get("DISPLAY") and not os.environ.get("WAYLAND_DISPLAY")
+    if os.environ.get("DISPLAY") or os.environ.get("WAYLAND_DISPLAY"):
+        return False
+    # Containers with -it have a TTY but no user watching the container
+    # terminal — tray forwarding (step 1) handles them. If that fails, use
+    # fallback. Textual inside a container would block with nobody to respond.
+    in_container = os.path.exists("/.dockerenv") or os.path.exists("/run/.containerenv")
+    if in_container:
+        return True
+    # Non-container with TTY (SSH session, local terminal without DISPLAY):
+    # Textual can show an interactive dialog.
+    if sys.stdin.isatty() and sys.stdout.isatty():
+        return False
+    return True
 
 
 def show_ask_dialog(

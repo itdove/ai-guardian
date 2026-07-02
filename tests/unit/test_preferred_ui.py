@@ -178,6 +178,84 @@ class TestAskDialogHeadless:
                         assert result.decision == AskDecision.ALLOW_ONCE
 
 
+class TestIsHeadlessEnv:
+    """Tests for _is_headless_env() TTY and container detection (Issue #1448)."""
+
+    def _call(
+        self,
+        preferred="auto",
+        display=None,
+        wayland=None,
+        platform="linux",
+        isatty=False,
+        dockerenv=False,
+        containerenv=False,
+    ):
+        from ai_guardian.tui.ask_dialog import _is_headless_env
+
+        env = {}
+        if display:
+            env["DISPLAY"] = display
+        if wayland:
+            env["WAYLAND_DISPLAY"] = wayland
+
+        with patch("ai_guardian.tui.display.get_preferred_ui", return_value=preferred):
+            with patch.dict(os.environ, env, clear=False):
+                os.environ.pop("DISPLAY", None)
+                os.environ.pop("WAYLAND_DISPLAY", None)
+                if display:
+                    os.environ["DISPLAY"] = display
+                if wayland:
+                    os.environ["WAYLAND_DISPLAY"] = wayland
+                with patch("sys.platform", platform):
+                    with (
+                        patch("sys.stdin") as mock_stdin,
+                        patch("sys.stdout") as mock_stdout,
+                    ):
+                        mock_stdin.isatty = lambda: isatty
+                        mock_stdout.isatty = lambda: isatty
+                        with patch(
+                            "os.path.exists",
+                            side_effect=lambda p: (p == "/.dockerenv" and dockerenv)
+                            or (p == "/run/.containerenv" and containerenv),
+                        ):
+                            return _is_headless_env()
+
+    def test_explicit_headless_preferred(self):
+        assert self._call(preferred="headless") is True
+
+    def test_explicit_non_auto_non_headless(self):
+        assert self._call(preferred="textual") is False
+
+    def test_non_linux_returns_false(self):
+        assert self._call(platform="darwin") is False
+
+    def test_display_set_returns_false(self):
+        assert self._call(display=":0") is False
+
+    def test_wayland_set_returns_false(self):
+        assert self._call(wayland="wayland-0") is False
+
+    def test_no_display_no_tty_no_container_returns_true(self):
+        assert self._call(isatty=False) is True
+
+    def test_no_display_with_tty_not_container_returns_false(self):
+        # SSH session / local terminal without DISPLAY — Textual can run
+        assert self._call(isatty=True) is False
+
+    def test_no_display_with_tty_dockerenv_returns_true(self):
+        # Container with -it flag — no user watching container terminal
+        assert self._call(isatty=True, dockerenv=True) is True
+
+    def test_no_display_with_tty_containerenv_returns_true(self):
+        # Podman/OCI container with -it flag
+        assert self._call(isatty=True, containerenv=True) is True
+
+    def test_no_display_no_tty_dockerenv_returns_true(self):
+        # Container without TTY
+        assert self._call(isatty=False, dockerenv=True) is True
+
+
 class TestCliHandlerPreferredUi:
     """Tests for _handle_prompt_ask() with preferred_ui."""
 
