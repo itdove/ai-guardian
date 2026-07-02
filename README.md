@@ -89,6 +89,14 @@ ai-guardian tray --install --autostart  # Add desktop shortcut + launch on login
 
 The tray auto-discovers running daemons and shows per-daemon submenus with Statistics, Console, Pause/Resume, and Start/Stop controls. On first launch, the tray will offer to create a desktop shortcut automatically. See [Multi-Daemon Tray](https://github.com/itdove/ai-guardian/blob/main/docs/MULTI_DAEMON_TRAY.md) for full documentation.
 
+> **Linux + Podman**: Container discovery requires the Podman socket to be active and `DOCKER_HOST` set:
+> ```bash
+> systemctl --user enable --now podman.socket
+> export DOCKER_HOST=unix://$(podman info --format '{{.Host.RemoteSocket.Path}}')
+> ai-guardian tray start -b
+> ```
+> macOS with Podman Desktop sets `DOCKER_HOST` automatically. See [Multi-Daemon Tray](docs/MULTI_DAEMON_TRAY.md#linux-podman) for details.
+
 > **Breaking change in v1.8.0**: `daemon start` no longer launches the tray automatically. Run `ai-guardian tray start -b` separately, or use `ai-guardian tray --install --autostart` for a permanent desktop shortcut with login startup.
 
 ### Container

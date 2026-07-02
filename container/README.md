@@ -132,6 +132,7 @@ Set `AI_GUARDIAN_IDE` to configure hooks for a specific IDE at container start:
 | `zoocode` | ZooCode | No (hooks only) |
 | `junie` | Junie | No (hooks only) |
 | `aiderdesk` | AiderDesk | No (hooks only) |
+| `dummy-agent` | Dummy Agent (fake IDE for hook testing) | Yes — no LLM required |
 
 IDEs marked "hooks only" are not installed in the image (they require a GUI) but
 ai-guardian hooks are configured for them. Mount the IDE binary into the container
@@ -147,6 +148,7 @@ Set `AI_GUARDIAN_PROFILE` to apply a security profile at container start:
 | `@minimal` | Minimal — fewer checks, lower false positive rate |
 | `@standard` | Standard — balanced security and usability |
 | `@strict` | Strict — maximum security, all checks enabled |
+| `@moderator` | Moderator — all scanner actions set to `ask` for human-in-the-loop review |
 
 You can also pass a custom profile name or path if you have saved custom profiles.
 
