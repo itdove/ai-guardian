@@ -1194,3 +1194,59 @@ class TestAllowedFindings:
         result = state.get_allowed_findings("sess1")
         result.add("fp_external")
         assert "fp_external" not in state.get_allowed_findings("sess1")
+
+
+class TestBootstrapSessionTracking:
+    """Tests for DaemonState.is_new_session() used by bootstrap scanning."""
+
+    def test_first_call_returns_true(self, tmp_path):
+        state = DaemonState(config_path=tmp_path / "nonexistent.json")
+        assert state.is_new_session("session-abc", "/project") is True
+
+    def test_second_call_returns_false(self, tmp_path):
+        state = DaemonState(config_path=tmp_path / "nonexistent.json")
+        state.is_new_session("session-abc", "/project")
+        assert state.is_new_session("session-abc", "/project") is False
+
+    def test_different_sessions_independent(self, tmp_path):
+        state = DaemonState(config_path=tmp_path / "nonexistent.json")
+        assert state.is_new_session("session-1", "/project") is True
+        assert state.is_new_session("session-2", "/project") is True
+        assert state.is_new_session("session-1", "/project") is False
+
+    def test_empty_session_id_falls_back_to_cwd(self, tmp_path):
+        state = DaemonState(config_path=tmp_path / "nonexistent.json")
+        assert state.is_new_session("", "/project/a") is True
+        assert state.is_new_session("", "/project/a") is False
+        assert state.is_new_session("", "/project/b") is True
+
+    def test_none_session_id_falls_back_to_cwd(self, tmp_path):
+        state = DaemonState(config_path=tmp_path / "nonexistent.json")
+        assert state.is_new_session(None, "/project/x") is True
+        assert state.is_new_session(None, "/project/x") is False
+
+    def test_separate_states_do_not_share(self, tmp_path):
+        state_a = DaemonState(config_path=tmp_path / "nonexistent.json")
+        state_b = DaemonState(config_path=tmp_path / "nonexistent.json")
+        assert state_a.is_new_session("shared-id", "/project") is True
+        assert state_b.is_new_session("shared-id", "/project") is True
+
+    def test_concurrent_calls_thread_safe(self, tmp_path):
+        import threading
+
+        state = DaemonState(config_path=tmp_path / "nonexistent.json")
+        results = []
+        barrier = threading.Barrier(10)
+
+        def call_is_new():
+            barrier.wait()
+            results.append(state.is_new_session("session-concurrent", "/project"))
+
+        threads = [threading.Thread(target=call_is_new) for _ in range(10)]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join()
+
+        assert results.count(True) == 1
+        assert results.count(False) == 9

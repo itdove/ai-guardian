@@ -5512,6 +5512,40 @@ def run_directory_check(
     )
 
 
+def _run_bootstrap_scan(cwd: str, config=None) -> list:
+    """Scan agent config files in cwd for exfiltration threats at session start.
+
+    Called once per session via DaemonState.is_new_session(). Returns a list of
+    ScanResult objects for each config file that triggered a detection.
+    """
+    if not HAS_CONFIG_SCANNER:
+        return []
+
+    from ai_guardian.config_scanner import ConfigFileScanner
+    from pathlib import Path as _Path
+
+    if config is None:
+        config, _ = _load_config_scanner_config()
+
+    scanner = ConfigFileScanner(config)
+    cwd_path = _Path(cwd)
+    results = []
+
+    for pattern in scanner.DEFAULT_CONFIG_FILES:
+        file_path = cwd_path / pattern
+        if not file_path.is_file():
+            continue
+        try:
+            content = file_path.read_text(encoding="utf-8", errors="replace")
+        except OSError:
+            continue
+        result = run_config_file_scan(str(file_path), content, config=config)
+        if result is not None and result.detected:
+            results.append(result)
+
+    return results
+
+
 def process_hook_data(hook_data, daemon_state=None):
     """
     Process parsed hook data and return response.
@@ -5589,6 +5623,69 @@ def process_hook_data(hook_data, daemon_state=None):
 
         _latency_timer = _CheckTimer(enabled=_is_latency_enabled())
         _latency_event = hook_event
+
+        # Bootstrap scan: scan agent config files on first hook of a new session (#1394)
+        if daemon_state:
+            try:
+                _bs_cwd = get_project_dir()
+                if daemon_state.is_new_session(hook_session_id, _bs_cwd):
+                    logging.info(
+                        f"Bootstrap scan: new session detected (cwd={_bs_cwd})"
+                    )
+                    _bs_config, _ = _load_config_scanner_config()
+                    _bs_results = _run_bootstrap_scan(_bs_cwd, config=_bs_config)
+                    for _bs_result in _bs_results:
+                        _bs_action = _bs_result.extra.get("action", "block")
+                        _bs_file = _bs_result.file_path or _bs_cwd
+                        _bs_error = _bs_result.error_message or (
+                            "Agent config file contains credential exfiltration pattern"
+                        )
+                        _bs_details = _bs_result.extra.get("details") or {}
+                        logging.warning(
+                            f"Bootstrap scan: threat in {_bs_file}: {_bs_error}"
+                        )
+                        if violation_logger:
+                            try:
+                                violation_logger.log_violation(
+                                    violation_type=ViolationType.CONFIG_FILE_EXFIL,
+                                    blocked={
+                                        "file_path": _bs_file,
+                                        "line_number": _bs_details.get("line_number"),
+                                        "reason": _bs_error,
+                                        "details": _bs_details,
+                                    },
+                                    context={
+                                        "source": "bootstrap_scan",
+                                        "ide_type": (
+                                            ide_type.value
+                                            if hasattr(ide_type, "value")
+                                            else str(ide_type)
+                                        ),
+                                        "hook_event": hook_event,
+                                        "project_path": _bs_cwd,
+                                        "session_id": hook_session_id or "",
+                                    },
+                                    suggestion={
+                                        "action": "review_config_file",
+                                        "false_positive": (
+                                            "Move to examples/ directory, or add to "
+                                            "config_file_scanning.ignore_files"
+                                        ),
+                                    },
+                                    severity="critical",
+                                )
+                            except Exception:
+                                pass
+                        if _bs_action == "block":
+                            return _format_response(
+                                adapter,
+                                has_secrets=True,
+                                error_message=_bs_error,
+                                hook_event=hook_event,
+                                violation_type=ViolationType.CONFIG_FILE_EXFIL,
+                            )
+            except Exception as _bs_exc:
+                logging.debug(f"Bootstrap scan error (non-fatal): {_bs_exc}")
 
         # Resolve transcript path from adapter defaults (Issue #935)
         # When hook_data has no transcript_path, agents like Copilot CLI and Codex
