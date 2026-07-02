@@ -290,9 +290,7 @@ def create_violations_page(service, daemon_name: str):
             active_filter = {"vtype": None}
 
             filter_options = {label: vtype for label, vtype, _ in FILTER_TABS}
-            sorted_options = ["All"] + sorted(
-                k for k in filter_options if k != "All"
-            )
+            sorted_options = ["All"] + sorted(k for k in filter_options if k != "All")
             filter_select = ui.select(
                 options=sorted_options,
                 value="All",
