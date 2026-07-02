@@ -1,0 +1,13 @@
+kind: Cluster
+apiVersion: kind.x-k8s.io/v1alpha4
+nodes:
+  - role: control-plane
+    extraPortMappings:
+      # REST API — tray polls this for ask dialog requests
+      - containerPort: 63152
+        hostPort: 63152
+        protocol: TCP
+      # Hook socket — TCP mode for pods calling ai-guardian
+      - containerPort: 63151
+        hostPort: 63151
+        protocol: TCP
