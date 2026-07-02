@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Offensive language scanner** — new `scan_offensive` config section detects profanity, slurs, and non-inclusive terminology in code, comments, and variable names. Disabled by default; opt in via `enabled: true`. Three categories: `profanity`, `slurs` (on by default when enabled), `inclusive_language` (opt-in). Includes `suggestion` field in violation messages for inclusive language replacements. Works with `.aiguardignore.toml`, ask mode, and existing allowlist mechanisms. Pattern files excluded from self-scan via `.aiguardignore.toml`. New `offensive_language` violation type in constants, violations log, TUI, and web console (Issue #1417).
+
 ## [1.12.3] - 2026-06-29
 
 ### Fixed

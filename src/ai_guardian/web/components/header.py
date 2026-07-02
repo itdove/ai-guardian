@@ -61,6 +61,7 @@ NAV_GROUPS = [
             ("Config Scanner", "/config-scanner"),
             ("PII Detection", "/scan-pii"),
             ("Code Security", "/code-security"),
+            ("Offensive Language", "/offensive-language"),
             ("Annotations", "/annotations"),
         ],
     ),

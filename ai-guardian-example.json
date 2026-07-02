@@ -620,6 +620,24 @@
     }
   },
 
+  "scan_offensive": {
+    "_comment": "Offensive language scanner (NEW in v1.13.0, Issue #1417). Detects profanity, slurs, and non-inclusive terminology.",
+    "_comment2": "DISABLED BY DEFAULT — unlike secrets/PII, offensive language is context-dependent. Enable only when your org requires it.",
+    "_comment3": "categories: profanity, slurs are on when enabled. inclusive_language is opt-in (high FP rate: master, blacklist, dummy widely used).",
+    "_comment4": "action: 'log' (default) = record violations silently. 'warn' = show warning in AI response. 'block' = block the operation.",
+    "_comment5": "Self-scan exclusion: add src/ai_guardian/patterns/offensive-*.toml to .aiguardignore.toml to avoid scanning pattern files themselves.",
+    "enabled": false,
+    "action": "log",
+    "categories": ["profanity", "slurs", "inclusive_language"],
+    "_comment_categories": "Available: profanity, slurs, inclusive_language. Add 'inclusive_language' to also detect master/slave, blacklist/whitelist, etc.",
+    "ignore_files": [],
+    "_comment_ignore_files": "Glob patterns for files to exclude (e.g. 'tests/**', 'vendor/**')",
+    "ignore_tools": [],
+    "_comment_ignore_tools": "Tool names to skip scanning for (e.g. 'Read', 'Bash')",
+    "allowlist_patterns": [],
+    "_comment_allowlist": "Regex patterns to suppress specific matches (e.g. 'kill.*process' if 'kill' triggers a false positive)"
+  },
+
   "image_scanning": {
     "_comment": "OCR-based image scanning for secrets and PII (NEW in v1.10.0, Issue #720)",
     "_comment2": "Scans PreToolUse (file reads) and UserPromptSubmit (image attachments). PostToolUse excluded (AI already extracted text).",

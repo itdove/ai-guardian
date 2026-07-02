@@ -72,6 +72,7 @@ SCANNER_TYPES = frozenset(
         "context_poisoning",
         "supply_chain",
         "image_scanning",
+        "offensive_language",
     }
 )
 

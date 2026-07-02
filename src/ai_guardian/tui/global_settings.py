@@ -37,6 +37,7 @@ FEATURES = [
     ("context_poisoning", "gs_context_poisoning", "🧪 Context Poisoning Detection"),
     ("supply_chain", "gs_supply_chain", "🔗 Supply Chain Scanning"),
     ("code_scanning", "gs_code_scanning", "🐍 Code Security (Bandit)"),
+    ("scan_offensive", "gs_scan_offensive", "🚫 Offensive Language"),
     ("violation_logging", "gs_violation_logging", "📝 Violation Logging"),
     ("latency_tracking", "gs_latency_tracking", "⏱️ Latency Tracking"),
 ]
@@ -143,6 +144,18 @@ FEATURE_ACTIONS = {
             ("Log Only", "log-only"),
         ],
         "default": "warn",
+    },
+    "scan_offensive": {
+        "schema_path": "scan_offensive.action",
+        "options": [
+            ("Block", "block"),
+            ("Ask (block if headless)", "ask"),
+            ("Ask (warn if headless)", "ask:warn"),
+            ("Ask (log-only if headless)", "ask:log-only"),
+            ("Warn", "warn"),
+            ("Log", "log"),
+        ],
+        "default": "log",
     },
 }
 

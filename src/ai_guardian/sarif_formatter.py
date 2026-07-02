@@ -528,3 +528,29 @@ def create_code_security_finding(
             "scanner": "bandit",
         },
     }
+
+
+def create_offensive_language_finding(
+    rule_id: str,
+    description: str,
+    category: str,
+    suggestion: str,
+    file_path: str,
+    line_number: Optional[int] = None,
+    start_column: Optional[int] = None,
+    matched_text: Optional[str] = None,
+) -> Dict[str, Any]:
+    """Create a finding dict for offensive language detections."""
+    return {
+        "rule_id": rule_id,
+        "level": "warning",
+        "message": f"Offensive language ({category}): {description}",
+        "file_path": file_path,
+        "line_number": line_number,
+        "start_column": start_column,
+        "details": {
+            "category": category,
+            "suggestion": suggestion,
+            "matched_text": matched_text or "",
+        },
+    }

@@ -264,6 +264,40 @@ class ScanResult:
         )
 
     @classmethod
+    def from_offensive_language(
+        cls,
+        findings: List[Dict[str, Any]],
+        action: str = "log",
+        file_path: Optional[str] = None,
+    ) -> "ScanResult":
+        """Wrap offensive language scanner result."""
+        detected = bool(findings)
+        should_block = detected and action == "block"
+        first = findings[0] if findings else {}
+        return cls(
+            detected=detected,
+            violation_type="offensive_language",
+            should_block=should_block,
+            error_message=(
+                f"Offensive language detected: {first.get('description', '')}"
+                if detected
+                else ""
+            ),
+            matched_text=first.get("matched_text", ""),
+            matched_pattern=first.get("rule_id", ""),
+            rule_id=first.get("rule_id", ""),
+            line_number=first.get("line_number"),
+            start_column=first.get("start_column"),
+            end_column=first.get("end_column"),
+            findings=findings,
+            total_findings=len(findings),
+            config_section="scan_offensive",
+            attack_type=first.get("category_tag", ""),
+            file_path=file_path,
+            extra={"action": action},
+        )
+
+    @classmethod
     def from_directory_rules(
         cls,
         decision: Optional[str],

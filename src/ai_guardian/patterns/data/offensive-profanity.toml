@@ -1,0 +1,80 @@
+# Offensive Language: Profanity Patterns
+# These are DETECTION patterns used by the offensive language scanner.
+# This file intentionally contains offensive terms for pattern matching purposes.
+# ai-guardian:begin-allow offensive_language
+# ai-guardian:begin-allow secret_detected
+
+[[rules]]
+id = "profanity-fword"
+match_type = "regex"
+regex = '''\bf[*u]ck(ing|er|ed|s|ers|wit|head|face|tard|wad)?\b'''
+case_insensitive = true
+description = "Profanity: f-word variant"
+category_tag = "profanity"
+re2_compat = false
+
+[[rules]]
+id = "profanity-sword"
+match_type = "regex"
+regex = '''\bsh[i!1]t(ty|bag|head|hole|face|storm|show|ting)?\b'''
+case_insensitive = true
+description = "Profanity: s-word variant"
+category_tag = "profanity"
+re2_compat = false
+
+[[rules]]
+id = "profanity-aword"
+match_type = "regex"
+regex = '''\bass(hole|hat|wipe|clown|face|bag|wad)?\b'''
+case_insensitive = true
+description = "Profanity: a-word variant"
+category_tag = "profanity"
+re2_compat = false
+
+[[rules]]
+id = "profanity-bword"
+match_type = "regex"
+regex = '''\bb[i!1]tch(es|ing|y|ass)?\b'''
+case_insensitive = true
+description = "Profanity: b-word variant"
+category_tag = "profanity"
+re2_compat = false
+
+[[rules]]
+id = "profanity-dword"
+match_type = "regex"
+regex = '''\bdamn(ed|it|ing)?\b'''
+case_insensitive = true
+description = "Profanity: damn variant"
+category_tag = "profanity"
+re2_compat = false
+
+[[rules]]
+id = "profanity-hword"
+match_type = "regex"
+regex = '''\bhell\b'''
+case_insensitive = true
+description = "Profanity: hell"
+category_tag = "profanity"
+re2_compat = false
+
+[[rules]]
+id = "profanity-cword"
+match_type = "regex"
+regex = '''\bcrap(py|shoot|ola)?\b'''
+case_insensitive = true
+description = "Profanity: crap variant"
+category_tag = "profanity"
+re2_compat = false
+
+[[rules]]
+id = "profanity-pword"
+match_type = "regex"
+regex = '''\bp[i!1]ss(ed|ing|er|off)?\b'''
+case_insensitive = true
+description = "Profanity: p-word variant"
+category_tag = "profanity"
+re2_compat = false
+
+# ai-guardian:end-allow
+# ai-guardian:end-allow

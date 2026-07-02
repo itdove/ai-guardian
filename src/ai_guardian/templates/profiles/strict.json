@@ -231,6 +231,15 @@
     "security_instructions": {
         "inject_on_prompt": true
     },
+    "_comment_scan_offensive": "Offensive language scanner (NEW in v1.13.0, Issue #1417). Detects profanity, slurs, and non-inclusive terminology. Disabled by default — opt in via enabled: true.",
+    "scan_offensive": {
+        "enabled": false,
+        "action": "log",
+        "categories": ["profanity", "slurs", "inclusive_language"],
+        "ignore_files": [],
+        "ignore_tools": [],
+        "allowlist_patterns": []
+    },
     "_comment_image_scanning": "OCR-based image scanning for secrets and PII (NEW in v1.10.0, Issue #720). Scans image files for embedded secrets before they reach the AI model.",
     "image_scanning": {
         "enabled": true,

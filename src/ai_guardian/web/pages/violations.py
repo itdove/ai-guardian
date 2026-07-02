@@ -86,6 +86,11 @@ FILTER_TABS = [
         "code_security",
         "Insecure Python code patterns detected by Bandit (eval, shell injection, weak crypto)",
     ),
+    (
+        "Offensive Language",
+        "offensive_language",
+        "Profanity, slurs, or non-inclusive terminology detected",
+    ),
 ]
 
 DETAIL_FIELDS = {
@@ -193,6 +198,14 @@ DETAIL_FIELDS = {
         ("Line", "line_number"),
         ("Severity", "severity"),
         ("Reason", "reason"),
+    ],
+    "offensive_language": [
+        ("File", "file_path"),
+        ("Rule", "rule_id"),
+        ("Category", "category"),
+        ("Line", "line_number"),
+        ("Matched", "matched_text"),
+        ("Suggestion", "suggestion"),
     ],
 }
 
@@ -356,6 +369,7 @@ _ALLOWLIST_TYPES = frozenset(
         "context_poisoning",
         "supply_chain",
         "code_security",
+        "offensive_language",
         "tool_permission",
     }
 )
@@ -694,6 +708,9 @@ def _extract_matched_from_violation(violation: dict) -> str:
 
     if vtype == "code_security":
         return blocked.get("rule_id", "") or blocked.get("file_path", "")
+
+    if vtype == "offensive_language":
+        return blocked.get("matched_text", "") or blocked.get("rule_id", "")
 
     if vtype == "pii_detected":
         pii_types = blocked.get("pii_types", [])

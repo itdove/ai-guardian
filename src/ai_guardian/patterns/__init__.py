@@ -27,6 +27,9 @@ BUNDLED_FILES = {
     "ssrf": DATA_DIR / "ssrf.toml",
     "supply_chain": DATA_DIR / "supply-chain.toml",
     "stopwords": DATA_DIR / "stopwords.toml",
+    "offensive_profanity": DATA_DIR / "offensive-profanity.toml",
+    "offensive_slurs": DATA_DIR / "offensive-slurs.toml",
+    "offensive_inclusive_language": DATA_DIR / "offensive-inclusive-language.toml",
 }
 
 import logging

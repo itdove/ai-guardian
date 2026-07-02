@@ -68,6 +68,11 @@ FEATURE_GROUPS = [
                 "Supply Chain",
                 "Detect malicious hooks, MCP servers, and plugins",
             ),
+            (
+                "scan_offensive",
+                "Offensive Language",
+                "Detect profanity, slurs, and non-inclusive terminology",
+            ),
         ],
     ),
     (

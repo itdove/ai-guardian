@@ -68,6 +68,11 @@ FEATURE_GROUPS = [
                 "Code Security",
                 "Python code security scanning (Bandit)",
             ),
+            (
+                "scan_offensive",
+                "Offensive Language",
+                "Detect profanity, slurs, and non-inclusive terminology",
+            ),
         ],
     ),
     (
@@ -170,6 +175,15 @@ FEATURE_ACTIONS = {
         "warn": "Warn",
         "log-only": "Log Only",
     },
+    "scan_offensive": {
+        "block": "Block",
+        "ask": "Ask (block if headless)",
+        "ask:warn": "Ask (warn if headless)",
+        "ask:log-only": "Ask (log-only if headless)",
+        "warn": "Warn",
+        "log": "Log",
+        "log-only": "Log Only",
+    },
 }
 
 ACTION_DEFAULTS = {
@@ -183,6 +197,7 @@ ACTION_DEFAULTS = {
     "context_poisoning": "warn",
     "supply_chain": "block",
     "code_scanning": "warn",
+    "scan_offensive": "log",
 }
 
 DURATION_RE = re.compile(r"^(?:(\d+)d)?(?:(\d+)h)?(?:(\d+)m)?$", re.IGNORECASE)

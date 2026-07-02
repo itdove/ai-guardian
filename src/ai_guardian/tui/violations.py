@@ -41,6 +41,7 @@ _ALLOWLIST_TYPES = frozenset(
         "context_poisoning",
         "supply_chain",
         "code_security",
+        "offensive_language",
         "tool_permission",
     }
 )
@@ -95,6 +96,9 @@ def _extract_matched_from_violation(violation: dict) -> str:
 
     if vtype == "code_security":
         return blocked.get("rule_id", "") or blocked.get("file_path", "")
+
+    if vtype == "offensive_language":
+        return blocked.get("matched_text", "") or blocked.get("rule_id", "")
 
     if vtype == "pii_detected":
         pii_types = blocked.get("pii_types", [])
@@ -1120,6 +1124,8 @@ class ViolationsContent(Container):
                 yield VerticalScroll(id="violations-list-image-pii")
             with TabPane("Code Security", id="filter-code-security"):
                 yield VerticalScroll(id="violations-list-code-security")
+            with TabPane("Offensive Language", id="filter-offensive-language"):
+                yield VerticalScroll(id="violations-list-offensive-language")
 
     def on_mount(self) -> None:
         """Load violations when mounted."""
@@ -1236,6 +1242,12 @@ class ViolationsContent(Container):
             limit=50, violation_type="code_security", resolved=None
         )
         self._populate_list("#violations-list-code-security", code_security_violations)
+
+        # Load offensive language violations
+        offensive_violations = self.violation_logger.get_recent_violations(
+            limit=50, violation_type="offensive_language", resolved=None
+        )
+        self._populate_list("#violations-list-offensive-language", offensive_violations)
 
     def _populate_list(self, list_id: str, violations: list) -> None:
         """Populate a violations list."""

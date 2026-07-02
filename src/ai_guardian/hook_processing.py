@@ -83,6 +83,7 @@ from ai_guardian.config_loaders import (
     _load_context_poisoning_config,
     _load_supply_chain_config,
     _load_code_scanning_config,
+    _load_offensive_language_config,
     _get_on_scan_error_action,
     _load_config_file,  # noqa: F401 — patched by tests via this namespace
 )
@@ -164,6 +165,13 @@ try:
     HAS_SUPPLY_CHAIN = True
 except ImportError:
     HAS_SUPPLY_CHAIN = False
+
+try:
+    from ai_guardian.offensive_language import OffensiveLanguageScanner
+
+    HAS_OFFENSIVE_LANGUAGE = True
+except ImportError:
+    HAS_OFFENSIVE_LANGUAGE = False
 
 try:
     from ai_guardian.violation_logger import ViolationLogger
@@ -2657,6 +2665,7 @@ _ASK_VIOLATION_LABELS = {
     ViolationType.CODE_SECURITY: "Code security",
     ViolationType.CONFIG_FILE_EXFIL: "Config file scanning",
     ViolationType.SSRF_BLOCKED: "SSRF protection",
+    ViolationType.OFFENSIVE_LANGUAGE: "Offensive language",
 }
 
 
@@ -2973,6 +2982,62 @@ def _log_supply_chain_violation(
         logger.error(f"Failed to log supply chain violation: {e}")
 
 
+def _log_offensive_language_violation(
+    result,
+    hook_name: str,
+    hook_event: str,
+    tool_identifier: Optional[str] = None,
+    hook_tool_use_id: Optional[str] = None,
+    hook_session_id: Optional[str] = None,
+    violation_logger=None,
+):
+    """Log an offensive language violation."""
+    if not HAS_VIOLATION_LOGGER:
+        return
+    try:
+        findings = result.findings or []
+        first = findings[0] if findings else {}
+        blocked_entry = {
+            "file_path": result.file_path,
+            "line_number": result.line_number,
+            "rule_id": result.rule_id,
+            "category": result.attack_type,
+            "matched_text": result.matched_text[:100] if result.matched_text else "",
+            "suggestion": first.get("suggestion", ""),
+            "total_findings": result.total_findings,
+        }
+        if result.start_column is not None:
+            blocked_entry["start_column"] = result.start_column
+        if result.end_column is not None:
+            blocked_entry["end_column"] = result.end_column
+        ctx = {
+            "action": result.extra.get("action", "log"),
+            "hook_event": hook_event,
+            "hook": hook_name,
+            "tool": tool_identifier,
+        }
+        if hook_tool_use_id:
+            ctx["tool_use_id"] = hook_tool_use_id
+        if hook_session_id:
+            ctx["session_id"] = hook_session_id
+        vl = violation_logger or ViolationLogger()
+        vl.log_violation(
+            violation_type=ViolationType.OFFENSIVE_LANGUAGE,
+            blocked=blocked_entry,
+            context=ctx,
+            suggestion={
+                "action": "review_offensive_language",
+                "note": (
+                    "Replace the term with a neutral alternative. "
+                    "Add '# ai-guardian:allow' inline or use scan_offensive.allowlist_patterns "
+                    "to suppress known-safe uses."
+                ),
+            },
+        )
+    except Exception as e:
+        logger.error(f"Failed to log offensive language violation: {e}")
+
+
 def _count_gitleaks_patterns(config_path):
     """
     Count the number of rules in a Gitleaks TOML configuration file.
@@ -3145,6 +3210,23 @@ _CATEGORY_BANNER = {
         ],
         "footer": "",
         "protection": "SSRF Protection",
+    },
+    "offensive_language": {
+        "title": "Offensive Language Detected",
+        "type_label": "Category",
+        "why": (
+            "Offensive, discriminatory, or non-inclusive language in code,\n"
+            "comments, or variable names can harm team culture and violate\n"
+            "enterprise content policies."
+        ),
+        "recommendations": [
+            "Replace offensive terms with neutral alternatives",
+            "Check the 'suggestion' field in the violation for recommended replacements",
+            "Use scan_offensive.categories to enable only relevant checks",
+            "Add '# ai-guardian:allow' inline to suppress known-safe uses",
+        ],
+        "footer": "",
+        "protection": "Offensive Language Scanning",
     },
 }
 
@@ -5167,6 +5249,73 @@ def run_supply_chain_scan(
     return result
 
 
+def _should_skip_offensive_language_scan(config, tool_identifier=None, file_path=None):
+    """Return True if offensive language scan should be skipped for this tool/file."""
+    ignore_tools = config.get("ignore_tools", [])
+    if tool_identifier and ignore_tools:
+        if any(t.lower() in tool_identifier.lower() for t in ignore_tools):
+            return True
+    if file_path and _matches_ignore_files(file_path, config.get("ignore_files", [])):
+        return True
+    return False
+
+
+def run_offensive_language_scan(
+    content,
+    *,
+    config=None,
+    file_path=None,
+    tool_name=None,
+    tool_identifier=None,
+    latency_timer=None,
+):
+    """Run offensive language scan on content.
+
+    Args:
+        content: Text to scan.
+        config: Pre-loaded scan_offensive config dict, or None to load internally.
+        file_path: File path for ignore checks.
+        tool_name: Tool name for ignore checks.
+        tool_identifier: Tool identifier for skip checks.
+        latency_timer: Optional _CheckTimer for performance tracking.
+
+    Returns:
+        None if scanner unavailable, disabled, or skipped.
+        ScanResult with detection details otherwise.
+    """
+    if not HAS_OFFENSIVE_LANGUAGE:
+        return None
+    if not content:
+        return None
+
+    now = datetime.now(timezone.utc)
+    if config is None:
+        config, config_error = _load_offensive_language_config()
+        if config_error:
+            logging.warning(f"Offensive language config error: {config_error}")
+    if not config or not is_feature_enabled(config.get("enabled"), now, default=False):
+        return None
+
+    if _should_skip_offensive_language_scan(config, tool_identifier, file_path):
+        return None
+
+    scanner = OffensiveLanguageScanner(config)
+    action = config.get("action", "log")
+
+    if latency_timer:
+        with latency_timer.check("offensive_language"):
+            findings = scanner.scan(content, file_path=file_path)
+    else:
+        findings = scanner.scan(content, file_path=file_path)
+
+    result = ScanResult.from_offensive_language(
+        findings=findings,
+        action=action,
+        file_path=file_path,
+    )
+    return result
+
+
 def _log_code_security_violation(
     file_path,
     rule_id,
@@ -6799,6 +6948,86 @@ def process_hook_data(hook_data, daemon_state=None):
                 except Exception as e:
                     logging.warning(f"PostToolUse CP check error (fail-open): {e}")
 
+            # Check for offensive language in PostToolUse output
+            try:
+                post_ol_result = run_offensive_language_scan(
+                    tool_output,
+                    file_path=post_cp_file if "post_cp_file" in dir() else None,
+                    tool_identifier=(
+                        tool_identifier if "tool_identifier" in dir() else None
+                    ),
+                    latency_timer=_latency_timer,
+                )
+                if post_ol_result is not None and post_ol_result.detected:
+                    _log_offensive_language_violation(
+                        post_ol_result,
+                        hook_name="PostToolUse",
+                        hook_event=hook_event,
+                        hook_tool_use_id=hook_tool_use_id,
+                        hook_session_id=hook_session_id,
+                    )
+                    post_ol_action = post_ol_result.extra.get("action", "log")
+                    post_ol_should_block = post_ol_result.should_block
+                    post_ol_error_msg = post_ol_result.error_message
+                    post_ol_ask = _handle_ask_mode_auto(
+                        post_ol_action,
+                        ViolationType.OFFENSIVE_LANGUAGE,
+                        config_section="scan_offensive",
+                        error_msg=post_ol_error_msg,
+                        file_path=post_ol_result.file_path,
+                        matched_text=post_ol_result.matched_text,
+                        line_number=post_ol_result.line_number,
+                        matched_pattern=post_ol_result.matched_pattern,
+                        latency_timer=_latency_timer,
+                        hook_context={
+                            "session_id": hook_session_id,
+                            "project_path": get_project_dir(),
+                            "hook_event": hook_event,
+                        },
+                    )
+                    if post_ol_ask is not None:
+                        from ai_guardian.tui.ask_dialog import AskDecision
+
+                        if post_ol_ask.decision not in (
+                            AskDecision.BLOCK,
+                            AskDecision.BLOCK_ALL,
+                        ):
+                            post_ol_should_block = False
+                            post_warning_messages.append(
+                                _format_ask_info_message(
+                                    ViolationType.OFFENSIVE_LANGUAGE,
+                                    post_ol_ask.decision,
+                                )
+                            )
+                            _log_ask_decision(
+                                ViolationType.OFFENSIVE_LANGUAGE,
+                                post_ol_ask.decision,
+                                matched_text=post_ol_result.matched_text,
+                                error_msg=post_ol_error_msg or "",
+                                file_path=post_ol_result.file_path,
+                                line_number=post_ol_result.line_number,
+                                dialog_wait_ms=post_ol_ask.dialog_wait_ms,
+                            )
+                    if post_ol_should_block:
+                        logging.info(
+                            "PostToolUse: blocking due to offensive language detection"
+                        )
+                        result = _format_response(
+                            adapter,
+                            has_secrets=True,
+                            error_message=post_ol_error_msg,
+                            hook_event=hook_event,
+                            violation_type=ViolationType.OFFENSIVE_LANGUAGE,
+                        )
+                        _advance_transcript_position(hook_data)
+                        return result
+                    elif post_ol_error_msg:
+                        post_warning_messages.append(post_ol_error_msg)
+            except Exception as e:
+                logging.warning(
+                    f"PostToolUse offensive language check error (fail-open): {e}"
+                )
+
             _advance_transcript_position(hook_data)
             if post_warning_messages:
                 combined = "\n\n".join(post_warning_messages)
@@ -7899,6 +8128,93 @@ def process_hook_data(hook_data, daemon_state=None):
 
         except Exception as e:
             logging.warning(f"Supply chain check error (fail-open): {e}")
+
+        # Check for offensive language (profanity, slurs, non-inclusive terms)
+        try:
+            ol_result = run_offensive_language_scan(
+                content_to_scan,
+                file_path=file_path,
+                tool_identifier=tool_identifier,
+                latency_timer=_latency_timer,
+            )
+
+            if ol_result is not None and ol_result.detected:
+                _log_offensive_language_violation(
+                    ol_result,
+                    hook_name=hook_name if "hook_name" in dir() else "unknown",
+                    hook_event=hook_event,
+                    tool_identifier=tool_identifier,
+                    hook_tool_use_id=hook_tool_use_id,
+                    hook_session_id=hook_session_id,
+                )
+
+                ol_action = ol_result.extra.get("action", "log")
+                ol_error_msg = ol_result.error_message
+                ol_should_block = ol_result.should_block
+
+                ol_ask_result = _handle_ask_mode_auto(
+                    ol_action,
+                    ViolationType.OFFENSIVE_LANGUAGE,
+                    config_section="scan_offensive",
+                    error_msg=ol_error_msg,
+                    file_path=file_path,
+                    matched_text=ol_result.matched_text,
+                    line_number=ol_result.line_number,
+                    matched_pattern=ol_result.matched_pattern,
+                    latency_timer=_latency_timer,
+                    hook_context={
+                        "session_id": hook_session_id,
+                        "project_path": get_project_dir(),
+                        "hook_event": hook_event,
+                        "tool_name": tool_name,
+                    },
+                )
+                if ol_ask_result is not None:
+                    from ai_guardian.tui.ask_dialog import AskDecision
+
+                    if ol_ask_result.decision not in (
+                        AskDecision.BLOCK,
+                        AskDecision.BLOCK_ALL,
+                    ):
+                        ol_should_block = False
+                        warning_messages.append(
+                            _format_ask_info_message(
+                                ViolationType.OFFENSIVE_LANGUAGE,
+                                ol_ask_result.decision,
+                            )
+                        )
+                        _log_ask_decision(
+                            ViolationType.OFFENSIVE_LANGUAGE,
+                            ol_ask_result.decision,
+                            matched_text=ol_result.matched_text,
+                            error_msg=ol_error_msg or "",
+                            file_path=file_path,
+                            line_number=ol_result.line_number,
+                            dialog_wait_ms=ol_ask_result.dialog_wait_ms,
+                        )
+
+                if ol_should_block:
+                    logging.info(
+                        "Blocking operation due to offensive language detection"
+                    )
+                    combined_warning = (
+                        "\n\n".join(warning_messages) if warning_messages else None
+                    )
+                    result = _format_response(
+                        adapter,
+                        has_secrets=True,
+                        error_message=ol_error_msg,
+                        hook_event=hook_event,
+                        warning_message=combined_warning,
+                        violation_type=ViolationType.OFFENSIVE_LANGUAGE,
+                        security_message=security_message,
+                    )
+                    return result
+                elif ol_error_msg:
+                    warning_messages.append(ol_error_msg)
+
+        except Exception as e:
+            logging.warning(f"Offensive language check error (fail-open): {e}")
 
         # Check for config file threats (credential exfiltration patterns in AI config files)
         if (
