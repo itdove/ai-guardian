@@ -206,13 +206,16 @@ class TestShowViaTrayForwarding:
         daemon_state.register_tray("host.docker.internal", 63152)
 
         def _resolve_in_background():
-            time.sleep(0.05)
-            prompts = daemon_state.get_pending_prompts()
-            if prompts:
-                daemon_state.resolve_prompt(
-                    prompts[0]["prompt_id"],
-                    {"decision": "allow_once"},
-                )
+            deadline = time.monotonic() + 1.0
+            while time.monotonic() < deadline:
+                prompts = daemon_state.get_pending_prompts()
+                if prompts:
+                    daemon_state.resolve_prompt(
+                        prompts[0]["prompt_id"],
+                        {"decision": "allow_once"},
+                    )
+                    return
+                time.sleep(0.01)
 
         t = threading.Thread(target=_resolve_in_background)
         t.start()
@@ -234,17 +237,20 @@ class TestShowViaTrayForwarding:
         daemon_state.register_tray("host.docker.internal", 63152)
 
         def _resolve():
-            time.sleep(0.05)
-            prompts = daemon_state.get_pending_prompts()
-            if prompts:
-                daemon_state.resolve_prompt(
-                    prompts[0]["prompt_id"],
-                    {
-                        "decision": "allow_always",
-                        "allowlist_pattern": "FAKE_SECRET.*",
-                        "config_saved": True,
-                    },
-                )
+            deadline = time.monotonic() + 1.0
+            while time.monotonic() < deadline:
+                prompts = daemon_state.get_pending_prompts()
+                if prompts:
+                    daemon_state.resolve_prompt(
+                        prompts[0]["prompt_id"],
+                        {
+                            "decision": "allow_always",
+                            "allowlist_pattern": "FAKE_SECRET.*",
+                            "config_saved": True,
+                        },
+                    )
+                    return
+                time.sleep(0.01)
 
         t = threading.Thread(target=_resolve)
         t.start()
