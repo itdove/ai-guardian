@@ -150,6 +150,9 @@ class DaemonState:
         # MCP installed detection (#756)
         self._mcp_installed = self._check_mcp_installed()
 
+        # Bootstrap session tracking (#1394) — in-memory only, flushed on restart
+        self._seen_sessions: set = set()
+
         # ML engine manager (#185) — lazy-loaded on first ml_detect request
         self._ml_engine_manager = None
         self._ml_load_attempted = False
@@ -255,6 +258,22 @@ class DaemonState:
                     f"Cleaned up {len(keys_to_remove)} contexts for session {session_id[:16]}..."
                 )
             return len(keys_to_remove)
+
+    def is_new_session(self, session_id: str, cwd: str) -> bool:
+        """Detect a new session and register it for bootstrap scanning.
+
+        Uses session_id as key; falls back to f"cwd:{cwd}" for IDEs without
+        a session_id. In-memory only — flushed on daemon restart so each new
+        daemon start re-scans config files.
+
+        Returns True the first time this session is seen, False thereafter.
+        """
+        key = session_id if session_id else f"cwd:{cwd}"
+        with self._lock:
+            if key in self._seen_sessions:
+                return False
+            self._seen_sessions.add(key)
+            return True
 
     def cleanup_session_state(self, session_key):
         """Remove a session from security injection tracking.
