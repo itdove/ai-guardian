@@ -1,0 +1,27 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: ai-guardian-config
+data:
+  ai-guardian.json: |
+    {
+      "scan_secrets": {
+        "enabled": true,
+        "action": "block"
+      },
+      "scan_pii": {
+        "enabled": false
+      },
+      "ssrf_protection": {
+        "enabled": true,
+        "action": "block"
+      },
+      "prompt_injection": {
+        "enabled": true,
+        "action": "block"
+      },
+      "config_file_scanning": {
+        "enabled": true,
+        "action": "block"
+      }
+    }

@@ -1,0 +1,16 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: ai-guardian
+spec:
+  type: NodePort
+  ports:
+    - name: rest
+      port: 63152
+      targetPort: 63152
+      nodePort: 63152
+      protocol: TCP
+    - name: hook
+      port: 63151
+      targetPort: 63151
+      protocol: TCP

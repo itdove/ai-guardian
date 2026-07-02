@@ -1,0 +1,93 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ai-guardian
+  labels:
+    app: ai-guardian
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: ai-guardian
+  template:
+    metadata:
+      labels:
+        app: ai-guardian
+    spec:
+      securityContext:
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+      initContainers:
+        - name: init-config
+          image: quay.io/itdove/ai-guardian:latest
+          command: ["/bin/sh", "-c"]
+          args:
+            - mkdir -p /aiconfig && cp /configmap/ai-guardian.json /aiconfig/ai-guardian.json
+          volumeMounts:
+            - name: configmap
+              mountPath: /configmap
+              readOnly: true
+            - name: aiconfig
+              mountPath: /aiconfig
+      containers:
+        - name: ai-guardian
+          image: quay.io/itdove/ai-guardian:latest
+          # Run daemon in foreground — k8s supervises and restarts on failure
+          command: ["ai-guardian", "daemon", "start"]
+          ports:
+            - name: rest
+              containerPort: 63152
+              protocol: TCP
+            - name: hook
+              containerPort: 63151
+              protocol: TCP
+          env:
+            - name: AI_GUARDIAN_REST_HOST
+              value: "0.0.0.0"
+          volumeMounts:
+            - name: aiconfig
+              mountPath: /sandbox/.config/ai-guardian
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+          readinessProbe:
+            httpGet:
+              path: /api/status
+              port: 63152
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /api/status
+              port: 63152
+            initialDelaySeconds: 15
+            periodSeconds: 30
+      volumes:
+        - name: configmap
+          configMap:
+            name: ai-guardian-config
+        - name: aiconfig
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: ai-guardian
+spec:
+  type: ClusterIP
+  selector:
+    app: ai-guardian
+  ports:
+    - name: rest
+      port: 63152
+      targetPort: 63152
+      protocol: TCP
+    - name: hook
+      port: 63151
+      targetPort: 63151
+      protocol: TCP
