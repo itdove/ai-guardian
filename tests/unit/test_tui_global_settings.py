@@ -21,8 +21,8 @@ from ai_guardian.tui.global_settings import (
 class TestFeatureMap:
     """Test FEATURES defines correct mappings."""
 
-    def test_has_eleven_features(self):
-        assert len(FEATURES) == 11
+    def test_has_twelve_features(self):
+        assert len(FEATURES) == 12
 
     def test_expected_sections(self):
         sections = [s for s, _, _ in FEATURES]
@@ -107,8 +107,8 @@ class TestSaveLogic:
 class TestFeatureActions:
     """Test FEATURE_ACTIONS defines correct mappings."""
 
-    def test_eight_features_have_actions(self):
-        assert len(FEATURE_ACTIONS) == 8
+    def test_nine_features_have_actions(self):
+        assert len(FEATURE_ACTIONS) == 9
 
     def test_expected_sections(self):
         assert "secret_redaction" in FEATURE_ACTIONS
