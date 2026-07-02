@@ -571,3 +571,113 @@ The full dialog is shown in all cases: Allow Once, Allow Always (with pattern
 editor), Suppress in Source, Ignore File, and Block. Pattern saving and source
 annotations are applied by the **triggering daemon** (not the host), so they
 land in the correct config files and source tree.
+
+## Testing Ask Dialog Forwarding
+
+End-to-end test procedure for verifying that ask dialogs generated inside a
+container or remote daemon appear on the host tray.
+
+### Prerequisites
+
+1. **Start the container daemon:**
+
+   ```bash
+   # Using the bundled run script (sets ai-guardian.daemon=true label automatically)
+   ./container/run.sh
+
+   # Or manually with Podman/Docker
+   podman run -l ai-guardian.daemon=true -p 63152:63152 quay.io/itdove/ai-guardian:latest
+   ```
+
+2. **On Linux — export the Podman socket** so the tray can discover the container (#1436):
+
+   ```bash
+   export DOCKER_HOST=unix://$(podman info --format '{{.Host.RemoteSocket.Path}}')
+   ```
+
+   > **macOS with Podman Desktop:** `DOCKER_HOST` is set automatically — skip this step.
+
+3. **Start the host tray:**
+
+   ```bash
+   ai-guardian tray start -b
+   ```
+
+   The container daemon should appear in the tray menu within ~10 seconds. Confirm
+   the container is listed with a running indicator (●) before proceeding.
+
+### Option A — dummy-agent scenario (preferred)
+
+Requires the `action: ask` pattern to be configured in the container's
+`ai-guardian.json` (e.g., `secret_scanning.action: ask`).
+
+Inside the container:
+
+```bash
+ai-guardian dummy-agent --script scenarios/ask-dialog.yaml
+```
+
+The scenario fires hook events through the full pipeline (UserPromptSubmit →
+PreToolUse → PostToolUse) with content that triggers the ask mode. The daemon
+queues the prompt, the tray polls `/api/pending-prompts`, and the dialog
+appears on the host.
+
+**Expected result:** Ask dialog appears on the host machine with **Allow Once**,
+**Allow Always**, **Suppress in Source**, **Ignore File**, and **Block** options.
+
+### Option B — direct REST API (workaround / quick smoke test)
+
+If dummy-agent is unavailable or you want a quick confirmation without
+configuring ask mode, POST directly to the container daemon's REST API:
+
+```bash
+# Inside the container
+curl -s -X POST http://127.0.0.1:63152/api/prompt \
+  -H "Content-Type: application/json" \
+  -d '{
+    "mode": "ask",
+    "violation": {
+      "violation_type": "secret_detected",
+      "summary": "AWS Access Key detected",
+      "matched_text": "AKIAI<YOUR_ACCESS_KEY_ID>",
+      "config_section": "secret_scanning"
+    }
+  }'
+```
+
+**Expected result:** Ask dialog appears on the host. The `curl` call blocks until
+the user responds, then returns `{"decision": "allow_once"}` (or similar).
+
+**Confirmed working on:** Linux and macOS. ✅
+
+### Known Limitations
+
+- **Hook pipeline does not trigger ask via synthetic payloads.** Hand-crafted
+  hook payloads fired from the shell (e.g., via `ai-guardian hook`) do not reach
+  the ask path because:
+  - `PreToolUse` with a secret in `tool_input` → blocked by tool permission
+    policy before secret scan runs
+  - `PostToolUse` with a secret in `tool_response` → uses `secret_redaction`
+    (action=warn), not `secret_scanning` (action=ask)
+  - `UserPromptSubmit` with a secret in transcript → transcript scanning always
+    warns, never asks
+
+  Use **Option A** (dummy-agent scenario) or **Option B** (direct REST) to bypass
+  these limitations.
+
+- **Timeout (#1445):** The default hook timeout is 30 seconds, which may expire
+  before the user responds to the dialog. If the ask dialog appears but the
+  hook times out before a decision is made, increase
+  `daemon.hook_timeout_seconds` in the container's config, or use Option B
+  (REST has no hook timeout).
+
+### Kubernetes Variant
+
+Same procedure applies with `kubectl port-forward` in place of a direct port
+mapping:
+
+```bash
+kubectl port-forward pod/<guardian-pod> 63152:63152
+```
+
+Then run Option B from any machine with access to `localhost:63152`.
