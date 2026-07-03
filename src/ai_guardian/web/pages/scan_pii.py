@@ -6,6 +6,7 @@ from datetime import datetime, timedelta, timezone
 from nicegui import run, ui
 
 from ai_guardian.web.components.header import create_header, create_sidebar
+from ai_guardian.web.components.help_panel import add_help_button
 from ai_guardian.web.config_helpers import load_web_config, save_web_config
 
 PHASE1_PII_TYPES = [
@@ -189,7 +190,9 @@ def create_scan_pii_page(service, daemon_name: str):
         create_sidebar(daemon_name, current=f"/{daemon_name}/scan-pii")
 
         with ui.column().classes("flex-grow p-6 gap-4"):
-            ui.label("PII Scanning Settings").classes("text-2xl font-bold")
+            with ui.row().classes("items-center gap-2"):
+                ui.label("PII Scanning Settings").classes("text-2xl font-bold")
+                add_help_button("scan_pii")
             ui.label(
                 "Configure detection and handling of personally identifiable information."
             ).classes("text-xs text-grey-6")

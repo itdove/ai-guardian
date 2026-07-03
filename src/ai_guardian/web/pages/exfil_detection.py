@@ -6,6 +6,7 @@ from datetime import datetime, timedelta, timezone
 from nicegui import run, ui
 
 from ai_guardian.web.components.header import create_header, create_sidebar
+from ai_guardian.web.components.help_panel import add_help_button
 from ai_guardian.web.config_helpers import load_web_config, save_web_config
 
 DURATION_RE = re_mod.compile(r"^(?:(\d+)d)?(?:(\d+)h)?(?:(\d+)m)?$", re_mod.IGNORECASE)
@@ -149,7 +150,11 @@ def create_exfil_detection_page(service, daemon_name: str):
         create_sidebar(daemon_name, current=f"/{daemon_name}/exfil-detection")
 
         with ui.column().classes("flex-grow p-6 gap-4"):
-            ui.label("Exfiltration Behavior Detection").classes("text-2xl font-bold")
+            with ui.row().classes("items-center gap-2"):
+                ui.label("Exfiltration Behavior Detection").classes(
+                    "text-2xl font-bold"
+                )
+                add_help_button("exfil_detection")
             ui.label(
                 "Detect bash commands that steal credentials: curl/wget with token vars, "
                 "base64 encoding of secrets, SSH key file theft, cloud credential exfil, "

@@ -313,7 +313,18 @@ HELP_DOCS = {
         "Each toggle supports three modes:\n"
         "  - Permanently Enabled\n"
         "  - Permanently Disabled\n"
-        "  - Temporarily Disabled (with auto re-enable timestamp)"
+        "  - Temporarily Disabled (with auto re-enable timestamp)\n\n"
+        "[bold]on_scan_error:[/bold]\n"
+        "  Controls what happens when a scanner itself crashes.\n\n"
+        "  [bold]allow[/bold] (default) — fail-open: log warning, "
+        "let operation through\n"
+        "  [bold]block[/bold]           — fail-closed: block if any "
+        "scanner fails\n\n"
+        "  [yellow]Security tradeoff:[/yellow] 'block' is safer "
+        "but a scanner bug = blocked workflow.\n"
+        "  Recommend: 'allow' for dev, 'block' for production/compliance.\n"
+        "  Applies to ALL scanners: secret, PII, prompt injection, "
+        "Bandit, canary, exfil, etc."
     ),
     "panel-skills": (
         "[bold]Skills Permissions[/bold]\n\n"
@@ -1006,10 +1017,18 @@ class HelpModal(ModalScreen):
         Binding("question_mark", "dismiss", "Close", show=False),
     ]
 
-    def __init__(self, title: str, body: str, *args, **kwargs):
+    def __init__(
+        self,
+        title: str,
+        body: str,
+        doc_url: Optional[str] = None,
+        *args,
+        **kwargs,
+    ):
         super().__init__(*args, **kwargs)
         self._title = title
         self._body = body
+        self._doc_url = doc_url
 
     def compose(self) -> ComposeResult:
         with Container(id="help-container"):
@@ -1019,10 +1038,17 @@ class HelpModal(ModalScreen):
             with VerticalScroll(id="help-body"):
                 yield Static(self._body)
             with Horizontal(id="help-footer"):
+                if self._doc_url:
+                    yield Button("Open docs →", id="open-docs", variant="default")
                 yield Button("Close (ESC)", id="close-help", variant="primary")
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         if event.button.id == "close-help":
+            self.dismiss()
+        elif event.button.id == "open-docs" and self._doc_url:
+            import webbrowser
+
+            webbrowser.open(self._doc_url)
             self.dismiss()
 
 
@@ -1572,6 +1598,8 @@ class AIGuardianTUI(App):
 
     def action_show_help(self) -> None:
         """Show help for the currently highlighted tree node or active panel."""
+        from ai_guardian.help_content import PANEL_DOC_URLS
+
         tree = self.query_one("#nav-tree", Tree)
         cursor_node = tree.cursor_node
 
@@ -1593,7 +1621,8 @@ class AIGuardianTUI(App):
             label = panel_id
 
         if panel_id in HELP_DOCS:
-            self.push_screen(HelpModal(label, HELP_DOCS[panel_id]))
+            doc_url = PANEL_DOC_URLS.get(panel_id)
+            self.push_screen(HelpModal(label, HELP_DOCS[panel_id], doc_url=doc_url))
         else:
             self.notify("No help available", severity="warning")
 
