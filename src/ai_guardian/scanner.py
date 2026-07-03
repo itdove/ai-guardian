@@ -669,7 +669,11 @@ class FileScanner:
 
             # Check for exfil behavior in shell scripts
             if HAS_EXFIL_DETECTION and file_path.suffix in {
-                ".sh", ".bash", ".zsh", ".ksh", ".fish"
+                ".sh",
+                ".bash",
+                ".zsh",
+                ".ksh",
+                ".fish",
             }:
                 self._check_exfil_detection(relative_path, content)
 

@@ -66,14 +66,18 @@ def _load_ed_stats():
     return 0
 
 
-def _render_toggle(label, desc, is_temp, until_dt, reason, is_enabled, save_fn, refresh_fn):
+def _render_toggle(
+    label, desc, is_temp, until_dt, reason, is_enabled, save_fn, refresh_fn
+):
     with ui.card().classes("w-full"):
         if is_temp and until_dt:
             remaining = _format_remaining(until_dt)
             with ui.row().classes("items-center gap-2 w-full"):
                 ui.icon("timer").classes("text-amber")
                 ui.label(label).classes("font-bold text-sm flex-grow")
-                ui.badge(f"TEMP DISABLED — {remaining}", color="amber").classes("text-xs")
+                ui.badge(f"TEMP DISABLED — {remaining}", color="amber").classes(
+                    "text-xs"
+                )
             ui.label(desc).classes("text-xs text-grey-6 ml-8")
             if reason:
                 ui.label(f"Reason: {reason}").classes("text-xs text-grey-7 ml-8")
@@ -115,7 +119,9 @@ def _render_toggle(label, desc, is_temp, until_dt, reason, is_enabled, save_fn, 
                 async def do_temp(d=dur, r=rsn):
                     delta = _parse_duration(d.value or "30m")
                     if not delta:
-                        ui.notify("Invalid duration (e.g. 30m, 2h, 1d)", type="negative")
+                        ui.notify(
+                            "Invalid duration (e.g. 30m, 2h, 1d)", type="negative"
+                        )
                         return
                     until_ts = (datetime.now(timezone.utc) + delta).strftime(
                         "%Y-%m-%dT%H:%M:%SZ"
@@ -244,11 +250,15 @@ def create_exfil_detection_page(service, daemon_name: str):
                                             sect["allowlist_patterns"] = items
                                             cfg["exfil_detection"] = sect
                                             await run.io_bound(save_web_config, cfg)
-                                            ui.notify("Pattern removed", type="positive")
+                                            ui.notify(
+                                                "Pattern removed", type="positive"
+                                            )
                                             await refresh()
 
                                     ui.button(
-                                        icon="delete", on_click=remove_pattern, color="red"
+                                        icon="delete",
+                                        on_click=remove_pattern,
+                                        color="red",
                                     ).props("flat dense size=sm")
                         else:
                             ui.label("No allowlist patterns configured.").classes(
