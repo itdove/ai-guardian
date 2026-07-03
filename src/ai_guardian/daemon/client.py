@@ -31,8 +31,6 @@ from ai_guardian.daemon.protocol import (
 
 logger = logging.getLogger(__name__)
 
-_DEV_RESTART_COOLDOWN_SECS = 10
-
 
 def is_daemon_running():
     """Check if the daemon is running by testing PID file and socket connectivity.
@@ -73,9 +71,6 @@ def is_daemon_running():
 def send_hook_request(hook_data, timeout=2.0):
     """Send hook data to daemon and get response.
 
-    Checks for source file changes in dev mode and auto-restarts
-    the daemon if needed (#1223).
-
     Args:
         hook_data: Parsed JSON hook data from IDE
         timeout: Connection + response timeout in seconds
@@ -83,9 +78,6 @@ def send_hook_request(hook_data, timeout=2.0):
     Returns:
         dict or None: Response with 'output' and 'exit_code', or None on failure
     """
-    if _check_dev_source_restart():
-        pass  # daemon restarted, fall through to send request
-
     try:
         sock = _connect(timeout)
         if sock is None:
@@ -369,80 +361,6 @@ def start_daemon_background():
 
     except Exception as e:
         logger.debug(f"Failed to start daemon: {e}")
-        return False
-
-
-def _check_dev_source_restart():
-    """Check if source files changed in dev mode and restart daemon if needed.
-
-    Only triggers when version ends with '-dev'. Compares current max mtime
-    of .py files in the ai_guardian package against the mtime recorded at
-    daemon startup (stored in PID file).
-
-    Uses a cooldown marker file to prevent concurrent hook requests from
-    triggering multiple restarts (#1358).
-
-    Returns:
-        bool: True if daemon was restarted
-    """
-    try:
-        from ai_guardian import __version__
-
-        if not __version__.endswith("-dev"):
-            return False
-
-        pid_path = get_pid_path()
-        if not pid_path.exists():
-            return False
-
-        pid_info = json.loads(pid_path.read_text())
-        startup_mtime = pid_info.get("source_mtime", 0.0)
-        if not startup_mtime:
-            return False
-
-        from ai_guardian.daemon.state import DaemonState
-
-        current_mtime = DaemonState.get_package_max_mtime()
-        if current_mtime <= startup_mtime:
-            return False
-
-        # Cooldown: skip if another caller already triggered a restart (#1358)
-        cooldown_path = pid_path.parent / "daemon.dev-restart"
-        if cooldown_path.exists():
-            try:
-                restart_time = float(cooldown_path.read_text().strip())
-                if time.time() - restart_time < _DEV_RESTART_COOLDOWN_SECS:
-                    logger.debug("Dev restart skipped: cooldown active")
-                    return False
-            except (ValueError, OSError):
-                pass
-
-        # Write cooldown marker before shutting down so concurrent callers
-        # see it immediately and back off.
-        try:
-            cooldown_path.write_text(str(time.time()))
-        except OSError:
-            pass
-
-        logger.info("Dev mode: source files changed, restarting daemon")
-        send_shutdown(timeout=2.0)
-
-        # Wait for PID file to disappear, not just socket connectivity.
-        # is_daemon_running() returns False as soon as the socket is gone (even
-        # while the PID file still exists), which creates a race: the new daemon
-        # starts before the old one finishes deleting its state files, triggering
-        # the false "PID recycled" path in _cleanup_stale() and orphaning the new
-        # daemon's socket. The PID file is the authoritative signal — it is the
-        # last thing the old daemon deletes before exiting.
-        for _ in range(50):  # up to 5 seconds
-            time.sleep(0.1)
-            if not get_pid_path().exists():
-                break
-
-        return start_daemon_background()
-
-    except Exception as e:
-        logger.error(f"Dev source restart check failed: {e}")
         return False
 
 

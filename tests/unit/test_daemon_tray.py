@@ -5431,3 +5431,95 @@ class TestPauseFlickerFixes:
         time.sleep(0.15)
         tray._stop_pause_timer()
         assert tray._status == "paused"
+
+
+class TestCheckStaleCode:
+    """Tests for _check_stale_code() tray warning (#1465)."""
+
+    def _make_tray(self):
+        return DaemonTray(
+            get_stats_callback=lambda: {},
+            stop_callback=lambda: None,
+            pause_callback=lambda mins: None,
+        )
+
+    def test_no_pid_file_clears_warning(self, tmp_path, monkeypatch):
+        monkeypatch.setenv("AI_GUARDIAN_STATE_DIR", str(tmp_path))
+        tray = self._make_tray()
+        tray._stale_code_warned = True
+        with mock.patch.object(tray, "_set_stale_warned") as m:
+            tray._check_stale_code()
+            m.assert_called_once_with(False)
+
+    def test_dev_mtime_unchanged_no_warning(self, tmp_path, monkeypatch):
+        import json
+
+        monkeypatch.setenv("AI_GUARDIAN_STATE_DIR", str(tmp_path))
+        pid_path = tmp_path / "daemon.pid"
+        pid_path.write_text(
+            json.dumps({"pid": 1, "source_mtime": 1000.0, "version": "1.0.0-dev"})
+        )
+        tray = self._make_tray()
+        with mock.patch("ai_guardian.__version__", "1.0.0-dev"):
+            with mock.patch(
+                "ai_guardian.daemon.state.DaemonState.get_package_max_mtime",
+                return_value=1000.0,
+            ):
+                with mock.patch.object(tray, "_set_stale_warned") as m:
+                    tray._check_stale_code()
+                    m.assert_called_once_with(False)
+
+    def test_dev_mtime_changed_sets_warning(self, tmp_path, monkeypatch):
+        import json
+
+        monkeypatch.setenv("AI_GUARDIAN_STATE_DIR", str(tmp_path))
+        pid_path = tmp_path / "daemon.pid"
+        pid_path.write_text(
+            json.dumps({"pid": 1, "source_mtime": 1000.0, "version": "1.0.0-dev"})
+        )
+        tray = self._make_tray()
+        with mock.patch("ai_guardian.__version__", "1.0.0-dev"):
+            with mock.patch(
+                "ai_guardian.daemon.state.DaemonState.get_package_max_mtime",
+                return_value=2000.0,
+            ):
+                with mock.patch.object(tray, "_set_stale_warned") as m:
+                    tray._check_stale_code()
+                    m.assert_called_once_with(True)
+
+    def test_version_mismatch_sets_warning(self, tmp_path, monkeypatch):
+        import json
+
+        monkeypatch.setenv("AI_GUARDIAN_STATE_DIR", str(tmp_path))
+        pid_path = tmp_path / "daemon.pid"
+        pid_path.write_text(json.dumps({"pid": 1, "version": "1.0.0"}))
+        tray = self._make_tray()
+        with mock.patch("ai_guardian.__version__", "1.1.0"):
+            with mock.patch.object(tray, "_set_stale_warned") as m:
+                tray._check_stale_code()
+                m.assert_called_once_with(True)
+
+    def test_version_match_no_warning(self, tmp_path, monkeypatch):
+        import json
+
+        monkeypatch.setenv("AI_GUARDIAN_STATE_DIR", str(tmp_path))
+        pid_path = tmp_path / "daemon.pid"
+        pid_path.write_text(json.dumps({"pid": 1, "version": "1.1.0"}))
+        tray = self._make_tray()
+        with mock.patch("ai_guardian.__version__", "1.1.0"):
+            with mock.patch.object(tray, "_set_stale_warned") as m:
+                tray._check_stale_code()
+                m.assert_called_once_with(False)
+
+    def test_no_version_in_pid_no_warning(self, tmp_path, monkeypatch):
+        """Old daemon without version in PID file — no false positive."""
+        import json
+
+        monkeypatch.setenv("AI_GUARDIAN_STATE_DIR", str(tmp_path))
+        pid_path = tmp_path / "daemon.pid"
+        pid_path.write_text(json.dumps({"pid": 1}))
+        tray = self._make_tray()
+        with mock.patch("ai_guardian.__version__", "1.1.0"):
+            with mock.patch.object(tray, "_set_stale_warned") as m:
+                tray._check_stale_code()
+                m.assert_called_once_with(False)
