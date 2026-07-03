@@ -16,8 +16,6 @@ _skip_no_unix_socket = pytest.mark.skipif(
 )
 
 from ai_guardian.daemon.client import (
-    _DEV_RESTART_COOLDOWN_SECS,
-    _check_dev_source_restart,
     is_daemon_running,
     send_hook_request,
     send_reload_config,
@@ -362,271 +360,8 @@ class TestStartDaemonBackgroundNoClientCleanup:
                 start_daemon_background()
 
 
-class TestDevSourceRestart:
-    """Tests for dev-mode auto-restart on source change (#1223)."""
-
-    def test_skips_when_not_dev_version(self, tmp_path, monkeypatch):
-        monkeypatch.setenv("AI_GUARDIAN_STATE_DIR", str(tmp_path))
-        with mock.patch("ai_guardian.__version__", "1.12.0"):
-            assert _check_dev_source_restart() is False
-
-    def test_skips_when_no_pid_file(self, tmp_path, monkeypatch):
-        monkeypatch.setenv("AI_GUARDIAN_STATE_DIR", str(tmp_path))
-        with mock.patch("ai_guardian.__version__", "1.12.0-dev"):
-            assert _check_dev_source_restart() is False
-
-    def test_skips_when_no_source_mtime_in_pid(self, tmp_path, monkeypatch):
-        monkeypatch.setenv("AI_GUARDIAN_STATE_DIR", str(tmp_path))
-        pid_path = tmp_path / "daemon.pid"
-        pid_path.write_text(json.dumps({"pid": os.getpid()}))
-        with mock.patch("ai_guardian.__version__", "1.12.0-dev"):
-            assert _check_dev_source_restart() is False
-
-    def test_skips_when_mtime_unchanged(self, tmp_path, monkeypatch):
-        monkeypatch.setenv("AI_GUARDIAN_STATE_DIR", str(tmp_path))
-        pid_path = tmp_path / "daemon.pid"
-        pid_path.write_text(
-            json.dumps(
-                {
-                    "pid": os.getpid(),
-                    "source_mtime": 99999999999.0,
-                }
-            )
-        )
-        with mock.patch("ai_guardian.__version__", "1.12.0-dev"):
-            with mock.patch(
-                "ai_guardian.daemon.state.DaemonState.get_package_max_mtime",
-                return_value=99999999999.0,
-            ):
-                assert _check_dev_source_restart() is False
-
-    def test_restarts_when_source_changed(self, tmp_path, monkeypatch):
-        monkeypatch.setenv("AI_GUARDIAN_STATE_DIR", str(tmp_path))
-        pid_path = tmp_path / "daemon.pid"
-        pid_path.write_text(
-            json.dumps(
-                {
-                    "pid": os.getpid(),
-                    "source_mtime": 1000.0,
-                }
-            )
-        )
-
-        def fake_shutdown(timeout=2.0):
-            # Simulate old daemon deleting PID file on shutdown so the wait
-            # loop exits immediately rather than timing out.
-            pid_path.unlink(missing_ok=True)
-            return True
-
-        with mock.patch("ai_guardian.__version__", "1.12.0-dev"):
-            with mock.patch(
-                "ai_guardian.daemon.state.DaemonState.get_package_max_mtime",
-                return_value=2000.0,
-            ):
-                with mock.patch(
-                    "ai_guardian.daemon.client.send_shutdown",
-                    side_effect=fake_shutdown,
-                ):
-                    with mock.patch(
-                        "ai_guardian.daemon.client.start_daemon_background",
-                        return_value=True,
-                    ) as mock_start:
-                        result = _check_dev_source_restart()
-                        assert result is True
-                        mock_start.assert_called_once()
-
-    def test_waits_for_pid_file_not_socket(self, tmp_path, monkeypatch):
-        """Restart loop waits for PID file to disappear, not socket connectivity.
-
-        Regression test for #1425: waiting only for socket connectivity caused
-        start_daemon_background() to fire while the old daemon's PID file still
-        existed, triggering a false 'PID recycled' path in _cleanup_stale() and
-        orphaning the new daemon's socket.
-        """
-        import time
-
-        monkeypatch.setenv("AI_GUARDIAN_STATE_DIR", str(tmp_path))
-        pid_path = tmp_path / "daemon.pid"
-        pid_path.write_text(json.dumps({"pid": os.getpid(), "source_mtime": 1000.0}))
-
-        call_times = []
-
-        def fake_shutdown(timeout=2.0):
-            # Delete PID after a short delay to simulate the old daemon still
-            # running when shutdown is called (socket already gone by this point).
-            def _delete_pid():
-                time.sleep(0.15)
-                pid_path.unlink(missing_ok=True)
-
-            import threading
-
-            threading.Thread(target=_delete_pid, daemon=True).start()
-            return True
-
-        def fake_start():
-            call_times.append(pid_path.exists())
-            return True
-
-        with mock.patch("ai_guardian.__version__", "1.12.0-dev"):
-            with mock.patch(
-                "ai_guardian.daemon.state.DaemonState.get_package_max_mtime",
-                return_value=2000.0,
-            ):
-                with mock.patch(
-                    "ai_guardian.daemon.client.send_shutdown",
-                    side_effect=fake_shutdown,
-                ):
-                    with mock.patch(
-                        "ai_guardian.daemon.client.start_daemon_background",
-                        side_effect=fake_start,
-                    ):
-                        _check_dev_source_restart()
-
-        # start_daemon_background must be called AFTER PID file is gone
-        assert call_times, "start_daemon_background was never called"
-        assert not call_times[
-            0
-        ], "start_daemon_background fired while PID file still existed"
-
-    def test_exception_logged_at_error_level(self, tmp_path, monkeypatch, caplog):
-        """Failed restart exceptions logged at ERROR, not DEBUG (#1297)."""
-        monkeypatch.setenv("AI_GUARDIAN_STATE_DIR", str(tmp_path))
-        pid_path = tmp_path / "daemon.pid"
-        pid_path.write_text("not-valid-json")
-        with mock.patch("ai_guardian.__version__", "1.12.0-dev"):
-            import logging
-
-            with caplog.at_level(logging.ERROR, logger="ai_guardian.daemon.client"):
-                result = _check_dev_source_restart()
-                assert result is False
-                assert "Dev source restart check failed" in caplog.text
-
-    def test_production_version_unaffected(self, tmp_path, monkeypatch):
-        """Production versions never trigger auto-restart."""
-        monkeypatch.setenv("AI_GUARDIAN_STATE_DIR", str(tmp_path))
-        pid_path = tmp_path / "daemon.pid"
-        pid_path.write_text(
-            json.dumps(
-                {
-                    "pid": os.getpid(),
-                    "source_mtime": 1000.0,
-                }
-            )
-        )
-        for version in ["1.12.0", "2.0.0", "1.12.0rc1"]:
-            with mock.patch("ai_guardian.__version__", version):
-                assert _check_dev_source_restart() is False
-
-    def test_cooldown_prevents_double_restart(self, tmp_path, monkeypatch):
-        """Cooldown marker prevents concurrent restart (#1358)."""
-        import time
-
-        monkeypatch.setenv("AI_GUARDIAN_STATE_DIR", str(tmp_path))
-        pid_path = tmp_path / "daemon.pid"
-        pid_path.write_text(json.dumps({"pid": os.getpid(), "source_mtime": 1000.0}))
-        cooldown_path = tmp_path / "daemon.dev-restart"
-        cooldown_path.write_text(str(time.time()))
-
-        with mock.patch("ai_guardian.__version__", "1.12.0-dev"):
-            with mock.patch(
-                "ai_guardian.daemon.state.DaemonState.get_package_max_mtime",
-                return_value=2000.0,
-            ):
-                assert _check_dev_source_restart() is False
-
-    def test_expired_cooldown_allows_restart(self, tmp_path, monkeypatch):
-        """Expired cooldown marker does not block restart (#1358)."""
-        import time
-
-        monkeypatch.setenv("AI_GUARDIAN_STATE_DIR", str(tmp_path))
-        pid_path = tmp_path / "daemon.pid"
-        pid_path.write_text(json.dumps({"pid": os.getpid(), "source_mtime": 1000.0}))
-        cooldown_path = tmp_path / "daemon.dev-restart"
-        cooldown_path.write_text(str(time.time() - _DEV_RESTART_COOLDOWN_SECS - 1))
-
-        with mock.patch("ai_guardian.__version__", "1.12.0-dev"):
-            with mock.patch(
-                "ai_guardian.daemon.state.DaemonState.get_package_max_mtime",
-                return_value=2000.0,
-            ):
-                with mock.patch(
-                    "ai_guardian.daemon.client.send_shutdown",
-                    return_value=True,
-                ):
-                    with mock.patch(
-                        "ai_guardian.daemon.client.is_daemon_running",
-                        return_value=False,
-                    ):
-                        with mock.patch(
-                            "ai_guardian.daemon.client.start_daemon_background",
-                            return_value=True,
-                        ):
-                            assert _check_dev_source_restart() is True
-
-    def test_restart_writes_cooldown_marker(self, tmp_path, monkeypatch):
-        """Successful restart writes cooldown file (#1358)."""
-        import time
-
-        monkeypatch.setenv("AI_GUARDIAN_STATE_DIR", str(tmp_path))
-        pid_path = tmp_path / "daemon.pid"
-        pid_path.write_text(json.dumps({"pid": os.getpid(), "source_mtime": 1000.0}))
-        cooldown_path = tmp_path / "daemon.dev-restart"
-        assert not cooldown_path.exists()
-
-        before = time.time()
-        with mock.patch("ai_guardian.__version__", "1.12.0-dev"):
-            with mock.patch(
-                "ai_guardian.daemon.state.DaemonState.get_package_max_mtime",
-                return_value=2000.0,
-            ):
-                with mock.patch(
-                    "ai_guardian.daemon.client.send_shutdown",
-                    return_value=True,
-                ):
-                    with mock.patch(
-                        "ai_guardian.daemon.client.is_daemon_running",
-                        return_value=False,
-                    ):
-                        with mock.patch(
-                            "ai_guardian.daemon.client.start_daemon_background",
-                            return_value=True,
-                        ):
-                            _check_dev_source_restart()
-
-        assert cooldown_path.exists()
-        ts = float(cooldown_path.read_text().strip())
-        assert ts >= before
-
-    def test_corrupt_cooldown_file_ignored(self, tmp_path, monkeypatch):
-        """Corrupt cooldown file doesn't block restart (#1358)."""
-        monkeypatch.setenv("AI_GUARDIAN_STATE_DIR", str(tmp_path))
-        pid_path = tmp_path / "daemon.pid"
-        pid_path.write_text(json.dumps({"pid": os.getpid(), "source_mtime": 1000.0}))
-        cooldown_path = tmp_path / "daemon.dev-restart"
-        cooldown_path.write_text("not-a-number")
-
-        with mock.patch("ai_guardian.__version__", "1.12.0-dev"):
-            with mock.patch(
-                "ai_guardian.daemon.state.DaemonState.get_package_max_mtime",
-                return_value=2000.0,
-            ):
-                with mock.patch(
-                    "ai_guardian.daemon.client.send_shutdown",
-                    return_value=True,
-                ):
-                    with mock.patch(
-                        "ai_guardian.daemon.client.is_daemon_running",
-                        return_value=False,
-                    ):
-                        with mock.patch(
-                            "ai_guardian.daemon.client.start_daemon_background",
-                            return_value=True,
-                        ):
-                            assert _check_dev_source_restart() is True
-
-
 class TestGetPackageMaxMtime:
-    """Tests for DaemonState.get_package_max_mtime()."""
+    """Tests for DaemonState.get_package_max_mtime() — scoped to daemon files (#1465)."""
 
     def test_returns_positive_mtime(self):
         from ai_guardian.daemon.state import DaemonState
@@ -647,3 +382,54 @@ class TestGetPackageMaxMtime:
         assert state._source_mtime == 0.0
         state.record_source_mtime()
         assert state._source_mtime > 0.0
+
+    def test_excludes_tui_files(self, tmp_path):
+        """tui/ changes must not trigger daemon-restart warning (#1465)."""
+        from ai_guardian.daemon.state import DaemonState
+        import ai_guardian
+
+        pkg_dir = tmp_path / "ai_guardian"
+        pkg_dir.mkdir()
+        # Daemon-relevant file — very old mtime
+        daemon_dir = pkg_dir / "daemon"
+        daemon_dir.mkdir()
+        daemon_py = daemon_dir / "server.py"
+        daemon_py.write_text("")
+        daemon_py.touch()
+        import os
+
+        os.utime(str(daemon_py), (1000.0, 1000.0))
+        # TUI file — newer mtime (should be excluded)
+        tui_dir = pkg_dir / "tui"
+        tui_dir.mkdir()
+        tui_py = tui_dir / "app.py"
+        tui_py.write_text("")
+        os.utime(str(tui_py), (9999.0, 9999.0))
+        (pkg_dir / "__init__.py").write_text("")
+
+        with mock.patch.object(
+            __import__("ai_guardian"), "__file__", str(pkg_dir / "__init__.py")
+        ):
+            mtime = DaemonState.get_package_max_mtime()
+
+        assert mtime <= 1000.0, "tui/ file should not affect max mtime"
+
+    def test_includes_hook_processing(self, tmp_path):
+        """hook_processing.py changes must be detected (#1465)."""
+        from ai_guardian.daemon.state import DaemonState
+
+        pkg_dir = tmp_path / "ai_guardian"
+        pkg_dir.mkdir()
+        hp = pkg_dir / "hook_processing.py"
+        hp.write_text("")
+        import os
+
+        os.utime(str(hp), (5000.0, 5000.0))
+        (pkg_dir / "__init__.py").write_text("")
+
+        with mock.patch.object(
+            __import__("ai_guardian"), "__file__", str(pkg_dir / "__init__.py")
+        ):
+            mtime = DaemonState.get_package_max_mtime()
+
+        assert mtime >= 5000.0

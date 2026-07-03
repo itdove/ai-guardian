@@ -312,6 +312,9 @@ class DaemonTray:
         self._last_autostart_attempt = 0.0
         self._last_stats_snapshot = None
 
+        # Stale daemon detection (#1465)
+        self._stale_code_warned = False
+
         # Remote ask prompt forwarding (#1342)
         self._in_flight_prompts = set()
         self._prompt_poll_running = False
@@ -569,6 +572,8 @@ class DaemonTray:
             img = self._invert_icon(img)
         if self._status == "paused":
             img = self._apply_paused_dimming(img)
+        if self._stale_code_warned:
+            img = self._apply_stale_overlay(img)
         return img
 
     @staticmethod
@@ -620,6 +625,17 @@ class DaemonTray:
         alpha = img.split()[3]
         alpha = alpha.point(lambda a: a // 2)
         img.putalpha(alpha)
+        return img
+
+    @staticmethod
+    def _apply_stale_overlay(img):
+        """Draw a small orange dot in the bottom-right corner to indicate stale daemon."""
+        img = img.copy()
+        draw = ImageDraw.Draw(img)
+        w, h = img.size
+        r = max(3, w // 5)
+        x0, y0 = w - r - 1, h - r - 1
+        draw.ellipse([x0, y0, x0 + r, y0 + r], fill=(255, 140, 0, 255))
         return img
 
     @staticmethod
@@ -1488,6 +1504,66 @@ class DaemonTray:
             elif key in self._version_mismatch_notified:
                 self._version_mismatch_notified.discard(key)
 
+    def _check_stale_code(self):
+        """Warn in tray when daemon runs stale source code (#1465).
+
+        Check 1 (dev only): source file mtime changed since daemon started.
+        Check 2 (all versions): PID-file version differs from installed version.
+        Sets _stale_code_warned and refreshes the icon when state changes.
+        """
+        try:
+            import json as _json
+
+            from ai_guardian import __version__
+            from ai_guardian.daemon import get_pid_path
+
+            pid_path = get_pid_path()
+            if not pid_path.exists():
+                self._set_stale_warned(False)
+                return
+
+            try:
+                pid_info = _json.loads(pid_path.read_text())
+            except Exception:
+                return
+
+            stale = False
+
+            # Check 1: dev mtime
+            if __version__.endswith("-dev"):
+                pid_mtime = pid_info.get("source_mtime", 0.0)
+                if pid_mtime:
+                    from ai_guardian.daemon.state import DaemonState
+
+                    current_mtime = DaemonState.get_package_max_mtime()
+                    if current_mtime > pid_mtime:
+                        stale = True
+
+            # Check 2: installed version vs daemon version
+            if not stale:
+                daemon_version = pid_info.get("version", "")
+                if daemon_version and daemon_version != __version__:
+                    stale = True
+
+            self._set_stale_warned(stale)
+
+        except Exception:
+            pass  # intentionally silent — best-effort check
+
+    def _set_stale_warned(self, stale: bool):
+        """Update _stale_code_warned and refresh icon/menu if state changed."""
+        if stale == self._stale_code_warned:
+            return
+        self._stale_code_warned = stale
+        self._invalidate_discovery_frames()
+        if self._icon:
+            self._dispatch_to_main(
+                lambda: (
+                    setattr(self._icon, "icon", self._create_icon()),
+                    self._icon.update_menu(),
+                )
+            )
+
     @staticmethod
     def _send_version_mismatch_notification(daemon_name, daemon_version, tray_version):
         """Send version mismatch OS notification (runs in background thread)."""
@@ -1780,6 +1856,7 @@ class DaemonTray:
                     self._dispatch_to_main(self._sync_pause_state)
                     self._check_config_error_notification()
                     self._check_version_mismatch()
+                    self._check_stale_code()
                     self._check_pypi_version()
                     self._poll_plugins()
                     self._request_discovery_refresh(wait=False)
@@ -2569,7 +2646,30 @@ class DaemonTray:
             "get_stats": _get_stats,
         }
 
+        def _stale_vis(_item):
+            return self._is_single_daemon() and self._stale_code_warned
+
+        def _on_restart_daemon(_icon, _item):
+            cmd = DaemonTray._resolve_cli_cmd("daemon", "restart")
+            import subprocess as _sp
+
+            try:
+                _sp.Popen(
+                    cmd,
+                    stdin=_sp.DEVNULL,
+                    stdout=_sp.DEVNULL,
+                    stderr=_sp.DEVNULL,
+                    start_new_session=True,
+                )
+            except OSError as e:
+                logger.error("Failed to restart daemon: %s", e)
+
         return [
+            pystray.MenuItem(
+                "⚠️ Daemon running old code — click to restart",
+                _on_restart_daemon,
+                visible=_stale_vis,
+            ),
             pystray.MenuItem(_header_label, None, visible=_single_vis_refresh),
             pystray.Menu.SEPARATOR,
             pystray.MenuItem(

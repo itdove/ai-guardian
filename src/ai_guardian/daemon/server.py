@@ -473,6 +473,12 @@ class DaemonServer:
             pid_info["name"] = self._name
         if self.state._source_mtime:
             pid_info["source_mtime"] = self.state._source_mtime
+        try:
+            from ai_guardian import __version__
+
+            pid_info["version"] = __version__
+        except ImportError:
+            pass
         pid_path.write_text(json.dumps(pid_info))
         os.chmod(str(pid_path), 0o600)
 

@@ -1098,15 +1098,54 @@ class DaemonState:
         except ImportError:
             return "unknown"
 
-    @staticmethod
-    def get_package_max_mtime():
-        """Get max mtime of all .py files in the ai_guardian package directory."""
+    # Directories (relative to package root) whose changes require daemon restart
+    _DAEMON_SOURCE_DIRS = frozenset({"daemon", "hook_adapters", "patterns", "scanners"})
+    # Top-level files (no subdirectory) that require daemon restart
+    _DAEMON_SOURCE_FILES = frozenset(
+        {
+            "hook_processing.py",
+            "config_loaders.py",
+            "config_utils.py",
+            "scanner.py",
+            "bandit_scanner.py",
+            "canary_detection.py",
+            "exfil_detection.py",
+            "aiguardignore.py",
+            "tool_policy.py",
+            "prompt_injection.py",
+            "secret_redactor.py",
+            "scan_result.py",
+            "constants.py",
+            "annotations.py",
+            "supply_chain.py",
+            "context_poisoning.py",
+            "offensive_language.py",
+        }
+    )
+
+    @classmethod
+    def get_package_max_mtime(cls) -> float:
+        """Get max mtime of daemon-relevant .py files in the ai_guardian package.
+
+        Only scans files that require a daemon restart when changed — excludes
+        tui/, web/, cli.py, setup.py, doctor.py, etc. (#1465).
+        """
         try:
             import ai_guardian
 
             pkg_dir = Path(ai_guardian.__file__).parent
             max_mtime = 0.0
             for py_file in pkg_dir.rglob("*.py"):
+                rel = py_file.relative_to(pkg_dir)
+                parts = rel.parts
+                # Top-level file — include only if in the allow-list
+                if len(parts) == 1:
+                    if parts[0] not in cls._DAEMON_SOURCE_FILES:
+                        continue
+                else:
+                    # Subdirectory file — include only if the top-level dir matches
+                    if parts[0] not in cls._DAEMON_SOURCE_DIRS:
+                        continue
                 try:
                     mtime = py_file.stat().st_mtime
                     if mtime > max_mtime:
