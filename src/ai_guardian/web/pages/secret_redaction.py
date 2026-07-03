@@ -6,6 +6,7 @@ from datetime import datetime, timedelta, timezone
 from nicegui import run, ui
 
 from ai_guardian.web.components.header import create_header, create_sidebar
+from ai_guardian.web.components.help_panel import add_help_button
 from ai_guardian.web.config_helpers import load_web_config, save_web_config
 
 PROTECTED_TYPES = {
@@ -217,7 +218,9 @@ def create_secret_redaction_page(service, daemon_name: str):
         create_sidebar(daemon_name, current=f"/{daemon_name}/secret-redaction")
 
         with ui.column().classes("flex-grow p-6 gap-4"):
-            ui.label("Secret Redaction Settings").classes("text-2xl font-bold")
+            with ui.row().classes("items-center gap-2"):
+                ui.label("Secret Redaction Settings").classes("text-2xl font-bold")
+                add_help_button("secret_redaction")
             ui.label("Configure how secrets are redacted from tool outputs.").classes(
                 "text-xs text-grey-6"
             )

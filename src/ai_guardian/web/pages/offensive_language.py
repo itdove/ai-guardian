@@ -3,6 +3,7 @@
 from nicegui import ui
 
 from ai_guardian.web.components.header import create_header, create_sidebar
+from ai_guardian.web.components.help_panel import add_help_button
 from ai_guardian.web.config_helpers import load_web_config, save_web_config
 
 _CATEGORIES = ["profanity", "slurs", "inclusive_language"]
@@ -42,7 +43,9 @@ def create_offensive_language_page(service, daemon_name: str):
         create_sidebar(daemon_name, current=f"/{daemon_name}/offensive-language")
 
         with ui.column().classes("flex-grow p-6 gap-4"):
-            ui.label("Offensive Language Scanner").classes("text-2xl font-bold")
+            with ui.row().classes("items-center gap-2"):
+                ui.label("Offensive Language Scanner").classes("text-2xl font-bold")
+                add_help_button("offensive_language")
             ui.label(
                 "Detect profanity, slurs, and non-inclusive terminology in code, "
                 "comments, and variable names. Disabled by default."

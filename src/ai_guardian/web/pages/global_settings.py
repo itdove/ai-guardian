@@ -6,6 +6,7 @@ from datetime import datetime, timedelta, timezone
 from nicegui import run, ui
 
 from ai_guardian.web.components.header import create_header, create_sidebar
+from ai_guardian.web.components.help_panel import add_help_button
 from ai_guardian.web.config_helpers import (
     load_web_config,
     save_web_config,
@@ -335,7 +336,9 @@ def create_global_settings_page(service, daemon_name: str):
         create_sidebar(daemon_name, current=f"/{daemon_name}/settings")
 
         with ui.column().classes("flex-grow p-6 gap-4"):
-            ui.label("Global Settings").classes("text-2xl font-bold")
+            with ui.row().classes("items-center gap-2"):
+                ui.label("Global Settings").classes("text-2xl font-bold")
+                add_help_button("global_settings")
 
             content = ui.column().classes("w-full gap-4")
 
@@ -388,6 +391,17 @@ def create_global_settings_page(service, daemon_name: str):
                                 ui.notify("Saved", type="positive")
 
                             sel.on_value_change(save_err)
+
+                        ui.markdown(
+                            "Controls what happens when a scanner itself crashes.\n\n"
+                            "- **allow** (default) — fail-open: log a warning, let the operation through. "
+                            "Best for development and low-friction workflows.\n"
+                            "- **block** — fail-closed: block the operation if *any* scanner fails. "
+                            "Safer but a scanner bug = blocked workflow.\n\n"
+                            "**Applies to all scanners:** secret, PII, prompt injection, "
+                            "Bandit, canary, exfil, etc. "
+                            "Recommended: `allow` for dev, `block` for production/compliance environments."
+                        ).classes("text-xs text-gray-600 mt-2")
 
                     # --- Feature Groups ---
                     for group_name, features in FEATURE_GROUPS:

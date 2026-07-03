@@ -3,6 +3,7 @@
 from nicegui import ui
 
 from ai_guardian.web.components.header import create_header, create_sidebar
+from ai_guardian.web.components.help_panel import add_help_button
 from ai_guardian.web.config_helpers import load_web_config, save_web_config
 
 
@@ -35,7 +36,9 @@ def create_canary_detection_page(service, daemon_name: str):
         create_sidebar(daemon_name, current=f"/{daemon_name}/canary-detection")
 
         with ui.column().classes("flex-grow p-6 gap-4"):
-            ui.label("Canary Token Detection").classes("text-2xl font-bold")
+            with ui.row().classes("items-center gap-2"):
+                ui.label("Canary Token Detection").classes("text-2xl font-bold")
+                add_help_button("canary_detection")
             ui.label(
                 "Register tripwire values in sensitive files. If the AI ever outputs "
                 "those values (e.g. in a curl command), data exfiltration is detected. "
@@ -147,22 +150,3 @@ def create_canary_detection_page(service, daemon_name: str):
                 ui.notify("Canary detection settings saved.", type="positive")
 
             ui.button("Save", on_click=on_save).classes("mt-2")
-
-            # Help
-            with ui.card().classes("w-full"):
-                ui.label("How It Works").classes("text-lg font-bold mb-2")
-                ui.markdown(
-                    "**Threat model**: Plant a secret value (canary token) in a sensitive "
-                    "config file. Register it here. If the AI outputs that value in a "
-                    "`curl` command, file write, or any tool output — exfiltration is "
-                    "caught before it leaves.\n\n"
-                    "**Why not just secret scanning?**\n"
-                    "Secret scanner uses entropy + pattern matching and filters OUT "
-                    "low-entropy strings to reduce false positives. "
-                    "Canary detection uses exact user-registered values, bypassing entropy "
-                    "checks. Works for any string you deliberately plant, including plain "
-                    "text phrases like `SENTINEL_PROD_DB_2026`.\n\n"
-                    "**Token types**:\n"
-                    "- `value=...` — exact string match (case-sensitive)\n"
-                    "- `pattern=...` — regex match (e.g. `CANARY_[A-Z0-9]{8}`)"
-                )

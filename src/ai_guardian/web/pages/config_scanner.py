@@ -6,6 +6,7 @@ from datetime import datetime, timedelta, timezone
 from nicegui import run, ui
 
 from ai_guardian.web.components.header import create_header, create_sidebar
+from ai_guardian.web.components.help_panel import add_help_button
 from ai_guardian.web.config_helpers import load_web_config, save_web_config
 
 DEFAULT_SCANNED_FILES = {
@@ -166,7 +167,9 @@ def create_config_scanner_page(service, daemon_name: str):
         create_sidebar(daemon_name, current=f"/{daemon_name}/config-scanner")
 
         with ui.column().classes("flex-grow p-6 gap-4"):
-            ui.label("Config File Scanning Settings").classes("text-2xl font-bold")
+            with ui.row().classes("items-center gap-2"):
+                ui.label("Config File Scanning Settings").classes("text-2xl font-bold")
+                add_help_button("config_file_scanning")
             ui.label(
                 "Configure detection of configuration file exfiltration attempts."
             ).classes("text-xs text-grey-6")

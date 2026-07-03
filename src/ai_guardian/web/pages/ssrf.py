@@ -6,6 +6,7 @@ from datetime import datetime, timedelta, timezone
 from nicegui import run, ui
 
 from ai_guardian.web.components.header import create_header, create_sidebar
+from ai_guardian.web.components.help_panel import add_help_button
 from ai_guardian.web.config_helpers import load_web_config, save_web_config
 
 CORE_PROTECTIONS = {
@@ -175,7 +176,9 @@ def create_ssrf_page(service, daemon_name: str):
         create_sidebar(daemon_name, current=f"/{daemon_name}/ssrf")
 
         with ui.column().classes("flex-grow p-6 gap-4"):
-            ui.label("SSRF Protection Settings").classes("text-2xl font-bold")
+            with ui.row().classes("items-center gap-2"):
+                ui.label("SSRF Protection Settings").classes("text-2xl font-bold")
+                add_help_button("ssrf_protection")
             ui.label(
                 "Configure server-side request forgery protection and network filtering."
             ).classes("text-xs text-grey-6")
