@@ -126,6 +126,7 @@ class Doctor:
             self.check_email_auth,
             self.check_ml_detection,
             self.check_ast_scanner,
+            self.check_daemon_rest_port,
         ]
         for check_fn in checks:
             try:
@@ -1805,6 +1806,67 @@ class Doctor:
             name="email_auth",
             status=CheckStatus.PASS,
             message="Email auth OK",
+        )
+
+    def check_daemon_rest_port(self) -> CheckResult:
+        """Warn if the running daemon's PID file is missing rest_port (REST API failed to bind)."""
+        try:
+            from ai_guardian.daemon import get_pid_path, is_pid_alive
+        except ImportError:
+            return CheckResult(
+                name="daemon_rest_port",
+                status=CheckStatus.SKIP,
+                message="Daemon module not available",
+            )
+
+        pid_path = get_pid_path()
+        if not pid_path.exists():
+            return CheckResult(
+                name="daemon_rest_port",
+                status=CheckStatus.SKIP,
+                message="Daemon not running",
+            )
+
+        try:
+            import json as _json
+
+            pid_info = _json.loads(pid_path.read_text())
+        except Exception:
+            return CheckResult(
+                name="daemon_rest_port",
+                status=CheckStatus.SKIP,
+                message="Cannot read PID file",
+            )
+
+        pid = pid_info.get("pid", 0)
+        if pid and not is_pid_alive(pid):
+            return CheckResult(
+                name="daemon_rest_port",
+                status=CheckStatus.SKIP,
+                message="Daemon process not alive",
+            )
+
+        rest_port = pid_info.get("rest_port", 0)
+        if not rest_port:
+            return CheckResult(
+                name="daemon_rest_port",
+                status=CheckStatus.WARN,
+                message=(
+                    "Daemon running but REST API did not start (rest_port missing from PID file). "
+                    "Cache status, violations, and web console will be unavailable."
+                ),
+                fix_hint=(
+                    "Check daemon log for 'REST API failed' warnings. "
+                    "Stop any orphan daemon holding port 63152: "
+                    "lsof -i :63152 | grep LISTEN, then kill <pid>. "
+                    "Restart with: ai-guardian daemon restart"
+                ),
+            )
+
+        return CheckResult(
+            name="daemon_rest_port",
+            status=CheckStatus.PASS,
+            message=f"Daemon REST API running on port {rest_port}",
         )
 
 
