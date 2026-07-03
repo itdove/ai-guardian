@@ -99,6 +99,26 @@ class SessionStateManager:
 
         self._update_file(session_key, reinject=True)
 
+    def has_reinject_pending(self, session_key: str) -> bool:
+        """Check if a block-triggered re-injection is pending (but NOT first-prompt injection).
+
+        Used by inject_trigger=after_block_only to skip first-prompt injection.
+        """
+        if not session_key:
+            return False
+
+        if self._daemon_state:
+            return self._daemon_state.has_reinject_pending(session_key)
+
+        data = self._read_file()
+        if not data:
+            return False
+        sessions = data.get("sessions", {})
+        entry = sessions.get(session_key)
+        if entry is None:
+            return False
+        return bool(entry.get("security_reinject", False))
+
     def cleanup_session(self, session_key: str) -> None:
         """Remove a session from injection tracking.
 

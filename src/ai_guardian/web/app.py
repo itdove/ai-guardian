@@ -354,6 +354,14 @@ class WebConsole:
 
             create_exfil_detection_page(service, daemon_name)
 
+        @ui.page("/{daemon_name}/security-instructions")
+        def security_instructions_page(daemon_name: str):
+            from ai_guardian.web.pages.security_instructions import (
+                create_security_instructions_page,
+            )
+
+            create_security_instructions_page(service, daemon_name)
+
         @ui.page("/{daemon_name}/ssrf")
         def ssrf_page(daemon_name: str):
             from ai_guardian.web.pages.ssrf import create_ssrf_page

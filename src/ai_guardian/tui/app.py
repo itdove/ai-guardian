@@ -172,6 +172,7 @@ NAV_GROUPS = [
     (
         "Configuration",
         [
+            ("Security Instructions", "panel-security-instructions"),
             ("Remote Configs", "panel-remote-configs"),
             ("Config Cache", "panel-cache-status"),
             ("Config File", "panel-config-file"),
@@ -764,6 +765,17 @@ HELP_DOCS = {
         "  - Deny ~/.ssh/** — Block SSH private keys\n"
         "  - Deny ~/.aws/** — Block AWS credentials\n"
         "  - Deny ~/** then allow ~/dev/** — Workspace isolation"
+    ),
+    "panel-security-instructions": (
+        "[bold]Security Instructions[/bold]\n\n"
+        "View and configure the security rules injected into the agent's "
+        "context via systemMessage on UserPromptSubmit.\n\n"
+        "[bold]Options:[/bold]\n"
+        "  [bold]inject_on_prompt[/bold] — Enable/disable injection\n"
+        "  [bold]inject_trigger[/bold] — When to inject (first per session, every prompt, after block)\n"
+        "  [bold]custom_rules[/bold] — Additional rules to append or replace built-in rules\n"
+        "  [bold]replace_defaults[/bold] — Use only custom rules\n\n"
+        "Edit via the web console for the full editor."
     ),
     "panel-remote-configs": (
         "[bold]Remote Configurations[/bold]\n\n"
@@ -1412,6 +1424,13 @@ class AIGuardianTUI(App):
                     from ai_guardian.tui.directory_rules import DirectoryRulesContent
 
                     yield DirectoryRulesContent()
+
+                with Container(id="panel-security-instructions"):
+                    from ai_guardian.tui.security_instructions import (
+                        SecurityInstructionsContent,
+                    )
+
+                    yield SecurityInstructionsContent()
 
                 with Container(id="panel-remote-configs"):
                     from ai_guardian.tui.remote_configs import RemoteConfigsContent

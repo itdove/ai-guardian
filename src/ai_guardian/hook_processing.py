@@ -6228,11 +6228,49 @@ def process_hook_data(hook_data, daemon_state=None):
                             derive_session_key,
                         )
 
+                        inject_trigger = (
+                            si_config.get("inject_trigger", "first_per_session")
+                            if si_config
+                            else "first_per_session"
+                        )
+                        custom_rules = (
+                            si_config.get("custom_rules", []) if si_config else []
+                        )
+                        replace_defaults = (
+                            si_config.get("replace_defaults", False)
+                            if si_config
+                            else False
+                        )
+
                         session_key = derive_session_key(hook_data)
                         state_mgr = SessionStateManager(daemon_state=daemon_state)
-                        if state_mgr.should_inject_security(session_key):
-                            security_message = _SECURITY_SYSTEM_MESSAGE
-                            state_mgr.mark_security_injected(session_key)
+
+                        if inject_trigger == "every_prompt":
+                            should_inject = True
+                        elif inject_trigger == "after_block_only":
+                            should_inject = state_mgr.has_reinject_pending(session_key)
+                            if should_inject:
+                                state_mgr.mark_security_injected(session_key)
+                        else:
+                            should_inject = state_mgr.should_inject_security(
+                                session_key
+                            )
+                            if should_inject:
+                                state_mgr.mark_security_injected(session_key)
+
+                        if should_inject:
+                            if replace_defaults:
+                                raw = "\n".join(custom_rules) if custom_rules else None
+                            else:
+                                if custom_rules:
+                                    raw = (
+                                        _SECURITY_SYSTEM_MESSAGE
+                                        + "\n"
+                                        + "\n".join(custom_rules)
+                                    )
+                                else:
+                                    raw = _SECURITY_SYSTEM_MESSAGE
+                            security_message = raw
                             logging.info(
                                 f"Security rules injected for session {session_key[:16]}..."
                             )
