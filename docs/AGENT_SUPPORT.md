@@ -68,6 +68,7 @@ Agents with full hook support not shown individually (Windsurf, Gemini CLI, Clin
 | image_pii | Pre | Caution | Caution | Caution | No |
 | offensive_language | Pre+Post | Enforce | Enforce | Partial | Advisory |
 | canary_detected | Pre+Post+Prompt | Enforce | Enforce | Partial | Advisory |
+| exfil_detection | Pre (Bash) | Enforce | Enforce | Partial | Advisory |
 
 **Legend:**
 

@@ -73,6 +73,7 @@ SCANNER_TYPES = frozenset(
         "supply_chain",
         "image_scanning",
         "offensive_language",
+        "exfil_detection",
     }
 )
 

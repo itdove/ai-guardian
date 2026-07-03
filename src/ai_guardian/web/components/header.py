@@ -63,6 +63,7 @@ NAV_GROUPS = [
             ("Code Security", "/code-security"),
             ("Offensive Language", "/offensive-language"),
             ("Canary Detection", "/canary-detection"),
+            ("Exfil Detection", "/exfil-detection"),
             ("Annotations", "/annotations"),
         ],
     ),

@@ -346,6 +346,14 @@ class WebConsole:
 
             create_canary_detection_page(service, daemon_name)
 
+        @ui.page("/{daemon_name}/exfil-detection")
+        def exfil_detection_page(daemon_name: str):
+            from ai_guardian.web.pages.exfil_detection import (
+                create_exfil_detection_page,
+            )
+
+            create_exfil_detection_page(service, daemon_name)
+
         @ui.page("/{daemon_name}/ssrf")
         def ssrf_page(daemon_name: str):
             from ai_guardian.web.pages.ssrf import create_ssrf_page

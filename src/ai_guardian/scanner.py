@@ -57,6 +57,7 @@ try:
         create_code_security_finding,
         create_offensive_language_finding,
         create_canary_detection_finding,
+        create_exfil_detection_finding,
     )
 
     HAS_SARIF = True
@@ -107,6 +108,13 @@ try:
     HAS_CANARY_DETECTION = True
 except ImportError:
     HAS_CANARY_DETECTION = False
+
+try:
+    from ai_guardian.exfil_detection import ExfilDetectionScanner as _ExfilScanner
+
+    HAS_EXFIL_DETECTION = True
+except ImportError:
+    HAS_EXFIL_DETECTION = False
 
 try:
     from ai_guardian.offensive_language import (
@@ -659,6 +667,12 @@ class FileScanner:
             if self._code_scanner and file_path.suffix == ".py":
                 self._check_code_security(relative_path, content)
 
+            # Check for exfil behavior in shell scripts
+            if HAS_EXFIL_DETECTION and file_path.suffix in {
+                ".sh", ".bash", ".zsh", ".ksh", ".fish"
+            }:
+                self._check_exfil_detection(relative_path, content)
+
         except Exception as e:
             if self.verbose:
                 logger.error(f"Error scanning {file_path}: {e}")
@@ -989,6 +1003,37 @@ class FileScanner:
                     print(f"  [SUPPLY-CHAIN] {reason}")
         except Exception as e:
             logger.warning(f"Error checking supply chain: {e}")
+
+    def _check_exfil_detection(self, file_path: str, content: str) -> None:
+        """Check shell scripts for credential exfiltration patterns."""
+        try:
+            ed_config = self.config.get("exfil_detection") if self.config else None
+            scanner = _ExfilScanner(ed_config)
+            is_malicious, reason, details = scanner.scan(content, label=file_path)
+            if is_malicious and details:
+                if HAS_SARIF:
+                    finding = create_exfil_detection_finding(
+                        category=details.get("category", "unknown"),
+                        reason=reason or "Credential exfiltration detected",
+                        file_path=file_path,
+                        line_number=details.get("line_number"),
+                        start_column=details.get("start_column"),
+                        snippet=details.get("snippet"),
+                    )
+                else:
+                    finding = {
+                        "rule_id": "EXFIL-DETECTION-001",
+                        "level": "error",
+                        "message": reason or "Credential exfiltration detected",
+                        "file_path": file_path,
+                        "line_number": details.get("line_number"),
+                        "snippet": details.get("snippet"),
+                    }
+                self.findings.append(finding)
+                if self.verbose:
+                    print(f"  [EXFIL-DETECTION] {reason}")
+        except Exception as e:
+            logger.warning(f"Error checking exfil detection: {e}")
 
     def _check_code_security(self, file_path: str, content: str) -> None:
         """Check Python code for security issues using Bandit."""

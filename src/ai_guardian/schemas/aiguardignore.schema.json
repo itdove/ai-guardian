@@ -24,7 +24,8 @@
     "context_poisoning": { "$ref": "#/$defs/scanner_section" },
     "supply_chain": { "$ref": "#/$defs/scanner_section" },
     "image_scanning": { "$ref": "#/$defs/scanner_section" },
-    "offensive_language": { "$ref": "#/$defs/scanner_section" }
+    "offensive_language": { "$ref": "#/$defs/scanner_section" },
+    "exfil_detection": { "$ref": "#/$defs/scanner_section" }
   },
   "additionalProperties": false,
   "$defs": {

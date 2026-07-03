@@ -78,6 +78,11 @@ FEATURE_GROUPS = [
                 "Canary Detection",
                 "Detect user-registered tripwire values to catch data exfiltration",
             ),
+            (
+                "exfil_detection",
+                "Exfil Detection",
+                "Detect bash commands that steal credentials via curl, base64, key files, and cloud metadata",
+            ),
         ],
     ),
     (
@@ -197,6 +202,14 @@ FEATURE_ACTIONS = {
         "warn": "Warn",
         "log-only": "Log Only",
     },
+    "exfil_detection": {
+        "block": "Block",
+        "ask": "Ask (block if headless)",
+        "ask:warn": "Ask (warn if headless)",
+        "ask:log-only": "Ask (log-only if headless)",
+        "warn": "Warn",
+        "log-only": "Log Only",
+    },
 }
 
 ACTION_DEFAULTS = {
@@ -212,6 +225,7 @@ ACTION_DEFAULTS = {
     "code_scanning": "warn",
     "scan_offensive": "log",
     "canary_detection": "block",
+    "exfil_detection": "block",
 }
 
 DURATION_RE = re.compile(r"^(?:(\d+)d)?(?:(\d+)h)?(?:(\d+)m)?$", re.IGNORECASE)

@@ -39,6 +39,7 @@ FEATURES = [
     ("code_scanning", "gs_code_scanning", "🐍 Code Security (Bandit)"),
     ("scan_offensive", "gs_scan_offensive", "🚫 Offensive Language"),
     ("canary_detection", "gs_canary_detection", "🪤 Canary Detection"),
+    ("exfil_detection", "gs_exfil_detection", "🔓 Exfil Detection"),
     ("violation_logging", "gs_violation_logging", "📝 Violation Logging"),
     ("latency_tracking", "gs_latency_tracking", "⏱️ Latency Tracking"),
 ]
@@ -160,6 +161,18 @@ FEATURE_ACTIONS = {
     },
     "canary_detection": {
         "schema_path": "canary_detection.action",
+        "options": [
+            ("Block", "block"),
+            ("Ask (block if headless)", "ask"),
+            ("Ask (warn if headless)", "ask:warn"),
+            ("Ask (log-only if headless)", "ask:log-only"),
+            ("Warn", "warn"),
+            ("Log Only", "log-only"),
+        ],
+        "default": "block",
+    },
+    "exfil_detection": {
+        "schema_path": "exfil_detection.action",
         "options": [
             ("Block", "block"),
             ("Ask (block if headless)", "ask"),
