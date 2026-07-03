@@ -72,6 +72,11 @@ FEATURE_GROUPS = [
                 "Canary Detection",
                 "Detect user-registered tripwire values to catch data exfiltration",
             ),
+            (
+                "exfil_detection",
+                "Exfil Detection",
+                "Detect bash commands that steal credentials via curl, base64, key files, and cloud metadata",
+            ),
         ],
     ),
     (
@@ -134,6 +139,7 @@ FEATURE_PAGE_SLUGS = {
     "code_scanning": "code-security",
     "scan_offensive": "offensive-language",
     "canary_detection": "canary-detection",
+    "exfil_detection": "exfil-detection",
 }
 
 
@@ -186,6 +192,7 @@ _DEFAULT_ACTIONS = {
     "code_scanning": "warn",
     "scan_offensive": "log",
     "canary_detection": "block",
+    "exfil_detection": "block",
     "secret_redaction": "warn",
     "annotations": "suppress",
     "permissions": "enforce",

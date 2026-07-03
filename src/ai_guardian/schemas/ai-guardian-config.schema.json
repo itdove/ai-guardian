@@ -1492,6 +1492,37 @@
         }
       }
     },
+    "exfil_detection": {
+      "type": "object",
+      "description": "Exfiltration behavior detection (NEW in v1.14.0, Issue #1393). Detects bash commands that steal credentials: curl/wget with token vars, base64 encoding of secrets, key file theft, cloud credential exfil, env var collection. Complements config_file_scanning with broader behavioral coverage.",
+      "additionalProperties": true,
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable/disable exfiltration behavior detection."
+        },
+        "action": {
+          "type": "string",
+          "oneOf": [
+            {"enum": ["block", "warn", "log-only"]},
+            {
+              "type": "string",
+              "pattern": "^ask(:(block|warn|log-only))?$",
+              "description": "Interactive ask mode"
+            }
+          ],
+          "default": "block",
+          "description": "Action when a credential exfiltration pattern is detected."
+        },
+        "allowlist_patterns": {
+          "type": "array",
+          "items": {"type": "string"},
+          "default": [],
+          "description": "List of regex patterns to allowlist commands. If any pattern matches the command, scanning is skipped."
+        }
+      }
+    },
     "config_file_scanning": {
       "type": "object",
       "description": "Config file scanning configuration (NEW in v1.5.0, Phase 3 of Hermes integration). Detects credential exfiltration commands in AI configuration files (CLAUDE.md, AGENTS.md, .cursorrules) that could cause persistent credential theft across all AI sessions. Scans for 8 core patterns: curl/wget with env vars, env|curl, printenv exfil, file exfil, base64 exfil, AWS S3, GCP Storage.",
@@ -1765,9 +1796,9 @@
           "description": "Types of violations to log. Empty array logs all types.",
           "items": {
             "type": "string",
-            "enum": ["tool_permission", "directory_blocking", "secret_detected", "secret_redaction", "prompt_injection", "jailbreak_detected", "ssrf_blocked", "config_file_exfil", "pii_detected", "secret_in_transcript", "pii_in_transcript", "prompt_injection_in_transcript", "annotation_suppressed", "image_secret_detected", "image_pii_detected", "context_poisoning", "supply_chain", "code_security", "offensive_language", "canary_detected"]
+            "enum": ["tool_permission", "directory_blocking", "secret_detected", "secret_redaction", "prompt_injection", "jailbreak_detected", "ssrf_blocked", "config_file_exfil", "pii_detected", "secret_in_transcript", "pii_in_transcript", "prompt_injection_in_transcript", "annotation_suppressed", "image_secret_detected", "image_pii_detected", "context_poisoning", "supply_chain", "code_security", "offensive_language", "canary_detected", "exfil_detection"]
           },
-          "default": ["tool_permission", "directory_blocking", "secret_detected", "secret_redaction", "prompt_injection", "jailbreak_detected", "ssrf_blocked", "config_file_exfil", "pii_detected", "secret_in_transcript", "pii_in_transcript", "prompt_injection_in_transcript", "annotation_suppressed", "context_poisoning", "supply_chain", "code_security", "offensive_language", "canary_detected"]
+          "default": ["tool_permission", "directory_blocking", "secret_detected", "secret_redaction", "prompt_injection", "jailbreak_detected", "ssrf_blocked", "config_file_exfil", "pii_detected", "secret_in_transcript", "pii_in_transcript", "prompt_injection_in_transcript", "annotation_suppressed", "context_poisoning", "supply_chain", "code_security", "offensive_language", "canary_detected", "exfil_detection"]
         }
       },
       "additionalProperties": false

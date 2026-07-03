@@ -1970,6 +1970,12 @@ def _get_default_config_template(permissive: bool = False) -> Dict:
             "action": "block",
             "tokens": [],
         },
+        "_comment_exfil_detection": "Exfiltration behavior detection — detects bash commands that steal credentials: curl/wget with token vars, base64 encoding of secrets, key file theft, cloud credential exfil (NEW in v1.14.0, Issue #1393).",
+        "exfil_detection": {
+            "enabled": True,
+            "action": "block",
+            "allowlist_patterns": [],
+        },
         "_comment_permissions": "Control which tools (Skills, MCP servers, Bash, etc.) are allowed to run. Rules evaluated in order, last match wins.",
         "permissions": {
             "enabled": not permissive,

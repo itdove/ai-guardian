@@ -85,6 +85,7 @@ from ai_guardian.config_loaders import (
     _load_code_scanning_config,
     _load_offensive_language_config,
     _load_canary_detection_config,
+    _load_exfil_detection_config,
     _get_on_scan_error_action,
     _load_config_file,  # noqa: F401 — patched by tests via this namespace
 )
@@ -180,6 +181,13 @@ try:
     HAS_CANARY_DETECTION = True
 except ImportError:
     HAS_CANARY_DETECTION = False
+
+try:
+    from ai_guardian.exfil_detection import ExfilDetectionScanner
+
+    HAS_EXFIL_DETECTION = True
+except ImportError:
+    HAS_EXFIL_DETECTION = False
 
 try:
     from ai_guardian.violation_logger import ViolationLogger
@@ -2675,6 +2683,7 @@ _ASK_VIOLATION_LABELS = {
     ViolationType.SSRF_BLOCKED: "SSRF protection",
     ViolationType.OFFENSIVE_LANGUAGE: "Offensive language",
     ViolationType.CANARY_DETECTED: "Canary token",
+    ViolationType.EXFIL_DETECTION: "Exfil detection",
 }
 
 
@@ -2989,6 +2998,52 @@ def _log_supply_chain_violation(
         )
     except Exception as e:
         logger.error(f"Failed to log supply chain violation: {e}")
+
+
+def _log_exfil_detection_violation(
+    command: str,
+    context: Optional[Dict] = None,
+    hook_context: Optional[Dict] = None,
+    matched_pattern: Optional[str] = None,
+    matched_text: Optional[str] = None,
+    category: Optional[str] = None,
+    line_number: Optional[int] = None,
+    start_column: Optional[int] = None,
+    end_column: Optional[int] = None,
+    violation_logger=None,
+):
+    """Log a credential exfiltration detection violation."""
+    if not HAS_VIOLATION_LOGGER:
+        return
+
+    try:
+        blocked_entry = {
+            "command": command[:500],
+            "line_number": line_number,
+            "source": "bash_command",
+            "pattern": matched_pattern or "Unknown",
+            "category": category or "unknown",
+            "reason": "Credential exfiltration behavior detected in bash command",
+        }
+        if start_column is not None:
+            blocked_entry["start_column"] = start_column
+        if end_column is not None:
+            blocked_entry["end_column"] = end_column
+        if matched_text:
+            blocked_entry["matched_text"] = matched_text[:100]
+        violation_logger = violation_logger or ViolationLogger()
+        violation_logger.log_violation(
+            violation_type=ViolationType.EXFIL_DETECTION,
+            blocked=blocked_entry,
+            context=_build_violation_context(context, hook_context),
+            suggestion={
+                "action": "add_allowlist_pattern",
+                "note": "If this is a legitimate command, add a regex to exfil_detection.allowlist_patterns in ai-guardian.json",
+            },
+            severity="high",
+        )
+    except Exception as e:
+        logger.error(f"Failed to log exfil detection violation: {e}")
 
 
 def _log_offensive_language_violation(
@@ -5657,6 +5712,56 @@ def run_bash_exfil_scan(
     )
 
 
+def run_exfil_detection_scan(
+    command,
+    *,
+    config=None,
+    latency_timer=None,
+):
+    """Run exfiltration behavior detection scan on a bash command.
+
+    Args:
+        command: Bash command string to scan.
+        config: Pre-loaded exfil detection config, or None to load internally.
+        latency_timer: Optional _CheckTimer for performance tracking.
+
+    Returns:
+        None if scanner unavailable, disabled, or skipped.
+        ScanResult with detection details otherwise.
+    """
+    if not HAS_EXFIL_DETECTION:
+        return None
+    if not command:
+        return None
+
+    now = datetime.now(timezone.utc)
+    if config is None:
+        config, config_error = _load_exfil_detection_config()
+        if config_error:
+            logging.warning(f"Exfil detection config error: {config_error}")
+    if not config or not is_feature_enabled(config.get("enabled"), now, default=True):
+        return None
+
+    if latency_timer:
+        with latency_timer.check("exfil_detection"):
+            should_block, error_msg, details = ExfilDetectionScanner(
+                config
+            ).check_command(command)
+    else:
+        should_block, error_msg, details = ExfilDetectionScanner(config).check_command(
+            command
+        )
+
+    result = ScanResult.from_exfil_detection(
+        should_block=should_block,
+        error_message=error_msg,
+        details=details,
+    )
+    result.extra["action"] = config.get("action", "block")
+    result.extra["details"] = details
+    return result
+
+
 def run_image_scan(
     file_path,
     *,
@@ -7420,6 +7525,44 @@ def process_hook_data(hook_data, daemon_state=None):
                             hook_event=hook_event,
                             warning_message=combined_warning,
                             violation_type=ViolationType.CONFIG_FILE_EXFIL,
+                            security_message=security_message,
+                        )
+                        return result
+
+                    # Exfiltration behavior detection (Issue #1393)
+                    exfil_detection_result = run_exfil_detection_scan(
+                        bash_command,
+                        latency_timer=_latency_timer,
+                    )
+
+                    if (
+                        exfil_detection_result is not None
+                        and exfil_detection_result.should_block
+                    ):
+                        ed_details = exfil_detection_result.extra.get("details") or {}
+                        logging.warning(
+                            "🚨 BLOCKED: Credential exfiltration behavior detected"
+                        )
+                        _log_exfil_detection_violation(
+                            command=bash_command,
+                            matched_pattern=ed_details.get("pattern"),
+                            matched_text=ed_details.get("matched_text"),
+                            category=ed_details.get("category"),
+                            line_number=ed_details.get("line_number"),
+                            start_column=ed_details.get("start_column"),
+                            end_column=ed_details.get("end_column"),
+                            violation_logger=violation_logger,
+                        )
+                        combined_warning = (
+                            "\n\n".join(warning_messages) if warning_messages else None
+                        )
+                        result = _format_response(
+                            adapter,
+                            has_secrets=True,
+                            error_message=exfil_detection_result.error_message,
+                            hook_event=hook_event,
+                            warning_message=combined_warning,
+                            violation_type=ViolationType.EXFIL_DETECTION,
                             security_message=security_message,
                         )
                         return result

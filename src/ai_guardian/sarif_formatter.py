@@ -578,3 +578,24 @@ def create_canary_detection_finding(
             "matched_text": matched_text or "",
         },
     }
+
+
+def create_exfil_detection_finding(
+    category: str,
+    reason: str,
+    file_path: str,
+    line_number: Optional[int] = None,
+    start_column: Optional[int] = None,
+    snippet: Optional[str] = None,
+) -> Dict[str, Any]:
+    """Create a finding dict for exfil detection violations."""
+    return {
+        "rule_id": "EXFIL-DETECTION-001",
+        "level": "error",
+        "message": f"Credential exfiltration: {reason}",
+        "file_path": file_path,
+        "line_number": line_number,
+        "start_column": start_column,
+        "snippet": snippet,
+        "details": {"category": category, "reason": reason},
+    }

@@ -646,6 +646,17 @@
     "_comment_tokens": "Each token needs 'value' (exact) OR 'pattern' (regex), plus optional 'description'."
   },
 
+  "exfil_detection": {
+    "_comment": "Exfiltration behavior detection (NEW in v1.14.0, Issue #1393). Detects bash commands that steal credentials.",
+    "_comment2": "Patterns: curl/wget with token vars, base64 encoding of secrets, SSH key theft, cloud credential exfil, env dumping.",
+    "_comment3": "Complements config_file_scanning — covers broader behavioral patterns not scoped to AI config files.",
+    "enabled": true,
+    "action": "block",
+    "_comment_action": "block (default) = prevent the operation. warn = allow but alert. log-only = record silently.",
+    "allowlist_patterns": [],
+    "_comment_allowlist": "Regex patterns to allowlist specific commands. Example: '^curl.*my-internal-api.com' to allow known-safe curl calls."
+  },
+
   "scan_offensive": {
     "_comment": "Offensive language scanner (NEW in v1.13.0, Issue #1417). Detects profanity, slurs, and non-inclusive terminology.",
     "_comment2": "DISABLED BY DEFAULT — unlike secrets/PII, offensive language is context-dependent. Enable only when your org requires it.",

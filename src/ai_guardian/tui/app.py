@@ -165,6 +165,7 @@ NAV_GROUPS = [
             ("Code Security", "panel-code-security"),
             ("Offensive Language", "panel-offensive-language"),
             ("Canary Detection", "panel-canary-detection"),
+            ("Exfil Detection", "panel-exfil-detection"),
             ("Annotations", "panel-annotations"),
         ],
     ),
@@ -588,6 +589,22 @@ HELP_DOCS = {
         "[bold]Note:[/bold]\n"
         "  Disabled by default. Enable after adding at least one token.\n"
         "  Edit ai-guardian.json → canary_detection section."
+    ),
+    "panel-exfil-detection": (
+        "[bold]Exfiltration Behavior Detection[/bold]\n\n"
+        "Detect bash commands that steal credentials: curl/wget with token\n"
+        "variables, base64 encoding of secrets, SSH key file theft, cloud\n"
+        "credential exfil, and environment variable collection.\n\n"
+        "[bold]Pattern categories:[/bold]\n"
+        "  credential_theft    — curl/wget with token/key/secret env vars\n"
+        "  env_collection      — env|nc, printenv|socat, subshell dumps\n"
+        "  key_file_exfil      — cat id_rsa|curl, SSH key piped to network\n"
+        "  base64_encoding     — base64 encoding of credential files\n"
+        "  cloud_credential_exfil — IMDS endpoint, AWS credentials\n"
+        "  secret_collection   — .netrc, .npmrc, keychain extracts\n\n"
+        "[bold]Note:[/bold]\n"
+        "  This panel is read-only. Use the web console or edit\n"
+        "  ai-guardian.json → exfil_detection section."
     ),
     "panel-annotations": (
         "[bold]Annotation Suppression[/bold]\n\n"
@@ -1336,6 +1353,13 @@ class AIGuardianTUI(App):
                     )
 
                     yield CanaryDetectionContent()
+
+                with Container(id="panel-exfil-detection"):
+                    from ai_guardian.tui.exfil_detection import (
+                        ExfilDetectionContent,
+                    )
+
+                    yield ExfilDetectionContent()
 
                 with Container(id="panel-annotations"):
                     from ai_guardian.tui.annotations import AnnotationsContent

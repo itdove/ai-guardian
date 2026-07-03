@@ -96,6 +96,11 @@ FILTER_TABS = [
         "canary_detected",
         "User-registered canary token found in AI output — possible data exfiltration",
     ),
+    (
+        "Exfil Detection",
+        "exfil_detection",
+        "Bash command blocked due to credential exfiltration behavior",
+    ),
 ]
 
 DETAIL_FIELDS = {
@@ -216,6 +221,13 @@ DETAIL_FIELDS = {
         ("File", "file_path"),
         ("Token", "token"),
         ("Description", "description"),
+        ("Line", "line_number"),
+        ("Matched", "matched_text"),
+    ],
+    "exfil_detection": [
+        ("Command", "command"),
+        ("Category", "category"),
+        ("Pattern", "pattern"),
         ("Line", "line_number"),
         ("Matched", "matched_text"),
     ],
@@ -368,6 +380,7 @@ _ALLOWLIST_TYPES = frozenset(
         "code_security",
         "offensive_language",
         "canary_detected",
+        "exfil_detection",
         "tool_permission",
     }
 )
@@ -712,6 +725,9 @@ def _extract_matched_from_violation(violation: dict) -> str:
 
     if vtype == "canary_detected":
         return blocked.get("matched_text", "") or blocked.get("token", "")
+
+    if vtype == "exfil_detection":
+        return blocked.get("matched_text", "") or blocked.get("pattern", "")
 
     if vtype == "pii_detected":
         pii_types = blocked.get("pii_types", [])

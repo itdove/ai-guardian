@@ -43,6 +43,7 @@ _ALLOWLIST_TYPES = frozenset(
         "code_security",
         "offensive_language",
         "canary_detected",
+        "exfil_detection",
         "tool_permission",
     }
 )
@@ -103,6 +104,9 @@ def _extract_matched_from_violation(violation: dict) -> str:
 
     if vtype == "canary_detected":
         return blocked.get("matched_text", "") or blocked.get("token", "")
+
+    if vtype == "exfil_detection":
+        return blocked.get("matched_text", "") or blocked.get("pattern", "")
 
     if vtype == "pii_detected":
         pii_types = blocked.get("pii_types", [])

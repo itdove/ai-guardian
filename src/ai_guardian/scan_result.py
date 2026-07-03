@@ -264,6 +264,44 @@ class ScanResult:
         )
 
     @classmethod
+    def from_exfil_detection(
+        cls,
+        should_block: bool,
+        error_message: Optional[str],
+        details: Optional[Dict[str, Any]],
+    ) -> "ScanResult":
+        """Wrap exfil detection scanner result."""
+        matched_text = ""
+        matched_pattern = ""
+        category = ""
+        line_number = None
+        start_column = None
+        end_column = None
+        findings = None
+        if details:
+            matched_text = details.get("matched_text", "")
+            matched_pattern = details.get("pattern", "")
+            category = details.get("category", "")
+            line_number = details.get("line_number")
+            start_column = details.get("start_column")
+            end_column = details.get("end_column")
+            findings = details.get("findings")
+        return cls(
+            detected=should_block or bool(details),
+            violation_type="exfil_detection",
+            should_block=should_block,
+            error_message=error_message or "",
+            matched_text=matched_text,
+            matched_pattern=matched_pattern,
+            line_number=line_number,
+            start_column=start_column,
+            end_column=end_column,
+            findings=findings,
+            config_section="exfil_detection",
+            attack_type=category,
+        )
+
+    @classmethod
     def from_offensive_language(
         cls,
         findings: List[Dict[str, Any]],

@@ -641,6 +641,20 @@ def _load_canary_detection_config():
     )
 
 
+_EXFIL_DETECTION_DEFAULTS = {
+    "enabled": True,
+    "action": "block",
+    "allowlist_patterns": [],
+}
+
+
+def _load_exfil_detection_config():
+    """Load exfil detection configuration. Returns defaults when section is absent."""
+    return _load_config_section(
+        "exfil_detection", defaults=_EXFIL_DETECTION_DEFAULTS, merge_ignore=True
+    )
+
+
 _OFFENSIVE_LANGUAGE_DEFAULTS = {
     "enabled": False,
     "action": "log",

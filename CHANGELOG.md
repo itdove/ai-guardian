@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Exfiltration behavior detection** — new `exfil_detection` config section catches bash commands that steal credentials: curl/wget with token vars, base64 encoding of secrets, SSH key file piped to network, cloud credential exfil (AWS IMDS, GCP metadata), and environment variable collection. 6 pattern categories: credential_theft, env_collection, key_file_exfil, base64_encoding, cloud_credential_exfil, secret_collection. Complements `config_file_scanning` with broader behavioral coverage. New `exfil_detection` violation type in constants, violations log, TUI, and web console. Wired into PreToolUse Bash hook. Also scans shell scripts (.sh/.bash/.zsh) in batch scan mode (Issue #1393).
+
 - **Canary token detection** — new `canary_detection` config section catches data exfiltration by detecting user-registered tripwire values in AI output. Supports exact-value matching and regex patterns. Complements secret scanning: canary detection uses user-registered values and bypasses entropy thresholds, making it effective for low-entropy strings that secret scanner intentionally filters. Disabled by default — enable after registering at least one token. New `canary_detected` violation type in constants, violations log, TUI, and web console. Wired into PreToolUse, PostToolUse, and UserPromptSubmit hooks (Issue #1392).
 
 - **Offensive language scanner** — new `scan_offensive` config section detects profanity, slurs, and non-inclusive terminology in code, comments, and variable names. Disabled by default; opt in via `enabled: true`. Three categories: `profanity`, `slurs` (on by default when enabled), `inclusive_language` (opt-in). Includes `suggestion` field in violation messages for inclusive language replacements. Works with `.aiguardignore.toml`, ask mode, and existing allowlist mechanisms. Pattern files excluded from self-scan via `.aiguardignore.toml`. New `offensive_language` violation type in constants, violations log, TUI, and web console (Issue #1417).
@@ -25,6 +27,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [1.12.2] - 2026-06-26
 
 ### Added
+
+- **Exfiltration behavior detection** — new `exfil_detection` config section catches bash commands that steal credentials: curl/wget with token vars, base64 encoding of secrets, SSH key file piped to network, cloud credential exfil (AWS IMDS, GCP metadata), and environment variable collection. 6 pattern categories: credential_theft, env_collection, key_file_exfil, base64_encoding, cloud_credential_exfil, secret_collection. Complements `config_file_scanning` with broader behavioral coverage. New `exfil_detection` violation type in constants, violations log, TUI, and web console. Wired into PreToolUse Bash hook. Also scans shell scripts (.sh/.bash/.zsh) in batch scan mode (Issue #1393).
 
 - **Project directory selector in web console header** — dropdown to select active project scope for all daemons, populated from daemon stats (Issue #1359)
 - **Half-moon tray icon for partially paused daemons** — shows distinct icon when some directories are paused but daemon is running (Issue #1365)
@@ -56,6 +60,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [1.12.0] - 2026-06-24
 
 ### Added
+
+- **Exfiltration behavior detection** — new `exfil_detection` config section catches bash commands that steal credentials: curl/wget with token vars, base64 encoding of secrets, SSH key file piped to network, cloud credential exfil (AWS IMDS, GCP metadata), and environment variable collection. 6 pattern categories: credential_theft, env_collection, key_file_exfil, base64_encoding, cloud_credential_exfil, secret_collection. Complements `config_file_scanning` with broader behavioral coverage. New `exfil_detection` violation type in constants, violations log, TUI, and web console. Wired into PreToolUse Bash hook. Also scans shell scripts (.sh/.bash/.zsh) in batch scan mode (Issue #1393).
 
 - **Interactive "ask" action mode** (Issue #1115)
   - New `action: "ask"` config option for secret_scanning, prompt_injection, scan_pii, context_poisoning, ssrf, directory_rules, tool_permissions, supply_chain, and config_scanner
@@ -220,6 +226,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Exfiltration behavior detection** — new `exfil_detection` config section catches bash commands that steal credentials: curl/wget with token vars, base64 encoding of secrets, SSH key file piped to network, cloud credential exfil (AWS IMDS, GCP metadata), and environment variable collection. 6 pattern categories: credential_theft, env_collection, key_file_exfil, base64_encoding, cloud_credential_exfil, secret_collection. Complements `config_file_scanning` with broader behavioral coverage. New `exfil_detection` violation type in constants, violations log, TUI, and web console. Wired into PreToolUse Bash hook. Also scans shell scripts (.sh/.bash/.zsh) in batch scan mode (Issue #1393).
+
 - **Curl file upload exfiltration detection** (Issue #1101)
   - Detect `curl -F`, `curl --upload-file`, and `curl -T` patterns targeting external hosts
   - New config-exfil patterns for file upload via HTTP
@@ -250,6 +258,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Exfiltration behavior detection** — new `exfil_detection` config section catches bash commands that steal credentials: curl/wget with token vars, base64 encoding of secrets, SSH key file piped to network, cloud credential exfil (AWS IMDS, GCP metadata), and environment variable collection. 6 pattern categories: credential_theft, env_collection, key_file_exfil, base64_encoding, cloud_credential_exfil, secret_collection. Complements `config_file_scanning` with broader behavioral coverage. New `exfil_detection` violation type in constants, violations log, TUI, and web console. Wired into PreToolUse Bash hook. Also scans shell scripts (.sh/.bash/.zsh) in batch scan mode (Issue #1393).
+
 - **Supply Chain Scanning** (Issue #1055)
   - New violation type `SUPPLY-CHAIN-001` for detecting malicious patterns in agent configuration files
   - Scans hooks (Claude, Cursor, Copilot, Codex, Windsurf, Gemini, Augment), MCP server configs, and plugin files (OpenCode, AiderDesk)
@@ -275,6 +285,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - uv shown as recommended, pip as alternative — matches install.sh behavior
 
 ### Added
+
+- **Exfiltration behavior detection** — new `exfil_detection` config section catches bash commands that steal credentials: curl/wget with token vars, base64 encoding of secrets, SSH key file piped to network, cloud credential exfil (AWS IMDS, GCP metadata), and environment variable collection. 6 pattern categories: credential_theft, env_collection, key_file_exfil, base64_encoding, cloud_credential_exfil, secret_collection. Complements `config_file_scanning` with broader behavioral coverage. New `exfil_detection` violation type in constants, violations log, TUI, and web console. Wired into PreToolUse Bash hook. Also scans shell scripts (.sh/.bash/.zsh) in batch scan mode (Issue #1393).
 
 - **Hook-pipeline smoke tests for SSRF, config exfil, and password** (Issue #1017)
   - PreToolUse: SSRF detection in Bash commands (`curl` to metadata endpoint)
@@ -323,6 +335,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Removed `toml is None` fallback guards (both libraries are now declared dependencies)
 
 ### Added
+
+- **Exfiltration behavior detection** — new `exfil_detection` config section catches bash commands that steal credentials: curl/wget with token vars, base64 encoding of secrets, SSH key file piped to network, cloud credential exfil (AWS IMDS, GCP metadata), and environment variable collection. 6 pattern categories: credential_theft, env_collection, key_file_exfil, base64_encoding, cloud_credential_exfil, secret_collection. Complements `config_file_scanning` with broader behavioral coverage. New `exfil_detection` violation type in constants, violations log, TUI, and web console. Wired into PreToolUse Bash hook. Also scans shell scripts (.sh/.bash/.zsh) in batch scan mode (Issue #1393).
 
 - **Expand toml-patterns with platform-specific secret rules** (Issue #972)
   - Added 8 new gap-filling rules for platforms not covered by gitleaks/leaktk engines
@@ -427,6 +441,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Remaining opt-in types: `canada_sin`, `india_aadhaar`, `address`, `email`
 
 ### Added
+
+- **Exfiltration behavior detection** — new `exfil_detection` config section catches bash commands that steal credentials: curl/wget with token vars, base64 encoding of secrets, SSH key file piped to network, cloud credential exfil (AWS IMDS, GCP metadata), and environment variable collection. 6 pattern categories: credential_theft, env_collection, key_file_exfil, base64_encoding, cloud_credential_exfil, secret_collection. Complements `config_file_scanning` with broader behavioral coverage. New `exfil_detection` violation type in constants, violations log, TUI, and web console. Wired into PreToolUse Bash hook. Also scans shell scripts (.sh/.bash/.zsh) in batch scan mode (Issue #1393).
 
 - **Installer post-install improvements** (Issue #911)
   - Run `ai-guardian doctor` as a non-fatal verification step at the end of install
@@ -542,6 +558,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Web console: metrics page shows cumulative totals + reset button with confirmation
 
 ### Added
+
+- **Exfiltration behavior detection** — new `exfil_detection` config section catches bash commands that steal credentials: curl/wget with token vars, base64 encoding of secrets, SSH key file piped to network, cloud credential exfil (AWS IMDS, GCP metadata), and environment variable collection. 6 pattern categories: credential_theft, env_collection, key_file_exfil, base64_encoding, cloud_credential_exfil, secret_collection. Complements `config_file_scanning` with broader behavioral coverage. New `exfil_detection` violation type in constants, violations log, TUI, and web console. Wired into PreToolUse Bash hook. Also scans shell scripts (.sh/.bash/.zsh) in batch scan mode (Issue #1393).
 
 - **NiceGUI fallback for tray plugin parameter popup** (Issue #862)
   - When tkinter is unavailable, tray plugin forms now open as a browser-based NiceGUI form (Python 3.10+)
@@ -668,6 +686,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Exfiltration behavior detection** — new `exfil_detection` config section catches bash commands that steal credentials: curl/wget with token vars, base64 encoding of secrets, SSH key file piped to network, cloud credential exfil (AWS IMDS, GCP metadata), and environment variable collection. 6 pattern categories: credential_theft, env_collection, key_file_exfil, base64_encoding, cloud_credential_exfil, secret_collection. Complements `config_file_scanning` with broader behavioral coverage. New `exfil_detection` violation type in constants, violations log, TUI, and web console. Wired into PreToolUse Bash hook. Also scans shell scripts (.sh/.bash/.zsh) in batch scan mode (Issue #1393).
+
 - **Web-based Console via daemon REST API** (Issue #679)
   - Browser-based dashboard as alternative to TUI console, powered by NiceGUI
   - Launch with `ai-guardian console --web` (auto-assigns free port, opens browser)
@@ -736,6 +756,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Pause/Resume and Start/Stop/Restart daemon grouped together (both are daemon operations)
 
 ### Added
+
+- **Exfiltration behavior detection** — new `exfil_detection` config section catches bash commands that steal credentials: curl/wget with token vars, base64 encoding of secrets, SSH key file piped to network, cloud credential exfil (AWS IMDS, GCP metadata), and environment variable collection. 6 pattern categories: credential_theft, env_collection, key_file_exfil, base64_encoding, cloud_credential_exfil, secret_collection. Complements `config_file_scanning` with broader behavioral coverage. New `exfil_detection` violation type in constants, violations log, TUI, and web console. Wired into PreToolUse Bash hook. Also scans shell scripts (.sh/.bash/.zsh) in batch scan mode (Issue #1393).
 
 - **Tag-based tray plugin filtering per daemon** (Issue #790)
   - Plugins can declare `tags` (array of strings) to target specific daemons
@@ -924,6 +946,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Exfiltration behavior detection** — new `exfil_detection` config section catches bash commands that steal credentials: curl/wget with token vars, base64 encoding of secrets, SSH key file piped to network, cloud credential exfil (AWS IMDS, GCP metadata), and environment variable collection. 6 pattern categories: credential_theft, env_collection, key_file_exfil, base64_encoding, cloud_credential_exfil, secret_collection. Complements `config_file_scanning` with broader behavioral coverage. New `exfil_detection` violation type in constants, violations log, TUI, and web console. Wired into PreToolUse Bash hook. Also scans shell scripts (.sh/.bash/.zsh) in batch scan mode (Issue #1393).
+
 - **Gemini CLI Hook Support** (Issue #634)
   - `ai-guardian setup --ide gemini` installs hooks to `~/.gemini/settings.json`
   - BeforeAgent, BeforeTool, and AfterTool hooks configured with `.*` matcher
@@ -1027,6 +1051,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [1.8.0] - 2026-05-19
 
 ### Added
+
+- **Exfiltration behavior detection** — new `exfil_detection` config section catches bash commands that steal credentials: curl/wget with token vars, base64 encoding of secrets, SSH key file piped to network, cloud credential exfil (AWS IMDS, GCP metadata), and environment variable collection. 6 pattern categories: credential_theft, env_collection, key_file_exfil, base64_encoding, cloud_credential_exfil, secret_collection. Complements `config_file_scanning` with broader behavioral coverage. New `exfil_detection` violation type in constants, violations log, TUI, and web console. Wired into PreToolUse Bash hook. Also scans shell scripts (.sh/.bash/.zsh) in batch scan mode (Issue #1393).
 
 - **Desktop shortcut and autostart for tray** (Issue #649)
   - `ai-guardian tray --install` creates a desktop shortcut (Applications menu)
@@ -1244,6 +1270,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [1.7.0] - 2026-05-13
 
 ### Added
+
+- **Exfiltration behavior detection** — new `exfil_detection` config section catches bash commands that steal credentials: curl/wget with token vars, base64 encoding of secrets, SSH key file piped to network, cloud credential exfil (AWS IMDS, GCP metadata), and environment variable collection. 6 pattern categories: credential_theft, env_collection, key_file_exfil, base64_encoding, cloud_credential_exfil, secret_collection. Complements `config_file_scanning` with broader behavioral coverage. New `exfil_detection` violation type in constants, violations log, TUI, and web console. Wired into PreToolUse Bash hook. Also scans shell scripts (.sh/.bash/.zsh) in batch scan mode (Issue #1393).
 
 - **Daemon service architecture** (Issue #367, Phases 1-3)
   - Long-running daemon process for faster hook processing (~1-5ms vs ~50-100ms per-invocation)
@@ -1577,6 +1605,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Exfiltration behavior detection** — new `exfil_detection` config section catches bash commands that steal credentials: curl/wget with token vars, base64 encoding of secrets, SSH key file piped to network, cloud credential exfil (AWS IMDS, GCP metadata), and environment variable collection. 6 pattern categories: credential_theft, env_collection, key_file_exfil, base64_encoding, cloud_credential_exfil, secret_collection. Complements `config_file_scanning` with broader behavioral coverage. New `exfil_detection` violation type in constants, violations log, TUI, and web console. Wired into PreToolUse Bash hook. Also scans shell scripts (.sh/.bash/.zsh) in batch scan mode (Issue #1393).
+
 - **Sanitize Command** (Issue #443)
   - New `ai-guardian sanitize` command for redacting secrets, PII, and threats from text
   - Neutralizes: secrets, PII, prompt injection patterns, unicode attacks (zero-width chars, bidi overrides, tag chars, homoglyphs)
@@ -1616,6 +1646,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - PostToolUse now correctly blocks tool output containing secrets regardless of redaction settings
 
 ### Added
+
+- **Exfiltration behavior detection** — new `exfil_detection` config section catches bash commands that steal credentials: curl/wget with token vars, base64 encoding of secrets, SSH key file piped to network, cloud credential exfil (AWS IMDS, GCP metadata), and environment variable collection. 6 pattern categories: credential_theft, env_collection, key_file_exfil, base64_encoding, cloud_credential_exfil, secret_collection. Complements `config_file_scanning` with broader behavioral coverage. New `exfil_detection` violation type in constants, violations log, TUI, and web console. Wired into PreToolUse Bash hook. Also scans shell scripts (.sh/.bash/.zsh) in batch scan mode (Issue #1393).
 
 - **Transcript Scanning for Secrets, PII, and Prompt Injection** (Issue #430)
   - Incrementally scans conversation transcript on each `UserPromptSubmit` event
@@ -1826,6 +1858,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Exfiltration behavior detection** — new `exfil_detection` config section catches bash commands that steal credentials: curl/wget with token vars, base64 encoding of secrets, SSH key file piped to network, cloud credential exfil (AWS IMDS, GCP metadata), and environment variable collection. 6 pattern categories: credential_theft, env_collection, key_file_exfil, base64_encoding, cloud_credential_exfil, secret_collection. Complements `config_file_scanning` with broader behavioral coverage. New `exfil_detection` violation type in constants, violations log, TUI, and web console. Wired into PreToolUse Bash hook. Also scans shell scripts (.sh/.bash/.zsh) in batch scan mode (Issue #1393).
+
 - **Scanner Installer: Skip Installation if Already Up-to-Date** (Issue #271)
   - **Smart Version Checking**: `ai-guardian scanner install` now checks if scanner is already installed before downloading
   - **Skip When Up-to-Date**: Automatically skips installation if the latest version is already installed
@@ -1973,6 +2007,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Exfiltration behavior detection** — new `exfil_detection` config section catches bash commands that steal credentials: curl/wget with token vars, base64 encoding of secrets, SSH key file piped to network, cloud credential exfil (AWS IMDS, GCP metadata), and environment variable collection. 6 pattern categories: credential_theft, env_collection, key_file_exfil, base64_encoding, cloud_credential_exfil, secret_collection. Complements `config_file_scanning` with broader behavioral coverage. New `exfil_detection` violation type in constants, violations log, TUI, and web console. Wired into PreToolUse Bash hook. Also scans shell scripts (.sh/.bash/.zsh) in batch scan mode (Issue #1393).
+
 - **LeakTK Pattern Server Documentation** (Issue #156)
   - Added comprehensive documentation for using LeakTK patterns as a pattern server
   - **README.md**: Added "Using LeakTK Patterns (Recommended)" section with quick start guide
@@ -2111,6 +2147,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     - `tests/test_ai_guardian.py`: Updated 3 tests to expect correct behavior
 
 ### Added
+
+- **Exfiltration behavior detection** — new `exfil_detection` config section catches bash commands that steal credentials: curl/wget with token vars, base64 encoding of secrets, SSH key file piped to network, cloud credential exfil (AWS IMDS, GCP metadata), and environment variable collection. 6 pattern categories: credential_theft, env_collection, key_file_exfil, base64_encoding, cloud_credential_exfil, secret_collection. Complements `config_file_scanning` with broader behavioral coverage. New `exfil_detection` violation type in constants, violations log, TUI, and web console. Wired into PreToolUse Bash hook. Also scans shell scripts (.sh/.bash/.zsh) in batch scan mode (Issue #1393).
 
 - **Local File Path Support in Remote Configurations** (Issue #223)
   - **Feature**: `remote_configs` now supports local file paths in addition to HTTPS URLs
@@ -2457,6 +2495,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [1.4.0] - 2026-04-21
 
 ### Added
+
+- **Exfiltration behavior detection** — new `exfil_detection` config section catches bash commands that steal credentials: curl/wget with token vars, base64 encoding of secrets, SSH key file piped to network, cloud credential exfil (AWS IMDS, GCP metadata), and environment variable collection. 6 pattern categories: credential_theft, env_collection, key_file_exfil, base64_encoding, cloud_credential_exfil, secret_collection. Complements `config_file_scanning` with broader behavioral coverage. New `exfil_detection` violation type in constants, violations log, TUI, and web console. Wired into PreToolUse Bash hook. Also scans shell scripts (.sh/.bash/.zsh) in batch scan mode (Issue #1393).
 - **Default config creation in setup command** (Issue #178)
   - New `--create-config` flag for `ai-guardian setup` command to create default `ai-guardian.json` config file
   - Two configuration modes:
@@ -2579,6 +2619,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [1.3.0] - 2026-04-09
 
 ### Added
+
+- **Exfiltration behavior detection** — new `exfil_detection` config section catches bash commands that steal credentials: curl/wget with token vars, base64 encoding of secrets, SSH key file piped to network, cloud credential exfil (AWS IMDS, GCP metadata), and environment variable collection. 6 pattern categories: credential_theft, env_collection, key_file_exfil, base64_encoding, cloud_credential_exfil, secret_collection. Complements `config_file_scanning` with broader behavioral coverage. New `exfil_detection` violation type in constants, violations log, TUI, and web console. Wired into PreToolUse Bash hook. Also scans shell scripts (.sh/.bash/.zsh) in batch scan mode (Issue #1393).
 - **Tool output scanning** with PostToolUse hook for Claude Code and Cursor
   - Scans Bash command outputs before sending to AI
   - Scans Read/Grep/WebFetch results for secrets
@@ -2607,6 +2649,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [1.2.0] - 2026-04-02
 
 ### Added
+
+- **Exfiltration behavior detection** — new `exfil_detection` config section catches bash commands that steal credentials: curl/wget with token vars, base64 encoding of secrets, SSH key file piped to network, cloud credential exfil (AWS IMDS, GCP metadata), and environment variable collection. 6 pattern categories: credential_theft, env_collection, key_file_exfil, base64_encoding, cloud_credential_exfil, secret_collection. Complements `config_file_scanning` with broader behavioral coverage. New `exfil_detection` violation type in constants, violations log, TUI, and web console. Wired into PreToolUse Bash hook. Also scans shell scripts (.sh/.bash/.zsh) in batch scan mode (Issue #1393).
 - **Prompt injection detection** with heuristic pattern matching
   - Fast, local detection (<1ms, privacy-preserving)
   - Configurable sensitivity levels (low, medium, high)
@@ -2625,6 +2669,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [1.1.0] - 2026-03-15
 
 ### Added
+
+- **Exfiltration behavior detection** — new `exfil_detection` config section catches bash commands that steal credentials: curl/wget with token vars, base64 encoding of secrets, SSH key file piped to network, cloud credential exfil (AWS IMDS, GCP metadata), and environment variable collection. 6 pattern categories: credential_theft, env_collection, key_file_exfil, base64_encoding, cloud_credential_exfil, secret_collection. Complements `config_file_scanning` with broader behavioral coverage. New `exfil_detection` violation type in constants, violations log, TUI, and web console. Wired into PreToolUse Bash hook. Also scans shell scripts (.sh/.bash/.zsh) in batch scan mode (Issue #1393).
 - **MCP Server & Skill Permissions** system for granular access control
   - Pattern-based allow/deny lists for Skills and MCP servers
   - Wildcard matching support (e.g., `daf-*`, `mcp__notebooklm__*`)
@@ -2650,6 +2696,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [1.0.0] - 2026-03-01
 
 ### Added
+
+- **Exfiltration behavior detection** — new `exfil_detection` config section catches bash commands that steal credentials: curl/wget with token vars, base64 encoding of secrets, SSH key file piped to network, cloud credential exfil (AWS IMDS, GCP metadata), and environment variable collection. 6 pattern categories: credential_theft, env_collection, key_file_exfil, base64_encoding, cloud_credential_exfil, secret_collection. Complements `config_file_scanning` with broader behavioral coverage. New `exfil_detection` violation type in constants, violations log, TUI, and web console. Wired into PreToolUse Bash hook. Also scans shell scripts (.sh/.bash/.zsh) in batch scan mode (Issue #1393).
 - **Secret scanning** with Gitleaks integration
   - Prompt scanning before AI interaction
   - File scanning before AI reads files
