@@ -450,6 +450,16 @@ class DaemonState:
             self._session_last_activity[session_key] = time.time()
         self._schedule_persist()
 
+    def has_reinject_pending(self, session_key):
+        """Check if a block-triggered re-injection is pending (not first-prompt).
+
+        Used by inject_trigger=after_block_only.
+        """
+        if not session_key:
+            return False
+        with self._lock:
+            return session_key in self._security_reinject_sessions
+
     # --- Config caching with auto-reload ---
 
     def get_config(self):

@@ -2188,6 +2188,23 @@
             }
           ],
           "default": true
+        },
+        "inject_trigger": {
+          "type": "string",
+          "enum": ["first_per_session", "every_prompt", "after_block_only"],
+          "description": "When to inject security rules: first_per_session (default, inject once per session + after blocks), every_prompt (inject on every UserPromptSubmit), after_block_only (only inject after a block event).",
+          "default": "first_per_session"
+        },
+        "custom_rules": {
+          "type": "array",
+          "items": {"type": "string"},
+          "description": "Additional security rules to append to (or replace) the built-in rules. Each string is one rule line.",
+          "default": []
+        },
+        "replace_defaults": {
+          "type": "boolean",
+          "description": "If true, custom_rules replaces the built-in security rules entirely. If false (default), custom_rules is appended to the built-in rules.",
+          "default": false
         }
       },
       "additionalProperties": false

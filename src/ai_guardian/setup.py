@@ -2100,9 +2100,12 @@ def _get_default_config_template(permissive: bool = False) -> Dict:
         },
         "_comment_on_scan_error": "Global behavior when a scanner encounters an error. 'allow' (default, fail-open): log warning, allow operation. 'block' (fail-closed): block operation if any scanner fails. For strict compliance environments. (NEW in v1.7.0, Issue #461)",
         "on_scan_error": "allow",
-        "_comment_security_instructions": "Security rule injection into AI context via systemMessage. Injected on first UserPromptSubmit per session and re-injected after blocks. Disable only for ai-guardian development. (v1.7.0 #580, v1.8.0 #584)",
+        "_comment_security_instructions": "Security rule injection into AI context via systemMessage. Injected on first UserPromptSubmit per session and re-injected after blocks. Customize with custom_rules or replace_defaults. Disable only for ai-guardian development. (v1.7.0 #580, v1.8.0 #584, v1.13.0 #1460)",
         "security_instructions": {
             "inject_on_prompt": True,
+            "inject_trigger": "first_per_session",
+            "custom_rules": [],
+            "replace_defaults": False,
         },
         "_comment_mcp_server": "MCP security advisor server. Exposes read-only security tools for AI agents. Installed by default during setup. Use --no-mcp to skip. (NEW in v1.7.0, Issue #477)",
         "mcp_server": {

@@ -70,6 +70,7 @@ NAV_GROUPS = [
     (
         "Configuration",
         [
+            ("Security Instructions", "/security-instructions"),
             ("Daemon", "/daemon"),
             ("Config Cache", "/cache-status"),
             ("Remote Configs", "/remote-configs"),
