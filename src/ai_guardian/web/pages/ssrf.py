@@ -6,7 +6,7 @@ from datetime import datetime, timedelta, timezone
 from nicegui import run, ui
 
 from ai_guardian.web.components.header import create_header, create_sidebar
-from ai_guardian.web.components.help_panel import add_help_button
+from ai_guardian.web.components.help_panel import add_help_button, field_help_icon
 from ai_guardian.web.config_helpers import load_web_config, save_web_config
 
 CORE_PROTECTIONS = {
@@ -241,7 +241,9 @@ def create_ssrf_page(service, daemon_name: str):
                                         ui.label(item).classes("text-xs")
 
                     with ui.card().classes("w-full"):
-                        ui.label("Action Mode").classes("text-lg font-bold")
+                        with ui.row().classes("items-center gap-1"):
+                            ui.label("Action Mode").classes("text-lg font-bold")
+                            field_help_icon("ssrf_protection.action")
                         ui.label(
                             "What happens when an SSRF attempt is detected."
                         ).classes("text-xs text-grey-6")
@@ -271,7 +273,9 @@ def create_ssrf_page(service, daemon_name: str):
                         act_sel.on_value_change(save_action)
 
                     with ui.card().classes("w-full"):
-                        ui.label("Allow Localhost").classes("text-lg font-bold")
+                        with ui.row().classes("items-center gap-1"):
+                            ui.label("Allow Localhost").classes("text-lg font-bold")
+                            field_help_icon("ssrf_protection.allow_localhost")
                         ui.label(
                             "Allow requests to localhost and 127.0.0.1 (not recommended)."
                         ).classes("text-xs text-grey-6")
@@ -293,7 +297,11 @@ def create_ssrf_page(service, daemon_name: str):
                         lh_sw.on_value_change(save_localhost)
 
                     with ui.card().classes("w-full"):
-                        ui.label("Additional Blocked IPs").classes("text-lg font-bold")
+                        with ui.row().classes("items-center gap-1"):
+                            ui.label("Additional Blocked IPs").classes(
+                                "text-lg font-bold"
+                            )
+                            field_help_icon("ssrf_protection.additional_blocked_ips")
                         ui.label(
                             "Custom IP addresses or CIDR ranges to block."
                         ).classes("text-xs text-grey-6")
@@ -439,7 +447,9 @@ def create_ssrf_page(service, daemon_name: str):
                             )
 
                     with ui.card().classes("w-full"):
-                        ui.label("Allowed Domains").classes("text-lg font-bold")
+                        with ui.row().classes("items-center gap-1"):
+                            ui.label("Allowed Domains").classes("text-lg font-bold")
+                            field_help_icon("ssrf_protection.allowed_domains")
                         ui.label(
                             "Domains explicitly allowed for outbound requests. "
                             "Cannot override immutable core protections."
@@ -514,7 +524,9 @@ def create_ssrf_page(service, daemon_name: str):
 
                     # --- Ignore files ---
                     with ui.card().classes("w-full"):
-                        ui.label("Ignore Files").classes("text-lg font-bold")
+                        with ui.row().classes("items-center gap-1"):
+                            ui.label("Ignore Files").classes("text-lg font-bold")
+                            field_help_icon("ssrf_protection.ignore_files")
                         ui.label(
                             "Glob patterns for files to exclude from SSRF checks."
                         ).classes("text-xs text-grey-6")
@@ -590,7 +602,9 @@ def create_ssrf_page(service, daemon_name: str):
 
                     # --- Ignore tools ---
                     with ui.card().classes("w-full"):
-                        ui.label("Ignore Tools").classes("text-lg font-bold")
+                        with ui.row().classes("items-center gap-1"):
+                            ui.label("Ignore Tools").classes("text-lg font-bold")
+                            field_help_icon("ssrf_protection.ignore_tools")
                         ui.label(
                             "Tool name patterns to exclude from SSRF checks."
                         ).classes("text-xs text-grey-6")

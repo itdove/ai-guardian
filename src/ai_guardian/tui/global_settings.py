@@ -281,6 +281,40 @@ class GlobalSettingsContent(SchemaDefaultsMixin, Container):
 
     def on_mount(self) -> None:
         self.load_config()
+        self._apply_tooltips()
+
+    def _apply_tooltips(self) -> None:
+        """Set Textual tooltips from CONFIG_FIELD_HELP on key widgets."""
+        try:
+            from ai_guardian.help_content import CONFIG_FIELD_HELP
+        except Exception:
+            return
+
+        on_scan_error_help = CONFIG_FIELD_HELP.get("on_scan_error")
+        if on_scan_error_help:
+            try:
+                self.query_one("#on_scan_error_select", Select).tooltip = (
+                    on_scan_error_help
+                )
+            except Exception:
+                pass
+
+        for section, config_key, _ in FEATURES:
+            section_help = CONFIG_FIELD_HELP.get(section)
+            if section_help:
+                try:
+                    self.query_one(f"#{config_key}_toggle").tooltip = section_help
+                except Exception:
+                    pass
+
+            action_help = CONFIG_FIELD_HELP.get(f"{section}.action")
+            if action_help:
+                try:
+                    self.query_one(f"#{config_key}_action", Select).tooltip = (
+                        action_help
+                    )
+                except Exception:
+                    pass
 
     def refresh_content(self) -> None:
         self.load_config()

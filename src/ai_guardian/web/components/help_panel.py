@@ -68,3 +68,35 @@ def add_help_button(scanner_key: str) -> None:
     ).props(
         "flat round dense color=primary"
     ).tooltip("Learn more about this scanner")
+
+
+def field_help_icon(field_key: str, label: str | None = None) -> None:
+    """Render a small (?) icon that shows help text for a config field.
+
+    Hover shows a short tooltip; click opens a modal with full text.
+    Call inside any row/container alongside the field label.
+    """
+    from ai_guardian.help_content import CONFIG_FIELD_HELP
+
+    text = CONFIG_FIELD_HELP.get(field_key)
+    if not text:
+        return
+
+    display_label = label or field_key.replace(".", " › ")
+    truncated = text[:120] + ("…" if len(text) > 120 else "")
+
+    with ui.dialog() as dialog, ui.card().classes("w-full max-w-lg"):
+        with ui.row().classes("w-full items-center justify-between mb-2"):
+            ui.label(display_label).classes("text-sm font-bold")
+            ui.button(icon="close", on_click=dialog.close).props("flat round dense")
+        ui.separator()
+        ui.label(text).classes("text-sm mt-2")
+        with ui.row().classes("mt-3"):
+            ui.button("Close", on_click=dialog.close).props("flat")
+
+    ui.button(
+        icon="help_outline",
+        on_click=dialog.open,
+    ).props(
+        "flat round dense color=grey-7 size=xs"
+    ).tooltip(truncated)

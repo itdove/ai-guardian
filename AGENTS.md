@@ -113,6 +113,26 @@ pytest -k "test_something" -v
 - Run coverage reports before submitting PRs
 - Add tests for new features and bug fixes
 
+#### NiceGUI / Web Console Tests (Python 3.9 Incompatibility)
+
+**NiceGUI requires Python >= 3.10.** Tests that import anything from `src/ai_guardian/web/` will fail on Python 3.9 because `from nicegui import ui` fails at module import time.
+
+**Required pattern** — always guard web component imports with `pytest.importorskip`:
+
+```python
+# At module level, before any web imports:
+nicegui = pytest.importorskip("nicegui", reason="NiceGUI requires Python >= 3.10")
+
+# Or per-class with a mark:
+import pytest
+pytestmark = pytest.mark.skipif(
+    not __import__("importlib").util.find_spec("nicegui"),
+    reason="NiceGUI requires Python >= 3.10",
+)
+```
+
+This ensures the test is **skipped** on Python 3.9 rather than **erroring**, which is the correct behavior — the web console is not supported on 3.9, and tests that exercise it should skip cleanly.
+
 ### User Experience Contract Tests
 
 **IMPORTANT**: When adding or modifying security features that affect what users see in Claude Code, create UX contract tests in `tests/ux/`.
@@ -1130,7 +1150,8 @@ A scanner is a new detection engine that integrates into the hook pipeline and `
 - [ ] `src/ai_guardian/mcp_server.py` — add suggestion string to `_SAFE_SUGGESTIONS` dict; `scan_directory` picks up new findings automatically via `FileScanner`
 
 #### 8. Config defaults & schema
-- [ ] `src/ai_guardian/setup.py` — add `"_comment_<scanner>"` + `"<scanner>"` section to `_create_default_config()`
+- [ ] `src/ai_guardian/setup.py` — add `"_comment_<scanner>"` (top-level) **and** `"_comment_action"`, `"_comment_enabled"` etc. (nested inside the scanner dict) to `_create_default_config()`. These are auto-extracted into `CONFIG_FIELD_HELP` by `_build_field_help()` — every `_comment_*` key you add here becomes a tooltip automatically.
+- [ ] `src/ai_guardian/help_content.py` — for any field not covered by a `_comment_*` key in `setup.py`, add a manual entry to `_FIELD_HELP_SUPPLEMENT` following the `"<scanner>.<field>"` key convention.
 - [ ] `src/ai_guardian/schemas/ai-guardian-config.schema.json`:
   - Add `"<scanner>"` object with full property definitions
   - Add `"<scanner>"` to the `violation_type` enum array (two places: `enum` + `default`)
@@ -1138,7 +1159,7 @@ A scanner is a new detection engine that integrates into the hook pipeline and `
 - [ ] All four profile templates: `src/ai_guardian/templates/profiles/{minimal,standard,strict,moderator}.json`
 
 #### 9. TUI console
-- [ ] `src/ai_guardian/tui/<scanner>.py` — new `*Content(Container)` panel (config status, violations, inline help)
+- [ ] `src/ai_guardian/tui/<scanner>.py` — new `*Content(Container)` panel (config status, violations, inline help). Add `_apply_tooltips()` method that calls `CONFIG_FIELD_HELP.get("<scanner>.<field>")` and sets `.tooltip` on key widgets (enable toggle, action select, etc.). Call `_apply_tooltips()` from `on_mount()` after `load_config()`.
 - [ ] `src/ai_guardian/tui/app.py`:
   - Add `("Label", "panel-<scanner>")` to the relevant `NAV_GROUPS` section
   - Add `with Container(id="panel-<scanner>"): yield <Scanner>Content()` in the compose tree
@@ -1154,7 +1175,7 @@ A scanner is a new detection engine that integrates into the hook pipeline and `
 - [ ] `tests/unit/test_tui.py` — update nav leaf count assertion
 
 #### 10. Web console
-- [ ] `src/ai_guardian/web/pages/<scanner>.py` — new `create_<scanner>_page(service, daemon_name)` with enable toggle, action selector, config options
+- [ ] `src/ai_guardian/web/pages/<scanner>.py` — new `create_<scanner>_page(service, daemon_name)` with enable toggle, action selector, config options. Import `field_help_icon` from `ai_guardian.web.components.help_panel` and add `field_help_icon("<scanner>")` next to section headers and `field_help_icon("<scanner>.<field>")` next to individual field labels (action, ignore_files, ignore_tools, etc.).
 - [ ] `src/ai_guardian/web/app.py` — add `@ui.page("/{daemon_name}/<slug>")` route
 - [ ] `src/ai_guardian/web/components/header.py` — add `("Label", "/<slug>")` to the relevant nav group
 - [ ] `src/ai_guardian/web/pages/global_settings.py`:
@@ -1175,7 +1196,15 @@ A scanner is a new detection engine that integrates into the hook pipeline and `
 #### 11. Tests
 - [ ] `tests/unit/test_<scanner>.py` — unit tests: clean input, known-bad input, config options (threshold, allowlist), suppression annotations, robustness (empty input, parse errors)
 
-#### 12. Don't forget
+#### 12. Help tooltips
+- [ ] `src/ai_guardian/setup.py` — add `_comment_*` keys inside the scanner dict for each configurable field so they surface automatically as tooltips in both consoles
+- [ ] `src/ai_guardian/help_content.py` → `_FIELD_HELP_SUPPLEMENT` — add any field that setup.py doesn't cover with a `_comment_*` key (use `"<scanner>.<field>"` keys)
+- [ ] `src/ai_guardian/tui/<scanner>.py` — `_apply_tooltips()` sets `.tooltip` on key widgets from `CONFIG_FIELD_HELP`
+- [ ] `src/ai_guardian/web/pages/<scanner>.py` — `field_help_icon("<scanner>.<field>")` called next to every section and field label
+- [ ] `src/ai_guardian/web/pages/global_settings.py` — existing loop calls `field_help_icon(section)` and `field_help_icon(f"{section}.action")` automatically for any new scanner added to `FEATURE_GROUPS`
+- [ ] `src/ai_guardian/tui/global_settings.py` — existing `_apply_tooltips()` loop covers any new scanner added to `FEATURES`
+
+#### 13. Don't forget
 - [ ] `.aiguardignore.toml` scanner type — add to `SCANNER_TYPES` in `aiguardignore.py` if file-content based
 - [ ] `docs/AGENT_SUPPORT.md` — add row to Violation Type Coverage Matrix
 - [ ] `CHANGELOG.md` — add entry under `[Unreleased]`

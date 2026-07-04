@@ -3,7 +3,7 @@
 from nicegui import ui
 
 from ai_guardian.web.components.header import create_header, create_sidebar
-from ai_guardian.web.components.help_panel import add_help_button
+from ai_guardian.web.components.help_panel import add_help_button, field_help_icon
 from ai_guardian.web.config_helpers import load_web_config, save_web_config
 
 
@@ -69,7 +69,9 @@ def create_canary_detection_page(service, daemon_name: str):
 
             # Configuration
             with ui.card().classes("w-full"):
-                ui.label("Configuration").classes("text-lg font-bold mb-2")
+                with ui.row().classes("items-center gap-1 mb-2"):
+                    ui.label("Configuration").classes("text-lg font-bold")
+                    field_help_icon("canary_detection")
 
                 enable_toggle = ui.switch(
                     "Enable canary token detection", value=enabled
@@ -96,7 +98,9 @@ def create_canary_detection_page(service, daemon_name: str):
 
             # Tokens editor
             with ui.card().classes("w-full"):
-                ui.label("Tokens").classes("text-lg font-bold mb-2")
+                with ui.row().classes("items-center gap-1 mb-2"):
+                    ui.label("Tokens").classes("text-lg font-bold")
+                    field_help_icon("canary_detection.tokens")
                 ui.label(
                     "One token per line. Format: value=<exact_string> or pattern=<regex>. "
                     "Optionally append :description=<label>.\n"

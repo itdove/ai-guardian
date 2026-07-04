@@ -6,7 +6,7 @@ from datetime import datetime, timedelta, timezone
 from nicegui import run, ui
 
 from ai_guardian.web.components.header import create_header, create_sidebar
-from ai_guardian.web.components.help_panel import add_help_button
+from ai_guardian.web.components.help_panel import add_help_button, field_help_icon
 from ai_guardian.web.config_helpers import load_web_config, save_web_config
 
 DURATION_RE = re_mod.compile(r"^(?:(\d+)d)?(?:(\d+)h)?(?:(\d+)m)?$", re_mod.IGNORECASE)
@@ -199,7 +199,9 @@ def create_pi_detection_page(service, daemon_name: str):
                     )
 
                     with ui.card().classes("w-full"):
-                        ui.label("Action Mode").classes("text-lg font-bold")
+                        with ui.row().classes("items-center gap-1"):
+                            ui.label("Action Mode").classes("text-lg font-bold")
+                            field_help_icon("prompt_injection")
                         ui.label(
                             "What happens when a prompt injection is detected."
                         ).classes("text-xs text-grey-6")
@@ -229,7 +231,9 @@ def create_pi_detection_page(service, daemon_name: str):
                         act_sel.on_value_change(save_action)
 
                     with ui.card().classes("w-full"):
-                        ui.label("Detector Engine").classes("text-lg font-bold")
+                        with ui.row().classes("items-center gap-1"):
+                            ui.label("Detector Engine").classes("text-lg font-bold")
+                            field_help_icon("prompt_injection.detector")
                         ui.label("Choose which detection engine to use.").classes(
                             "text-xs text-grey-6"
                         )
@@ -261,7 +265,9 @@ def create_pi_detection_page(service, daemon_name: str):
                         det_sel.on_value_change(save_detector)
 
                     with ui.card().classes("w-full"):
-                        ui.label("Sensitivity").classes("text-lg font-bold")
+                        with ui.row().classes("items-center gap-1"):
+                            ui.label("Sensitivity").classes("text-lg font-bold")
+                            field_help_icon("prompt_injection.sensitivity")
                         ui.label("Set the detection sensitivity level.").classes(
                             "text-xs text-grey-6"
                         )
@@ -288,7 +294,9 @@ def create_pi_detection_page(service, daemon_name: str):
                         sens_sel.on_value_change(save_sensitivity)
 
                     with ui.card().classes("w-full"):
-                        ui.label("Max Score Threshold").classes("text-lg font-bold")
+                        with ui.row().classes("items-center gap-1"):
+                            ui.label("Max Score Threshold").classes("text-lg font-bold")
+                            field_help_icon("prompt_injection.max_score_threshold")
                         ui.label(
                             "Inputs scoring above this threshold are flagged as injections (0.0-1.0)."
                         ).classes("text-xs text-grey-6")
@@ -317,7 +325,9 @@ def create_pi_detection_page(service, daemon_name: str):
                         thr_input.on_value_change(save_threshold)
 
                     with ui.card().classes("w-full"):
-                        ui.label("Ignore Files").classes("text-lg font-bold")
+                        with ui.row().classes("items-center gap-1"):
+                            ui.label("Ignore Files").classes("text-lg font-bold")
+                            field_help_icon("prompt_injection.ignore_files")
                         ui.label(
                             "Glob patterns for files to skip during prompt injection scanning."
                         ).classes("text-xs text-grey-6")
@@ -390,7 +400,9 @@ def create_pi_detection_page(service, daemon_name: str):
                             ).props("dense")
 
                     with ui.card().classes("w-full"):
-                        ui.label("Ignore Tools").classes("text-lg font-bold")
+                        with ui.row().classes("items-center gap-1"):
+                            ui.label("Ignore Tools").classes("text-lg font-bold")
+                            field_help_icon("prompt_injection.ignore_tools")
                         ui.label(
                             "Tool name patterns to skip during prompt injection scanning."
                         ).classes("text-xs text-grey-6")

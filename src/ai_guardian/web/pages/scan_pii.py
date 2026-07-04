@@ -6,7 +6,7 @@ from datetime import datetime, timedelta, timezone
 from nicegui import run, ui
 
 from ai_guardian.web.components.header import create_header, create_sidebar
-from ai_guardian.web.components.help_panel import add_help_button
+from ai_guardian.web.components.help_panel import add_help_button, field_help_icon
 from ai_guardian.web.config_helpers import load_web_config, save_web_config
 
 PHASE1_PII_TYPES = [
@@ -233,7 +233,9 @@ def create_scan_pii_page(service, daemon_name: str):
                     )
 
                     with ui.card().classes("w-full"):
-                        ui.label("Action Mode").classes("text-lg font-bold")
+                        with ui.row().classes("items-center gap-1"):
+                            ui.label("Action Mode").classes("text-lg font-bold")
+                            field_help_icon("scan_pii")
                         ui.label("What happens when PII is detected.").classes(
                             "text-xs text-grey-6"
                         )
@@ -264,7 +266,9 @@ def create_scan_pii_page(service, daemon_name: str):
                         act_sel.on_value_change(save_action)
 
                     with ui.card().classes("w-full"):
-                        ui.label("PII Types").classes("text-lg font-bold")
+                        with ui.row().classes("items-center gap-1"):
+                            ui.label("PII Types").classes("text-lg font-bold")
+                            field_help_icon("scan_pii.pii_types")
                         ui.label("Select which PII types to detect.").classes(
                             "text-xs text-grey-6"
                         )
@@ -330,7 +334,9 @@ def create_scan_pii_page(service, daemon_name: str):
                             cb.on_value_change(on_pii_change2)
 
                     with ui.card().classes("w-full"):
-                        ui.label("Ignore Files").classes("text-lg font-bold")
+                        with ui.row().classes("items-center gap-1"):
+                            ui.label("Ignore Files").classes("text-lg font-bold")
+                            field_help_icon("scan_pii.ignore_files")
                         ui.label(
                             "Glob patterns for files to exclude from PII scanning."
                         ).classes("text-xs text-grey-6")
@@ -403,7 +409,9 @@ def create_scan_pii_page(service, daemon_name: str):
                             ).props("dense")
 
                     with ui.card().classes("w-full"):
-                        ui.label("Ignore Tools").classes("text-lg font-bold")
+                        with ui.row().classes("items-center gap-1"):
+                            ui.label("Ignore Tools").classes("text-lg font-bold")
+                            field_help_icon("scan_pii.ignore_tools")
                         ui.label(
                             "Tool name patterns to exclude from PII scanning."
                         ).classes("text-xs text-grey-6")
@@ -478,7 +486,9 @@ def create_scan_pii_page(service, daemon_name: str):
                             ).props("dense")
 
                     with ui.card().classes("w-full"):
-                        ui.label("Allowlist Patterns").classes("text-lg font-bold")
+                        with ui.row().classes("items-center gap-1"):
+                            ui.label("Allowlist Patterns").classes("text-lg font-bold")
+                            field_help_icon("scan_pii.allowlist_patterns")
                         ui.label(
                             "Regex patterns for known-safe PII values. "
                             "Supports optional expiration via valid_until."

@@ -6,7 +6,7 @@ from datetime import datetime, timedelta, timezone
 from nicegui import run, ui
 
 from ai_guardian.web.components.header import create_header, create_sidebar
-from ai_guardian.web.components.help_panel import add_help_button
+from ai_guardian.web.components.help_panel import add_help_button, field_help_icon
 from ai_guardian.web.config_helpers import load_web_config, save_web_config
 
 DURATION_RE = re_mod.compile(r"^(?:(\d+)d)?(?:(\d+)h)?(?:(\d+)m)?$", re_mod.IGNORECASE)
@@ -193,7 +193,9 @@ def create_context_poisoning_page(service, daemon_name: str):
                     )
 
                     with ui.card().classes("w-full"):
-                        ui.label("Action Mode").classes("text-lg font-bold")
+                        with ui.row().classes("items-center gap-1"):
+                            ui.label("Action Mode").classes("text-lg font-bold")
+                            field_help_icon("context_poisoning")
                         ui.label(
                             "What happens when context poisoning is detected. 'Warn' recommended due to false positives."
                         ).classes("text-xs text-grey-6")
@@ -223,7 +225,9 @@ def create_context_poisoning_page(service, daemon_name: str):
                         act_sel.on_value_change(save_action)
 
                     with ui.card().classes("w-full"):
-                        ui.label("Sensitivity").classes("text-lg font-bold")
+                        with ui.row().classes("items-center gap-1"):
+                            ui.label("Sensitivity").classes("text-lg font-bold")
+                            field_help_icon("context_poisoning.sensitivity")
                         ui.label("Set the detection sensitivity level.").classes(
                             "text-xs text-grey-6"
                         )
@@ -250,7 +254,9 @@ def create_context_poisoning_page(service, daemon_name: str):
                         sens_sel.on_value_change(save_sensitivity)
 
                     with ui.card().classes("w-full"):
-                        ui.label("Allowlist Patterns").classes("text-lg font-bold")
+                        with ui.row().classes("items-center gap-1"):
+                            ui.label("Allowlist Patterns").classes("text-lg font-bold")
+                            field_help_icon("context_poisoning.allowlist_patterns")
                         ui.label(
                             "Regex patterns to ignore (for false positives like 'remember to validate input')."
                         ).classes("text-xs text-grey-6")
@@ -328,7 +334,9 @@ def create_context_poisoning_page(service, daemon_name: str):
                             )
 
                     with ui.card().classes("w-full"):
-                        ui.label("Custom Patterns").classes("text-lg font-bold")
+                        with ui.row().classes("items-center gap-1"):
+                            ui.label("Custom Patterns").classes("text-lg font-bold")
+                            field_help_icon("context_poisoning.custom_patterns")
                         ui.label(
                             "Additional persistence patterns to detect beyond built-in set."
                         ).classes("text-xs text-grey-6")
@@ -401,7 +409,9 @@ def create_context_poisoning_page(service, daemon_name: str):
                             )
 
                     with ui.card().classes("w-full"):
-                        ui.label("Ignore Files").classes("text-lg font-bold")
+                        with ui.row().classes("items-center gap-1"):
+                            ui.label("Ignore Files").classes("text-lg font-bold")
+                            field_help_icon("context_poisoning.ignore_files")
                         ui.label(
                             "Glob patterns for files to skip during context poisoning scanning."
                         ).classes("text-xs text-grey-6")
@@ -474,7 +484,9 @@ def create_context_poisoning_page(service, daemon_name: str):
                             ).props("dense")
 
                     with ui.card().classes("w-full"):
-                        ui.label("Ignore Tools").classes("text-lg font-bold")
+                        with ui.row().classes("items-center gap-1"):
+                            ui.label("Ignore Tools").classes("text-lg font-bold")
+                            field_help_icon("context_poisoning.ignore_tools")
                         ui.label(
                             "Tool names to skip during context poisoning scanning."
                         ).classes("text-xs text-grey-6")

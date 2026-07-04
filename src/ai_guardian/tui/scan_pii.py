@@ -283,6 +283,24 @@ class ScanPIIContent(SchemaDefaultsMixin, Container):
     def on_mount(self) -> None:
         self._loading = False
         self.load_config()
+        self._apply_tooltips()
+
+    def _apply_tooltips(self) -> None:
+        """Set Textual tooltips from CONFIG_FIELD_HELP on key widgets."""
+        try:
+            from ai_guardian.help_content import CONFIG_FIELD_HELP
+        except Exception:
+            return
+        _tip = {
+            "scan_pii_enabled_toggle": CONFIG_FIELD_HELP.get("scan_pii"),
+            "pii-action-select": CONFIG_FIELD_HELP.get("scan_pii"),
+        }
+        for widget_id, help_text in _tip.items():
+            if help_text:
+                try:
+                    self.query_one(f"#{widget_id}").tooltip = help_text
+                except Exception:
+                    pass
 
     def refresh_content(self) -> None:
         self.load_config()
