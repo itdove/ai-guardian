@@ -314,6 +314,7 @@ class DaemonTray:
 
         # Stale daemon detection (#1465)
         self._stale_code_warned = False
+        self._restart_in_progress = False  # #1473: guard against double-click
 
         # Remote ask prompt forwarding (#1342)
         self._in_flight_prompts = set()
@@ -2647,9 +2648,18 @@ class DaemonTray:
         }
 
         def _stale_vis(_item):
-            return self._is_single_daemon() and self._stale_code_warned
+            return (
+                self._is_single_daemon()
+                and self._stale_code_warned
+                and not self._restart_in_progress
+            )
 
         def _on_restart_daemon(_icon, _item):
+            if self._restart_in_progress:
+                return
+            self._restart_in_progress = True
+            self._dispatch_to_main(self._refresh_menu)
+
             cmd = DaemonTray._resolve_cli_cmd("daemon", "restart")
             import subprocess as _sp
 
@@ -2663,6 +2673,39 @@ class DaemonTray:
                 )
             except OSError as e:
                 logger.error("Failed to restart daemon: %s", e)
+                self._restart_in_progress = False
+                self._dispatch_to_main(self._refresh_menu)
+                return
+
+            def _poll_for_new_daemon():
+                import json as _json
+
+                from ai_guardian.daemon import get_pid_path
+
+                pid_path = get_pid_path()
+                old_pid = None
+                try:
+                    if pid_path.exists():
+                        old_pid = _json.loads(pid_path.read_text()).get("pid")
+                except Exception:
+                    pass
+
+                for _ in range(100):
+                    time.sleep(0.1)
+                    try:
+                        if pid_path.exists():
+                            new_pid = _json.loads(pid_path.read_text()).get("pid")
+                            if new_pid and new_pid != old_pid:
+                                break
+                    except Exception:
+                        pass
+
+                self._restart_in_progress = False
+                self._refresh_event.set()
+
+            threading.Thread(
+                target=_poll_for_new_daemon, daemon=True, name="restart-poll"
+            ).start()
 
         return [
             pystray.MenuItem(
