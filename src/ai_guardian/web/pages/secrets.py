@@ -6,7 +6,7 @@ from datetime import datetime, timedelta, timezone
 from nicegui import run, ui
 
 from ai_guardian.web.components.header import create_header, create_sidebar
-from ai_guardian.web.components.help_panel import add_help_button
+from ai_guardian.web.components.help_panel import add_help_button, field_help_icon
 from ai_guardian.web.config_helpers import load_web_config, save_web_config
 
 DURATION_RE = re_mod.compile(r"^(?:(\d+)d)?(?:(\d+)h)?(?:(\d+)m)?$", re_mod.IGNORECASE)
@@ -192,7 +192,9 @@ def create_secrets_page(service, daemon_name: str):
 
                     # --- Action mode ---
                     with ui.card().classes("w-full"):
-                        ui.label("Action Mode").classes("text-lg font-bold")
+                        with ui.row().classes("items-center gap-1"):
+                            ui.label("Action Mode").classes("text-lg font-bold")
+                            field_help_icon("secret_scanning.action")
                         ui.label("What happens when secrets are detected.").classes(
                             "text-xs text-grey-6"
                         )
@@ -302,9 +304,11 @@ def create_secrets_page(service, daemon_name: str):
 
                     # --- False Positive Filtering: Entropy (Issue #1091) ---
                     with ui.card().classes("w-full"):
-                        ui.label("Minimum Entropy Threshold").classes(
-                            "text-lg font-bold"
-                        )
+                        with ui.row().classes("items-center gap-1"):
+                            ui.label("Minimum Entropy Threshold").classes(
+                                "text-lg font-bold"
+                            )
+                            field_help_icon("secret_scanning.entropy")
                         ui.label(
                             "Shannon entropy filter for secret detection. Matches below "
                             "this threshold are rejected as likely placeholders. "
@@ -361,7 +365,9 @@ def create_secrets_page(service, daemon_name: str):
 
                     # --- False Positive Filtering: Stopwords (Issue #1091) ---
                     with ui.card().classes("w-full"):
-                        ui.label("Stopwords").classes("text-lg font-bold")
+                        with ui.row().classes("items-center gap-1"):
+                            ui.label("Stopwords").classes("text-lg font-bold")
+                            field_help_icon("secret_scanning.stopwords")
                         ui.label(
                             "Matched secrets containing these words are suppressed "
                             "(case-insensitive substring match). User words are merged "
@@ -796,7 +802,9 @@ def create_secrets_page(service, daemon_name: str):
                     validate_on = ss.get("validate_secrets", False)
 
                     with ui.card().classes("w-full"):
-                        ui.label("Secret Validation").classes("text-lg font-bold")
+                        with ui.row().classes("items-center gap-1"):
+                            ui.label("Secret Validation").classes("text-lg font-bold")
+                            field_help_icon("secret_scanning.validate_secrets")
                         ui.label(
                             "Validate detected secrets against provider APIs "
                             "to check if they are still active."

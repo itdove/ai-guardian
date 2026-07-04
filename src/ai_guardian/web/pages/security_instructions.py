@@ -3,6 +3,7 @@
 from nicegui import run, ui
 
 from ai_guardian.web.components.header import create_header, create_sidebar
+from ai_guardian.web.components.help_panel import field_help_icon
 from ai_guardian.web.config_helpers import load_web_config, save_web_config
 
 
@@ -35,7 +36,9 @@ def create_security_instructions_page(service, daemon_name: str):
         create_sidebar(daemon_name, current=f"/{daemon_name}/security-instructions")
 
         with ui.column().classes("flex-grow p-6 gap-4"):
-            ui.label("Security Instructions").classes("text-2xl font-bold")
+            with ui.row().classes("items-center gap-2"):
+                ui.label("Security Instructions").classes("text-2xl font-bold")
+                field_help_icon("security_instructions")
             ui.label(
                 "Configure the security rules injected into the AI agent's context "
                 "via systemMessage on UserPromptSubmit. These rules instruct the agent "

@@ -438,6 +438,30 @@ class SecretsContent(SchemaDefaultsMixin, Container):
         """Load configuration when mounted."""
         self._loading = False
         self.load_config()
+        self._apply_tooltips()
+
+    def _apply_tooltips(self) -> None:
+        """Set Textual tooltips from CONFIG_FIELD_HELP on key widgets."""
+        try:
+            from ai_guardian.help_content import CONFIG_FIELD_HELP
+        except Exception:
+            return
+
+        _tip = {
+            "secret-action-select": CONFIG_FIELD_HELP.get("secret_scanning.action"),
+            "min-entropy-input": CONFIG_FIELD_HELP.get("secret_scanning.entropy"),
+            "stopwords-input": CONFIG_FIELD_HELP.get("secret_scanning.stopwords"),
+            "validate-secrets-checkbox": CONFIG_FIELD_HELP.get(
+                "secret_scanning.validate_secrets"
+            ),
+            "secret_scanning_enabled_toggle": CONFIG_FIELD_HELP.get("secret_scanning"),
+        }
+        for widget_id, help_text in _tip.items():
+            if help_text:
+                try:
+                    self.query_one(f"#{widget_id}").tooltip = help_text
+                except Exception:
+                    pass
 
     def refresh_content(self) -> None:
         """Refresh configuration (called by parent app)."""

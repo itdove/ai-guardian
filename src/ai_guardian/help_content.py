@@ -370,3 +370,284 @@ PANEL_DOC_URLS: dict = {
     }.items()
     if v["doc_url"]
 }
+
+
+def _build_field_help() -> dict:
+    """Extract per-field help text from _comment_* keys in the default config template."""
+    try:
+        from ai_guardian.setup import _get_default_config_template
+
+        config = _get_default_config_template()
+    except Exception:
+        return {}
+
+    result: dict = {}
+
+    def walk(obj: dict, prefix: str = "") -> None:
+        for k, v in obj.items():
+            if k.startswith("_comment_"):
+                field_name = k[len("_comment_") :]
+                key = f"{prefix}.{field_name}" if prefix else field_name
+                result[key] = str(v)
+            elif not k.startswith("_") and isinstance(v, dict):
+                walk(v, f"{prefix}.{k}" if prefix else k)
+
+    walk(config)
+    return result
+
+
+# Maps "section.field" (or top-level "field") → help text sourced from _comment_* in setup.py.
+CONFIG_FIELD_HELP: dict = _build_field_help()
+
+# Supplement: entries not covered by _comment_* in setup.py.
+# Follows same "section.field" key convention.
+_FIELD_HELP_SUPPLEMENT: dict = {
+    # ── context_poisoning (no _comment_ in setup.py) ────────────────────────
+    "context_poisoning": (
+        "Detect persistent instruction injection attempts (OWASP LLM03). "
+        "Catches phrases that try to permanently alter the AI's behavior "
+        "across the whole session."
+    ),
+    # ── Common action field for every scanner ────────────────────────────────
+    "prompt_injection.action": (
+        "Action on detection: block (default), warn, log-only, ask "
+        "(interactive prompt), ask:warn (ask with warn fallback), ask:log-only."
+    ),
+    "scan_pii.action": (
+        "Action on PII detection: block, redact (replace with [REDACTED]), "
+        "ask (interactive prompt), warn, or log-only."
+    ),
+    "ssrf_protection.action": (
+        "Action on SSRF detection: block (default, recommended), warn "
+        "(allow with warning), or log-only (silent logging)."
+    ),
+    "config_file_scanning.action": (
+        "Action on detection: block (default), ask (interactive prompt), "
+        "warn, or log-only."
+    ),
+    "supply_chain.action": (
+        "Action on supply chain threat detection: block (recommended), "
+        "ask (interactive prompt), warn, or log-only."
+    ),
+    "code_scanning.action": (
+        "Action on insecure code detection: block, ask (interactive prompt), "
+        "warn (default), or log-only."
+    ),
+    "canary_detection.action": (
+        "Action when a registered canary token is detected in AI output: "
+        "block (default), ask, warn, or log-only."
+    ),
+    "exfil_detection.action": (
+        "Action when a credential-stealing command is detected: block (default), "
+        "ask (interactive prompt), warn, or log-only."
+    ),
+    "scan_offensive.action": (
+        "Action on offensive language detection: log (default), block, ask, "
+        "warn, or log-only."
+    ),
+    "secret_redaction.action": (
+        "Action after redacting a secret: warn (default — notify with warning) "
+        "or log-only (silent redaction)."
+    ),
+    "annotations.action": (
+        "Annotations mode. Set enabled: false to disable inline suppression "
+        "in strict compliance environments."
+    ),
+    # ── Common ignore_files / ignore_tools ──────────────────────────────────
+    "secret_scanning.ignore_files": (
+        "Glob patterns for files to exclude from secret scanning. "
+        "Example: ['tests/**', '**/*.md', '.env.example']."
+    ),
+    "secret_scanning.ignore_tools": (
+        "Tool names to skip secret scanning on. "
+        "Example: ['Write', 'Edit'] to skip file-write tools."
+    ),
+    "prompt_injection.ignore_files": (
+        "Glob patterns for files to exclude from prompt injection scanning. "
+        "Useful to suppress false positives in documentation or test fixtures."
+    ),
+    "prompt_injection.ignore_tools": (
+        "Tool names to skip prompt injection scanning on."
+    ),
+    "scan_pii.ignore_files": (
+        "Glob patterns for files to exclude from PII scanning. "
+        "Example: ['tests/**', 'fixtures/**']."
+    ),
+    "scan_pii.ignore_tools": "Tool names to skip PII scanning on.",
+    "ssrf_protection.ignore_files": (
+        "Glob patterns for files to exclude from SSRF scanning."
+    ),
+    "ssrf_protection.ignore_tools": (
+        "Tool names to skip SSRF URL checking on. "
+        "Example: ['WebFetch'] if you want to allow unrestricted fetches."
+    ),
+    "config_file_scanning.ignore_files": (
+        "Glob patterns for config files to exclude from exfiltration scanning."
+    ),
+    "config_file_scanning.ignore_tools": (
+        "Tool names to skip config file scanning on."
+    ),
+    "context_poisoning.ignore_files": (
+        "Glob patterns for files to exclude from context poisoning detection."
+    ),
+    "context_poisoning.ignore_tools": (
+        "Tool names to skip context poisoning detection on."
+    ),
+    # ── prompt_injection sub-fields ─────────────────────────────────────────
+    "prompt_injection.detector": (
+        "Detection engine: heuristic (fast, local, default), rebuff (ML-based, "
+        "requires API key), or llm-guard (local ML model)."
+    ),
+    "prompt_injection.sensitivity": (
+        "Detection sensitivity: low (fewer false positives), medium (balanced, "
+        "default), high (catches more but may have more false positives)."
+    ),
+    "prompt_injection.max_score_threshold": (
+        "Score cutoff for ML-based detectors (0.0–1.0). Detections above this "
+        "threshold are treated as injections. Lower = more sensitive."
+    ),
+    # ── scan_pii sub-fields ─────────────────────────────────────────────────
+    "scan_pii.pii_types": (
+        "PII types to detect. Phase 1 defaults: ssn, credit_card, phone, "
+        "us_passport, iban, international_phone. Opt-in: email, address, "
+        "canada_sin, india_aadhaar, medical_id, passport, uk_nin."
+    ),
+    "scan_pii.allowlist_patterns": (
+        "Regex patterns for known-safe PII-like values to suppress. "
+        "Example: test SSNs or placeholder credit card numbers."
+    ),
+    # ── ssrf_protection sub-fields ──────────────────────────────────────────
+    "ssrf_protection.allow_localhost": (
+        "Allow requests to localhost/127.0.0.1. Disabled by default — "
+        "enable only if your workflow requires local service access."
+    ),
+    "ssrf_protection.additional_blocked_ips": (
+        "Additional IP addresses or CIDR ranges to block, beyond the built-in "
+        "private IP ranges and metadata endpoints."
+    ),
+    "ssrf_protection.additional_blocked_domains": (
+        "Custom domain names to block. Useful for internal hostnames that "
+        "should not be accessible to the AI agent."
+    ),
+    # ── code_scanning sub-fields ────────────────────────────────────────────
+    "code_scanning.severity": (
+        "Minimum Bandit severity level to report: LOW, MEDIUM (default), or HIGH. "
+        "Lower values catch more issues but increase false positives."
+    ),
+    "code_scanning.allowlist": (
+        "Bandit test IDs or CWE numbers to suppress. "
+        "Example: ['B101'] to suppress assert-usage warnings in tests."
+    ),
+    # ── canary_detection sub-fields ─────────────────────────────────────────
+    "canary_detection.tokens": (
+        "List of canary token values to detect. Register unique strings (UUIDs, "
+        "fake credentials) that should never appear in AI output. "
+        "Detection triggers when the AI echoes back one of these values."
+    ),
+    # ── scan_offensive sub-fields ───────────────────────────────────────────
+    "scan_offensive.categories": (
+        "Which categories to scan: profanity, slurs, non_inclusive. "
+        "Defaults to all three. Disable individual categories to reduce "
+        "false positives in domain-specific contexts."
+    ),
+    # ── secret_scanning additional sub-fields ───────────────────────────────
+    "secret_scanning.allowlist_patterns": (
+        "Regex patterns for known-safe secret-like values to suppress. "
+        "Example: test API keys, placeholder tokens in fixtures."
+    ),
+    # ── supply_chain sub-fields ─────────────────────────────────────────────
+    "supply_chain.scan_targets": (
+        "Which agent config file types to scan: hooks (.claude/settings.json, "
+        ".cursor/settings.json), mcp_servers, plugins. Defaults to all."
+    ),
+    "supply_chain.allowlist_paths": (
+        "File paths to exclude from supply chain scanning. "
+        "Example: ['vendor/**', '.claude/local-settings.json']."
+    ),
+    # ── global fields ───────────────────────────────────────────────────────
+    "secret_scanning.enabled": (
+        "Enable or disable secret scanning globally. "
+        "When disabled, no secrets are scanned regardless of action setting."
+    ),
+    "prompt_injection.enabled": (
+        "Enable or disable prompt injection detection. "
+        "Disable only in trusted, controlled environments."
+    ),
+    "scan_pii.enabled": ("Enable or disable PII detection globally."),
+    "ssrf_protection.enabled": (
+        "Enable or disable SSRF URL checking. "
+        "Disable only if your workflow requires unrestricted network access."
+    ),
+    "context_poisoning.enabled": (
+        "Enable or disable context poisoning detection. "
+        "Recommended: enabled with 'warn' action to avoid false-positive blocks."
+    ),
+    "supply_chain.enabled": (
+        "Enable or disable supply chain scanning of agent config files."
+    ),
+    "code_scanning.enabled": (
+        "Enable or disable Bandit Python code security scanning."
+    ),
+    "canary_detection.enabled": (
+        "Enable canary token detection. Disabled by default — "
+        "register at least one token before enabling."
+    ),
+    "exfil_detection.enabled": ("Enable or disable exfiltration behavior detection."),
+    "scan_offensive.enabled": (
+        "Enable offensive language scanning. Disabled by default — "
+        "opt in after reviewing false positive rate for your use case."
+    ),
+    "secret_redaction.enabled": (
+        "Enable secret redaction from tool outputs. "
+        "When enabled, detected secrets are replaced with [REDACTED] before "
+        "they reach the AI agent's context."
+    ),
+    "config_file_scanning.enabled": (
+        "Enable config file exfiltration detection. "
+        "Watches for agent configs reading sensitive files like .env or ~/.ssh."
+    ),
+    "annotations.enabled": (
+        "Enable inline annotation-based suppression. "
+        "When enabled, developers can use ai-guardian:allow comments to "
+        "suppress specific findings in source code."
+    ),
+    "violation_logging.enabled": (
+        "Enable violation logging to disk. "
+        "When enabled, all blocked operations are recorded for audit review."
+    ),
+    "latency_tracking.enabled": (
+        "Enable hook latency tracking. "
+        "Records per-hook timing to latency.jsonl for performance analysis."
+    ),
+    "permissions.enabled": (
+        "Enable tool permission enforcement. "
+        "When enabled, the rules[] list controls which tools the AI can use."
+    ),
+    # ── violation_logging sub-fields ────────────────────────────────────────
+    "violation_logging.log_file": (
+        "Path to the violation log file. "
+        "Defaults to ~/.config/ai-guardian/violations.jsonl."
+    ),
+    "violation_logging.max_entries": (
+        "Maximum number of violation entries to retain in the log. "
+        "Older entries are pruned when the limit is reached."
+    ),
+    # ── context_poisoning sub-fields ────────────────────────────────────────
+    "context_poisoning.sensitivity": (
+        "Detection sensitivity: low (fewer false positives), medium (balanced, "
+        "default), high (catches more persistent injection patterns)."
+    ),
+    "context_poisoning.allowlist_patterns": (
+        "Regex patterns for known-benign context phrases to suppress. "
+        "Useful when your workflow intentionally uses persistent instruction patterns."
+    ),
+    "context_poisoning.custom_patterns": (
+        "Additional regex patterns to detect as context poisoning attempts, "
+        "beyond the built-in ruleset."
+    ),
+}
+
+# Merge supplement into CONFIG_FIELD_HELP (auto-extracted entries take priority
+# since they come from the authoritative _comment_* in setup.py).
+_FIELD_HELP_SUPPLEMENT.update(CONFIG_FIELD_HELP)
+CONFIG_FIELD_HELP = _FIELD_HELP_SUPPLEMENT

@@ -3,7 +3,7 @@
 from nicegui import run, ui
 
 from ai_guardian.web.components.header import create_header, create_sidebar
-from ai_guardian.web.components.help_panel import add_help_button
+from ai_guardian.web.components.help_panel import add_help_button, field_help_icon
 from ai_guardian.web.config_helpers import load_web_config, save_web_config
 
 _SEVERITY_OPTS = {
@@ -60,9 +60,11 @@ def create_code_security_page(service, daemon_name: str):
 
                     # Enable/disable toggle
                     with ui.card().classes("w-full"):
-                        ui.label("Enable Code Security Scanning").classes(
-                            "text-lg font-bold"
-                        )
+                        with ui.row().classes("items-center gap-1"):
+                            ui.label("Enable Code Security Scanning").classes(
+                                "text-lg font-bold"
+                            )
+                            field_help_icon("code_scanning")
                         is_enabled = cs.get("enabled", True)
                         sw = ui.switch("Enabled", value=bool(is_enabled))
                         ui.label(
@@ -86,7 +88,9 @@ def create_code_security_page(service, daemon_name: str):
 
                     # Action mode
                     with ui.card().classes("w-full"):
-                        ui.label("Action Mode").classes("text-lg font-bold")
+                        with ui.row().classes("items-center gap-1"):
+                            ui.label("Action Mode").classes("text-lg font-bold")
+                            field_help_icon("code_scanning.action")
                         ui.label(
                             "What happens when a code security issue is detected during scan."
                         ).classes("text-xs text-grey-6")
@@ -109,7 +113,9 @@ def create_code_security_page(service, daemon_name: str):
 
                     # Severity threshold
                     with ui.card().classes("w-full"):
-                        ui.label("Severity Threshold").classes("text-lg font-bold")
+                        with ui.row().classes("items-center gap-1"):
+                            ui.label("Severity Threshold").classes("text-lg font-bold")
+                            field_help_icon("code_scanning.severity")
                         ui.label(
                             "Minimum severity level to report. Findings below the threshold are silently ignored."
                         ).classes("text-xs text-grey-6")
@@ -135,7 +141,9 @@ def create_code_security_page(service, daemon_name: str):
 
                     # Allowlist
                     with ui.card().classes("w-full"):
-                        ui.label("Allowlist").classes("text-lg font-bold")
+                        with ui.row().classes("items-center gap-1"):
+                            ui.label("Allowlist").classes("text-lg font-bold")
+                            field_help_icon("code_scanning.allowlist")
                         ui.label(
                             "Suppress specific Bandit findings by test ID, optionally scoped to a path prefix. "
                             "The # nosec annotation in source code is also honored by Bandit natively."
@@ -243,7 +251,9 @@ def create_code_security_page(service, daemon_name: str):
 
                     # Ignore files
                     with ui.card().classes("w-full"):
-                        ui.label("Ignore Files").classes("text-lg font-bold")
+                        with ui.row().classes("items-center gap-1"):
+                            ui.label("Ignore Files").classes("text-lg font-bold")
+                            field_help_icon("code_scanning.ignore_files")
                         ui.label(
                             "Glob patterns for Python files to skip during code security scanning."
                         ).classes("text-xs text-grey-6")
