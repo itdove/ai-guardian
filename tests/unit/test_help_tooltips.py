@@ -72,6 +72,9 @@ class TestConfigFieldHelp:
         assert "block" in text.lower()
 
 
+nicegui = pytest.importorskip("nicegui", reason="NiceGUI not available (Python 3.9 not supported)")
+
+
 class TestFieldHelpIconFunction:
     """Smoke tests that field_help_icon() doesn't raise outside NiceGUI context."""
 

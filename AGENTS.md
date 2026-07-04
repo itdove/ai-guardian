@@ -113,6 +113,26 @@ pytest -k "test_something" -v
 - Run coverage reports before submitting PRs
 - Add tests for new features and bug fixes
 
+#### NiceGUI / Web Console Tests (Python 3.9 Incompatibility)
+
+**NiceGUI requires Python >= 3.10.** Tests that import anything from `src/ai_guardian/web/` will fail on Python 3.9 because `from nicegui import ui` fails at module import time.
+
+**Required pattern** — always guard web component imports with `pytest.importorskip`:
+
+```python
+# At module level, before any web imports:
+nicegui = pytest.importorskip("nicegui", reason="NiceGUI requires Python >= 3.10")
+
+# Or per-class with a mark:
+import pytest
+pytestmark = pytest.mark.skipif(
+    not __import__("importlib").util.find_spec("nicegui"),
+    reason="NiceGUI requires Python >= 3.10",
+)
+```
+
+This ensures the test is **skipped** on Python 3.9 rather than **erroring**, which is the correct behavior — the web console is not supported on 3.9, and tests that exercise it should skip cleanly.
+
 ### User Experience Contract Tests
 
 **IMPORTANT**: When adding or modifying security features that affect what users see in Claude Code, create UX contract tests in `tests/ux/`.
