@@ -821,6 +821,90 @@ class TestDaemonStateAskDialog:
         assert stats["ask_dialog_total_ms"] == 1234.6
 
 
+class TestStartRestApiPortFallback:
+    def test_port_fallback_on_oserrror(self, short_state_dir, monkeypatch):
+        """_start_rest_api tries next port when configured port is in use."""
+        server = DaemonServer(idle_timeout=5, enable_rest_api=False)
+        server.state  # init state
+
+        call_count = [0]
+
+        class FakeAPI:
+            def __init__(self, **kwargs):
+                self.port = kwargs["port"]
+
+            def start(self):
+                call_count[0] += 1
+                if self.port == 63152:
+                    raise OSError("Address already in use")
+                return self.port
+
+        with mock.patch("ai_guardian.daemon.rest_api.DaemonRestAPI", FakeAPI):
+            with mock.patch(
+                "ai_guardian.config_loaders._load_config_file",
+                return_value=(None, None),
+            ):
+                server._start_rest_api()
+
+        assert server._rest_port == 63153
+        assert call_count[0] == 2
+
+    def test_port_fallback_logs_warning(self, short_state_dir, monkeypatch, caplog):
+        """When fallback port used, a WARNING is logged."""
+        import logging
+
+        server = DaemonServer(idle_timeout=5, enable_rest_api=False)
+
+        class FakeAPI:
+            def __init__(self, **kwargs):
+                self.port = kwargs["port"]
+
+            def start(self):
+                if self.port == 63152:
+                    raise OSError("Address already in use")
+                return self.port
+
+        with mock.patch("ai_guardian.daemon.rest_api.DaemonRestAPI", FakeAPI):
+            with mock.patch(
+                "ai_guardian.config_loaders._load_config_file",
+                return_value=(None, None),
+            ):
+                with caplog.at_level(
+                    logging.WARNING, logger="ai_guardian.daemon.server"
+                ):
+                    server._start_rest_api()
+
+        assert any("port 63152 in use" in r.message for r in caplog.records)
+
+    def test_all_ports_exhausted_logs_warning(
+        self, short_state_dir, monkeypatch, caplog
+    ):
+        """When all 10 ports fail, WARNING is logged and rest_port stays 0."""
+        import logging
+
+        server = DaemonServer(idle_timeout=5, enable_rest_api=False)
+
+        class FakeAPI:
+            def __init__(self, **kwargs):
+                pass
+
+            def start(self):
+                raise OSError("Address already in use")
+
+        with mock.patch("ai_guardian.daemon.rest_api.DaemonRestAPI", FakeAPI):
+            with mock.patch(
+                "ai_guardian.config_loaders._load_config_file",
+                return_value=(None, None),
+            ):
+                with caplog.at_level(
+                    logging.WARNING, logger="ai_guardian.daemon.server"
+                ):
+                    server._start_rest_api()
+
+        assert server._rest_port == 0
+        assert any("REST API failed to bind" in r.message for r in caplog.records)
+
+
 class TestDaemonServerIdleTimeout:
     def test_idle_timeout_stops_server(self, short_state_dir, monkeypatch):
         from pathlib import Path

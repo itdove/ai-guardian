@@ -509,17 +509,34 @@ class DaemonServer:
                 default_host = "0.0.0.0"
             host = daemon_cfg.get("rest_host", default_host)
             auth_token = daemon_cfg.get("auth_token")
-            self._rest_api = DaemonRestAPI(
-                state=self.state,
-                host=host,
-                port=cfg_port,
-                name=self._name,
-                auth_token=auth_token,
+
+            for port in range(cfg_port, cfg_port + 10):
+                try:
+                    self._rest_api = DaemonRestAPI(
+                        state=self.state,
+                        host=host,
+                        port=port,
+                        name=self._name,
+                        auth_token=auth_token,
+                    )
+                    self._rest_port = self._rest_api.start()
+                    if port != cfg_port:
+                        logger.warning(
+                            f"REST API port {cfg_port} in use, bound to {port} instead"
+                        )
+                    else:
+                        logger.info(f"REST API started on port {self._rest_port}")
+                    return
+                except OSError:
+                    logger.debug(f"REST API port {port} in use, trying next")
+                    self._rest_api = None
+
+            logger.warning(
+                f"REST API failed to bind on ports {cfg_port}-{cfg_port + 9}; "
+                "REST features (cache status, violations, web console) will be unavailable"
             )
-            self._rest_port = self._rest_api.start()
-            logger.info(f"REST API started on port {self._rest_port}")
         except Exception as e:
-            logger.debug(f"REST API failed to start: {e}")
+            logger.warning(f"REST API failed to start: {e}")
 
     def _acquire_pid_lock(self):
         """Atomically create a lock file to prevent concurrent daemon starts.
