@@ -72,7 +72,9 @@ class TestConfigFieldHelp:
         assert "block" in text.lower()
 
 
-nicegui = pytest.importorskip("nicegui", reason="NiceGUI not available (Python 3.9 not supported)")
+nicegui = pytest.importorskip(
+    "nicegui", reason="NiceGUI not available (Python 3.9 not supported)"
+)
 
 
 class TestFieldHelpIconFunction:
