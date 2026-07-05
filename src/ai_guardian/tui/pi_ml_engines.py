@@ -8,11 +8,14 @@ for prompt injection detection.
 
 import json
 import shutil
+import subprocess
+import sys
 
+from textual import work
 from textual.app import ComposeResult
 from textual.binding import Binding
 from textual.containers import Container, Horizontal, VerticalScroll
-from textual.widgets import Static, Label, Select, Input, TextArea
+from textual.widgets import Button, Input, Label, Select, Static, TextArea
 
 from ai_guardian.config_utils import get_config_dir
 from ai_guardian.tui.console_settings import load_editor_theme
@@ -101,6 +104,31 @@ class PIMLEnginesContent(Container):
     #ml-threshold-row.visible {
         display: block;
     }
+
+    .wizard-step {
+        margin: 0 0 1 0;
+        height: auto;
+        align: left middle;
+    }
+
+    .wizard-step Button {
+        margin: 0 0 0 2;
+        min-width: 20;
+    }
+
+    #ml-wizard-status {
+        margin: 1 0 0 0;
+        padding: 0 1;
+    }
+
+    #ml-editor-note {
+        margin: 0 0 1 0;
+        color: $warning;
+    }
+
+    #ml-editor-note.hidden {
+        display: none;
+    }
     """
 
     def compose(self) -> ComposeResult:
@@ -112,10 +140,42 @@ class PIMLEnginesContent(Container):
         )
 
         with VerticalScroll():
-            # ML Status
+            # Setup wizard
             with Container(classes="section"):
-                yield Static("[bold]ML Status[/bold]", classes="section-title")
-                yield Static("", id="ml-status-info")
+                yield Static("[bold]ML Engine Setup[/bold]", classes="section-title")
+
+                with Horizontal(classes="wizard-step"):
+                    yield Static("", id="ml-step1-icon", markup=True)
+                    yield Static("", id="ml-step1-label", markup=True)
+                    yield Button(
+                        "Install onnxruntime",
+                        id="ml-btn-install",
+                        variant="primary",
+                    )
+
+                with Horizontal(classes="wizard-step"):
+                    yield Static("", id="ml-step2-icon", markup=True)
+                    yield Static("", id="ml-step2-label", markup=True)
+                    yield Button(
+                        "Download Model",
+                        id="ml-btn-download",
+                        variant="primary",
+                    )
+
+                with Horizontal(classes="wizard-step"):
+                    yield Static("", id="ml-step3-icon", markup=True)
+                    yield Static("", id="ml-step3-label", markup=True)
+
+                with Horizontal(classes="wizard-step"):
+                    yield Static("", id="ml-step4-icon", markup=True)
+                    yield Static("", id="ml-step4-label", markup=True)
+                    yield Button(
+                        "Go to Detector Settings",
+                        id="ml-btn-detector",
+                        variant="default",
+                    )
+
+                yield Static("", id="ml-wizard-status", markup=True)
 
             # Strategy
             with Container(classes="section"):
@@ -160,6 +220,10 @@ class PIMLEnginesContent(Container):
 
             # Engines editor
             yield Static("[bold]ML Engines[/bold]  [dim](edit JSON below)[/dim]")
+            yield Static(
+                "⚠  Complete Steps 1-2 before configuring engines.",
+                id="ml-editor-note",
+            )
 
             theme = load_editor_theme()
             yield TextArea(
@@ -233,6 +297,7 @@ class PIMLEnginesContent(Container):
         strategy = pi.get("ml_strategy", "any-match")
         threshold = pi.get("consensus_threshold", 2)
         fallback = pi.get("fallback_on_error", "heuristic")
+        detector = pi.get("detector", "heuristic")
 
         try:
             self.query_one("#ml-strategy-select", Select).value = strategy
@@ -259,41 +324,189 @@ class PIMLEnginesContent(Container):
         except Exception:
             pass
 
-        self._update_ml_status_info()
+        self._update_wizard(engines, detector)
 
-    def _update_ml_status_info(self) -> None:
+    def _update_wizard(self, engines: list, detector: str) -> None:
         try:
             from ai_guardian.ml_detection import is_ml_available, list_registered_models
 
-            available = is_ml_available()
+            deps_ok = is_ml_available()
             models = list_registered_models()
+            model_ok = bool(models) and all(m.get("downloaded") for m in models)
+        except Exception:
+            deps_ok = False
+            models = []
+            model_ok = False
 
-            lines = []
-            if available:
-                lines.append(
-                    "[green]ML dependencies available (onnxruntime, tokenizers)[/green]"
+        engines_count = len(engines) if isinstance(engines, list) else 0
+        config_ok = engines_count > 0
+        detector_ok = detector in ("ml", "hybrid")
+
+        # Step 1: Dependencies
+        try:
+            icon1 = self.query_one("#ml-step1-icon", Static)
+            label1 = self.query_one("#ml-step1-label", Static)
+            btn_install = self.query_one("#ml-btn-install", Button)
+            if deps_ok:
+                icon1.update("[green]✅[/green]")
+                label1.update("Step 1: Dependencies — onnxruntime installed")
+                btn_install.display = False
+            else:
+                icon1.update("[yellow]⚠️[/yellow]")
+                label1.update("Step 1: Dependencies — onnxruntime not installed")
+                btn_install.display = True
+        except Exception:
+            pass
+
+        # Step 2: Model
+        try:
+            icon2 = self.query_one("#ml-step2-icon", Static)
+            label2 = self.query_one("#ml-step2-label", Static)
+            btn_download = self.query_one("#ml-btn-download", Button)
+            if model_ok:
+                icon2.update("[green]✅[/green]")
+                label2.update("Step 2: Model — downloaded")
+                btn_download.display = False
+            else:
+                icon2.update("[yellow]⚠️[/yellow]")
+                label2.update("Step 2: Model — not downloaded")
+                btn_download.display = True
+        except Exception:
+            pass
+
+        # Step 3: Configuration
+        try:
+            icon3 = self.query_one("#ml-step3-icon", Static)
+            label3 = self.query_one("#ml-step3-label", Static)
+            if config_ok:
+                icon3.update("[green]✅[/green]")
+                label3.update(
+                    f"Step 3: Configuration — {engines_count} engine(s) configured"
                 )
             else:
-                lines.append("[red]ML dependencies not available[/red]")
-                lines.append(
-                    "[dim]onnxruntime required (included on Python < 3.13 via rapidocr-onnxruntime)[/dim]"
+                icon3.update("[yellow]⚠️[/yellow]")
+                label3.update("Step 3: Configuration — no engines configured")
+        except Exception:
+            pass
+
+        # Step 4: Detector
+        try:
+            icon4 = self.query_one("#ml-step4-icon", Static)
+            label4 = self.query_one("#ml-step4-label", Static)
+            btn_detector = self.query_one("#ml-btn-detector", Button)
+            if detector_ok:
+                icon4.update("[green]✅[/green]")
+                label4.update(f"Step 4: Detector — set to '{detector}'")
+                btn_detector.display = False
+            else:
+                icon4.update("[yellow]⚠️[/yellow]")
+                label4.update(
+                    f"Step 4: Detector — set to '{detector}', change to 'ml' or 'hybrid'"
                 )
+                btn_detector.display = True
+        except Exception:
+            pass
 
-            for m in models:
-                status = (
-                    "[green]downloaded[/green]"
-                    if m.get("downloaded")
-                    else "[dim]not downloaded[/dim]"
+        # Overall status
+        try:
+            status_widget = self.query_one("#ml-wizard-status", Static)
+            if deps_ok and model_ok and config_ok and detector_ok:
+                status_widget.update("[green bold]Status: READY[/green bold]")
+            else:
+                reasons = []
+                if not deps_ok:
+                    reasons.append("dependency missing")
+                if not model_ok:
+                    reasons.append("model not downloaded")
+                if not config_ok:
+                    reasons.append("no engines configured")
+                if not detector_ok:
+                    reasons.append("detector not set to ml/hybrid")
+                status_widget.update(
+                    f"[yellow bold]Status: NOT READY ({', '.join(reasons)})[/yellow bold]"
                 )
-                lines.append(f"  {m['name']} — {status}")
+        except Exception:
+            pass
 
-            if models and not all(m.get("downloaded") for m in models):
-                lines.append("[dim]Download models: ai-guardian ml download[/dim]")
+        # Editor note visibility
+        try:
+            note = self.query_one("#ml-editor-note", Static)
+            if deps_ok and model_ok:
+                note.add_class("hidden")
+            else:
+                note.remove_class("hidden")
+        except Exception:
+            pass
 
-            self.query_one("#ml-status-info", Static).update("\n".join(lines))
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        bid = event.button.id
+        if bid == "ml-btn-install":
+            self._install_onnxruntime()
+        elif bid == "ml-btn-download":
+            self._download_model()
+        elif bid == "ml-btn-detector":
+            self._navigate_to_detector()
+
+    @work(thread=True, name="install-onnxruntime", exit_on_error=False)
+    def _install_onnxruntime(self) -> None:
+        self.app.call_from_thread(
+            self.app.notify, "Installing onnxruntime...", severity="information"
+        )
+        try:
+            result = subprocess.run(
+                [sys.executable, "-m", "pip", "install", "onnxruntime"],
+                capture_output=True,
+                text=True,
+                timeout=120,
+            )
+            if result.returncode == 0:
+                self.app.call_from_thread(
+                    self.app.notify,
+                    "onnxruntime installed successfully",
+                    severity="information",
+                )
+            else:
+                self.app.call_from_thread(
+                    self.app.notify,
+                    f"Install failed: {result.stderr.strip()[:200]}",
+                    severity="error",
+                )
         except Exception as e:
-            self.query_one("#ml-status-info", Static).update(
-                f"[dim]Status check failed: {e}[/dim]"
+            self.app.call_from_thread(
+                self.app.notify, f"Install error: {e}", severity="error"
+            )
+        finally:
+            self.app.call_from_thread(self.load_config)
+
+    @work(thread=True, name="download-ml-model", exit_on_error=False)
+    def _download_model(self) -> None:
+        self.app.call_from_thread(
+            self.app.notify, "Downloading ML model...", severity="information"
+        )
+        try:
+            from ai_guardian.ml_detection import download_model
+
+            download_model()
+            self.app.call_from_thread(
+                self.app.notify, "Model downloaded successfully", severity="information"
+            )
+        except Exception as e:
+            self.app.call_from_thread(
+                self.app.notify, f"Download failed: {e}", severity="error"
+            )
+        finally:
+            self.app.call_from_thread(self.load_config)
+
+    def _navigate_to_detector(self) -> None:
+        try:
+            from textual.widgets import ContentSwitcher
+
+            switcher = self.app.query_one("#panels", ContentSwitcher)
+            switcher.current = "panel-pi-detection"
+        except Exception:
+            self.app.notify(
+                "Navigate to Prompt Injection Detection in the sidebar",
+                severity="information",
             )
 
     def on_text_area_changed(self, event: TextArea.Changed) -> None:
@@ -395,6 +608,7 @@ class PIMLEnginesContent(Container):
             self.app.notify(
                 f"Saved {len(engines)} ML engine(s)", severity="information"
             )
+            self.load_config()
         except Exception as e:
             self.app.notify(f"Save failed: {e}", severity="error")
 
