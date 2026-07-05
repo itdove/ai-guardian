@@ -6,6 +6,7 @@ Tests for secret scanning ignore_tools and ignore_files functionality.
 import unittest
 import sys
 import os
+from unittest.mock import patch, MagicMock
 
 # Add parent directory to path for imports
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -462,6 +463,129 @@ class TestSecretScanningAllowlistPatterns(unittest.TestCase):
         )
         # Should work without error; dangerous pattern is just ignored
         self.assertFalse(is_secret)
+
+
+class TestAllowlistLineNumberZeroFallback(unittest.TestCase):
+    """Tests for allowlist fallback when scanner returns line_number=0 (Issue #1476)."""
+
+    def _mock_engine(self, mock_select_engine, mock_select_all):
+        mock_engine = MagicMock()
+        mock_engine.type = "gitleaks"
+        mock_engine.file_patterns = None
+        mock_engine.ignore_files = None
+        mock_select_engine.return_value = mock_engine
+        mock_select_all.return_value = [mock_engine]
+
+    @patch("ai_guardian.hook_processing.run_engine")
+    @patch("ai_guardian.hook_processing.select_all_engines")
+    @patch("ai_guardian.hook_processing.select_engine")
+    @patch("ai_guardian.hook_processing._load_secret_scanning_config")
+    @patch("ai_guardian.hook_processing.HAS_SCANNER_ENGINE", True)
+    def test_allowlist_fires_when_line_number_is_zero(
+        self, mock_load_config, mock_select_engine, mock_select_all, mock_run_single
+    ):
+        """When line_number=0, allowlist checks secret value directly (Issue #1476)."""
+        from ai_guardian.scanners.strategies import ScanResult, SecretMatch
+
+        mock_load_config.return_value = ({"engines": ["gitleaks"]}, None)
+        self._mock_engine(mock_select_engine, mock_select_all)
+        mock_run_single.return_value = ScanResult(
+            has_secrets=True,
+            secrets=[
+                SecretMatch(
+                    rule_id="generic-api-key",
+                    description="API Key",
+                    file="test.txt",
+                    line_number=0,
+                    secret="pk_test_allowlisted_value",
+                    engine="gitleaks",
+                )
+            ],
+            engine="gitleaks",
+            scan_time_ms=10.0,
+        )
+
+        has_secrets, error_msg = check_secrets_with_gitleaks(
+            "pk_test_allowlisted_value",
+            allowlist_patterns=[r"pk_test_[A-Za-z0-9_]+"],
+        )
+
+        self.assertFalse(
+            has_secrets, "Allowlist should suppress when secret value matches"
+        )
+        self.assertIsNone(error_msg)
+
+    @patch("ai_guardian.hook_processing.run_engine")
+    @patch("ai_guardian.hook_processing.select_all_engines")
+    @patch("ai_guardian.hook_processing.select_engine")
+    @patch("ai_guardian.hook_processing._load_secret_scanning_config")
+    @patch("ai_guardian.hook_processing.HAS_SCANNER_ENGINE", True)
+    def test_violation_surfaces_when_line_number_zero_no_match(
+        self, mock_load_config, mock_select_engine, mock_select_all, mock_run_single
+    ):
+        """When line_number=0 and secret doesn't match allowlist, violation surfaces."""
+        from ai_guardian.scanners.strategies import ScanResult, SecretMatch
+
+        mock_load_config.return_value = ({"engines": ["gitleaks"]}, None)
+        self._mock_engine(mock_select_engine, mock_select_all)
+        mock_run_single.return_value = ScanResult(
+            has_secrets=True,
+            secrets=[
+                SecretMatch(
+                    rule_id="generic-api-key",
+                    description="API Key",
+                    file="test.txt",
+                    line_number=0,
+                    secret="sk_live_actual_secret",
+                    engine="gitleaks",
+                )
+            ],
+            engine="gitleaks",
+            scan_time_ms=10.0,
+        )
+
+        has_secrets, error_msg = check_secrets_with_gitleaks(
+            "sk_live_actual_secret",
+            allowlist_patterns=[r"pk_test_[A-Za-z0-9_]+"],
+        )
+
+        self.assertTrue(has_secrets, "Non-matching secret should still be detected")
+
+    @patch("ai_guardian.hook_processing.run_engine")
+    @patch("ai_guardian.hook_processing.select_all_engines")
+    @patch("ai_guardian.hook_processing.select_engine")
+    @patch("ai_guardian.hook_processing._load_secret_scanning_config")
+    @patch("ai_guardian.hook_processing.HAS_SCANNER_ENGINE", True)
+    def test_violation_surfaces_when_line_number_zero_no_secret_value(
+        self, mock_load_config, mock_select_engine, mock_select_all, mock_run_single
+    ):
+        """When line_number=0 and secret=None, allowlist cannot match — violation surfaces."""
+        from ai_guardian.scanners.strategies import ScanResult, SecretMatch
+
+        mock_load_config.return_value = ({"engines": ["gitleaks"]}, None)
+        self._mock_engine(mock_select_engine, mock_select_all)
+        mock_run_single.return_value = ScanResult(
+            has_secrets=True,
+            secrets=[
+                SecretMatch(
+                    rule_id="generic-api-key",
+                    description="API Key",
+                    file="test.txt",
+                    line_number=0,
+                    secret=None,
+                    engine="gitleaks",
+                )
+            ],
+            engine="gitleaks",
+            scan_time_ms=10.0,
+        )
+
+        has_secrets, error_msg = check_secrets_with_gitleaks(
+            "some content",
+            allowlist_patterns=[r"pk_test_[A-Za-z0-9_]+"],
+        )
+
+        self.assertTrue(has_secrets, "No secret value + no line should still block")
 
 
 if __name__ == "__main__":
