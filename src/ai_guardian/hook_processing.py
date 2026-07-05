@@ -3962,13 +3962,15 @@ def check_secrets_with_gitleaks(
                                 for secret in strategy_result.secrets:
                                     line_num = secret.line_number
                                     if line_num > 0 and line_num <= len(content_lines):
-                                        if not allowlist_utils.check_allowlist(
-                                            content_lines[line_num - 1],
-                                            compiled_allowlist,
-                                        ):
-                                            all_allowlisted = False
-                                            break
+                                        line_text = content_lines[line_num - 1]
+                                    elif hasattr(secret, "secret") and secret.secret:
+                                        line_text = secret.secret
                                     else:
+                                        all_allowlisted = False
+                                        break
+                                    if not allowlist_utils.check_allowlist(
+                                        line_text, compiled_allowlist
+                                    ):
                                         all_allowlisted = False
                                         break
                                 if all_allowlisted:
@@ -4552,12 +4554,14 @@ def check_secrets_with_gitleaks(
                                 line_num = finding.get("line_number", 0)
                                 if line_num > 0 and line_num <= len(content_lines):
                                     line_text = content_lines[line_num - 1]
-                                    if not allowlist_utils.check_allowlist(
-                                        line_text, compiled_allowlist
-                                    ):
-                                        all_allowlisted = False
-                                        break
+                                elif finding.get("matched_text"):
+                                    line_text = finding["matched_text"]
                                 else:
+                                    all_allowlisted = False
+                                    break
+                                if not allowlist_utils.check_allowlist(
+                                    line_text, compiled_allowlist
+                                ):
                                     all_allowlisted = False
                                     break
                         else:
@@ -4565,11 +4569,16 @@ def check_secrets_with_gitleaks(
                             line_num = secret_details.get("line_number", 0)
                             if line_num > 0 and line_num <= len(content_lines):
                                 line_text = content_lines[line_num - 1]
-                                if not allowlist_utils.check_allowlist(
-                                    line_text, compiled_allowlist
-                                ):
-                                    all_allowlisted = False
+                            elif secret_details.get("matched_text"):
+                                line_text = secret_details["matched_text"]
                             else:
+                                line_text = None
+                            if (
+                                line_text is None
+                                or not allowlist_utils.check_allowlist(
+                                    line_text, compiled_allowlist
+                                )
+                            ):
                                 all_allowlisted = False
 
                         if all_allowlisted:
