@@ -59,14 +59,25 @@ ai-guardian setup --ide claude --create-config --install-scanner
 Or use the container image (no Python setup required):
 
 ```bash
-podman pull quay.io/itdove/ai-guardian:latest
+# Recommended — run.sh handles auth, port mapping, and ToS consent
+curl -fsSL https://raw.githubusercontent.com/itdove/ai-guardian/v1.13.1/container/run.sh -o run.sh
+chmod +x run.sh
+ANTHROPIC_API_KEY=sk-ant-... ACCEPT_PROPRIETARY_TOS=true \
+    ./run.sh --ide claude --repo $(pwd)
+
+# Or manually with podman/docker
+podman pull quay.io/itdove/ai-guardian:v1.13.1
 podman run -it -p 63152:63152 \
     -v $(pwd):/workspace:z \
     -e AI_GUARDIAN_IDE=claude \
-    quay.io/itdove/ai-guardian:latest
+    -e ANTHROPIC_API_KEY=sk-ant-... \
+    -e ACCEPT_PROPRIETARY_TOS=true \
+    quay.io/itdove/ai-guardian:v1.13.1
 ```
 
-See [container/README.md](https://github.com/itdove/ai-guardian/blob/main/container/README.md) for IDE selection, auth, and multi-arch details.
+`ACCEPT_PROPRIETARY_TOS=true` accepts the [Claude Code Terms of Service](https://www.anthropic.com/legal/consumer-terms) and installs Claude Code automatically at first start. Omit it to be prompted interactively instead.
+
+See [container/README.md](https://github.com/itdove/ai-guardian/blob/main/container/README.md) for IDE selection, Vertex AI auth, and multi-arch details.
 
 The pip/uv install:
 - Installs a scanner engine (gitleaks)
