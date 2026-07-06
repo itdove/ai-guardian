@@ -63,7 +63,19 @@ pip install ai-guardian                    # alternative
 ai-guardian setup --ide claude --create-config --install-scanner
 ```
 
-This:
+Or use the container image (no Python setup required):
+
+```bash
+podman pull quay.io/itdove/ai-guardian:latest
+podman run -it -p 63152:63152 \
+    -v $(pwd):/workspace:z \
+    -e AI_GUARDIAN_IDE=claude \
+    quay.io/itdove/ai-guardian:latest
+```
+
+See [container/README.md](https://github.com/itdove/ai-guardian/blob/main/container/README.md) for IDE selection, auth, and multi-arch details.
+
+The pip/uv install:
 - Installs a scanner engine (gitleaks)
 - Creates `ai-guardian.json` config with secure defaults
 - Installs IDE hooks (PreToolUse, PostToolUse, UserPromptSubmit)
@@ -84,7 +96,35 @@ ai-guardian tray --install --autostart  # Add desktop shortcut + launch on login
 
 The tray auto-discovers running daemons and shows per-daemon submenus with Statistics, Console, Pause/Resume, and Start/Stop controls. On first launch, the tray will offer to create a desktop shortcut automatically. See [Multi-Daemon Tray](https://github.com/itdove/ai-guardian/blob/main/docs/MULTI_DAEMON_TRAY.md) for full documentation.
 
+> **Linux + Podman**: Container discovery requires the Podman socket to be active and `DOCKER_HOST` set:
+> ```bash
+> systemctl --user enable --now podman.socket
+> export DOCKER_HOST=unix://$(podman info --format '{{.Host.RemoteSocket.Path}}')
+> ai-guardian tray start -b
+> ```
+> macOS with Podman Desktop sets `DOCKER_HOST` automatically. See [Multi-Daemon Tray](docs/MULTI_DAEMON_TRAY.md#linux-podman) for details.
+
 > **Breaking change in v1.8.0**: `daemon start` no longer launches the tray automatically. Run `ai-guardian tray start -b` separately, or use `ai-guardian tray --install --autostart` for a permanent desktop shortcut with login startup.
+
+### Container
+
+A pre-built container image is published to [quay.io/itdove/ai-guardian](https://quay.io/itdove/ai-guardian) with all headless-capable IDEs (Claude Code, OpenCode, Gemini CLI, Codex CLI, Kiro CLI, OpenClaw):
+
+```bash
+# Latest (tracks main branch)
+podman pull quay.io/itdove/ai-guardian:latest
+podman run -it -p 63152:63152 -e AI_GUARDIAN_IDE=claude quay.io/itdove/ai-guardian:latest
+
+# Pinned release
+podman pull quay.io/itdove/ai-guardian:v1.13.0
+podman run -it -p 63152:63152 -e AI_GUARDIAN_IDE=claude quay.io/itdove/ai-guardian:v1.13.0
+
+# Or build from source
+podman build -t ai-guardian container/
+podman run -it -p 63152:63152 -e AI_GUARDIAN_IDE=claude ai-guardian
+```
+
+See [container/README.md](https://github.com/itdove/ai-guardian/blob/main/container/README.md) for IDE selection, auth, and multi-arch builds.
 
 ### Security Profiles
 
@@ -100,6 +140,7 @@ ai-guardian setup --ide claude --create-config --profile @strict --install-scann
 | @minimal | block | warn | low | warn |
 | @standard (default) | block | block | medium | block |
 | @strict | block | block | high | block |
+| @moderator | ask | ask | medium | ask |
 
 ## Features
 
@@ -129,11 +170,19 @@ ai-guardian setup --ide claude --create-config --profile @strict --install-scann
 | Tray Plugins | Custom menu items with native tkinter popup forms (Textual terminal fallback), platform-aware commands | [docs/MULTI_DAEMON_TRAY.md](https://github.com/itdove/ai-guardian/blob/main/docs/MULTI_DAEMON_TRAY.md#tray-plugins) |
 | TOML Pattern Engine | Built-in Python scanner with 267 pre-compiled patterns, no binary required | [docs/TOML_PATTERNS.md](https://github.com/itdove/ai-guardian/blob/main/docs/TOML_PATTERNS.md) |
 | Multi-Agent Support | Hook adapters for 12 AI coding agents with normalized input/output | [docs/AGENT_SUPPORT.md](https://github.com/itdove/ai-guardian/blob/main/docs/AGENT_SUPPORT.md) |
+| Container Image | UBI-based image with all headless IDEs and scanners, published to quay.io | [container/README.md](https://github.com/itdove/ai-guardian/blob/main/container/README.md) |
 | Supply Chain Scanning | Detect malicious patterns in agent hooks, MCP configs, and plugin files | [docs/CONFIGURATION.md](https://github.com/itdove/ai-guardian/blob/main/docs/CONFIGURATION.md#supply-chain-scanning) |
 | Context Poisoning Detection | Detect persistent instruction injection in conversation context (OWASP LLM03) | [docs/security/CONTEXT_POISONING.md](https://github.com/itdove/ai-guardian/blob/main/docs/security/CONTEXT_POISONING.md) |
 | Security SDK & REST API | Programmatic security checking for Python agents and multi-language support | [docs/SDK.md](https://github.com/itdove/ai-guardian/blob/main/docs/SDK.md) |
 | Secret Liveness Validation | Verify detected secrets are still active via provider APIs | [docs/CONFIGURATION.md](https://github.com/itdove/ai-guardian/blob/main/docs/CONFIGURATION.md#secret-liveness-validation) |
 | Hook Latency Metrics | Per-hook timing with console dashboard for performance analysis | [docs/HOOKS.md](https://github.com/itdove/ai-guardian/blob/main/docs/HOOKS.md#hook-latency-tracking) |
+| Canary Token Detection | Detect user-registered tripwire values in AI output to catch data exfiltration | [docs/CONFIGURATION.md](https://github.com/itdove/ai-guardian/blob/main/docs/CONFIGURATION.md) |
+| Offensive Language Scanner | Detect profanity, slurs, and non-inclusive terminology in code and comments | [docs/CONFIGURATION.md](https://github.com/itdove/ai-guardian/blob/main/docs/CONFIGURATION.md) |
+| Exfiltration Behavior Detection | Detect bash commands that steal credentials via curl, base64, SSH key exfil | [docs/security/CREDENTIAL_EXFILTRATION.md](https://github.com/itdove/ai-guardian/blob/main/docs/security/CREDENTIAL_EXFILTRATION.md) |
+| Code Security Scanning | Bandit/Semgrep-based detection of insecure code patterns (eval, weak crypto, injection) | [docs/SCANNER_INSTALLATION.md](https://github.com/itdove/ai-guardian/blob/main/docs/SCANNER_INSTALLATION.md) |
+| Dummy Agent | LLM-free hook testing via interactive REPL with YAML scenario files | [docs/AGENT_SUPPORT.md](https://github.com/itdove/ai-guardian/blob/main/docs/AGENT_SUPPORT.md) |
+| Kubernetes Deployment | Kustomize manifests for Kind, OpenShift, and production deployments | [docs/kubernetes.md](https://github.com/itdove/ai-guardian/blob/main/docs/kubernetes.md) |
+| Security Instructions | Configurable agent context injection rules via TUI and web console | [docs/CONFIGURATION.md](https://github.com/itdove/ai-guardian/blob/main/docs/CONFIGURATION.md) |
 
 ## Default Behavior (No Configuration File)
 
@@ -141,7 +190,7 @@ ai-guardian provides protection **immediately** with zero configuration:
 
 | Feature | Default | Notes |
 |---------|---------|-------|
-| Secret scanning | Enabled | Requires gitleaks/scanner installed |
+| Secret scanning | Enabled | Built-in `toml-patterns` scanner works without external tools |
 | Prompt injection detection | Enabled | Heuristic detector |
 | Config file scanning | Enabled | Detects exfiltration patterns |
 | SSRF protection | Enabled | Blocks private IPs, metadata endpoints |
@@ -162,6 +211,7 @@ ai-guardian setup --create-config                          # Secure defaults (Sk
 ai-guardian setup --create-config --permissive              # Permissive (all tools allowed)
 ai-guardian setup --create-config --profile @minimal        # Personal projects, low friction
 ai-guardian setup --create-config --profile @strict         # Enterprise SOC2/compliance
+ai-guardian setup --create-config --profile @moderator      # Human-in-the-loop, ask on every finding
 ai-guardian setup --list-profiles                           # List available profiles
 ```
 
@@ -185,11 +235,11 @@ ai-guardian setup --ide claude       # Claude Code
 ai-guardian setup --ide cursor       # Cursor IDE
 ai-guardian setup --ide copilot      # GitHub Copilot
 ai-guardian setup --dry-run          # Preview changes
-ai-guardian setup --ide claude --mcp # Enable MCP security advisor (opt-in)
+ai-guardian setup --ide claude       # MCP security advisor installed by default
 ai-guardian setup --remote-config-url https://example.com/policy.json
 ```
 
-Run `ai-guardian setup` after upgrading to get the latest hooks. Use `--mcp` to enable the MCP security advisor server — the AI can then check security proactively before acting. See [docs/MCP_SERVER.md](https://github.com/itdove/ai-guardian/blob/main/docs/MCP_SERVER.md) for details and [docs/CONFIGURATION.md](https://github.com/itdove/ai-guardian/blob/main/docs/CONFIGURATION.md) for other setup options.
+Run `ai-guardian setup` after upgrading to get the latest hooks. The MCP security advisor server is installed by default — the AI can check security proactively before acting. Use `--no-mcp` to skip. See [docs/MCP_SERVER.md](https://github.com/itdove/ai-guardian/blob/main/docs/MCP_SERVER.md) for details and [docs/CONFIGURATION.md](https://github.com/itdove/ai-guardian/blob/main/docs/CONFIGURATION.md) for other setup options.
 
 ## Action Modes
 
@@ -406,6 +456,232 @@ Apache 2.0 - see [LICENSE](https://github.com/itdove/ai-guardian/blob/main/LICEN
 - [Hermes Security Patterns](https://github.com/fullsend-ai/experiments/tree/main/hermes-security-patterns) - Security research
 
 
+# === container/README.md ===
+
+# AI Guardian Container Image
+
+UBI-based container image with ai-guardian and all headless-capable IDEs.
+Published to [quay.io/itdove/ai-guardian](https://quay.io/itdove/ai-guardian) on every merge and release.
+
+## What's Included
+
+| Component | Description |
+|-----------|-------------|
+| ai-guardian | Security hooks, daemon, web console, MCP server |
+| gitleaks, betterleaks | Secret scanning engines |
+| Claude Code | Anthropic CLI agent |
+| OpenCode | Open-source model-agnostic agent |
+| Gemini CLI | Google Gemini terminal agent |
+| Codex CLI | OpenAI terminal agent |
+| Kiro CLI | AWS terminal agent |
+| OpenClaw | Open-source AI assistant |
+| rapidocr-onnxruntime | Image scanning support (x86_64 + aarch64) |
+
+## Pull
+
+```bash
+# Latest build from main branch
+podman pull quay.io/itdove/ai-guardian:latest
+
+# Specific release version
+podman pull quay.io/itdove/ai-guardian:1.13.0
+```
+
+Tag conventions:
+- `:latest` — tracks main branch (updated on every merge)
+- `:<version>` — pinned stable release (e.g. `1.13.0`)
+
+## Build Locally
+
+```bash
+# Default (latest release)
+podman build -t ai-guardian container/
+
+# Specific version
+podman build --build-arg AI_GUARDIAN_VERSION=1.13.0 -t ai-guardian container/
+
+# Local wheel (copy wheel into container/ first)
+cp dist/ai_guardian-1.13.0-py3-none-any.whl container/vendor/
+podman build --build-arg AI_GUARDIAN_VERSION=ai_guardian-1.13.0-py3-none-any.whl \
+    -t ai-guardian container/
+
+# Multi-arch
+podman build --platform linux/amd64,linux/arm64 -t ai-guardian container/
+```
+
+## Run
+
+Using `run.sh` (recommended):
+
+```bash
+./container/run.sh                                    # defaults: claude, standard
+./container/run.sh --ide opencode                     # select IDE
+./container/run.sh --profile @strict                  # select profile
+./container/run.sh --repo ~/myproject                 # mount a repo
+./container/run.sh --api-key sk-ant-...               # Anthropic API auth
+./container/run.sh --ide gemini --profile @minimal    # combine options
+./container/run.sh -- ai-guardian doctor              # run a command
+```
+
+Vertex AI auth is auto-detected from environment variables (see [Authentication](#authentication)).
+
+<details>
+<summary>Manual container run (podman / docker)</summary>
+
+```bash
+# Default (Claude Code hooks)
+podman run -it -p 63152 ai-guardian
+
+# Select IDE
+podman run -it -p 63152 -e AI_GUARDIAN_IDE=opencode ai-guardian
+
+# Select configuration profile
+podman run -it -p 63152 -e AI_GUARDIAN_PROFILE=@strict ai-guardian
+
+# Authenticate with Anthropic API
+podman run -it -p 63152 -e ANTHROPIC_API_KEY=sk-ant-... ai-guardian
+
+# Authenticate with Vertex AI
+podman run -it -p 63152 \
+    -e CLAUDE_CODE_USE_VERTEX=1 \
+    -e ANTHROPIC_VERTEX_PROJECT_ID=my-gcp-project \
+    -e CLOUD_ML_REGION=global \
+    -e GOOGLE_APPLICATION_CREDENTIALS=/sandbox/gcp-key.json \
+    -v ~/gcp-key.json:/sandbox/gcp-key.json:ro \
+    ai-guardian
+
+# Mount a repo to test
+podman run -it -p 63152 -v ~/myrepo:/sandbox/repo ai-guardian
+
+# Run doctor
+podman run -it ai-guardian ai-guardian doctor
+```
+
+</details>
+
+## Container Engine
+
+By default, `run.sh` uses Podman. To use Docker instead:
+
+```bash
+CONTAINER_ENGINE=docker ./container/run.sh
+# or export for the session:
+export CONTAINER_ENGINE=docker
+./container/run.sh --ide claude
+```
+
+Both engines support the same `-p` syntax for port mapping. Use `docker port <container>` (instead of `podman port`) to find the mapped host port when using Docker.
+
+## IDE Selection
+
+Set `AI_GUARDIAN_IDE` to configure hooks for a specific IDE at container start:
+
+| Value | IDE | Installed in image |
+|-------|-----|--------------------|
+| `claude` (default) | Claude Code | Yes |
+| `opencode` | OpenCode | Yes |
+| `gemini` | Gemini CLI | Yes |
+| `codex` | Codex CLI | Yes |
+| `kiro` | Kiro CLI | Yes |
+| `openclaw` | OpenClaw | Yes |
+| `cursor` | Cursor | No (hooks only) |
+| `copilot` | GitHub Copilot | No (hooks only) |
+| `windsurf` | Windsurf | No (hooks only) |
+| `augment` | Augment | No (hooks only) |
+| `cline` | Cline | No (hooks only) |
+| `zoocode` | ZooCode | No (hooks only) |
+| `junie` | Junie | No (hooks only) |
+| `aiderdesk` | AiderDesk | No (hooks only) |
+| `dummy-agent` | Dummy Agent (fake IDE for hook testing) | Yes — no LLM required |
+
+IDEs marked "hooks only" are not installed in the image (they require a GUI) but
+ai-guardian hooks are configured for them. Mount the IDE binary into the container
+if needed.
+
+## Configuration Profile
+
+Set `AI_GUARDIAN_PROFILE` to apply a security profile at container start:
+
+| Value | Description |
+|-------|-------------|
+| (unset) | Standard profile (default) |
+| `@minimal` | Minimal — fewer checks, lower false positive rate |
+| `@standard` | Standard — balanced security and usability |
+| `@strict` | Strict — maximum security, all checks enabled |
+| `@moderator` | Moderator — all scanner actions set to `ask` for human-in-the-loop review |
+
+You can also pass a custom profile name or path if you have saved custom profiles.
+
+## Authentication
+
+Pass authentication credentials as environment variables at runtime.
+
+> **Tested configurations:** Anthropic API key and Google Vertex AI have been
+> validated with this image. Other providers (AWS Bedrock, Azure, self-hosted)
+> may require additional environment variables or volume mounts — consult the
+> IDE's documentation for the required configuration.
+
+### Anthropic API (direct)
+
+```bash
+podman run -it -p 63152 \
+    -e ANTHROPIC_API_KEY=sk-ant-... \
+    ai-guardian
+```
+
+### Google Vertex AI ✓ tested
+
+```bash
+podman run -it -p 63152 \
+    -e CLAUDE_CODE_USE_VERTEX=1 \
+    -e ANTHROPIC_VERTEX_PROJECT_ID=my-gcp-project \
+    -e CLOUD_ML_REGION=global \
+    -e GOOGLE_APPLICATION_CREDENTIALS=/sandbox/gcp-key.json \
+    -v ~/my-gcp-key.json:/sandbox/gcp-key.json:ro \
+    ai-guardian
+```
+
+### Other providers (untested)
+
+Other Claude-compatible providers may work by passing the appropriate env vars.
+The container does not pre-configure any provider-specific tooling beyond
+Claude Code, so extra setup (CLI login, credential files, proxy config) may be
+needed inside the container after startup.
+
+| Variable | Description |
+|----------|-------------|
+| `ANTHROPIC_API_KEY` | Anthropic API key (direct API access) |
+| `CLAUDE_CODE_USE_VERTEX` | Set to `1` to use Google Vertex AI |
+| `ANTHROPIC_VERTEX_PROJECT_ID` | GCP project ID (with Vertex AI) |
+| `CLOUD_ML_REGION` | GCP region, e.g. `global` (with Vertex AI) |
+| `GOOGLE_APPLICATION_CREDENTIALS` | Path to GCP service account JSON key file (with Vertex AI) |
+
+## Web Console
+
+The ai-guardian daemon starts automatically and binds to `0.0.0.0` inside the
+container (auto-detected via `/.dockerenv` / `/run/.containerenv`).
+
+Access from the host: `http://localhost:63152`
+
+## Build Args
+
+| Arg | Default | Description |
+|-----|---------|-------------|
+| `AI_GUARDIAN_VERSION` | `1.13.0` | PyPI version or `.whl` filename |
+| `AI_GUARDIAN_REST_PORT` | `63152` | Daemon REST API / web console port |
+| `UV_VERSION` | `0.11.16` | uv package manager version |
+| `OPENCODE_VERSION` | `1.17.3` | OpenCode version |
+
+## Expected Doctor Warnings
+
+In a container, `ai-guardian doctor` will show expected warnings for:
+
+- **System tray**: Not available (no display server)
+- **Terminal emulator**: Not detected (no desktop)
+- **tkinter**: Not installed (no GUI needed)
+
+All security-critical checks (config, hooks, scanners, daemon) should pass.
+
 # === docs/AGENT_SUPPORT.md ===
 
 # Agent Support
@@ -476,6 +752,9 @@ Agents with full hook support not shown individually (Windsurf, Gemini CLI, Clin
 | pii_in_transcript | Prompt | Enforce | No | Enforce | No |
 | image_secret | Pre | Caution | Caution | Caution | No |
 | image_pii | Pre | Caution | Caution | Caution | No |
+| offensive_language | Pre+Post | Enforce | Enforce | Partial | Advisory |
+| canary_detected | Pre+Post+Prompt | Enforce | Enforce | Partial | Advisory |
+| exfil_detection | Pre (Bash) | Enforce | Enforce | Partial | Advisory |
 
 **Legend:**
 
@@ -1226,8 +1505,8 @@ ai-guardian setup --ide aiderdesk
 cd ~/.aider-desk/extensions/ai-guardian
 npm install
 
-# Optional: also install MCP server
-ai-guardian setup --ide aiderdesk --mcp
+# MCP server is installed by default (use --no-mcp to skip)
+ai-guardian setup --ide aiderdesk
 ```
 
 The extension installs to `~/.aider-desk/extensions/ai-guardian/` (global scope). AiderDesk automatically detects and hot-reloads extensions.
@@ -1600,6 +1879,36 @@ A TOML file for declaring which files to skip during scanning, using a structure
 **Location**: Fetched from URLs defined in `remote_configs`
 
 Remote configurations enable centralized policy management. Enterprises can deploy security policies that users automatically receive.
+
+## Security Profiles
+
+Built-in profiles let you apply a complete security posture in one command:
+
+```bash
+ai-guardian setup --create-config --profile @minimal        # Personal projects, low friction
+ai-guardian setup --create-config --profile @standard       # Team development (default)
+ai-guardian setup --create-config --profile @strict         # Enterprise SOC2/compliance
+ai-guardian setup --create-config --profile @moderator      # Human-in-the-loop review
+ai-guardian setup --list-profiles                           # List all available profiles
+```
+
+| Profile | Secrets | PII | Prompt Injection | SSRF | Use case |
+|---------|---------|-----|------------------|------|----------|
+| `@minimal` | block | warn | low | warn | Personal projects, low friction |
+| `@standard` (default) | block | block | medium | block | Team development |
+| `@strict` | block | block | high | block | Enterprise SOC2/compliance |
+| `@moderator` | ask | ask | medium | ask | Human review, training, onboarding |
+
+### @moderator Profile
+
+The `@moderator` profile sets every scanner action to `ask`, routing each finding through an interactive dialog where the user decides allow or block. It is designed for:
+
+- **New users** learning what ai-guardian catches — see every finding, decide case by case
+- **Teams evaluating** detection accuracy before committing to block/allow policies
+- **Compliance review** where each finding needs explicit human sign-off
+- **Training and onboarding** — understand the tool's coverage interactively
+
+> **Note:** `ask` mode requires the daemon tray for the interactive dialog. Without daemon mode, findings fall back to the `on_scan_error` behavior (`allow` by default). Run `ai-guardian daemon start` before using this profile for the full moderator experience.
 
 ## Remote Config URL Cascading Priority (Security Feature)
 
@@ -7594,6 +7903,252 @@ Both the TUI (`ai-guardian console`) and web console (`ai-guardian console --web
 **Version:** 1.11.0  
 **Cursor Testing:** Completed - confirmed same limitation as Claude Code
 
+# === docs/kubernetes.md ===
+
+# Kubernetes Deployment Guide
+
+AI Guardian can run as a shared daemon in a Kubernetes cluster, providing centralized security enforcement for all AI agents running as pods or on developer workstations that connect remotely.
+
+## Architecture
+
+```
+┌─────────────────────────────────────┐
+│  Kubernetes Cluster                 │
+│                                     │
+│  ┌──────────────────────────────┐   │
+│  │  ai-guardian pod             │   │
+│  │  ┌────────────────────────┐  │   │
+│  │  │ ai-guardian daemon     │  │   │
+│  │  │ REST API: :63152       │  │   │
+│  │  │ Hook socket: :63151    │  │   │
+│  │  └────────────────────────┘  │   │
+│  └──────────────────────────────┘   │
+│              │                      │
+│    ai-guardian Service (ClusterIP)  │
+└──────────────┼──────────────────────┘
+               │ NodePort / LoadBalancer / Route
+               ▼
+        Host tray client polls
+        /ask/pending for dialogs
+```
+
+The daemon runs as a long-lived pod. IDE hooks (Claude Code, Cursor, etc.) on developer workstations connect to the cluster-exposed REST API. The host tray polls `/ask/pending` and shows ask-mode dialogs on the desktop (#1342).
+
+## Prerequisites
+
+- `kubectl` configured for your cluster
+- `kustomize` (or `kubectl` >= 1.14 which includes it)
+- For Kind: [Kind](https://kind.sigs.k8s.io) and Podman Desktop or Docker Desktop
+
+## Quick Start — Kind (Local)
+
+### 1. Create Kind Cluster
+
+On **macOS**, Kind uses Podman/Docker networking that requires explicit port mappings:
+
+```bash
+kind create cluster --config deploy/kubernetes/overlays/kind/kind-cluster.yaml
+```
+
+On **Linux**, NodePort ports are accessible directly at `localhost:nodePort` — the default Kind cluster works without extra config:
+
+```bash
+kind create cluster
+```
+
+### 2. Deploy
+
+```bash
+kubectl apply -k deploy/kubernetes/overlays/kind/
+```
+
+This applies the base manifests (Deployment + ClusterIP Service + ConfigMap) with the Kind NodePort overlay.
+
+### 3. Verify
+
+```bash
+kubectl get pods -l app=ai-guardian
+kubectl logs -l app=ai-guardian -f
+```
+
+Wait for the pod readiness probe to pass (checks `GET /api/status` on port 63152).
+
+### 4. Reach the REST API
+
+```bash
+# Linux — NodePort accessible directly
+curl http://localhost:63152/api/status
+
+# macOS — same (extraPortMappings route through Kind's control-plane)
+curl http://localhost:63152/api/status
+```
+
+## Production Deployment
+
+### Vanilla Kubernetes (LoadBalancer)
+
+```bash
+kubectl apply -k deploy/kubernetes/overlays/production/
+```
+
+The Service becomes type `LoadBalancer`. Your cloud provider assigns an external IP:
+
+```bash
+kubectl get svc ai-guardian
+# NAME          TYPE           CLUSTER-IP     EXTERNAL-IP     PORT(S)
+# ai-guardian   LoadBalancer   10.96.0.10     34.102.x.x      63152:xxx/TCP,63151:xxx/TCP
+```
+
+Configure the tray to connect at `http://<EXTERNAL-IP>:63152`.
+
+### OpenShift / OCP
+
+```bash
+kubectl apply -k deploy/kubernetes/overlays/openshift/
+```
+
+This adds an OpenShift Route with TLS edge termination. The Route provides a stable hostname:
+
+```bash
+kubectl get route ai-guardian
+# NAME          HOST/PORT
+# ai-guardian   ai-guardian-<namespace>.apps.<cluster-domain>
+```
+
+Configure the tray `tray-targets.json` with the Route URL:
+
+```json
+{
+  "daemons": [
+    {
+      "name": "openshift-daemon",
+      "url": "https://ai-guardian-<namespace>.apps.<cluster-domain>"
+    }
+  ]
+}
+```
+
+## Config Customization
+
+The `ai-guardian-config` ConfigMap provides the daemon's `ai-guardian.json`. Edit before deploying or patch after:
+
+```bash
+# Edit the base configmap before apply
+vim deploy/kubernetes/base/configmap.yaml
+kubectl apply -k deploy/kubernetes/overlays/kind/
+
+# Or patch a running deployment
+kubectl create configmap ai-guardian-config \
+  --from-file=ai-guardian.json=my-config.json \
+  --dry-run=client -o yaml | kubectl apply -f -
+kubectl rollout restart deployment/ai-guardian
+```
+
+The initContainer copies the ConfigMap content to an `emptyDir` volume at startup, so the daemon can write PID files and session state alongside the config file.
+
+## Validating the Ask Dialog Forwarding Scenario (#1342)
+
+This validates the pull-model: hooks in pods queue ask requests, the host tray polls and shows dialogs on the developer's desktop.
+
+### Step 1 — Deploy and verify
+
+```bash
+kubectl apply -k deploy/kubernetes/overlays/kind/
+kubectl wait --for=condition=Ready pod -l app=ai-guardian --timeout=60s
+curl http://localhost:63152/api/status
+```
+
+### Step 2 — Configure the tray
+
+Start the tray on your host machine. The daemon at `localhost:63152` is auto-discovered by the container discovery mechanism. Check that it appears as a remote target:
+
+```bash
+ai-guardian daemon status
+# Should show: localhost:63152 (container)  running
+```
+
+If not auto-discovered, add it to `~/.config/ai-guardian/tray-targets.json`:
+
+```json
+{
+  "daemons": [
+    {
+      "name": "kind-daemon",
+      "url": "http://localhost:63152"
+    }
+  ]
+}
+```
+
+### Step 3 — Register the tray with the daemon
+
+The tray registers itself automatically when it discovers a remote daemon. Verify:
+
+```bash
+curl http://localhost:63152/api/tray/status
+```
+
+### Step 4 — Trigger an ask dialog from a hook
+
+Configure a hook to use `ask` action, then trigger it from a pod or local Claude Code session connected to the remote daemon. The flow:
+
+1. Hook fires in pod → daemon queues ask request at `/ask/pending`
+2. Host tray polls `/ask/pending` → finds the request
+3. Tray shows dialog on host desktop
+4. User chooses Allow/Block → tray POSTs decision back
+5. Pod daemon receives decision → hook returns to Claude
+
+### Manual test (simulate a queued prompt)
+
+```bash
+# Queue a test prompt
+curl -s -X POST http://localhost:63152/api/ask/pending \
+  -H "Content-Type: application/json" \
+  -d '{"violation_type":"secret_detected","summary":"Test prompt","fallback_action":"block"}'
+
+# Check the tray picks it up (tray logs or UI)
+# Respond
+curl -s -X POST http://localhost:63152/api/ask/<prompt_id>/decision \
+  -H "Content-Type: application/json" \
+  -d '{"decision":"block"}'
+```
+
+## Tray Discovery
+
+The tray uses `discover_all()` in `src/ai_guardian/daemon/discovery.py` to find:
+- Local daemon (Unix socket)
+- Container daemons (Podman/Docker label `ai-guardian.daemon=true`)
+- Kubernetes pods via `kubectl` (label `app=ai-guardian`)
+- Manual targets from `tray-targets.json`
+
+For the Kind deployment, the NodePort at `localhost:63152` is discovered via the container/kubernetes path automatically when the tray has cluster access.
+
+## Connecting IDE Hooks to the Cluster Daemon
+
+Developer workstations can point their Claude Code (or other IDE) hooks at the cluster daemon instead of running a local daemon.
+
+Add to `~/.claude/settings.json` or project `.claude/settings.json`:
+
+```json
+{
+  "env": {
+    "AI_GUARDIAN_DAEMON_URL": "http://localhost:63152"
+  }
+}
+```
+
+Hooks will send requests to the cluster daemon instead of spawning a local one.
+
+## Cleanup
+
+```bash
+# Remove deployment
+kubectl delete -k deploy/kubernetes/overlays/kind/
+
+# Remove Kind cluster
+kind delete cluster
+```
+
 # === docs/MCP_SERVER.md ===
 
 # MCP Security Advisor Server
@@ -7613,10 +8168,10 @@ AI Guardian includes an MCP (Model Context Protocol) server that exposes read-on
 ### Install with hooks
 
 ```bash
-ai-guardian setup --ide claude --mcp
+ai-guardian setup --ide claude
 ```
 
-This adds the MCP server to your IDE config and enables it in `ai-guardian.json`.
+The MCP server is installed by default during setup. Use `--no-mcp` to skip.
 
 ### Manual setup
 
@@ -7659,7 +8214,7 @@ Add to `~/.claude.json` (or `~/.claude/settings.json`):
 The MCP server is controlled by IDE config. Install/uninstall via:
 
 ```bash
-ai-guardian setup --ide claude --mcp      # Install
+ai-guardian setup --ide claude             # Install (default)
 ai-guardian setup --ide claude --no-mcp   # Uninstall
 ```
 
@@ -8205,6 +8760,40 @@ Optional labels:
 - `ai-guardian.name=my-sandbox` — display name in tray (defaults to container name)
 - `ai-guardian.rest-port=8080` — custom REST port (defaults to 63152)
 
+### Linux: Podman Container Discovery
+
+On Linux, the tray uses the Docker SDK to communicate with Podman. For discovery
+to work, the rootless Podman socket service must be active.
+
+**Enable the Podman socket** (once, as a user service):
+
+```bash
+systemctl --user enable --now podman.socket
+```
+
+After enabling the socket, restart the tray — it will find the socket at the
+standard XDG path (`$XDG_RUNTIME_DIR/podman/podman.sock`) automatically.
+
+**If containers still do not appear**, the socket may be at a non-standard path.
+Find it:
+
+```bash
+podman info --format '{{.Host.RemoteSocket.Path}}'
+```
+
+Export `DOCKER_HOST` before starting the tray:
+
+```bash
+export DOCKER_HOST=unix://$(podman info --format '{{.Host.RemoteSocket.Path}}')
+ai-guardian tray start
+```
+
+To make this permanent, add the export to your shell profile (`~/.bashrc`,
+`~/.zshrc`, etc.) or to a systemd user service that starts the tray.
+
+> **macOS with Podman Desktop:** `DOCKER_HOST` is set automatically — no manual
+> setup needed.
+
 ### Kubernetes Discovery
 
 Disabled by default. Enable in config:
@@ -8556,6 +9145,208 @@ ai-guardian tray start            # Separate tray process
 ```
 
 To restore the old behavior, add both commands to your startup/login items.
+
+## Ask Dialog Forwarding
+
+When `action=ask` is triggered on a **headless or container daemon**, there is
+no display available to show the dialog. The host tray bridges this gap by
+acting as a display proxy: it receives the prompt, shows the full dialog on
+the host, and sends the user's decision back to the daemon.
+
+### Local daemon (host has display)
+
+The hook runs inside the daemon process. The daemon calls its own REST API to
+delegate dialog rendering to a subprocess, which shows the native UI.
+
+```
+┌─────────────────── host ──────────────────────────┐
+│                                                    │
+│  Hook (daemon process)                             │
+│    └─ show_ask_dialog()                            │
+│         ├─ _show_via_tray_forwarding()  → None     │
+│         │    (local tray not registered            │
+│         │     with local daemon)                   │
+│         ├─ _is_headless_env()  → False             │
+│         └─ _show_via_daemon()                      │
+│              └─ POST /api/prompt  ──────────────┐  │
+│                                                 │  │
+│              ┌──── daemon REST ─────────────────┘  │
+│              │  _handle_prompt()                   │
+│              │    └─ _show_via_subprocess()         │
+│              │         └─ ai-guardian prompt        │
+│              │              --mode ask              │
+│              │              └─ tkinter / NiceGUI    │
+│              │              └─ user responds        │
+│              │         └─ AskResult                 │
+│              └─ HTTP response                       │
+│         └─ decision applied to hook                │
+└────────────────────────────────────────────────────┘
+```
+
+### Remote daemon (container / Kubernetes)
+
+The hook runs inside the container. Because the container has no display, it
+queues the prompt and waits. The host tray polls for pending prompts, shows
+the dialog on the host machine, and POSTs the decision back.
+
+```
+┌──── container ─────────────────────────┐   ┌──── host ──────────────────────────────┐
+│                                        │   │                                        │
+│  Hook                                  │   │  Tray                                  │
+│    └─ show_ask_dialog()                │   │    └─ every ~30s:                      │
+│         └─ _show_via_tray_forwarding() │   │         POST /api/register-tray ──────>│
+│              └─ is_tray_registered()   │   │              (sets is_tray_registered) │
+│                    → True              │   │                                        │
+│              └─ queue_prompt()         │   │    └─ every 2.5s:                      │
+│              └─ decision_event.wait() <│───│─        GET /api/pending-prompts       │
+│                                        │   │         └─ _handle_remote_prompt()     │
+│                                        │   │              └─ _show_via_subprocess() │
+│                                        │   │                   (NiceGUI on macOS,   │
+│                                        │   │                    auto on Linux)       │
+│                                        │   │              └─ user responds           │
+│              └─ resolve_prompt()  <────│───│─        POST /api/prompt-decision      │
+│              └─ decision_event.set()   │   │                                        │
+│         └─ AskResult returned          │   │                                        │
+│    └─ decision applied to hook         │   │                                        │
+└────────────────────────────────────────┘   └────────────────────────────────────────┘
+```
+
+### No tray registered
+
+If no tray has registered with the daemon (tray not running, or remote daemon
+not yet discovered), `_show_via_tray_forwarding()` returns `None` immediately.
+On a headless host (Linux + no `DISPLAY`), the hook falls through to the
+configured `fallback_action` (default: `block`) with zero delay.
+
+```
+show_ask_dialog()
+  └─ _show_via_tray_forwarding()  → None  (is_tray_registered = False)
+  └─ _is_headless_env()           → True
+  └─ fallback_action applied immediately  (no blocking)
+```
+
+### Platform notes
+
+| Host OS | Dialog shown by tray |
+|---|---|
+| macOS 14+ | NiceGUI browser tab (tkinter suppressed — pystray is NSAccessory, cannot steal focus) |
+| Linux KDE/GNOME | tkinter / NiceGUI / Textual per `preferred_ui` config |
+| macOS < 14 | tkinter / NiceGUI / Textual per `preferred_ui` config |
+
+The full dialog is shown in all cases: Allow Once, Allow Always (with pattern
+editor), Suppress in Source, Ignore File, and Block. Pattern saving and source
+annotations are applied by the **triggering daemon** (not the host), so they
+land in the correct config files and source tree.
+
+## Testing Ask Dialog Forwarding
+
+End-to-end test procedure for verifying that ask dialogs generated inside a
+container or remote daemon appear on the host tray.
+
+### Prerequisites
+
+1. **Start the container daemon:**
+
+   ```bash
+   # Using the bundled run script (sets ai-guardian.daemon=true label automatically)
+   ./container/run.sh
+
+   # Or manually with Podman/Docker
+   podman run -l ai-guardian.daemon=true -p 63152:63152 quay.io/itdove/ai-guardian:latest
+   ```
+
+2. **On Linux — export the Podman socket** so the tray can discover the container (#1436):
+
+   ```bash
+   export DOCKER_HOST=unix://$(podman info --format '{{.Host.RemoteSocket.Path}}')
+   ```
+
+   > **macOS with Podman Desktop:** `DOCKER_HOST` is set automatically — skip this step.
+
+3. **Start the host tray:**
+
+   ```bash
+   ai-guardian tray start -b
+   ```
+
+   The container daemon should appear in the tray menu within ~10 seconds. Confirm
+   the container is listed with a running indicator (●) before proceeding.
+
+### Option A — dummy-agent scenario (preferred)
+
+Requires the `action: ask` pattern to be configured in the container's
+`ai-guardian.json` (e.g., `secret_scanning.action: ask`).
+
+Inside the container:
+
+```bash
+ai-guardian dummy-agent --script scenarios/ask-dialog.yaml
+```
+
+The scenario fires hook events through the full pipeline (UserPromptSubmit →
+PreToolUse → PostToolUse) with content that triggers the ask mode. The daemon
+queues the prompt, the tray polls `/api/pending-prompts`, and the dialog
+appears on the host.
+
+**Expected result:** Ask dialog appears on the host machine with **Allow Once**,
+**Allow Always**, **Suppress in Source**, **Ignore File**, and **Block** options.
+
+### Option B — direct REST API (workaround / quick smoke test)
+
+If dummy-agent is unavailable or you want a quick confirmation without
+configuring ask mode, POST directly to the container daemon's REST API:
+
+```bash
+# Inside the container
+curl -s -X POST http://127.0.0.1:63152/api/prompt \
+  -H "Content-Type: application/json" \
+  -d '{
+    "mode": "ask",
+    "violation": {
+      "violation_type": "secret_detected",
+      "summary": "AWS Access Key detected",
+      "matched_text": "AKIAI<YOUR_ACCESS_KEY_ID>",
+      "config_section": "secret_scanning"
+    }
+  }'
+```
+
+**Expected result:** Ask dialog appears on the host. The `curl` call blocks until
+the user responds, then returns `{"decision": "allow_once"}` (or similar).
+
+**Confirmed working on:** Linux and macOS. ✅
+
+### Known Limitations
+
+- **Hook pipeline does not trigger ask via synthetic payloads.** Hand-crafted
+  hook payloads fired from the shell (e.g., via `ai-guardian hook`) do not reach
+  the ask path because:
+  - `PreToolUse` with a secret in `tool_input` → blocked by tool permission
+    policy before secret scan runs
+  - `PostToolUse` with a secret in `tool_response` → uses `secret_redaction`
+    (action=warn), not `secret_scanning` (action=ask)
+  - `UserPromptSubmit` with a secret in transcript → transcript scanning always
+    warns, never asks
+
+  Use **Option A** (dummy-agent scenario) or **Option B** (direct REST) to bypass
+  these limitations.
+
+- **Timeout (#1445):** The default hook timeout is 30 seconds, which may expire
+  before the user responds to the dialog. If the ask dialog appears but the
+  hook times out before a decision is made, increase
+  `daemon.hook_timeout_seconds` in the container's config, or use Option B
+  (REST has no hook timeout).
+
+### Kubernetes Variant
+
+Same procedure applies with `kubectl port-forward` in place of a direct port
+mapping:
+
+```bash
+kubectl port-forward pod/<guardian-pod> 63152:63152
+```
+
+Then run Option B from any machine with access to `localhost:63152`.
 
 # === docs/MULTI_ENGINE_SUPPORT.md ===
 
@@ -11111,6 +11902,12 @@ This directory contains detailed documentation for AI Guardian. The main [README
 | [Multi-Engine Support](MULTI_ENGINE_SUPPORT.md) | Scanner engine options and future plans |
 | [Pattern Server](PATTERN_SERVER.md) | Enterprise pattern server configuration |
 
+## Container
+
+| Document | Description |
+|----------|-------------|
+| [Container Image](../container/README.md) | UBI-based image with all headless IDEs, published to quay.io |
+
 ## Development
 
 | Document | Description |
@@ -11125,6 +11922,8 @@ This directory contains detailed documentation for AI Guardian. The main [README
 # === docs/SCANNER_INSTALLATION.md ===
 
 # Scanner Installation Guide
+
+> **No external scanner required.** ai-guardian includes a built-in `toml-patterns` engine (267+ regex patterns, pure Python) that provides comprehensive secret scanning without installing any external binary. External scanners like gitleaks and betterleaks are optional — they add additional pattern coverage but are not required.
 
 AI Guardian provides automated installation and management of secret scanner engines to make setup as easy as possible.
 
@@ -15436,6 +16235,20 @@ AI Guardian provides comprehensive secret scanning to prevent sensitive informat
 
 ---
 
+## Zero-Install Scanning
+
+**No external scanner required.** ai-guardian ships with a built-in `toml-patterns` engine — a pure Python scanner with 267+ pre-compiled regex patterns covering all major secret types (AWS keys, GitHub tokens, Slack tokens, private keys, and more). It requires no binary installation and works immediately after `pip install ai-guardian`.
+
+External scanners (gitleaks, betterleaks, leaktk) are **optional**. They are tried after `toml-patterns` in the default engine list and gracefully skipped when not installed. Install them only if you want additional pattern coverage or faster scanning on large repos.
+
+```
+Default engine order: ["toml-patterns", "gitleaks"]
+                           ↑
+                     Always available — no install needed
+```
+
+---
+
 ## Scanner Engines
 
 **NEW in v1.4.0:** AI Guardian now supports multiple scanner engines with automatic fallback.
@@ -15532,10 +16345,10 @@ AI Guardian provides comprehensive secret scanning to prevent sensitive informat
 
 AI Guardian automatically selects the first available scanner from your `engines` list:
 
-1. **Defaults to gitleaks:** If no `engines` configured, uses `["gitleaks"]`
+1. **Defaults to toml-patterns:** If no `engines` configured, uses `["toml-patterns", "gitleaks"]` — `toml-patterns` is always available (pure Python, no binary)
 2. **Checks availability:** Tries each scanner binary in order
 3. **Selects first found:** Uses the first scanner that exists in PATH
-4. **Blocks if none found:** Shows error with installation instructions
+4. **Falls back gracefully:** If an external scanner is not installed, the next engine in the list is tried; `toml-patterns` always provides a working fallback
 
 **Example:**
 ```bash
@@ -16541,13 +17354,14 @@ When modifying secret scanning code:
 # 1. Is secret_scanning enabled?
 cat ~/.config/ai-guardian/ai-guardian.json | jq .secret_scanning.enabled
 
-# 2. Is Gitleaks installed?
-which gitleaks
-gitleaks version
+# 2. Check which scanner engines are active (toml-patterns is built-in, no install needed)
+ai-guardian scanner list
 
 # 3. Check logs
 tail -f ~/.config/ai-guardian/ai-guardian.log
 ```
+
+**Note:** `toml-patterns` is always available and requires no external binary. If secret scanning reports no engines, ensure ai-guardian itself is installed correctly.
 
 ### Pattern server not being used
 
@@ -20318,8 +21132,8 @@ Violation logging is **extremely efficient**:
       "_explanation": "Local configs cannot change prompt injection settings when immutable is true"
     },
     "detector": "heuristic",
-    "_detector_options": ["heuristic", "ml", "hybrid", "rebuff", "llm-guard"],
-    "_detector_note": "heuristic = local patterns (default, <1ms), ml = ML-only via daemon (10-50ms), hybrid = heuristic first then ML for uncertain cases, rebuff/llm-guard = legacy stubs",
+    "_detector_options": ["heuristic", "ml", "hybrid"],
+    "_detector_note": "heuristic = local patterns (default, <1ms), ml = ML-only via daemon (10-50ms), hybrid = heuristic first then ML for uncertain cases",
     "ml_engines": [],
     "_ml_engines_note": "ML engines for prompt injection detection (NEW in v1.11.0). Requires daemon mode, onnxruntime (included on Python < 3.13), and ai-guardian ml download.",
     "_ml_engines_example": [
@@ -20429,6 +21243,29 @@ Violation logging is **extremely efficient**:
     "_allowlist_note": "File paths to skip (supports ~ expansion and globs). ai-guardian's own plugin files are always skipped."
   },
 
+  "code_scanning": {
+    "_comment": "Python code security scanning with Bandit (NEW in v1.13.0, Issue #828)",
+    "_comment2": "Detects insecure code patterns in .py files written by the AI agent: eval/exec, subprocess shell injection,",
+    "_comment3": "weak crypto (md5/sha1), SQL injection, hardcoded credentials, path traversal, XML vulnerabilities",
+    "_comment4": "Runs on PreToolUse Write/Edit and ai-guardian scan. Uses Bandit (Apache-2.0, fixed dependency).",
+    "enabled": true,
+    "action": "warn",
+    "_action_options": ["block", "warn", "log-only", "ask", "ask:warn", "ask:log-only"],
+    "_action_note": "block = prevent Write/Edit. warn = allow with warning (recommended). ask = interactive prompt.",
+    "severity_threshold": "MEDIUM",
+    "_severity_note": "LOW = all findings. MEDIUM = medium+high (recommended). HIGH = critical only.",
+    "allowlist": [],
+    "_allowlist_note": "Suppress specific Bandit test IDs, optionally scoped to a file prefix.",
+    "_allowlist_example": [
+      {"test_id": "B101", "file": "tests/", "reason": "assert in tests is expected"},
+      {"test_id": "B324", "reason": "md5 used for checksums, not crypto"}
+    ],
+    "ignore_files": [],
+    "_ignore_files_note": "Glob patterns for .py files to skip (e.g. tests/**/*.py, migrations/)",
+    "_nosec_note": "Bandit's native # nosec and # nosec B101 inline annotations are always honored.",
+    "_aiguard_note": "# ai-guardian:allow on a line suppresses all ai-guardian checks including Bandit."
+  },
+
   "scan_pii": {
     "_comment": "PII detection for GDPR/CCPA compliance (v1.6.0+, Phase 2 in v1.8.0)",
     "_comment2": "Scans user prompts, file reads, and tool outputs for personally identifiable information",
@@ -20533,6 +21370,61 @@ Violation logging is **extremely efficient**:
         "expire_after_hours": 168
       }
     }
+  },
+
+  "canary_detection": {
+    "_comment": "Canary token detection (NEW in v1.14.0, Issue #1392). Detects user-registered tripwire values in AI output.",
+    "_comment2": "DISABLED BY DEFAULT — requires at least one token. Enable after adding your tokens.",
+    "_comment3": "Use exact 'value' for low-entropy strings that secret scanner would miss (SENTINEL_PROD_DB_2026).",
+    "_comment4": "Use 'pattern' for regex-format canaries (CANARY_[A-Z0-9]{8}).",
+    "_comment5": "Threat model: plant a value in a config/credential file. If AI outputs it in a curl command, exfil is detected.",
+    "enabled": false,
+    "action": "block",
+    "_comment_action": "block (default) = prevent the operation. warn = allow but alert. log-only = record silently.",
+    "tokens": [
+      {
+        "value": "CANARYTOK_my-db-password-canary",
+        "description": "Production DB password canary (exact match, low entropy — secret scanner misses this)"
+      },
+      {
+        "value": "SENTINEL_PROD_DB_2026",
+        "description": "Config file canary (plain text phrase, no pattern)"
+      },
+      {
+        "pattern": "CANARY_[A-Z0-9]{8}",
+        "description": "Regex pattern matching any 8-char uppercase canary"
+      }
+    ],
+    "_comment_tokens": "Each token needs 'value' (exact) OR 'pattern' (regex), plus optional 'description'."
+  },
+
+  "exfil_detection": {
+    "_comment": "Exfiltration behavior detection (NEW in v1.14.0, Issue #1393). Detects bash commands that steal credentials.",
+    "_comment2": "Patterns: curl/wget with token vars, base64 encoding of secrets, SSH key theft, cloud credential exfil, env dumping.",
+    "_comment3": "Complements config_file_scanning — covers broader behavioral patterns not scoped to AI config files.",
+    "enabled": true,
+    "action": "block",
+    "_comment_action": "block (default) = prevent the operation. warn = allow but alert. log-only = record silently.",
+    "allowlist_patterns": [],
+    "_comment_allowlist": "Regex patterns to allowlist specific commands. Example: '^curl.*my-internal-api.com' to allow known-safe curl calls."
+  },
+
+  "scan_offensive": {
+    "_comment": "Offensive language scanner (NEW in v1.13.0, Issue #1417). Detects profanity, slurs, and non-inclusive terminology.",
+    "_comment2": "DISABLED BY DEFAULT — unlike secrets/PII, offensive language is context-dependent. Enable only when your org requires it.",
+    "_comment3": "categories: profanity, slurs are on when enabled. inclusive_language is opt-in (high FP rate: master, blacklist, dummy widely used).",
+    "_comment4": "action: 'log' (default) = record violations silently. 'warn' = show warning in AI response. 'block' = block the operation.",
+    "_comment5": "Self-scan exclusion: add src/ai_guardian/patterns/offensive-*.toml to .aiguardignore.toml to avoid scanning pattern files themselves.",
+    "enabled": false,
+    "action": "log",
+    "categories": ["profanity", "slurs", "inclusive_language"],
+    "_comment_categories": "Available: profanity, slurs, inclusive_language. Add 'inclusive_language' to also detect master/slave, blacklist/whitelist, etc.",
+    "ignore_files": [],
+    "_comment_ignore_files": "Glob patterns for files to exclude (e.g. 'tests/**', 'vendor/**')",
+    "ignore_tools": [],
+    "_comment_ignore_tools": "Tool names to skip scanning for (e.g. 'Read', 'Bash')",
+    "allowlist_patterns": [],
+    "_comment_allowlist": "Regex patterns to suppress specific matches (e.g. 'kill.*process' if 'kill' triggers a false positive)"
   },
 
   "image_scanning": {
@@ -20983,8 +21875,8 @@ Violation logging is **extremely efficient**:
   "_comment_mcp_server": "MCP (Model Context Protocol) security advisor server (NEW in v1.7.0, Issue #477)",
   "_comment_mcp_server2": "Exposes read-only security tools that AI agents can use proactively",
   "_comment_mcp_server3": "The AI checks security BEFORE acting — instead of being blocked and retrying",
-  "_comment_mcp_server4": "Install via: ai-guardian setup --ide claude --mcp",
-  "_comment_mcp_server5": "Install: ai-guardian setup --ide claude --mcp",
+  "_comment_mcp_server4": "Installed by default during setup. Use --no-mcp to skip",
+  "_comment_mcp_server5": "Installed by default during setup. Use --no-mcp to skip",
   "mcp_server": {
     "proactive_level": "low"
   },
@@ -21058,7 +21950,9 @@ Violation logging is **extremely efficient**:
     "config_file_scanning": { "$ref": "#/$defs/scanner_section" },
     "context_poisoning": { "$ref": "#/$defs/scanner_section" },
     "supply_chain": { "$ref": "#/$defs/scanner_section" },
-    "image_scanning": { "$ref": "#/$defs/scanner_section" }
+    "image_scanning": { "$ref": "#/$defs/scanner_section" },
+    "offensive_language": { "$ref": "#/$defs/scanner_section" },
+    "exfil_detection": { "$ref": "#/$defs/scanner_section" }
   },
   "additionalProperties": false,
   "$defs": {
@@ -21096,6 +21990,72 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.13.0] - 2026-07-06
+
+### Added
+
+- **Bandit and Semgrep code security scanners** — detect insecure code patterns in files being written or edited (hardcoded credentials, `eval()`/`exec()`, weak crypto, SQL injection sinks). Available via optional `[code-security]` extras; scanner auto-detects availability and fails gracefully if missing. New **Code Security** page in TUI and web console shows scanner status and findings. SARIF output for downstream consumers. Enabled in `@strict` profile; disabled in all other profiles (Issue #828).
+
+- **Container image on quay.io** — `quay.io/itdove/ai-guardian:<version>` published on every release tag via new `build-container.yml` CI/CD workflow; `:latest` updated on every merge to `main`. `support/` directory renamed to `container/`; includes smoke-test YAML scenarios for secret detection, PII, ask dialog, and tool policy (Issue #1423).
+
+- **Kubernetes deployment** — Kustomize-based manifests with base + overlays for Kind (local/CI, NodePort), OpenShift (Route CRD), and production (LoadBalancer). Kind overlay includes cluster config for local testing. Docs at `docs/kubernetes.md`. Kind-based CI test validates remote daemon and ask dialog forwarding end-to-end (Issue #1428).
+
+- **Ask dialog forwarding from remote daemon to host tray** — container/Kubernetes daemon queues ask prompts; host tray polls every 2.5s and presents the full dialog locally (NiceGUI browser tab on macOS, auto-select on Linux). Decision returned to daemon via REST; hook continues with user's choice. New REST endpoints: `GET /api/pending-prompts`, `POST /api/prompt-decision`, `POST /api/register-tray` (Issue #1342).
+
+- **Dummy-agent for LLM-free hook testing** — new `ai-guardian dummy-agent` command: interactive REPL that simulates all Claude Code hook events (PreToolUse, PostToolUse, UserPromptSubmit, Stop, Notification) using YAML scenario files, no LLM required. Bundled scenarios for secret detection, PII, tool policy, and ask dialog (Issue #1438).
+
+- **@moderator built-in profile** — all action policies set to `ask`, requiring human-in-the-loop approval before every tool call. Maximum-oversight mode for sensitive workflows. Available via `--profile @moderator` (Issue #1422).
+
+- **MCP server installed by default** — `ai-guardian install` now configures the MCP server automatically; `--mcp` flag removed. All new installations include MCP capabilities out of the box (Issue #1377).
+
+- **Security Instructions page** — new TUI and web console config page for defining agent context injection rules. Each rule specifies triggers and content injected into the agent system prompt at hook time. Profile templates include default security instruction sets (Issue #1460).
+
+- **Bootstrap scanning** — on new session start, ai-guardian scans agent config files (AGENTS.md, agent config JSONs) through the full violation pipeline, catching policy violations and secrets before any agent code runs. Triggers once per session (Issue #1394).
+
+- **ML Engines setup wizard** — step-by-step onboarding wizard on the ML Engines config page in both TUI and web console: dependency check → engine selection → model download. Replaces the previous static form that gave no onboarding guidance (Issue #1474).
+
+- **Per-field help tooltips** — all TUI and web console config pages now show a `(?)` icon next to each section and field. Opens contextual help inline without leaving the page. Centralized in `help_content.py`; reusable `help_panel.py` component for the web console (Issue #1472).
+
+- **Contextual help per scanner page** — each scanner page in the web console includes a "Learn More" help panel; TUI scanner views include a Documentation link. All 12 scanner pages covered via centralized `help_content.py` module (Issue #1463).
+
+- **Daemon REST port auto-retry** — if port 63152 is already bound (e.g. by an orphan daemon), the daemon automatically tries the next 9 consecutive ports (63152–63161). First free port wins. `ai-guardian doctor` probes the actual bound port (Issue #1469).
+
+- **6 new secret patterns** — `huggingface-access-token` (`hf_` prefix, 34 chars), `huggingface-organization-api-token` (`api_org_` prefix), `github-fine-grained-pat` (`github_pat_` + 82 chars), `github-user-token` (`ghu_` prefix), `aws-amazon-bedrock-api-key-long-lived` (`ABSK` prefix, 109–269 base64 chars), `perplexity-api-key` (`pplx-` prefix). Sourced from Gitleaks community config (MIT). Secret count: 53 → 59 (Issue #1482).
+
+- **SSRF: Alibaba Cloud and Oracle Cloud metadata blocking** — `100.100.100.200` (Alibaba Cloud) and `192.0.0.192` (Oracle Cloud/OCI) added as immutable SSRF block patterns. WebFetch tool calls to these IPs also blocked. Legitimate `100.x` public IPs unaffected (Issue #1483).
+
+- **Config exfil: glob pattern support and Copilot/Kiro targets** — `_is_config_file()` now accepts glob patterns for wildcard path matching. `.github/copilot-instructions.md` and `.kiro/steering/*.md` added to `DEFAULT_CONFIG_FILES` as persistence-multiplier targets (Issue #1484).
+
+- **Canary token detection** — new `canary_detection` config section detects user-registered tripwire values in AI output to catch data exfiltration. Supports exact-value and regex matching; bypasses entropy thresholds unlike the secret scanner, making it effective for low-entropy strings. Disabled by default. New `canary_detected` violation type in constants, violations log, TUI, and web console. Wired into PreToolUse, PostToolUse, and UserPromptSubmit hooks (Issue #1392).
+
+- **Offensive language scanner** — new `scan_offensive` config section detects profanity, slurs, and non-inclusive terminology in code, comments, and variable names. Disabled by default. Three categories: `profanity`, `slurs` (on by default when enabled), `inclusive_language` (opt-in). Includes `suggestion` field for inclusive replacements. Works with `.aiguardignore.toml`, ask mode, and allowlists (Issue #1417).
+
+- **Exfiltration behavior detection** — `exfil_detection` config section catches bash commands that steal credentials: curl/wget with token vars, base64 encoding of secrets, SSH key files piped to network, cloud credential exfil (AWS IMDS, GCP metadata), and environment variable collection. 6 pattern categories: `credential_theft`, `env_collection`, `key_file_exfil`, `base64_encoding`, `cloud_credential_exfil`, `secret_collection`. New `exfil_detection` violation type. Wired into PreToolUse Bash hook and batch scan mode for shell scripts (Issue #1393).
+
+- **Verified Cursor hook compatibility with Cursor v3.10.11** — all 5 hook events (beforeSubmitPrompt, beforeReadFile, beforeShellExecution, afterShellExecution, postToolUse) confirmed firing correctly.
+
+### Changed
+
+- **Dev-mode auto-restart removed** — daemon no longer watches file mtimes and auto-restarts in dev mode. Eliminates orphan daemon processes and partial-write crashes caused by mid-operation restarts. Tray shows a stale-code warning instead (Issue #1465).
+
+### Fixed
+
+- **Allowlist bypassed when scanner returns line_number=0** — hook processing used `line_number` as the key to look up the secret text; `line_number=0` resolved to nothing, so every such finding bypassed the allowlist. Fix falls back to `matched_text` from the scanner result (Issue #1476).
+
+- **Tray restart double-click spawned orphan daemons** — rapid double-click on Restart tray menu item spawned two daemons simultaneously, both binding the same port, leaving both as orphans. Fix disables the menu item on first click and re-enables it after restart completes (Issue #1473).
+
+- **Headless env detection incorrect in SSH sessions** — `_is_headless_env()` returned `True` when no `$DISPLAY` was set, causing Textual TUI to be skipped even in SSH sessions with a real TTY. Fix adds explicit TTY detection; headless path only taken when no TTY is present AND running in a container (Issue #1448).
+
+- **Hook timeout too short for ask mode** — extended from 30s to 300s; fail-closed on timeout (Issue #1445).
+
+- **Allow Once persisted for entire session** — the dedup fix in #1427 over-cached allowed findings, making Allow Once suppress findings for the full session. Fix scopes the allowed-findings cache to the current hook invocation only (Issue #1439).
+
+- **Double ask dialog on UserPromptSubmit** — scanning transcript and message body independently produced duplicate findings for the same secret, presenting two Allow dialogs. Fix deduplicates ask-mode findings by `matched_text` before showing dialogs (Issue #1427).
+
+- **Daemon orphan accumulation in dev mode** — race in `_cleanup_stale()` allowed multiple daemon processes to start concurrently. Fix makes the PID file the authoritative restart signal; only one process can claim it atomically (Issue #1425).
+
+- **Prompt injection settings missing ml and hybrid detector options** — `ml` and `hybrid` detector types were absent from the web console and TUI prompt injection pages, requiring manual JSON edits. All four detector types now selectable in all UI surfaces (Issue #1419).
+
 ## [1.12.3] - 2026-06-29
 
 ### Fixed
@@ -21104,26 +22064,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **IGNORE_FILE decision in multi-finding ask mode** — correctly handle "Ignore File" action when multiple findings are present in ask dialog (Issue #1387)
 - **Project dir override in prompt-ask handler** — set project directory override in prompt-ask handler so config writes target the correct project scope (Issue #1381)
 - **Cursor hook test settings dict key path** — correct the settings dictionary key path in cursor hook test to match actual structure (Issue #1386)
-
-## [1.12.2] - 2026-06-26
-
-### Added
-
-- **Project directory selector in web console header** — dropdown to select active project scope for all daemons, populated from daemon stats (Issue #1359)
-- **Half-moon tray icon for partially paused daemons** — shows distinct icon when some directories are paused but daemon is running (Issue #1365)
-- **Bug report and feature request issue templates** — structured GitHub issue templates for consistent reporting (Issue #1373)
-
-### Fixed
-
-- **Rich markup escaping in TUI** — escape square brackets in violation text to prevent Rich markup interpretation errors; add warning prefix to warn/log-only messages (Issue #1375)
-- **Web console auto-restart when dead** — auto-restart web console process before opening panels if it died unexpectedly (Issue #1372)
-- **Performance settings for remote daemons** — performance page now correctly loads/saves latency settings for remote daemon targets (Issue #1369)
-- **NiceGUI storage path in read-only containers** — use temp directory for `.nicegui` storage when CWD is read-only (Issue #1368)
-- **Concurrent dev daemon restart cooldown** — prevent rapid restart loops when multiple panels trigger daemon restarts simultaneously (Issue #1367)
-- **REST endpoints track project directories** — SDK and scan REST endpoints now register project directories for daemon stats (Issue #1362)
-- **Web console remote daemon config routing** — config reads/writes correctly route through DaemonService for remote daemons instead of reading host filesystem (Issue #1355)
-- **Publish workflow: test tags no longer publish to production PyPI** — merged `publish.yml` and `publish-test.yml` into single workflow that routes to TestPyPI or PyPI based on tag format (`v*-test*` → TestPyPI, `v*` → PyPI)
-- **Release skill: cursor-verify-setup places hooks inside `hooks:{}` object** — debug hooks were placed at JSON top level where Cursor ignores them; now correctly added inside the `hooks` object
 
 
 *(Earlier versions omitted — see CHANGELOG.md for full history)*
