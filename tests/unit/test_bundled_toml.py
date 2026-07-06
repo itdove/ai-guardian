@@ -12,7 +12,7 @@ from ai_guardian.patterns.toml_parser import load_and_compile, load_toml_file
 PATTERNS_DIR = DATA_DIR
 
 EXPECTED_COUNTS = {
-    "secrets.toml": 53,
+    "secrets.toml": 59,
     "pii.toml": 13,
     "prompt-injection.toml": 73,
     "unicode.toml": 107,
@@ -108,3 +108,100 @@ class TestBundledTomlFiles:
         assert counts.get("documentation", 0) == 20
         assert counts.get("jailbreak", 0) == 14
         assert counts.get("suspicious", 0) == 7
+
+
+class TestNewSecretPatterns:
+    """Detection tests for the 6 new AI/cloud credential patterns (Issue #1482)."""
+
+    @pytest.fixture(scope="class")
+    def secret_rules(self):
+        path = PATTERNS_DIR / "secrets.toml"
+        return {r.id: r for r in load_and_compile(path, "secrets")}
+
+    # --- HuggingFace Access Token ---
+
+    def test_huggingface_access_token_detected(self, secret_rules):
+        rule = secret_rules["huggingface-access-token"]
+        token = "hf_" + "A" * 34
+        assert rule.compiled.search(f'token = "{token}"')
+
+    def test_huggingface_access_token_no_false_positive_comment(self, secret_rules):
+        rule = secret_rules["huggingface-access-token"]
+        assert not rule.compiled.search("# hf_ refers to HuggingFace token format")
+
+    def test_huggingface_access_token_no_false_positive_short(self, secret_rules):
+        rule = secret_rules["huggingface-access-token"]
+        assert not rule.compiled.search("hf_short")
+
+    # --- HuggingFace Organization API Token ---
+
+    def test_huggingface_org_token_detected(self, secret_rules):
+        rule = secret_rules["huggingface-organization-api-token"]
+        token = "api_org_" + "B" * 34
+        assert rule.compiled.search(f'key = "{token}"')
+
+    def test_huggingface_org_token_no_false_positive_comment(self, secret_rules):
+        rule = secret_rules["huggingface-organization-api-token"]
+        assert not rule.compiled.search("# api_org_ is the HuggingFace org prefix")
+
+    # --- GitHub Fine-Grained PAT ---
+
+    def test_github_fine_grained_pat_detected(self, secret_rules):
+        rule = secret_rules["github-fine-grained-pat"]
+        token = "github_pat_" + "A" * 82
+        assert rule.compiled.search(f'GITHUB_TOKEN="{token}"')
+
+    def test_github_fine_grained_pat_no_false_positive_short(self, secret_rules):
+        rule = secret_rules["github-fine-grained-pat"]
+        assert not rule.compiled.search("github_pat_tooshort")
+
+    def test_github_fine_grained_pat_no_false_positive_comment(self, secret_rules):
+        rule = secret_rules["github-fine-grained-pat"]
+        assert not rule.compiled.search(
+            "# github_pat_ is the new fine-grained PAT prefix"
+        )
+
+    # --- GitHub User-to-Server Token ---
+
+    def test_github_user_token_detected(self, secret_rules):
+        rule = secret_rules["github-user-token"]
+        token = "ghu_" + "A" * 36
+        assert rule.compiled.search(f'token = "{token}"')
+
+    def test_github_user_token_no_false_positive_comment(self, secret_rules):
+        rule = secret_rules["github-user-token"]
+        assert not rule.compiled.search("# ghu_ prefix for GitHub user tokens")
+
+    def test_github_user_token_no_false_positive_short(self, secret_rules):
+        rule = secret_rules["github-user-token"]
+        assert not rule.compiled.search("ghu_abc123")
+
+    # --- AWS Amazon Bedrock API Key ---
+
+    def test_aws_bedrock_api_key_detected(self, secret_rules):
+        rule = secret_rules["aws-amazon-bedrock-api-key-long-lived"]
+        token = "ABSK" + "A" * 109
+        assert rule.compiled.search(f'key = "{token}"')
+
+    def test_aws_bedrock_api_key_no_false_positive_short(self, secret_rules):
+        rule = secret_rules["aws-amazon-bedrock-api-key-long-lived"]
+        assert not rule.compiled.search("ABSK" + "A" * 10)
+
+    def test_aws_bedrock_api_key_no_false_positive_comment(self, secret_rules):
+        rule = secret_rules["aws-amazon-bedrock-api-key-long-lived"]
+        assert not rule.compiled.search("# ABSK prefix for Bedrock long-lived keys")
+
+    # --- Perplexity API Key ---
+
+    def test_perplexity_api_key_detected(self, secret_rules):
+        rule = secret_rules["perplexity-api-key"]
+        token = "pplx-" + "a" * 48
+        assert rule.compiled.search(f'PERPLEXITY_API_KEY="{token}"')
+
+    def test_perplexity_api_key_no_false_positive_comment(self, secret_rules):
+        rule = secret_rules["perplexity-api-key"]
+        assert not rule.compiled.search("# pplx- is the Perplexity API key prefix")
+
+    def test_perplexity_api_key_no_false_positive_short(self, secret_rules):
+        rule = secret_rules["perplexity-api-key"]
+        assert not rule.compiled.search("pplx-tooshort")

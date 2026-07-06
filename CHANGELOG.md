@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **6 new secret patterns: HuggingFace, GitHub fine-grained PAT, AWS Bedrock, Perplexity** — `secrets.toml` now includes `huggingface-access-token` (`hf_` prefix, 34 chars), `huggingface-organization-api-token` (`api_org_` prefix), `github-fine-grained-pat` (`github_pat_` + 82 chars, new fine-grained PAT format introduced 2022), `github-user-token` (`ghu_` prefix, user-to-server OAuth), `aws-amazon-bedrock-api-key-long-lived` (`ABSK` prefix, 109–269 base64 chars), and `perplexity-api-key` (`pplx-` prefix). All rules sourced from Gitleaks community config (MIT). Secret count: 53 → 59 (Issue #1482).
+
 - **Alibaba Cloud and Oracle Cloud metadata endpoint blocking** — SSRF protector now blocks `100.100.100.200` (Alibaba Cloud metadata) and `192.0.0.192` (Oracle Cloud/OCI metadata) as immutable patterns. WebFetch tool calls with these IPs are also blocked. Legitimate `100.x` public IPs are not affected (Issue #1483).
 - **Config exfil scanner: GitHub Copilot and Kiro steering files** — `.github/copilot-instructions.md` and `.kiro/steering/*.md` added to `DEFAULT_CONFIG_FILES`; `_is_config_file()` now supports glob patterns for wildcard path matching. Both files are persistence-multiplier targets: injected exfiltration commands run on every Copilot or Kiro session (Issue #1484).
 
