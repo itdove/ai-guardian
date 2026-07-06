@@ -15,6 +15,7 @@ Inspired by Hermes Security Framework patterns.
 NEW in v1.5.0: Optional pattern server support for additional exfiltration patterns.
 """
 
+import fnmatch
 import logging
 import os
 import re
@@ -138,7 +139,9 @@ class ConfigFileScanner:
         ".cursorrules",
         ".aider.conf.yml",
         ".github/CLAUDE.md",
+        ".github/copilot-instructions.md",
         ".junie/guidelines.md",
+        ".kiro/steering/*.md",
     ]
 
     # Documentation keywords that suggest this is an example, not malicious
@@ -310,18 +313,26 @@ class ConfigFileScanner:
         # Convert to Path for easier manipulation
         path = Path(file_path)
         filename = path.name
+        # Normalize to forward slashes for cross-platform pattern matching
+        norm_path = str(path).replace("\\", "/")
 
-        # Check exact filename matches
-        if filename in self._config_file_patterns:
-            return True
-
-        # Check path patterns (e.g., .github/CLAUDE.md)
         for pattern in self._config_file_patterns:
-            if "/" in pattern or "\\" in pattern:
-                # Path pattern - check if file_path ends with this pattern
-                if str(path).endswith(pattern) or str(path).endswith(
+            norm_pattern = pattern.replace("\\", "/")
+            if "*" in norm_pattern or "?" in norm_pattern:
+                # Glob pattern — match against full path or suffix
+                if fnmatch.fnmatch(norm_path, norm_pattern) or fnmatch.fnmatch(
+                    norm_path, f"*/{norm_pattern}"
+                ):
+                    return True
+            elif "/" in norm_pattern:
+                # Exact path pattern — check suffix
+                if norm_path.endswith(norm_pattern) or str(path).endswith(
                     pattern.replace("/", "\\")
                 ):
+                    return True
+            else:
+                # Exact filename match
+                if filename == pattern:
                     return True
 
         return False
