@@ -72,6 +72,9 @@ elif [[ -n "${ANTHROPIC_VERTEX_PROJECT_ID:-}" ]]; then
     fi
 fi
 
+# --- Proprietary CLI ToS bypass (forward from host if set) ---
+[[ -n "${ACCEPT_PROPRIETARY_TOS:-}" ]] && env_args+=(-e "ACCEPT_PROPRIETARY_TOS=${ACCEPT_PROPRIETARY_TOS}")
+
 # --- Forge tokens (all optional — forward from host if set) ---
 [[ -n "${GH_TOKEN:-}" ]]       && env_args+=(-e "GH_TOKEN=${GH_TOKEN}")
 [[ -n "${GITHUB_TOKEN:-}" ]]   && env_args+=(-e "GITHUB_TOKEN=${GITHUB_TOKEN}")
