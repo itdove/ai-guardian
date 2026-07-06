@@ -37,15 +37,15 @@ See [Security Design](https://github.com/itdove/ai-guardian/blob/main/docs/SECUR
 
 ```bash
 # Linux / macOS (auto-detects uv → venv → pip)
-curl -fsSL https://raw.githubusercontent.com/itdove/ai-guardian/main/install.sh | bash -s -- --ide claude
+curl -fsSL https://raw.githubusercontent.com/itdove/ai-guardian/v1.13.0/install.sh | bash -s -- --ide claude
 
 # Force a specific install method
-curl -fsSL https://raw.githubusercontent.com/itdove/ai-guardian/main/install.sh | bash -s -- --uv --ide claude    # uv tool install (fastest)
-curl -fsSL https://raw.githubusercontent.com/itdove/ai-guardian/main/install.sh | bash -s -- --venv --ide claude  # venv + pip
-curl -fsSL https://raw.githubusercontent.com/itdove/ai-guardian/main/install.sh | bash -s -- --pip --ide claude   # bare pip
+curl -fsSL https://raw.githubusercontent.com/itdove/ai-guardian/v1.13.0/install.sh | bash -s -- --uv --ide claude    # uv tool install (fastest)
+curl -fsSL https://raw.githubusercontent.com/itdove/ai-guardian/v1.13.0/install.sh | bash -s -- --venv --ide claude  # venv + pip
+curl -fsSL https://raw.githubusercontent.com/itdove/ai-guardian/v1.13.0/install.sh | bash -s -- --pip --ide claude   # bare pip
 
 # Windows (PowerShell)
-irm https://raw.githubusercontent.com/itdove/ai-guardian/main/install.ps1 | iex
+irm https://raw.githubusercontent.com/itdove/ai-guardian/v1.13.0/install.ps1 | iex
 ```
 
 Or install manually:
@@ -109,8 +109,8 @@ podman pull quay.io/itdove/ai-guardian:latest
 podman run -it -p 63152:63152 -e AI_GUARDIAN_IDE=claude quay.io/itdove/ai-guardian:latest
 
 # Pinned release
-podman pull quay.io/itdove/ai-guardian:v1.12.3
-podman run -it -p 63152:63152 -e AI_GUARDIAN_IDE=claude quay.io/itdove/ai-guardian:v1.12.3
+podman pull quay.io/itdove/ai-guardian:v1.13.0
+podman run -it -p 63152:63152 -e AI_GUARDIAN_IDE=claude quay.io/itdove/ai-guardian:v1.13.0
 
 # Or build from source
 podman build -t ai-guardian container/
@@ -362,7 +362,7 @@ python -m venv $env:USERPROFILE\.ai-guardian-venv
 & "$env:USERPROFILE\.ai-guardian-venv\Scripts\pip" install ai-guardian
 
 # Or use the one-line installer:
-irm https://raw.githubusercontent.com/itdove/ai-guardian/main/install.ps1 | iex
+irm https://raw.githubusercontent.com/itdove/ai-guardian/v1.13.0/install.ps1 | iex
 ```
 
 > **Warning:** The `main` branch contains unreleased development code. Always install stable releases from PyPI (`uv tool install ai-guardian` or `pip install ai-guardian`). Do not `git clone` + `pip install -e .` for production use — development builds may contain breaking changes, incomplete features, or experimental code that has not been release-tested.

@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.13.0] - 2026-07-06
+
 ### Added
 
 - **Bandit and Semgrep code security scanners** — detect insecure code patterns in files being written or edited (hardcoded credentials, `eval()`/`exec()`, weak crypto, SQL injection sinks). Available via optional `[code-security]` extras; scanner auto-detects availability and fails gracefully if missing. New **Code Security** page in TUI and web console shows scanner status and findings. SARIF output for downstream consumers. Enabled in `@strict` profile; disabled in all other profiles (Issue #828).
@@ -46,6 +48,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Offensive language scanner** — new `scan_offensive` config section detects profanity, slurs, and non-inclusive terminology in code, comments, and variable names. Disabled by default. Three categories: `profanity`, `slurs` (on by default when enabled), `inclusive_language` (opt-in). Includes `suggestion` field for inclusive replacements. Works with `.aiguardignore.toml`, ask mode, and allowlists (Issue #1417).
 
 - **Exfiltration behavior detection** — `exfil_detection` config section catches bash commands that steal credentials: curl/wget with token vars, base64 encoding of secrets, SSH key files piped to network, cloud credential exfil (AWS IMDS, GCP metadata), and environment variable collection. 6 pattern categories: `credential_theft`, `env_collection`, `key_file_exfil`, `base64_encoding`, `cloud_credential_exfil`, `secret_collection`. New `exfil_detection` violation type. Wired into PreToolUse Bash hook and batch scan mode for shell scripts (Issue #1393).
+
+- **Verified Cursor hook compatibility with Cursor v3.10.11** — all 5 hook events (beforeSubmitPrompt, beforeReadFile, beforeShellExecution, afterShellExecution, postToolUse) confirmed firing correctly.
 
 ### Changed
 
@@ -2775,7 +2779,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Preserves existing configuration
   - Interactive and non-interactive modes
 
-[Unreleased]: https://github.com/itdove/ai-guardian/compare/v1.12.3...HEAD
+[Unreleased]: https://github.com/itdove/ai-guardian/compare/v1.13.0...HEAD
+[1.13.0]: https://github.com/itdove/ai-guardian/compare/v1.12.3...v1.13.0
 [1.12.3]: https://github.com/itdove/ai-guardian/compare/v1.12.2...v1.12.3
 [1.12.2]: https://github.com/itdove/ai-guardian/compare/v1.12.1...v1.12.2
 [1.12.1]: https://github.com/itdove/ai-guardian/compare/v1.12.0...v1.12.1
