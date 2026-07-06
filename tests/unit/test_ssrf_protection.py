@@ -174,6 +174,8 @@ class TestCloudMetadataEndpoints:
             ("http://metadata.google.internal/", "GCP"),
             ("http://metadata.goog/", "GCP alternative"),
             ("http://[fd00:ec2::254]/", "AWS IPv6"),
+            ("http://100.100.100.200/latest/meta-data/", "Alibaba Cloud"),
+            ("http://192.0.0.192/opc/v2/instance/", "Oracle Cloud"),
         ],
     )
     def test_metadata_endpoints_blocked(self, endpoint, provider):
@@ -183,6 +185,25 @@ class TestCloudMetadataEndpoints:
 
         assert should_block, f"Failed to block {provider} metadata endpoint"
         assert "SSRF" in msg
+
+    def test_alibaba_cloud_metadata_blocked_via_webfetch(self):
+        """Alibaba Cloud metadata blocked for WebFetch tool calls."""
+        protector = SSRFProtector()
+        should_block, msg = protector.check(
+            "WebFetch", {"url": "http://100.100.100.200"}
+        )
+
+        assert should_block, "Failed to block Alibaba Cloud metadata via WebFetch"
+        assert "SSRF" in msg
+
+    def test_unrelated_100x_public_ip_not_blocked(self):
+        """Unrelated 100.x public IPs must not be blocked (only 100.100.100.200 is metadata)."""
+        protector = SSRFProtector()
+        should_block, _ = protector.check(
+            "Bash", {"command": "curl http://100.64.0.1/"}
+        )
+
+        assert not should_block, "100.64.0.1 is a public IP and must not be blocked"
 
     def test_localhost_domain_blocked_by_default(self):
         """Test that localhost domain is blocked by default."""
