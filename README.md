@@ -109,8 +109,8 @@ podman pull quay.io/itdove/ai-guardian:latest
 podman run -it -p 63152:63152 -e AI_GUARDIAN_IDE=claude quay.io/itdove/ai-guardian:latest
 
 # Pinned release
-podman pull quay.io/itdove/ai-guardian:1.13.0
-podman run -it -p 63152:63152 -e AI_GUARDIAN_IDE=claude quay.io/itdove/ai-guardian:1.13.0
+podman pull quay.io/itdove/ai-guardian:v1.12.3
+podman run -it -p 63152:63152 -e AI_GUARDIAN_IDE=claude quay.io/itdove/ai-guardian:v1.12.3
 
 # Or build from source
 podman build -t ai-guardian container/
@@ -169,6 +169,13 @@ ai-guardian setup --ide claude --create-config --profile @strict --install-scann
 | Security SDK & REST API | Programmatic security checking for Python agents and multi-language support | [docs/SDK.md](https://github.com/itdove/ai-guardian/blob/main/docs/SDK.md) |
 | Secret Liveness Validation | Verify detected secrets are still active via provider APIs | [docs/CONFIGURATION.md](https://github.com/itdove/ai-guardian/blob/main/docs/CONFIGURATION.md#secret-liveness-validation) |
 | Hook Latency Metrics | Per-hook timing with console dashboard for performance analysis | [docs/HOOKS.md](https://github.com/itdove/ai-guardian/blob/main/docs/HOOKS.md#hook-latency-tracking) |
+| Canary Token Detection | Detect user-registered tripwire values in AI output to catch data exfiltration | [docs/CONFIGURATION.md](https://github.com/itdove/ai-guardian/blob/main/docs/CONFIGURATION.md) |
+| Offensive Language Scanner | Detect profanity, slurs, and non-inclusive terminology in code and comments | [docs/CONFIGURATION.md](https://github.com/itdove/ai-guardian/blob/main/docs/CONFIGURATION.md) |
+| Exfiltration Behavior Detection | Detect bash commands that steal credentials via curl, base64, SSH key exfil | [docs/security/CREDENTIAL_EXFILTRATION.md](https://github.com/itdove/ai-guardian/blob/main/docs/security/CREDENTIAL_EXFILTRATION.md) |
+| Code Security Scanning | Bandit/Semgrep-based detection of insecure code patterns (eval, weak crypto, injection) | [docs/SCANNER_INSTALLATION.md](https://github.com/itdove/ai-guardian/blob/main/docs/SCANNER_INSTALLATION.md) |
+| Dummy Agent | LLM-free hook testing via interactive REPL with YAML scenario files | [docs/AGENT_SUPPORT.md](https://github.com/itdove/ai-guardian/blob/main/docs/AGENT_SUPPORT.md) |
+| Kubernetes Deployment | Kustomize manifests for Kind, OpenShift, and production deployments | [docs/kubernetes.md](https://github.com/itdove/ai-guardian/blob/main/docs/kubernetes.md) |
+| Security Instructions | Configurable agent context injection rules via TUI and web console | [docs/CONFIGURATION.md](https://github.com/itdove/ai-guardian/blob/main/docs/CONFIGURATION.md) |
 
 ## Default Behavior (No Configuration File)
 
