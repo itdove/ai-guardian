@@ -1,4 +1,4 @@
-name: Prompt Injection Pattern Research Reminder
+name: Security Pattern Research Reminder
 
 on:
   schedule:
@@ -62,11 +62,11 @@ jobs:
             const issue = await github.rest.issues.create({
               owner: context.repo.owner,
               repo: context.repo.repo,
-              title: `Twice-monthly: Review prompt injection pattern sources for updates`,
+              title: `Twice-monthly: Review security pattern sources for updates`,
               labels: ['pattern-research-reminder', 'research', 'security', 'maintenance'],
-              body: `## 🔍 Scheduled Pattern Research Review
+              body: `## 🔍 Scheduled Security Pattern Research Review
 
-              Time to check security research sources for new prompt injection patterns.
+              Time to check security research sources for new patterns across all ai-guardian scanners.
 
               **Auto-reminder created**: ${new Date().toISOString().split('T')[0]}
 
@@ -74,42 +74,83 @@ jobs:
 
               ## 📋 Research Checklist
 
-              Review the following sources for new patterns (see [AGENTS.md](AGENTS.md#periodic-pattern-maintenance) for full process):
+              Review the following sources (see [AGENTS.md](AGENTS.md#periodic-pattern-maintenance) for full process and evaluation criteria):
 
               ### Priority Sources (Check All)
 
-              - [ ] **Hermes Security Patterns** - https://github.com/fullsend-ai/experiments/tree/main/hermes-security-patterns
+              - [ ] **Hermes Security Patterns** - https://github.com/fullsend-ai/experiments/tree/main/0009-hermes-security-patterns
                 - Last reviewed: _[update date after review]_
-                - New patterns found: _[yes/no]_
+                - Check: new payloads in \`payloads/\`, new experiments relevant to AI IDE security
 
               - [ ] **OWASP LLM Top 10** - https://owasp.org/www-project-top-10-for-large-language-model-applications/
                 - Last reviewed: _[update date after review]_
-                - New patterns found: _[yes/no]_
+                - Check: new categories, updated attack descriptions
+
+              - [ ] **Gitleaks community config** - https://github.com/gitleaks/gitleaks/blob/master/config/gitleaks.toml
+                - Last reviewed: _[update date after review]_
+                - Check: new credential rules not yet in \`src/ai_guardian/patterns/data/secrets.toml\`
+
+              - [ ] **TruffleHog detectors** - https://github.com/trufflesecurity/trufflehog/tree/main/pkg/detectors
+                - Last reviewed: _[update date after review]_
+                - Check: new cloud provider/service credential formats
 
               - [ ] **AI Security Research Papers** - Search arXiv, Google Scholar for recent publications
+                - Keywords: "prompt injection", "LLM jailbreak", "context poisoning", "AI agent security"
                 - Last reviewed: _[update date after review]_
                 - Relevant papers: _[list any found]_
 
               ### Optional Sources (Review if Time Permits)
 
-              - [ ] **CVE Database** - Search for AI/LLM vulnerabilities
-              - [ ] **Security Researcher Blogs** - Check known AI security experts
-              - [ ] **Security Conference Proceedings** - Recent talks on AI security
+              - [ ] **CVE Database** - Search for AI/LLM/agent vulnerabilities
+              - [ ] **Security Researcher Blogs** - Known AI security experts
+              - [ ] **Cloud Provider Announcements** - New API key formats from AWS, GCP, Azure, etc.
+              - [ ] **Security Conference Proceedings** - DEF CON AI Village, Black Hat, RSA
 
               ---
 
-              ## ✅ Pattern Evaluation
+              ## 🔬 Scanner-Specific Review
 
-              For each new pattern discovered, evaluate using criteria from [AGENTS.md](AGENTS.md#periodic-pattern-maintenance):
+              Work through each scanner and record findings below:
 
-              1. **Applies to AI IDEs** - Does this pattern affect tools like Claude Code?
-              2. **Not Duplicate** - Is this pattern already covered in our detection?
-              3. **Low False Positives** - Can we detect without blocking legitimate use?
-              4. **License Compatible** - Verify source license allows use in ai-guardian (MIT/Apache-2.0/BSD/CC0/Public Domain)
-                 - For GitHub repos: \`curl -s https://api.github.com/repos/OWNER/REPO | jq -r '.license.spdx_id'\`
-                 - For academic papers: Fair use (cite properly in CHANGELOG.md)
-                 - **Acceptable licenses**: MIT, Apache-2.0, BSD-2-Clause, BSD-3-Clause, CC0-1.0, Public Domain
-                 - **Unacceptable licenses**: GPL*, AGPL*, proprietary, "All Rights Reserved"
+              ### 🔍 Prompt Injection (\`src/ai_guardian/prompt_injection.py\`)
+              Sources: Hermes payloads, OWASP LLM Top 10, arXiv papers
+              - [ ] Reviewed
+              - New patterns found: _[yes/no — if yes, create enhancement issue]_
+
+              ### 🧠 Context Poisoning (\`src/ai_guardian/context_poisoning.py\`)
+              Sources: Hermes context-injection payloads, OWASP LLM03, arXiv papers
+              - [ ] Reviewed
+              - New patterns found: _[yes/no]_
+
+              ### 🔑 Secrets (\`src/ai_guardian/patterns/data/secrets.toml\`)
+              Sources: Gitleaks community config, TruffleHog detectors, cloud provider announcements
+              - [ ] Reviewed
+              - New credential formats found: _[yes/no]_
+
+              ### 🌐 SSRF (\`src/ai_guardian/ssrf_protector.py\`)
+              Sources: CVE database, security blogs — look for new cloud metadata endpoints, redirect bypass techniques, new internal IP ranges
+              - [ ] Reviewed
+              - New bypass techniques or endpoints found: _[yes/no]_
+
+              ### 📁 Config File Exfil (\`src/ai_guardian/config_scanner.py\`)
+              Sources: Security blogs, cloud provider docs — look for new config file paths/formats that expose credentials
+              - [ ] Reviewed
+              - New config file patterns found: _[yes/no]_
+
+              ---
+
+              ## ✅ Pattern Evaluation Criteria
+
+              For each candidate pattern, evaluate against all 5 criteria from [AGENTS.md](AGENTS.md#periodic-pattern-maintenance):
+
+              1. **Applies to AI IDEs** — affects tools like Claude Code, Cursor, Copilot
+              2. **Not Duplicate** — not already covered in the relevant scanner file
+              3. **Low False Positives** — detection won't block legitimate code or docs
+              4. **Reproducible** — concrete examples exist to demonstrate the attack
+              5. **License Compatible** — source uses permissive license (MIT/Apache-2.0/BSD/CC0/Public Domain) or academic fair use
+                 - Check GitHub repos: \`curl -s https://api.github.com/repos/OWNER/REPO | jq -r '.license.spdx_id'\`
+                 - **Acceptable**: MIT, Apache-2.0, BSD-2-Clause, BSD-3-Clause, CC0-1.0, ISC, Unlicense, Public Domain
+                 - **Unacceptable**: GPL*, AGPL*, proprietary, "All Rights Reserved"
 
               ---
 
@@ -117,15 +158,16 @@ jobs:
 
               ### If New Patterns Found
 
-              1. Create pattern enhancement issue using the [pattern enhancement template](.github/ISSUE_TEMPLATE/pattern-enhancement.md)
-              2. Link the new issue to this reminder
-              3. Update last review dates above
-              4. Close this reminder issue
+              1. Create a pattern enhancement issue using the [pattern enhancement template](.github/ISSUE_TEMPLATE/pattern-enhancement.md)
+              2. Specify the scanner in the issue title: \`[Pattern][secrets]\` / \`[Pattern][ssrf]\` / etc.
+              3. Link the new issue to this reminder
+              4. Update last review dates in [AGENTS.md](AGENTS.md#tracking-last-review)
+              5. Close this reminder issue
 
               ### If No New Patterns Found
 
-              1. Update last review dates above
-              2. Add comment: "No new patterns found - sources reviewed [date]"
+              1. Update last review dates in [AGENTS.md](AGENTS.md#tracking-last-review)
+              2. Add comment summarizing what was reviewed and any noteworthy trends
               3. Close this reminder issue
 
               ---
@@ -134,7 +176,6 @@ jobs:
 
               - [AGENTS.md - Periodic Pattern Maintenance](AGENTS.md#periodic-pattern-maintenance)
               - [Pattern Enhancement Template](.github/ISSUE_TEMPLATE/pattern-enhancement.md)
-              - Parent Issue: #147 - Research open source prompt injection detection libraries
 
               ---
 
