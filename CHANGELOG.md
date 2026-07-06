@@ -9,16 +9,65 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- **6 new secret patterns: HuggingFace, GitHub fine-grained PAT, AWS Bedrock, Perplexity** — `secrets.toml` now includes `huggingface-access-token` (`hf_` prefix, 34 chars), `huggingface-organization-api-token` (`api_org_` prefix), `github-fine-grained-pat` (`github_pat_` + 82 chars, new fine-grained PAT format introduced 2022), `github-user-token` (`ghu_` prefix, user-to-server OAuth), `aws-amazon-bedrock-api-key-long-lived` (`ABSK` prefix, 109–269 base64 chars), and `perplexity-api-key` (`pplx-` prefix). All rules sourced from Gitleaks community config (MIT). Secret count: 53 → 59 (Issue #1482).
+- **Bandit and Semgrep code security scanners** — detect insecure code patterns in files being written or edited (hardcoded credentials, `eval()`/`exec()`, weak crypto, SQL injection sinks). Available via optional `[code-security]` extras; scanner auto-detects availability and fails gracefully if missing. New **Code Security** page in TUI and web console shows scanner status and findings. SARIF output for downstream consumers. Enabled in `@strict` profile; disabled in all other profiles (Issue #828).
 
-- **Alibaba Cloud and Oracle Cloud metadata endpoint blocking** — SSRF protector now blocks `100.100.100.200` (Alibaba Cloud metadata) and `192.0.0.192` (Oracle Cloud/OCI metadata) as immutable patterns. WebFetch tool calls with these IPs are also blocked. Legitimate `100.x` public IPs are not affected (Issue #1483).
-- **Config exfil scanner: GitHub Copilot and Kiro steering files** — `.github/copilot-instructions.md` and `.kiro/steering/*.md` added to `DEFAULT_CONFIG_FILES`; `_is_config_file()` now supports glob patterns for wildcard path matching. Both files are persistence-multiplier targets: injected exfiltration commands run on every Copilot or Kiro session (Issue #1484).
+- **Container image on quay.io** — `quay.io/itdove/ai-guardian:<version>` published on every release tag via new `build-container.yml` CI/CD workflow; `:latest` updated on every merge to `main`. `support/` directory renamed to `container/`; includes smoke-test YAML scenarios for secret detection, PII, ask dialog, and tool policy (Issue #1423).
 
-- **Exfiltration behavior detection** — new `exfil_detection` config section catches bash commands that steal credentials: curl/wget with token vars, base64 encoding of secrets, SSH key file piped to network, cloud credential exfil (AWS IMDS, GCP metadata), and environment variable collection. 6 pattern categories: credential_theft, env_collection, key_file_exfil, base64_encoding, cloud_credential_exfil, secret_collection. Complements `config_file_scanning` with broader behavioral coverage. New `exfil_detection` violation type in constants, violations log, TUI, and web console. Wired into PreToolUse Bash hook. Also scans shell scripts (.sh/.bash/.zsh) in batch scan mode (Issue #1393).
+- **Kubernetes deployment** — Kustomize-based manifests with base + overlays for Kind (local/CI, NodePort), OpenShift (Route CRD), and production (LoadBalancer). Kind overlay includes cluster config for local testing. Docs at `docs/kubernetes.md`. Kind-based CI test validates remote daemon and ask dialog forwarding end-to-end (Issue #1428).
 
-- **Canary token detection** — new `canary_detection` config section catches data exfiltration by detecting user-registered tripwire values in AI output. Supports exact-value matching and regex patterns. Complements secret scanning: canary detection uses user-registered values and bypasses entropy thresholds, making it effective for low-entropy strings that secret scanner intentionally filters. Disabled by default — enable after registering at least one token. New `canary_detected` violation type in constants, violations log, TUI, and web console. Wired into PreToolUse, PostToolUse, and UserPromptSubmit hooks (Issue #1392).
+- **Ask dialog forwarding from remote daemon to host tray** — container/Kubernetes daemon queues ask prompts; host tray polls every 2.5s and presents the full dialog locally (NiceGUI browser tab on macOS, auto-select on Linux). Decision returned to daemon via REST; hook continues with user's choice. New REST endpoints: `GET /api/pending-prompts`, `POST /api/prompt-decision`, `POST /api/register-tray` (Issue #1342).
 
-- **Offensive language scanner** — new `scan_offensive` config section detects profanity, slurs, and non-inclusive terminology in code, comments, and variable names. Disabled by default; opt in via `enabled: true`. Three categories: `profanity`, `slurs` (on by default when enabled), `inclusive_language` (opt-in). Includes `suggestion` field in violation messages for inclusive language replacements. Works with `.aiguardignore.toml`, ask mode, and existing allowlist mechanisms. Pattern files excluded from self-scan via `.aiguardignore.toml`. New `offensive_language` violation type in constants, violations log, TUI, and web console (Issue #1417).
+- **Dummy-agent for LLM-free hook testing** — new `ai-guardian dummy-agent` command: interactive REPL that simulates all Claude Code hook events (PreToolUse, PostToolUse, UserPromptSubmit, Stop, Notification) using YAML scenario files, no LLM required. Bundled scenarios for secret detection, PII, tool policy, and ask dialog (Issue #1438).
+
+- **@moderator built-in profile** — all action policies set to `ask`, requiring human-in-the-loop approval before every tool call. Maximum-oversight mode for sensitive workflows. Available via `--profile @moderator` (Issue #1422).
+
+- **MCP server installed by default** — `ai-guardian install` now configures the MCP server automatically; `--mcp` flag removed. All new installations include MCP capabilities out of the box (Issue #1377).
+
+- **Security Instructions page** — new TUI and web console config page for defining agent context injection rules. Each rule specifies triggers and content injected into the agent system prompt at hook time. Profile templates include default security instruction sets (Issue #1460).
+
+- **Bootstrap scanning** — on new session start, ai-guardian scans agent config files (AGENTS.md, agent config JSONs) through the full violation pipeline, catching policy violations and secrets before any agent code runs. Triggers once per session (Issue #1394).
+
+- **ML Engines setup wizard** — step-by-step onboarding wizard on the ML Engines config page in both TUI and web console: dependency check → engine selection → model download. Replaces the previous static form that gave no onboarding guidance (Issue #1474).
+
+- **Per-field help tooltips** — all TUI and web console config pages now show a `(?)` icon next to each section and field. Opens contextual help inline without leaving the page. Centralized in `help_content.py`; reusable `help_panel.py` component for the web console (Issue #1472).
+
+- **Contextual help per scanner page** — each scanner page in the web console includes a "Learn More" help panel; TUI scanner views include a Documentation link. All 12 scanner pages covered via centralized `help_content.py` module (Issue #1463).
+
+- **Daemon REST port auto-retry** — if port 63152 is already bound (e.g. by an orphan daemon), the daemon automatically tries the next 9 consecutive ports (63152–63161). First free port wins. `ai-guardian doctor` probes the actual bound port (Issue #1469).
+
+- **6 new secret patterns** — `huggingface-access-token` (`hf_` prefix, 34 chars), `huggingface-organization-api-token` (`api_org_` prefix), `github-fine-grained-pat` (`github_pat_` + 82 chars), `github-user-token` (`ghu_` prefix), `aws-amazon-bedrock-api-key-long-lived` (`ABSK` prefix, 109–269 base64 chars), `perplexity-api-key` (`pplx-` prefix). Sourced from Gitleaks community config (MIT). Secret count: 53 → 59 (Issue #1482).
+
+- **SSRF: Alibaba Cloud and Oracle Cloud metadata blocking** — `100.100.100.200` (Alibaba Cloud) and `192.0.0.192` (Oracle Cloud/OCI) added as immutable SSRF block patterns. WebFetch tool calls to these IPs also blocked. Legitimate `100.x` public IPs unaffected (Issue #1483).
+
+- **Config exfil: glob pattern support and Copilot/Kiro targets** — `_is_config_file()` now accepts glob patterns for wildcard path matching. `.github/copilot-instructions.md` and `.kiro/steering/*.md` added to `DEFAULT_CONFIG_FILES` as persistence-multiplier targets (Issue #1484).
+
+- **Canary token detection** — new `canary_detection` config section detects user-registered tripwire values in AI output to catch data exfiltration. Supports exact-value and regex matching; bypasses entropy thresholds unlike the secret scanner, making it effective for low-entropy strings. Disabled by default. New `canary_detected` violation type in constants, violations log, TUI, and web console. Wired into PreToolUse, PostToolUse, and UserPromptSubmit hooks (Issue #1392).
+
+- **Offensive language scanner** — new `scan_offensive` config section detects profanity, slurs, and non-inclusive terminology in code, comments, and variable names. Disabled by default. Three categories: `profanity`, `slurs` (on by default when enabled), `inclusive_language` (opt-in). Includes `suggestion` field for inclusive replacements. Works with `.aiguardignore.toml`, ask mode, and allowlists (Issue #1417).
+
+- **Exfiltration behavior detection** — `exfil_detection` config section catches bash commands that steal credentials: curl/wget with token vars, base64 encoding of secrets, SSH key files piped to network, cloud credential exfil (AWS IMDS, GCP metadata), and environment variable collection. 6 pattern categories: `credential_theft`, `env_collection`, `key_file_exfil`, `base64_encoding`, `cloud_credential_exfil`, `secret_collection`. New `exfil_detection` violation type. Wired into PreToolUse Bash hook and batch scan mode for shell scripts (Issue #1393).
+
+### Changed
+
+- **Dev-mode auto-restart removed** — daemon no longer watches file mtimes and auto-restarts in dev mode. Eliminates orphan daemon processes and partial-write crashes caused by mid-operation restarts. Tray shows a stale-code warning instead (Issue #1465).
+
+### Fixed
+
+- **Allowlist bypassed when scanner returns line_number=0** — hook processing used `line_number` as the key to look up the secret text; `line_number=0` resolved to nothing, so every such finding bypassed the allowlist. Fix falls back to `matched_text` from the scanner result (Issue #1476).
+
+- **Tray restart double-click spawned orphan daemons** — rapid double-click on Restart tray menu item spawned two daemons simultaneously, both binding the same port, leaving both as orphans. Fix disables the menu item on first click and re-enables it after restart completes (Issue #1473).
+
+- **Headless env detection incorrect in SSH sessions** — `_is_headless_env()` returned `True` when no `$DISPLAY` was set, causing Textual TUI to be skipped even in SSH sessions with a real TTY. Fix adds explicit TTY detection; headless path only taken when no TTY is present AND running in a container (Issue #1448).
+
+- **Hook timeout too short for ask mode** — extended from 30s to 300s; fail-closed on timeout (Issue #1445).
+
+- **Allow Once persisted for entire session** — the dedup fix in #1427 over-cached allowed findings, making Allow Once suppress findings for the full session. Fix scopes the allowed-findings cache to the current hook invocation only (Issue #1439).
+
+- **Double ask dialog on UserPromptSubmit** — scanning transcript and message body independently produced duplicate findings for the same secret, presenting two Allow dialogs. Fix deduplicates ask-mode findings by `matched_text` before showing dialogs (Issue #1427).
+
+- **Daemon orphan accumulation in dev mode** — race in `_cleanup_stale()` allowed multiple daemon processes to start concurrently. Fix makes the PID file the authoritative restart signal; only one process can claim it atomically (Issue #1425).
+
+- **Prompt injection settings missing ml and hybrid detector options** — `ml` and `hybrid` detector types were absent from the web console and TUI prompt injection pages, requiring manual JSON edits. All four detector types now selectable in all UI surfaces (Issue #1419).
 
 ## [1.12.3] - 2026-06-29
 
