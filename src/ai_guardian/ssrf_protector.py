@@ -111,6 +111,8 @@ class SSRFProtector:
         "169.254.169.254",  # AWS/Azure metadata IP as domain
         "fd00:ec2::254",  # AWS IPv6 metadata
         "instance-data",  # AWS instance metadata
+        "100.100.100.200",  # Alibaba Cloud metadata
+        "192.0.0.192",  # Oracle Cloud (OCI) metadata
         "localhost",  # Localhost (unless allow_localhost is True)
     ]
 
@@ -700,6 +702,8 @@ class SSRFProtector:
             "169.254.169.254",
             "fd00:ec2::254",
             "instance-data",
+            "100.100.100.200",  # Alibaba Cloud metadata
+            "192.0.0.192",  # Oracle Cloud (OCI) metadata
         ]:
             return True, f"blocked domain '{hostname}'", True
 
@@ -830,6 +834,38 @@ class SSRFProtector:
 
         if not self.enabled:
             return False, None
+
+        if tool_name == "WebFetch":
+            url = tool_input.get("url", "")
+            if not url:
+                return False, None
+            try:
+                is_ssrf, reason, is_immutable = self._check_url(url)
+                if is_ssrf:
+                    effective_action = "block" if is_immutable else self.action
+                    immutable_note = (
+                        " (immutable — cannot be downgraded to warn/log-only)"
+                        if is_immutable and self.action != "block"
+                        else ""
+                    )
+                    if effective_action in (
+                        "block",
+                        "ask",
+                    ) or effective_action.startswith("ask"):
+                        error_msg = self._format_ssrf_error(
+                            reason, url, url, immutable_note
+                        )
+                        return True, error_msg
+                    if effective_action == "warn":
+                        return (
+                            False,
+                            "⚠️  SSRF protection violation detected (warn mode) - execution allowed",
+                        )
+                    return False, None
+                return False, None
+            except Exception as e:
+                logger.error(f"Error during SSRF check (WebFetch): {e}")
+                return True, "SSRF protection error — blocked"
 
         if tool_name != "Bash":
             return False, None

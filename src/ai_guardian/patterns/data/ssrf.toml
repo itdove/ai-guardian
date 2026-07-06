@@ -108,6 +108,24 @@ group = "blocked_domain"
 tier = "overridable"
 
 [[rules]]
+id = "ssrf-alibaba-metadata"
+match_type = "literal"
+source = "100.100.100.200"
+target = ""
+description = "Alibaba Cloud metadata"
+group = "blocked_domain"
+tier = "immutable"
+
+[[rules]]
+id = "ssrf-oracle-metadata"
+match_type = "literal"
+source = "192.0.0.192"
+target = ""
+description = "Oracle Cloud (OCI) metadata"
+group = "blocked_domain"
+tier = "immutable"
+
+[[rules]]
 id = "ssrf-localhost"
 match_type = "literal"
 source = "localhost"

@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Alibaba Cloud and Oracle Cloud metadata endpoint blocking** — SSRF protector now blocks `100.100.100.200` (Alibaba Cloud metadata) and `192.0.0.192` (Oracle Cloud/OCI metadata) as immutable patterns. WebFetch tool calls with these IPs are also blocked. Legitimate `100.x` public IPs are not affected (Issue #1483).
+
 - **Exfiltration behavior detection** — new `exfil_detection` config section catches bash commands that steal credentials: curl/wget with token vars, base64 encoding of secrets, SSH key file piped to network, cloud credential exfil (AWS IMDS, GCP metadata), and environment variable collection. 6 pattern categories: credential_theft, env_collection, key_file_exfil, base64_encoding, cloud_credential_exfil, secret_collection. Complements `config_file_scanning` with broader behavioral coverage. New `exfil_detection` violation type in constants, violations log, TUI, and web console. Wired into PreToolUse Bash hook. Also scans shell scripts (.sh/.bash/.zsh) in batch scan mode (Issue #1393).
 
 - **Canary token detection** — new `canary_detection` config section catches data exfiltration by detecting user-registered tripwire values in AI output. Supports exact-value matching and regex patterns. Complements secret scanning: canary detection uses user-registered values and bypasses entropy thresholds, making it effective for low-entropy strings that secret scanner intentionally filters. Disabled by default — enable after registering at least one token. New `canary_detected` violation type in constants, violations log, TUI, and web console. Wired into PreToolUse, PostToolUse, and UserPromptSubmit hooks (Issue #1392).
