@@ -5,17 +5,23 @@ Published to [quay.io/itdove/ai-guardian](https://quay.io/itdove/ai-guardian) on
 
 ## What's Included
 
-| Component | Description |
-|-----------|-------------|
-| ai-guardian | Security hooks, daemon, web console, MCP server |
-| gitleaks, betterleaks | Secret scanning engines |
-| Claude Code | Anthropic CLI agent |
-| OpenCode | Open-source model-agnostic agent |
-| Gemini CLI | Google Gemini terminal agent |
-| Codex CLI | OpenAI terminal agent |
-| Kiro CLI | AWS terminal agent |
-| OpenClaw | Open-source AI assistant |
-| rapidocr-onnxruntime | Image scanning support (x86_64 + aarch64) |
+| Component | License | Installed |
+|-----------|---------|-----------|
+| ai-guardian | Apache 2.0 | Build time |
+| gitleaks, betterleaks | MIT / Apache 2.0 | Build time |
+| OpenCode | MIT | Build time |
+| Gemini CLI | Apache 2.0 | Build time |
+| Codex CLI | Apache 2.0 | Build time |
+| OpenClaw | MIT | Build time |
+| rapidocr-onnxruntime | Apache 2.0 | Build time |
+| Claude Code | Proprietary (Anthropic) | **Runtime — ToS consent required** |
+| Kiro CLI | Proprietary (AWS) | **Runtime — ToS consent required** |
+
+Claude Code and Kiro CLI are proprietary and redistribution-restricted. They are not
+bundled in the image. Instead, the container installs them at first start after
+prompting the user to accept the respective Terms of Service.
+
+See [Proprietary CLI Consent](#proprietary-cli-consent) below.
 
 ## Pull
 
@@ -24,12 +30,12 @@ Published to [quay.io/itdove/ai-guardian](https://quay.io/itdove/ai-guardian) on
 podman pull quay.io/itdove/ai-guardian:latest
 
 # Specific release version
-podman pull quay.io/itdove/ai-guardian:1.13.0
+podman pull quay.io/itdove/ai-guardian:1.13.1
 ```
 
 Tag conventions:
 - `:latest` — tracks main branch (updated on every merge)
-- `:<version>` — pinned stable release (e.g. `1.13.0`)
+- `:<version>` — pinned stable release (e.g. `1.13.1`)
 
 ## Build Locally
 
@@ -38,11 +44,11 @@ Tag conventions:
 podman build -t ai-guardian container/
 
 # Specific version
-podman build --build-arg AI_GUARDIAN_VERSION=1.13.0 -t ai-guardian container/
+podman build --build-arg AI_GUARDIAN_VERSION=1.13.1 -t ai-guardian container/
 
 # Local wheel (copy wheel into container/ first)
-cp dist/ai_guardian-1.13.0-py3-none-any.whl container/vendor/
-podman build --build-arg AI_GUARDIAN_VERSION=ai_guardian-1.13.0-py3-none-any.whl \
+cp dist/ai_guardian-1.13.1-py3-none-any.whl container/vendor/
+podman build --build-arg AI_GUARDIAN_VERSION=ai_guardian-1.13.1-py3-none-any.whl \
     -t ai-guardian container/
 
 # Multi-arch
@@ -118,11 +124,11 @@ Set `AI_GUARDIAN_IDE` to configure hooks for a specific IDE at container start:
 
 | Value | IDE | Installed in image |
 |-------|-----|--------------------|
-| `claude` (default) | Claude Code | Yes |
+| `claude` (default) | Claude Code | **Runtime — ToS consent** |
 | `opencode` | OpenCode | Yes |
 | `gemini` | Gemini CLI | Yes |
 | `codex` | Codex CLI | Yes |
-| `kiro` | Kiro CLI | Yes |
+| `kiro` | Kiro CLI | **Runtime — ToS consent** |
 | `openclaw` | OpenClaw | Yes |
 | `cursor` | Cursor | No (hooks only) |
 | `copilot` | GitHub Copilot | No (hooks only) |
@@ -137,6 +143,53 @@ Set `AI_GUARDIAN_IDE` to configure hooks for a specific IDE at container start:
 IDEs marked "hooks only" are not installed in the image (they require a GUI) but
 ai-guardian hooks are configured for them. Mount the IDE binary into the container
 if needed.
+
+## Proprietary CLI Consent
+
+Claude Code (Anthropic) and Kiro CLI (AWS) are proprietary with redistribution
+restrictions. They are not bundled in the image. When `AI_GUARDIAN_IDE=claude`
+or `AI_GUARDIAN_IDE=kiro` is set, the container prompts for ToS acceptance at
+first start and installs the CLI if the user agrees.
+
+### Interactive (default)
+
+```
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  Claude Code requires accepting its Terms of Service:
+  https://www.anthropic.com/legal/consumer-terms
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  Install Claude Code and accept the ToS? [y/N]
+```
+
+Answer `y` to install, `N` (or Enter) to skip.
+
+### Non-interactive / CI
+
+Set `ACCEPT_PROPRIETARY_TOS=true` to bypass the prompt and install
+automatically. By setting this variable you confirm you have read and accept
+the relevant Terms of Service.
+
+```bash
+# Claude Code — non-interactive
+podman run -it -p 63152 \
+    -e ACCEPT_PROPRIETARY_TOS=true \
+    -e ANTHROPIC_API_KEY=sk-ant-... \
+    quay.io/itdove/ai-guardian:latest
+
+# Kiro CLI — non-interactive
+podman run -it -p 63152 \
+    -e AI_GUARDIAN_IDE=kiro \
+    -e ACCEPT_PROPRIETARY_TOS=true \
+    quay.io/itdove/ai-guardian:latest
+```
+
+The `run.sh` helper passes `ACCEPT_PROPRIETARY_TOS` through from the host
+environment automatically if it is set.
+
+### Already installed
+
+If the binary is already present in `$HOME/.local/bin/` (e.g. from a mounted
+volume), the consent prompt is skipped.
 
 ## Configuration Profile
 
@@ -207,7 +260,7 @@ Access from the host: `http://localhost:63152`
 
 | Arg | Default | Description |
 |-----|---------|-------------|
-| `AI_GUARDIAN_VERSION` | `1.13.0` | PyPI version or `.whl` filename |
+| `AI_GUARDIAN_VERSION` | `1.13.1` | PyPI version or `.whl` filename |
 | `AI_GUARDIAN_REST_PORT` | `63152` | Daemon REST API / web console port |
 | `UV_VERSION` | `0.11.16` | uv package manager version |
 | `OPENCODE_VERSION` | `1.17.3` | OpenCode version |

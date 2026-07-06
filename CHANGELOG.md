@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.13.1] - 2026-07-06
+
+### Fixed
+
+- **Container image: proprietary CLIs moved to runtime install with ToS consent** — Claude Code (Anthropic, All Rights Reserved) and Kiro CLI (AWS proprietary) were installed at image build time, violating redistribution restrictions. Both CLIs are now installed at container first-start after the user explicitly accepts the respective Terms of Service. Set `ACCEPT_PROPRIETARY_TOS=true` to bypass the interactive prompt in CI/automation. Open-source CLIs (OpenCode, Gemini CLI, Codex CLI, OpenClaw) remain in the Dockerfile (Issue #1495).
+
 ## [1.13.0] - 2026-07-06
 
 ### Added
@@ -2779,7 +2785,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Preserves existing configuration
   - Interactive and non-interactive modes
 
-[Unreleased]: https://github.com/itdove/ai-guardian/compare/v1.13.0...HEAD
+[Unreleased]: https://github.com/itdove/ai-guardian/compare/v1.13.1...HEAD
+[1.13.1]: https://github.com/itdove/ai-guardian/compare/v1.13.0...v1.13.1
 [1.13.0]: https://github.com/itdove/ai-guardian/compare/v1.12.3...v1.13.0
 [1.12.3]: https://github.com/itdove/ai-guardian/compare/v1.12.2...v1.12.3
 [1.12.2]: https://github.com/itdove/ai-guardian/compare/v1.12.1...v1.12.2

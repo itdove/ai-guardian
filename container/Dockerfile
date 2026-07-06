@@ -35,7 +35,7 @@
 
 FROM registry.access.redhat.com/ubi10/ubi-minimal:latest
 
-ARG AI_GUARDIAN_VERSION=1.13.0
+ARG AI_GUARDIAN_VERSION=1.13.1
 ARG AI_GUARDIAN_REST_PORT=63152
 ARG UV_VERSION=0.11.16
 ARG OPENCODE_VERSION=1.17.3
@@ -98,10 +98,8 @@ USER sandbox
 ENV HOME=/sandbox
 ENV PATH="/sandbox/.local/bin:${PATH}"
 
-# Claude Code
-RUN curl -fsSL https://claude.ai/install.sh | sh \
-    && chmod 755 "$HOME/.local/bin/claude" \
-    && (claude --version 2>/dev/null || echo "Claude Code installed")
+# Claude Code is proprietary (All Rights Reserved) — installed at runtime
+# with user ToS consent via entrypoint.sh, not at build time.
 
 # OpenCode
 RUN cd "$HOME" \
@@ -143,16 +141,8 @@ RUN ARCH=$(uname -m | sed 's/aarch64/arm64/;s/x86_64/amd64/') \
     && (gh --version 2>/dev/null || echo "gh CLI installed") \
     && (glab --version 2>/dev/null || echo "glab CLI installed")
 
-# Kiro CLI
-USER sandbox
-RUN ARCH=$(uname -m) && \
-    curl --proto '=https' --tlsv1.2 -sSf \
-      "https://desktop-release.q.us-east-1.amazonaws.com/latest/kirocli-${ARCH}-linux.zip" \
-      -o /tmp/kirocli.zip && \
-    cd /tmp && python3 -c "import zipfile; zipfile.ZipFile('kirocli.zip').extractall()" && \
-    chmod +x kirocli/install.sh && ./kirocli/install.sh --no-confirm && \
-    rm -rf /tmp/kirocli* && \
-    (kiro --version 2>/dev/null || echo "Kiro CLI installed")
+# Kiro CLI is AWS proprietary — installed at runtime with user ToS
+# consent via entrypoint.sh, not at build time.
 
 # Prepare config directories
 USER root
