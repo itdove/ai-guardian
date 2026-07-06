@@ -49,6 +49,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Exfiltration behavior detection** — `exfil_detection` config section catches bash commands that steal credentials: curl/wget with token vars, base64 encoding of secrets, SSH key files piped to network, cloud credential exfil (AWS IMDS, GCP metadata), and environment variable collection. 6 pattern categories: `credential_theft`, `env_collection`, `key_file_exfil`, `base64_encoding`, `cloud_credential_exfil`, `secret_collection`. New `exfil_detection` violation type. Wired into PreToolUse Bash hook and batch scan mode for shell scripts (Issue #1393).
 
+- **Verified Cursor hook compatibility with Cursor v3.10.11** — all 5 hook events (beforeSubmitPrompt, beforeReadFile, beforeShellExecution, afterShellExecution, postToolUse) confirmed firing correctly.
+
 ### Changed
 
 - **Dev-mode auto-restart removed** — daemon no longer watches file mtimes and auto-restarts in dev mode. Eliminates orphan daemon processes and partial-write crashes caused by mid-operation restarts. Tray shows a stale-code warning instead (Issue #1465).
