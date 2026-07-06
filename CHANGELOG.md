@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.13.2] - 2026-07-06
+
+### Fixed
+
+- **Container quick-start docs corrected** — README example now uses `curl` to download `run.sh` (no full repo clone required), pins image to `v1.13.2` instead of `:latest`, and includes required `ANTHROPIC_API_KEY` and `ACCEPT_PROPRIETARY_TOS=true` variables that were missing from the previous example.
+
 ## [1.13.1] - 2026-07-06
 
 ### Fixed
@@ -2785,7 +2791,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Preserves existing configuration
   - Interactive and non-interactive modes
 
-[Unreleased]: https://github.com/itdove/ai-guardian/compare/v1.13.1...HEAD
+[Unreleased]: https://github.com/itdove/ai-guardian/compare/v1.13.2...HEAD
+[1.13.2]: https://github.com/itdove/ai-guardian/compare/v1.13.1...v1.13.2
 [1.13.1]: https://github.com/itdove/ai-guardian/compare/v1.13.0...v1.13.1
 [1.13.0]: https://github.com/itdove/ai-guardian/compare/v1.12.3...v1.13.0
 [1.12.3]: https://github.com/itdove/ai-guardian/compare/v1.12.2...v1.12.3

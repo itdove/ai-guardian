@@ -37,15 +37,15 @@ See [Security Design](https://github.com/itdove/ai-guardian/blob/main/docs/SECUR
 
 ```bash
 # Linux / macOS (auto-detects uv → venv → pip)
-curl -fsSL https://raw.githubusercontent.com/itdove/ai-guardian/v1.13.1/install.sh | bash -s -- --ide claude
+curl -fsSL https://raw.githubusercontent.com/itdove/ai-guardian/v1.13.2/install.sh | bash -s -- --ide claude
 
 # Force a specific install method
-curl -fsSL https://raw.githubusercontent.com/itdove/ai-guardian/v1.13.1/install.sh | bash -s -- --uv --ide claude    # uv tool install (fastest)
-curl -fsSL https://raw.githubusercontent.com/itdove/ai-guardian/v1.13.1/install.sh | bash -s -- --venv --ide claude  # venv + pip
-curl -fsSL https://raw.githubusercontent.com/itdove/ai-guardian/v1.13.1/install.sh | bash -s -- --pip --ide claude   # bare pip
+curl -fsSL https://raw.githubusercontent.com/itdove/ai-guardian/v1.13.2/install.sh | bash -s -- --uv --ide claude    # uv tool install (fastest)
+curl -fsSL https://raw.githubusercontent.com/itdove/ai-guardian/v1.13.2/install.sh | bash -s -- --venv --ide claude  # venv + pip
+curl -fsSL https://raw.githubusercontent.com/itdove/ai-guardian/v1.13.2/install.sh | bash -s -- --pip --ide claude   # bare pip
 
 # Windows (PowerShell)
-irm https://raw.githubusercontent.com/itdove/ai-guardian/v1.13.1/install.ps1 | iex
+irm https://raw.githubusercontent.com/itdove/ai-guardian/v1.13.2/install.ps1 | iex
 ```
 
 Or install manually:
@@ -60,19 +60,19 @@ Or use the container image (no Python setup required):
 
 ```bash
 # Recommended — run.sh handles auth, port mapping, and ToS consent
-curl -fsSL https://raw.githubusercontent.com/itdove/ai-guardian/v1.13.1/container/run.sh -o run.sh
+curl -fsSL https://raw.githubusercontent.com/itdove/ai-guardian/v1.13.2/container/run.sh -o run.sh
 chmod +x run.sh
 ANTHROPIC_API_KEY=sk-ant-... ACCEPT_PROPRIETARY_TOS=true \
     ./run.sh --ide claude --repo $(pwd)
 
 # Or manually with podman/docker
-podman pull quay.io/itdove/ai-guardian:v1.13.1
+podman pull quay.io/itdove/ai-guardian:v1.13.2
 podman run -it -p 63152:63152 \
     -v $(pwd):/workspace:z \
     -e AI_GUARDIAN_IDE=claude \
     -e ANTHROPIC_API_KEY=sk-ant-... \
     -e ACCEPT_PROPRIETARY_TOS=true \
-    quay.io/itdove/ai-guardian:v1.13.1
+    quay.io/itdove/ai-guardian:v1.13.2
 ```
 
 `ACCEPT_PROPRIETARY_TOS=true` accepts the [Claude Code Terms of Service](https://www.anthropic.com/legal/consumer-terms) and installs Claude Code automatically at first start. Omit it to be prompted interactively instead.
@@ -120,8 +120,8 @@ podman pull quay.io/itdove/ai-guardian:latest
 podman run -it -p 63152:63152 -e AI_GUARDIAN_IDE=claude quay.io/itdove/ai-guardian:latest
 
 # Pinned release
-podman pull quay.io/itdove/ai-guardian:v1.13.1
-podman run -it -p 63152:63152 -e AI_GUARDIAN_IDE=claude quay.io/itdove/ai-guardian:v1.13.1
+podman pull quay.io/itdove/ai-guardian:v1.13.2
+podman run -it -p 63152:63152 -e AI_GUARDIAN_IDE=claude quay.io/itdove/ai-guardian:v1.13.2
 
 # Or build from source
 podman build -t ai-guardian container/
@@ -373,7 +373,7 @@ python -m venv $env:USERPROFILE\.ai-guardian-venv
 & "$env:USERPROFILE\.ai-guardian-venv\Scripts\pip" install ai-guardian
 
 # Or use the one-line installer:
-irm https://raw.githubusercontent.com/itdove/ai-guardian/v1.13.1/install.ps1 | iex
+irm https://raw.githubusercontent.com/itdove/ai-guardian/v1.13.2/install.ps1 | iex
 ```
 
 > **Warning:** The `main` branch contains unreleased development code. Always install stable releases from PyPI (`uv tool install ai-guardian` or `pip install ai-guardian`). Do not `git clone` + `pip install -e .` for production use — development builds may contain breaking changes, incomplete features, or experimental code that has not been release-tested.
