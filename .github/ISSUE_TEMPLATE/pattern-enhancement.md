@@ -1,6 +1,6 @@
 ---
 name: Pattern Enhancement
-about: Propose new prompt injection detection patterns from security research
+about: Propose new detection patterns from security research (any scanner)
 title: '[Pattern] '
 labels: 'security, pattern-enhancement'
 assignees: ''
@@ -8,7 +8,7 @@ assignees: ''
 
 ## 📚 Source Information
 
-**Source Name**: <!-- e.g., Hermes Security Patterns, OWASP LLM Top 10, Research Paper -->
+**Source Name**: <!-- e.g., Hermes Security Patterns, OWASP LLM Top 10, Gitleaks community config, TruffleHog detectors, Research Paper -->
 
 **Source URL**: <!-- Direct link to the research/pattern -->
 
@@ -17,7 +17,9 @@ assignees: ''
 **Source License**: <!-- e.g., MIT, Apache-2.0, Academic Fair Use, Public Domain -->
 <!-- For GitHub repos: curl -s https://api.github.com/repos/OWNER/REPO | jq -r '.license.spdx_id' -->
 
-**Pattern Category**: <!-- e.g., Jailbreak, Obfuscation, Context Manipulation, Unicode Attack -->
+**Scanner**: <!-- prompt_injection / context_poisoning / secrets / ssrf / config_scanner / other -->
+
+**Pattern Category**: <!-- e.g., Jailbreak, Obfuscation, Unicode Attack, Credential Format, Metadata Endpoint, Config Path -->
 
 ---
 
@@ -26,7 +28,7 @@ assignees: ''
 Before proposing this pattern, verify:
 
 - [ ] **Applies to AI IDEs** - This pattern affects tools like Claude Code, not just LLM chat interfaces
-- [ ] **Not Duplicate** - Checked existing patterns in `src/ai_guardian/prompt_injection.py` - this is genuinely new
+- [ ] **Not Duplicate** - Checked existing patterns in the relevant scanner file — this is genuinely new
 - [ ] **Low False Positives** - Detection regex/logic won't block legitimate code or documentation
 - [ ] **Reproducible** - I can provide concrete examples that demonstrate the attack
 - [ ] **License Compatible** - Source uses permissive open source license (MIT/Apache-2.0/BSD/CC0/ISC) or academic fair use applies
@@ -37,13 +39,13 @@ Before proposing this pattern, verify:
 
 ## 🎯 Pattern Details
 
-### Attack Pattern
+### Attack / Credential Pattern
 
-<!-- Describe the attack technique in plain English -->
+<!-- Describe the attack technique or credential format in plain English -->
 
-**Example Attack String**:
+**Example Attack / Match String**:
 ```
-<!-- Provide at least one concrete example of the malicious pattern -->
+<!-- Provide at least one concrete example of the malicious pattern or credential format -->
 
 
 ```
@@ -60,12 +62,13 @@ Before proposing this pattern, verify:
 **Proposed Regex** (if applicable):
 ```regex
 <!-- e.g., r'(?i)(ignore|disregard).{0,20}(previous|above|prior).{0,20}(instructions?|rules?|prompts?)' -->
+<!-- or for secrets: r'(?i)(?:ghp|gho|ghu|ghs|ghr)_[A-Za-z0-9_]{36}' -->
 
 
 ```
 
 **Alternative Detection Method** (if regex not suitable):
-<!-- Describe alternative detection logic (e.g., Unicode normalization, AST analysis, etc.) -->
+<!-- Describe alternative detection logic (e.g., Unicode normalization, entropy check, AST analysis) -->
 
 
 **Rationale**:
@@ -74,7 +77,7 @@ Before proposing this pattern, verify:
 
 ### Test Cases
 
-**Attack Scenarios** (should be detected):
+**Attack / Match Scenarios** (should be detected):
 1. `<!-- Example 1 -->`
 2. `<!-- Example 2 -->`
 3. `<!-- Example 3 -->`
@@ -89,11 +92,11 @@ Before proposing this pattern, verify:
 ## 🔍 Research Context
 
 **Why This Matters**:
-<!-- Explain the security impact - what can an attacker achieve with this pattern? -->
+<!-- Explain the security impact - what can an attacker achieve, or what credential is exposed? -->
 
 
 **Real-World Examples** (if available):
-<!-- Links to CVEs, incident reports, or documented exploits -->
+<!-- Links to CVEs, incident reports, documented exploits, or credential leak incidents -->
 
 
 **Related Patterns** (if any):
@@ -106,12 +109,13 @@ Before proposing this pattern, verify:
 
 **Severity**: <!-- Low / Medium / High / Critical -->
 
-**Suggested Implementation**:
-- [ ] Add to `JAILBREAK_PATTERNS` in `prompt_injection.py`
-- [ ] Add to `OBFUSCATION_PATTERNS` in `prompt_injection.py`
-- [ ] Add to `UNICODE_ATTACK_PATTERNS` in `prompt_injection.py`
-- [ ] Create new pattern category (specify below)
-- [ ] Requires custom detector class (specify below)
+**Suggested Implementation File**:
+- [ ] `src/ai_guardian/prompt_injection.py` — add to `JAILBREAK_PATTERNS` / `OBFUSCATION_PATTERNS` / `UNICODE_ATTACK_PATTERNS` / new category
+- [ ] `src/ai_guardian/context_poisoning.py` — detection patterns
+- [ ] `src/ai_guardian/patterns/data/secrets.toml` — new secret rule
+- [ ] `src/ai_guardian/ssrf_protector.py` — blocked IP ranges / domains / redirect paths
+- [ ] `src/ai_guardian/config_scanner.py` — new config file path/pattern
+- [ ] Requires new detector class (specify below)
 
 **Additional Notes**:
 <!-- Any implementation considerations, edge cases, or performance concerns -->
@@ -121,12 +125,12 @@ Before proposing this pattern, verify:
 
 ## 📋 Acceptance Criteria
 
-- [ ] Pattern detection implemented in code
-- [ ] Test cases added for attack scenarios (should detect)
+- [ ] Pattern detection implemented in the correct scanner file
+- [ ] Test cases added for attack/match scenarios (should detect)
 - [ ] Test cases added for safe scenarios (should NOT detect)
-- [ ] Documentation updated (if new category)
+- [ ] Documentation updated (CHANGELOG.md, scanner docs if new category)
 - [ ] No regression in existing tests
-- [ ] False positive rate verified (<1% on sample legitimate code)
+- [ ] False positive rate verified (<1% on sample legitimate code/content)
 
 ---
 

@@ -1378,7 +1378,7 @@ Consider monitoring:
 
 ### Periodic Pattern Maintenance
 
-**Automated Workflow**: AI Guardian uses GitHub Actions to create twice-monthly reminder issues (1st and 15th) for pattern research. This ensures patterns stay up-to-date with latest security research.
+**Automated Workflow**: AI Guardian uses GitHub Actions to create twice-monthly reminder issues (1st and 15th) for pattern research across all scanners (prompt injection, context poisoning, secrets, SSRF, config exfil). This ensures patterns stay up-to-date with latest security research.
 
 **Last Research Review**: _[Update after each review - see twice-monthly reminder issues]_
 
@@ -1398,27 +1398,38 @@ On the 1st and 15th of each month, a GitHub Actions workflow automatically creat
 Review these sources in order of priority:
 
 **Priority 1 (Always Check):**
-1. **Hermes Security Patterns** - https://github.com/fullsend-ai/experiments/tree/main/hermes-security-patterns
-   - Focus: Novel prompt injection techniques, jailbreak patterns, obfuscation methods
+1. **Hermes Security Patterns** - https://github.com/fullsend-ai/experiments/tree/main/0009-hermes-security-patterns
+   - Focus: Novel prompt injection techniques, context injection payloads, jailbreak patterns, obfuscation methods
    - Update frequency: Active research project, check twice-monthly
 
 2. **OWASP LLM Top 10** - https://owasp.org/www-project-top-10-for-large-language-model-applications/
    - Focus: Industry-standard threat categories, real-world attack patterns
    - Update frequency: Major updates quarterly, minor updates monthly
 
+3. **Gitleaks community config** - https://github.com/gitleaks/gitleaks/blob/master/config/gitleaks.toml
+   - Focus: New credential/secret patterns not yet in `src/ai_guardian/patterns/data/secrets.toml`
+   - Update frequency: Active project, check twice-monthly
+
+4. **TruffleHog detectors** - https://github.com/trufflesecurity/trufflehog/tree/main/pkg/detectors
+   - Focus: New cloud provider and service credential formats
+   - Update frequency: Active project, check twice-monthly
+
 **Priority 2 (Review if Time Permits):**
-3. **AI Security Research Papers** - Search arXiv, Google Scholar, ACM Digital Library
-   - Keywords: "prompt injection", "LLM security", "AI jailbreak", "adversarial prompts"
+5. **AI Security Research Papers** - Search arXiv, Google Scholar, ACM Digital Library
+   - Keywords: "prompt injection", "LLM security", "AI jailbreak", "adversarial prompts", "context poisoning"
    - Focus: Novel attack techniques from academic research
 
-4. **CVE Database** - Search for AI/LLM vulnerabilities
-   - Search: "LLM", "AI", "prompt injection", "ChatGPT", "Claude", "GPT"
-   - Focus: Publicly disclosed vulnerabilities in AI systems
+6. **CVE Database** - Search for AI/LLM/agent vulnerabilities
+   - Search: "LLM", "AI", "prompt injection", "ChatGPT", "Claude", "GPT", "AI agent"
+   - Focus: Publicly disclosed vulnerabilities in AI systems and coding agents
 
-5. **Security Researcher Blogs** - Follow known AI security experts
+7. **Cloud Provider Announcements** - AWS, GCP, Azure, GitHub, etc.
+   - Focus: New API key formats, new service credential types
+
+8. **Security Researcher Blogs** - Follow known AI security experts
    - Focus: Latest discoveries, proof-of-concepts, analysis of new techniques
 
-6. **Security Conference Proceedings** - DEF CON AI Village, Black Hat, RSA
+9. **Security Conference Proceedings** - DEF CON AI Village, Black Hat, RSA
    - Focus: Cutting-edge attack techniques, tool releases
 
 #### Evaluation Criteria for New Patterns
@@ -1431,7 +1442,7 @@ For each discovered pattern, evaluate against these criteria:
 
 **2. Not a Duplicate**
 - ✅ YES: Pattern is genuinely new, not covered by existing detectors
-- ❌ NO: Already detected by current `JAILBREAK_PATTERNS`, `OBFUSCATION_PATTERNS`, or `UNICODE_ATTACK_PATTERNS`
+- ❌ NO: Already detected by the relevant scanner (check `prompt_injection.py`, `context_poisoning.py`, `secrets.toml`, `ssrf_protector.py`, `config_scanner.py` as applicable)
 
 **3. Low False Positives**
 - ✅ YES: Can detect without blocking legitimate code or documentation
@@ -1469,12 +1480,16 @@ When a new pattern passes evaluation:
    - Link to twice-monthly research reminder issue
 
 2. **Implement Detection**
-   - Add pattern to appropriate category in `src/ai_guardian/prompt_injection.py`
-   - Choose category: `JAILBREAK_PATTERNS`, `OBFUSCATION_PATTERNS`, `UNICODE_ATTACK_PATTERNS`, or create new category
+   - Add pattern to the appropriate scanner file:
+     - **PI**: `src/ai_guardian/prompt_injection.py` — choose category: `JAILBREAK_PATTERNS`, `OBFUSCATION_PATTERNS`, `UNICODE_ATTACK_PATTERNS`, or create new category
+     - **Context poisoning**: `src/ai_guardian/context_poisoning.py`
+     - **Secrets**: `src/ai_guardian/patterns/data/secrets.toml` — add a new `[[rules]]` entry
+     - **SSRF**: `src/ai_guardian/ssrf_protector.py` — blocked IP ranges, domains, or redirect paths
+     - **Config exfil**: `src/ai_guardian/config_scanner.py` — new config file path/pattern
 
 3. **Add Test Coverage**
-   - Create test cases in `tests/test_prompt_injection.py`
-   - Test attack scenarios (should detect)
+   - Create test cases in the relevant test file (`tests/unit/test_prompt_injection.py`, `tests/unit/test_secret_scanning*.py`, `tests/unit/test_ssrf_protection.py`, etc.)
+   - Test attack/match scenarios (should detect)
    - Test safe scenarios (should NOT detect)
    - Verify false positive rate (<1% on sample code)
 
@@ -1507,9 +1522,9 @@ When a new pattern passes evaluation:
 **Step 2: Create Issue**
 ```bash
 # Use GitHub web interface with pattern-enhancement.md template
-# Or create manually:
+# Include the scanner in the title: [Pattern][pi], [Pattern][secrets], [Pattern][ssrf], etc.
 gh issue create \
-  --title "[Pattern] Unicode normalization zero-width attack" \
+  --title "[Pattern][pi] Unicode normalization zero-width attack" \
   --label "security,pattern-enhancement" \
   --body "$(cat pattern-details.md)"
 ```
@@ -1526,6 +1541,20 @@ NORMALIZATION_ATTACK_PATTERNS = [
     r'[​‌‍⁠﻿]{3,}',  # Zero-width sequences
     # ... more patterns
 ]
+```
+
+**Alternate example — new secret format (TOML rule in `secrets.toml`)**:
+```toml
+[[rules]]
+id = "example-cloud-key"
+description = "Example Cloud Service API Key"
+regex = '''(?i)\bexcloud_[0-9a-z]{32}\b'''
+tags = ["api-key", "example-cloud"]
+keywords = ["excloud_"]
+
+[[rules.allowlists]]
+description = "Allowlist test/example values"
+regexes = ['''excloud_[0]{32}''']
 ```
 
 **Step 4: Test**
@@ -1562,12 +1591,12 @@ def test_legitimate_unicode_not_blocked():
 
 Update this section after each twice-monthly research review:
 
-**Last Research Review**: _2026-05-01_ *(Update this date after completing twice-monthly review)*
+**Last Research Review**: _2026-07-06_ *(Update this date after completing twice-monthly review)*
 
 **Review Summary** *(Keep last 3 months)*:
+- **2026-07-06**: First review covering all scanners (PI, secrets, SSRF, config exfil). **PI/CP**: No new patterns — Hermes repo had structural rename only (0009-), OWASP LLM Top 10 unchanged, arXiv papers (2506.23260, 2601.09625, 2602.22242) and CVEs (Cursor DuneSlide CVE-2026-50548/50549, Semantic Kernel CVE-2026-25592/26030) confirm architectural/framework threat landscape, 4 candidates rejected. **Secrets**: 6 new patterns from Gitleaks (MIT) — HuggingFace x2, GitHub fine-grained PAT, GitHub user token (ghu_), AWS Bedrock long-lived key, Perplexity — created issue #1482. **SSRF**: 2 unblocked cloud metadata endpoints confirmed via IP range check — Alibaba (100.100.100.200) and Oracle (192.0.0.192) — created issue #1483. **Config exfil**: 2 missing AI IDE config file paths — .github/copilot-instructions.md and .kiro/steering/*.md — created issue #1484. See issue #1435.
 - **2026-05-01**: No new patterns found. Reviewed Hermes Security Patterns (Apache-2.0, no new commits since April repo move), OWASP LLM Top 10 2025 and new OWASP Top 10 for Agentic Applications 2026 (ASI01-ASI10), arXiv papers (2601.17548, 2603.21642), and "Comment and Control" attack disclosure. Evaluated 6 candidate patterns (MCP tool poisoning, memory poisoning, cross-context injection, process env snooping, rug pulls, agent goal hijacking) - all rejected (architectural/protocol-level attacks not suitable for regex detection, or duplicates of existing patterns). The 2026 threat landscape is shifting toward agentic/protocol attacks addressed by AI Guardian's MCP security features and hooks, not the pattern module. See issue #336.
 - **2026-04-29**: No new patterns found. Reviewed Hermes Security Patterns (context injection, HTML obfuscation, base64 encoding) and OWASP LLM Top 10 2025. Evaluated 3 patterns - all rejected (duplicates or high false positives). Current coverage confirmed comprehensive. See issue #299.
-- **2026-03-01**: Added Unicode normalization patterns from academic research. Created issue #285.
 
 ---
 
