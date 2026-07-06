@@ -1,6 +1,8 @@
 """ML Prompt Injection Engines — configure ML engines, strategy, and fallback."""
 
 import json
+import subprocess
+import sys
 
 from nicegui import run, ui
 
@@ -52,6 +54,33 @@ def _load_ml_status():
         return False, []
 
 
+def _install_onnxruntime():
+    """Install onnxruntime via pip. Returns (success, message)."""
+    try:
+        result = subprocess.run(
+            [sys.executable, "-m", "pip", "install", "onnxruntime"],
+            capture_output=True,
+            text=True,
+            timeout=120,
+        )
+        if result.returncode == 0:
+            return True, "onnxruntime installed successfully"
+        return False, result.stderr.strip()[:300] or "Install failed"
+    except Exception as e:
+        return False, str(e)
+
+
+def _download_ml_model():
+    """Download the default ML model. Returns (success, message)."""
+    try:
+        from ai_guardian.ml_detection import download_model
+
+        download_model()
+        return True, "Model downloaded successfully"
+    except Exception as e:
+        return False, str(e)
+
+
 def create_pi_ml_engines_page(service, daemon_name: str):
     """Create the ML Prompt Injection Engines page."""
     create_header(daemon_name)
@@ -76,50 +105,128 @@ def create_pi_ml_engines_page(service, daemon_name: str):
                     if not isinstance(pi, dict):
                         pi = {}
 
-                    # --- ML Status ---
+                    engines = pi.get("ml_engines", [])
+                    detector = pi.get("detector", "heuristic")
+
+                    available, models = await run.io_bound(_load_ml_status)
+                    deps_ok = available
+                    model_ok = bool(models) and all(m.get("downloaded") for m in models)
+                    config_ok = bool(engines)
+                    detector_ok = detector in ("ml", "hybrid")
+
+                    # --- Setup Wizard ---
                     with ui.card().classes("w-full"):
-                        ui.label("ML Status").classes("text-lg font-bold")
-                        available, models = await run.io_bound(_load_ml_status)
-                        with ui.row().classes("items-center gap-2"):
-                            if available:
+                        ui.label("ML Engine Setup").classes("text-lg font-bold")
+
+                        # Step 1: Dependencies
+                        with ui.row().classes("items-center gap-3 mt-2"):
+                            if deps_ok:
                                 ui.icon("check_circle").classes("text-green")
                                 ui.label(
-                                    "ML dependencies available (onnxruntime, tokenizers)"
+                                    "Step 1: Dependencies — onnxruntime installed"
+                                ).classes("text-sm flex-grow")
+                            else:
+                                ui.icon("warning").classes("text-orange")
+                                ui.label(
+                                    "Step 1: Dependencies — onnxruntime not installed"
+                                ).classes("text-sm flex-grow")
+
+                                async def install_onnxruntime():
+                                    ui.notify(
+                                        "Installing onnxruntime...", type="ongoing"
+                                    )
+                                    ok, msg = await run.io_bound(_install_onnxruntime)
+                                    if ok:
+                                        ui.notify(msg, type="positive")
+                                    else:
+                                        ui.notify(msg, type="negative")
+                                    await refresh()
+
+                                ui.button(
+                                    "Install onnxruntime",
+                                    icon="download",
+                                    on_click=install_onnxruntime,
+                                ).props("dense")
+
+                        # Step 2: Model
+                        with ui.row().classes("items-center gap-3 mt-1"):
+                            if model_ok:
+                                ui.icon("check_circle").classes("text-green")
+                                ui.label("Step 2: Model — downloaded").classes(
+                                    "text-sm flex-grow"
+                                )
+                            else:
+                                ui.icon("warning").classes("text-orange")
+                                ui.label("Step 2: Model — not downloaded").classes(
+                                    "text-sm flex-grow"
+                                )
+
+                                async def download_model_action():
+                                    ui.notify("Downloading ML model...", type="ongoing")
+                                    ok, msg = await run.io_bound(_download_ml_model)
+                                    if ok:
+                                        ui.notify(msg, type="positive")
+                                    else:
+                                        ui.notify(msg, type="negative")
+                                    await refresh()
+
+                                ui.button(
+                                    "Download Model",
+                                    icon="cloud_download",
+                                    on_click=download_model_action,
+                                ).props("dense")
+
+                        # Step 3: Configuration
+                        with ui.row().classes("items-center gap-3 mt-1"):
+                            if config_ok:
+                                ui.icon("check_circle").classes("text-green")
+                                ui.label(
+                                    f"Step 3: Configuration — {len(engines)} engine(s) configured"
                                 ).classes("text-sm")
                             else:
-                                ui.icon("error").classes("text-red")
-                                ui.label("ML dependencies not available").classes(
-                                    "text-sm text-red"
-                                )
+                                ui.icon("warning").classes("text-orange")
                                 ui.label(
-                                    "onnxruntime required (included on Python < 3.13 via rapidocr-onnxruntime)"
-                                ).classes("text-xs text-grey-6")
+                                    "Step 3: Configuration — no engines configured"
+                                ).classes("text-sm")
 
-                        if models:
-                            ui.label("Registered Models:").classes(
-                                "text-sm font-bold mt-2"
-                            )
-                            for m in models:
-                                with ui.row().classes("items-center gap-2"):
-                                    if m.get("downloaded"):
-                                        ui.icon("cloud_done").classes("text-green")
-                                    else:
-                                        ui.icon("cloud_download").classes("text-grey-5")
-                                    ui.label(m["name"]).classes("text-sm").style(
-                                        "font-family: monospace"
-                                    )
-                                    if m.get("downloaded"):
-                                        ui.badge("Downloaded", color="green").classes(
-                                            "text-xs"
-                                        )
-                                    else:
-                                        ui.badge(
-                                            "Not downloaded", color="grey"
-                                        ).classes("text-xs")
-                            if not all(m.get("downloaded") for m in models):
+                        # Step 4: Detector
+                        detector_path = f"/{daemon_name}/pi-detection"
+                        with ui.row().classes("items-center gap-3 mt-1"):
+                            if detector_ok:
+                                ui.icon("check_circle").classes("text-green")
                                 ui.label(
-                                    "Download models with: ai-guardian ml download"
-                                ).classes("text-xs text-grey-6 mt-1")
+                                    f"Step 4: Detector — set to '{detector}'"
+                                ).classes("text-sm flex-grow")
+                            else:
+                                ui.icon("warning").classes("text-orange")
+                                ui.label(
+                                    f"Step 4: Detector — '{detector}', change to 'ml' or 'hybrid'"
+                                ).classes("text-sm flex-grow")
+                                ui.button(
+                                    "Go to Detector Settings",
+                                    icon="open_in_new",
+                                    on_click=lambda: ui.navigate.to(detector_path),
+                                ).props("dense flat")
+
+                        # Overall status
+                        ui.separator().classes("mt-2")
+                        if deps_ok and model_ok and config_ok and detector_ok:
+                            ui.label("Status: READY").classes(
+                                "text-sm font-bold text-green mt-1"
+                            )
+                        else:
+                            reasons = []
+                            if not deps_ok:
+                                reasons.append("dependency missing")
+                            if not model_ok:
+                                reasons.append("model not downloaded")
+                            if not config_ok:
+                                reasons.append("no engines configured")
+                            if not detector_ok:
+                                reasons.append("detector not set to ml/hybrid")
+                            ui.label(
+                                f"Status: NOT READY ({', '.join(reasons)})"
+                            ).classes("text-sm font-bold text-orange mt-1")
 
                     # --- ML Strategy ---
                     with ui.card().classes("w-full"):
@@ -229,7 +336,11 @@ def create_pi_ml_engines_page(service, daemon_name: str):
                             "Configure which ML engines to use for detection."
                         ).classes("text-xs text-grey-6")
 
-                        engines = pi.get("ml_engines", [])
+                        if not deps_ok or not model_ok:
+                            ui.label(
+                                "Complete Steps 1-2 before configuring engines."
+                            ).classes("text-sm text-orange")
+
                         engines_text = (
                             json.dumps(engines, indent=2) if engines else "[]"
                         )
@@ -278,6 +389,7 @@ def create_pi_ml_engines_page(service, daemon_name: str):
                                 ui.notify(
                                     f"Saved {len(parsed)} engine(s)", type="positive"
                                 )
+                                await refresh()
 
                             async def reload_engines():
                                 await refresh()
