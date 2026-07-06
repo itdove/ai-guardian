@@ -149,8 +149,8 @@ class PromptInjectionContent(SchemaDefaultsMixin, Container):
                         select_options_with_default(
                             [
                                 ("Heuristic (fast, local)", "heuristic"),
-                                ("Rebuff (ML-based)", "rebuff"),
-                                ("LLM Guard", "llm-guard"),
+                                ("ML (onnxruntime model)", "ml"),
+                                ("Hybrid (heuristic + ML)", "hybrid"),
                             ],
                             "prompt_injection.detector",
                         ),
