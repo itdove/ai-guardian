@@ -7,6 +7,10 @@ events:
     prompt: "charge card 4111111111111111 expiry 12/26 cvv 123"
     expect: block
 
+  - label: "Clean user prompt (no PII)"
+    prompt: "help me write a function to sort a list"
+    expect: allow
+
   - label: "Clean data processing"
     prompt: "summarize the sales report"
     tools:

@@ -11,13 +11,13 @@
         "tests/fixtures/attack_constants.py",
         "tests/unit/test_column_support.py",
         ".github/workflows/smoke-tests.yml",
-        "container/scenarios/minimal/basic-secret.yaml",
+        "container/scenarios/minimal/secret-scanning.yaml",
         "container/scenarios/minimal/tool-policy.yaml",
-        "container/scenarios/standard/basic-secret.yaml",
+        "container/scenarios/standard/secret-scanning.yaml",
         "container/scenarios/standard/tool-policy.yaml",
-        "container/scenarios/strict/basic-secret.yaml",
+        "container/scenarios/strict/secret-scanning.yaml",
         "container/scenarios/strict/tool-policy.yaml",
-        "container/scenarios/moderator/basic-secret.yaml",
+        "container/scenarios/moderator/secret-scanning.yaml",
         "container/scenarios/moderator/tool-policy.yaml",
         ".ai-guardian/ai-guardian.json"
     ]
