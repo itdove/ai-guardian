@@ -198,6 +198,47 @@ def test_user_experience_feature_name(self, mock_pattern_config, mock_scan_confi
 - 👥 Manual testing guide for QA
 - 🔒 Ensures security messages are clear and actionable
 
+### Hook Regression Testing (dummy-agent)
+
+Before submitting PRs that touch hook processing (`hook_processing.py`), scanner logic, or the dummy-agent, run the bundled hook scenarios against the test container image.
+
+**When to run:**
+
+- Changes to `src/ai_guardian/hook_processing.py`
+- Changes to any scanner (`secret_scanning`, `ssrf_protector`, `tool_policy`, etc.)
+- Changes to `src/ai_guardian/dummy_agent.py` or any hook adapter
+
+**How to run:**
+
+```bash
+# Build the base image
+podman build -t ai-guardian container/
+
+# Build the test image on top
+podman build -f container/Dockerfile.test -t ai-guardian-test container/
+
+# Run all bundled scenarios (CI mode — exits non-zero on any failure)
+podman run --rm ai-guardian-test /sandbox/run-scenarios.sh
+
+# Run a specific scenario
+podman run --rm ai-guardian-test \
+  ai-guardian dummy-agent --script /sandbox/scenarios/basic-secret.yaml
+
+# Interactive REPL for manual exploration
+podman run -it ai-guardian-test ai-guardian dummy-agent
+```
+
+**Bundled scenarios:**
+
+| Scenario | What it tests |
+|---|---|
+| `basic-secret.yaml` | AWS key detection → block |
+| `pii-detection.yaml` | Credit card, passport detection |
+| `ask-dialog.yaml` | Ask dialog forwarding to tray |
+| `tool-policy.yaml` | Directory rules, tool blocking |
+
+See `container/README.md` for full build and run options.
+
 ---
 
 ## Common Issues
