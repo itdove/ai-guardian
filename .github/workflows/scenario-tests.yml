@@ -27,6 +27,7 @@ on:
       - 'container/**'
       - 'src/ai_guardian/**'
       - '.github/workflows/scenario-tests.yml'
+  workflow_call:
   workflow_dispatch:
 
 jobs:
