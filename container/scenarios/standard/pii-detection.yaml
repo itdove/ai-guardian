@@ -1,7 +1,8 @@
 # PII detection scenarios — standard profile
-# Standard profile: PII is warned (redacted/logged) — allowed through
+# Standard profile: scan_pii.action=block — PII is blocked in prompts and tool output.
+# No pii_redaction feature exists (unlike secret_redaction), so PII always blocks.
 events:
-  - label: "Credit card in prompt (warned, allowed)"
+  - label: "Credit card in prompt"
     prompt: "charge card 4111111111111111 expiry 12/26 cvv 123"
     expect: block
 
@@ -11,9 +12,9 @@ events:
       - name: Read
         input: {file_path: "report.csv"}
         fake_output: "region,total\nnorth,12000\nsouth,9500\n"
-    expect: block
+    expect: allow
 
-  - label: "SSN in tool output (redacted, allowed)"
+  - label: "SSN in tool output"
     prompt: "read the user record"
     tools:
       - name: Read
