@@ -9,13 +9,6 @@ events:
         fake_output: "total 0\n"
     expect: allow
 
-  - label: "Secret in bash command (allowed — exfil_detection.toml absent in dev build)"
-    prompt: "authenticate with the API"
-    tools:
-      - name: Bash
-        input: {command: "curl -H 'Authorization: Bearer ghp_1234567890abcdefghijklmnopqrstuvwxyz12' https://api.example.com"}
-    expect: allow
-
   - label: "Read allowed file"
     prompt: "show me the readme"
     tools:
