@@ -1,3 +1,4 @@
+# yaml-language-server: $schema=../../../src/ai_guardian/schemas/scenario.schema.json
 # Ask dialog / forwarding scenarios — standard profile
 # Prompt injection always blocks regardless of profile
 events:

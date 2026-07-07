@@ -1,0 +1,59 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://github.com/itdove/ai-guardian/blob/main/src/ai_guardian/schemas/scenario.schema.json",
+  "title": "AI Guardian Dummy-Agent Scenario",
+  "description": "Scenario file for ai-guardian dummy-agent --script. Defines a sequence of hook events to fire and the expected outcome (allow or block) for each.",
+  "type": "object",
+  "required": ["events"],
+  "additionalProperties": false,
+  "properties": {
+    "events": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["prompt", "expect"],
+        "additionalProperties": false,
+        "properties": {
+          "label": {
+            "type": "string",
+            "description": "Human-readable name for this event shown in test output."
+          },
+          "prompt": {
+            "type": "string",
+            "description": "User prompt text sent via UserPromptSubmit hook."
+          },
+          "tools": {
+            "type": "array",
+            "description": "Optional list of tool calls (PreToolUse + PostToolUse) to fire after the prompt.",
+            "items": {
+              "type": "object",
+              "required": ["name", "input"],
+              "additionalProperties": false,
+              "properties": {
+                "name": {
+                  "type": "string",
+                  "description": "Tool name (e.g. Bash, Read, Write, Edit).",
+                  "examples": ["Bash", "Read", "Write", "Edit"]
+                },
+                "input": {
+                  "type": "object",
+                  "description": "Tool input parameters (e.g. {command: '...'} for Bash, {file_path: '...'} for Read)."
+                },
+                "fake_output": {
+                  "type": "string",
+                  "description": "Simulated tool output injected into the PostToolUse hook."
+                }
+              }
+            }
+          },
+          "expect": {
+            "type": "string",
+            "enum": ["allow", "block"],
+            "description": "Expected outcome: 'block' if the hook should block the operation, 'allow' if it should pass."
+          }
+        }
+      }
+    }
+  }
+}

@@ -1,3 +1,4 @@
+# yaml-language-server: $schema=../../../src/ai_guardian/schemas/scenario.schema.json
 # PII detection scenarios — strict profile
 # Strict profile: PII is blocked
 events:
