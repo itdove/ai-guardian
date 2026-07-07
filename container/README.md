@@ -265,6 +265,43 @@ Access from the host: `http://localhost:63152`
 | `UV_VERSION` | `0.11.16` | uv package manager version |
 | `OPENCODE_VERSION` | `1.17.3` | OpenCode version |
 
+## Test Image (Dockerfile.test)
+
+The test image extends the base image with bundled dummy-agent scenarios for hook regression testing. Not for distribution — local CI only.
+
+### Build
+
+```bash
+# Build base image first
+podman build -t ai-guardian container/
+
+# Build test image on top
+podman build -f container/Dockerfile.test -t ai-guardian-test container/
+```
+
+### Run
+
+```bash
+# Run all bundled scenarios (CI mode)
+podman run --rm ai-guardian-test /sandbox/run-scenarios.sh
+
+# Run a specific scenario
+podman run --rm ai-guardian-test \
+  ai-guardian dummy-agent --script /sandbox/scenarios/basic-secret.yaml
+
+# Interactive REPL
+podman run -it ai-guardian-test ai-guardian dummy-agent
+```
+
+### Bundled scenarios
+
+| Scenario | What it tests |
+|---|---|
+| `basic-secret.yaml` | AWS key detection → block |
+| `pii-detection.yaml` | Credit card, passport detection |
+| `ask-dialog.yaml` | Ask dialog forwarding to tray |
+| `tool-policy.yaml` | Directory rules, tool blocking |
+
 ## Expected Doctor Warnings
 
 In a container, `ai-guardian doctor` will show expected warnings for:
