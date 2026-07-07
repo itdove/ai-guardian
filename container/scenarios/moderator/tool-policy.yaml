@@ -1,4 +1,5 @@
-# Tool policy scenarios
+# Tool policy scenarios — moderator profile
+# Moderator profile: action=ask — auto-dismisses in non-interactive CI → allow
 events:
   - label: "Allowed bash command"
     prompt: "list files"
@@ -8,12 +9,12 @@ events:
         fake_output: "total 0\n"
     expect: allow
 
-  - label: "Secret in bash command"
+  - label: "Secret in bash command (ask auto-dismissed in CI)"
     prompt: "authenticate with the API"
     tools:
       - name: Bash
         input: {command: "curl -H 'Authorization: Bearer ghp_1234567890abcdefghijklmnopqrstuvwxyz12' https://api.example.com"}
-    expect: block
+    expect: allow
 
   - label: "Read allowed file"
     prompt: "show me the readme"

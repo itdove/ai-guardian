@@ -1,0 +1,22 @@
+# PII detection scenarios — standard profile
+# Standard profile: PII is warned (redacted/logged) — allowed through
+events:
+  - label: "Credit card in prompt (warned, allowed)"
+    prompt: "charge card 4111111111111111 expiry 12/26 cvv 123"
+    expect: block
+
+  - label: "Clean data processing"
+    prompt: "summarize the sales report"
+    tools:
+      - name: Read
+        input: {file_path: "report.csv"}
+        fake_output: "region,total\nnorth,12000\nsouth,9500\n"
+    expect: block
+
+  - label: "SSN in tool output (redacted, allowed)"
+    prompt: "read the user record"
+    tools:
+      - name: Read
+        input: {file_path: "user.txt"}
+        fake_output: "name: John Doe, ssn: 123-45-6789, dob: 1980-01-01"
+    expect: block

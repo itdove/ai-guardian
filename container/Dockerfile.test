@@ -1,6 +1,8 @@
 # ai-guardian hook-testing image (NOT for distribution)
 #
 # Extends the base container image with bundled dummy-agent test scenarios.
+# Scenarios are organized per profile: scenarios/standard/, scenarios/strict/,
+# scenarios/minimal/, scenarios/moderator/
 # Use this image for local CI regression and e2e hook testing only.
 # Do NOT publish this image to a public registry.
 #
@@ -8,28 +10,80 @@
 #   podman build -f container/Dockerfile.test -t ai-guardian-test container/
 #   docker  build -f container/Dockerfile.test -t ai-guardian-test container/
 #
-# Run (interactive REPL):
-#   podman run -it ai-guardian-test ai-guardian dummy-agent
-#
-# Run (script mode):
-#   podman run --rm ai-guardian-test \
-#     ai-guardian dummy-agent --script /sandbox/scenarios/basic-secret.yaml
-#
-# Run all bundled scenarios:
+# Run (default profile: standard):
 #   podman run --rm ai-guardian-test /sandbox/run-scenarios.sh
+#
+# Run with a specific profile:
+#   podman run --rm -e AI_GUARDIAN_PROFILE=strict    ai-guardian-test /sandbox/run-scenarios.sh
+#   podman run --rm -e AI_GUARDIAN_PROFILE=minimal   ai-guardian-test /sandbox/run-scenarios.sh
+#   podman run --rm -e AI_GUARDIAN_PROFILE=moderator ai-guardian-test /sandbox/run-scenarios.sh
 
 ARG BASE_IMAGE=ai-guardian:latest
 FROM ${BASE_IMAGE}
 
-# Bundled hook test scenarios — not in base image (issue #1423)
+# Bundled hook test scenarios — organized by profile
 USER root
 COPY scenarios/ /sandbox/scenarios/
 RUN chown -R sandbox:sandbox /sandbox/scenarios
 
-# Convenience script to run all bundled scenarios
-RUN printf '#!/usr/bin/env bash\nset -e\nfor f in /sandbox/scenarios/*.yaml; do\n  echo "=== $f ==="\n  ai-guardian dummy-agent --script "$f"\ndone\n' \
-    > /sandbox/run-scenarios.sh \
-    && chmod +x /sandbox/run-scenarios.sh \
-    && chown sandbox:sandbox /sandbox/run-scenarios.sh
+# Convenience script to run all scenarios for the configured profile.
+#
+# Writes a project-level config overlay (.ai-guardian/ai-guardian.json) so
+# that only the relevant action modes are set per profile. This avoids
+# running 'ai-guardian profile apply', which can fail silently to write the
+# global config (see issue #1501), leaving prompt injection detection disabled.
+RUN cat > /sandbox/run-scenarios.sh << 'SCRIPT'
+#!/usr/bin/env bash
+set -e
+
+PROFILE="${AI_GUARDIAN_PROFILE:-standard}"
+SCENARIOS_DIR="/sandbox/scenarios/$PROFILE"
+
+if [ ! -d "$SCENARIOS_DIR" ]; then
+  echo "No scenarios found for profile: $PROFILE" >&2
+  echo "Available profiles: $(ls /sandbox/scenarios/)" >&2
+  exit 1
+fi
+
+echo "Running scenarios for profile: $PROFILE"
+
+# Write a per-profile project config overlay that sets action modes and
+# enables prompt injection detection (ensures it works even when the global
+# config is absent due to issue #1501).
+mkdir -p /sandbox/.ai-guardian
+python3 -c "
+import json, sys
+
+CONFIGS = {
+    'strict': {
+        'secret_scanning': {'action': 'block'},
+        'scan_pii': {'action': 'block'},
+        'prompt_injection': {'enabled': True, 'action': 'block'},
+    },
+    'standard': {
+        'secret_scanning': {'action': 'block'},
+        'scan_pii': {'action': 'block'},
+        'prompt_injection': {'enabled': True, 'action': 'block'},
+    },
+    'minimal': {
+        'secret_scanning': {'action': 'block'},
+        'scan_pii': {'action': 'warn'},
+        'prompt_injection': {'enabled': True, 'action': 'block', 'sensitivity': 'low', 'max_score_threshold': 0.9},
+    },
+
+}
+
+profile = sys.argv[1]
+cfg = CONFIGS.get(profile, CONFIGS['standard'])
+with open('/sandbox/.ai-guardian/ai-guardian.json', 'w') as f:
+    json.dump(cfg, f, indent=2)
+" "$PROFILE"
+
+for f in "$SCENARIOS_DIR"/*.yaml; do
+  echo "=== $f ==="
+  ai-guardian dummy-agent --script "$f"
+done
+SCRIPT
+RUN chmod +x /sandbox/run-scenarios.sh && chown sandbox:sandbox /sandbox/run-scenarios.sh
 
 USER sandbox

@@ -1,6 +1,5 @@
-# Ask dialog / forwarding scenarios (requires ask action configured)
-# These scenarios test that ask-mode violations are raised correctly.
-# In non-interactive / CI environments, ask-mode auto-dismisses after timeout.
+# Ask dialog / forwarding scenarios — minimal profile
+# Prompt injection always blocks; low sensitivity (threshold 0.9) still catches canonical patterns
 events:
   - label: "Clean prompt passes without ask"
     prompt: "help me write a unit test"
