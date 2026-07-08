@@ -2553,8 +2553,39 @@ class DaemonTray:
                 self._multi_client.send_stop(self._targets[0])
 
         def _restart_action(_, __):
-            if self._targets and self._multi_client:
-                self._multi_client.send_restart(self._targets[0])
+            if self._restart_in_progress:
+                return
+            if not (self._targets and self._multi_client):
+                return
+            self._restart_in_progress = True
+            self._dispatch_to_main(self._refresh_menu)
+            self._multi_client.send_restart(self._targets[0])
+
+            def _poll():
+                import json as _json
+
+                from ai_guardian.daemon import get_pid_path
+
+                pid_path = get_pid_path()
+                old_pid = None
+                try:
+                    if pid_path.exists():
+                        old_pid = _json.loads(pid_path.read_text()).get("pid")
+                except Exception:
+                    pass
+                for _ in range(100):
+                    time.sleep(0.1)
+                    try:
+                        if pid_path.exists():
+                            new_pid = _json.loads(pid_path.read_text()).get("pid")
+                            if new_pid and new_pid != old_pid:
+                                break
+                    except Exception:
+                        pass
+                self._restart_in_progress = False
+                self._refresh_event.set()
+
+            threading.Thread(target=_poll, daemon=True, name="restart-poll").start()
 
         _cache = {"stats": {}, "time": 0}
 
@@ -3047,10 +3078,51 @@ class DaemonTray:
 
             def _mk_restart(slot=idx):
                 def action(_, __):
-                    if slot < len(self._targets):
-                        t = self._targets[slot]
-                        if self._multi_client:
-                            self._multi_client.send_restart(t)
+                    if self._restart_in_progress:
+                        return
+                    if slot >= len(self._targets):
+                        return
+                    t = self._targets[slot]
+                    if not self._multi_client:
+                        return
+                    self._restart_in_progress = True
+                    self._dispatch_to_main(self._refresh_menu)
+                    self._multi_client.send_restart(t)
+
+                    def _poll(target=t):
+                        if target.runtime == "local":
+                            import json as _json
+
+                            from ai_guardian.daemon import get_pid_path
+
+                            pid_path = get_pid_path()
+                            old_pid = None
+                            try:
+                                if pid_path.exists():
+                                    old_pid = _json.loads(pid_path.read_text()).get(
+                                        "pid"
+                                    )
+                            except Exception:
+                                pass
+                            for _ in range(100):
+                                time.sleep(0.1)
+                                try:
+                                    if pid_path.exists():
+                                        new_pid = _json.loads(pid_path.read_text()).get(
+                                            "pid"
+                                        )
+                                        if new_pid and new_pid != old_pid:
+                                            break
+                                except Exception:
+                                    pass
+                        else:
+                            time.sleep(3.0)
+                        self._restart_in_progress = False
+                        self._refresh_event.set()
+
+                    threading.Thread(
+                        target=_poll, daemon=True, name="restart-poll"
+                    ).start()
 
                 return action
 
