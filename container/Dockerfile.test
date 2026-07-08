@@ -26,7 +26,9 @@ FROM ${BASE_IMAGE}
 # Build context must be the repo root (.) for COPY to find src/.
 USER root
 COPY src/ai_guardian/ /tmp/ai_guardian_src/
-RUN PKG_PATH=$(python3 -c "import ai_guardian, os; print(os.path.dirname(ai_guardian.__file__))") \
+RUN PKG_PATH=$(find /opt/uv-tools -maxdepth 8 -type d -name "ai_guardian" 2>/dev/null | head -1) \
+    && { [ -n "$PKG_PATH" ] || { echo "ERROR: ai_guardian not found under /opt/uv-tools"; exit 1; }; } \
+    && echo "Overlaying src into $PKG_PATH" \
     && cp -r /tmp/ai_guardian_src/* "$PKG_PATH/" \
     && rm -rf /tmp/ai_guardian_src
 
