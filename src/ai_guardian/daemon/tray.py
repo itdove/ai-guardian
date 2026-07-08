@@ -2685,11 +2685,29 @@ class DaemonTray:
         }
 
         def _stale_vis(_item):
+            if not self._is_single_daemon() or not self._targets:
+                return False
             return (
-                self._is_single_daemon()
+                self._targets[0].runtime == "local"
                 and self._stale_code_warned
                 and not self._restart_in_progress
             )
+
+        def _stale_vis_remote(_item):
+            if not self._is_single_daemon() or not self._targets:
+                return False
+            t = self._targets[0]
+            return t.runtime in ("container", "kubernetes") and self._is_target_stale(t)
+
+        def _stale_remote_label(_item):
+            from ai_guardian import __version__ as _hv
+
+            if self._targets:
+                t = self._targets[0]
+                daemon_ver = self._daemon_versions.get((t.name, t.runtime), "")
+                if daemon_ver:
+                    return f"⚠️ Host v{_hv} newer than container v{daemon_ver} — rebuild image"
+            return "⚠️ Container daemon outdated — rebuild image to update"
 
         def _on_restart_daemon(_icon, _item):
             if self._restart_in_progress:
@@ -2749,6 +2767,12 @@ class DaemonTray:
                 "⚠️ Daemon running old code — click to restart",
                 _on_restart_daemon,
                 visible=_stale_vis,
+            ),
+            pystray.MenuItem(
+                _stale_remote_label,
+                None,
+                visible=_stale_vis_remote,
+                enabled=False,
             ),
             pystray.MenuItem(_header_label, None, visible=_single_vis_refresh),
             pystray.Menu.SEPARATOR,
@@ -3130,12 +3154,40 @@ class DaemonTray:
                 def check(_item):
                     if slot >= len(self._targets):
                         return False
+                    t = self._targets[slot]
                     return (
-                        self._is_target_stale(self._targets[slot])
+                        t.runtime == "local"
+                        and self._is_target_stale(t)
                         and not self._restart_in_progress
                     )
 
                 return check
+
+            def _mk_daemon_stale_vis_remote(slot=idx):
+                def check(_item):
+                    if slot >= len(self._targets):
+                        return False
+                    t = self._targets[slot]
+                    return t.runtime in (
+                        "container",
+                        "kubernetes",
+                    ) and self._is_target_stale(t)
+
+                return check
+
+            def _mk_stale_remote_label(slot=idx):
+                def label(_item):
+                    from ai_guardian import __version__ as _hv
+
+                    if slot >= len(self._targets):
+                        return "⚠️ Container daemon outdated — rebuild image"
+                    t = self._targets[slot]
+                    daemon_ver = self._daemon_versions.get((t.name, t.runtime), "")
+                    if daemon_ver:
+                        return f"⚠️ Host v{_hv} newer than container v{daemon_ver} — rebuild image"
+                    return "⚠️ Container daemon outdated — rebuild image"
+
+                return label
 
             def _mk_stats(slot=idx):
                 _cache = {"stats": {}, "time": 0}
@@ -3275,6 +3327,12 @@ class DaemonTray:
                             "⚠️ Running old code — click to restart",
                             _mk_restart(),
                             visible=_mk_daemon_stale_vis(),
+                        ),
+                        pystray.MenuItem(
+                            _mk_stale_remote_label(),
+                            None,
+                            visible=_mk_daemon_stale_vis_remote(),
+                            enabled=False,
                         ),
                         pystray.MenuItem(
                             "Console",
