@@ -217,6 +217,18 @@ class IDESetup:
                         ],
                     }
                 ],
+                "SessionStart": [
+                    {
+                        "matcher": "startup",
+                        "hooks": [
+                            {
+                                "type": "command",
+                                "command": "ai-guardian",
+                                "statusMessage": "🛡️ Scanning agent config files...",
+                            }
+                        ],
+                    }
+                ],
                 "SessionEnd": [
                     {"hooks": [{"type": "command", "command": "ai-guardian"}]}
                 ],
@@ -321,6 +333,7 @@ class IDESetup:
             "config_filename": "settings.json",
             "hooks": {
                 "hooks": [
+                    {"event": "SessionStart", "command": "ai-guardian"},
                     {"event": "BeforeAgent", "command": "ai-guardian"},
                     {"event": "BeforeTool", "matcher": ".*", "command": "ai-guardian"},
                     {"event": "AfterTool", "matcher": ".*", "command": "ai-guardian"},
@@ -617,8 +630,9 @@ class IDESetup:
             if "hooks" not in existing_config:
                 existing_config["hooks"] = {}
 
-            # Merge UserPromptSubmit, PreToolUse, PostToolUse, SessionEnd, PostCompact hooks
+            # Merge SessionStart, UserPromptSubmit, PreToolUse, PostToolUse, SessionEnd, PostCompact hooks
             for hook_name in [
+                "SessionStart",
                 "UserPromptSubmit",
                 "PreToolUse",
                 "PostToolUse",
