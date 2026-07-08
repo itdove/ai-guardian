@@ -299,6 +299,12 @@ class TestCheckHooks:
                                 ],
                             }
                         ],
+                        "SessionEnd": [
+                            {"hooks": [{"type": "command", "command": "ai-guardian"}]}
+                        ],
+                        "PostCompact": [
+                            {"hooks": [{"type": "command", "command": "ai-guardian"}]}
+                        ],
                     }
                 }
             )
@@ -314,7 +320,7 @@ class TestCheckHooks:
                 doctor = Doctor()
                 result = doctor.check_hooks()
                 assert result.status == CheckStatus.PASS
-                assert "3/3" in result.message
+                assert "5/5" in result.message
 
     def test_partial_hooks(self, _isolate_config_dir, tmp_path):
         claude_dir = tmp_path / ".claude"
@@ -347,7 +353,7 @@ class TestCheckHooks:
                 doctor = Doctor()
                 result = doctor.check_hooks()
                 assert result.status == CheckStatus.WARN
-                assert "1/3" in result.message
+                assert "1/5" in result.message
 
     def test_hooks_configured_absolute_path(self, _isolate_config_dir, tmp_path):
         """Doctor recognizes hooks with absolute paths (issue #797)."""
@@ -391,6 +397,26 @@ class TestCheckHooks:
                                 ],
                             }
                         ],
+                        "SessionEnd": [
+                            {
+                                "hooks": [
+                                    {
+                                        "type": "command",
+                                        "command": "/usr/bin/ai-guardian",
+                                    }
+                                ]
+                            }
+                        ],
+                        "PostCompact": [
+                            {
+                                "hooks": [
+                                    {
+                                        "type": "command",
+                                        "command": "/usr/bin/ai-guardian",
+                                    }
+                                ]
+                            }
+                        ],
                     }
                 }
             )
@@ -406,7 +432,7 @@ class TestCheckHooks:
                 doctor = Doctor()
                 result = doctor.check_hooks()
                 assert result.status == CheckStatus.PASS
-                assert "3/3" in result.message
+                assert "5/5" in result.message
 
 
 class TestCheckStateDir:
