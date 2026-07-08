@@ -1467,6 +1467,28 @@ class TestSetupHooks:
             captured = capsys.readouterr()
             assert str(custom_dir / "settings.json") in captured.out
 
+    def test_setup_hooks_aborts_when_config_fails_with_ide(self, tmp_path):
+        """setup_hooks returns False when create_default_config fails, even with ide_type set."""
+        with mock.patch("ai_guardian.setup.IDESetup") as MockSetup:
+            mock_instance = MockSetup.return_value
+            mock_instance.list_detected_ides.return_value = ["claude"]
+            mock_instance.IDE_CONFIGS = {"claude": {"name": "Claude Code"}}
+            mock_instance.setup_ide_hooks.return_value = (True, "Success")
+
+            with mock.patch(
+                "ai_guardian.setup.create_default_config",
+                return_value=(False, "Profile not found: badprofile"),
+            ):
+                success = setup_hooks(
+                    ide_type="claude",
+                    create_config=True,
+                    profile="badprofile",
+                    interactive=False,
+                )
+
+            assert success is False
+            mock_instance.setup_ide_hooks.assert_not_called()
+
 
 class TestInstallScannerMultiple:
     """Test cases for --install-scanner accepting multiple scanners."""

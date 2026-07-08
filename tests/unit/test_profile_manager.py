@@ -62,6 +62,13 @@ class TestResolveProfile:
         with pytest.raises(ProfileNotFoundError, match="Profile not found"):
             resolve_profile("nonexistent-custom")
 
+    @pytest.mark.parametrize("name", ["minimal", "standard", "strict", "moderator"])
+    def test_resolve_builtin_without_at_prefix(self, name):
+        """Bare builtin name resolves to builtin (e.g. 'standard' == '@standard')."""
+        ptype, path = resolve_profile(name)
+        assert ptype == "builtin"
+        assert path.exists()
+
     def test_resolve_file_path(self, tmp_path):
         profile_file = tmp_path / "my-profile.json"
         profile_file.write_text('{"test": true}')
