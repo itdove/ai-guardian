@@ -1599,31 +1599,78 @@ def _scan_transcript_text(
                 allowlist_patterns=secret_allowlist,
             )
             if has_secrets and secret_error:
-                fp = _finding_fingerprint(
-                    "secret", _extract_secret_type_from_error(secret_error)
-                )
-                if fp not in seen and fp not in (allowed_findings or ()):
-                    warning_msg = (
-                        f"\n{'='*70}\n"
-                        f"🔍 SECRET DETECTED IN CONVERSATION TRANSCRIPT\n"
-                        f"{'='*70}\n"
-                        f"A secret was found in your conversation history\n"
-                        f"(possibly from a ! shell command).\n"
-                        f"The secret has already been sent to the AI model.\n"
-                        f"Recommended actions:\n"
-                        f"  1. Rotate the exposed credential immediately\n"
-                        f"  2. Start a new session to limit further exposure\n"
-                        f"  3. Review your shell history for other leaked secrets\n"
-                        f"{'='*70}\n"
+                per_findings = _last_secret_findings or []
+                if per_findings:
+                    new_findings = []
+                    for finding in per_findings:
+                        rule_id = getattr(
+                            finding, "rule_id", ""
+                        ) or _extract_secret_type_from_error(secret_error)
+                        fp = _finding_fingerprint("secret", rule_id)
+                        if fp not in seen and fp not in (allowed_findings or ()):
+                            new_findings.append((fp, rule_id))
+                            seen[fp] = now_iso
+                    if new_findings:
+                        count = len(new_findings)
+                        types = list(dict.fromkeys(r for _, r in new_findings))
+                        noun = "SECRET" if count == 1 else "SECRETS"
+                        verb = "was" if count == 1 else "were"
+                        type_line = (
+                            f"Type{'s' if count > 1 else ''}: {', '.join(types)}\n"
+                            if types
+                            else ""
+                        )
+                        warning_msg = (
+                            f"\n{'='*70}\n"
+                            f"🔍 {count} {noun} DETECTED IN CONVERSATION TRANSCRIPT\n"
+                            f"{'='*70}\n"
+                            f"{count} secret(s) {verb} found in your conversation history\n"
+                            f"{type_line}"
+                            f"(possibly from a ! shell command).\n"
+                            f"The secret(s) have already been sent to the AI model.\n"
+                            f"Recommended actions:\n"
+                            f"  1. Rotate the exposed credential(s) immediately\n"
+                            f"  2. Start a new session to limit further exposure\n"
+                            f"  3. Review your shell history for other leaked secrets\n"
+                            f"{'='*70}\n"
+                        )
+                        warnings.append(warning_msg)
+                        _log_transcript_violation(
+                            ViolationType.SECRET_IN_TRANSCRIPT,
+                            transcript_key,
+                            details={
+                                "reason": secret_error,
+                                "count": count,
+                                "types": types,
+                            },
+                            hook_context=hook_context,
+                        )
+                else:
+                    fp = _finding_fingerprint(
+                        "secret", _extract_secret_type_from_error(secret_error)
                     )
-                    warnings.append(warning_msg)
-                    _log_transcript_violation(
-                        ViolationType.SECRET_IN_TRANSCRIPT,
-                        transcript_key,
-                        details={"reason": secret_error},
-                        hook_context=hook_context,
-                    )
-                    seen[fp] = now_iso
+                    if fp not in seen and fp not in (allowed_findings or ()):
+                        warning_msg = (
+                            f"\n{'='*70}\n"
+                            f"🔍 SECRET DETECTED IN CONVERSATION TRANSCRIPT\n"
+                            f"{'='*70}\n"
+                            f"A secret was found in your conversation history\n"
+                            f"(possibly from a ! shell command).\n"
+                            f"The secret has already been sent to the AI model.\n"
+                            f"Recommended actions:\n"
+                            f"  1. Rotate the exposed credential immediately\n"
+                            f"  2. Start a new session to limit further exposure\n"
+                            f"  3. Review your shell history for other leaked secrets\n"
+                            f"{'='*70}\n"
+                        )
+                        warnings.append(warning_msg)
+                        _log_transcript_violation(
+                            ViolationType.SECRET_IN_TRANSCRIPT,
+                            transcript_key,
+                            details={"reason": secret_error},
+                            hook_context=hook_context,
+                        )
+                        seen[fp] = now_iso
         except Exception as e:
             logging.debug(f"Transcript secret scan error (fail-open): {e}")
 
