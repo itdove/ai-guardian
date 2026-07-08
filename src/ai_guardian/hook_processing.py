@@ -6075,10 +6075,47 @@ def _handle_bootstrap_scan(
                 except Exception:
                     pass
             if _bs_action == "block":
+                _bs_formatted = (
+                    f"\n{'='*70}\n"
+                    f"🚨 BLOCKED BY POLICY\n"
+                    f"🛡️ BOOTSTRAP SCAN — SESSION BLOCKED\n"
+                    f"{'='*70}\n\n"
+                    f"Threat detected in agent config file before session start.\n\n"
+                    f"File:   {_bs_file}\n"
+                    f"Reason: {_bs_error}\n\n"
+                    f"Recommended actions:\n"
+                    f"  1. Review the file listed above\n"
+                    f"  2. Remove the malicious instruction\n"
+                    f"  3. Restart your Claude Code session\n"
+                    f"  4. If false positive: add to config_file_scanning.ignore_files\n"
+                    f"{'='*70}\n"
+                )
                 return _format_response(
                     adapter,
                     has_secrets=True,
-                    error_message=_bs_error,
+                    error_message=_bs_formatted,
+                    hook_event=hook_event,
+                    violation_type=ViolationType.CONFIG_FILE_EXFIL,
+                )
+            elif _bs_action == "warn":
+                _bs_formatted = (
+                    f"\n{'='*70}\n"
+                    f"⚠️  WARNING — POLICY VIOLATION DETECTED\n"
+                    f"🛡️ BOOTSTRAP SCAN — SESSION ALLOWED WITH WARNING\n"
+                    f"{'='*70}\n\n"
+                    f"Threat detected in agent config file before session start.\n"
+                    f"Session is allowed to continue (action=warn).\n\n"
+                    f"File:   {_bs_file}\n"
+                    f"Reason: {_bs_error}\n\n"
+                    f"Recommended actions:\n"
+                    f"  1. Review the file listed above\n"
+                    f"  2. Remove the malicious instruction\n"
+                    f"  3. If false positive: add to config_file_scanning.ignore_files\n"
+                    f"{'='*70}\n"
+                )
+                return _format_response(
+                    adapter,
+                    warning_message=_bs_formatted,
                     hook_event=hook_event,
                     violation_type=ViolationType.CONFIG_FILE_EXFIL,
                 )
