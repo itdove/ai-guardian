@@ -310,6 +310,10 @@ jobs:
     name: Smoke Tests
     uses: ./.github/workflows/smoke-tests.yml
 
+  scenario-tests:
+    name: Scenario Tests
+    uses: ./.github/workflows/scenario-tests.yml
+
   config-validation:
     name: Config Validation
     runs-on: ubuntu-latest
