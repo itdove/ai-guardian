@@ -5733,6 +5733,191 @@ class TestMultiDaemonStaleVis:
         assert visible is True
 
 
+class TestContainerStaleWarning:
+    """Tests for container/k8s stale-code rebuild hint instead of restart (#1521)."""
+
+    def _make_tray(self):
+        return DaemonTray(
+            get_stats_callback=lambda: {},
+            stop_callback=lambda: None,
+            pause_callback=lambda mins: None,
+        )
+
+    def _make_target(self, runtime="local", name="test-daemon"):
+        from ai_guardian.daemon.discovery import DaemonTarget
+
+        t = mock.MagicMock(spec=DaemonTarget)
+        t.runtime = runtime
+        t.name = name
+        return t
+
+    # -- single-daemon _stale_vis (local restart) --
+
+    def test_single_stale_vis_local_shows_when_warned(self):
+        """Local restart item visible when local daemon is stale."""
+        tray = self._make_tray()
+        tray._stale_code_warned = True
+        tray._restart_in_progress = False
+        tray._targets = [self._make_target(runtime="local")]
+
+        with mock.patch.object(tray, "_is_single_daemon", return_value=True):
+            visible = (
+                tray._is_single_daemon()
+                and tray._targets
+                and tray._targets[0].runtime == "local"
+                and tray._stale_code_warned
+                and not tray._restart_in_progress
+            )
+        assert visible is True
+
+    def test_single_stale_vis_local_hidden_for_container(self):
+        """Local restart item hidden when single daemon is a container."""
+        tray = self._make_tray()
+        tray._stale_code_warned = True
+        tray._restart_in_progress = False
+        tray._targets = [self._make_target(runtime="container")]
+
+        with mock.patch.object(tray, "_is_single_daemon", return_value=True):
+            visible = (
+                tray._is_single_daemon()
+                and tray._targets
+                and tray._targets[0].runtime == "local"
+                and tray._stale_code_warned
+                and not tray._restart_in_progress
+            )
+        assert visible is False
+
+    # -- single-daemon _stale_vis_remote (container info item) --
+
+    def test_single_stale_vis_remote_shows_for_container(self):
+        """Remote info item visible when single container daemon is stale."""
+        tray = self._make_tray()
+        target = self._make_target(runtime="container", name="c-daemon")
+        tray._targets = [target]
+        tray._version_mismatch_notified.add(("c-daemon", "container"))
+
+        with mock.patch.object(tray, "_is_single_daemon", return_value=True):
+            visible = (
+                tray._is_single_daemon()
+                and tray._targets
+                and tray._targets[0].runtime in ("container", "kubernetes")
+                and tray._is_target_stale(tray._targets[0])
+            )
+        assert visible is True
+
+    def test_single_stale_vis_remote_hidden_for_local(self):
+        """Remote info item hidden when single daemon is local."""
+        tray = self._make_tray()
+        target = self._make_target(runtime="local")
+        tray._targets = [target]
+        tray._stale_code_warned = True
+
+        with mock.patch.object(tray, "_is_single_daemon", return_value=True):
+            visible = (
+                tray._is_single_daemon()
+                and tray._targets
+                and tray._targets[0].runtime in ("container", "kubernetes")
+                and tray._is_target_stale(tray._targets[0])
+            )
+        assert visible is False
+
+    def test_single_stale_vis_remote_shows_for_kubernetes(self):
+        """Remote info item visible for kubernetes runtime."""
+        tray = self._make_tray()
+        target = self._make_target(runtime="kubernetes", name="k8s-daemon")
+        tray._targets = [target]
+        tray._version_mismatch_notified.add(("k8s-daemon", "kubernetes"))
+
+        with mock.patch.object(tray, "_is_single_daemon", return_value=True):
+            visible = (
+                tray._is_single_daemon()
+                and tray._targets
+                and tray._targets[0].runtime in ("container", "kubernetes")
+                and tray._is_target_stale(tray._targets[0])
+            )
+        assert visible is True
+
+    # -- remote label --
+
+    def test_stale_remote_label_with_version(self):
+        """Label includes daemon version when it is known."""
+        tray = self._make_tray()
+        target = self._make_target(runtime="container", name="c-daemon")
+        tray._targets = [target]
+        tray._daemon_versions[("c-daemon", "container")] = "1.13.2"
+
+        with mock.patch("ai_guardian.__version__", "1.14.0"):
+            t = tray._targets[0]
+            daemon_ver = tray._daemon_versions.get((t.name, t.runtime), "")
+            from ai_guardian import __version__ as _hv
+
+            label = (
+                f"⚠️ Host v{_hv} newer than container v{daemon_ver} — rebuild image"
+                if daemon_ver
+                else "⚠️ Container daemon outdated — rebuild image to update"
+            )
+        assert "1.13.2" in label
+        assert "rebuild" in label
+
+    def test_stale_remote_label_without_version(self):
+        """Fallback label when daemon version is unknown."""
+        tray = self._make_tray()
+        target = self._make_target(runtime="container", name="c-daemon")
+        tray._targets = [target]
+        # No version stored
+
+        t = tray._targets[0]
+        daemon_ver = tray._daemon_versions.get((t.name, t.runtime), "")
+        label = (
+            f"⚠️ Host newer than container v{daemon_ver} — rebuild image"
+            if daemon_ver
+            else "⚠️ Container daemon outdated — rebuild image to update"
+        )
+        assert "rebuild" in label
+        assert "outdated" in label
+
+    # -- multi-daemon _mk_daemon_stale_vis (local only) --
+
+    def test_multi_stale_vis_local_hides_for_container(self):
+        """Local restart item hidden in multi-daemon mode when target is container."""
+        tray = self._make_tray()
+        target = self._make_target(runtime="container", name="c-daemon")
+        tray._targets = [target]
+        tray._version_mismatch_notified.add(("c-daemon", "container"))
+        tray._restart_in_progress = False
+
+        # Reproduce _mk_daemon_stale_vis check
+        t = tray._targets[0]
+        visible = (
+            t.runtime == "local"
+            and tray._is_target_stale(t)
+            and not tray._restart_in_progress
+        )
+        assert visible is False
+
+    def test_multi_stale_vis_remote_shows_for_container(self):
+        """Remote info item visible in multi-daemon mode for container target."""
+        tray = self._make_tray()
+        target = self._make_target(runtime="container", name="c-daemon")
+        tray._targets = [target]
+        tray._version_mismatch_notified.add(("c-daemon", "container"))
+
+        t = tray._targets[0]
+        visible = t.runtime in ("container", "kubernetes") and tray._is_target_stale(t)
+        assert visible is True
+
+    def test_multi_stale_vis_remote_hidden_when_not_stale(self):
+        """Remote info item hidden when container daemon is not stale."""
+        tray = self._make_tray()
+        target = self._make_target(runtime="container", name="c-daemon")
+        tray._targets = [target]
+        # Not in mismatch set → not stale
+
+        t = tray._targets[0]
+        visible = t.runtime in ("container", "kubernetes") and tray._is_target_stale(t)
+        assert visible is False
+
+
 class TestRestartActionGuard:
     """Tests for _restart_action guard and stale-code recheck (#1512)."""
 
