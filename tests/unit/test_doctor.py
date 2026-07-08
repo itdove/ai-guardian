@@ -955,12 +955,38 @@ class TestCheckPsCachePath:
         assert result.status == CheckStatus.FAIL
         assert "not writable" in result.message
 
-    def test_missing_dir(self, _isolate_config_dir, tmp_path):
+    def test_missing_dir_default_warns(self, _isolate_config_dir, tmp_path):
+        self._write_ps_config(_isolate_config_dir)
+        missing = tmp_path / "nonexistent"
+        # Clear cache-dir env vars so doctor treats the path as the default
+        with mock.patch("ai_guardian.config_utils.get_cache_dir", return_value=missing):
+            with mock.patch.dict(
+                "os.environ", {"AI_GUARDIAN_CACHE_DIR": "", "XDG_CACHE_HOME": ""}
+            ):
+                doctor = Doctor()
+                result = doctor.check_ps_cache_path()
+        assert result.status == CheckStatus.WARN
+        assert "not yet created" in result.message
+
+    def test_missing_dir_xdg_override_fails(self, _isolate_config_dir, tmp_path):
         self._write_ps_config(_isolate_config_dir)
         missing = tmp_path / "nonexistent"
         with mock.patch("ai_guardian.config_utils.get_cache_dir", return_value=missing):
-            doctor = Doctor()
-            result = doctor.check_ps_cache_path()
+            with mock.patch.dict("os.environ", {"XDG_CACHE_HOME": "/custom/cache"}):
+                doctor = Doctor()
+                result = doctor.check_ps_cache_path()
+        assert result.status == CheckStatus.FAIL
+        assert "does not exist" in result.message
+
+    def test_missing_dir_env_override_fails(self, _isolate_config_dir, tmp_path):
+        self._write_ps_config(_isolate_config_dir)
+        missing = tmp_path / "nonexistent"
+        with mock.patch("ai_guardian.config_utils.get_cache_dir", return_value=missing):
+            with mock.patch.dict(
+                "os.environ", {"AI_GUARDIAN_CACHE_DIR": "/custom/cache"}
+            ):
+                doctor = Doctor()
+                result = doctor.check_ps_cache_path()
         assert result.status == CheckStatus.FAIL
         assert "does not exist" in result.message
 
