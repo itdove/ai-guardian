@@ -5614,3 +5614,120 @@ class TestRestartDaemonDoubleClick:
                 and not tray._restart_in_progress
             )
             assert visible is True
+
+
+class TestIsTargetStale:
+    """Tests for _is_target_stale() helper (#1510)."""
+
+    def _make_tray(self):
+        return DaemonTray(
+            get_stats_callback=lambda: {},
+            stop_callback=lambda: None,
+            pause_callback=lambda mins: None,
+        )
+
+    def _make_target(self, runtime="local", name="test-daemon"):
+        from ai_guardian.daemon.discovery import DaemonTarget
+
+        t = mock.MagicMock(spec=DaemonTarget)
+        t.runtime = runtime
+        t.name = name
+        return t
+
+    def test_local_target_stale_when_warned(self):
+        tray = self._make_tray()
+        tray._stale_code_warned = True
+        target = self._make_target(runtime="local")
+        assert tray._is_target_stale(target) is True
+
+    def test_local_target_not_stale_when_not_warned(self):
+        tray = self._make_tray()
+        tray._stale_code_warned = False
+        target = self._make_target(runtime="local")
+        assert tray._is_target_stale(target) is False
+
+    def test_remote_target_stale_when_in_mismatch_set(self):
+        tray = self._make_tray()
+        target = self._make_target(runtime="container", name="remote-daemon")
+        tray._version_mismatch_notified.add(("remote-daemon", "container"))
+        assert tray._is_target_stale(target) is True
+
+    def test_remote_target_not_stale_when_not_in_mismatch_set(self):
+        tray = self._make_tray()
+        target = self._make_target(runtime="container", name="remote-daemon")
+        assert tray._is_target_stale(target) is False
+
+    def test_remote_target_ignores_stale_code_warned(self):
+        """_stale_code_warned should not affect remote target staleness."""
+        tray = self._make_tray()
+        tray._stale_code_warned = True
+        target = self._make_target(runtime="container", name="remote-daemon")
+        assert tray._is_target_stale(target) is False
+
+
+class TestMultiDaemonStaleVis:
+    """Tests for per-daemon stale-code visibility in multi-daemon mode (#1510)."""
+
+    def _make_tray(self):
+        return DaemonTray(
+            get_stats_callback=lambda: {},
+            stop_callback=lambda: None,
+            pause_callback=lambda mins: None,
+        )
+
+    def _make_target(self, runtime="local", name="test-daemon", status="running"):
+        from ai_guardian.daemon.discovery import DaemonTarget
+
+        t = mock.MagicMock(spec=DaemonTarget)
+        t.runtime = runtime
+        t.name = name
+        t.status = status
+        return t
+
+    def test_stale_vis_true_when_local_stale_and_not_restarting(self):
+        tray = self._make_tray()
+        target = self._make_target(runtime="local")
+        tray._targets = [target]
+        tray._stale_code_warned = True
+        tray._restart_in_progress = False
+
+        visible = (
+            tray._is_target_stale(tray._targets[0]) and not tray._restart_in_progress
+        )
+        assert visible is True
+
+    def test_stale_vis_false_when_restart_in_progress(self):
+        tray = self._make_tray()
+        target = self._make_target(runtime="local")
+        tray._targets = [target]
+        tray._stale_code_warned = True
+        tray._restart_in_progress = True
+
+        visible = (
+            tray._is_target_stale(tray._targets[0]) and not tray._restart_in_progress
+        )
+        assert visible is False
+
+    def test_stale_vis_false_when_not_stale(self):
+        tray = self._make_tray()
+        target = self._make_target(runtime="local")
+        tray._targets = [target]
+        tray._stale_code_warned = False
+        tray._restart_in_progress = False
+
+        visible = (
+            tray._is_target_stale(tray._targets[0]) and not tray._restart_in_progress
+        )
+        assert visible is False
+
+    def test_stale_vis_remote_target_with_version_mismatch(self):
+        tray = self._make_tray()
+        target = self._make_target(runtime="container", name="remote")
+        tray._targets = [target]
+        tray._version_mismatch_notified.add(("remote", "container"))
+        tray._restart_in_progress = False
+
+        visible = (
+            tray._is_target_stale(tray._targets[0]) and not tray._restart_in_progress
+        )
+        assert visible is True
