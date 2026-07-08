@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- `ai-guardian scan` now shows `⚠️  Code security scanner (Bandit) unavailable` instead of silently reporting `✅ No security issues detected` when Bandit is not importable in the tool environment (#1504)
+
+### Added
+
+- `ai-guardian doctor` now checks Bandit availability and reports `[FAIL] Bandit (code security)  not found` with a reinstall hint when code scanning is enabled but Bandit is missing (#1504)
+
 ## [1.13.2] - 2026-07-06
 
 ### Fixed

@@ -1,7 +1,12 @@
 """Tests for the Bandit Python code security scanner (Issue #828)."""
 
 import pytest
-from ai_guardian.bandit_scanner import BanditScanner, CodeSecurityFinding
+from unittest import mock
+from ai_guardian.bandit_scanner import (
+    BanditScanner,
+    BanditUnavailableError,
+    CodeSecurityFinding,
+)
 
 CLEAN_CODE = """
 def add(a, b):
@@ -191,6 +196,45 @@ class TestBanditAnnotations:
         assert (
             findings == []
         ), f"ai-guardian:allow should suppress finding, got: {findings}"
+
+
+class TestBanditUnavailable:
+    def test_raises_when_bandit_not_importable(self):
+        import importlib.util
+
+        with mock.patch.object(importlib.util, "find_spec", return_value=None):
+            scanner = BanditScanner()
+        with pytest.raises(BanditUnavailableError):
+            scanner.scan(EVAL_CODE, "eval.py")
+
+    def test_raises_on_non_empty_content_only(self):
+        import importlib.util
+
+        with mock.patch.object(importlib.util, "find_spec", return_value=None):
+            scanner = BanditScanner()
+        assert scanner.scan("", "empty.py") == []
+        assert scanner.scan("   ", "whitespace.py") == []
+        with pytest.raises(BanditUnavailableError):
+            scanner.scan(EVAL_CODE, "eval.py")
+
+    def test_bandit_unavailable_error_is_runtime_error(self):
+        assert issubclass(BanditUnavailableError, RuntimeError)
+
+    def test_available_true_when_bandit_installed(self):
+        import importlib.util
+
+        with mock.patch.object(
+            importlib.util, "find_spec", return_value=mock.MagicMock()
+        ):
+            scanner = BanditScanner()
+        assert scanner._available is True
+
+    def test_available_false_when_bandit_missing(self):
+        import importlib.util
+
+        with mock.patch.object(importlib.util, "find_spec", return_value=None):
+            scanner = BanditScanner()
+        assert scanner._available is False
 
 
 class TestBanditScannerRobustness:

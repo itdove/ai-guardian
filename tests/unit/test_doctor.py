@@ -1486,7 +1486,7 @@ class TestDoctorRunAll:
         doctor = Doctor()
         report = doctor.run_all()
         assert isinstance(report, DoctorReport)
-        assert len(report.checks) == 31
+        assert len(report.checks) == 32
         assert report.version != ""
 
     def test_check_crash_handled(self, _isolate_config_dir):
@@ -1691,3 +1691,51 @@ class TestCheckImageScanning:
         with mock.patch.dict("sys.modules", {"rapidocr_onnxruntime": mock.MagicMock()}):
             result = doctor.check_image_scanning()
         assert result.status != CheckStatus.SKIP
+
+
+class TestCheckBanditScanner:
+    """Tests for check_bandit_scanner (Issue #1504)."""
+
+    def test_pass_when_bandit_installed(self, _isolate_config_dir):
+        import importlib.util
+
+        with mock.patch.object(
+            importlib.util, "find_spec", return_value=mock.MagicMock()
+        ):
+            with mock.patch("importlib.metadata.version", return_value="1.9.4"):
+                doctor = Doctor()
+                result = doctor.check_bandit_scanner()
+        assert result.status == CheckStatus.PASS
+        assert "v1.9.4" in result.message
+
+    def test_fail_when_bandit_missing(self, _isolate_config_dir):
+        import importlib.util
+
+        with mock.patch.object(importlib.util, "find_spec", return_value=None):
+            doctor = Doctor()
+            result = doctor.check_bandit_scanner()
+        assert result.status == CheckStatus.FAIL
+        assert "SKIPPED" in result.message
+        assert result.fix_hint is not None
+
+    def test_skip_when_code_scanning_disabled(self, _isolate_config_dir):
+        config_path = _isolate_config_dir / "ai-guardian.json"
+        config_path.write_text(json.dumps({"code_scanning": {"enabled": False}}))
+        doctor = Doctor()
+        result = doctor.check_bandit_scanner()
+        assert result.status == CheckStatus.SKIP
+        assert "disabled" in result.message
+
+    def test_pass_unknown_version_when_metadata_fails(self, _isolate_config_dir):
+        import importlib.util
+
+        with mock.patch.object(
+            importlib.util, "find_spec", return_value=mock.MagicMock()
+        ):
+            with mock.patch(
+                "importlib.metadata.version", side_effect=Exception("no metadata")
+            ):
+                doctor = Doctor()
+                result = doctor.check_bandit_scanner()
+        assert result.status == CheckStatus.PASS
+        assert "unknown" in result.message
