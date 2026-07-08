@@ -2031,6 +2031,32 @@ class TestCreateDefaultConfig:
             assert success is True
             assert config_file.exists()
 
+    def test_setup_hooks_creates_cache_dir(self, tmp_path):
+        """setup --create-config creates cache dir proactively (Issue #1499)."""
+        from ai_guardian.setup import setup_hooks
+
+        cache_dir = tmp_path / "cache" / "ai-guardian"
+
+        with mock.patch.dict(
+            os.environ,
+            {
+                "AI_GUARDIAN_CONFIG_DIR": str(tmp_path),
+                "AI_GUARDIAN_CACHE_DIR": str(cache_dir),
+            },
+        ):
+            setup_hooks(
+                ide_type=None,
+                remote_config_url=None,
+                create_config=True,
+                permissive=False,
+                dry_run=False,
+                interactive=False,
+            )
+
+        assert (
+            cache_dir.exists()
+        ), "cache dir should be created proactively during setup"
+
     def test_create_config_exists_does_not_block_ide_hooks(self, tmp_path):
         """Test --create-config failure (config exists) does not block --ide hook setup (Issue #561)."""
         from ai_guardian.setup import setup_hooks

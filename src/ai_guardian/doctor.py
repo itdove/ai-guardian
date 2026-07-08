@@ -492,6 +492,11 @@ class Doctor:
             )
 
         cache_config = ps_config.get("cache", {})
+        is_custom_path = bool(
+            cache_config.get("path")
+            or os.environ.get("AI_GUARDIAN_CACHE_DIR")
+            or os.environ.get("XDG_CACHE_HOME")
+        )
         if cache_config.get("path"):
             cache_dir = Path(cache_config["path"]).expanduser().parent
         else:
@@ -500,12 +505,18 @@ class Doctor:
             cache_dir = get_cache_dir()
 
         if not cache_dir.exists():
+            if is_custom_path:
+                return CheckResult(
+                    name="ps_cache_path",
+                    status=CheckStatus.FAIL,
+                    message=f"{_tilde(cache_dir)} — does not exist",
+                    fix_hint="Run: ai-guardian doctor --fix  (or set cache.path / XDG_CACHE_HOME)",
+                    fixable=True,
+                )
             return CheckResult(
                 name="ps_cache_path",
-                status=CheckStatus.FAIL,
-                message=f"{_tilde(cache_dir)} — does not exist",
-                fix_hint="Run: ai-guardian doctor --fix  (or set cache.path / XDG_CACHE_HOME)",
-                fixable=True,
+                status=CheckStatus.WARN,
+                message=f"{_tilde(cache_dir)} — not yet created (will be created on first hook call)",
             )
 
         if not os.access(cache_dir, os.W_OK):

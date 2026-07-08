@@ -18,7 +18,7 @@ from importlib.resources import files
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
-from ai_guardian.config_utils import get_config_dir
+from ai_guardian.config_utils import get_cache_dir, get_config_dir
 
 
 def _resolve_binary_path() -> str:
@@ -1757,6 +1757,7 @@ def create_default_config(
 
         # Ensure directory exists
         config_dir.mkdir(parents=True, exist_ok=True)
+        get_cache_dir().mkdir(parents=True, exist_ok=True)
 
         # Write config
         with open(config_path, "w", encoding="utf-8") as f:
@@ -2911,6 +2912,7 @@ def _setup_hooks_json_output(
                 with open(config_path, "w", encoding="utf-8") as f:
                     json.dump(ag_config, f, indent=2)
                     f.write("\n")
+            get_cache_dir().mkdir(parents=True, exist_ok=True)
 
     # Auto-detect IDE if not specified
     if ide_type is None:
