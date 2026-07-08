@@ -543,6 +543,72 @@ class TestSessionStateManagerCleanupSession(TestCase):
         mgr.cleanup_session("")
 
 
+class TestBaseAgentAdapterSessionStartFormat(TestCase):
+    """format_response for SESSION_START block mirrors PreToolUse pattern (#1526).
+
+    Uses systemMessage (full message shown to user) + additionalContext (sanitized,
+    no security tips for agent). reason is omitted — it renders separately in Claude
+    Code's startup hook error UI causing a duplicate second message.
+    """
+
+    def _format(self, **kwargs):
+        import json
+
+        adapter = BaseAgentAdapter()
+        result = adapter.format_response(**kwargs)
+        return json.loads(result["output"])
+
+    def test_block_has_system_message(self):
+        resp = self._format(
+            has_secrets=True,
+            error_message="Secrets detected in bootstrap scan",
+            hook_event=HookEvent.SESSION_START,
+            violation_type="secret_detected",
+        )
+        assert resp.get("systemMessage") == "Secrets detected in bootstrap scan"
+
+    def test_block_no_reason(self):
+        """reason must be absent — it causes a duplicate display in Claude Code UI."""
+        resp = self._format(
+            has_secrets=True,
+            error_message="Bootstrap error",
+            hook_event=HookEvent.SESSION_START,
+        )
+        assert resp["decision"] == "block"
+        assert "reason" not in resp
+
+    def test_block_has_additional_context(self):
+        resp = self._format(
+            has_secrets=True,
+            error_message="Bootstrap error",
+            hook_event=HookEvent.SESSION_START,
+            violation_type="secret_detected",
+        )
+        ctx = resp.get("hookSpecificOutput", {}).get("additionalContext", "")
+        assert "ai-guardian" in ctx
+
+    def test_block_hook_specific_output_event_name(self):
+        resp = self._format(
+            has_secrets=True,
+            error_message="Bootstrap error",
+            hook_event=HookEvent.SESSION_START,
+        )
+        assert resp["hookSpecificOutput"]["hookEventName"] == "SessionStart"
+
+    def test_no_block_passthrough(self):
+        """Non-blocking SESSION_START (warn/security_message) unchanged."""
+        resp = self._format(
+            has_secrets=False,
+            hook_event=HookEvent.SESSION_START,
+            security_message="Security context injected",
+        )
+        assert "decision" not in resp
+        assert (
+            resp["hookSpecificOutput"]["additionalContext"]
+            == "Security context injected"
+        )
+
+
 class TestDaemonStateCleanupSession(TestCase):
     """DaemonState session cleanup methods."""
 
