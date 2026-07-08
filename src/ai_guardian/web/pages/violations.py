@@ -284,6 +284,20 @@ def _load_local_violations(limit, violation_type):
     )
 
 
+def _violation_matches_dir(v: dict, dir_prefix: str) -> bool:
+    """Return True if violation's file_path is under dir_prefix."""
+    if not dir_prefix:
+        return True
+    blocked = v.get("blocked", {})
+    if not isinstance(blocked, dict):
+        return False
+    file_path = blocked.get("file_path", "")
+    if not file_path:
+        return False
+    norm = dir_prefix.rstrip("/")
+    return file_path.startswith(norm + "/") or file_path == norm
+
+
 def create_violations_page(service, daemon_name: str):
     """Build the violations page with filter tabs and detail modals."""
 
@@ -300,14 +314,56 @@ def create_violations_page(service, daemon_name: str):
             ).classes("text-xs text-grey-6")
 
             active_filter = {"vtype": None}
+            active_dir_filter = {"dir": None}
 
             filter_options = {label: vtype for label, vtype, _ in FILTER_TABS}
             sorted_options = ["All"] + sorted(k for k in filter_options if k != "All")
-            filter_select = ui.select(
-                options=sorted_options,
-                value="All",
-                label="Filter by type",
-            ).classes("w-64")
+
+            with ui.row().classes("items-end gap-2 flex-wrap"):
+                filter_select = ui.select(
+                    options=sorted_options,
+                    value="All",
+                    label="Filter by type",
+                ).classes("w-64")
+
+                dir_select = (
+                    ui.select(
+                        options={"": "All Directories"},
+                        value="",
+                        label="Filter by directory",
+                        with_input=True,
+                        new_value_mode="add-unique",
+                    )
+                    .props("clearable")
+                    .classes("w-80")
+                )
+
+                def open_browse_dialog():
+                    from ai_guardian.web.pages.directory_scan import _open_browse_dialog
+
+                    proxy = ui.input(value=active_dir_filter["dir"] or "").style(
+                        "display:none"
+                    )
+
+                    async def _on_path_selected(e):
+                        path = (e.value or "").strip()
+                        active_dir_filter["dir"] = path or None
+                        opts = dict(dir_select.options)
+                        if path and path not in opts:
+                            opts[path] = path
+                            dir_select.options = opts
+                        dir_select.value = path
+                        dir_select.update()
+                        await load_violations()
+
+                    proxy.on_value_change(_on_path_selected)
+                    _open_browse_dialog(proxy)
+
+                ui.button(
+                    "Browse...",
+                    icon="folder_open",
+                    on_click=open_browse_dialog,
+                ).props("dense outline")
 
             async def on_filter_change(e):
                 active_filter["vtype"] = filter_options.get(e.value)
@@ -315,11 +371,29 @@ def create_violations_page(service, daemon_name: str):
 
             filter_select.on_value_change(on_filter_change)
 
+            async def on_dir_filter_change(e):
+                val = e.value or ""
+                active_dir_filter["dir"] = val.strip() if val else None
+                await load_violations()
+
+            dir_select.on_value_change(on_dir_filter_change)
+
+            async def _populate_dir_options():
+                from ai_guardian.web.config_helpers import load_web_projects
+
+                dirs = await run.io_bound(load_web_projects)
+                opts = {"": "All Directories"}
+                for d in dirs:
+                    opts[d] = d
+                dir_select.options = opts
+                dir_select.update()
+
             cards_container = ui.column().classes("w-full gap-1")
 
             async def load_violations():
                 cards_container.clear()
                 vtype = active_filter["vtype"]
+                dir_filter = active_dir_filter["dir"]
                 await run.io_bound(service.refresh_targets)
                 target = service.get_target_by_name(daemon_name)
 
@@ -338,6 +412,13 @@ def create_violations_page(service, daemon_name: str):
                         all_violations.extend(vlist)
 
                 all_violations.sort(key=lambda v: v.get("timestamp", ""), reverse=True)
+
+                if dir_filter:
+                    all_violations = [
+                        v
+                        for v in all_violations
+                        if _violation_matches_dir(v, dir_filter)
+                    ]
 
                 with cards_container:
                     if not all_violations:
@@ -363,6 +444,7 @@ def create_violations_page(service, daemon_name: str):
                     on_click=lambda: ui.navigate.to(f"/{daemon_name}/directory-scan"),
                 ).props("dense outline color=positive")
 
+            ui.timer(0.15, _populate_dir_options, once=True)
             ui.timer(0.1, load_violations, once=True)
 
 
