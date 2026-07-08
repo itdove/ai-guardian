@@ -6,9 +6,9 @@
 # Use this image for local CI regression and e2e hook testing only.
 # Do NOT publish this image to a public registry.
 #
-# Build:
-#   podman build -f container/Dockerfile.test -t ai-guardian-test container/
-#   docker  build -f container/Dockerfile.test -t ai-guardian-test container/
+# Build (run from repo root so src/ is in the build context):
+#   podman build -f container/Dockerfile.test -t ai-guardian-test .
+#   docker  build -f container/Dockerfile.test -t ai-guardian-test .
 #
 # Run (default profile: standard):
 #   podman run --rm ai-guardian-test /sandbox/run-scenarios.sh
@@ -21,14 +21,22 @@
 ARG BASE_IMAGE=ai-guardian:latest
 FROM ${BASE_IMAGE}
 
-# Bundled hook test scenarios — organized by profile
+# Install source from the current branch so scenario tests always use
+# the latest code — not just what's in the published base image.
+# Build context must be the repo root (.) for COPY to find src/.
 USER root
-COPY scenarios/ /sandbox/scenarios/
+COPY src/ /tmp/ai-guardian-src/src/
+COPY pyproject.toml /tmp/ai-guardian-src/
+RUN pip install --no-deps --quiet /tmp/ai-guardian-src/ \
+    && rm -rf /tmp/ai-guardian-src
+
+# Bundled hook test scenarios — organized by profile
+COPY container/scenarios/ /sandbox/scenarios/
 RUN chown -R sandbox:sandbox /sandbox/scenarios
 
 # Scenario runner script — reads AI_GUARDIAN_PROFILE, writes per-profile
 # config overlay, and runs all scenarios in scenarios/$PROFILE/
-COPY run-scenarios.sh /sandbox/run-scenarios.sh
+COPY container/run-scenarios.sh /sandbox/run-scenarios.sh
 RUN chmod +x /sandbox/run-scenarios.sh \
     && chown sandbox:sandbox /sandbox/run-scenarios.sh
 
