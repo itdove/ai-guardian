@@ -68,9 +68,9 @@
       "allow_emoji": true
     }
   },
-  "_comment_secret_redaction": "Redact secrets from tool outputs instead of blocking (NEW in v1.5.0, Phase 4)",
+  "_comment_secret_redaction": "Strict profile: block on secrets in tool output (do not redact and allow through).",
   "secret_redaction": {
-    "enabled": true,
+    "enabled": false,
     "action": "warn",
     "preserve_format": true,
     "log_redactions": true,
