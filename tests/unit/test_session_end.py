@@ -90,6 +90,43 @@ class TestClaudeCodeStopDetection(TestCase):
         assert normalized.session_id == "sess-789"
 
 
+class TestClaudeCodeCamelCaseDetection(TestCase):
+    """BaseAgentAdapter handles hookEventName (camelCase) sent by Claude Code (#1522)."""
+
+    def test_can_handle_session_start_camel_case(self):
+        assert BaseAgentAdapter.can_handle({"hookEventName": "SessionStart"})
+
+    def test_can_handle_session_end_camel_case(self):
+        assert BaseAgentAdapter.can_handle({"hookEventName": "SessionEnd"})
+
+    def test_can_handle_stop_camel_case(self):
+        assert BaseAgentAdapter.can_handle({"hookEventName": "Stop"})
+
+    def test_can_handle_pre_tool_use_camel_case(self):
+        assert BaseAgentAdapter.can_handle({"hookEventName": "PreToolUse"})
+
+    def test_can_handle_post_tool_use_camel_case(self):
+        assert BaseAgentAdapter.can_handle({"hookEventName": "PostToolUse"})
+
+    def test_can_handle_user_prompt_submit_camel_case(self):
+        assert BaseAgentAdapter.can_handle({"hookEventName": "UserPromptSubmit"})
+
+    def test_normalize_session_start_camel_case(self):
+        adapter = BaseAgentAdapter()
+        normalized = adapter.normalize_input({"hookEventName": "SessionStart"})
+        assert normalized.event == HookEvent.SESSION_START
+
+    def test_normalize_session_end_camel_case(self):
+        adapter = BaseAgentAdapter()
+        normalized = adapter.normalize_input({"hookEventName": "SessionEnd"})
+        assert normalized.event == HookEvent.SESSION_END
+
+    def test_normalize_pre_tool_use_camel_case(self):
+        adapter = BaseAgentAdapter()
+        normalized = adapter.normalize_input({"hookEventName": "PreToolUse"})
+        assert normalized.event == HookEvent.PRE_TOOL_USE
+
+
 class TestEventDetection(TestCase):
     """_detect_event_from_all_formats maps stop/session-end events."""
 
@@ -140,6 +177,28 @@ class TestEventDetection(TestCase):
             )
             == HookEvent.POST_TOOL_USE
         )
+
+    def test_session_start_camel_case(self):
+        result = HookAdapter._detect_event_from_all_formats(
+            {"hookEventName": "SessionStart"}
+        )
+        assert result == HookEvent.SESSION_START
+
+    def test_session_end_camel_case(self):
+        result = HookAdapter._detect_event_from_all_formats(
+            {"hookEventName": "SessionEnd"}
+        )
+        assert result == HookEvent.SESSION_END
+
+    def test_stop_camel_case(self):
+        result = HookAdapter._detect_event_from_all_formats({"hookEventName": "Stop"})
+        assert result == HookEvent.STOP
+
+    def test_pre_tool_use_camel_case(self):
+        result = HookAdapter._detect_event_from_all_formats(
+            {"hookEventName": "PreToolUse"}
+        )
+        assert result == HookEvent.PRE_TOOL_USE
 
 
 class TestProcessHookDataStop(TestCase):

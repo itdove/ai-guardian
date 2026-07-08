@@ -289,9 +289,12 @@ class HookAdapter(ABC):
             ):
                 return HookEvent.POST_TOOL_USE
 
-        event_name = hook_data.get("hook_event_name", "").lower()
-        if not event_name:
-            event_name = hook_data.get("hookName", "").lower()
+        event_name = (
+            hook_data.get("hook_event_name")
+            or hook_data.get("hookEventName")
+            or hook_data.get("hookName")
+            or ""
+        ).lower()
 
         # Session lifecycle events
         if event_name in ("sessionstart",):
