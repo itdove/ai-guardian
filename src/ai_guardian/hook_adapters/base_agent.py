@@ -89,8 +89,13 @@ class BaseAgentAdapter(HookAdapter):
             if has_secrets and error_message:
                 response = {
                     "decision": "block",
-                    "reason": final_error,
-                    "hookSpecificOutput": {"hookEventName": "SessionStart"},
+                    "systemMessage": final_error,
+                    "hookSpecificOutput": {
+                        "hookEventName": "SessionStart",
+                        "additionalContext": self._sanitize_block_reason(
+                            violation_type
+                        ),
+                    },
                 }
             else:
                 response = {}
