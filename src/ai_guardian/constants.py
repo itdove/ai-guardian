@@ -80,6 +80,7 @@ class HookEvent(str, Enum):
     POST_TOOL_USE = "posttooluse"
     BEFORE_READ_FILE = "beforereadfile"
     STOP = "stop"
+    SESSION_START = "sessionstart"
     SESSION_END = "sessionend"
     POST_COMPACT = "postcompact"
 

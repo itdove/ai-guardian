@@ -160,6 +160,19 @@ class TestIDESetup:
         assert "UserPromptSubmit" in merged["hooks"]  # Added
         assert merged["other_setting"] == "value"  # Preserved
 
+    def test_merge_hooks_claude_includes_session_start(self):
+        """SessionStart must be written when merging Claude Code hooks."""
+        setup = IDESetup()
+        existing_config = {}
+        ai_guardian_hooks = IDESetup.IDE_CONFIGS["claude"]["hooks"]
+
+        merged, warnings = setup.merge_hooks(existing_config, ai_guardian_hooks, "claude")
+
+        assert "SessionStart" in merged["hooks"], "SessionStart hook missing from merged Claude config"
+        session_start = merged["hooks"]["SessionStart"]
+        assert isinstance(session_start, list)
+        assert len(session_start) >= 1
+
     def test_setup_ide_hooks_already_configured(self, tmp_path):
         """Test setup when hooks already configured without force."""
         setup = IDESetup()
@@ -1051,9 +1064,10 @@ class TestGeminiSetup:
         hooks_config = IDESetup.IDE_CONFIGS["gemini"]["hooks"]
         hooks = hooks_config["hooks"]
         assert isinstance(hooks, list)
-        assert len(hooks) == 3
+        assert len(hooks) == 4
 
         events = [h["event"] for h in hooks]
+        assert "SessionStart" in events
         assert "BeforeAgent" in events
         assert "BeforeTool" in events
         assert "AfterTool" in events
@@ -1080,7 +1094,7 @@ class TestGeminiSetup:
 
         assert "hooks" in merged
         assert isinstance(merged["hooks"], list)
-        assert len(merged["hooks"]) == 3
+        assert len(merged["hooks"]) == 4
         assert len(warnings) == 0
 
     def test_merge_hooks_gemini_existing(self):
@@ -1095,9 +1109,9 @@ class TestGeminiSetup:
             existing_config, ai_guardian_hooks, "gemini"
         )
 
-        assert len(merged["hooks"]) == 4
+        assert len(merged["hooks"]) == 5
         assert merged["hooks"][0]["command"] == "ai-guardian"
-        assert merged["hooks"][3]["command"] == "other-tool"
+        assert merged["hooks"][4]["command"] == "other-tool"
         assert len(warnings) > 0
 
     def test_merge_hooks_gemini_replaces_existing_ai_guardian(self):
@@ -1117,7 +1131,7 @@ class TestGeminiSetup:
 
         ag_hooks = [h for h in merged["hooks"] if h.get("command") == "ai-guardian"]
         other_hooks = [h for h in merged["hooks"] if h.get("command") != "ai-guardian"]
-        assert len(ag_hooks) == 3
+        assert len(ag_hooks) == 4
         assert len(other_hooks) == 1
 
 

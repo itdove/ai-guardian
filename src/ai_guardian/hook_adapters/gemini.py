@@ -45,6 +45,7 @@ class GeminiCLIAdapter(HookAdapter):
             "PreToolUse",
             "PostToolUse",
             "Stop",
+            "SessionStart",
             "SessionEnd",
             "PostCompact",
         ):
@@ -58,7 +59,9 @@ class GeminiCLIAdapter(HookAdapter):
             event = HookEvent.PRE_TOOL_USE
         elif event_name in ("aftertool",):
             event = HookEvent.POST_TOOL_USE
-        elif event_name in ("beforeagent", "sessionstart"):
+        elif event_name == "sessionstart":
+            event = HookEvent.SESSION_START
+        elif event_name == "beforeagent":
             event = HookEvent.PROMPT
         else:
             event = HookEvent.PROMPT

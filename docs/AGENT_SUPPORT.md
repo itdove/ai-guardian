@@ -22,19 +22,19 @@ AI Guardian protects multiple AI coding agents through a unified hook adapter ar
 
 ## Hook Capability Matrix
 
-| Agent | UserPromptSubmit | PreToolUse | PostToolUse | BeforeReadFile |
-|-------|-----------------|------------|-------------|----------------|
-| Claude Code | Yes | Yes | Yes | N/A |
-| Cursor | Yes | Yes | Yes | Yes |
-| GitHub Copilot | Yes | Yes | N/A | N/A |
-| OpenAI Codex | Yes | Yes | Yes | N/A |
-| Windsurf | Yes | Yes | Yes | Yes |
-| Gemini CLI | Yes (BeforeAgent) | Yes | Yes | N/A |
-| Cline / ZooCode | Yes | Yes | Yes | N/A |
-| Kiro | Yes | Yes | Yes | N/A |
-| Augment Code | N/A | Yes | Yes | N/A |
-| OpenCode | Yes (chat.message) | Yes | Yes | N/A |
-| Junie | N/A | N/A | N/A | N/A |
+| Agent | SessionStart | UserPromptSubmit | PreToolUse | PostToolUse | BeforeReadFile | PostCompact | SessionEnd |
+|-------|-------------|-----------------|------------|-------------|----------------|-------------|------------|
+| Claude Code | Yes | Yes | Yes | Yes | N/A | Yes | Yes |
+| Cursor | N/A | Yes | Yes | Yes | Yes | N/A | N/A |
+| GitHub Copilot | N/A | Yes | Yes | N/A | N/A | N/A | N/A |
+| OpenAI Codex | N/A | Yes | Yes | Yes | N/A | N/A | N/A |
+| Windsurf | N/A | Yes | Yes | Yes | Yes | N/A | N/A |
+| Gemini CLI | Yes | Yes (BeforeAgent) | Yes | Yes | N/A | N/A | N/A |
+| Cline / ZooCode | N/A | Yes | Yes | Yes | N/A | N/A | N/A |
+| Kiro | N/A | Yes | Yes | Yes | N/A | N/A | N/A |
+| Augment Code | N/A | N/A | Yes | Yes | N/A | N/A | N/A |
+| OpenCode | N/A | Yes (chat.message) | Yes | Yes | N/A | N/A | N/A |
+| Junie | N/A | N/A | N/A | N/A | N/A | N/A | N/A |
 
 ## Protection Level by Hook Availability
 
@@ -173,6 +173,7 @@ Each agent uses different event names. The adapter layer normalizes these.
 
 | Concept | Claude Code | Copilot | Cursor | Windsurf | Gemini CLI | Cline | Kiro | OpenCode |
 |---------|------------|---------|--------|----------|-----------|-------|------|----------|
+| Session start | `SessionStart` | N/A | N/A | N/A | `SessionStart` | N/A | N/A | N/A |
 | Before tool | `PreToolUse` | `preToolUse` | `beforeShellExecution` | `pre_run_command` | `BeforeTool` | `PreToolUse` | `pre_tool_use` | `tool.execute.before` |
 | After tool | `PostToolUse` | `postToolUse` | `postToolUse` | `post_run_command` | `AfterTool` | `PostToolUse` | `post_tool_use` | `tool.execute.after` |
 | User prompt | `UserPromptSubmit` | `userPromptSubmitted` | `beforeSubmitPrompt` | `pre_user_prompt` | `BeforeAgent` | `UserPromptSubmit` | `prompt_submit` | `message.submit` |
