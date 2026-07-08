@@ -1565,6 +1565,12 @@ class DaemonTray:
                 )
             )
 
+    def _is_target_stale(self, target) -> bool:
+        """Return True if a specific daemon target is running stale code."""
+        if target.runtime == "local":
+            return self._stale_code_warned
+        return (target.name, target.runtime) in self._version_mismatch_notified
+
     @staticmethod
     def _send_version_mismatch_notification(daemon_name, daemon_version, tray_version):
         """Send version mismatch OS notification (runs in background thread)."""
@@ -3048,6 +3054,17 @@ class DaemonTray:
 
                 return action
 
+            def _mk_daemon_stale_vis(slot=idx):
+                def check(_item):
+                    if slot >= len(self._targets):
+                        return False
+                    return (
+                        self._is_target_stale(self._targets[slot])
+                        and not self._restart_in_progress
+                    )
+
+                return check
+
             def _mk_stats(slot=idx):
                 _cache = {"stats": {}, "time": 0}
 
@@ -3182,6 +3199,11 @@ class DaemonTray:
                 pystray.MenuItem(
                     make_label,
                     pystray.Menu(
+                        pystray.MenuItem(
+                            "⚠️ Running old code — click to restart",
+                            _mk_restart(),
+                            visible=_mk_daemon_stale_vis(),
+                        ),
                         pystray.MenuItem(
                             "Console",
                             _mk_web_console_action(idx),
