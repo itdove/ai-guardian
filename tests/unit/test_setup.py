@@ -166,9 +166,13 @@ class TestIDESetup:
         existing_config = {}
         ai_guardian_hooks = IDESetup.IDE_CONFIGS["claude"]["hooks"]
 
-        merged, warnings = setup.merge_hooks(existing_config, ai_guardian_hooks, "claude")
+        merged, warnings = setup.merge_hooks(
+            existing_config, ai_guardian_hooks, "claude"
+        )
 
-        assert "SessionStart" in merged["hooks"], "SessionStart hook missing from merged Claude config"
+        assert (
+            "SessionStart" in merged["hooks"]
+        ), "SessionStart hook missing from merged Claude config"
         session_start = merged["hooks"]["SessionStart"]
         assert isinstance(session_start, list)
         assert len(session_start) >= 1
