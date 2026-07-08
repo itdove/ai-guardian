@@ -867,8 +867,8 @@ class Doctor:
                 # For Claude Code, check which hooks are present
                 if ide_type in ("claude", "codex"):
                     hook_count = self._count_claude_hooks(config_path)
-                    results.append(f"{ide_name}: {hook_count}/3 hooks")
-                    if hook_count < 3:
+                    results.append(f"{ide_name}: {hook_count}/5 hooks")
+                    if hook_count < 5:
                         all_configured = False
                 else:
                     results.append(f"{ide_name}: configured")
@@ -908,7 +908,13 @@ class Doctor:
                 config = json.load(f)
             hooks = config.get("hooks", {})
             count = 0
-            for hook_name in ["UserPromptSubmit", "PreToolUse", "PostToolUse"]:
+            for hook_name in [
+                "UserPromptSubmit",
+                "PreToolUse",
+                "PostToolUse",
+                "SessionEnd",
+                "PostCompact",
+            ]:
                 if hook_name in hooks:
                     hook_list = hooks[hook_name]
                     if isinstance(hook_list, list):
