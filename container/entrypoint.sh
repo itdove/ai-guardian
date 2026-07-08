@@ -96,7 +96,12 @@ if [ "$IDE" != "dummy-agent" ]; then
         SETUP_ARGS="$SETUP_ARGS --profile $PROFILE"
     fi
     echo "Configuring ai-guardian for IDE: $IDE${PROFILE:+ (profile: $PROFILE)}"
-    eval "ai-guardian setup $SETUP_ARGS" 2>&1 | tail -3
+    eval "ai-guardian setup $SETUP_ARGS"
+    CONFIG_PATH="${HOME}/.config/ai-guardian/ai-guardian.json"
+    if [ ! -f "$CONFIG_PATH" ]; then
+        echo "Error: setup completed but config file missing: $CONFIG_PATH"
+        exit 1
+    fi
 fi
 
 echo "Starting ai-guardian daemon..."

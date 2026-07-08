@@ -2742,14 +2742,7 @@ def setup_hooks(
         )
         print(message)
         if not config_success:
-            # Only fail if create_config was the sole operation requested
-            if (
-                ide_type is None
-                and not remote_config_url
-                and not migrate_pattern_server
-                and not no_mcp
-            ):
-                return False
+            return False
         else:
             # If only creating config (no IDE setup or remote config), return early
             if (
