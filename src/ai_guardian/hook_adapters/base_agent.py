@@ -36,7 +36,7 @@ class BaseAgentAdapter(HookAdapter):
 
     @classmethod
     def can_handle(cls, hook_data: Dict) -> bool:
-        event = hook_data.get("hook_event_name", "")
+        event = hook_data.get("hook_event_name") or hook_data.get("hookEventName", "")
         return event in (
             "UserPromptSubmit",
             "PreToolUse",
