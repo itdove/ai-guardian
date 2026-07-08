@@ -294,6 +294,8 @@ class HookAdapter(ABC):
             event_name = hook_data.get("hookName", "").lower()
 
         # Session lifecycle events
+        if event_name in ("sessionstart",):
+            return HookEvent.SESSION_START
         if event_name in ("sessionend",):
             return HookEvent.SESSION_END
         if event_name in ("postcompact",):
@@ -314,7 +316,7 @@ class HookAdapter(ABC):
             return HookEvent.PRE_TOOL_USE
         elif event_name == "aftertool":
             return HookEvent.POST_TOOL_USE
-        elif event_name in ("beforeagent", "sessionstart"):
+        elif event_name == "beforeagent":
             return HookEvent.PROMPT
 
         # Kiro

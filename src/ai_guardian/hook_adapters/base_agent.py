@@ -42,6 +42,7 @@ class BaseAgentAdapter(HookAdapter):
             "PreToolUse",
             "PostToolUse",
             "Stop",
+            "SessionStart",
             "SessionEnd",
             "PostCompact",
         )
@@ -84,7 +85,27 @@ class BaseAgentAdapter(HookAdapter):
             else None
         )
 
-        if hook_event == HookEvent.POST_TOOL_USE:
+        if hook_event == HookEvent.SESSION_START:
+            if has_secrets and error_message:
+                response = {
+                    "decision": "block",
+                    "reason": final_error,
+                    "hookSpecificOutput": {"hookEventName": "SessionStart"},
+                }
+            else:
+                response = {}
+                parts = []
+                if security_message:
+                    parts.append(security_message)
+                if warning_message:
+                    parts.append(warning_message)
+                if parts:
+                    combined = "\n\n".join(parts)
+                    response["hookSpecificOutput"] = {
+                        "hookEventName": "SessionStart",
+                        "additionalContext": combined,
+                    }
+        elif hook_event == HookEvent.POST_TOOL_USE:
             if has_secrets:
                 response = {
                     "decision": "block",

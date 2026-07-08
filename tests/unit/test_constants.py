@@ -73,6 +73,7 @@ class TestHookEvent:
             "posttooluse",
             "beforereadfile",
             "stop",
+            "sessionstart",
             "sessionend",
             "postcompact",
         }
