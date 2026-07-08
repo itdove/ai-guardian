@@ -21,14 +21,14 @@
 ARG BASE_IMAGE=ai-guardian:latest
 FROM ${BASE_IMAGE}
 
-# Install source from the current branch so scenario tests always use
+# Overlay source from the current branch so scenario tests always use
 # the latest code — not just what's in the published base image.
 # Build context must be the repo root (.) for COPY to find src/.
 USER root
-COPY src/ /tmp/ai-guardian-src/src/
-COPY pyproject.toml /tmp/ai-guardian-src/
-RUN pip install --no-deps --quiet /tmp/ai-guardian-src/ \
-    && rm -rf /tmp/ai-guardian-src
+COPY src/ai_guardian/ /tmp/ai_guardian_src/
+RUN PKG_PATH=$(python3 -c "import ai_guardian, os; print(os.path.dirname(ai_guardian.__file__))") \
+    && cp -r /tmp/ai_guardian_src/* "$PKG_PATH/" \
+    && rm -rf /tmp/ai_guardian_src
 
 # Bundled hook test scenarios — organized by profile
 COPY container/scenarios/ /sandbox/scenarios/
