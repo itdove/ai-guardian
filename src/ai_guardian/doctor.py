@@ -126,6 +126,7 @@ class Doctor:
             self.check_email_auth,
             self.check_ml_detection,
             self.check_ast_scanner,
+            self.check_bandit_scanner,
             self.check_daemon_rest_port,
         ]
         for check_fn in checks:
@@ -1776,6 +1777,48 @@ class Doctor:
             message=f"tree-sitter {version} ({langs})",
         )
 
+    def check_bandit_scanner(self) -> CheckResult:
+        """Check if Bandit code security scanner is available."""
+        import importlib.util
+
+        self._ensure_config()
+        code_cfg = (self._config or {}).get("code_scanning", {})
+
+        try:
+            from ai_guardian.config_utils import is_feature_enabled
+
+            code_enabled = is_feature_enabled(code_cfg.get("enabled"), default=True)
+        except Exception:
+            code_enabled = code_cfg.get("enabled", True)
+
+        if not code_enabled:
+            return CheckResult(
+                name="bandit_scanner",
+                status=CheckStatus.SKIP,
+                message="Code scanning disabled in config",
+            )
+
+        if importlib.util.find_spec("bandit") is None:
+            return CheckResult(
+                name="bandit_scanner",
+                status=CheckStatus.FAIL,
+                message="Bandit not found — code security scan will be SKIPPED",
+                fix_hint="uv tool install --force ai-guardian",
+            )
+
+        try:
+            from importlib.metadata import version as pkg_version
+
+            bandit_version = pkg_version("bandit")
+        except Exception:
+            bandit_version = "unknown"
+
+        return CheckResult(
+            name="bandit_scanner",
+            status=CheckStatus.PASS,
+            message=f"Bandit (code security) v{bandit_version} installed",
+        )
+
     def check_email_auth(self) -> CheckResult:
         """Warn if SMTP credentials are hardcoded in config (inline auth)."""
         self._ensure_config()
@@ -1930,6 +1973,7 @@ _CHECK_DISPLAY_NAMES = {
     "email_auth": "Email auth",
     "ml_detection": "ML detection",
     "ast_scanner": "AST scanning",
+    "bandit_scanner": "Bandit (code security)",
 }
 
 

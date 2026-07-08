@@ -1249,6 +1249,7 @@ A scanner is a new detection engine that integrates into the hook pipeline and `
 - [ ] `.aiguardignore.toml` scanner type — add to `SCANNER_TYPES` in `aiguardignore.py` if file-content based
 - [ ] `docs/AGENT_SUPPORT.md` — add row to Violation Type Coverage Matrix
 - [ ] `CHANGELOG.md` — add entry under `[Unreleased]`
+- [ ] `src/ai_guardian/doctor.py` — add `check_<scanner>()` method to verify the scanner's underlying dependency is importable (use `importlib.util.find_spec()`); add it to the `checks` list in `run_all()`; add display name to `_CHECK_DISPLAY_NAMES`; update the check count assertion in `tests/unit/test_doctor.py::TestDoctorRunAll::test_run_all_returns_report`
 
 ### TUI and Web Console Coexistence
 

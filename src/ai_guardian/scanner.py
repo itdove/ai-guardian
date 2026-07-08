@@ -134,7 +134,7 @@ try:
 except ImportError:
     HAS_ANNOTATIONS = False
 
-from ai_guardian.bandit_scanner import BanditScanner
+from ai_guardian.bandit_scanner import BanditScanner, BanditUnavailableError
 
 logger = logging.getLogger(__name__)
 
@@ -225,6 +225,8 @@ class FileScanner:
         if HAS_ANNOTATIONS:
             code_enabled = is_feature_enabled(code_cfg.get("enabled"), default=True)
         self._code_scanner = BanditScanner(code_cfg) if code_enabled else None
+        self._code_scanner_unavailable: Optional[str] = None
+        self._code_scan_skipped_count: int = 0
 
     _IMAGE_DEFAULTS: Dict[str, Any] = {
         "enabled": True,
@@ -1067,6 +1069,12 @@ class FileScanner:
                 self.findings.append(finding)
             if code_findings and self.verbose:
                 print(f"  [CODE-SECURITY] {len(code_findings)} issue(s) found (bandit)")
+        except BanditUnavailableError as e:
+            self._code_scan_skipped_count += 1
+            if self._code_scanner_unavailable is None:
+                self._code_scanner_unavailable = str(e)
+                if self.verbose:
+                    print(f"  ⚠️  Code security scanner (Bandit) unavailable: {e}")
         except Exception as e:
             logger.warning(f"Error checking code security: {e}")
 
@@ -1400,6 +1408,14 @@ def scan_command(args) -> int:
 
     # Text output (default)
     if not args.sarif_output and not args.json_output:
+        bandit_msg = getattr(scanner, "_code_scanner_unavailable", None)
+        skipped = getattr(scanner, "_code_scan_skipped_count", 0)
+        if bandit_msg:
+            print(f"\n⚠️  Code security scanner (Bandit) unavailable: {bandit_msg}")
+            print("    Reinstall: uv tool install --force ai-guardian")
+            if skipped:
+                print(f"    Code security scan SKIPPED for {skipped} file(s).")
+
         if findings:
             print("\n🛡️ AI Guardian Scan Results\n")
             print(f"Found {len(findings)} security issue(s):\n")
@@ -1420,7 +1436,10 @@ def scan_command(args) -> int:
                     print(f"   Code: {finding['snippet']}")
                 print()
         else:
-            print("✅ No security issues detected")
+            if bandit_msg:
+                print("✅ No other security issues detected")
+            else:
+                print("✅ No security issues detected")
 
     # Exit code
     if args.exit_code and findings:
