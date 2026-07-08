@@ -4,6 +4,7 @@ Scans Python source code for insecure patterns:
 eval/exec, subprocess shell injection, weak crypto, SQL injection, etc.
 """
 
+import importlib.util
 import logging
 import os
 import tempfile
@@ -11,6 +12,11 @@ from dataclasses import dataclass
 from typing import Any, Dict, List, Optional
 
 logger = logging.getLogger(__name__)
+
+
+class BanditUnavailableError(RuntimeError):
+    """Raised when bandit is not importable in the current environment."""
+
 
 _SEVERITY_ORDER = {"LOW": 0, "MEDIUM": 1, "HIGH": 2}
 
@@ -38,6 +44,7 @@ class BanditScanner:
         raw_threshold = self.config.get("severity_threshold", "MEDIUM")
         self._threshold = _SEVERITY_ORDER.get(raw_threshold.upper(), 1)
         self._allowlist: List[Dict[str, Any]] = self.config.get("allowlist", []) or []
+        self._available: bool = importlib.util.find_spec("bandit") is not None
 
     def scan(
         self, content: str, file_path: str = "unknown.py"
@@ -60,6 +67,9 @@ class BanditScanner:
         """
         if not content.strip():
             return []
+
+        if not self._available:
+            raise BanditUnavailableError("No module named 'bandit'")
 
         try:
             findings = self._run_bandit(content, file_path)
