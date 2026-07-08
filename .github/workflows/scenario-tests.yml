@@ -4,7 +4,8 @@
 # for each profile to catch regressions in hook processing before merge.
 #
 # Uses quay.io/itdove/ai-guardian:latest as base to avoid rebuilding the full
-# IDE-CLI image on every run.
+# IDE-CLI image on every run. Local source (src/) is installed on top of the
+# base image so PRs that touch Python code are always tested at HEAD.
 #
 # Profiles tested: standard, strict, minimal
 # Moderator profile is excluded — action=ask auto-dismisses in headless CI,
@@ -52,7 +53,7 @@ jobs:
             -f container/Dockerfile.test \
             --build-arg BASE_IMAGE=quay.io/itdove/ai-guardian:latest \
             -t ai-guardian-test \
-            container/
+            .
 
       - name: Run ${{ matrix.profile }} scenarios
         run: docker run --rm -e AI_GUARDIAN_PROFILE=${{ matrix.profile }} ai-guardian-test /sandbox/run-scenarios.sh
