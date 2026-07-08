@@ -87,8 +87,8 @@ def _make_hook_payload(
     return payload
 
 
-def _run_hook(payload: Dict) -> Dict:
-    return process_hook_data(payload)
+def _run_hook(payload: Dict, daemon_state=None) -> Dict:
+    return process_hook_data(payload, daemon_state=daemon_state)
 
 
 def _is_blocked(result: Dict) -> bool:
@@ -216,6 +216,56 @@ def _run_shell_command(cmd: str, session_id: str, cwd: str, c) -> None:
         print(c(f"⚠️  {warn}", _YELLOW))
     else:
         print(c("✅ Done", _GREEN))
+
+
+# ---------------------------------------------------------------------------
+# SessionStart event (bootstrap scan testing)
+# ---------------------------------------------------------------------------
+
+
+def _run_session_start_event(
+    *,
+    session_files: List[Dict],
+    colors: bool,
+    daemon_state=None,
+) -> bool:
+    """Write session_files to a temp dir, fire SessionStart hook, return blocked bool."""
+    import tempfile
+    from pathlib import Path as _Path
+
+    from ai_guardian.config_utils import (
+        clear_project_dir_override,
+        set_project_dir_override,
+    )
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        for sf in session_files:
+            dest = _Path(tmpdir) / sf["path"]
+            dest.parent.mkdir(parents=True, exist_ok=True)
+            dest.write_text(sf["content"], encoding="utf-8")
+
+        fresh_session_id = _make_session_id()
+        set_project_dir_override(tmpdir)
+        try:
+            payload = _make_hook_payload("SessionStart", fresh_session_id, tmpdir)
+            result = _run_hook(payload, daemon_state=daemon_state)
+        finally:
+            clear_project_dir_override()
+
+    print(
+        f"→ {_color('SessionStart', _CYAN, colors)} fired"
+        f" (session_files={[sf['path'] for sf in session_files]})"
+    )
+    blocked = _is_blocked(result)
+    if blocked:
+        print(f"  {_color('🚨 BLOCKED', _RED, colors)}: {_block_reason(result)}")
+    else:
+        warn = _warn_message(result)
+        if warn:
+            print(f"  {_color('⚠️  WARNING', _YELLOW, colors)}: {warn}")
+        else:
+            print(f"  {_color('✅ Allowed', _GREEN, colors)}")
+    return blocked
 
 
 # ---------------------------------------------------------------------------
@@ -361,6 +411,7 @@ def _run_scenario_event(
     cwd: str,
     colors: bool,
     fake_output: str = "<simulated output>",
+    daemon_state=None,
 ) -> bool:
     """Fire UserPromptSubmit + PreToolUse/PostToolUse per tool. Returns True if blocked."""
     print(
@@ -368,7 +419,8 @@ def _run_scenario_event(
         f" (transcript: {repr(prompt[:60])})"
     )
     result = _run_hook(
-        _make_hook_payload("UserPromptSubmit", session_id, cwd, prompt=prompt)
+        _make_hook_payload("UserPromptSubmit", session_id, cwd, prompt=prompt),
+        daemon_state=daemon_state,
     )
     blocked = _is_blocked(result)
     if blocked:
@@ -404,7 +456,8 @@ def _run_scenario_event(
                 tool_name=tool_name,
                 tool_input=tool_input,
                 tool_use_id=tool_use_id,
-            )
+            ),
+            daemon_state=daemon_state,
         )
         blocked = _is_blocked(result)
         if blocked:
@@ -429,7 +482,8 @@ def _run_scenario_event(
                 tool_input=tool_input,
                 tool_response=tool_fake_out,
                 tool_use_id=tool_use_id,
-            )
+            ),
+            daemon_state=daemon_state,
         )
         blocked = _is_blocked(result)
         if blocked:
@@ -468,12 +522,21 @@ def run_script(script_path: str, colors: bool = True) -> int:
     passed = 0
     failed = 0
 
+    daemon_state = None
+    try:
+        from ai_guardian.daemon.state import DaemonState
+
+        daemon_state = DaemonState()
+    except Exception:
+        pass
+
     print(
         f"{_color('[dummy-agent]', _CYAN, colors)} Running script: {script_path}"
         f" ({len(events)} event(s))\n"
     )
 
     for idx, event in enumerate(events):
+        event_type = event.get("event", "UserPromptSubmit")
         prompt = event.get("prompt", "")
         tools = event.get("tools")
         expect = event.get("expect", "allow").lower()
@@ -481,13 +544,21 @@ def run_script(script_path: str, colors: bool = True) -> int:
 
         print(f"{_color(f'--- {label} ---', _BOLD, colors)}")
 
-        blocked = _run_scenario_event(
-            prompt=prompt,
-            tools=tools,
-            session_id=session_id,
-            cwd=cwd,
-            colors=colors,
-        )
+        if event_type == "SessionStart":
+            blocked = _run_session_start_event(
+                session_files=event.get("session_files", []),
+                colors=colors,
+                daemon_state=daemon_state,
+            )
+        else:
+            blocked = _run_scenario_event(
+                prompt=prompt,
+                tools=tools,
+                session_id=session_id,
+                cwd=cwd,
+                colors=colors,
+                daemon_state=daemon_state,
+            )
 
         expected_block = expect == "block"
         ok = blocked == expected_block

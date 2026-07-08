@@ -12,16 +12,41 @@
       "minItems": 1,
       "items": {
         "type": "object",
-        "required": ["prompt", "expect"],
+        "required": ["expect"],
         "additionalProperties": false,
         "properties": {
           "label": {
             "type": "string",
             "description": "Human-readable name for this event shown in test output."
           },
+          "event": {
+            "type": "string",
+            "enum": ["UserPromptSubmit", "SessionStart"],
+            "default": "UserPromptSubmit",
+            "description": "Hook event type to fire. Defaults to UserPromptSubmit."
+          },
           "prompt": {
             "type": "string",
-            "description": "User prompt text sent via UserPromptSubmit hook."
+            "description": "User prompt text sent via UserPromptSubmit hook. Required when event is UserPromptSubmit."
+          },
+          "session_files": {
+            "type": "array",
+            "description": "Files to write to a temp workspace before firing SessionStart. Used to simulate agent config files (AGENTS.md, .cursorrules, etc.).",
+            "items": {
+              "type": "object",
+              "required": ["path", "content"],
+              "additionalProperties": false,
+              "properties": {
+                "path": {
+                  "type": "string",
+                  "description": "Relative path of the file within the temp workspace (e.g. AGENTS.md)."
+                },
+                "content": {
+                  "type": "string",
+                  "description": "File content to write."
+                }
+              }
+            }
           },
           "tools": {
             "type": "array",

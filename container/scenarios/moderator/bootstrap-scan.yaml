@@ -1,0 +1,11 @@
+# yaml-language-server: $schema=../../../src/ai_guardian/schemas/scenario.schema.json
+# Bootstrap scan scenarios — moderator profile
+# Moderator profile: config_file_scanning.action=ask — excluded from CI (headless ask
+# auto-dismisses). Included here for completeness and local interactive testing.
+events:
+  - label: "Clean AGENTS.md"
+    event: SessionStart
+    session_files:
+      - path: AGENTS.md
+        content: "Normal project instructions. Follow secure coding practices. Do not commit secrets."
+    expect: allow
