@@ -87,6 +87,12 @@ def resolve_profile(profile_name: str) -> Tuple[str, Path]:
     if path.exists():
         return "custom", path
 
+    # Accept bare built-in names without @ prefix (e.g. "standard" == "@standard")
+    if profile_name in BUILT_IN_PROFILES:
+        path = _get_builtin_profile_path(profile_name)
+        if path.exists():
+            return "builtin", path
+
     raise ProfileNotFoundError(
         f"Profile not found: {profile_name}\n"
         f"Checked: {path}\n"
