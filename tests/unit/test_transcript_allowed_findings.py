@@ -116,6 +116,123 @@ class TestScanTranscriptTextAllowedFindings:
 
         assert len(warnings) == 0
 
+    def test_multiple_secrets_produce_summary_warning(self):
+        """Multiple per-findings produce one warning with count and types."""
+        from ai_guardian.hook_processing import _scan_transcript_text
+        from ai_guardian.scan_result import ScanResult
+
+        mock_findings = [
+            ScanResult(
+                detected=True,
+                violation_type="secret_detected",
+                rule_id="aws-access-token",
+            ),
+            ScanResult(
+                detected=True, violation_type="secret_detected", rule_id="github-pat"
+            ),
+        ]
+
+        with mock.patch(
+            "ai_guardian.hook_processing.check_secrets_with_gitleaks"
+        ) as mock_scan:
+            mock_scan.return_value = (True, "Secret Type: aws-access-token")
+            with mock.patch(
+                "ai_guardian.hook_processing._last_secret_findings", mock_findings
+            ):
+                with mock.patch(
+                    "ai_guardian.hook_processing._load_seen_findings", return_value={}
+                ):
+                    with mock.patch("ai_guardian.hook_processing._save_seen_findings"):
+                        warnings = _scan_transcript_text(
+                            "content",
+                            "/tmp/test.jsonl",
+                            secret_config={"enabled": True},
+                            allowed_findings=None,
+                        )
+
+        assert len(warnings) == 1
+        assert "2 SECRETS" in warnings[0]
+        assert "aws-access-token" in warnings[0]
+        assert "github-pat" in warnings[0]
+
+    def test_multiple_secrets_all_allowed(self):
+        """All per-findings allowed → no warning."""
+        from ai_guardian.hook_processing import _scan_transcript_text
+        from ai_guardian.scan_result import ScanResult
+
+        mock_findings = [
+            ScanResult(
+                detected=True,
+                violation_type="secret_detected",
+                rule_id="aws-access-token",
+            ),
+            ScanResult(
+                detected=True, violation_type="secret_detected", rule_id="github-pat"
+            ),
+        ]
+        fp1 = _finding_fingerprint("secret", "aws-access-token")
+        fp2 = _finding_fingerprint("secret", "github-pat")
+
+        with mock.patch(
+            "ai_guardian.hook_processing.check_secrets_with_gitleaks"
+        ) as mock_scan:
+            mock_scan.return_value = (True, "Secret Type: aws-access-token")
+            with mock.patch(
+                "ai_guardian.hook_processing._last_secret_findings", mock_findings
+            ):
+                with mock.patch(
+                    "ai_guardian.hook_processing._load_seen_findings", return_value={}
+                ):
+                    with mock.patch("ai_guardian.hook_processing._save_seen_findings"):
+                        warnings = _scan_transcript_text(
+                            "content",
+                            "/tmp/test.jsonl",
+                            secret_config={"enabled": True},
+                            allowed_findings={fp1, fp2},
+                        )
+
+        assert len(warnings) == 0
+
+    def test_multiple_secrets_partial_allowed(self):
+        """Only non-allowed secrets appear in warning."""
+        from ai_guardian.hook_processing import _scan_transcript_text
+        from ai_guardian.scan_result import ScanResult
+
+        mock_findings = [
+            ScanResult(
+                detected=True,
+                violation_type="secret_detected",
+                rule_id="aws-access-token",
+            ),
+            ScanResult(
+                detected=True, violation_type="secret_detected", rule_id="github-pat"
+            ),
+        ]
+        fp1 = _finding_fingerprint("secret", "aws-access-token")
+
+        with mock.patch(
+            "ai_guardian.hook_processing.check_secrets_with_gitleaks"
+        ) as mock_scan:
+            mock_scan.return_value = (True, "Secret Type: aws-access-token")
+            with mock.patch(
+                "ai_guardian.hook_processing._last_secret_findings", mock_findings
+            ):
+                with mock.patch(
+                    "ai_guardian.hook_processing._load_seen_findings", return_value={}
+                ):
+                    with mock.patch("ai_guardian.hook_processing._save_seen_findings"):
+                        warnings = _scan_transcript_text(
+                            "content",
+                            "/tmp/test.jsonl",
+                            secret_config={"enabled": True},
+                            allowed_findings={fp1},
+                        )
+
+        assert len(warnings) == 1
+        assert "1 SECRET" in warnings[0]
+        assert "github-pat" in warnings[0]
+        assert "aws-access-token" not in warnings[0]
+
     def test_none_allowed_findings_backward_compat(self):
         """allowed_findings=None should work (backward compat)."""
         from ai_guardian.hook_processing import _scan_transcript_text
