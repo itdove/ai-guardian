@@ -100,8 +100,8 @@ class TestFormatResponseSecurityMessage(TestCase):
         output = json.loads(result["output"])
         self.assertNotIn("systemMessage", output)
 
-    def test_security_message_ignored_for_pretooluse(self):
-        """Security message parameter is ignored for PreToolUse hooks."""
+    def test_security_message_delivered_for_pretooluse(self):
+        """Security message is delivered for PreToolUse hooks (#1527)."""
         result = format_response(
             IDEType.CLAUDE_CODE,
             has_secrets=False,
@@ -109,7 +109,11 @@ class TestFormatResponseSecurityMessage(TestCase):
             security_message="TEST_SECURITY_RULES",
         )
         output = json.loads(result["output"])
-        self.assertNotIn("TEST_SECURITY_RULES", json.dumps(output))
+        self.assertIn("TEST_SECURITY_RULES", output.get("systemMessage", ""))
+        self.assertIn(
+            "TEST_SECURITY_RULES",
+            output.get("hookSpecificOutput", {}).get("additionalContext", ""),
+        )
 
     def test_security_message_delivered_to_cursor_agent(self):
         """Security message is delivered via agent_message for Cursor IDE."""
