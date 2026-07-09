@@ -3000,99 +3000,6 @@ def _log_context_poisoning_violation(
         logger.error(f"Failed to log context poisoning violation: {e}")
 
 
-def _log_supply_chain_violation(
-    filename: str,
-    context: Optional[Dict] = None,
-    hook_context: Optional[Dict] = None,
-    matched_pattern: Optional[str] = None,
-    matched_text: Optional[str] = None,
-    category: Optional[str] = None,
-    line_number: Optional[int] = None,
-    start_column: Optional[int] = None,
-    end_column: Optional[int] = None,
-    violation_logger=None,
-):
-    """Log a supply chain threat violation."""
-    if not HAS_VIOLATION_LOGGER:
-        return
-
-    try:
-        ctx = context or {}
-        blocked_entry = {
-            "file_path": ctx.get("file_path"),
-            "line_number": line_number,
-            "source": "agent_config",
-            "pattern": matched_pattern or "Unknown",
-            "category": category or "unknown",
-            "reason": "Supply chain threat detected in agent configuration",
-        }
-        if start_column is not None:
-            blocked_entry["start_column"] = start_column
-        if end_column is not None:
-            blocked_entry["end_column"] = end_column
-        if matched_text:
-            blocked_entry["matched_text"] = matched_text[:100]
-        violation_logger = violation_logger or ViolationLogger()
-        violation_logger.log_violation(
-            violation_type=ViolationType.SUPPLY_CHAIN,
-            blocked=blocked_entry,
-            context=_build_violation_context(context, hook_context),
-            suggestion={
-                "action": "add_allowlist_path",
-                "note": "If this is a trusted config file, add to supply_chain.allowlist_paths in ai-guardian.json",
-            },
-            severity="high",
-        )
-    except Exception as e:
-        logger.error(f"Failed to log supply chain violation: {e}")
-
-
-def _log_exfil_detection_violation(
-    command: str,
-    context: Optional[Dict] = None,
-    hook_context: Optional[Dict] = None,
-    matched_pattern: Optional[str] = None,
-    matched_text: Optional[str] = None,
-    category: Optional[str] = None,
-    line_number: Optional[int] = None,
-    start_column: Optional[int] = None,
-    end_column: Optional[int] = None,
-    violation_logger=None,
-):
-    """Log a credential exfiltration detection violation."""
-    if not HAS_VIOLATION_LOGGER:
-        return
-
-    try:
-        blocked_entry = {
-            "command": command[:500],
-            "line_number": line_number,
-            "source": "bash_command",
-            "pattern": matched_pattern or "Unknown",
-            "category": category or "unknown",
-            "reason": "Credential exfiltration behavior detected in bash command",
-        }
-        if start_column is not None:
-            blocked_entry["start_column"] = start_column
-        if end_column is not None:
-            blocked_entry["end_column"] = end_column
-        if matched_text:
-            blocked_entry["matched_text"] = matched_text[:100]
-        violation_logger = violation_logger or ViolationLogger()
-        violation_logger.log_violation(
-            violation_type=ViolationType.EXFIL_DETECTION,
-            blocked=blocked_entry,
-            context=_build_violation_context(context, hook_context),
-            suggestion={
-                "action": "add_allowlist_pattern",
-                "note": "If this is a legitimate command, add a regex to exfil_detection.allowlist_patterns in ai-guardian.json",
-            },
-            severity="high",
-        )
-    except Exception as e:
-        logger.error(f"Failed to log exfil detection violation: {e}")
-
-
 def _log_offensive_language_violation(
     result,
     hook_name: str,
@@ -5436,54 +5343,6 @@ def run_offensive_language_scan(
     return result
 
 
-def _log_canary_detection_violation(
-    source: str,
-    matched_token: Optional[str] = None,
-    matched_text: Optional[str] = None,
-    description: Optional[str] = None,
-    line_number: Optional[int] = None,
-    start_column: Optional[int] = None,
-    end_column: Optional[int] = None,
-    context: Optional[Dict] = None,
-    hook_context: Optional[Dict] = None,
-    violation_logger=None,
-):
-    """Log a canary token detection violation."""
-    if not HAS_VIOLATION_LOGGER:
-        return
-    try:
-        ctx = context or {}
-        blocked_entry = {
-            "file_path": ctx.get("file_path", source),
-            "line_number": line_number,
-            "token": matched_token or "unknown",
-            "description": description or "canary token",
-            "reason": "Canary token detected — possible data exfiltration",
-        }
-        if start_column is not None:
-            blocked_entry["start_column"] = start_column
-        if end_column is not None:
-            blocked_entry["end_column"] = end_column
-        if matched_text:
-            blocked_entry["matched_text"] = matched_text[:100]
-        violation_logger = violation_logger or ViolationLogger()
-        violation_logger.log_violation(
-            violation_type=ViolationType.CANARY_DETECTED,
-            blocked=blocked_entry,
-            context=_build_violation_context(context, hook_context),
-            suggestion={
-                "action": "investigate_exfiltration",
-                "note": (
-                    "A registered canary token was detected in AI output. "
-                    "This may indicate data exfiltration. Check your canary_detection.tokens config."
-                ),
-            },
-            severity="high",
-        )
-    except Exception as e:
-        logger.error(f"Failed to log canary detection violation: {e}")
-
-
 def run_canary_detection_scan(
     content,
     source,
@@ -5545,50 +5404,6 @@ def run_canary_detection_scan(
     )
     result.extra["action"] = config.get("action", "block")
     return result
-
-
-def _log_code_security_violation(
-    file_path,
-    rule_id,
-    description,
-    severity,
-    line_number=None,
-    start_column=None,
-    hook_context=None,
-    violation_logger=None,
-):
-    """Log a code security (Bandit) violation."""
-    if not HAS_VIOLATION_LOGGER:
-        return
-    try:
-        blocked_entry = {
-            "file_path": file_path,
-            "rule_id": rule_id,
-            "line_number": line_number,
-            "severity": severity,
-            "reason": description,
-        }
-        if start_column is not None:
-            blocked_entry["start_column"] = start_column
-        violation_logger = violation_logger or ViolationLogger()
-        violation_logger.log_violation(
-            violation_type=ViolationType.CODE_SECURITY,
-            blocked=blocked_entry,
-            context=_build_violation_context(
-                {"file_path": file_path, "hook_event": "pretooluse"},
-                hook_context,
-            ),
-            suggestion={
-                "action": "nosec_or_allowlist",
-                "note": (
-                    f"Suppress with  # nosec {rule_id}  or add to "
-                    "code_scanning.allowlist in ai-guardian.json"
-                ),
-            },
-            severity="high" if severity == "HIGH" else "medium",
-        )
-    except Exception as e:
-        logger.error(f"Failed to log code security violation: {e}")
 
 
 def run_code_security_scan(
@@ -7628,6 +7443,33 @@ def process_hook_data(hook_data, daemon_state=None):
         filename = "unknown"
         file_path = None
 
+        # Build registry + PostScanContext early so command-based scanners
+        # (BASH_EXFIL, EXFIL_DETECTION) can use apply_post_scan_pipeline().
+        # _pipeline_names is deferred until content_to_scan is known.
+        from ai_guardian.scanner_registry import ScannerName, get_default_registry
+        from ai_guardian.post_scan_filters import (
+            PostScanContext,
+            apply_post_scan_pipeline,
+            log_scan_violations_per_finding,
+        )
+
+        _registry = get_default_registry()
+        _post_scan_ctx = PostScanContext(
+            handle_ask_mode_auto=_handle_ask_mode_auto,
+            log_ask_decision=_log_ask_decision,
+            format_ask_info_message=_format_ask_info_message,
+            hook_event=hook_event,
+            hook_session_id=hook_session_id,
+            hook_tool_use_id=hook_tool_use_id,
+            tool_name=tool_name,
+            ide_type_value=(
+                ide_type.value if hasattr(ide_type, "value") else str(ide_type)
+            ),
+            violation_logger=violation_logger,
+            latency_timer=_latency_timer,
+            invocation_allowed_findings=_invocation_allowed,
+        )
+
         if hook_event in (HookEvent.PRE_TOOL_USE, HookEvent.BEFORE_READ_FILE):
             # PreToolUse or beforeReadFile hook
             logging.info(f"Processing {hook_event} hook...")
@@ -7641,60 +7483,35 @@ def process_hook_data(hook_data, daemon_state=None):
                         latency_timer=_latency_timer,
                     )
 
-                    if bash_exfil_result is not None and bash_exfil_result.should_block:
-                        exfil_details = bash_exfil_result.extra.get("details")
+                    if bash_exfil_result is not None and bash_exfil_result.detected:
                         logging.warning(
                             "🚨 BLOCKED: Credential exfiltration detected in Bash command"
                         )
-
-                        if violation_logger:
-                            try:
-                                exfil_ctx = {
-                                    "pattern_name": (
-                                        exfil_details.get("pattern_name", "unknown")
-                                        if exfil_details
-                                        else "unknown"
-                                    ),
-                                    "pattern_description": (
-                                        exfil_details.get("pattern_description", "")
-                                        if exfil_details
-                                        else ""
-                                    ),
-                                    "command": bash_command[:500],
-                                    "matched_text": (
-                                        exfil_details.get("matched_text", "")
-                                        if exfil_details
-                                        else ""
-                                    ),
-                                }
-                                violation_logger.log_violation(
-                                    hook_name=HookEvent.PRE_TOOL_USE.display_name,
-                                    tool_identifier=f"Bash: {bash_command[:100]}",
-                                    violation_type=ViolationType.CONFIG_FILE_EXFIL,
-                                    pattern_name=exfil_ctx["pattern_name"],
-                                    action=ActionMode.BLOCK,
-                                    context=exfil_ctx,
-                                    hook_session_id=hook_session_id,
-                                    hook_tool_use_id=hook_tool_use_id,
-                                )
-                            except Exception as e:
-                                logging.warning(
-                                    f"Failed to log bash exfil violation: {e}"
-                                )
-
-                        combined_warning = (
-                            "\n\n".join(warning_messages) if warning_messages else None
+                        be_decision = apply_post_scan_pipeline(
+                            _registry.get(ScannerName.BASH_EXFIL),
+                            bash_exfil_result,
+                            _post_scan_ctx,
+                            blocked_overrides={
+                                "command": bash_command[:500],
+                            },
                         )
-                        result = _format_response(
-                            adapter,
-                            has_secrets=True,
-                            error_message=bash_exfil_result.error_message,
-                            hook_event=hook_event,
-                            warning_message=combined_warning,
-                            violation_type=ViolationType.CONFIG_FILE_EXFIL,
-                            security_message=security_message,
-                        )
-                        return result
+                        warning_messages.extend(be_decision.warnings)
+                        if be_decision.should_block:
+                            combined_warning = (
+                                "\n\n".join(warning_messages)
+                                if warning_messages
+                                else None
+                            )
+                            result = _format_response(
+                                adapter,
+                                has_secrets=True,
+                                error_message=bash_exfil_result.error_message,
+                                hook_event=hook_event,
+                                warning_message=combined_warning,
+                                violation_type=ViolationType.CONFIG_FILE_EXFIL,
+                                security_message=security_message,
+                            )
+                            return result
 
                     # Exfiltration behavior detection (Issue #1393)
                     exfil_detection_result = run_exfil_detection_scan(
@@ -7704,35 +7521,36 @@ def process_hook_data(hook_data, daemon_state=None):
 
                     if (
                         exfil_detection_result is not None
-                        and exfil_detection_result.should_block
+                        and exfil_detection_result.detected
                     ):
-                        ed_details = exfil_detection_result.extra.get("details") or {}
                         logging.warning(
                             "🚨 BLOCKED: Credential exfiltration behavior detected"
                         )
-                        _log_exfil_detection_violation(
-                            command=bash_command,
-                            matched_pattern=ed_details.get("pattern"),
-                            matched_text=ed_details.get("matched_text"),
-                            category=ed_details.get("category"),
-                            line_number=ed_details.get("line_number"),
-                            start_column=ed_details.get("start_column"),
-                            end_column=ed_details.get("end_column"),
-                            violation_logger=violation_logger,
+                        ed_decision = apply_post_scan_pipeline(
+                            _registry.get(ScannerName.EXFIL_DETECTION),
+                            exfil_detection_result,
+                            _post_scan_ctx,
+                            blocked_overrides={
+                                "command": bash_command[:500],
+                            },
                         )
-                        combined_warning = (
-                            "\n\n".join(warning_messages) if warning_messages else None
-                        )
-                        result = _format_response(
-                            adapter,
-                            has_secrets=True,
-                            error_message=exfil_detection_result.error_message,
-                            hook_event=hook_event,
-                            warning_message=combined_warning,
-                            violation_type=ViolationType.EXFIL_DETECTION,
-                            security_message=security_message,
-                        )
-                        return result
+                        warning_messages.extend(ed_decision.warnings)
+                        if ed_decision.should_block:
+                            combined_warning = (
+                                "\n\n".join(warning_messages)
+                                if warning_messages
+                                else None
+                            )
+                            result = _format_response(
+                                adapter,
+                                has_secrets=True,
+                                error_message=exfil_detection_result.error_message,
+                                hook_event=hook_event,
+                                warning_message=combined_warning,
+                                violation_type=ViolationType.EXFIL_DETECTION,
+                                security_message=security_message,
+                            )
+                            return result
 
             # Only extract file content for file-reading tools
             # Bash, Write, Edit, etc. don't read files in PreToolUse - they have command/content parameters
@@ -8040,70 +7858,26 @@ def process_hook_data(hook_data, daemon_state=None):
                                     all_findings = cs_result.extra.get(
                                         "all_findings", []
                                     )
-                                    cs_hook_ctx = {
-                                        "hook_event": hook_event,
-                                        "tool_name": tool_name,
-                                    }
-                                    if hook_tool_use_id:
-                                        cs_hook_ctx["tool_use_id"] = hook_tool_use_id
-                                    if hook_session_id:
-                                        cs_hook_ctx["session_id"] = hook_session_id
-                                    for f in all_findings:
-                                        _log_code_security_violation(
-                                            cs_file_path,
-                                            rule_id=f.rule_id,
-                                            description=f.description,
-                                            severity=f.severity,
-                                            line_number=f.line_number,
-                                            start_column=f.start_column,
-                                            hook_context=cs_hook_ctx,
-                                        )
-                                    cs_action = cs_result.extra.get("action", "warn")
-                                    cs_ask_result = _handle_ask_mode_auto(
-                                        cs_action,
-                                        ViolationType.CODE_SECURITY,
-                                        config_section="code_scanning",
-                                        error_msg=cs_result.error_message,
+                                    log_scan_violations_per_finding(
+                                        _registry.get(ScannerName.CODE_SECURITY),
+                                        all_findings,
+                                        _post_scan_ctx,
                                         file_path=cs_file_path,
-                                        matched_text=cs_result.matched_text,
-                                        line_number=cs_result.line_number,
-                                        matched_pattern=cs_result.rule_id,
-                                        latency_timer=_latency_timer,
-                                        hook_context={
-                                            "session_id": hook_session_id,
-                                            "project_path": get_project_dir(),
-                                            "hook_event": hook_event,
-                                            "tool_name": tool_name,
-                                        },
                                     )
-                                    cs_should_block = cs_result.should_block
-                                    if cs_ask_result is not None:
-                                        from ai_guardian.tui.ask_dialog import (
-                                            AskDecision,
-                                        )
-
-                                        if cs_ask_result.decision not in (
-                                            AskDecision.BLOCK,
-                                            AskDecision.BLOCK_ALL,
-                                        ):
-                                            cs_should_block = False
-                                            warning_messages.append(
-                                                _format_ask_info_message(
-                                                    ViolationType.CODE_SECURITY,
-                                                    cs_ask_result.decision,
-                                                )
-                                            )
-                                        _log_ask_decision(
-                                            ViolationType.CODE_SECURITY,
-                                            cs_ask_result.decision,
-                                            matched_text=cs_result.matched_text,
-                                            error_msg=cs_result.error_message,
-                                            file_path=cs_file_path,
-                                            line_number=cs_result.line_number,
-                                            dialog_wait_ms=cs_ask_result.dialog_wait_ms,
-                                        )
-
-                                    if cs_should_block and cs_action == "block":
+                                    cs_decision = apply_post_scan_pipeline(
+                                        _registry.get(ScannerName.CODE_SECURITY),
+                                        cs_result,
+                                        _post_scan_ctx,
+                                        file_path=cs_file_path,
+                                        filename=filename,
+                                        skip_violation_log=True,
+                                    )
+                                    warning_messages.extend(cs_decision.warnings)
+                                    cs_action = cs_result.extra.get("action", "warn")
+                                    if (
+                                        cs_decision.should_block
+                                        and cs_action == "block"
+                                    ):
                                         combined_warning = (
                                             "\n\n".join(warning_messages)
                                             if warning_messages
@@ -8118,16 +7892,12 @@ def process_hook_data(hook_data, daemon_state=None):
                                             violation_type=ViolationType.CODE_SECURITY,
                                             security_message=security_message,
                                         )
-                                    elif cs_should_block or cs_action in (
-                                        "warn",
-                                        "log-only",
-                                    ):
-                                        if cs_action != "log-only":
-                                            n = cs_result.total_findings
-                                            warning_messages.append(
-                                                f"Code security: {n} issue(s) found in "
-                                                f"{cs_file_path} — {cs_result.error_message}"
-                                            )
+                                    elif cs_action in ("warn",):
+                                        n = cs_result.total_findings
+                                        warning_messages.append(
+                                            f"Code security: {n} issue(s) found in "
+                                            f"{cs_file_path} — {cs_result.error_message}"
+                                        )
                             except Exception as e:
                                 logging.warning(
                                     f"Code security check error (fail-open): {e}"
@@ -8213,36 +7983,14 @@ def process_hook_data(hook_data, daemon_state=None):
         _pretool_cp_scanned = False
         _pretool_cp_detected = False
 
-        # Build content-scanning pipeline from the registry (#1253 Phase 3)
-        from ai_guardian.scanner_registry import ScannerName, get_default_registry
-
-        _registry = get_default_registry()
+        # Build content-scanning pipeline names from the registry (#1253 Phase 3)
+        # _registry and _post_scan_ctx already constructed above (before BASH_EXFIL).
         _content_pipeline = _registry.get_pipeline(
             hook_event,
             has_content=content_to_scan is not None,
             has_file_path=file_path is not None,
         )
         _pipeline_names = {e.name for e in _content_pipeline}
-
-        from ai_guardian.post_scan_filters import (
-            PostScanContext,
-            apply_post_scan_pipeline,
-        )
-
-        _post_scan_ctx = PostScanContext(
-            handle_ask_mode_auto=_handle_ask_mode_auto,
-            log_ask_decision=_log_ask_decision,
-            format_ask_info_message=_format_ask_info_message,
-            hook_event=hook_event,
-            hook_session_id=hook_session_id,
-            hook_tool_use_id=hook_tool_use_id,
-            tool_name=tool_name,
-            ide_type_value=(
-                ide_type.value if hasattr(ide_type, "value") else str(ide_type)
-            ),
-            violation_logger=violation_logger,
-            latency_timer=_latency_timer,
-        )
 
         # Check for prompt injection BEFORE scanning for secrets
         try:
@@ -8491,138 +8239,42 @@ def process_hook_data(hook_data, daemon_state=None):
                 )
 
                 if cfs_result is not None:
-                    config_details = cfs_result.extra.get("details")
-                    config_error = cfs_result.error_message
-                    should_block = cfs_result.should_block
-
-                    if should_block:
-                        cfs_action = cfs_result.extra.get("action", "block")
-                        cfs_matched_pattern = (
-                            config_details.get("pattern_name", "")
-                            if config_details
-                            else ""
-                        )
-                        cfs_ask_result = _handle_ask_mode_auto(
-                            cfs_action,
-                            ViolationType.CONFIG_FILE_EXFIL,
-                            config_section="config_file_scanning",
-                            error_msg=config_error or "",
+                    if cfs_result.detected:
+                        cfs_decision = apply_post_scan_pipeline(
+                            _registry.get(ScannerName.CONFIG_FILE),
+                            cfs_result,
+                            _post_scan_ctx,
                             file_path=file_path,
-                            matched_text=file_path,
-                            matched_pattern=cfs_matched_pattern,
-                            latency_timer=_latency_timer,
-                            hook_context={
-                                "session_id": hook_session_id,
-                                "project_path": get_project_dir(),
-                                "hook_event": hook_event,
-                                "tool_name": tool_name,
+                            filename=filename,
+                            blocked_overrides={
+                                "details": cfs_result.extra.get("details"),
                             },
                         )
-                        if cfs_ask_result is not None:
-                            from ai_guardian.tui.ask_dialog import AskDecision
-
-                            if cfs_ask_result.decision not in (
-                                AskDecision.BLOCK,
-                                AskDecision.BLOCK_ALL,
-                            ):
-                                should_block = False
-                                warning_messages.append(
-                                    _format_ask_info_message(
-                                        ViolationType.CONFIG_FILE_EXFIL,
-                                        cfs_ask_result.decision,
-                                        detail=file_path,
-                                    )
+                        warning_messages.extend(cfs_decision.warnings)
+                        if cfs_decision.should_block:
+                            if ide_type != IDEType.CURSOR:
+                                logging.info(
+                                    f"Blocking operation for {file_path} due to config file threat"
                                 )
-                                _log_ask_decision(
-                                    ViolationType.CONFIG_FILE_EXFIL,
-                                    cfs_ask_result.decision,
-                                    matched_text=file_path or "",
-                                    error_msg=config_error or "",
-                                    file_path=file_path,
-                                    dialog_wait_ms=cfs_ask_result.dialog_wait_ms,
-                                )
-
-                    if should_block:
-                        if ide_type != IDEType.CURSOR:
-                            logging.info(
-                                f"Blocking operation for {file_path} due to config file threat"
+                            combined_warning = (
+                                "\n\n".join(warning_messages)
+                                if warning_messages
+                                else None
                             )
-
-                        if violation_logger:
-                            try:
-                                exfil_ctx = {
-                                    "ide_type": (
-                                        ide_type.value
-                                        if hasattr(ide_type, "value")
-                                        else str(ide_type)
-                                    ),
-                                    "hook_event": hook_event,
-                                    "project_path": get_project_dir(),
-                                }
-                                if hook_tool_use_id:
-                                    exfil_ctx["tool_use_id"] = hook_tool_use_id
-                                if hook_session_id:
-                                    exfil_ctx["session_id"] = hook_session_id
-                                exfil_blocked = {
-                                    "file_path": file_path,
-                                    "line_number": (
-                                        config_details.get("line_number")
-                                        if config_details
-                                        else None
-                                    ),
-                                    "reason": config_error,
-                                    "details": config_details,
-                                }
-                                if (
-                                    config_details
-                                    and config_details.get("start_column") is not None
-                                ):
-                                    exfil_blocked["start_column"] = config_details[
-                                        "start_column"
-                                    ]
-                                if (
-                                    config_details
-                                    and config_details.get("end_column") is not None
-                                ):
-                                    exfil_blocked["end_column"] = config_details[
-                                        "end_column"
-                                    ]
-                                violation_logger.log_violation(
-                                    violation_type=ViolationType.CONFIG_FILE_EXFIL,
-                                    blocked=exfil_blocked,
-                                    context=exfil_ctx,
-                                    suggestion={
-                                        "action": "review_config_file",
-                                        "false_positive": (
-                                            "Move to examples/ directory, or add to "
-                                            "config_file_scanning.ignore_files"
-                                        ),
-                                    },
-                                    severity="critical",
-                                )
-                            except Exception as e:
-                                logging.error(
-                                    f"Failed to log config file exfil violation: {e}"
-                                )
-
-                        combined_warning = (
-                            "\n\n".join(warning_messages) if warning_messages else None
-                        )
-                        result = _format_response(
-                            adapter,
-                            has_secrets=True,
-                            error_message=config_error,
-                            hook_event=hook_event,
-                            warning_message=combined_warning,
-                            violation_type=ViolationType.CONFIG_FILE_EXFIL,
-                            security_message=security_message,
-                        )
-                        return result
-                    elif config_details and config_error:
-                        warning_messages.append(config_error)
-
-                    if ide_type != IDEType.CURSOR:
-                        if not config_details:
+                            result = _format_response(
+                                adapter,
+                                has_secrets=True,
+                                error_message=cfs_result.error_message,
+                                hook_event=hook_event,
+                                warning_message=combined_warning,
+                                violation_type=ViolationType.CONFIG_FILE_EXFIL,
+                                security_message=security_message,
+                            )
+                            return result
+                        elif cfs_result.error_message:
+                            warning_messages.append(cfs_result.error_message)
+                    else:
+                        if ide_type != IDEType.CURSOR:
                             logging.debug("✓ No config file threats detected")
                 elif HAS_CONFIG_SCANNER and ide_type != IDEType.CURSOR:
                     logging.info("⚠️  Config file scanning temporarily disabled")
@@ -8693,56 +8345,16 @@ def process_hook_data(hook_data, daemon_state=None):
                 warning_messages.append(error_message)
 
             if has_secrets:
-                secret_action_pre = pre_secret_result.extra.get("action", "block")
-                ask_result_pre = _handle_ask_mode_auto(
-                    secret_action_pre,
-                    ViolationType.SECRET_DETECTED,
-                    config_section="secret_scanning",
-                    error_msg=error_message,
+                secret_decision = apply_post_scan_pipeline(
+                    _registry.get(ScannerName.SECRET),
+                    pre_secret_result,
+                    _post_scan_ctx,
                     file_path=file_path,
-                    matched_text=pre_secret_result.matched_text,
-                    start_column=pre_secret_result.start_column,
-                    latency_timer=_latency_timer,
-                    hook_context={
-                        "session_id": hook_session_id,
-                        "project_path": get_project_dir(),
-                        "hook_event": hook_event,
-                        "tool_name": tool_name,
-                    },
-                    findings=pre_secret_result.findings,
+                    filename=filename,
+                    skip_violation_log=True,
                 )
-                if ask_result_pre is not None:
-                    from ai_guardian.tui.ask_dialog import AskDecision
-
-                    if ask_result_pre.decision not in (
-                        AskDecision.BLOCK,
-                        AskDecision.BLOCK_ALL,
-                    ):
-                        info_msg = _format_ask_info_message(
-                            ViolationType.SECRET_DETECTED, ask_result_pre.decision
-                        )
-                        warning_messages.append(info_msg)
-                        has_secrets = False
-                        _log_ask_decision(
-                            ViolationType.SECRET_DETECTED,
-                            ask_result_pre.decision,
-                            matched_text=pre_secret_result.matched_text,
-                            error_msg=error_message or "",
-                            file_path=file_path,
-                            line_number=pre_secret_result.line_number,
-                            dialog_wait_ms=ask_result_pre.dialog_wait_ms,
-                            invocation_allowed_findings=_invocation_allowed,
-                        )
-                    else:
-                        _log_ask_decision(
-                            ViolationType.SECRET_DETECTED,
-                            ask_result_pre.decision,
-                            matched_text=pre_secret_result.matched_text,
-                            error_msg=error_message or "",
-                            file_path=file_path,
-                            line_number=pre_secret_result.line_number,
-                            dialog_wait_ms=ask_result_pre.dialog_wait_ms,
-                        )
+                warning_messages.extend(secret_decision.warnings)
+                has_secrets = secret_decision.should_block
 
             if has_secrets:
                 combined_warning = (
@@ -8811,86 +8423,58 @@ def process_hook_data(hook_data, daemon_state=None):
                     return result
 
                 if has_pii and pii_redactions:
-                    hook_name = hook_event.display_name
                     pii_config_for_log, _ = _load_pii_config()
-                    pii_action, pii_types = _log_pii_violation(
-                        violation_logger,
-                        pii_config_for_log or {"action": pii_action},
-                        pii_redactions,
-                        tool_identifier or filename,
-                        hook_name,
-                        file_path,
-                        content_to_scan,
-                        hook_event,
-                        hook_tool_use_id=hook_tool_use_id,
-                        hook_session_id=hook_session_id,
+                    pii_action = (pii_config_for_log or {}).get("action", pii_action)
+                    pii_types = list(
+                        set(r.get("type", "unknown") for r in pii_redactions)
                     )
                     logging.warning(f"PII detected: {pii_types}")
 
-                    pii_matched_text = _extract_pii_matched_text(
+                    pii_result.extra["action"] = pii_action
+                    if (
+                        pii_redactions
+                        and pii_redactions[0].get("line_number") is not None
+                    ):
+                        pii_result.line_number = pii_redactions[0]["line_number"]
+                    pii_result.matched_text = _extract_pii_matched_text(
                         pii_redactions, pii_scan_content
                     )
-                    pii_findings = _pii_redactions_to_findings(
+                    pii_result.findings = _pii_redactions_to_findings(
                         pii_redactions, pii_scan_content, pii_warning
                     )
 
-                    pii_line_number2 = (
-                        pii_redactions[0].get("line_number") if pii_redactions else None
-                    )
                     pii_file_path2 = file_path
                     if not pii_file_path2:
                         pii_file_path2 = _extract_file_path_from_pii_warning(
                             pii_warning
                         )
-                    pii_ask_result2 = _handle_ask_mode_auto(
-                        pii_action,
-                        ViolationType.PII_DETECTED,
-                        config_section="scan_pii",
-                        error_msg=pii_warning,
-                        file_path=pii_file_path2,
-                        matched_text=pii_matched_text,
-                        line_number=pii_line_number2,
-                        latency_timer=_latency_timer,
-                        hook_context={
-                            "session_id": hook_session_id,
-                            "project_path": get_project_dir(),
-                            "hook_event": hook_event,
-                            "tool_name": tool_name,
-                        },
-                        findings=pii_findings,
+                    pii_fps = _compute_pii_transcript_fingerprints(
+                        pii_redactions, pii_scan_content
                     )
-                    if pii_ask_result2 is not None:
-                        from ai_guardian.tui.ask_dialog import AskDecision
 
-                        if pii_ask_result2.decision not in (
-                            AskDecision.BLOCK,
-                            AskDecision.BLOCK_ALL,
-                        ):
-                            pii_action = "warn"
-                            _log_ask_decision(
-                                ViolationType.PII_DETECTED,
-                                pii_ask_result2.decision,
-                                matched_text=pii_matched_text,
-                                error_msg=pii_warning or "",
-                                file_path=pii_file_path2,
-                                line_number=pii_line_number2,
-                                dialog_wait_ms=pii_ask_result2.dialog_wait_ms,
-                                invocation_allowed_findings=_invocation_allowed,
-                                finding_fingerprints=_compute_pii_transcript_fingerprints(
-                                    pii_redactions, pii_scan_content
-                                ),
-                            )
-                        else:
-                            pii_action = "block"
-                            _log_ask_decision(
-                                ViolationType.PII_DETECTED,
-                                pii_ask_result2.decision,
-                                matched_text=pii_matched_text,
-                                error_msg=pii_warning or "",
-                                file_path=pii_file_path2,
-                                line_number=pii_line_number2,
-                                dialog_wait_ms=pii_ask_result2.dialog_wait_ms,
-                            )
+                    pii_line_number = (
+                        pii_redactions[0].get("line_number") if pii_redactions else None
+                    )
+                    pii_blocked_ov = {
+                        "pii_count": len(pii_redactions),
+                        "pii_types": pii_types,
+                    }
+                    if pii_line_number is not None:
+                        pii_blocked_ov["line_number"] = pii_line_number
+
+                    pii_decision = apply_post_scan_pipeline(
+                        _registry.get(ScannerName.PII),
+                        pii_result,
+                        _post_scan_ctx,
+                        file_path=pii_file_path2,
+                        filename=filename,
+                        blocked_overrides=pii_blocked_ov,
+                        finding_fingerprints=pii_fps,
+                    )
+                    warning_messages.extend(pii_decision.warnings)
+
+                    if not pii_decision.should_block:
+                        pii_action = "warn"
 
                     if pii_action in ("block", "redact"):
                         combined_warning = (

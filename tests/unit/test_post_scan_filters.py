@@ -10,6 +10,7 @@ from ai_guardian.post_scan_filters import (
     apply_post_scan_pipeline,
     build_violation_blocked,
     log_scan_violation,
+    log_scan_violations_per_finding,
 )
 from ai_guardian.scan_result import ScanResult
 
@@ -283,3 +284,110 @@ class TestApplyPostScanPipeline:
         assert d.error_message == "err"
         assert d.warnings == []
         assert d.ask_decision is None
+
+    def test_skip_violation_log(self):
+        ctx = _make_ctx()
+        entry = _make_entry()
+        result = _detected_result()
+        with patch("ai_guardian.config_utils.get_project_dir", return_value="/proj"):
+            decision = apply_post_scan_pipeline(
+                entry, result, ctx, skip_violation_log=True
+            )
+        assert decision.should_block
+        ctx.violation_logger.log_violation.assert_not_called()
+
+    def test_finding_fingerprints_forwarded(self):
+        from ai_guardian.tui.ask_dialog import AskDecision
+
+        ask_result = MagicMock()
+        ask_result.decision = AskDecision.ALLOW_ONCE
+        ask_result.dialog_wait_ms = 50.0
+        ctx = _make_ctx(handle_ask_mode_auto=MagicMock(return_value=ask_result))
+        entry = _make_entry()
+        result = _detected_result()
+        fps = ["fp1", "fp2"]
+        with patch("ai_guardian.config_utils.get_project_dir", return_value="/proj"):
+            apply_post_scan_pipeline(entry, result, ctx, finding_fingerprints=fps)
+        call_kwargs = ctx.log_ask_decision.call_args[1]
+        assert call_kwargs["finding_fingerprints"] == fps
+
+    def test_invocation_allowed_forwarded(self):
+        from ai_guardian.tui.ask_dialog import AskDecision
+
+        ask_result = MagicMock()
+        ask_result.decision = AskDecision.ALLOW_ONCE
+        ask_result.dialog_wait_ms = 50.0
+        allowed_set = {"hash1", "hash2"}
+        ctx = _make_ctx(
+            handle_ask_mode_auto=MagicMock(return_value=ask_result),
+            invocation_allowed_findings=allowed_set,
+        )
+        entry = _make_entry()
+        result = _detected_result()
+        with patch("ai_guardian.config_utils.get_project_dir", return_value="/proj"):
+            apply_post_scan_pipeline(entry, result, ctx)
+        call_kwargs = ctx.log_ask_decision.call_args[1]
+        assert call_kwargs["invocation_allowed_findings"] is allowed_set
+
+
+# ── log_scan_violations_per_finding ───────────────────────────
+
+
+class TestLogScanViolationsPerFinding:
+    def test_logs_each_finding(self):
+        ctx = _make_ctx()
+        entry = _make_entry()
+        findings = [
+            MagicMock(
+                rule_id="B101",
+                description="assert",
+                severity="LOW",
+                line_number=10,
+                start_column=0,
+            ),
+            MagicMock(
+                rule_id="B105",
+                description="hardcoded password",
+                severity="HIGH",
+                line_number=25,
+                start_column=4,
+            ),
+        ]
+        with patch("ai_guardian.config_utils.get_project_dir", return_value="/proj"):
+            log_scan_violations_per_finding(
+                entry, findings, ctx, file_path="/tmp/app.py"
+            )
+        assert ctx.violation_logger.log_violation.call_count == 2
+        first_call = ctx.violation_logger.log_violation.call_args_list[0][1]
+        assert first_call["blocked"]["rule_id"] == "B101"
+        assert first_call["blocked"]["file_path"] == "/tmp/app.py"
+        second_call = ctx.violation_logger.log_violation.call_args_list[1][1]
+        assert second_call["blocked"]["rule_id"] == "B105"
+        assert second_call["blocked"]["line_number"] == 25
+
+    def test_noop_when_no_logger(self):
+        ctx = _make_ctx(violation_logger=None)
+        entry = _make_entry()
+        log_scan_violations_per_finding(entry, [MagicMock()], ctx)
+
+    def test_noop_when_empty_findings(self):
+        ctx = _make_ctx()
+        entry = _make_entry()
+        with patch("ai_guardian.config_utils.get_project_dir", return_value="/proj"):
+            log_scan_violations_per_finding(entry, [], ctx)
+        ctx.violation_logger.log_violation.assert_not_called()
+
+    def test_uses_entry_severity_as_fallback(self):
+        ctx = _make_ctx()
+        entry = _make_entry(violation_severity="medium")
+        finding = MagicMock(
+            rule_id="B101",
+            description="test",
+            severity=None,
+            line_number=1,
+            start_column=None,
+        )
+        with patch("ai_guardian.config_utils.get_project_dir", return_value="/proj"):
+            log_scan_violations_per_finding(entry, [finding], ctx)
+        call_kwargs = ctx.violation_logger.log_violation.call_args[1]
+        assert call_kwargs["severity"] == "medium"
