@@ -40,7 +40,14 @@ class CursorAdapter(HookAdapter):
         if "hook_name" in hook_data:
             return True
         event = hook_data.get("hook_event_name", "")
-        return event in ("beforeSubmitPrompt", "preToolUse")
+        return event in (
+            "beforeSubmitPrompt",
+            "preToolUse",
+            "postToolUse",
+            "beforeReadFile",
+            "beforeShellExecution",
+            "afterShellExecution",
+        )
 
     @staticmethod
     def _extract_tool_name(hook_data: Dict) -> Optional[str]:
@@ -53,9 +60,17 @@ class CursorAdapter(HookAdapter):
         effective = event or hook_name
         if effective == "beforereadfile":
             return "Read"
-        if effective == "beforeshellexecution":
+        if effective in ("beforeshellexecution", "aftershellexecution"):
             return "Bash"
         return None
+
+    def _extract_tool_input(self, hook_data: Dict) -> Dict:
+        result = super()._extract_tool_input(hook_data)
+        if not result:
+            command = hook_data.get("command")
+            if isinstance(command, str) and command:
+                return {"command": command}
+        return result
 
     def normalize_input(self, hook_data: Dict) -> NormalizedHookInput:
         event_name = hook_data.get("hook_event_name", "").lower()
@@ -69,7 +84,7 @@ class CursorAdapter(HookAdapter):
             event = HookEvent.BEFORE_READ_FILE
         elif effective in ("pretooluse", "beforeshellexecution"):
             event = HookEvent.PRE_TOOL_USE
-        elif effective == "posttooluse":
+        elif effective in ("posttooluse", "aftershellexecution"):
             event = HookEvent.POST_TOOL_USE
         else:
             event = HookEvent.PROMPT

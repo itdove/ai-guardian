@@ -315,6 +315,7 @@ The Violations tab displays all security violations logged by AI Guardian, inclu
 - Filter by type: All, Tool Permissions, Secrets, Directories, Prompt Injection
 - Click filter buttons at top of tab
 - Badge shows count per category
+- Filter by **project directory**: dropdown with browse button lets you restrict the violations list to a specific daemon project directory — useful in multi-project workspaces where multiple agents share one daemon
 
 **One-Click Approval**
 - Click **Approve & Add Rule** to automatically create permission rule

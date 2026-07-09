@@ -7,13 +7,47 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Fixed
-
-- `ai-guardian scan` now shows `⚠️  Code security scanner (Bandit) unavailable` instead of silently reporting `✅ No security issues detected` when Bandit is not importable in the tool environment (#1504)
+## [1.13.3] - 2026-07-08
 
 ### Added
 
-- `ai-guardian doctor` now checks Bandit availability and reports `[FAIL] Bandit (code security)  not found` with a reinstall hint when code scanning is enabled but Bandit is missing (#1504)
+- **Scenario tests in CI/CD** — new `scenario-tests.yml` workflow runs all YAML-based dummy-agent scenarios (minimal, standard, strict, moderator profiles) in CI on every push and PR. Covers secret detection, PII, SSRF, tool policy, prompt injection, config exfil, and bootstrap scan (#1497).
+
+- **Violations page: directory filter** — dropdown with browse button lets users filter the violations list to a specific daemon project directory (#1503).
+
+- **Per-daemon stale-code indicator in tray** — each daemon entry in the tray menu now shows an orange dot when stale code is detected, making it clear which daemon needs a restart (#1510).
+
+- **In-progress guard and restart polling in tray** — restart actions now show a spinner and poll until the daemon is back online, preventing double-clicks and giving clear feedback (#1512).
+
+- **SessionStart support in dummy-agent** — `ai-guardian dummy-agent` can now emit SessionStart events; includes a new `bootstrap-scan.yaml` scenario demonstrating AGENTS.md poisoning detection (#1517).
+
+- **Rebuild-image hint for remote/container daemons** — stale-code tray indicator for container/Kubernetes daemons now shows a rebuild hint instead of a restart action, which is not applicable to remote daemons (#1521).
+
+### Fixed
+
+- **Cursor shell execution hooks silent failure** — `beforeShellExecution` and `afterShellExecution` events were silently broken: `afterShellExecution` was misrouted to `HookEvent.PROMPT` instead of `POST_TOOL_USE`; top-level `command` field was not extracted so Bash commands were not scanned; `can_handle()` did not recognize these events when sent via `hook_event_name`. Shell commands run by Cursor are now fully scanned by tool policy and secret scanner (#1531).
+
+- **Doctor cache path failure before first hook call** — `ai-guardian setup` now creates the cache directory proactively so `ai-guardian doctor` does not report a false failure before any hook has run (#1499).
+
+- **Bandit silent failure** — `ai-guardian scan` now shows `⚠️  Code security scanner (Bandit) unavailable` instead of silently reporting `✅ No security issues detected` when Bandit is not importable. `ai-guardian doctor` reports `[FAIL] Bandit (code security) not found` with a reinstall hint (#1504).
+
+- **Doctor hook coverage** — `ai-guardian doctor` now checks all 5 hook event types (UserPromptSubmit, PreToolUse, PostToolUse, SessionEnd, PostCompact) instead of only the first 3 (#1505).
+
+- **Bootstrap scan block message formatting** — block and warn messages from bootstrap scanning now use the consistent `🚨 BLOCKED BY POLICY` style matching other violation outputs (#1513).
+
+- **Setup: abort on config failure** — `ai-guardian setup` now exits with an error when global config cannot be written instead of silently continuing; also accepts bare profile names (e.g., `minimal`) in addition to `@minimal` (#1501).
+
+- **SessionStart camelCase detection** — SessionStart events sent by Claude Code use `hookEventName` (camelCase) but the adapter only checked `hook_event_name` (snake_case). Both are now handled (#1522).
+
+- **Transcript secret warnings: per-finding dedup and count** — repeated identical secret findings in a single transcript scan are now deduplicated and reported with a count instead of flooding the output (#1500).
+
+- **SessionStart block: full message shown** — block responses from the SessionStart hook now include `systemMessage` and `additionalContext` fields so the full error message appears in the Claude Code startup hook error UI (#1526).
+
+### Documentation
+
+- **Hook regression testing guide** — new `docs/hook-regression-testing.md` covers dummy-agent container setup, scenario authoring, and CI integration (#1496).
+
+- **Bootstrap scan limitation documented** — Claude Code does not support a true SessionStart hook; bootstrap scanning fires on the first UserPromptSubmit instead. This limitation is now documented in AGENTS.md and the bootstrap-scan config page (#1506).
 
 ## [1.13.2] - 2026-07-06
 
@@ -2799,7 +2833,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Preserves existing configuration
   - Interactive and non-interactive modes
 
-[Unreleased]: https://github.com/itdove/ai-guardian/compare/v1.13.2...HEAD
+[Unreleased]: https://github.com/itdove/ai-guardian/compare/v1.13.3...HEAD
+[1.13.3]: https://github.com/itdove/ai-guardian/compare/v1.13.2...v1.13.3
 [1.13.2]: https://github.com/itdove/ai-guardian/compare/v1.13.1...v1.13.2
 [1.13.1]: https://github.com/itdove/ai-guardian/compare/v1.13.0...v1.13.1
 [1.13.0]: https://github.com/itdove/ai-guardian/compare/v1.12.3...v1.13.0
