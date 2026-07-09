@@ -399,6 +399,38 @@ class TestNormalization:
         assert n.event == HookEvent.PRE_TOOL_USE
         assert n.tool_name == "Bash"
 
+    def test_cursor_aftershellexecution_maps_to_post_tool_use(self):
+        data = {
+            "cursor_version": "0.50.0",
+            "hook_event_name": "afterShellExecution",
+            "command": "ls -la",
+        }
+        n = CursorAdapter().normalize_input(data)
+        assert n.event == HookEvent.POST_TOOL_USE
+        assert n.tool_name == "Bash"
+
+    def test_cursor_shell_command_extracted_from_top_level(self):
+        data = {
+            "hook_name": "beforeShellExecution",
+            "command": "cat ~/.aws/credentials",
+            "cwd": "/project",
+        }
+        n = CursorAdapter().normalize_input(data)
+        assert n.event == HookEvent.PRE_TOOL_USE
+        assert n.tool_input == {"command": "cat ~/.aws/credentials"}
+
+    def test_cursor_can_handle_shell_events_via_hook_event_name(self):
+        for event in (
+            "beforeShellExecution",
+            "afterShellExecution",
+            "beforeReadFile",
+            "postToolUse",
+        ):
+            data = {"hook_event_name": event}
+            assert CursorAdapter.can_handle(
+                data
+            ), f"can_handle should return True for {event}"
+
     def test_cursor_tool_name_synthesis_beforereadfile(self):
         data = {"hook_event_name": "beforeReadFile", "file_path": "/tmp/f.py"}
         assert CursorAdapter._extract_tool_name(data) == "Read"

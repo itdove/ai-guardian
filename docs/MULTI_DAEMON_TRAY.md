@@ -63,6 +63,16 @@ Quit
 
 - **●** Running daemon — full submenu with Statistics, Pause/Resume, Stop/Restart
 - **○** Stopped daemon — limited submenu with Console, Mode, Start daemon
+- **⚠●** Running daemon with stale code detected — shows orange dot; local daemons show a **Restart daemon (stale code)** item; remote/container/Kubernetes daemons show a **Rebuild image** hint instead
+
+## Stale-Code Indicator
+
+When the ai-guardian source code on disk is newer than the running daemon binary, the tray shows a warning indicator next to the daemon name:
+
+- **Local daemons**: orange dot + `Restart daemon (stale code)` menu item. Clicking it restarts the daemon and polls until it comes back online (up to 10 seconds), then refreshes the menu.
+- **Container / Kubernetes daemons**: orange dot + `Rebuild image (stale code)` hint. Remote daemons cannot be restarted from the tray — you must rebuild the container image and redeploy.
+
+Stale-code detection compares the installed package version against the timestamp of the source tree using the daemon's `/api/status` endpoint. This replaces the old dev-mode auto-restart behavior removed in v1.13.0.
 
 ## Discovery Methods
 
@@ -230,6 +240,8 @@ Each daemon's submenu routes actions to the correct transport:
 | Console | New terminal | `podman exec -it` | `kubectl exec -it` |
 | Pause/Resume | Unix socket | REST API | REST API |
 | Start/Stop/Restart | Subprocess | `podman exec` | `kubectl exec` |
+
+> **In-progress guard**: Restart actions are protected against double-clicks. Once a restart is triggered, the menu item is disabled and the tray polls the daemon until it responds again (up to 10 seconds) before re-enabling the item.
 
 ## CLI Reference
 
