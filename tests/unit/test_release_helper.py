@@ -487,6 +487,33 @@ class TestCursorHookVerifier:
 
         assert cursor_version == "0.50.0"
 
+    def test_analyze_hook_name_field(self, tmp_path):
+        """Cursor sends hook_name instead of hook_event_name (#1532)."""
+        settings_path = tmp_path / "settings.json"
+        _create_settings(settings_path)
+        debug_dir = tmp_path / "debug"
+        debug_dir.mkdir()
+
+        for event in CursorHookVerifier.EXPECTED_EVENTS:
+            log_data = {
+                "hook_name": event,
+                "cursor_version": "3.1.0",
+                "_debug_timestamp": 1718640000.0,
+                "_debug_event": event,
+            }
+            log_file = (
+                debug_dir / f"cursor-hook-debug-{event}-{int(1718640000 * 1e9)}.json"
+            )
+            log_file.write_text(json.dumps(log_data, indent=2))
+
+        verifier = CursorHookVerifier(
+            settings_path=str(settings_path), debug_dir=str(debug_dir)
+        )
+        passed, cursor_version = verifier.analyze()
+
+        assert passed is True
+        assert cursor_version == "3.1.0"
+
     def test_analyze_no_files(self, tmp_path):
         settings_path = tmp_path / "settings.json"
         _create_settings(settings_path)
