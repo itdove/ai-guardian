@@ -79,6 +79,23 @@ EOF
 
 **Run only tests related to your changes** — GitHub Actions runs the full suite on every PR across Python 3.9-3.14 and Windows.
 
+#### Which Tests to Run
+
+1. **Changed method → run its test file directly**
+   ```bash
+   uv run --extra dev python -m pytest tests/test_<module>.py -v
+   ```
+
+2. **Callers of changed method → run tests that reference it**
+   ```bash
+   grep -rl '<method_name>' tests/ | xargs uv run --extra dev python -m pytest -v
+   ```
+
+3. **Full suite → only before PR submission or when touching shared modules** (`constants.py`, `config_loaders.py`, `__init__.py`)
+   ```bash
+   uv run --extra dev python -m pytest
+   ```
+
 Using [uv](https://docs.astral.sh/uv/) (recommended):
 
 ```bash
