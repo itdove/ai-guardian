@@ -15,6 +15,7 @@ import sys
 import uuid
 from typing import Any, Dict, List, Optional, Tuple
 
+from ai_guardian.constants import HookEvent
 from ai_guardian.hook_processing import process_hook_data
 
 _GREEN = "\033[92m"
@@ -166,7 +167,7 @@ def _run_shell_command(cmd: str, session_id: str, cwd: str, c) -> None:
     print(c(f"[hook] PreToolUse(Bash, {json.dumps({'command': cmd})})", _DIM))
     result = _run_hook(
         _make_hook_payload(
-            "PreToolUse",
+            HookEvent.PRE_TOOL_USE.display_name,
             session_id,
             cwd,
             tool_name="Bash",
@@ -199,7 +200,7 @@ def _run_shell_command(cmd: str, session_id: str, cwd: str, c) -> None:
     print(c("[hook] PostToolUse(Bash)", _DIM))
     result = _run_hook(
         _make_hook_payload(
-            "PostToolUse",
+            HookEvent.POST_TOOL_USE.display_name,
             session_id,
             cwd,
             tool_name="Bash",
@@ -247,7 +248,9 @@ def _run_session_start_event(
         fresh_session_id = _make_session_id()
         set_project_dir_override(tmpdir)
         try:
-            payload = _make_hook_payload("SessionStart", fresh_session_id, tmpdir)
+            payload = _make_hook_payload(
+                HookEvent.SESSION_START.display_name, fresh_session_id, tmpdir
+            )
             result = _run_hook(payload, daemon_state=daemon_state)
         finally:
             clear_project_dir_override()
@@ -311,7 +314,9 @@ def run_interactive(session_id: Optional[str] = None, colors: bool = True) -> No
         # 1. UserPromptSubmit
         print(c("[hook] UserPromptSubmit", _DIM))
         result = _run_hook(
-            _make_hook_payload("UserPromptSubmit", session_id, cwd, prompt=prompt)
+            _make_hook_payload(
+                HookEvent.PROMPT.display_name, session_id, cwd, prompt=prompt
+            )
         )
         if _is_blocked(result):
             reason = _block_reason(result)
@@ -337,10 +342,15 @@ def run_interactive(session_id: Optional[str] = None, colors: bool = True) -> No
             # PreToolUse
             print()
             input_repr = json.dumps(tool_input)
-            print(c(f"[hook] PreToolUse({tool_name}, {input_repr})", _DIM))
+            print(
+                c(
+                    f"[hook] {HookEvent.PRE_TOOL_USE.display_name}({tool_name}, {input_repr})",
+                    _DIM,
+                )
+            )
             result = _run_hook(
                 _make_hook_payload(
-                    "PreToolUse",
+                    HookEvent.PRE_TOOL_USE.display_name,
                     session_id,
                     cwd,
                     tool_name=tool_name,
@@ -365,10 +375,12 @@ def run_interactive(session_id: Optional[str] = None, colors: bool = True) -> No
             print(c("╚──────────────────────────────────────────────", _DIM))
 
             # PostToolUse
-            print(c(f"[hook] PostToolUse({tool_name})", _DIM))
+            print(
+                c(f"[hook] {HookEvent.POST_TOOL_USE.display_name}({tool_name})", _DIM)
+            )
             result = _run_hook(
                 _make_hook_payload(
-                    "PostToolUse",
+                    HookEvent.POST_TOOL_USE.display_name,
                     session_id,
                     cwd,
                     tool_name=tool_name,
@@ -419,7 +431,9 @@ def _run_scenario_event(
         f" (transcript: {repr(prompt[:60])})"
     )
     result = _run_hook(
-        _make_hook_payload("UserPromptSubmit", session_id, cwd, prompt=prompt),
+        _make_hook_payload(
+            HookEvent.PROMPT.display_name, session_id, cwd, prompt=prompt
+        ),
         daemon_state=daemon_state,
     )
     blocked = _is_blocked(result)
@@ -450,7 +464,7 @@ def _run_scenario_event(
         )
         result = _run_hook(
             _make_hook_payload(
-                "PreToolUse",
+                HookEvent.PRE_TOOL_USE.display_name,
                 session_id,
                 cwd,
                 tool_name=tool_name,
@@ -475,7 +489,7 @@ def _run_scenario_event(
         )
         result = _run_hook(
             _make_hook_payload(
-                "PostToolUse",
+                HookEvent.POST_TOOL_USE.display_name,
                 session_id,
                 cwd,
                 tool_name=tool_name,
@@ -536,7 +550,7 @@ def run_script(script_path: str, colors: bool = True) -> int:
     )
 
     for idx, event in enumerate(events):
-        event_type = event.get("event", "UserPromptSubmit")
+        event_type = event.get("event", HookEvent.PROMPT.display_name)
         prompt = event.get("prompt", "")
         tools = event.get("tools")
         expect = event.get("expect", "allow").lower()
@@ -544,7 +558,7 @@ def run_script(script_path: str, colors: bool = True) -> int:
 
         print(f"{_color(f'--- {label} ---', _BOLD, colors)}")
 
-        if event_type == "SessionStart":
+        if event_type == HookEvent.SESSION_START.display_name:
             blocked = _run_session_start_event(
                 session_files=event.get("session_files", []),
                 colors=colors,

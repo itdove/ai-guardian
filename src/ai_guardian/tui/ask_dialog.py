@@ -19,6 +19,8 @@ from dataclasses import dataclass
 from enum import Enum
 from typing import List, Optional
 
+from ai_guardian.constants import HookEvent
+
 logger = logging.getLogger(__name__)
 
 
@@ -127,11 +129,11 @@ def format_hook_label(
     ev = raw.lower().replace("_", "").replace("-", "")
     if ev in ("pretooluse", "beforereadfile"):
         ctx = _TOOL_TO_LABEL.get(tool_name or "", "before tool use")
-        return f"PreToolUse ({ctx})"
+        return f"{HookEvent.PRE_TOOL_USE.display_name} ({ctx})"
     if ev == "posttooluse":
-        return "PostToolUse (tool output)"
+        return f"{HookEvent.POST_TOOL_USE.display_name} (tool output)"
     if ev in ("prompt", "userpromptsubmit"):
-        return "UserPromptSubmit (your prompt)"
+        return f"{HookEvent.PROMPT.display_name} (your prompt)"
     return raw
 
 

@@ -901,6 +901,7 @@ class Doctor:
             )
 
     def _count_claude_hooks(self, config_path: Path) -> int:
+        from ai_guardian.constants import HookEvent
         from ai_guardian.setup import _is_ai_guardian_command
 
         try:
@@ -909,11 +910,11 @@ class Doctor:
             hooks = config.get("hooks", {})
             count = 0
             for hook_name in [
-                "UserPromptSubmit",
-                "PreToolUse",
-                "PostToolUse",
-                "SessionEnd",
-                "PostCompact",
+                HookEvent.PROMPT.display_name,
+                HookEvent.PRE_TOOL_USE.display_name,
+                HookEvent.POST_TOOL_USE.display_name,
+                HookEvent.SESSION_END.display_name,
+                HookEvent.POST_COMPACT.display_name,
             ]:
                 if hook_name in hooks:
                     hook_list = hooks[hook_name]

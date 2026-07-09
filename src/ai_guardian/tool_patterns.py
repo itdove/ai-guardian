@@ -12,6 +12,8 @@ policy enforcement logic.
 
 import re
 
+from ai_guardian.constants import HookEvent
+
 # Hardcoded critical protections - cannot be disabled or bypassed
 #
 # Dev source patterns removed (Issue #369) - redundant with git/PR workflow.
@@ -541,9 +543,9 @@ MIXED_SETTINGS_PATTERNS = [
 # Hook-related JSON keys that indicate hook modification.
 HOOK_INDICATOR_KEYS = {
     "hooks",
-    "UserPromptSubmit",
-    "PreToolUse",
-    "PostToolUse",
+    HookEvent.PROMPT.display_name,
+    HookEvent.PRE_TOOL_USE.display_name,
+    HookEvent.POST_TOOL_USE.display_name,
     "BeforeAgent",
     "BeforeTool",
     "AfterTool",

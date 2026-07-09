@@ -9,6 +9,7 @@ from ai_guardian.web.components.local_time import (
     local_time_label,
 )
 
+from ai_guardian.constants import HookEvent
 from ai_guardian.violation_guidance import get_resolution_instructions
 from ai_guardian.web.components.header import create_header, create_sidebar
 
@@ -538,9 +539,10 @@ def _render_violation_card(v: dict, service=None, daemon_name: str = ""):
         hook_event = context.get("hook_event", "")
         has_pretool = bool(context.get("pretool_context"))
         if tool_use_id and has_pretool:
-            hook_label = hook_event.replace("posttooluse", "PostToolUse").replace(
-                "pretooluse", "PreToolUse"
-            )
+            try:
+                hook_label = HookEvent(hook_event).display_name
+            except ValueError:
+                hook_label = hook_event
             ui.label(f"Correlation: {tool_use_id[:16]}... ({hook_label})").classes(
                 "text-xs text-grey-7 mt-1"
             )

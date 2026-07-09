@@ -8,7 +8,7 @@ import json
 import logging
 from typing import ClassVar, Dict, List, Optional
 
-from ai_guardian.constants import HookEvent
+from ai_guardian.constants import ALL_HOOK_EVENT_DISPLAY_NAMES, HookEvent
 from ai_guardian.hook_adapters.base import HookAdapter, NormalizedHookInput
 
 logger = logging.getLogger(__name__)
@@ -40,15 +40,7 @@ class GeminiCLIAdapter(HookAdapter):
         # Gemini uses BeforeTool/AfterTool/BeforeAgent; Claude uses PascalCase
         # UserPromptSubmit/PreToolUse/PostToolUse.
         event = hook_data.get("hook_event_name", "")
-        if event in (
-            "UserPromptSubmit",
-            "PreToolUse",
-            "PostToolUse",
-            "Stop",
-            "SessionStart",
-            "SessionEnd",
-            "PostCompact",
-        ):
+        if event in ALL_HOOK_EVENT_DISPLAY_NAMES:
             return False
         return True
 

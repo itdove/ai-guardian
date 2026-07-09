@@ -17,10 +17,12 @@ from textual.app import ComposeResult
 from textual.containers import Container, Horizontal, Vertical, ScrollableContainer
 from textual.widgets import Static, Input, Button, Select, TextArea
 
+from ai_guardian.constants import HookEvent
+
 HOOK_EVENTS = [
-    ("UserPromptSubmit", "UserPromptSubmit"),
-    ("PreToolUse", "PreToolUse"),
-    ("PostToolUse", "PostToolUse"),
+    (HookEvent.PROMPT.display_name, HookEvent.PROMPT.display_name),
+    (HookEvent.PRE_TOOL_USE.display_name, HookEvent.PRE_TOOL_USE.display_name),
+    (HookEvent.POST_TOOL_USE.display_name, HookEvent.POST_TOOL_USE.display_name),
 ]
 
 TOOL_OPTIONS = [
@@ -57,9 +59,9 @@ def build_hook_data(hook_event, tool_name=None, file_path=None, content=""):
     """
     hook_data = {"hook_event_name": hook_event}
 
-    if hook_event == "UserPromptSubmit":
+    if hook_event == HookEvent.PROMPT.display_name:
         hook_data["prompt"] = content
-    elif hook_event == "PreToolUse":
+    elif hook_event == HookEvent.PRE_TOOL_USE.display_name:
         parameters = {}
         if file_path:
             parameters["file_path"] = file_path
@@ -71,7 +73,7 @@ def build_hook_data(hook_event, tool_name=None, file_path=None, content=""):
             "name": tool_name or "Read",
             "parameters": parameters,
         }
-    elif hook_event == "PostToolUse":
+    elif hook_event == HookEvent.POST_TOOL_USE.display_name:
         hook_data["tool_name"] = tool_name or "Bash"
         hook_data["tool_response"] = {"output": content}
 
@@ -244,7 +246,7 @@ class HookSimulatorContent(ScrollableContainer):
                 yield Static("Hook Event", classes="sim-label")
                 yield Select(
                     HOOK_EVENTS,
-                    value="UserPromptSubmit",
+                    value=HookEvent.PROMPT.display_name,
                     id="sim-hook-event",
                     allow_blank=False,
                 )
@@ -307,7 +309,7 @@ class HookSimulatorContent(ScrollableContainer):
     def on_mount(self) -> None:
         self._last_hook_data = None
         self._last_result = None
-        self._update_field_visibility("UserPromptSubmit")
+        self._update_field_visibility(HookEvent.PROMPT.display_name)
         for widget_id in (
             "#sim-input-section",
             "#sim-results-section",
@@ -338,7 +340,7 @@ class HookSimulatorContent(ScrollableContainer):
         self._clear_results()
 
     def _update_field_visibility(self, hook_event):
-        show_tool_fields = hook_event != "UserPromptSubmit"
+        show_tool_fields = hook_event != HookEvent.PROMPT.display_name
         self.query_one("#sim-tool-section").display = show_tool_fields
         self.query_one("#sim-filepath-section").display = show_tool_fields
 
@@ -351,7 +353,10 @@ class HookSimulatorContent(ScrollableContainer):
 
         tool_name = None
         file_path = None
-        if hook_event in ("PreToolUse", "PostToolUse"):
+        if hook_event in (
+            HookEvent.PRE_TOOL_USE.display_name,
+            HookEvent.POST_TOOL_USE.display_name,
+        ):
             tool_val = self.query_one("#sim-tool-name", Select).value
             tool_name = tool_val if tool_val is not Select.BLANK else "Read"
             file_path = self.query_one("#sim-file-path", Input).value.strip() or None
@@ -478,5 +483,5 @@ class HookSimulatorContent(ScrollableContainer):
 
         self.query_one("#sim-content-area", TextArea).clear()
         self.query_one("#sim-file-path", Input).value = ""
-        self.query_one("#sim-hook-event", Select).value = "UserPromptSubmit"
-        self._update_field_visibility("UserPromptSubmit")
+        self.query_one("#sim-hook-event", Select).value = HookEvent.PROMPT.display_name
+        self._update_field_visibility(HookEvent.PROMPT.display_name)

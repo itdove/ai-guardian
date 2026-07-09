@@ -20,7 +20,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple, Set, Union
 
-from ai_guardian.constants import AUGMENT_TOOL_MAP
+from ai_guardian.constants import AUGMENT_TOOL_MAP, HookEvent
 
 try:
     from jsonschema import Draft7Validator, ValidationError as JsonSchemaValidationError
@@ -1554,8 +1554,8 @@ class ToolPolicyChecker:
 
         # Claude Code detection
         if "hook_event_name" in hook_data and hook_data.get("hook_event_name") in [
-            "UserPromptSubmit",
-            "PreToolUse",
+            HookEvent.PROMPT.display_name,
+            HookEvent.PRE_TOOL_USE.display_name,
         ]:
             return "claude_code"
 
