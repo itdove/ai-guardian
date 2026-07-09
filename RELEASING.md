@@ -8,7 +8,7 @@ This document describes the release management process for AI Guardian.
 - [Version Numbering](#version-numbering)
 - [Branch Strategy](#branch-strategy)
 - [Release Workflow](#release-workflow)
-- [Hotfix Workflow](#hotfix-workflow)
+- [Patch / Hotfix Workflow](#patch--hotfix-workflow)
 - [Release Checklist](#release-checklist)
 - [Version Infrastructure](#version-infrastructure)
 - [Testing Releases with TestPyPI](#testing-releases-with-testpypi)
@@ -85,7 +85,7 @@ The `/release` skill helps maintainers automate releases:
 /release minor   # Create minor version release
 /release patch   # Create patch version release
 /release major   # Create major version release
-/release hotfix v1.1.0  # Create hotfix from tag
+/release hotfix v1.1.0  # Create patch/hotfix from tag (or use existing release branch)
 /release test    # Create TestPyPI test release
 ```
 
@@ -144,11 +144,13 @@ main (v1.1.0-dev)
   |      |
   |      |--- v1.0.0 (tagged after testing)
   |      |
-  |      |--- hotfix-1.0.1 (created from v1.0.0 tag)
+  |      |--- cherry-pick fix from main (preferred for patch releases)
+  |      |     |
+  |      |     |--- v1.0.1 (tagged on release-1.0)
+  |      |
+  |      |--- (if release-1.0 deleted) hotfix-1.0.2 (created from v1.0.1 tag)
   |             |
-  |             |--- v1.0.1 (tagged after fix)
-  |             |
-  |             (merged back to release-1.0 and cherry-picked to main)
+  |             |--- v1.0.2 (tagged after fix)
   |
   |--- release-1.1 (created from main when ready for v1.1.0)
          |
@@ -382,31 +384,134 @@ EOF
 git push origin main
 ```
 
-## Hotfix Workflow
+## Patch / Hotfix Workflow
 
-### When to Use Hotfixes
+### When to Use
 
-Use hotfix branches for:
+Use patch releases for:
 - Critical bugs in production releases
 - Security vulnerabilities
 - Data corruption issues
 - Severe performance problems
 
-**Do NOT use hotfixes for**:
+**Do NOT use patch releases for**:
 - Minor bugs (wait for next minor release)
 - New features
 - Refactoring
 
-### Step-by-Step Hotfix Process
+### Which Approach to Use
+
+| Situation | Approach |
+|---|---|
+| Minor release branch (`release-x.y`) still exists | **Preferred:** Apply fix on `release-x.y` directly |
+| Minor release branch deleted | Create `hotfix-x.y.z` from last release tag |
+| Emergency fix, no time to cherry-pick | Create `hotfix-x.y.z` from last release tag |
+
+### Preferred: Patch on Existing Release Branch
+
+When the `release-x.y` branch still exists, apply the patch fix there directly instead of creating a separate hotfix branch.
+
+#### 1. Switch to the Release Branch
+
+```bash
+git checkout release-1.0
+git pull origin release-1.0
+```
+
+#### 2. Apply the Fix
+
+Cherry-pick the fix from main, or make the fix directly on the release branch:
+
+```bash
+# Option A: Cherry-pick from main (preferred when fix already merged to main)
+git cherry-pick <commit-sha-of-the-fix>
+
+# Option B: Make the fix directly on the release branch
+# Make your fixes, write tests
+pytest
+
+git add <files>
+git commit -m "$(cat <<'EOF'
+fix: critical bug in permission validation
+
+Fixes timeout issue when validating MCP permissions.
+
+Fixes: #123
+
+Co-Authored-By: Claude Sonnet 4.5 <noreply@anthropic.com>
+EOF
+)"
+```
+
+#### 3. Update Version Numbers
+
+Update to patch version in **pyproject.toml**:
+```toml
+version = "1.0.1"
+```
+
+Update to patch version in **src/ai_guardian/__init__.py**:
+```python
+__version__ = "1.0.1"
+```
+
+```bash
+git add pyproject.toml src/ai_guardian/__init__.py
+git commit -m "chore: bump version to 1.0.1"
+```
+
+#### 4. Update CHANGELOG.md
+
+Add a new section for the patch:
+
+```markdown
+## [1.0.1] - 2025-01-20
+
+### Fixed
+- Critical timeout issue in permission validation (#123)
+
+[1.0.1]: https://github.com/itdove/ai-guardian/releases/tag/v1.0.1
+```
+
+```bash
+git add CHANGELOG.md
+git commit -m "docs: update CHANGELOG for v1.0.1"
+```
+
+#### 5. Tag and Release
+
+```bash
+# Create tag on the release branch
+git tag -a v1.0.1 -m "Patch release 1.0.1
+
+Critical fix for permission validation timeout.
+"
+
+# Push release branch and tag
+git push origin release-1.0
+git push origin v1.0.1
+```
+
+The GitHub Actions workflow will automatically publish to PyPI and create a release.
+
+#### 6. Cherry-pick to Main
+
+```bash
+# Cherry-pick the fix to main (if not already there)
+git checkout main
+git cherry-pick <commit-sha-of-the-fix>  # Only the fix commit, not version bumps
+git push origin main
+```
+
+### Fallback: Hotfix Branch from Tag
+
+When the `release-x.y` branch has been deleted or in emergencies, create a hotfix branch from the last release tag.
 
 #### 1. Create Hotfix Branch
 
 ```bash
-# Checkout the release tag that needs the fix
+# Create hotfix branch from the release tag
 git checkout -b hotfix-1.0.1 v1.0.0
-
-# Alternatively, branch from the release branch
-git checkout -b hotfix-1.0.1 release-1.0
 ```
 
 #### 2. Fix the Bug
@@ -483,14 +588,9 @@ git push origin v1.0.1
 
 The GitHub Actions workflow will automatically publish to PyPI and create a release.
 
-#### 6. Merge Back to Release and Main
+#### 6. Merge Back and Clean Up
 
 ```bash
-# Merge hotfix to release branch
-git checkout release-1.0
-git merge hotfix-1.0.1 --no-ff
-git push origin release-1.0
-
 # Cherry-pick the fix to main (NOT merge the version bumps)
 git checkout main
 git cherry-pick <commit-sha-of-the-fix>  # Only the fix commit, not version bumps
@@ -533,15 +633,15 @@ Use this checklist for each release:
 - [ ] Bump version to next dev cycle (`X.Y+1.0-dev`)
 - [ ] Announce release (if applicable)
 
-### Hotfix (if needed)
-- [ ] Create hotfix branch from release tag
-- [ ] Fix bug and add tests
+### Patch / Hotfix (if needed)
+- [ ] Check if `release-x.y` branch exists (preferred) or create `hotfix-x.y.z` from tag (fallback)
+- [ ] Apply fix (cherry-pick from main or fix directly)
 - [ ] Update version to patch level
 - [ ] Update CHANGELOG.md
 - [ ] Create and push tag
 - [ ] Verify GitHub Actions completes
-- [ ] Merge back to release branch
-- [ ] Cherry-pick fix to `main`
+- [ ] Cherry-pick fix to `main` (if not already there)
+- [ ] (Hotfix branch only) Delete hotfix branch after merge
 
 ## Version Infrastructure
 
