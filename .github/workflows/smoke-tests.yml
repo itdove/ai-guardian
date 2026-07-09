@@ -3,9 +3,10 @@ name: Smoke Tests
 on:
   push:
     branches:
+      - 'dev/*'
       - 'release-*'
   pull_request:
-    branches: [main, 'release-*']
+    branches: [main, 'dev/*', 'release-*']
   workflow_call:
   workflow_dispatch:
 
