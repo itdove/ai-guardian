@@ -1,8 +1,10 @@
 """
-Tray menu plugin loader and command utilities.
+Tray menu plugin loader, command utilities, and plugin menu building.
 
 Loads plugin definitions from JSON files in the tray-plugins directory.
 Each daemon reads its own plugins and serves them via the REST API.
+Plugin command execution and menu slot constants also live here
+(split from tray.py, Issue #1492).
 """
 
 import json
@@ -1088,3 +1090,179 @@ def copy_to_clipboard(text: str) -> bool:
         return True
     except (subprocess.TimeoutExpired, OSError, FileNotFoundError):
         return False
+
+
+# ---------------------------------------------------------------------------
+# Plugin menu constants and command execution helpers
+# Split from tray.py (Issue #1492)
+# ---------------------------------------------------------------------------
+
+MAX_PLUGIN_SLOTS = 8
+MAX_ITEMS_PER_PLUGIN = 12
+MAX_SUBMENU_ITEMS = 8
+MAX_SUBMENU_DEPTH = 2
+MAX_GLOBAL_PLUGIN_SLOTS = 4
+MAX_GLOBAL_ITEMS_PER_PLUGIN = 12
+
+
+def get_python_executable():
+    """Get the best available Python executable path."""
+    import shutil
+
+    python_exe = shutil.which("python")
+    if python_exe:
+        return python_exe
+    python_exe = shutil.which("python3")
+    if python_exe:
+        return python_exe
+    return sys.executable
+
+
+def resolve_cli_cmd(*args):
+    """Build command list for running ai-guardian with given arguments.
+
+    Uses absolute path to python to ensure it works in subprocesses that
+    may not have the same PATH (e.g., Terminal.app on macOS).
+    """
+    import shutil
+
+    ag_path = shutil.which("ai-guardian")
+    if ag_path:
+        return [ag_path] + list(args)
+    python_exe = get_python_executable()
+    return [python_exe, "-m", "ai_guardian"] + list(args)
+
+
+def resolve_plugin_ai_guardian(command_str, run_on_target, target):
+    """Replace bare ``ai-guardian`` with absolute python path.
+
+    Skipped for remote targets (container / kubernetes) where the
+    command must resolve via PATH on the remote host.
+    """
+    is_remote = (
+        run_on_target
+        and target
+        and getattr(target, "runtime", "local") in ("container", "kubernetes")
+    )
+    if is_remote:
+        return command_str
+
+    stripped = command_str.lstrip()
+    if stripped == "ai-guardian" or stripped.startswith("ai-guardian "):
+        python_exe = get_python_executable()
+        resolved = shlex.quote(python_exe) + " -m ai_guardian"
+        return resolved + stripped[len("ai-guardian") :]
+    return command_str
+
+
+def poll_output_file(output_path, tmpdir, timeout=300, interval=0.5):
+    """Poll for an output file, read its content, and clean up.
+
+    Returns the stripped file content, or ``None`` if the file was not
+    created before *timeout* seconds elapsed.
+    """
+    import shutil
+    import time
+
+    elapsed = 0.0
+    while elapsed < timeout:
+        if os.path.exists(output_path):
+            try:
+                with open(output_path) as f:
+                    content = f.read().strip()
+            except OSError:
+                content = ""
+            shutil.rmtree(tmpdir, ignore_errors=True)
+            return content
+        time.sleep(interval)
+        elapsed += interval
+    shutil.rmtree(tmpdir, ignore_errors=True)
+    return None
+
+
+def execute_plugin_command(
+    command_str,
+    item_type,
+    target=None,
+    run_on_target=False,
+    label=None,
+):
+    """Execute a plugin command with optional target context."""
+    import subprocess
+
+    from ai_guardian.daemon.multi_client import _launch_in_terminal
+
+    command_str = substitute_target_vars(command_str, target)
+    if target and getattr(target, "working_dir", None):
+        command_str = substitute_params(
+            command_str,
+            {"working_dir": target.working_dir},
+        )
+
+    command_str = resolve_plugin_ai_guardian(command_str, run_on_target, target)
+
+    if _needs_shell(command_str):
+        cmd_parts = ["sh", "-c", command_str]
+    else:
+        try:
+            cmd_parts = shlex.split(command_str)
+        except ValueError:
+            logger.warning("Malformed plugin command: %s", command_str)
+            return
+
+    if run_on_target and target:
+        cmd_parts = wrap_for_target(
+            cmd_parts,
+            target,
+            interactive=(item_type == "terminal"),
+        )
+
+    is_remote = (
+        run_on_target
+        and target
+        and getattr(target, "runtime", "local") in ("container", "kubernetes")
+    )
+    if item_type != "terminal" and not is_remote:
+        shell = os.environ.get("SHELL", "/bin/bash")
+        cmd_parts = [shell, "-lc", command_str]
+
+    try:
+        if item_type == "terminal":
+            _launch_in_terminal(cmd_parts, keep_open=True)
+        elif item_type == "notification":
+            result = subprocess.run(
+                cmd_parts,
+                capture_output=True,
+                text=True,
+                timeout=60,
+            )
+            send_notification("AI Guardian", result.stdout.strip() or "(no output)")
+        elif item_type == "clipboard":
+            result = subprocess.run(
+                cmd_parts,
+                capture_output=True,
+                text=True,
+                timeout=60,
+            )
+            copy_to_clipboard(result.stdout.strip())
+        elif item_type == "modal":
+            result = subprocess.run(
+                cmd_parts,
+                capture_output=True,
+                text=True,
+                timeout=60,
+            )
+            output = result.stdout.strip()
+            err = result.stderr.strip()
+            if err:
+                if result.returncode != 0:
+                    output = (
+                        err if not output else (output + "\n\n--- stderr ---\n" + err)
+                    )
+                else:
+                    output = (output + "\n" + err).strip() if output else err
+            show_dialog(label or "AI Guardian", output or "(no output)")
+        else:
+            subprocess.run(cmd_parts, timeout=60)
+    except Exception:
+        pass
