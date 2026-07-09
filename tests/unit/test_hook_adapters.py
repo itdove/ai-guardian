@@ -647,6 +647,13 @@ class TestSharedResponseMethods:
         assert adapter._event_name(HookEvent.STOP) == "Stop"
         assert adapter._event_name(HookEvent.POST_COMPACT) == "PostCompact"
 
+    def test_event_name_unknown_falls_back_to_value(self):
+        from unittest.mock import patch
+
+        adapter = BaseAgentAdapter()
+        with patch("ai_guardian.hook_adapters.base_agent._EVENT_NAMES", {}):
+            assert adapter._event_name(HookEvent.STOP) == "stop"
+
     def test_block_response_no_violation_type(self):
         resp = BaseAgentAdapter()._block_response(HookEvent.PROMPT, "Error")
         assert "security violation" in resp["hookSpecificOutput"]["additionalContext"]
