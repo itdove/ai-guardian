@@ -78,19 +78,23 @@ When invoked with arguments (e.g., `/release minor`), this skill guides you thro
 
 **Purpose**: Create a critical bug fix for an existing release
 
+**Preferred approach**: If the minor release branch (`release-x.y`) still exists, apply the patch fix there directly instead of creating a separate hotfix branch. Only create a `hotfix-x.y.z` branch when the release branch has been deleted or in emergencies.
+
 **Prerequisites**:
 - Valid release tag exists (e.g., v1.0.0)
 - Bug fix is truly critical
 
 **Steps**:
 1. Verify tag exists
-2. Create hotfix branch from the specified tag
+2. Check if `release-x.y` branch exists
+   - **If yes (preferred)**: Switch to `release-x.y`, cherry-pick or apply fix there
+   - **If no (fallback)**: Create `hotfix-x.y.z` branch from the specified tag
 3. Guide through bug fix implementation
 4. Calculate hotfix version (increment patch)
 5. Update version in both files
-6. Update CHANGELOG.md with hotfix entry
+6. Update CHANGELOG.md with patch/hotfix entry
 7. Provide instructions for tagging
-8. Provide merge-back guidance
+8. Provide cherry-pick-to-main and cleanup guidance
 
 ### Test Release (`/release test`)
 
@@ -428,7 +432,7 @@ Before creating the production tag, verify the package builds and renders correc
 
 **Branch Naming**:
 - Regular release: `release-X.Y` (e.g., `release-2.2`)
-- Hotfix: `hotfix-X.Y.Z` (e.g., `hotfix-2.1.1`)
+- Patch fix: Prefer existing `release-X.Y` branch; use `hotfix-X.Y.Z` (e.g., `hotfix-2.1.1`) only when release branch is deleted
 - Test release: `release-X.Y-test` (e.g., `release-2.2-test`)
 
 **Tag Naming**:
@@ -497,12 +501,14 @@ Before creating the production tag, verify the package builds and renders correc
 
 # Skill will:
 # 1. Verify v1.1.0 tag exists
-# 2. Create hotfix-1.1.1 branch from v1.1.0
-# 3. Wait for user to implement fix
+# 2. Check if release-1.1 branch exists
+#    - If yes: switch to release-1.1 (preferred)
+#    - If no: create hotfix-1.1.1 branch from v1.1.0
+# 3. Wait for user to implement fix (or cherry-pick from main)
 # 4. Update version to 1.1.1 in all configured files
 # 5. Update CHANGELOG.md for v1.1.1
 # 6. Commit changes
-# 7. Provide tag creation and merge-back commands
+# 7. Provide tag creation and cherry-pick-to-main commands
 ```
 
 ### Test Release
