@@ -35,6 +35,7 @@ class PostScanContext:
     ide_type_value: str = "unknown"
     violation_logger: Any = None
     latency_timer: Any = None
+    invocation_allowed_findings: Any = None
 
 
 @dataclass
@@ -127,6 +128,58 @@ def log_scan_violation(
         logger.error("Failed to log %s violation: %s", entry.name, e)
 
 
+def log_scan_violations_per_finding(
+    entry: Any,
+    findings: List[Any],
+    ctx: PostScanContext,
+    *,
+    file_path: Optional[str] = None,
+) -> None:
+    """Log one violation per finding (e.g. CODE_SECURITY multi-finding results)."""
+    if ctx.violation_logger is None or not findings:
+        return
+    try:
+        from ai_guardian.config_utils import get_project_dir
+
+        violation_ctx: Dict[str, Any] = {
+            "ide_type": ctx.ide_type_value,
+            "hook_event": ctx.hook_event,
+            "project_path": get_project_dir(),
+        }
+        if ctx.hook_tool_use_id:
+            violation_ctx["tool_use_id"] = ctx.hook_tool_use_id
+        if ctx.hook_session_id:
+            violation_ctx["session_id"] = ctx.hook_session_id
+
+        for f in findings:
+            blocked: Dict[str, Any] = {}
+            if file_path:
+                blocked["file_path"] = file_path
+            rule_id = getattr(f, "rule_id", None) or ""
+            description = getattr(f, "description", None) or ""
+            severity = getattr(f, "severity", None) or entry.violation_severity
+            line_number = getattr(f, "line_number", None)
+            start_column = getattr(f, "start_column", None)
+            if rule_id:
+                blocked["rule_id"] = rule_id
+            if description:
+                blocked["reason"] = description
+            if line_number is not None:
+                blocked["line_number"] = line_number
+            if start_column is not None:
+                blocked["start_column"] = start_column
+
+            ctx.violation_logger.log_violation(
+                violation_type=entry.violation_type,
+                blocked=blocked,
+                context=violation_ctx,
+                suggestion=entry.violation_suggestion or {},
+                severity=severity,
+            )
+    except Exception as e:
+        logger.error("Failed to log per-finding %s violations: %s", entry.name, e)
+
+
 def apply_post_scan_pipeline(
     entry: Any,
     result: ScanResult,
@@ -138,6 +191,8 @@ def apply_post_scan_pipeline(
     blocked_overrides: Optional[Dict[str, Any]] = None,
     context_overrides: Optional[Dict[str, Any]] = None,
     severity_override: Optional[str] = None,
+    skip_violation_log: bool = False,
+    finding_fingerprints: Optional[List[Any]] = None,
 ) -> PostScanDecision:
     """Apply standard post-scan filters: violation logging + ask mode.
 
@@ -146,15 +201,16 @@ def apply_post_scan_pipeline(
     if not result.detected:
         return PostScanDecision(should_block=False)
 
-    log_scan_violation(
-        entry,
-        result,
-        ctx,
-        source=source,
-        blocked_overrides=blocked_overrides,
-        context_overrides=context_overrides,
-        severity_override=severity_override,
-    )
+    if not skip_violation_log:
+        log_scan_violation(
+            entry,
+            result,
+            ctx,
+            source=source,
+            blocked_overrides=blocked_overrides,
+            context_overrides=context_overrides,
+            severity_override=severity_override,
+        )
 
     should_block = result.should_block
     error_msg = result.error_message or ""
@@ -209,6 +265,8 @@ def apply_post_scan_pipeline(
                 file_path=file_path,
                 line_number=result.line_number,
                 dialog_wait_ms=ask_result.dialog_wait_ms,
+                invocation_allowed_findings=ctx.invocation_allowed_findings,
+                finding_fingerprints=finding_fingerprints,
             )
 
             return PostScanDecision(

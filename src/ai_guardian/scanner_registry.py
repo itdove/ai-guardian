@@ -146,6 +146,8 @@ def _build_default_registry() -> ScannerRegistry:
         HookEvent.PROMPT,
     }
 
+    # IMAGE: exempt from apply_post_scan_pipeline() — content enrichment only
+    # (OCR/QR extraction). No violations, no blocking. Not a security scanner.
     registry.register(
         ScannerEntry(
             name=ScannerName.IMAGE,
@@ -172,6 +174,13 @@ def _build_default_registry() -> ScannerRegistry:
             supports_ask_mode=False,
             config_section="config_file_scanning",
             violation_severity="critical",
+            violation_suggestion={
+                "action": "review_bash_command",
+                "note": (
+                    "Review command for credential exfiltration patterns."
+                    " If legitimate, add to config_file_scanning.allowlist_patterns"
+                ),
+            },
         )
     )
 
@@ -368,6 +377,9 @@ def _build_default_registry() -> ScannerRegistry:
         )
     )
 
+    # DIRECTORY: exempt from apply_post_scan_pipeline() — runs in separate
+    # check_directory_denied() path with marker-based precedence.
+    # No ask mode. Logs at multiple decision points via _log_directory_blocking_violation.
     registry.register(
         ScannerEntry(
             name=ScannerName.DIRECTORY,
