@@ -49,6 +49,12 @@ class ScannerEntry:
     requires_command: bool = False
     order: int = 100
 
+    # Phase 4: post-scan pipeline metadata
+    supports_ask_mode: bool = True
+    config_section: str = ""
+    violation_severity: str = "high"
+    violation_suggestion: Optional[Dict[str, str]] = field(default=None)
+
 
 class ScannerRegistry:
     """Registry mapping hook events to ordered scanner pipelines.
@@ -149,6 +155,8 @@ def _build_default_registry() -> ScannerRegistry:
             requires_content=False,
             requires_file_path=True,
             order=1,
+            supports_ask_mode=False,
+            config_section="image_scanning",
         )
     )
 
@@ -161,6 +169,9 @@ def _build_default_registry() -> ScannerRegistry:
             requires_content=False,
             requires_command=True,
             order=5,
+            supports_ask_mode=False,
+            config_section="config_file_scanning",
+            violation_severity="critical",
         )
     )
 
@@ -173,6 +184,15 @@ def _build_default_registry() -> ScannerRegistry:
             requires_content=False,
             requires_command=True,
             order=6,
+            supports_ask_mode=False,
+            config_section="exfil_detection",
+            violation_suggestion={
+                "action": "add_allowlist_pattern",
+                "note": (
+                    "If this is a legitimate command, add to"
+                    " exfil_detection.allowlist_patterns in ai-guardian.json"
+                ),
+            },
         )
     )
 
@@ -185,6 +205,14 @@ def _build_default_registry() -> ScannerRegistry:
             requires_content=True,
             requires_file_path=True,
             order=7,
+            config_section="code_scanning",
+            violation_suggestion={
+                "action": "nosec_or_allowlist",
+                "note": (
+                    "Suppress with  # nosec  or add to"
+                    " code_scanning.allowlist in ai-guardian.json"
+                ),
+            },
         )
     )
 
@@ -195,6 +223,14 @@ def _build_default_registry() -> ScannerRegistry:
             violation_type=ViolationType.PROMPT_INJECTION,
             hook_events=CONTENT_EVENTS | {HookEvent.POST_TOOL_USE},
             order=10,
+            config_section="prompt_injection",
+            violation_suggestion={
+                "action": "add_allowlist_pattern",
+                "note": (
+                    "If this is legitimate (e.g., documentation),"
+                    " add to allowlist in ai-guardian.json"
+                ),
+            },
         )
     )
 
@@ -205,6 +241,15 @@ def _build_default_registry() -> ScannerRegistry:
             violation_type=ViolationType.CONTEXT_POISONING,
             hook_events=CONTENT_EVENTS | {HookEvent.POST_TOOL_USE},
             order=20,
+            config_section="context_poisoning",
+            violation_severity="medium",
+            violation_suggestion={
+                "action": "add_allowlist_pattern",
+                "note": (
+                    "If this is a legitimate persistent instruction, add to"
+                    " context_poisoning.allowlist_patterns in ai-guardian.json"
+                ),
+            },
         )
     )
 
@@ -215,6 +260,14 @@ def _build_default_registry() -> ScannerRegistry:
             violation_type=ViolationType.SUPPLY_CHAIN,
             hook_events={HookEvent.PRE_TOOL_USE, HookEvent.BEFORE_READ_FILE},
             order=30,
+            config_section="supply_chain",
+            violation_suggestion={
+                "action": "add_allowlist_path",
+                "note": (
+                    "If this is a trusted config file, add to"
+                    " supply_chain.allowlist_paths in ai-guardian.json"
+                ),
+            },
         )
     )
 
@@ -225,6 +278,16 @@ def _build_default_registry() -> ScannerRegistry:
             violation_type=ViolationType.OFFENSIVE_LANGUAGE,
             hook_events=CONTENT_EVENTS | {HookEvent.POST_TOOL_USE},
             order=40,
+            config_section="scan_offensive",
+            violation_suggestion={
+                "action": "review_offensive_language",
+                "note": (
+                    "Replace the term with a neutral alternative."
+                    " Add '# ai-guardian:allow' inline or use"
+                    " scan_offensive.allowlist_patterns to suppress"
+                    " known-safe uses."
+                ),
+            },
         )
     )
 
@@ -235,6 +298,15 @@ def _build_default_registry() -> ScannerRegistry:
             violation_type=ViolationType.CANARY_DETECTED,
             hook_events=CONTENT_EVENTS,
             order=50,
+            config_section="canary_detection",
+            violation_suggestion={
+                "action": "investigate_exfiltration",
+                "note": (
+                    "A registered canary token was detected in AI output."
+                    " This may indicate data exfiltration. Check your"
+                    " canary_detection.tokens config."
+                ),
+            },
         )
     )
 
@@ -247,6 +319,15 @@ def _build_default_registry() -> ScannerRegistry:
             requires_content=True,
             requires_file_path=True,
             order=60,
+            config_section="config_file_scanning",
+            violation_severity="critical",
+            violation_suggestion={
+                "action": "review_config_file",
+                "false_positive": (
+                    "Move to examples/ directory, or add to"
+                    " config_file_scanning.ignore_files"
+                ),
+            },
         )
     )
 
@@ -257,6 +338,15 @@ def _build_default_registry() -> ScannerRegistry:
             violation_type=ViolationType.SECRET_DETECTED,
             hook_events=CONTENT_EVENTS | {HookEvent.POST_TOOL_USE},
             order=70,
+            config_section="secret_scanning",
+            violation_severity="critical",
+            violation_suggestion={
+                "action": "review_and_remove_secret",
+                "note": (
+                    "Secrets should never be committed to source control."
+                    " Remove and rotate the credential."
+                ),
+            },
         )
     )
 
@@ -267,6 +357,14 @@ def _build_default_registry() -> ScannerRegistry:
             violation_type=ViolationType.PII_DETECTED,
             hook_events=CONTENT_EVENTS | {HookEvent.POST_TOOL_USE},
             order=80,
+            config_section="scan_pii",
+            violation_suggestion={
+                "action": "review_pii_detection",
+                "note": (
+                    "Allowlist the value or disable specific PII types"
+                    " in scan_pii config."
+                ),
+            },
         )
     )
 
@@ -279,6 +377,14 @@ def _build_default_registry() -> ScannerRegistry:
             requires_content=False,
             requires_file_path=True,
             order=90,
+            config_section="directory_rules",
+            violation_severity="warning",
+            violation_suggestion={
+                "action": "update_directory_rules",
+                "note": (
+                    "Update directory_rules in ai-guardian.json" " to allow this path."
+                ),
+            },
         )
     )
 
