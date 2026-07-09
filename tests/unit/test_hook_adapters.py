@@ -557,6 +557,109 @@ class TestNormalization:
         assert adapter.ide_type == IDEType.CLAUDE_CODE
 
 
+# ── Shared Response Methods (#1527) ────────────────────────────────────
+
+
+class TestSharedResponseMethods:
+    """Test _block_response/_warn_response/_allow_response across HookEvents."""
+
+    _EVENTS = [
+        (HookEvent.SESSION_START, "SessionStart", False),
+        (HookEvent.PROMPT, "UserPromptSubmit", False),
+        (HookEvent.PRE_TOOL_USE, "PreToolUse", True),
+        (HookEvent.POST_TOOL_USE, "PostToolUse", False),
+        (HookEvent.BEFORE_READ_FILE, "PreToolUse", True),
+    ]
+
+    @pytest.mark.parametrize(
+        "hook_event,event_name,uses_perm",
+        _EVENTS,
+        ids=[e[0].value for e in _EVENTS],
+    )
+    def test_block_response(self, hook_event, event_name, uses_perm):
+        adapter = BaseAgentAdapter()
+        resp = adapter._block_response(hook_event, "Error msg", "secret_detected")
+        assert resp["systemMessage"] == "Error msg"
+        assert resp["hookSpecificOutput"]["hookEventName"] == event_name
+        assert (
+            "blocked by ai-guardian" in resp["hookSpecificOutput"]["additionalContext"]
+        )
+        assert "secret detected" in resp["hookSpecificOutput"]["additionalContext"]
+        if uses_perm:
+            assert resp["hookSpecificOutput"]["permissionDecision"] == "deny"
+            assert "decision" not in resp
+        elif hook_event == HookEvent.SESSION_START:
+            assert resp["decision"] == "block"
+            assert "reason" not in resp
+        else:
+            assert resp["decision"] == "block"
+            assert resp["reason"] == "Error msg"
+            assert "permissionDecision" not in resp["hookSpecificOutput"]
+
+    @pytest.mark.parametrize(
+        "hook_event,event_name,_uses_perm",
+        _EVENTS,
+        ids=[e[0].value for e in _EVENTS],
+    )
+    def test_warn_response(self, hook_event, event_name, _uses_perm):
+        adapter = BaseAgentAdapter()
+        resp = adapter._warn_response(hook_event, "Warn text", "Security rules")
+        assert "Security rules" in resp["systemMessage"]
+        assert "Warn text" in resp["systemMessage"]
+        assert resp["hookSpecificOutput"]["hookEventName"] == event_name
+        assert resp["hookSpecificOutput"]["additionalContext"] == resp["systemMessage"]
+
+    def test_warn_response_empty(self):
+        assert BaseAgentAdapter()._warn_response(HookEvent.PROMPT) == {}
+
+    def test_warn_response_security_only(self):
+        resp = BaseAgentAdapter()._warn_response(
+            HookEvent.PROMPT, security_message="Rules"
+        )
+        assert resp["systemMessage"] == "Rules"
+
+    def test_warn_response_warning_only(self):
+        resp = BaseAgentAdapter()._warn_response(HookEvent.PROMPT, "Warning")
+        assert resp["systemMessage"] == "Warning"
+
+    @pytest.mark.parametrize(
+        "hook_event,event_name,_uses_perm",
+        _EVENTS,
+        ids=[e[0].value for e in _EVENTS],
+    )
+    def test_allow_response_with_security(self, hook_event, event_name, _uses_perm):
+        resp = BaseAgentAdapter()._allow_response(hook_event, "Security context")
+        assert resp["systemMessage"] == "Security context"
+        assert resp["hookSpecificOutput"]["hookEventName"] == event_name
+        assert resp["hookSpecificOutput"]["additionalContext"] == "Security context"
+
+    def test_allow_response_empty(self):
+        assert BaseAgentAdapter()._allow_response(HookEvent.PROMPT) == {}
+
+    def test_event_name_mapping(self):
+        adapter = BaseAgentAdapter()
+        assert adapter._event_name(HookEvent.SESSION_START) == "SessionStart"
+        assert adapter._event_name(HookEvent.PROMPT) == "UserPromptSubmit"
+        assert adapter._event_name(HookEvent.PRE_TOOL_USE) == "PreToolUse"
+        assert adapter._event_name(HookEvent.POST_TOOL_USE) == "PostToolUse"
+        assert adapter._event_name(HookEvent.BEFORE_READ_FILE) == "PreToolUse"
+        assert adapter._event_name(HookEvent.SESSION_END) == "SessionEnd"
+        assert adapter._event_name(HookEvent.STOP) == "Stop"
+        assert adapter._event_name(HookEvent.POST_COMPACT) == "PostCompact"
+
+    def test_block_response_no_violation_type(self):
+        resp = BaseAgentAdapter()._block_response(HookEvent.PROMPT, "Error")
+        assert "security violation" in resp["hookSpecificOutput"]["additionalContext"]
+
+    def test_block_sanitizes_raw_error(self):
+        """additionalContext uses sanitized label, not raw error message."""
+        resp = BaseAgentAdapter()._block_response(
+            HookEvent.PROMPT, "AWS key: AKIA...", "secret_detected"
+        )
+        assert "AKIA" not in resp["hookSpecificOutput"]["additionalContext"]
+        assert "secret detected" in resp["hookSpecificOutput"]["additionalContext"]
+
+
 # ── Response Formatting ─────────────────────────────────────────────────
 
 
@@ -949,7 +1052,7 @@ class TestAgentFacingMessages:
         assert data["permission"] == "allow"
         assert "agent_message" not in data
 
-    def test_claude_code_posttooluse_block_no_additional_context(self):
+    def test_claude_code_posttooluse_block_has_additional_context(self):
         result = BaseAgentAdapter().format_response(
             has_secrets=True,
             error_message="Secret in output",
@@ -957,7 +1060,10 @@ class TestAgentFacingMessages:
         )
         data = json.loads(result["output"])
         assert data["decision"] == "block"
-        assert "additionalContext" not in data.get("hookSpecificOutput", {})
+        assert data["systemMessage"] == "Secret in output"
+        assert (
+            "blocked by ai-guardian" in data["hookSpecificOutput"]["additionalContext"]
+        )
 
     def test_cursor_pretooluse_block_has_agent_message(self):
         result = CursorAdapter().format_response(
