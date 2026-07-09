@@ -303,3 +303,44 @@ class TestDefaultRegistry:
         for name in ScannerName:
             entry = reg.get(name)
             assert callable(entry.run_fn)
+
+    # Phase 4: post-scan filter metadata tests
+
+    def test_new_fields_have_defaults(self):
+        """New Phase 4 fields have defaults so existing code is unaffected."""
+        entry = ScannerEntry(
+            name=ScannerName.SECRET,
+            run_fn=_dummy_scan,
+            violation_type=ViolationType.SECRET_DETECTED,
+            hook_events={HookEvent.PRE_TOOL_USE},
+        )
+        assert entry.supports_ask_mode is True
+        assert entry.config_section == ""
+        assert entry.violation_severity == "high"
+        assert entry.violation_suggestion is None
+
+    def test_all_scanners_have_config_section(self):
+        reg = get_default_registry()
+        for name in ScannerName:
+            entry = reg.get(name)
+            assert entry.config_section, f"{name} missing config_section"
+
+    def test_exfil_scanners_no_ask_mode(self):
+        reg = get_default_registry()
+        no_ask = {
+            ScannerName.BASH_EXFIL,
+            ScannerName.EXFIL_DETECTION,
+            ScannerName.IMAGE,
+        }
+        for name in no_ask:
+            entry = reg.get(name)
+            assert not entry.supports_ask_mode, f"{name} should not support ask mode"
+
+    def test_most_scanners_have_violation_suggestion(self):
+        reg = get_default_registry()
+        for name in ScannerName:
+            entry = reg.get(name)
+            if name not in (ScannerName.BASH_EXFIL, ScannerName.IMAGE):
+                assert (
+                    entry.violation_suggestion is not None
+                ), f"{name} missing violation_suggestion"

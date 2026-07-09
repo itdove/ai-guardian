@@ -8224,6 +8224,26 @@ def process_hook_data(hook_data, daemon_state=None):
         )
         _pipeline_names = {e.name for e in _content_pipeline}
 
+        from ai_guardian.post_scan_filters import (
+            PostScanContext,
+            apply_post_scan_pipeline,
+        )
+
+        _post_scan_ctx = PostScanContext(
+            handle_ask_mode_auto=_handle_ask_mode_auto,
+            log_ask_decision=_log_ask_decision,
+            format_ask_info_message=_format_ask_info_message,
+            hook_event=hook_event,
+            hook_session_id=hook_session_id,
+            hook_tool_use_id=hook_tool_use_id,
+            tool_name=tool_name,
+            ide_type_value=(
+                ide_type.value if hasattr(ide_type, "value") else str(ide_type)
+            ),
+            violation_logger=violation_logger,
+            latency_timer=_latency_timer,
+        )
+
         # Check for prompt injection BEFORE scanning for secrets
         try:
             pi_result = None
@@ -8240,110 +8260,40 @@ def process_hook_data(hook_data, daemon_state=None):
                 )
 
             if pi_result is not None:
-                injection_detected = pi_result.detected
-                should_block = pi_result.should_block
-                injection_error = pi_result.error_message
-
-                if injection_detected:
+                if pi_result.detected:
                     _pretool_pi_detected = True
-                    inj_hook_ctx = {
-                        "hook_event": hook_event,
-                        "tool_name": tool_name,
-                    }
-                    if hook_tool_use_id:
-                        inj_hook_ctx["tool_use_id"] = hook_tool_use_id
-                    if hook_session_id:
-                        inj_hook_ctx["session_id"] = hook_session_id
-                    _log_prompt_injection_violation(
-                        filename,
-                        context={
-                            "ide_type": ide_type.value,
-                            "hook_event": hook_event,
-                            "file_path": file_path,
-                        },
-                        attack_type=pi_result.attack_type,
-                        hook_context=inj_hook_ctx if inj_hook_ctx else None,
-                        matched_pattern=pi_result.matched_pattern,
-                        matched_text=pi_result.matched_text,
-                        confidence=pi_result.confidence,
-                        line_number=pi_result.line_number,
-                        start_column=pi_result.start_column,
-                        end_column=pi_result.end_column,
-                    )
-
-                if should_block:
-                    pi_action = pi_result.extra.get("action", "block")
-                    pi_ask_result = _handle_ask_mode_auto(
-                        pi_action,
-                        ViolationType.PROMPT_INJECTION,
-                        config_section="prompt_injection",
-                        error_msg=injection_error,
+                    pi_decision = apply_post_scan_pipeline(
+                        _registry.get(ScannerName.PROMPT_INJECTION),
+                        pi_result,
+                        _post_scan_ctx,
                         file_path=file_path,
-                        matched_text=pi_result.matched_text,
-                        line_number=pi_result.line_number,
-                        matched_pattern=pi_result.matched_pattern,
-                        latency_timer=_latency_timer,
-                        hook_context={
-                            "session_id": hook_session_id,
-                            "project_path": get_project_dir(),
-                            "hook_event": hook_event,
-                            "tool_name": tool_name,
-                        },
-                        findings=pi_result.findings,
+                        filename=filename,
                     )
-                    if pi_ask_result is not None:
-                        from ai_guardian.tui.ask_dialog import AskDecision
-
-                        if pi_ask_result.decision not in (
-                            AskDecision.BLOCK,
-                            AskDecision.BLOCK_ALL,
-                        ):
-                            pi_info_msg = _format_ask_info_message(
-                                ViolationType.PROMPT_INJECTION,
-                                pi_ask_result.decision,
-                            )
-                            warning_messages.append(pi_info_msg)
-                            should_block = False
-                            injection_error = pi_info_msg
-                            _log_ask_decision(
-                                ViolationType.PROMPT_INJECTION,
-                                pi_ask_result.decision,
-                                matched_text=pi_result.matched_text,
-                                error_msg=injection_error,
-                                file_path=file_path,
-                                line_number=pi_result.line_number,
-                                dialog_wait_ms=pi_ask_result.dialog_wait_ms,
-                            )
-
-                if should_block:
+                    warning_messages.extend(pi_decision.warnings)
+                    if pi_decision.should_block:
+                        if ide_type != IDEType.CURSOR:
+                            if file_path:
+                                logging.info(
+                                    f"Blocking operation for {file_path} due to prompt injection detection"
+                                )
+                            else:
+                                logging.info(
+                                    "Blocking operation due to prompt injection detection"
+                                )
+                        combined_warning = (
+                            "\n\n".join(warning_messages) if warning_messages else None
+                        )
+                        return _format_response(
+                            adapter,
+                            has_secrets=True,
+                            error_message=pi_decision.error_message,
+                            hook_event=hook_event,
+                            warning_message=combined_warning,
+                            violation_type=ViolationType.PROMPT_INJECTION,
+                            security_message=security_message,
+                        )
+                else:
                     if ide_type != IDEType.CURSOR:
-                        if file_path:
-                            logging.info(
-                                f"Blocking operation for {file_path} due to prompt injection detection"
-                            )
-                        else:
-                            logging.info(
-                                "Blocking operation due to prompt injection detection"
-                            )
-
-                    combined_warning = (
-                        "\n\n".join(warning_messages) if warning_messages else None
-                    )
-                    result = _format_response(
-                        adapter,
-                        has_secrets=True,
-                        error_message=injection_error,
-                        hook_event=hook_event,
-                        warning_message=combined_warning,
-                        violation_type=ViolationType.PROMPT_INJECTION,
-                        security_message=security_message,
-                    )
-                    return result
-                elif injection_detected and injection_error:
-                    warning_messages.append(injection_error)
-
-                if ide_type != IDEType.CURSOR:
-                    if not injection_detected:
                         logging.info("✓ No prompt injection detected")
             elif HAS_PROMPT_INJECTION and ide_type != IDEType.CURSOR:
                 logging.info("⚠️  Prompt injection detection temporarily disabled")
@@ -8376,98 +8326,32 @@ def process_hook_data(hook_data, daemon_state=None):
 
             if cp_result is not None:
                 _pretool_cp_scanned = True
-                cp_detected = cp_result.detected
-                cp_should_block = cp_result.should_block
-                cp_error_msg = cp_result.error_message
-
-                if cp_detected:
+                if cp_result.detected:
                     _pretool_cp_detected = True
-                    cp_hook_ctx = {
-                        "hook_event": hook_event,
-                        "tool_name": tool_name,
-                    }
-                    if hook_tool_use_id:
-                        cp_hook_ctx["tool_use_id"] = hook_tool_use_id
-                    if hook_session_id:
-                        cp_hook_ctx["session_id"] = hook_session_id
-                    _log_context_poisoning_violation(
-                        filename,
-                        context={
-                            "ide_type": ide_type.value,
-                            "hook_event": hook_event,
-                            "file_path": file_path,
-                        },
-                        hook_context=cp_hook_ctx if cp_hook_ctx else None,
-                        matched_pattern=cp_result.matched_pattern,
-                        matched_text=cp_result.matched_text,
-                        confidence=cp_result.confidence,
-                        line_number=cp_result.line_number,
-                        start_column=cp_result.start_column,
-                        end_column=cp_result.end_column,
+                    cp_decision = apply_post_scan_pipeline(
+                        _registry.get(ScannerName.CONTEXT_POISONING),
+                        cp_result,
+                        _post_scan_ctx,
+                        file_path=file_path,
+                        filename=filename,
                     )
-
-                if cp_should_block:
-                    cp_action = cp_result.extra.get("action", "warn")
-                    cp_ask_result = _handle_ask_mode_auto(
-                        cp_action,
-                        ViolationType.CONTEXT_POISONING,
-                        config_section="context_poisoning",
-                        error_msg=cp_error_msg,
-                        file_path=file_path if "file_path" in dir() else None,
-                        matched_text=cp_result.matched_text,
-                        line_number=cp_result.line_number,
-                        matched_pattern=cp_result.matched_pattern,
-                        latency_timer=_latency_timer,
-                        hook_context={
-                            "session_id": hook_session_id,
-                            "project_path": get_project_dir(),
-                            "hook_event": hook_event,
-                            "tool_name": tool_name,
-                        },
-                    )
-                    if cp_ask_result is not None:
-                        from ai_guardian.tui.ask_dialog import AskDecision
-
-                        if cp_ask_result.decision not in (
-                            AskDecision.BLOCK,
-                            AskDecision.BLOCK_ALL,
-                        ):
-                            cp_info_msg = _format_ask_info_message(
-                                ViolationType.CONTEXT_POISONING,
-                                cp_ask_result.decision,
-                            )
-                            warning_messages.append(cp_info_msg)
-                            cp_should_block = False
-                            cp_error_msg = cp_info_msg
-                            _log_ask_decision(
-                                ViolationType.CONTEXT_POISONING,
-                                cp_ask_result.decision,
-                                matched_text=cp_result.matched_text,
-                                error_msg=cp_error_msg,
-                                file_path=(file_path if "file_path" in dir() else None),
-                                line_number=cp_result.line_number,
-                                dialog_wait_ms=cp_ask_result.dialog_wait_ms,
-                            )
-
-                if cp_should_block:
-                    logging.info(
-                        "Blocking operation due to context poisoning detection"
-                    )
-                    combined_warning = (
-                        "\n\n".join(warning_messages) if warning_messages else None
-                    )
-                    result = _format_response(
-                        adapter,
-                        has_secrets=True,
-                        error_message=cp_error_msg,
-                        hook_event=hook_event,
-                        warning_message=combined_warning,
-                        violation_type=ViolationType.CONTEXT_POISONING,
-                        security_message=security_message,
-                    )
-                    return result
-                elif cp_detected and cp_error_msg:
-                    warning_messages.append(cp_error_msg)
+                    warning_messages.extend(cp_decision.warnings)
+                    if cp_decision.should_block:
+                        logging.info(
+                            "Blocking operation due to context poisoning detection"
+                        )
+                        combined_warning = (
+                            "\n\n".join(warning_messages) if warning_messages else None
+                        )
+                        return _format_response(
+                            adapter,
+                            has_secrets=True,
+                            error_message=cp_decision.error_message,
+                            hook_event=hook_event,
+                            warning_message=combined_warning,
+                            violation_type=ViolationType.CONTEXT_POISONING,
+                            security_message=security_message,
+                        )
 
         except Exception as e:
             logging.warning(f"Context poisoning check error (fail-open): {e}")
@@ -8485,91 +8369,32 @@ def process_hook_data(hook_data, daemon_state=None):
                 )
 
             if sc_result is not None and sc_result.detected:
-                sc_hook_ctx = {"hook_event": hook_event, "tool_name": tool_name}
-                if hook_tool_use_id:
-                    sc_hook_ctx["tool_use_id"] = hook_tool_use_id
-                if hook_session_id:
-                    sc_hook_ctx["session_id"] = hook_session_id
-                _log_supply_chain_violation(
-                    filename,
-                    context={
-                        "ide_type": ide_type.value,
-                        "hook_event": hook_event,
-                        "file_path": sc_file_path,
-                    },
-                    hook_context=sc_hook_ctx if sc_hook_ctx else None,
-                    matched_pattern=sc_result.matched_pattern,
-                    matched_text=sc_result.matched_text,
-                    category=sc_result.attack_type,
-                    line_number=sc_result.line_number,
-                    start_column=sc_result.start_column,
-                    end_column=sc_result.end_column,
-                )
-
-                sc_should_block = sc_result.should_block
-                sc_error_msg = sc_result.error_message
-                sc_action = sc_result.extra.get("action", "block")
-                sc_ask_result = _handle_ask_mode_auto(
-                    sc_action,
-                    ViolationType.SUPPLY_CHAIN,
-                    config_section="supply_chain",
-                    error_msg=sc_error_msg,
+                sc_decision = apply_post_scan_pipeline(
+                    _registry.get(ScannerName.SUPPLY_CHAIN),
+                    sc_result,
+                    _post_scan_ctx,
                     file_path=sc_file_path,
-                    matched_text=sc_result.matched_text,
-                    line_number=sc_result.line_number,
-                    matched_pattern=sc_result.matched_pattern,
-                    latency_timer=_latency_timer,
-                    hook_context={
-                        "session_id": hook_session_id,
-                        "project_path": get_project_dir(),
-                        "hook_event": hook_event,
-                        "tool_name": tool_name,
-                    },
+                    filename=filename,
                 )
-                if sc_ask_result is not None:
-                    from ai_guardian.tui.ask_dialog import AskDecision
-
-                    if sc_ask_result.decision not in (
-                        AskDecision.BLOCK,
-                        AskDecision.BLOCK_ALL,
-                    ):
-                        sc_should_block = False
-                        warning_messages.append(
-                            _format_ask_info_message(
-                                ViolationType.SUPPLY_CHAIN,
-                                sc_ask_result.decision,
-                                detail=sc_file_path,
-                            )
-                        )
-                        _log_ask_decision(
-                            ViolationType.SUPPLY_CHAIN,
-                            sc_ask_result.decision,
-                            matched_text=sc_result.matched_text,
-                            error_msg=sc_error_msg or "",
-                            file_path=sc_file_path,
-                            line_number=sc_result.line_number,
-                            dialog_wait_ms=sc_ask_result.dialog_wait_ms,
-                        )
-
-                if sc_should_block:
+                warning_messages.extend(sc_decision.warnings)
+                if sc_decision.should_block:
                     logging.info(
                         "Blocking operation due to supply chain threat detection"
                     )
                     combined_warning = (
                         "\n\n".join(warning_messages) if warning_messages else None
                     )
-                    result = _format_response(
+                    return _format_response(
                         adapter,
                         has_secrets=True,
-                        error_message=sc_error_msg,
+                        error_message=sc_decision.error_message,
                         hook_event=hook_event,
                         warning_message=combined_warning,
                         violation_type=ViolationType.SUPPLY_CHAIN,
                         security_message=security_message,
                     )
-                    return result
-                elif sc_error_msg:
-                    warning_messages.append(sc_error_msg)
+            elif sc_result is not None and sc_result.error_message:
+                warning_messages.append(sc_result.error_message)
 
         except Exception as e:
             logging.warning(f"Supply chain check error (fail-open): {e}")
@@ -8586,79 +8411,32 @@ def process_hook_data(hook_data, daemon_state=None):
                 )
 
             if ol_result is not None and ol_result.detected:
-                _log_offensive_language_violation(
+                ol_decision = apply_post_scan_pipeline(
+                    _registry.get(ScannerName.OFFENSIVE_LANGUAGE),
                     ol_result,
-                    hook_name=hook_name if "hook_name" in dir() else "unknown",
-                    hook_event=hook_event,
-                    tool_identifier=tool_identifier,
-                    hook_tool_use_id=hook_tool_use_id,
-                    hook_session_id=hook_session_id,
-                )
-
-                ol_action = ol_result.extra.get("action", "log")
-                ol_error_msg = ol_result.error_message
-                ol_should_block = ol_result.should_block
-
-                ol_ask_result = _handle_ask_mode_auto(
-                    ol_action,
-                    ViolationType.OFFENSIVE_LANGUAGE,
-                    config_section="scan_offensive",
-                    error_msg=ol_error_msg,
+                    _post_scan_ctx,
                     file_path=file_path,
-                    matched_text=ol_result.matched_text,
-                    line_number=ol_result.line_number,
-                    matched_pattern=ol_result.matched_pattern,
-                    latency_timer=_latency_timer,
-                    hook_context={
-                        "session_id": hook_session_id,
-                        "project_path": get_project_dir(),
-                        "hook_event": hook_event,
-                        "tool_name": tool_name,
-                    },
+                    filename=filename,
                 )
-                if ol_ask_result is not None:
-                    from ai_guardian.tui.ask_dialog import AskDecision
-
-                    if ol_ask_result.decision not in (
-                        AskDecision.BLOCK,
-                        AskDecision.BLOCK_ALL,
-                    ):
-                        ol_should_block = False
-                        warning_messages.append(
-                            _format_ask_info_message(
-                                ViolationType.OFFENSIVE_LANGUAGE,
-                                ol_ask_result.decision,
-                            )
-                        )
-                        _log_ask_decision(
-                            ViolationType.OFFENSIVE_LANGUAGE,
-                            ol_ask_result.decision,
-                            matched_text=ol_result.matched_text,
-                            error_msg=ol_error_msg or "",
-                            file_path=file_path,
-                            line_number=ol_result.line_number,
-                            dialog_wait_ms=ol_ask_result.dialog_wait_ms,
-                        )
-
-                if ol_should_block:
+                warning_messages.extend(ol_decision.warnings)
+                if ol_decision.should_block:
                     logging.info(
                         "Blocking operation due to offensive language detection"
                     )
                     combined_warning = (
                         "\n\n".join(warning_messages) if warning_messages else None
                     )
-                    result = _format_response(
+                    return _format_response(
                         adapter,
                         has_secrets=True,
-                        error_message=ol_error_msg,
+                        error_message=ol_decision.error_message,
                         hook_event=hook_event,
                         warning_message=combined_warning,
                         violation_type=ViolationType.OFFENSIVE_LANGUAGE,
                         security_message=security_message,
                     )
-                    return result
-                elif ol_error_msg:
-                    warning_messages.append(ol_error_msg)
+            elif ol_result is not None and ol_result.error_message:
+                warning_messages.append(ol_result.error_message)
 
         except Exception as e:
             logging.warning(f"Offensive language check error (fail-open): {e}")
@@ -8675,89 +8453,30 @@ def process_hook_data(hook_data, daemon_state=None):
                 )
 
             if cd_result is not None and cd_result.detected:
-                cd_hook_ctx = {"hook_event": hook_event, "tool_name": tool_name}
-                if hook_tool_use_id:
-                    cd_hook_ctx["tool_use_id"] = hook_tool_use_id
-                if hook_session_id:
-                    cd_hook_ctx["session_id"] = hook_session_id
-                _log_canary_detection_violation(
-                    cd_source,
-                    matched_token=cd_result.matched_pattern,
-                    matched_text=cd_result.matched_text,
-                    description=cd_result.attack_type,
-                    line_number=cd_result.line_number,
-                    start_column=cd_result.start_column,
-                    end_column=cd_result.end_column,
-                    context={
-                        "ide_type": ide_type.value,
-                        "hook_event": hook_event,
-                        "file_path": cd_source,
-                    },
-                    hook_context=cd_hook_ctx,
-                )
-
-                cd_should_block = cd_result.should_block
-                cd_error_msg = cd_result.error_message
-                cd_action = cd_result.extra.get("action", "block")
-                cd_ask_result = _handle_ask_mode_auto(
-                    cd_action,
-                    ViolationType.CANARY_DETECTED,
-                    config_section="canary_detection",
-                    error_msg=cd_error_msg,
+                cd_decision = apply_post_scan_pipeline(
+                    _registry.get(ScannerName.CANARY_DETECTION),
+                    cd_result,
+                    _post_scan_ctx,
                     file_path=cd_source,
-                    matched_text=cd_result.matched_text,
-                    line_number=cd_result.line_number,
-                    matched_pattern=cd_result.matched_pattern,
-                    latency_timer=_latency_timer,
-                    hook_context={
-                        "session_id": hook_session_id,
-                        "project_path": get_project_dir(),
-                        "hook_event": hook_event,
-                        "tool_name": tool_name,
-                    },
+                    filename=filename,
                 )
-                if cd_ask_result is not None:
-                    from ai_guardian.tui.ask_dialog import AskDecision
-
-                    if cd_ask_result.decision not in (
-                        AskDecision.BLOCK,
-                        AskDecision.BLOCK_ALL,
-                    ):
-                        cd_should_block = False
-                        warning_messages.append(
-                            _format_ask_info_message(
-                                ViolationType.CANARY_DETECTED,
-                                cd_ask_result.decision,
-                                detail=cd_source,
-                            )
-                        )
-                        _log_ask_decision(
-                            ViolationType.CANARY_DETECTED,
-                            cd_ask_result.decision,
-                            matched_text=cd_result.matched_text,
-                            error_msg=cd_error_msg or "",
-                            file_path=cd_source,
-                            line_number=cd_result.line_number,
-                            dialog_wait_ms=cd_ask_result.dialog_wait_ms,
-                        )
-
-                if cd_should_block:
+                warning_messages.extend(cd_decision.warnings)
+                if cd_decision.should_block:
                     logging.info("Blocking operation due to canary token detection")
                     combined_warning = (
                         "\n\n".join(warning_messages) if warning_messages else None
                     )
-                    result = _format_response(
+                    return _format_response(
                         adapter,
                         has_secrets=True,
-                        error_message=cd_error_msg,
+                        error_message=cd_decision.error_message,
                         hook_event=hook_event,
                         warning_message=combined_warning,
                         violation_type=ViolationType.CANARY_DETECTED,
                         security_message=security_message,
                     )
-                    return result
-                elif cd_error_msg:
-                    warning_messages.append(cd_error_msg)
+            elif cd_result is not None and cd_result.error_message:
+                warning_messages.append(cd_result.error_message)
 
         except Exception as e:
             logging.warning(f"Canary detection check error (fail-open): {e}")
