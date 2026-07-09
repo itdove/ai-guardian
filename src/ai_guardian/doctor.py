@@ -1559,7 +1559,7 @@ class Doctor:
 
     def check_self_protection(self) -> CheckResult:
         """Verify immutable patterns protect config/state/cache from agent access."""
-        from ai_guardian.tool_policy import IMMUTABLE_DENY_PATTERNS
+        from ai_guardian.tool_patterns import IMMUTABLE_DENY_PATTERNS
 
         issues = []
 

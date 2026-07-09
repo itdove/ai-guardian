@@ -593,7 +593,7 @@ class PatternLister:
 
         if not category_filter or category_filter == "self_protection":
             try:
-                from ai_guardian.tool_policy import IMMUTABLE_DENY_PATTERNS
+                from ai_guardian.tool_patterns import IMMUTABLE_DENY_PATTERNS
 
                 for tool_name, patterns in IMMUTABLE_DENY_PATTERNS.items():
                     for i, pat in enumerate(patterns):
