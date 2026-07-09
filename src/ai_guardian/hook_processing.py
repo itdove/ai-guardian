@@ -8213,18 +8213,31 @@ def process_hook_data(hook_data, daemon_state=None):
         _pretool_cp_scanned = False
         _pretool_cp_detected = False
 
+        # Build content-scanning pipeline from the registry (#1253 Phase 3)
+        from ai_guardian.scanner_registry import ScannerName, get_default_registry
+
+        _registry = get_default_registry()
+        _content_pipeline = _registry.get_pipeline(
+            hook_event,
+            has_content=content_to_scan is not None,
+            has_file_path=file_path is not None,
+        )
+        _pipeline_names = {e.name for e in _content_pipeline}
+
         # Check for prompt injection BEFORE scanning for secrets
         try:
-            source_type = (
-                "user_prompt" if hook_event == HookEvent.PROMPT else "file_content"
-            )
-            pi_result = run_prompt_injection_scan(
-                content_to_scan,
-                file_path=file_path,
-                tool_name=tool_identifier,
-                source_type=source_type,
-                latency_timer=_latency_timer,
-            )
+            pi_result = None
+            if ScannerName.PROMPT_INJECTION in _pipeline_names:
+                source_type = (
+                    "user_prompt" if hook_event == HookEvent.PROMPT else "file_content"
+                )
+                pi_result = run_prompt_injection_scan(
+                    content_to_scan,
+                    file_path=file_path,
+                    tool_name=tool_identifier,
+                    source_type=source_type,
+                    latency_timer=_latency_timer,
+                )
 
             if pi_result is not None:
                 injection_detected = pi_result.detected
@@ -8352,12 +8365,14 @@ def process_hook_data(hook_data, daemon_state=None):
 
         # Check for context poisoning (LLM03) — on both user prompts and file reads
         try:
-            cp_result = run_context_poisoning_scan(
-                content_to_scan,
-                file_path=file_path,
-                tool_identifier=tool_identifier,
-                latency_timer=_latency_timer,
-            )
+            cp_result = None
+            if ScannerName.CONTEXT_POISONING in _pipeline_names:
+                cp_result = run_context_poisoning_scan(
+                    content_to_scan,
+                    file_path=file_path,
+                    tool_identifier=tool_identifier,
+                    latency_timer=_latency_timer,
+                )
 
             if cp_result is not None:
                 _pretool_cp_scanned = True
@@ -8458,16 +8473,16 @@ def process_hook_data(hook_data, daemon_state=None):
             logging.warning(f"Context poisoning check error (fail-open): {e}")
 
         # Check for supply chain threats in agent configuration files
-        # Skip on UserPromptSubmit — users legitimately discuss curl install
-        # commands, paste docs, and debug curl issues (see #1114)
         try:
-            sc_file_path = file_path or filename or "user_prompt"
-            sc_result = run_supply_chain_scan(
-                content_to_scan,
-                sc_file_path,
-                hook_event=hook_event,
-                latency_timer=_latency_timer,
-            )
+            sc_result = None
+            if ScannerName.SUPPLY_CHAIN in _pipeline_names:
+                sc_file_path = file_path or filename or "user_prompt"
+                sc_result = run_supply_chain_scan(
+                    content_to_scan,
+                    sc_file_path,
+                    hook_event=hook_event,
+                    latency_timer=_latency_timer,
+                )
 
             if sc_result is not None and sc_result.detected:
                 sc_hook_ctx = {"hook_event": hook_event, "tool_name": tool_name}
@@ -8561,12 +8576,14 @@ def process_hook_data(hook_data, daemon_state=None):
 
         # Check for offensive language (profanity, slurs, non-inclusive terms)
         try:
-            ol_result = run_offensive_language_scan(
-                content_to_scan,
-                file_path=file_path,
-                tool_identifier=tool_identifier,
-                latency_timer=_latency_timer,
-            )
+            ol_result = None
+            if ScannerName.OFFENSIVE_LANGUAGE in _pipeline_names:
+                ol_result = run_offensive_language_scan(
+                    content_to_scan,
+                    file_path=file_path,
+                    tool_identifier=tool_identifier,
+                    latency_timer=_latency_timer,
+                )
 
             if ol_result is not None and ol_result.detected:
                 _log_offensive_language_violation(
@@ -8648,12 +8665,14 @@ def process_hook_data(hook_data, daemon_state=None):
 
         # Check for canary tokens (user-registered tripwire values detecting exfiltration)
         try:
-            cd_source = file_path or filename or "content"
-            cd_result = run_canary_detection_scan(
-                content_to_scan,
-                cd_source,
-                latency_timer=_latency_timer,
-            )
+            cd_result = None
+            if ScannerName.CANARY_DETECTION in _pipeline_names:
+                cd_source = file_path or filename or "content"
+                cd_result = run_canary_detection_scan(
+                    content_to_scan,
+                    cd_source,
+                    latency_timer=_latency_timer,
+                )
 
             if cd_result is not None and cd_result.detected:
                 cd_hook_ctx = {"hook_event": hook_event, "tool_name": tool_name}
@@ -8744,11 +8763,7 @@ def process_hook_data(hook_data, daemon_state=None):
             logging.warning(f"Canary detection check error (fail-open): {e}")
 
         # Check for config file threats (credential exfiltration patterns in AI config files)
-        if (
-            hook_event in (HookEvent.PRE_TOOL_USE, HookEvent.BEFORE_READ_FILE)
-            and file_path
-            and content_to_scan
-        ):
+        if ScannerName.CONFIG_FILE in _pipeline_names:
             try:
                 cfs_result = run_config_file_scan(
                     file_path,
@@ -8913,8 +8928,7 @@ def process_hook_data(hook_data, daemon_state=None):
         if config_error:
             warning_messages.append(config_error)
 
-        # Check if secret scanning is enabled (supports time-based disabling)
-        if is_feature_enabled(
+        if ScannerName.SECRET in _pipeline_names and is_feature_enabled(
             secret_config.get("enabled") if secret_config else None, now, default=True
         ):
             # Extract ignore lists and allowlist from config
@@ -9042,7 +9056,7 @@ def process_hook_data(hook_data, daemon_state=None):
 
         # PII scanning for UserPromptSubmit and PreToolUse (Issue #262)
         pii_was_skipped = False
-        if content_to_scan:
+        if ScannerName.PII in _pipeline_names and content_to_scan:
             pii_scan_content = (
                 pii_content_to_scan
                 if pii_content_to_scan is not None
@@ -9371,11 +9385,13 @@ def process_hook_data(hook_data, daemon_state=None):
                     "file_path": file_path,
                     "tool_name": tool_identifier or tool_name,
                     "scan_results": {
-                        "secrets_scanned": content_to_scan is not None,
+                        "secrets_scanned": ScannerName.SECRET in _pipeline_names,
                         "secrets_found": False,  # if we got here, no secrets blocked
                         "pii_scanned": pii_scanned,
                         "pii_skipped_reason": pii_skip_reason,
-                        "prompt_injection_scanned": content_to_scan is not None,
+                        "prompt_injection_scanned": (
+                            ScannerName.PROMPT_INJECTION in _pipeline_names
+                        ),
                         "prompt_injection_found": _pretool_pi_detected,
                         "context_poisoning_scanned": _pretool_cp_scanned,
                         "context_poisoning_found": _pretool_cp_detected,
