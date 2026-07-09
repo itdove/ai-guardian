@@ -9,7 +9,10 @@ and OpenCode adapters.
 """
 
 import json
+import logging
 from typing import ClassVar, Dict, List, Optional
+
+logger = logging.getLogger(__name__)
 
 from ai_guardian.constants import HookEvent
 from ai_guardian.hook_adapters.base import HookAdapter, NormalizedHookInput
@@ -90,7 +93,11 @@ class BaseAgentAdapter(HookAdapter):
 
     @staticmethod
     def _event_name(hook_event: HookEvent) -> str:
-        return _EVENT_NAMES.get(hook_event, "PreToolUse")
+        name = _EVENT_NAMES.get(hook_event)
+        if name is None:
+            logger.warning("Missing _EVENT_NAMES entry for %s", hook_event)
+            return hook_event.value
+        return name
 
     def _block_response(
         self,
