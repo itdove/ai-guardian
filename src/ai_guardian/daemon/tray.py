@@ -399,7 +399,7 @@ class DaemonTray:
         except OSError:
             pass  # intentionally silent — cleanup best-effort
 
-    _AUTOSTART_COOLDOWN = 5.0
+    from ai_guardian.daemon.tray_menu import AUTOSTART_COOLDOWN as _AUTOSTART_COOLDOWN
 
     def _can_autostart_daemon(self):
         """Check if daemon auto-restart is possible.
@@ -566,7 +566,7 @@ class DaemonTray:
             try:
                 img = Image.open(icon_path).convert("RGBA")
             except Exception:
-                pass  # intentionally silent — icon loading best-effort
+                pass
         if img is None:
             img = self._create_fallback_icon(22)
         if self._needs_dark_icon():
@@ -576,158 +576,6 @@ class DaemonTray:
         if self._stale_code_warned:
             img = self._apply_stale_overlay(img)
         return img
-
-    @staticmethod
-    def _needs_dark_icon():
-        """Check if the panel has a light background requiring a dark icon.
-
-        GNOME with a light GTK theme renders the panel light, making
-        the default white icon invisible.
-        """
-        import platform
-
-        if platform.system() != "Linux":
-            return False
-        import os
-
-        desktop = os.environ.get("XDG_CURRENT_DESKTOP", "")
-        if "GNOME" not in desktop.upper():
-            return False
-        try:
-            import subprocess
-
-            result = subprocess.run(
-                ["gsettings", "get", "org.gnome.desktop.interface", "color-scheme"],
-                capture_output=True,
-                text=True,
-                timeout=3,
-            )
-            scheme = result.stdout.strip().strip("'\"")
-            return scheme != "prefer-dark"
-        except Exception:
-            return False
-
-    @staticmethod
-    def _invert_icon(img):
-        """Invert a white monochrome icon to dark, preserving alpha."""
-        img = img.copy()
-        r, g, b, a = img.split()
-        from PIL import ImageOps
-
-        r = ImageOps.invert(r)
-        g = ImageOps.invert(g)
-        b = ImageOps.invert(b)
-        return Image.merge("RGBA", (r, g, b, a))
-
-    @staticmethod
-    def _apply_paused_dimming(img):
-        """Reduce alpha to ~50% to indicate paused state."""
-        img = img.copy()
-        alpha = img.split()[3]
-        alpha = alpha.point(lambda a: a // 2)
-        img.putalpha(alpha)
-        return img
-
-    @staticmethod
-    def _apply_stale_overlay(img):
-        """Draw a small orange dot in the bottom-right corner to indicate stale daemon."""
-        img = img.copy()
-        draw = ImageDraw.Draw(img)
-        w, h = img.size
-        r = max(3, w // 5)
-        x0, y0 = w - r - 1, h - r - 1
-        draw.ellipse([x0, y0, x0 + r, y0 + r], fill=(255, 140, 0, 255))
-        return img
-
-    @staticmethod
-    def _get_tray_icon_size():
-        """Return the preferred tray icon size for the current platform."""
-        import platform
-
-        system = platform.system()
-        if system == "Darwin":
-            return None  # macOS uses Template naming, not size suffix
-        if system == "Windows":
-            return 16
-        return 22  # Linux (GNOME/KDE)
-
-    @staticmethod
-    def _find_tray_icon_path():
-        """Find the monochrome tray icon for the current platform.
-
-        Uses three strategies to ensure the returned path remains valid
-        after this method returns (important for AppIndicator on GNOME/KDE
-        which reads the icon asynchronously).
-        """
-        from pathlib import Path
-        import platform
-        import importlib.resources
-
-        system = platform.system()
-
-        if system == "Darwin":
-            names = ["tray-iconTemplate@2x.png", "tray-iconTemplate.png"]
-        elif system == "Windows":
-            names = ["tray-icon-16.png"]
-        else:
-            names = ["tray-icon-22.png", "tray-icon-32.png"]
-
-        # Strategy 1: If importlib.resources returns a real filesystem Path
-        # (editable install or unpacked wheel), use it directly.
-        for name in names:
-            try:
-                ref = importlib.resources.files("ai_guardian") / "images" / name
-                if isinstance(ref, Path) and ref.exists():
-                    return str(ref)
-            except Exception:
-                pass  # intentionally silent — resource loading best-effort
-
-        # Strategy 2: For zipped wheels, extract via as_file() and copy to
-        # a persistent temp directory so the path survives context exit.
-        for name in names:
-            try:
-                ref = importlib.resources.files("ai_guardian") / "images" / name
-                with importlib.resources.as_file(ref) as p:
-                    if p.exists():
-                        import shutil
-                        import tempfile
-
-                        persistent_dir = (
-                            Path(tempfile.gettempdir()) / "ai-guardian-icons"
-                        )
-                        persistent_dir.mkdir(parents=True, exist_ok=True)
-                        dest = persistent_dir / name
-                        if not dest.exists():
-                            shutil.copy2(str(p), str(dest))
-                        return str(dest)
-            except Exception:
-                pass  # intentionally silent — resource loading best-effort
-
-        # Strategy 3: Filesystem fallback (development layout).
-        src_dir = Path(__file__).resolve().parent.parent
-        candidates_dirs = [
-            src_dir / "images",
-            src_dir.parent.parent / "images",
-        ]
-        for d in candidates_dirs:
-            for name in names:
-                path = d / name
-                if path.exists():
-                    return str(path)
-
-        return None
-
-    @staticmethod
-    def _create_fallback_icon(size):
-        """Create a simple fallback icon if the tray icon files are not found."""
-        image = Image.new("RGBA", (size, size), (0, 0, 0, 0))
-        draw = ImageDraw.Draw(image)
-        draw.ellipse([4, 4, size - 4, size - 4], fill=(0, 160, 220, 255))
-        try:
-            draw.text((size // 4, size // 6), "G", fill=(255, 255, 255, 255))
-        except Exception:
-            pass  # intentionally silent — icon loading best-effort
-        return image
 
     def _generate_discovery_frames(self):
         """Generate alpha-pulsing icon frames for discovery animation."""
@@ -813,6 +661,59 @@ class DaemonTray:
         if self._icon:
             self._icon.icon = self._create_icon()
 
+    def _rebuild_tray(self):
+        """Rebuild tray icon and menu after system wake."""
+        if not self._icon:
+            return
+        try:
+            self._icon.icon = self._create_icon()
+            self._icon.update_menu()
+            logger.info("Tray icon rebuilt after system wake")
+        except Exception as e:
+            logger.debug("Failed to rebuild tray icon: %s", e)
+
+    @staticmethod
+    def _needs_dark_icon():
+        from ai_guardian.daemon.tray_icons import needs_dark_icon
+
+        return needs_dark_icon()
+
+    @staticmethod
+    def _invert_icon(img):
+        from ai_guardian.daemon.tray_icons import invert_icon
+
+        return invert_icon(img)
+
+    @staticmethod
+    def _apply_paused_dimming(img):
+        from ai_guardian.daemon.tray_icons import apply_paused_dimming
+
+        return apply_paused_dimming(img)
+
+    @staticmethod
+    def _apply_stale_overlay(img):
+        from ai_guardian.daemon.tray_icons import apply_stale_overlay
+
+        return apply_stale_overlay(img)
+
+    @staticmethod
+    def _get_tray_icon_size():
+        from ai_guardian.daemon.tray_icons import get_tray_icon_size
+
+        return get_tray_icon_size()
+
+    @staticmethod
+    def _find_tray_icon_path():
+        from ai_guardian.daemon.tray_icons import find_tray_icon_path
+
+        return find_tray_icon_path()
+
+    @staticmethod
+    def _create_fallback_icon(size):
+        from ai_guardian.daemon.tray_icons import create_fallback_icon
+
+        return create_fallback_icon(size)
+
     def _request_discovery_refresh(self, **kwargs):
         """Request discovery refresh.
 
@@ -832,19 +733,9 @@ class DaemonTray:
 
     @staticmethod
     def _format_time_ago(seconds):
-        if seconds is None:
-            return ""
-        seconds = int(seconds)
-        if seconds < 60:
-            return f"{seconds}s ago"
-        minutes = seconds // 60
-        if minutes < 60:
-            return f"{minutes}m ago"
-        hours = minutes // 60
-        if hours < 24:
-            return f"{hours}h ago"
-        days = hours // 24
-        return f"{days}d ago"
+        from ai_guardian.daemon.tray_notifications import format_time_ago
+
+        return format_time_ago(seconds)
 
     def _on_change_proactive(self, level):
         """Change MCP proactive check level in config file."""
@@ -911,79 +802,27 @@ class DaemonTray:
 
     @staticmethod
     def _get_python_executable():
-        """Get the best available Python executable path.
+        from ai_guardian.daemon.tray_plugins import get_python_executable
 
-        Returns:
-            str: Path to Python executable
-        """
-        import shutil
-        import sys
-
-        # Try to find python in PATH
-        python_exe = shutil.which("python")
-        if python_exe:
-            return python_exe
-
-        # Try python3 as fallback
-        python_exe = shutil.which("python3")
-        if python_exe:
-            return python_exe
-
-        # Use sys.executable as last resort
-        return sys.executable
+        return get_python_executable()
 
     @staticmethod
     def _resolve_cli_cmd(*args):
-        """Build command list for running ai-guardian with given arguments.
+        from ai_guardian.daemon.tray_plugins import resolve_cli_cmd
 
-        Uses absolute path to python to ensure it works in subprocesses that
-        may not have the same PATH (e.g., Terminal.app on macOS).
-        """
-        import shutil
-
-        # Try multiple strategies to find a working Python
-        # 1. Check if ai-guardian executable exists (best option)
-        ag_path = shutil.which("ai-guardian")
-        if ag_path:
-            return [ag_path] + list(args)
-
-        # 2. Use resolved Python executable
-        python_exe = DaemonTray._get_python_executable()
-        return [python_exe, "-m", "ai_guardian"] + list(args)
+        return resolve_cli_cmd(*args)
 
     @staticmethod
     def _resolve_plugin_ai_guardian(command_str, run_on_target, target):
-        """Replace bare ``ai-guardian`` with absolute python path.
+        from ai_guardian.daemon.tray_plugins import resolve_plugin_ai_guardian
 
-        Skipped for remote targets (container / kubernetes) where the
-        command must resolve via PATH on the remote host.
-        """
-        import shlex
-
-        is_remote = (
-            run_on_target
-            and target
-            and getattr(target, "runtime", "local") in ("container", "kubernetes")
-        )
-        if is_remote:
-            return command_str
-
-        stripped = command_str.lstrip()
-        if stripped == "ai-guardian" or stripped.startswith("ai-guardian "):
-            python_exe = DaemonTray._get_python_executable()
-            resolved = shlex.quote(python_exe) + " -m ai_guardian"
-            return resolved + stripped[len("ai-guardian") :]
-        return command_str
+        return resolve_plugin_ai_guardian(command_str, run_on_target, target)
 
     @staticmethod
     def _launch_console(panel=None):
-        """Launch the ai-guardian console in a new terminal window."""
-        from ai_guardian.daemon.multi_client import _launch_in_terminal
+        from ai_guardian.daemon.tray_menu import launch_console
 
-        cmd_parts = DaemonTray._resolve_cli_cmd("console")
-        if panel:
-            cmd_parts.extend(["--panel", panel])
-        _launch_in_terminal(cmd_parts)
+        launch_console(panel)
 
     def _start_web_console(self):
         """Start the web console server as a subprocess."""
@@ -1044,41 +883,9 @@ class DaemonTray:
 
     @staticmethod
     def _show_notification(title, message):
-        """Show a desktop notification."""
-        import platform
+        from ai_guardian.daemon.tray_notifications import show_notification
 
-        system = platform.system()
-        try:
-            if system == "Darwin":
-                safe_title = title.replace("\\", "\\\\").replace('"', '\\"')
-                safe_msg = message.replace("\\", "\\\\").replace('"', '\\"')
-                subprocess.Popen(
-                    [
-                        "osascript",
-                        "-e",
-                        f'display notification "{safe_msg}" with title "{safe_title}"',
-                    ]
-                )
-            elif system == "Linux":
-                subprocess.Popen(["notify-send", title, message])
-            elif system == "Windows":
-                safe_title = (
-                    title.replace("'", "''").replace("`", "``").replace("$", "`$")
-                )
-                safe_msg = (
-                    message.replace("'", "''").replace("`", "``").replace("$", "`$")
-                )
-                ps = (
-                    "[System.Reflection.Assembly]::LoadWithPartialName('System.Windows.Forms') | Out-Null; "
-                    "[System.Reflection.Assembly]::LoadWithPartialName('System.Drawing') | Out-Null; "
-                    "$n = New-Object System.Windows.Forms.NotifyIcon; "
-                    "$n.Icon = [System.Drawing.SystemIcons]::Information; "
-                    "$n.Visible = $true; "
-                    f"$n.ShowBalloonTip(5000, '{safe_title}', '{safe_msg}', 'Info')"
-                )
-                subprocess.Popen(["powershell", "-NoProfile", "-Command", ps])
-        except OSError:
-            pass  # intentionally silent — subprocess may fail
+        show_notification(title, message)
 
     @staticmethod
     def _is_web_console_alive(port_file):
@@ -1118,65 +925,37 @@ class DaemonTray:
         logger.warning("Web console did not become ready after restart attempt")
         return False
 
-    _PANEL_TO_WEB_PATH = {
-        "panel-violations": "violations",
-        "panel-metrics": "metrics",
-        "panel-health-check": "health-check",
-    }
+    from ai_guardian.daemon.tray_menu import PANEL_TO_WEB_PATH as _PANEL_TO_WEB_PATH
 
     @staticmethod
-    def _open_web_console(daemon_name: str = "", page: str = ""):
-        """Open the web console for a specific daemon and optional page."""
-        from ai_guardian.config_utils import get_state_dir
-        from ai_guardian.desktop_utils import open_url
+    def _open_web_console(daemon_name="", page=""):
+        from ai_guardian.daemon.tray_menu import open_web_console
 
-        port_file = get_state_dir() / "web-console.port"
-        try:
-            port = int(port_file.read_text().strip())
-            path = f"/{daemon_name}" if daemon_name else ""
-            if page:
-                path = f"{path}/{page}"
-            open_url(f"http://127.0.0.1:{port}{path}")
-        except (ValueError, OSError):
-            pass  # intentionally silent — invalid value uses default
+        open_web_console(daemon_name, page)
 
     @staticmethod
     def _launch_shell(cwd=None):
-        """Launch the user's default shell in a new terminal window."""
-        from ai_guardian.daemon.multi_client import _launch_in_terminal
+        from ai_guardian.daemon.tray_menu import launch_shell
 
-        import os
-        import platform as _plat
-
-        if _plat.system() == "Windows":
-            shell = os.environ.get("COMSPEC", "cmd.exe")
-        else:
-            shell = os.environ.get("SHELL", "/bin/sh")
-        _launch_in_terminal([shell], keep_open=True, cwd=cwd)
+        launch_shell(cwd)
 
     @staticmethod
     def _launch_doctor():
-        """Launch ai-guardian doctor in a new terminal window."""
-        from ai_guardian.daemon.multi_client import _launch_in_terminal
+        from ai_guardian.daemon.tray_menu import launch_doctor
 
-        _launch_in_terminal(DaemonTray._resolve_cli_cmd("doctor"), keep_open=True)
+        launch_doctor()
 
     @staticmethod
     def _about_label(_item=None):
-        """Build About menu label with tray version."""
-        try:
-            from ai_guardian import __version__
+        from ai_guardian.daemon.tray_menu import about_label
 
-            return f"About — v{__version__}"
-        except ImportError:
-            return "About"
+        return about_label(_item)
 
     @staticmethod
     def _build_about_text():
-        """Build the About dialog text with tray process info."""
-        from ai_guardian.daemon.about import get_about_info, format_about_text
+        from ai_guardian.daemon.tray_menu import build_about_text
 
-        return format_about_text(get_about_info())
+        return build_about_text()
 
     def _on_about(self, icon, item):
         """Show About info via OS dialog."""
@@ -1264,13 +1043,9 @@ class DaemonTray:
 
     @staticmethod
     def _launch_ide_setup(ide_key):
-        """Launch ai-guardian setup --ide <name> in a new terminal window."""
-        from ai_guardian.daemon.multi_client import _launch_in_terminal
+        from ai_guardian.daemon.tray_menu import launch_ide_setup
 
-        _launch_in_terminal(
-            DaemonTray._resolve_cli_cmd("setup", "--ide", ide_key),
-            keep_open=True,
-        )
+        launch_ide_setup(ide_key)
 
     def _start_pause_timer(self):
         """Start a background thread that updates the countdown and auto-resumes.
@@ -1387,17 +1162,6 @@ class DaemonTray:
             self._icon.icon = self._create_icon()
         self._refresh_menu()
 
-    def _rebuild_tray(self):
-        """Rebuild tray icon and menu after system wake."""
-        if not self._icon:
-            return
-        try:
-            self._icon.icon = self._create_icon()
-            self._icon.update_menu()
-            logger.info("Tray icon rebuilt after system wake")
-        except Exception as e:
-            logger.debug("Failed to rebuild tray icon: %s", e)
-
     def _stop_pause_timer(self):
         """Stop the pause countdown timer."""
         self._pause_timer_running = False
@@ -1435,32 +1199,15 @@ class DaemonTray:
 
     @staticmethod
     def _send_config_error_notification():
-        """Send config error OS notification (runs in background thread)."""
-        try:
-            from ai_guardian.daemon.tray_plugins import send_notification
+        from ai_guardian.daemon.tray_notifications import send_config_error_notification
 
-            send_notification(
-                "AI Guardian",
-                "Config error detected — run Doctor from tray menu for details",
-            )
-        except Exception:
-            pass  # intentionally silent — optional dependency
+        send_config_error_notification()
 
     @staticmethod
     def _parse_version_tuple(version_str):
-        """Parse version string into (major, minor, patch) tuple.
+        from ai_guardian.daemon.tray_notifications import parse_version_tuple
 
-        Handles formats like '1.9.0', 'v1.9.0', '1.9.0-dev'.
-        Returns None if parsing fails.
-        """
-        import re
-
-        if not version_str or version_str == "unknown":
-            return None
-        match = re.match(r"v?(\d+)\.(\d+)\.(\d+)", version_str)
-        if match:
-            return (int(match.group(1)), int(match.group(2)), int(match.group(3)))
-        return None
+        return parse_version_tuple(version_str)
 
     def _check_version_mismatch(self):
         """Check each daemon's version against the tray version and warn on mismatch."""
@@ -1573,17 +1320,11 @@ class DaemonTray:
 
     @staticmethod
     def _send_version_mismatch_notification(daemon_name, daemon_version, tray_version):
-        """Send version mismatch OS notification (runs in background thread)."""
-        try:
-            from ai_guardian.daemon.tray_plugins import send_notification
+        from ai_guardian.daemon.tray_notifications import (
+            send_version_mismatch_notification,
+        )
 
-            send_notification(
-                "AI Guardian",
-                f"Daemon '{daemon_name}' is running v{daemon_version} — "
-                f"upgrade to v{tray_version} recommended",
-            )
-        except Exception:
-            pass  # intentionally silent — optional dependency
+        send_version_mismatch_notification(daemon_name, daemon_version, tray_version)
 
     def _check_pypi_version(self):
         """Fetch latest version from PyPI (throttled to every 300s)."""
@@ -1793,8 +1534,10 @@ class DaemonTray:
         else:
             self.update_status("running")
 
-    _REFRESH_INTERVAL = 10
-    _WAKE_GAP_THRESHOLD = 30
+    from ai_guardian.daemon.tray_menu import (
+        REFRESH_INTERVAL as _REFRESH_INTERVAL,
+        WAKE_GAP_THRESHOLD as _WAKE_GAP_THRESHOLD,
+    )
 
     def _register_wake_handler(self):
         """Register OS-level wake notification handler.
@@ -2311,12 +2054,16 @@ class DaemonTray:
             return result or {}
         return self._get_stats()
 
-    _MAX_DAEMON_SLOTS = 8
-    _MAX_DIR_PAUSE_SLOTS = 16
-    _MAX_PLUGIN_SLOTS = 8
-    _MAX_ITEMS_PER_PLUGIN = 12
-    _MAX_SUBMENU_ITEMS = 8
-    _MAX_SUBMENU_DEPTH = 2
+    from ai_guardian.daemon.tray_menu import (
+        MAX_DAEMON_SLOTS as _MAX_DAEMON_SLOTS,
+        MAX_DIR_PAUSE_SLOTS as _MAX_DIR_PAUSE_SLOTS,
+    )
+    from ai_guardian.daemon.tray_plugins import (
+        MAX_PLUGIN_SLOTS as _MAX_PLUGIN_SLOTS,
+        MAX_ITEMS_PER_PLUGIN as _MAX_ITEMS_PER_PLUGIN,
+        MAX_SUBMENU_ITEMS as _MAX_SUBMENU_ITEMS,
+        MAX_SUBMENU_DEPTH as _MAX_SUBMENU_DEPTH,
+    )
 
     def _is_multi_daemon(self):
         """True when multiple daemons are discovered (nested submenu layout)."""
@@ -2334,45 +2081,15 @@ class DaemonTray:
         project_count=0,
         forwarding_failed=False,
     ):
-        """Format a daemon target into a status header label."""
-        from ai_guardian.daemon.working_dir import shorten_path
+        from ai_guardian.daemon.tray_menu import daemon_status_label
 
-        if target.status == "running" and has_paused_dirs:
-            status_icon = "◐"
-        else:
-            status_icon = {
-                "running": "●",
-                "paused": "☾",
-                "starting": "◌",
-                "stopped": "⚠",
-                "error": "✗",
-                "unknown": "○",
-            }.get(target.status, "○")
-        if target.runtime == "container" and target.container_engine:
-            runtime = f" ({target.container_engine})"
-        elif target.runtime != "local":
-            runtime = f" ({target.runtime})"
-        else:
-            runtime = ""
-        forwarding_badge = " ⚠" if forwarding_failed else ""
-        label = f"{status_icon} {target.name}{runtime}{forwarding_badge}"
-        if target.status == "stopped":
-            label += " — daemon not running"
-        elif target.status == "starting":
-            label += " — starting..."
-        elif active_project_dir:
-            short = shorten_path(active_project_dir)
-            if len(short) > 40:
-                short = short[:37] + "..."
-            label += f" — {short}"
-            if project_count > 1:
-                label += f" (+{project_count - 1} more)"
-        elif getattr(target, "working_dir", None):
-            short = shorten_path(target.working_dir)
-            if len(short) > 40:
-                short = short[:37] + "..."
-            label += f" — {short}"
-        return label
+        return daemon_status_label(
+            target,
+            has_paused_dirs,
+            active_project_dir,
+            project_count,
+            forwarding_failed,
+        )
 
     def _get_target_stats(self, target):
         """Get live stats dict for a specific daemon target."""
@@ -3584,28 +3301,9 @@ class DaemonTray:
 
     @staticmethod
     def _poll_output_file(output_path, tmpdir, timeout=300, interval=0.5):
-        """Poll for an output file, read its content, and clean up.
+        from ai_guardian.daemon.tray_plugins import poll_output_file
 
-        Returns the stripped file content, or ``None`` if the file was not
-        created before *timeout* seconds elapsed.
-        """
-        import shutil
-        import time
-
-        elapsed = 0.0
-        while elapsed < timeout:
-            if os.path.exists(output_path):
-                try:
-                    with open(output_path) as f:
-                        content = f.read().strip()
-                except OSError:
-                    content = ""
-                shutil.rmtree(tmpdir, ignore_errors=True)
-                return content
-            time.sleep(interval)
-            elapsed += interval
-        shutil.rmtree(tmpdir, ignore_errors=True)
-        return None
+        return poll_output_file(output_path, tmpdir, timeout, interval)
 
     @staticmethod
     def _execute_plugin_command(
@@ -3615,104 +3313,11 @@ class DaemonTray:
         run_on_target=False,
         label=None,
     ):
-        """Execute a plugin command with optional target context."""
-        import os
-        import shlex
-        import subprocess
-        from ai_guardian.daemon.multi_client import _launch_in_terminal
-        from ai_guardian.daemon.tray_plugins import (
-            _needs_shell,
-            substitute_params,
-            substitute_target_vars,
-            wrap_for_target,
+        from ai_guardian.daemon.tray_plugins import execute_plugin_command
+
+        return execute_plugin_command(
+            command_str, item_type, target, run_on_target, label
         )
-
-        command_str = substitute_target_vars(command_str, target)
-        if target and getattr(target, "working_dir", None):
-            command_str = substitute_params(
-                command_str,
-                {"working_dir": target.working_dir},
-            )
-
-        command_str = DaemonTray._resolve_plugin_ai_guardian(
-            command_str,
-            run_on_target,
-            target,
-        )
-
-        if _needs_shell(command_str):
-            cmd_parts = ["sh", "-c", command_str]
-        else:
-            try:
-                cmd_parts = shlex.split(command_str)
-            except ValueError:
-                logger.warning("Malformed plugin command: %s", command_str)
-                return
-
-        if run_on_target and target:
-            cmd_parts = wrap_for_target(
-                cmd_parts,
-                target,
-                interactive=(item_type == "terminal"),
-            )
-
-        is_remote = (
-            run_on_target
-            and target
-            and getattr(target, "runtime", "local") in ("container", "kubernetes")
-        )
-        if item_type != "terminal" and not is_remote:
-            shell = os.environ.get("SHELL", "/bin/bash")
-            cmd_parts = [shell, "-lc", command_str]
-
-        try:
-            if item_type == "terminal":
-                _launch_in_terminal(cmd_parts, keep_open=True)
-            elif item_type == "notification":
-                result = subprocess.run(
-                    cmd_parts,
-                    capture_output=True,
-                    text=True,
-                    timeout=60,
-                )
-                from ai_guardian.daemon.tray_plugins import send_notification
-
-                send_notification("AI Guardian", result.stdout.strip() or "(no output)")
-            elif item_type == "clipboard":
-                result = subprocess.run(
-                    cmd_parts,
-                    capture_output=True,
-                    text=True,
-                    timeout=60,
-                )
-                from ai_guardian.daemon.tray_plugins import copy_to_clipboard
-
-                copy_to_clipboard(result.stdout.strip())
-            elif item_type == "modal":
-                result = subprocess.run(
-                    cmd_parts,
-                    capture_output=True,
-                    text=True,
-                    timeout=60,
-                )
-                output = result.stdout.strip()
-                err = result.stderr.strip()
-                if err:
-                    if result.returncode != 0:
-                        output = (
-                            err
-                            if not output
-                            else (output + "\n\n--- stderr ---\n" + err)
-                        )
-                    else:
-                        output = (output + "\n" + err).strip() if output else err
-                from ai_guardian.daemon.tray_plugins import show_dialog
-
-                show_dialog(label or "AI Guardian", output or "(no output)")
-            else:
-                subprocess.run(cmd_parts, timeout=60)
-        except Exception:
-            pass  # intentionally silent — best-effort operation
 
     def _execute_plugin_command_with_params(self, plugin_item_dict, target=None):
         """Collect parameters via direct call or subprocess, then execute.
@@ -4368,8 +3973,10 @@ class DaemonTray:
         """Build pre-allocated plugin slots for a multi-daemon submenu."""
         return self._build_plugin_slots_for_daemon(daemon_slot)
 
-    _MAX_GLOBAL_PLUGIN_SLOTS = 4
-    _MAX_GLOBAL_ITEMS_PER_PLUGIN = 12
+    from ai_guardian.daemon.tray_plugins import (
+        MAX_GLOBAL_PLUGIN_SLOTS as _MAX_GLOBAL_PLUGIN_SLOTS,
+        MAX_GLOBAL_ITEMS_PER_PLUGIN as _MAX_GLOBAL_ITEMS_PER_PLUGIN,
+    )
 
     def _build_global_plugin_items(self):
         """Build top-level menu items for global-scope plugins.
@@ -4389,13 +3996,9 @@ class DaemonTray:
 
     @staticmethod
     def _launch_create_config():
-        """Launch ai-guardian setup --create-config in a new terminal."""
-        from ai_guardian.daemon.multi_client import _launch_in_terminal
+        from ai_guardian.daemon.tray_menu import launch_create_config
 
-        _launch_in_terminal(
-            DaemonTray._resolve_cli_cmd("setup", "--create-config"),
-            keep_open=True,
-        )
+        launch_create_config()
 
     def _build_ide_setup_menu_items(self):
         """Build the top-level 'Local Setup...' submenu.
