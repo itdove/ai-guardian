@@ -66,14 +66,25 @@ ai-guardian setup --ide claude --create-config --install-scanner
 Or use the container image (no Python setup required):
 
 ```bash
-podman pull quay.io/itdove/ai-guardian:latest
+# Recommended — run.sh handles auth, port mapping, and ToS consent
+curl -fsSL https://raw.githubusercontent.com/itdove/ai-guardian/v1.13.1/container/run.sh -o run.sh
+chmod +x run.sh
+ANTHROPIC_API_KEY=sk-ant-... ACCEPT_PROPRIETARY_TOS=true \
+    ./run.sh --ide claude --repo $(pwd)
+
+# Or manually with podman/docker
+podman pull quay.io/itdove/ai-guardian:v1.13.1
 podman run -it -p 63152:63152 \
     -v $(pwd):/workspace:z \
     -e AI_GUARDIAN_IDE=claude \
-    quay.io/itdove/ai-guardian:latest
+    -e ANTHROPIC_API_KEY=sk-ant-... \
+    -e ACCEPT_PROPRIETARY_TOS=true \
+    quay.io/itdove/ai-guardian:v1.13.1
 ```
 
-See [container/README.md](https://github.com/itdove/ai-guardian/blob/main/container/README.md) for IDE selection, auth, and multi-arch details.
+`ACCEPT_PROPRIETARY_TOS=true` accepts the [Claude Code Terms of Service](https://www.anthropic.com/legal/consumer-terms) and installs Claude Code automatically at first start. Omit it to be prompted interactively instead.
+
+See [container/README.md](https://github.com/itdove/ai-guardian/blob/main/container/README.md) for IDE selection, Vertex AI auth, and multi-arch details.
 
 The pip/uv install:
 - Installs a scanner engine (gitleaks)
@@ -465,17 +476,23 @@ Published to [quay.io/itdove/ai-guardian](https://quay.io/itdove/ai-guardian) on
 
 ## What's Included
 
-| Component | Description |
-|-----------|-------------|
-| ai-guardian | Security hooks, daemon, web console, MCP server |
-| gitleaks, betterleaks | Secret scanning engines |
-| Claude Code | Anthropic CLI agent |
-| OpenCode | Open-source model-agnostic agent |
-| Gemini CLI | Google Gemini terminal agent |
-| Codex CLI | OpenAI terminal agent |
-| Kiro CLI | AWS terminal agent |
-| OpenClaw | Open-source AI assistant |
-| rapidocr-onnxruntime | Image scanning support (x86_64 + aarch64) |
+| Component | License | Installed |
+|-----------|---------|-----------|
+| ai-guardian | Apache 2.0 | Build time |
+| gitleaks, betterleaks | MIT / Apache 2.0 | Build time |
+| OpenCode | MIT | Build time |
+| Gemini CLI | Apache 2.0 | Build time |
+| Codex CLI | Apache 2.0 | Build time |
+| OpenClaw | MIT | Build time |
+| rapidocr-onnxruntime | Apache 2.0 | Build time |
+| Claude Code | Proprietary (Anthropic) | **Runtime — ToS consent required** |
+| Kiro CLI | Proprietary (AWS) | **Runtime — ToS consent required** |
+
+Claude Code and Kiro CLI are proprietary and redistribution-restricted. They are not
+bundled in the image. Instead, the container installs them at first start after
+prompting the user to accept the respective Terms of Service.
+
+See [Proprietary CLI Consent](#proprietary-cli-consent) below.
 
 ## Pull
 
@@ -484,12 +501,12 @@ Published to [quay.io/itdove/ai-guardian](https://quay.io/itdove/ai-guardian) on
 podman pull quay.io/itdove/ai-guardian:latest
 
 # Specific release version
-podman pull quay.io/itdove/ai-guardian:1.13.0
+podman pull quay.io/itdove/ai-guardian:1.13.2
 ```
 
 Tag conventions:
 - `:latest` — tracks main branch (updated on every merge)
-- `:<version>` — pinned stable release (e.g. `1.13.0`)
+- `:<version>` — pinned stable release (e.g. `1.13.2`)
 
 ## Build Locally
 
@@ -498,11 +515,11 @@ Tag conventions:
 podman build -t ai-guardian container/
 
 # Specific version
-podman build --build-arg AI_GUARDIAN_VERSION=1.13.0 -t ai-guardian container/
+podman build --build-arg AI_GUARDIAN_VERSION=1.13.2 -t ai-guardian container/
 
 # Local wheel (copy wheel into container/ first)
-cp dist/ai_guardian-1.13.0-py3-none-any.whl container/vendor/
-podman build --build-arg AI_GUARDIAN_VERSION=ai_guardian-1.13.0-py3-none-any.whl \
+cp dist/ai_guardian-1.13.2-py3-none-any.whl container/vendor/
+podman build --build-arg AI_GUARDIAN_VERSION=ai_guardian-1.13.2-py3-none-any.whl \
     -t ai-guardian container/
 
 # Multi-arch
@@ -578,11 +595,11 @@ Set `AI_GUARDIAN_IDE` to configure hooks for a specific IDE at container start:
 
 | Value | IDE | Installed in image |
 |-------|-----|--------------------|
-| `claude` (default) | Claude Code | Yes |
+| `claude` (default) | Claude Code | **Runtime — ToS consent** |
 | `opencode` | OpenCode | Yes |
 | `gemini` | Gemini CLI | Yes |
 | `codex` | Codex CLI | Yes |
-| `kiro` | Kiro CLI | Yes |
+| `kiro` | Kiro CLI | **Runtime — ToS consent** |
 | `openclaw` | OpenClaw | Yes |
 | `cursor` | Cursor | No (hooks only) |
 | `copilot` | GitHub Copilot | No (hooks only) |
@@ -597,6 +614,53 @@ Set `AI_GUARDIAN_IDE` to configure hooks for a specific IDE at container start:
 IDEs marked "hooks only" are not installed in the image (they require a GUI) but
 ai-guardian hooks are configured for them. Mount the IDE binary into the container
 if needed.
+
+## Proprietary CLI Consent
+
+Claude Code (Anthropic) and Kiro CLI (AWS) are proprietary with redistribution
+restrictions. They are not bundled in the image. When `AI_GUARDIAN_IDE=claude`
+or `AI_GUARDIAN_IDE=kiro` is set, the container prompts for ToS acceptance at
+first start and installs the CLI if the user agrees.
+
+### Interactive (default)
+
+```
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  Claude Code requires accepting its Terms of Service:
+  https://www.anthropic.com/legal/consumer-terms
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  Install Claude Code and accept the ToS? [y/N]
+```
+
+Answer `y` to install, `N` (or Enter) to skip.
+
+### Non-interactive / CI
+
+Set `ACCEPT_PROPRIETARY_TOS=true` to bypass the prompt and install
+automatically. By setting this variable you confirm you have read and accept
+the relevant Terms of Service.
+
+```bash
+# Claude Code — non-interactive
+podman run -it -p 63152 \
+    -e ACCEPT_PROPRIETARY_TOS=true \
+    -e ANTHROPIC_API_KEY=sk-ant-... \
+    quay.io/itdove/ai-guardian:latest
+
+# Kiro CLI — non-interactive
+podman run -it -p 63152 \
+    -e AI_GUARDIAN_IDE=kiro \
+    -e ACCEPT_PROPRIETARY_TOS=true \
+    quay.io/itdove/ai-guardian:latest
+```
+
+The `run.sh` helper passes `ACCEPT_PROPRIETARY_TOS` through from the host
+environment automatically if it is set.
+
+### Already installed
+
+If the binary is already present in `$HOME/.local/bin/` (e.g. from a mounted
+volume), the consent prompt is skipped.
 
 ## Configuration Profile
 
@@ -667,10 +731,47 @@ Access from the host: `http://localhost:63152`
 
 | Arg | Default | Description |
 |-----|---------|-------------|
-| `AI_GUARDIAN_VERSION` | `1.13.0` | PyPI version or `.whl` filename |
+| `AI_GUARDIAN_VERSION` | `1.13.2` | PyPI version or `.whl` filename |
 | `AI_GUARDIAN_REST_PORT` | `63152` | Daemon REST API / web console port |
 | `UV_VERSION` | `0.11.16` | uv package manager version |
 | `OPENCODE_VERSION` | `1.17.3` | OpenCode version |
+
+## Test Image (Dockerfile.test)
+
+The test image extends the base image with bundled dummy-agent scenarios for hook regression testing. Not for distribution — local CI only.
+
+### Build
+
+```bash
+# Build base image first
+podman build -t ai-guardian container/
+
+# Build test image on top
+podman build -f container/Dockerfile.test -t ai-guardian-test container/
+```
+
+### Run
+
+```bash
+# Run all bundled scenarios (CI mode)
+podman run --rm ai-guardian-test /sandbox/run-scenarios.sh
+
+# Run a specific scenario
+podman run --rm ai-guardian-test \
+  ai-guardian dummy-agent --script /sandbox/scenarios/basic-secret.yaml
+
+# Interactive REPL
+podman run -it ai-guardian-test ai-guardian dummy-agent
+```
+
+### Bundled scenarios
+
+| Scenario | What it tests |
+|---|---|
+| `basic-secret.yaml` | AWS key detection → block |
+| `pii-detection.yaml` | Credit card, passport detection |
+| `ask-dialog.yaml` | Ask dialog forwarding to tray |
+| `tool-policy.yaml` | Directory rules, tool blocking |
 
 ## Expected Doctor Warnings
 
@@ -708,19 +809,19 @@ AI Guardian protects multiple AI coding agents through a unified hook adapter ar
 
 ## Hook Capability Matrix
 
-| Agent | UserPromptSubmit | PreToolUse | PostToolUse | BeforeReadFile |
-|-------|-----------------|------------|-------------|----------------|
-| Claude Code | Yes | Yes | Yes | N/A |
-| Cursor | Yes | Yes | Yes | Yes |
-| GitHub Copilot | Yes | Yes | N/A | N/A |
-| OpenAI Codex | Yes | Yes | Yes | N/A |
-| Windsurf | Yes | Yes | Yes | Yes |
-| Gemini CLI | Yes (BeforeAgent) | Yes | Yes | N/A |
-| Cline / ZooCode | Yes | Yes | Yes | N/A |
-| Kiro | Yes | Yes | Yes | N/A |
-| Augment Code | N/A | Yes | Yes | N/A |
-| OpenCode | Yes (chat.message) | Yes | Yes | N/A |
-| Junie | N/A | N/A | N/A | N/A |
+| Agent | SessionStart | UserPromptSubmit | PreToolUse | PostToolUse | BeforeReadFile | PostCompact | SessionEnd |
+|-------|-------------|-----------------|------------|-------------|----------------|-------------|------------|
+| Claude Code | Yes | Yes | Yes | Yes | N/A | Yes | Yes |
+| Cursor | N/A | Yes | Yes | Yes | Yes | N/A | N/A |
+| GitHub Copilot | N/A | Yes | Yes | N/A | N/A | N/A | N/A |
+| OpenAI Codex | N/A | Yes | Yes | Yes | N/A | N/A | N/A |
+| Windsurf | N/A | Yes | Yes | Yes | Yes | N/A | N/A |
+| Gemini CLI | Yes | Yes (BeforeAgent) | Yes | Yes | N/A | N/A | N/A |
+| Cline / ZooCode | N/A | Yes | Yes | Yes | N/A | N/A | N/A |
+| Kiro | N/A | Yes | Yes | Yes | N/A | N/A | N/A |
+| Augment Code | N/A | N/A | Yes | Yes | N/A | N/A | N/A |
+| OpenCode | N/A | Yes (chat.message) | Yes | Yes | N/A | N/A | N/A |
+| Junie | N/A | N/A | N/A | N/A | N/A | N/A | N/A |
 
 ## Protection Level by Hook Availability
 
@@ -859,6 +960,7 @@ Each agent uses different event names. The adapter layer normalizes these.
 
 | Concept | Claude Code | Copilot | Cursor | Windsurf | Gemini CLI | Cline | Kiro | OpenCode |
 |---------|------------|---------|--------|----------|-----------|-------|------|----------|
+| Session start | `SessionStart` | N/A | N/A | N/A | `SessionStart` | N/A | N/A | N/A |
 | Before tool | `PreToolUse` | `preToolUse` | `beforeShellExecution` | `pre_run_command` | `BeforeTool` | `PreToolUse` | `pre_tool_use` | `tool.execute.before` |
 | After tool | `PostToolUse` | `postToolUse` | `postToolUse` | `post_run_command` | `AfterTool` | `PostToolUse` | `post_tool_use` | `tool.execute.after` |
 | User prompt | `UserPromptSubmit` | `userPromptSubmitted` | `beforeSubmitPrompt` | `pre_user_prompt` | `BeforeAgent` | `UserPromptSubmit` | `prompt_submit` | `message.submit` |
@@ -2625,6 +2727,7 @@ The Violations tab displays all security violations logged by AI Guardian, inclu
 - Filter by type: All, Tool Permissions, Secrets, Directories, Prompt Injection
 - Click filter buttons at top of tab
 - Badge shows count per category
+- Filter by **project directory**: dropdown with browse button lets you restrict the violations list to a specific daemon project directory — useful in multi-project workspaces where multiple agents share one daemon
 
 **One-Click Approval**
 - Click **Approve & Add Rule** to automatically create permission rule
@@ -8729,6 +8832,16 @@ Quit
 
 - **●** Running daemon — full submenu with Statistics, Pause/Resume, Stop/Restart
 - **○** Stopped daemon — limited submenu with Console, Mode, Start daemon
+- **⚠●** Running daemon with stale code detected — shows orange dot; local daemons show a **Restart daemon (stale code)** item; remote/container/Kubernetes daemons show a **Rebuild image** hint instead
+
+## Stale-Code Indicator
+
+When the ai-guardian source code on disk is newer than the running daemon binary, the tray shows a warning indicator next to the daemon name:
+
+- **Local daemons**: orange dot + `Restart daemon (stale code)` menu item. Clicking it restarts the daemon and polls until it comes back online (up to 10 seconds), then refreshes the menu.
+- **Container / Kubernetes daemons**: orange dot + `Rebuild image (stale code)` hint. Remote daemons cannot be restarted from the tray — you must rebuild the container image and redeploy.
+
+Stale-code detection compares the installed package version against the timestamp of the source tree using the daemon's `/api/status` endpoint. This replaces the old dev-mode auto-restart behavior removed in v1.13.0.
 
 ## Discovery Methods
 
@@ -8896,6 +9009,8 @@ Each daemon's submenu routes actions to the correct transport:
 | Console | New terminal | `podman exec -it` | `kubectl exec -it` |
 | Pause/Resume | Unix socket | REST API | REST API |
 | Start/Stop/Restart | Subprocess | `podman exec` | `kubectl exec` |
+
+> **In-progress guard**: Restart actions are protected against double-clicks. Once a restart is triggered, the menu item is disabled and the tray polls the daemon until it responds again (up to 10 seconds) before re-enabling the item.
 
 ## CLI Reference
 
@@ -21990,80 +22105,53 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [1.13.0] - 2026-07-06
+## [1.13.3] - 2026-07-08
 
 ### Added
 
-- **Bandit and Semgrep code security scanners** — detect insecure code patterns in files being written or edited (hardcoded credentials, `eval()`/`exec()`, weak crypto, SQL injection sinks). Available via optional `[code-security]` extras; scanner auto-detects availability and fails gracefully if missing. New **Code Security** page in TUI and web console shows scanner status and findings. SARIF output for downstream consumers. Enabled in `@strict` profile; disabled in all other profiles (Issue #828).
+- **Scenario tests in CI/CD** — new `scenario-tests.yml` workflow runs all YAML-based dummy-agent scenarios (minimal, standard, strict, moderator profiles) in CI on every push and PR. Covers secret detection, PII, SSRF, tool policy, prompt injection, config exfil, and bootstrap scan (#1497).
 
-- **Container image on quay.io** — `quay.io/itdove/ai-guardian:<version>` published on every release tag via new `build-container.yml` CI/CD workflow; `:latest` updated on every merge to `main`. `support/` directory renamed to `container/`; includes smoke-test YAML scenarios for secret detection, PII, ask dialog, and tool policy (Issue #1423).
+- **Violations page: directory filter** — dropdown with browse button lets users filter the violations list to a specific daemon project directory (#1503).
 
-- **Kubernetes deployment** — Kustomize-based manifests with base + overlays for Kind (local/CI, NodePort), OpenShift (Route CRD), and production (LoadBalancer). Kind overlay includes cluster config for local testing. Docs at `docs/kubernetes.md`. Kind-based CI test validates remote daemon and ask dialog forwarding end-to-end (Issue #1428).
+- **Per-daemon stale-code indicator in tray** — each daemon entry in the tray menu now shows an orange dot when stale code is detected, making it clear which daemon needs a restart (#1510).
 
-- **Ask dialog forwarding from remote daemon to host tray** — container/Kubernetes daemon queues ask prompts; host tray polls every 2.5s and presents the full dialog locally (NiceGUI browser tab on macOS, auto-select on Linux). Decision returned to daemon via REST; hook continues with user's choice. New REST endpoints: `GET /api/pending-prompts`, `POST /api/prompt-decision`, `POST /api/register-tray` (Issue #1342).
+- **In-progress guard and restart polling in tray** — restart actions now show a spinner and poll until the daemon is back online, preventing double-clicks and giving clear feedback (#1512).
 
-- **Dummy-agent for LLM-free hook testing** — new `ai-guardian dummy-agent` command: interactive REPL that simulates all Claude Code hook events (PreToolUse, PostToolUse, UserPromptSubmit, Stop, Notification) using YAML scenario files, no LLM required. Bundled scenarios for secret detection, PII, tool policy, and ask dialog (Issue #1438).
+- **SessionStart support in dummy-agent** — `ai-guardian dummy-agent` can now emit SessionStart events; includes a new `bootstrap-scan.yaml` scenario demonstrating AGENTS.md poisoning detection (#1517).
 
-- **@moderator built-in profile** — all action policies set to `ask`, requiring human-in-the-loop approval before every tool call. Maximum-oversight mode for sensitive workflows. Available via `--profile @moderator` (Issue #1422).
-
-- **MCP server installed by default** — `ai-guardian install` now configures the MCP server automatically; `--mcp` flag removed. All new installations include MCP capabilities out of the box (Issue #1377).
-
-- **Security Instructions page** — new TUI and web console config page for defining agent context injection rules. Each rule specifies triggers and content injected into the agent system prompt at hook time. Profile templates include default security instruction sets (Issue #1460).
-
-- **Bootstrap scanning** — on new session start, ai-guardian scans agent config files (AGENTS.md, agent config JSONs) through the full violation pipeline, catching policy violations and secrets before any agent code runs. Triggers once per session (Issue #1394).
-
-- **ML Engines setup wizard** — step-by-step onboarding wizard on the ML Engines config page in both TUI and web console: dependency check → engine selection → model download. Replaces the previous static form that gave no onboarding guidance (Issue #1474).
-
-- **Per-field help tooltips** — all TUI and web console config pages now show a `(?)` icon next to each section and field. Opens contextual help inline without leaving the page. Centralized in `help_content.py`; reusable `help_panel.py` component for the web console (Issue #1472).
-
-- **Contextual help per scanner page** — each scanner page in the web console includes a "Learn More" help panel; TUI scanner views include a Documentation link. All 12 scanner pages covered via centralized `help_content.py` module (Issue #1463).
-
-- **Daemon REST port auto-retry** — if port 63152 is already bound (e.g. by an orphan daemon), the daemon automatically tries the next 9 consecutive ports (63152–63161). First free port wins. `ai-guardian doctor` probes the actual bound port (Issue #1469).
-
-- **6 new secret patterns** — `huggingface-access-token` (`hf_` prefix, 34 chars), `huggingface-organization-api-token` (`api_org_` prefix), `github-fine-grained-pat` (`github_pat_` + 82 chars), `github-user-token` (`ghu_` prefix), `aws-amazon-bedrock-api-key-long-lived` (`ABSK` prefix, 109–269 base64 chars), `perplexity-api-key` (`pplx-` prefix). Sourced from Gitleaks community config (MIT). Secret count: 53 → 59 (Issue #1482).
-
-- **SSRF: Alibaba Cloud and Oracle Cloud metadata blocking** — `100.100.100.200` (Alibaba Cloud) and `192.0.0.192` (Oracle Cloud/OCI) added as immutable SSRF block patterns. WebFetch tool calls to these IPs also blocked. Legitimate `100.x` public IPs unaffected (Issue #1483).
-
-- **Config exfil: glob pattern support and Copilot/Kiro targets** — `_is_config_file()` now accepts glob patterns for wildcard path matching. `.github/copilot-instructions.md` and `.kiro/steering/*.md` added to `DEFAULT_CONFIG_FILES` as persistence-multiplier targets (Issue #1484).
-
-- **Canary token detection** — new `canary_detection` config section detects user-registered tripwire values in AI output to catch data exfiltration. Supports exact-value and regex matching; bypasses entropy thresholds unlike the secret scanner, making it effective for low-entropy strings. Disabled by default. New `canary_detected` violation type in constants, violations log, TUI, and web console. Wired into PreToolUse, PostToolUse, and UserPromptSubmit hooks (Issue #1392).
-
-- **Offensive language scanner** — new `scan_offensive` config section detects profanity, slurs, and non-inclusive terminology in code, comments, and variable names. Disabled by default. Three categories: `profanity`, `slurs` (on by default when enabled), `inclusive_language` (opt-in). Includes `suggestion` field for inclusive replacements. Works with `.aiguardignore.toml`, ask mode, and allowlists (Issue #1417).
-
-- **Exfiltration behavior detection** — `exfil_detection` config section catches bash commands that steal credentials: curl/wget with token vars, base64 encoding of secrets, SSH key files piped to network, cloud credential exfil (AWS IMDS, GCP metadata), and environment variable collection. 6 pattern categories: `credential_theft`, `env_collection`, `key_file_exfil`, `base64_encoding`, `cloud_credential_exfil`, `secret_collection`. New `exfil_detection` violation type. Wired into PreToolUse Bash hook and batch scan mode for shell scripts (Issue #1393).
-
-- **Verified Cursor hook compatibility with Cursor v3.10.11** — all 5 hook events (beforeSubmitPrompt, beforeReadFile, beforeShellExecution, afterShellExecution, postToolUse) confirmed firing correctly.
-
-### Changed
-
-- **Dev-mode auto-restart removed** — daemon no longer watches file mtimes and auto-restarts in dev mode. Eliminates orphan daemon processes and partial-write crashes caused by mid-operation restarts. Tray shows a stale-code warning instead (Issue #1465).
+- **Rebuild-image hint for remote/container daemons** — stale-code tray indicator for container/Kubernetes daemons now shows a rebuild hint instead of a restart action, which is not applicable to remote daemons (#1521).
 
 ### Fixed
 
-- **Allowlist bypassed when scanner returns line_number=0** — hook processing used `line_number` as the key to look up the secret text; `line_number=0` resolved to nothing, so every such finding bypassed the allowlist. Fix falls back to `matched_text` from the scanner result (Issue #1476).
+- **Cursor shell execution hooks silent failure** — `beforeShellExecution` and `afterShellExecution` events were silently broken: `afterShellExecution` was misrouted to `HookEvent.PROMPT` instead of `POST_TOOL_USE`; top-level `command` field was not extracted so Bash commands were not scanned; `can_handle()` did not recognize these events when sent via `hook_event_name`. Shell commands run by Cursor are now fully scanned by tool policy and secret scanner (#1531).
 
-- **Tray restart double-click spawned orphan daemons** — rapid double-click on Restart tray menu item spawned two daemons simultaneously, both binding the same port, leaving both as orphans. Fix disables the menu item on first click and re-enables it after restart completes (Issue #1473).
+- **Doctor cache path failure before first hook call** — `ai-guardian setup` now creates the cache directory proactively so `ai-guardian doctor` does not report a false failure before any hook has run (#1499).
 
-- **Headless env detection incorrect in SSH sessions** — `_is_headless_env()` returned `True` when no `$DISPLAY` was set, causing Textual TUI to be skipped even in SSH sessions with a real TTY. Fix adds explicit TTY detection; headless path only taken when no TTY is present AND running in a container (Issue #1448).
+- **Bandit silent failure** — `ai-guardian scan` now shows `⚠️  Code security scanner (Bandit) unavailable` instead of silently reporting `✅ No security issues detected` when Bandit is not importable. `ai-guardian doctor` reports `[FAIL] Bandit (code security) not found` with a reinstall hint (#1504).
 
-- **Hook timeout too short for ask mode** — extended from 30s to 300s; fail-closed on timeout (Issue #1445).
+- **Doctor hook coverage** — `ai-guardian doctor` now checks all 5 hook event types (UserPromptSubmit, PreToolUse, PostToolUse, SessionEnd, PostCompact) instead of only the first 3 (#1505).
 
-- **Allow Once persisted for entire session** — the dedup fix in #1427 over-cached allowed findings, making Allow Once suppress findings for the full session. Fix scopes the allowed-findings cache to the current hook invocation only (Issue #1439).
+- **Bootstrap scan block message formatting** — block and warn messages from bootstrap scanning now use the consistent `🚨 BLOCKED BY POLICY` style matching other violation outputs (#1513).
 
-- **Double ask dialog on UserPromptSubmit** — scanning transcript and message body independently produced duplicate findings for the same secret, presenting two Allow dialogs. Fix deduplicates ask-mode findings by `matched_text` before showing dialogs (Issue #1427).
+- **Setup: abort on config failure** — `ai-guardian setup` now exits with an error when global config cannot be written instead of silently continuing; also accepts bare profile names (e.g., `minimal`) in addition to `@minimal` (#1501).
 
-- **Daemon orphan accumulation in dev mode** — race in `_cleanup_stale()` allowed multiple daemon processes to start concurrently. Fix makes the PID file the authoritative restart signal; only one process can claim it atomically (Issue #1425).
+- **SessionStart camelCase detection** — SessionStart events sent by Claude Code use `hookEventName` (camelCase) but the adapter only checked `hook_event_name` (snake_case). Both are now handled (#1522).
 
-- **Prompt injection settings missing ml and hybrid detector options** — `ml` and `hybrid` detector types were absent from the web console and TUI prompt injection pages, requiring manual JSON edits. All four detector types now selectable in all UI surfaces (Issue #1419).
+- **Transcript secret warnings: per-finding dedup and count** — repeated identical secret findings in a single transcript scan are now deduplicated and reported with a count instead of flooding the output (#1500).
 
-## [1.12.3] - 2026-06-29
+- **SessionStart block: full message shown** — block responses from the SessionStart hook now include `systemMessage` and `additionalContext` fields so the full error message appears in the Claude Code startup hook error UI (#1526).
+
+### Documentation
+
+- **Hook regression testing guide** — new `docs/hook-regression-testing.md` covers dummy-agent container setup, scenario authoring, and CI integration (#1496).
+
+- **Bootstrap scan limitation documented** — Claude Code does not support a true SessionStart hook; bootstrap scanning fires on the first UserPromptSubmit instead. This limitation is now documented in AGENTS.md and the bootstrap-scan config page (#1506).
+
+## [1.13.2] - 2026-07-06
 
 ### Fixed
 
-- **SHA hash values trigger false positive secret detection** — added entropy and stopword filtering to prevent SHA-256/SHA-512 commit hashes and checksums from being flagged as secrets (Issue #1378)
-- **IGNORE_FILE decision in multi-finding ask mode** — correctly handle "Ignore File" action when multiple findings are present in ask dialog (Issue #1387)
-- **Project dir override in prompt-ask handler** — set project directory override in prompt-ask handler so config writes target the correct project scope (Issue #1381)
-- **Cursor hook test settings dict key path** — correct the settings dictionary key path in cursor hook test to match actual structure (Issue #1386)
+- **Container quick-start docs corrected** — README example now uses `curl` to download `run.sh` (no full repo clone required), pins image to `v1.13.2` instead of `:latest`, and includes required `ANTHROPIC_API_KEY` and `ACCEPT_PROPRIETARY_TOS=true` variables that were missing from the previous example.
 
 
 *(Earlier versions omitted — see CHANGELOG.md for full history)*
