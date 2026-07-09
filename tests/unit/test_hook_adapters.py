@@ -651,7 +651,7 @@ class TestSharedResponseMethods:
         from unittest.mock import patch
 
         adapter = BaseAgentAdapter()
-        with patch("ai_guardian.hook_adapters.base_agent._EVENT_NAMES", {}):
+        with patch("ai_guardian.constants._DISPLAY_NAMES", {}):
             assert adapter._event_name(HookEvent.STOP) == "stop"
 
     def test_block_response_no_violation_type(self):

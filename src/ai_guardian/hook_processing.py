@@ -6932,7 +6932,7 @@ def process_hook_data(hook_data, daemon_state=None):
                             or {"action": post_pii_result.extra.get("action", "block")},
                             pii_redactions,
                             tool_identifier,
-                            "PostToolUse",
+                            HookEvent.POST_TOOL_USE.display_name,
                             pii_file_path,
                             pii_snippet_text,
                             HookEvent.POST_TOOL_USE,
@@ -7353,7 +7353,7 @@ def process_hook_data(hook_data, daemon_state=None):
                 if post_ol_result is not None and post_ol_result.detected:
                     _log_offensive_language_violation(
                         post_ol_result,
-                        hook_name="PostToolUse",
+                        hook_name=HookEvent.POST_TOOL_USE.display_name,
                         hook_event=hook_event,
                         hook_tool_use_id=hook_tool_use_id,
                         hook_session_id=hook_session_id,
@@ -7668,7 +7668,7 @@ def process_hook_data(hook_data, daemon_state=None):
                                     ),
                                 }
                                 violation_logger.log_violation(
-                                    hook_name="PreToolUse",
+                                    hook_name=HookEvent.PRE_TOOL_USE.display_name,
                                     tool_identifier=f"Bash: {bash_command[:100]}",
                                     violation_type=ViolationType.CONFIG_FILE_EXFIL,
                                     pattern_name=exfil_ctx["pattern_name"],
@@ -8811,11 +8811,7 @@ def process_hook_data(hook_data, daemon_state=None):
                     return result
 
                 if has_pii and pii_redactions:
-                    hook_name = (
-                        "UserPromptSubmit"
-                        if hook_event == HookEvent.PROMPT
-                        else "PreToolUse"
-                    )
+                    hook_name = hook_event.display_name
                     pii_config_for_log, _ = _load_pii_config()
                     pii_action, pii_types = _log_pii_violation(
                         violation_logger,

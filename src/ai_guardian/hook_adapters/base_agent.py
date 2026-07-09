@@ -14,19 +14,8 @@ from typing import ClassVar, Dict, List, Optional
 
 logger = logging.getLogger(__name__)
 
-from ai_guardian.constants import HookEvent
+from ai_guardian.constants import ALL_HOOK_EVENT_DISPLAY_NAMES, HookEvent
 from ai_guardian.hook_adapters.base import HookAdapter, NormalizedHookInput
-
-_EVENT_NAMES = {
-    HookEvent.SESSION_START: "SessionStart",
-    HookEvent.PROMPT: "UserPromptSubmit",
-    HookEvent.PRE_TOOL_USE: "PreToolUse",
-    HookEvent.POST_TOOL_USE: "PostToolUse",
-    HookEvent.BEFORE_READ_FILE: "PreToolUse",
-    HookEvent.SESSION_END: "SessionEnd",
-    HookEvent.STOP: "Stop",
-    HookEvent.POST_COMPACT: "PostCompact",
-}
 
 _BLOCK_USES_PERMISSION_DECISION = {HookEvent.PRE_TOOL_USE, HookEvent.BEFORE_READ_FILE}
 
@@ -57,15 +46,7 @@ class BaseAgentAdapter(HookAdapter):
     @classmethod
     def can_handle(cls, hook_data: Dict) -> bool:
         event = hook_data.get("hook_event_name") or hook_data.get("hookEventName", "")
-        return event in (
-            "UserPromptSubmit",
-            "PreToolUse",
-            "PostToolUse",
-            "Stop",
-            "SessionStart",
-            "SessionEnd",
-            "PostCompact",
-        )
+        return event in ALL_HOOK_EVENT_DISPLAY_NAMES
 
     def normalize_input(self, hook_data: Dict) -> NormalizedHookInput:
         event = self._detect_event_from_all_formats(hook_data)
@@ -93,11 +74,12 @@ class BaseAgentAdapter(HookAdapter):
 
     @staticmethod
     def _event_name(hook_event: HookEvent) -> str:
-        name = _EVENT_NAMES.get(hook_event)
-        if name is None:
-            logger.warning("Missing _EVENT_NAMES entry for %s", hook_event)
-            return hook_event.value
-        return name
+        if isinstance(hook_event, HookEvent):
+            return hook_event.display_name
+        try:
+            return HookEvent(hook_event).display_name
+        except ValueError:
+            return str(hook_event)
 
     def _block_response(
         self,

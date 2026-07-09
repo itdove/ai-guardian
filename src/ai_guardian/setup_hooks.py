@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
 from ai_guardian.config_utils import get_config_dir
+from ai_guardian.constants import HookEvent
 from ai_guardian.setup_utils import (
     _create_vbs_wrapper,
     _is_ai_guardian_command,
@@ -38,7 +39,7 @@ class IDESetup:
             # Log mode warnings are displayed in PostToolUse - if ai-guardian is not first, warnings are suppressed.
             # See docs/HOOK_ORDERING.md for details.
             "hooks": {
-                "UserPromptSubmit": [
+                HookEvent.PROMPT.display_name: [
                     {
                         "matcher": "*",
                         "hooks": [
@@ -50,7 +51,7 @@ class IDESetup:
                         ],
                     }
                 ],
-                "PreToolUse": [
+                HookEvent.PRE_TOOL_USE.display_name: [
                     {
                         "matcher": "*",
                         "hooks": [
@@ -62,7 +63,7 @@ class IDESetup:
                         ],
                     }
                 ],
-                "PostToolUse": [
+                HookEvent.POST_TOOL_USE.display_name: [
                     {
                         "matcher": "*",
                         "hooks": [
@@ -74,7 +75,7 @@ class IDESetup:
                         ],
                     }
                 ],
-                "SessionStart": [
+                HookEvent.SESSION_START.display_name: [
                     {
                         "matcher": "startup",
                         "hooks": [
@@ -86,10 +87,10 @@ class IDESetup:
                         ],
                     }
                 ],
-                "SessionEnd": [
+                HookEvent.SESSION_END.display_name: [
                     {"hooks": [{"type": "command", "command": "ai-guardian"}]}
                 ],
-                "PostCompact": [
+                HookEvent.POST_COMPACT.display_name: [
                     {"hooks": [{"type": "command", "command": "ai-guardian"}]}
                 ],
             },
@@ -124,7 +125,7 @@ class IDESetup:
             "config_dir_env_var": None,
             "config_filename": "hooks.json",
             "hooks": {
-                "UserPromptSubmit": [
+                HookEvent.PROMPT.display_name: [
                     {
                         "hooks": [
                             {
@@ -136,7 +137,7 @@ class IDESetup:
                         ]
                     }
                 ],
-                "PreToolUse": [
+                HookEvent.PRE_TOOL_USE.display_name: [
                     {
                         "matcher": ".*",
                         "hooks": [
@@ -149,7 +150,7 @@ class IDESetup:
                         ],
                     }
                 ],
-                "PostToolUse": [
+                HookEvent.POST_TOOL_USE.display_name: [
                     {
                         "matcher": ".*",
                         "hooks": [
@@ -190,7 +191,10 @@ class IDESetup:
             "config_filename": "settings.json",
             "hooks": {
                 "hooks": [
-                    {"event": "SessionStart", "command": "ai-guardian"},
+                    {
+                        "event": HookEvent.SESSION_START.display_name,
+                        "command": "ai-guardian",
+                    },
                     {"event": "BeforeAgent", "command": "ai-guardian"},
                     {"event": "BeforeTool", "matcher": ".*", "command": "ai-guardian"},
                     {"event": "AfterTool", "matcher": ".*", "command": "ai-guardian"},
@@ -203,7 +207,11 @@ class IDESetup:
             "config_dir_env_var": None,
             "config_filename": None,
             "script_based": True,
-            "hook_scripts": ["PreToolUse", "PostToolUse", "UserPromptSubmit"],
+            "hook_scripts": [
+                HookEvent.PRE_TOOL_USE.display_name,
+                HookEvent.POST_TOOL_USE.display_name,
+                HookEvent.PROMPT.display_name,
+            ],
             "script_content": "#!/bin/sh\nai-guardian\n",
         },
         "zoocode": {
@@ -212,7 +220,11 @@ class IDESetup:
             "config_dir_env_var": None,
             "config_filename": None,
             "script_based": True,
-            "hook_scripts": ["PreToolUse", "PostToolUse", "UserPromptSubmit"],
+            "hook_scripts": [
+                HookEvent.PRE_TOOL_USE.display_name,
+                HookEvent.POST_TOOL_USE.display_name,
+                HookEvent.PROMPT.display_name,
+            ],
             "script_content": "#!/bin/sh\nai-guardian\n",
         },
         "kiro": {
@@ -221,7 +233,11 @@ class IDESetup:
             "config_dir_env_var": None,
             "config_filename": None,
             "script_based": True,
-            "hook_scripts": ["PreToolUse", "PostToolUse", "PromptSubmit"],
+            "hook_scripts": [
+                HookEvent.PRE_TOOL_USE.display_name,
+                HookEvent.POST_TOOL_USE.display_name,
+                "PromptSubmit",
+            ],
             "script_content": "#!/bin/sh\nai-guardian\n",
         },
         "junie": {
@@ -259,7 +275,7 @@ class IDESetup:
             "config_filename": "settings.json",
             "hooks": {
                 "hooks": {
-                    "PreToolUse": [
+                    HookEvent.PRE_TOOL_USE.display_name: [
                         {
                             "matcher": "launch-process|str-replace-editor|save-file|view|remove-files",
                             "hooks": [
@@ -276,7 +292,7 @@ class IDESetup:
                             },
                         }
                     ],
-                    "PostToolUse": [
+                    HookEvent.POST_TOOL_USE.display_name: [
                         {
                             "matcher": "launch-process|str-replace-editor|save-file|view|remove-files",
                             "hooks": [
@@ -487,14 +503,13 @@ class IDESetup:
             if "hooks" not in existing_config:
                 existing_config["hooks"] = {}
 
-            # Merge SessionStart, UserPromptSubmit, PreToolUse, PostToolUse, SessionEnd, PostCompact hooks
             for hook_name in [
-                "SessionStart",
-                "UserPromptSubmit",
-                "PreToolUse",
-                "PostToolUse",
-                "SessionEnd",
-                "PostCompact",
+                HookEvent.SESSION_START.display_name,
+                HookEvent.PROMPT.display_name,
+                HookEvent.PRE_TOOL_USE.display_name,
+                HookEvent.POST_TOOL_USE.display_name,
+                HookEvent.SESSION_END.display_name,
+                HookEvent.POST_COMPACT.display_name,
             ]:
                 if hook_name not in ai_guardian_hooks:
                     continue
@@ -588,7 +603,11 @@ class IDESetup:
             if "hooks" not in existing_config:
                 existing_config["hooks"] = {}
 
-            for hook_name in ["UserPromptSubmit", "PreToolUse", "PostToolUse"]:
+            for hook_name in [
+                HookEvent.PROMPT.display_name,
+                HookEvent.PRE_TOOL_USE.display_name,
+                HookEvent.POST_TOOL_USE.display_name,
+            ]:
                 if hook_name not in ai_guardian_hooks:
                     continue
 
@@ -702,7 +721,10 @@ class IDESetup:
                 existing_config["hooks"] = {}
 
             template_hooks = ai_guardian_hooks.get("hooks", ai_guardian_hooks)
-            for hook_name in ["PreToolUse", "PostToolUse"]:
+            for hook_name in [
+                HookEvent.PRE_TOOL_USE.display_name,
+                HookEvent.POST_TOOL_USE.display_name,
+            ]:
                 if hook_name not in template_hooks:
                     continue
 
@@ -826,8 +848,11 @@ class IDESetup:
 
             if ide_type in ("claude", "codex"):
                 hooks = config.get("hooks", {})
-                # Check if UserPromptSubmit, PreToolUse, or PostToolUse hooks contain ai-guardian
-                for hook_name in ["UserPromptSubmit", "PreToolUse", "PostToolUse"]:
+                for hook_name in [
+                    HookEvent.PROMPT.display_name,
+                    HookEvent.PRE_TOOL_USE.display_name,
+                    HookEvent.POST_TOOL_USE.display_name,
+                ]:
                     if hook_name in hooks:
                         hook_list = hooks[hook_name]
                         if isinstance(hook_list, list):
@@ -896,7 +921,10 @@ class IDESetup:
 
             elif ide_type == "augment":
                 hooks = config.get("hooks", {})
-                for hook_name in ["PreToolUse", "PostToolUse"]:
+                for hook_name in [
+                    HookEvent.PRE_TOOL_USE.display_name,
+                    HookEvent.POST_TOOL_USE.display_name,
+                ]:
                     if hook_name in hooks:
                         hook_list = hooks[hook_name]
                         if isinstance(hook_list, list):

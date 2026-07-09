@@ -9,6 +9,7 @@ from unittest import mock as mock_patch
 
 from nicegui import run, ui
 
+from ai_guardian.constants import HookEvent
 from ai_guardian.web.components.header import create_header, create_sidebar
 from ai_guardian.tui.hook_simulator import (
     build_hook_data,
@@ -92,7 +93,7 @@ def create_hook_simulator_page(service, daemon_name: str):
                     hook_sel = ui.select(
                         label="Hook Event",
                         options=hook_options,
-                        value="UserPromptSubmit",
+                        value=HookEvent.PROMPT.display_name,
                     ).classes("w-48")
 
                     tool_sel = ui.select(
@@ -127,7 +128,7 @@ def create_hook_simulator_page(service, daemon_name: str):
                 )
 
                 def update_visibility(e=None):
-                    is_tool_hook = hook_sel.value != "UserPromptSubmit"
+                    is_tool_hook = hook_sel.value != HookEvent.PROMPT.display_name
                     tool_sel.set_visibility(is_tool_hook)
                     file_input.set_visibility(is_tool_hook)
 
@@ -140,11 +141,13 @@ def create_hook_simulator_page(service, daemon_name: str):
                 hook_data = build_hook_data(
                     hook_event=hook_sel.value,
                     tool_name=(
-                        tool_sel.value if hook_sel.value != "UserPromptSubmit" else None
+                        tool_sel.value
+                        if hook_sel.value != HookEvent.PROMPT.display_name
+                        else None
                     ),
                     file_path=(
                         file_input.value
-                        if hook_sel.value != "UserPromptSubmit"
+                        if hook_sel.value != HookEvent.PROMPT.display_name
                         else None
                     ),
                     content=content_input.value or "",

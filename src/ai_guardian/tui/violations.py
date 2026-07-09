@@ -8,6 +8,7 @@ Display all recent violations with filtering and resolution instructions.
 import json
 from typing import Dict
 
+from ai_guardian.constants import HookEvent
 from rich.markup import escape
 from textual.app import ComposeResult
 from textual.containers import Container, Horizontal, VerticalScroll, Vertical
@@ -1002,9 +1003,10 @@ class ViolationCard(Vertical):
         hook_event = context.get("hook_event", "")
         has_correlation = bool(context.get("pretool_context"))
         if tool_use_id and has_correlation:
-            hook_label = hook_event.replace("posttooluse", "PostToolUse").replace(
-                "pretooluse", "PreToolUse"
-            )
+            try:
+                hook_label = HookEvent(hook_event).display_name
+            except ValueError:
+                hook_label = hook_event
             yield Static(
                 f"[dim]Correlation: {tool_use_id[:16]}... ({hook_label})[/dim]",
                 classes="violation-detail",
