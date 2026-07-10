@@ -404,7 +404,7 @@ class TestScanOpenCodeTranscriptIncremental(unittest.TestCase):
         )
 
         with mock.patch(
-            "ai_guardian.hook_processing._scan_transcript_text"
+            "ai_guardian.transcript_scanning._scan_transcript_text"
         ) as mock_scan:
             mock_scan.return_value = []
             scan_opencode_transcript_incremental(
@@ -487,7 +487,7 @@ class TestScanTranscriptText(unittest.TestCase):
         )
         self.assertEqual(result, [])
 
-    @mock.patch("ai_guardian.hook_processing.check_secrets_with_gitleaks")
+    @mock.patch("ai_guardian.transcript_scanning.check_secrets_with_gitleaks")
     def test_secret_detection(self, mock_gitleaks):
         from ai_guardian.hook_processing import _scan_transcript_text
 
@@ -505,7 +505,7 @@ class TestScanTranscriptText(unittest.TestCase):
         self.assertEqual(len(result), 1)
         self.assertIn("SECRET DETECTED", result[0])
 
-    @mock.patch("ai_guardian.hook_processing.check_secrets_with_gitleaks")
+    @mock.patch("ai_guardian.transcript_scanning.check_secrets_with_gitleaks")
     def test_dedup_same_secret(self, mock_gitleaks):
         from ai_guardian.hook_processing import _scan_transcript_text
 

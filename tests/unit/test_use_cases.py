@@ -73,7 +73,7 @@ class DataExfiltrationAttackScenario(TestCase):
         # This demonstrates that even if permissions allow the tool,
         # secret scanning provides defense in depth
 
-    @patch("ai_guardian.hook_processing._load_pattern_server_config")
+    @patch("ai_guardian.secret_scanning._load_pattern_server_config")
     def test_exfiltration_blocked_at_source_add(self, mock_pattern_config):
         """
         Attack Step: Add source with stolen credentials
@@ -193,7 +193,7 @@ class PromptInjectionChainScenario(TestCase):
             "immutable" in error_msg.lower() or "protected" in error_msg.lower()
         ), f"Should mention immutable protection: {error_msg}"
 
-    @patch("ai_guardian.hook_processing._load_pattern_server_config")
+    @patch("ai_guardian.secret_scanning._load_pattern_server_config")
     def test_injection_cannot_bypass_secret_scanning(self, mock_pattern_config):
         """
         Attack: Try to use injection to bypass secret scanning
@@ -240,7 +240,7 @@ class LegitimateWorkflowScenario(TestCase):
     """
 
     @patch("ai_guardian.hook_processing._load_secret_redaction_config")
-    @patch("ai_guardian.hook_processing._load_pattern_server_config")
+    @patch("ai_guardian.secret_scanning._load_pattern_server_config")
     def test_legitimate_research_workflow(
         self, mock_pattern_config, mock_redaction_config
     ):

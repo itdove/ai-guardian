@@ -535,9 +535,11 @@ class TestHookIntegration(TestCase):
             img_path = _create_test_image_file(tmpdir, "screenshot.png")
 
             with (
-                patch("ai_guardian.hook_processing.HAS_IMAGE_SCANNER", True),
-                patch("ai_guardian.hook_processing.ImageDetector") as mock_detector,
-                patch("ai_guardian.hook_processing.scan_image") as mock_scan,
+                patch("ai_guardian.hook_events.scanners.HAS_IMAGE_SCANNER", True),
+                patch(
+                    "ai_guardian.hook_events.scanners.ImageDetector"
+                ) as mock_detector,
+                patch("ai_guardian.hook_events.scanners.scan_image") as mock_scan,
             ):
 
                 mock_detector.is_image_file.return_value = True
@@ -570,9 +572,11 @@ class TestHookIntegration(TestCase):
             img_path = _create_test_image_file(tmpdir, "test.png")
 
             with (
-                patch("ai_guardian.hook_processing.HAS_IMAGE_SCANNER", True),
-                patch("ai_guardian.hook_processing.ImageDetector") as mock_detector,
-                patch("ai_guardian.hook_processing.scan_image") as mock_scan,
+                patch("ai_guardian.hook_events.scanners.HAS_IMAGE_SCANNER", True),
+                patch(
+                    "ai_guardian.hook_events.scanners.ImageDetector"
+                ) as mock_detector,
+                patch("ai_guardian.hook_events.scanners.scan_image") as mock_scan,
             ):
 
                 mock_detector.is_image_file.return_value = True
