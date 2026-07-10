@@ -380,24 +380,40 @@ def _log_pii_violation(
 # ---------------------------------------------------------------------------
 
 
-def handle_post_tool_use(
-    hook_data,
-    adapter,
-    ide_type,
-    hook_event,
-    hook_tool_use_id,
-    hook_session_id,
-    context_mgr,
-    violation_logger,
-    _latency_timer,
-    _invocation_allowed,
-    now,
-):
+def handle_post_tool_use(ctx=None, **kwargs):
     """Handle PostToolUse event — scan tool output before sending to AI.
+
+    Accepts either a HookContext object (ctx) or individual keyword arguments
+    for backward compatibility.
 
     Returns:
         dict: Response with 'output' and 'exit_code'.
     """
+    if ctx is not None:
+        hook_data = ctx.hook_data
+        adapter = ctx.adapter
+        ide_type = ctx.ide_type
+        hook_event = ctx.hook_event
+        hook_tool_use_id = ctx.hook_tool_use_id
+        hook_session_id = ctx.hook_session_id
+        context_mgr = ctx.context_mgr
+        violation_logger = ctx.violation_logger
+        _latency_timer = ctx._latency_timer
+        _invocation_allowed = ctx._invocation_allowed
+        now = ctx.now
+    else:
+        hook_data = kwargs["hook_data"]
+        adapter = kwargs["adapter"]
+        ide_type = kwargs["ide_type"]
+        hook_event = kwargs["hook_event"]
+        hook_tool_use_id = kwargs["hook_tool_use_id"]
+        hook_session_id = kwargs["hook_session_id"]
+        context_mgr = kwargs["context_mgr"]
+        violation_logger = kwargs["violation_logger"]
+        _latency_timer = kwargs["_latency_timer"]
+        _invocation_allowed = kwargs["_invocation_allowed"]
+        now = kwargs["now"]
+
     logging.info("Processing PostToolUse hook...")
 
     # Extract tool output

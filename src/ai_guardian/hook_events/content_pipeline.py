@@ -105,37 +105,54 @@ from ai_guardian.response_format import IDEType
 
 
 def run_content_pipeline(
+    *,
+    ctx=None,
     content_to_scan,
     filename,
     file_path,
-    hook_event,
-    adapter,
-    ide_type,
-    now,
     secret_content_to_scan,
     pii_content_to_scan,
     tool_identifier,
     tool_name,
-    hook_session_id,
-    hook_tool_use_id,
-    context_mgr,
     warning_messages,
     log_only_count,
     _registry,
     _post_scan_ctx,
-    _latency_timer,
-    security_message,
-    _invocation_allowed,
     secret_config,
     pii_was_skipped,
     transcript_paths_to_scan,
-    hook_data,
+    # Legacy individual params (used when ctx is None)
+    hook_event=None,
+    adapter=None,
+    ide_type=None,
+    now=None,
+    hook_session_id=None,
+    hook_tool_use_id=None,
+    context_mgr=None,
+    _latency_timer=None,
+    security_message=None,
+    _invocation_allowed=None,
+    hook_data=None,
 ):
     """Run shared content scanning pipeline for PreToolUse/UserPromptSubmit.
+
+    Accepts a HookContext (ctx) for shared params, or individual keyword args.
 
     Returns (response_dict, log_only_count) if blocked, or (None, log_only_count) to continue.
     warning_messages list is mutated in-place with any warnings.
     """
+    if ctx is not None:
+        hook_data = ctx.hook_data
+        hook_event = ctx.hook_event
+        adapter = ctx.adapter
+        ide_type = ctx.ide_type
+        now = ctx.now
+        hook_session_id = ctx.hook_session_id
+        hook_tool_use_id = ctx.hook_tool_use_id
+        context_mgr = ctx.context_mgr
+        _latency_timer = ctx._latency_timer
+        security_message = ctx.security_message
+        _invocation_allowed = ctx._invocation_allowed
     # Tracking variables for PreToolUse context saving (#1285)
     _pretool_pi_detected = False
     _pretool_cp_scanned = False

@@ -54,9 +54,10 @@ import subprocess
 import sys
 import tempfile
 import time
+from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Dict, Optional
+from typing import Any, Dict, Optional, Set
 
 from ai_guardian.config_utils import (
     get_config_dir,
@@ -1616,6 +1617,26 @@ def _extract_file_path_from_pii_warning(pii_warning):
     return match.group(1) if match else None
 
 
+@dataclass
+class HookContext:
+    """Shared context passed to all event handlers within a single hook invocation."""
+
+    hook_data: Dict
+    adapter: Any
+    ide_type: Any
+    hook_event: Any
+    hook_tool_use_id: Optional[str]
+    hook_session_id: Optional[str]
+    context_mgr: Any
+    violation_logger: Any
+    _latency_timer: Any
+    now: Any
+    _invocation_allowed: Set = field(default_factory=set)
+    security_message: Optional[str] = None
+    daemon_state: Any = None
+    normalized: Any = None
+
+
 def process_hook_data(hook_data, daemon_state=None):
     """
     Process parsed hook data and return response.
@@ -1828,23 +1849,29 @@ def process_hook_data(hook_data, daemon_state=None):
                     f"Security instructions config load failed (non-fatal): {e}"
                 )
 
+        # Build shared context for all event handlers
+        ctx = HookContext(
+            hook_data=hook_data,
+            adapter=adapter,
+            ide_type=ide_type,
+            hook_event=hook_event,
+            hook_tool_use_id=hook_tool_use_id,
+            hook_session_id=hook_session_id,
+            context_mgr=context_mgr,
+            violation_logger=violation_logger,
+            _latency_timer=_latency_timer,
+            now=now,
+            _invocation_allowed=_invocation_allowed,
+            security_message=security_message,
+            daemon_state=daemon_state,
+            normalized=normalized,
+        )
+
         # Handle PostToolUse event
         if hook_event == HookEvent.POST_TOOL_USE:
             _, _pt_tool = extract_tool_result(hook_data)
             _latency_tool = _pt_tool or ""
-            return handle_post_tool_use(
-                hook_data=hook_data,
-                adapter=adapter,
-                ide_type=ide_type,
-                hook_event=hook_event,
-                hook_tool_use_id=hook_tool_use_id,
-                hook_session_id=hook_session_id,
-                context_mgr=context_mgr,
-                violation_logger=violation_logger,
-                _latency_timer=_latency_timer,
-                _invocation_allowed=_invocation_allowed,
-                now=now,
-            )
+            return handle_post_tool_use(ctx=ctx)
 
         # Accumulate warning messages from log mode checks (tool policy, prompt injection, etc.)
         warning_messages = []
@@ -2577,28 +2604,18 @@ def process_hook_data(hook_data, daemon_state=None):
 
         # Run shared content scanning pipeline (PI, CP, SC, OL, CD, CF, SECRET, PII, transcript)
         pipeline_result, log_only_count = run_content_pipeline(
-            hook_data=hook_data,
+            ctx=ctx,
             content_to_scan=content_to_scan,
             filename=filename,
             file_path=file_path,
-            hook_event=hook_event,
-            adapter=adapter,
-            ide_type=ide_type,
-            now=now,
             secret_content_to_scan=secret_content_to_scan,
             pii_content_to_scan=pii_content_to_scan,
             tool_identifier=tool_identifier,
             tool_name=tool_name,
-            hook_session_id=hook_session_id,
-            hook_tool_use_id=hook_tool_use_id,
-            context_mgr=context_mgr,
             warning_messages=warning_messages,
             log_only_count=log_only_count,
             _registry=_registry,
             _post_scan_ctx=_post_scan_ctx,
-            _latency_timer=_latency_timer,
-            security_message=security_message,
-            _invocation_allowed=_invocation_allowed,
             secret_config=None,
             pii_was_skipped=False,
             transcript_paths_to_scan=None,
