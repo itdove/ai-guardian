@@ -97,6 +97,8 @@ def _handle_ask_mode(
             format_hook_label,
         )
 
+        import re as _re
+
         display_text = matched_text or ""
         display_line = line_number
 
@@ -105,8 +107,6 @@ def _handle_ask_mode(
 
         if not display_text and file_path and error_msg:
             try:
-                import re as _re
-
                 loc_match = _re.search(r"Location:\s*[^:]+:(\d+)", error_msg)
                 if loc_match:
                     display_line = int(loc_match.group(1))
@@ -125,8 +125,6 @@ def _handle_ask_mode(
 
         if not display_text:
             try:
-                import re as _re
-
                 type_match = _re.search(r"Secret Type:\s*(.+)", error_msg or "")
                 if type_match:
                     display_text = type_match.group(1).strip()
@@ -136,8 +134,6 @@ def _handle_ask_mode(
         summary_lines = []
         if error_msg:
             for prefix in ("Secret Type:", "Scanner:"):
-                import re as _re
-
                 m = _re.search(rf"{prefix}\s*(.+)", error_msg)
                 if m:
                     summary_lines.append(f"{prefix} {m.group(1).strip()}")
@@ -440,24 +436,16 @@ def _log_ask_decision(
             blocked_info["file_path"] = file_path
         if line_number:
             blocked_info["line_number"] = line_number
-        if decision == AskDecision.BLOCK:
-            decision_str = "block"
-            action_taken = "blocked"
-        elif decision == AskDecision.BLOCK_ALL:
-            decision_str = "block_all"
-            action_taken = "blocked"
-        elif decision == AskDecision.ALLOW_ALWAYS:
-            decision_str = "allow_always"
-            action_taken = "allowed"
-        elif decision == AskDecision.SUPPRESS_IN_SOURCE:
-            decision_str = "suppress_in_source"
-            action_taken = "allowed"
-        elif decision == AskDecision.IGNORE_FILE:
-            decision_str = "ignore_file"
-            action_taken = "allowed"
-        else:
-            decision_str = "allow_once"
-            action_taken = "allowed"
+        _DECISION_MAP = {
+            AskDecision.BLOCK: ("block", "blocked"),
+            AskDecision.BLOCK_ALL: ("block_all", "blocked"),
+            AskDecision.ALLOW_ALWAYS: ("allow_always", "allowed"),
+            AskDecision.SUPPRESS_IN_SOURCE: ("suppress_in_source", "allowed"),
+            AskDecision.IGNORE_FILE: ("ignore_file", "allowed"),
+        }
+        decision_str, action_taken = _DECISION_MAP.get(
+            decision, ("allow_once", "allowed")
+        )
         ctx = {"ask_decision": decision_str, "action_taken": action_taken}
         if dialog_wait_ms > 0:
             ctx["dialog_wait_ms"] = round(dialog_wait_ms, 1)

@@ -22,7 +22,7 @@ class TestScanTranscriptTextAllowedFindings:
 
     def test_allowed_secret_skipped(self, tmp_path):
         """Secret fingerprint in allowed set should not produce a warning."""
-        from ai_guardian.hook_processing import _scan_transcript_text
+        from ai_guardian.transcript_scanning import _scan_transcript_text
 
         # ai-guardian:begin-allow
         content = "my secret key is AKIAIOSFODNN7EXAMPLE and it works"
@@ -54,7 +54,7 @@ class TestScanTranscriptTextAllowedFindings:
 
     def test_non_allowed_secret_reported(self, tmp_path):
         """Secret NOT in allowed set should produce a warning."""
-        from ai_guardian.hook_processing import _scan_transcript_text
+        from ai_guardian.transcript_scanning import _scan_transcript_text
 
         # ai-guardian:begin-allow
         content = "my secret key is AKIAIOSFODNN7EXAMPLE and it works"
@@ -83,7 +83,7 @@ class TestScanTranscriptTextAllowedFindings:
 
     def test_allowed_pii_skipped(self):
         """PII fingerprint in allowed set should not produce a warning."""
-        from ai_guardian.hook_processing import _scan_transcript_text
+        from ai_guardian.transcript_scanning import _scan_transcript_text
 
         pii_type = "SSN"
         # ai-guardian:begin-allow
@@ -120,7 +120,7 @@ class TestScanTranscriptTextAllowedFindings:
 
     def test_multiple_secrets_produce_summary_warning(self):
         """Multiple per-findings produce one warning with count and types."""
-        from ai_guardian.hook_processing import _scan_transcript_text
+        from ai_guardian.transcript_scanning import _scan_transcript_text
         from ai_guardian.scanners.scan_result import ScanResult
 
         mock_findings = [
@@ -162,7 +162,7 @@ class TestScanTranscriptTextAllowedFindings:
 
     def test_multiple_secrets_all_allowed(self):
         """All per-findings allowed → no warning."""
-        from ai_guardian.hook_processing import _scan_transcript_text
+        from ai_guardian.transcript_scanning import _scan_transcript_text
         from ai_guardian.scanners.scan_result import ScanResult
 
         mock_findings = [
@@ -203,7 +203,7 @@ class TestScanTranscriptTextAllowedFindings:
 
     def test_multiple_secrets_partial_allowed(self):
         """Only non-allowed secrets appear in warning."""
-        from ai_guardian.hook_processing import _scan_transcript_text
+        from ai_guardian.transcript_scanning import _scan_transcript_text
         from ai_guardian.scanners.scan_result import ScanResult
 
         mock_findings = [
@@ -246,7 +246,7 @@ class TestScanTranscriptTextAllowedFindings:
 
     def test_none_allowed_findings_backward_compat(self):
         """allowed_findings=None should work (backward compat)."""
-        from ai_guardian.hook_processing import _scan_transcript_text
+        from ai_guardian.transcript_scanning import _scan_transcript_text
 
         with mock.patch(
             "ai_guardian.transcript_scanning.check_secrets_with_gitleaks",

@@ -14,6 +14,8 @@ import re
 
 from ai_guardian.constants import HookEvent
 
+_HEREDOC_START_RE = re.compile(r"<<(-)?(?:(['\"])([\w-]+)\2|([\w-]+))", re.MULTILINE)
+
 # Hardcoded critical protections - cannot be disabled or bypassed
 #
 # Dev source patterns removed (Issue #369) - redundant with git/PR workflow.
@@ -25,61 +27,37 @@ from ai_guardian.constants import HookEvent
 # - Bash/PowerShell on config/hooks/cache/pip: ALWAYS blocked (no bypass)
 #
 # These patterns are checked FIRST, before any user-configured permissions
+_WRITE_EDIT_DENY = [
+    # Config files - ALWAYS protected (even for repo owners)
+    "*ai-guardian.json",
+    "*/.config/ai-guardian/*",
+    "*/.ai-guardian.json",
+    # Cache files - ALWAYS protected (prevents cache poisoning)
+    "*/.cache/ai-guardian/*",
+    # IDE hooks - ALWAYS protected (prevents disabling ai-guardian)
+    # Note: */.claude/settings.json removed — handled by content-aware check (Issue #807)
+    "*/.claude/hooks.json",
+    "*/.cursor/hooks.json",
+    "*/Cursor/hooks.json",  # Windows
+    "*/.github/hooks/hooks.json",  # GitHub Copilot
+    "*/.codex/hooks.json",  # OpenAI Codex
+    "*/.codeium/windsurf/hooks.json",  # Windsurf
+    # Script-based hooks - ALWAYS protected (prevents disabling ai-guardian)
+    "*/.clinerules/hooks/*",  # Cline / ZooCode
+    "*/.kiro/hooks/*",  # Kiro
+    # Extension/plugin hooks - ALWAYS protected (prevents disabling ai-guardian)
+    "*/.aider-desk/extensions/ai-guardian/*",  # AiderDesk
+    "*/.openclaw/plugins/ai-guardian/*",  # OpenClaw
+    # Pip-installed package code - ALWAYS protected (no git/PR review for installed packages)
+    "*/site-packages/ai_guardian/*",
+    # Directory markers - ALWAYS protected (prevents bypass of directory rules)
+    "*/.ai-read-deny",
+    "**/.ai-read-deny",
+]
+
 IMMUTABLE_DENY_PATTERNS = {
-    "Write": [
-        # Config files - ALWAYS protected (even for repo owners)
-        "*ai-guardian.json",
-        "*/.config/ai-guardian/*",
-        "*/.ai-guardian.json",
-        # Cache files - ALWAYS protected (prevents cache poisoning)
-        "*/.cache/ai-guardian/*",
-        # IDE hooks - ALWAYS protected (prevents disabling ai-guardian)
-        # Note: */.claude/settings.json removed — handled by content-aware check (Issue #807)
-        "*/.claude/hooks.json",
-        "*/.cursor/hooks.json",
-        "*/Cursor/hooks.json",  # Windows
-        "*/.github/hooks/hooks.json",  # GitHub Copilot
-        "*/.codex/hooks.json",  # OpenAI Codex
-        "*/.codeium/windsurf/hooks.json",  # Windsurf
-        # Script-based hooks - ALWAYS protected (prevents disabling ai-guardian)
-        "*/.clinerules/hooks/*",  # Cline / ZooCode
-        "*/.kiro/hooks/*",  # Kiro
-        # Extension/plugin hooks - ALWAYS protected (prevents disabling ai-guardian)
-        "*/.aider-desk/extensions/ai-guardian/*",  # AiderDesk
-        "*/.openclaw/plugins/ai-guardian/*",  # OpenClaw
-        # Pip-installed package code - ALWAYS protected (no git/PR review for installed packages)
-        "*/site-packages/ai_guardian/*",
-        # Directory markers - ALWAYS protected (prevents bypass of directory rules)
-        "*/.ai-read-deny",
-        "**/.ai-read-deny",
-    ],
-    "Edit": [
-        # Config files - ALWAYS protected (even for repo owners)
-        "*ai-guardian.json",
-        "*/.config/ai-guardian/*",
-        "*/.ai-guardian.json",
-        # Cache files - ALWAYS protected (prevents cache poisoning)
-        "*/.cache/ai-guardian/*",
-        # IDE hooks - ALWAYS protected (prevents disabling ai-guardian)
-        # Note: */.claude/settings.json removed — handled by content-aware check (Issue #807)
-        "*/.claude/hooks.json",
-        "*/.cursor/hooks.json",
-        "*/Cursor/hooks.json",
-        "*/.github/hooks/hooks.json",  # GitHub Copilot
-        "*/.codex/hooks.json",  # OpenAI Codex
-        "*/.codeium/windsurf/hooks.json",  # Windsurf
-        # Script-based hooks - ALWAYS protected (prevents disabling ai-guardian)
-        "*/.clinerules/hooks/*",  # Cline / ZooCode
-        "*/.kiro/hooks/*",  # Kiro
-        # Extension/plugin hooks - ALWAYS protected (prevents disabling ai-guardian)
-        "*/.aider-desk/extensions/ai-guardian/*",  # AiderDesk
-        "*/.openclaw/plugins/ai-guardian/*",  # OpenClaw
-        # Pip-installed package code - ALWAYS protected (no git/PR review for installed packages)
-        "*/site-packages/ai_guardian/*",
-        # Directory markers - ALWAYS protected (prevents bypass of directory rules)
-        "*/.ai-read-deny",
-        "**/.ai-read-deny",
-    ],
+    "Write": _WRITE_EDIT_DENY,
+    "Edit": _WRITE_EDIT_DENY,
     "Read": [
         # Config files - block reading security rules, patterns, allowlists (Issue #512)
         "*ai-guardian.json",
@@ -586,17 +564,10 @@ def _strip_bash_heredoc_content(command: str) -> str:
     if not command or "<<" not in command:
         return command
 
-    # Pattern to match heredoc start
-    # Groups: (1) optional dash, (2) quote if quoted, (3) delimiter if quoted, (4) delimiter if unquoted
-    # Updated to support hyphenated delimiters (e.g., END-OF-FILE, MY-DELIMITER)
-    heredoc_start_pattern = re.compile(
-        r"<<(-)?(?:(['\"])([\w-]+)\2|([\w-]+))", re.MULTILINE
-    )
-
     # Find all heredocs and their positions
     replacements = []
 
-    for match in heredoc_start_pattern.finditer(command):
+    for match in _HEREDOC_START_RE.finditer(command):
         # Extract delimiter (group 3 if quoted, group 4 if unquoted)
         delimiter = match.group(3) if match.group(3) else match.group(4)
         heredoc_start = match.end()  # Position after the delimiter

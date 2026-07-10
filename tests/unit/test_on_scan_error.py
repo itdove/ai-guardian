@@ -349,11 +349,11 @@ class TestOnScanErrorConfigScanning(TestCase):
     """Tests for on_scan_error behavior in config file scanning."""
 
     @patch("ai_guardian.hook_processing._load_pii_config")
-    @patch("ai_guardian.secret_scanning._get_on_scan_error_action")
+    @patch("ai_guardian.hook_processing._get_on_scan_error_action")
     @patch("ai_guardian.hook_processing._load_config_scanner_config")
     @patch("ai_guardian.hook_processing._load_permissions_config")
-    @patch("ai_guardian.secret_scanning._load_secret_scanning_config")
-    @patch("ai_guardian.secret_scanning._load_pattern_server_config")
+    @patch("ai_guardian.hook_processing._load_secret_scanning_config")
+    @patch("ai_guardian.hook_processing._load_pattern_server_config")
     @patch("ai_guardian.hook_processing.extract_file_content_from_tool")
     def test_config_scan_error_allow(
         self,

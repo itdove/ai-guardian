@@ -91,7 +91,7 @@ EOF
    grep -rl '<method_name>' tests/ | xargs uv run --extra dev python -m pytest -v
    ```
 
-3. **Full suite → only before PR submission or when touching shared modules** (`constants.py`, `config_loaders.py`, `__init__.py`)
+3. **Full suite → only before PR submission or when touching shared modules** (`constants.py`, `config/loaders.py`, `__init__.py`)
    ```bash
    uv run --extra dev python -m pytest
    ```
@@ -1072,12 +1072,12 @@ When modifying the configuration schema:
    - Define types, defaults, and validation rules
    - Update documentation strings
 
-2. **Setup Config** (`src/ai_guardian/setup_config.py`)
+2. **Setup Config** (`src/ai_guardian/setup/config.py`)
    - Update the `_get_default_config_template()` function
    - Add new configuration options with appropriate defaults
    - Include comment fields (`_comment_*`) for documentation
    - **CRITICAL**: This ensures `ai-guardian setup --create-config` includes new options
-   - Note: `setup.py` is a thin orchestrator; the real config template is in `setup_config.py`
+   - Note: `setup/__init__.py` is a thin orchestrator; the real config template is in `setup/config.py`
 
 3. **Example Config** (`ai-guardian-example.json`)
    - Add the new configuration option with example values
@@ -1103,7 +1103,7 @@ When modifying the configuration schema:
 
 **Checklist for Schema Changes:**
 - [ ] Update JSON schema with new property
-- [ ] Update setup_config.py default config (`_get_default_config_template()`)
+- [ ] Update setup/config.py default config (`_get_default_config_template()`)
 - [ ] Update ai-guardian-example.json with examples
 - [ ] Verify Console compatibility (usually auto-generates)
 - [ ] Implement code to read new config
@@ -1209,8 +1209,8 @@ A scanner is a new detection engine that integrates into the hook pipeline and `
 - [ ] `src/ai_guardian/mcp_server.py` — add suggestion string to `_SAFE_SUGGESTIONS` dict; `scan_directory` picks up new findings automatically via `FileScanner`
 
 #### 8. Config defaults & schema
-- [ ] `src/ai_guardian/setup_config.py` — add `"_comment_<scanner>"` (top-level) **and** `"_comment_action"`, `"_comment_enabled"` etc. (nested inside the scanner dict) to `_get_default_config_template()`. These are auto-extracted into `CONFIG_FIELD_HELP` by `_build_field_help()` — every `_comment_*` key you add here becomes a tooltip automatically.
-- [ ] `src/ai_guardian/help_content.py` — for any field not covered by a `_comment_*` key in `setup_config.py`, add a manual entry to `_FIELD_HELP_SUPPLEMENT` following the `"<scanner>.<field>"` key convention.
+- [ ] `src/ai_guardian/setup/config.py` — add `"_comment_<scanner>"` (top-level) **and** `"_comment_action"`, `"_comment_enabled"` etc. (nested inside the scanner dict) to `_get_default_config_template()`. These are auto-extracted into `CONFIG_FIELD_HELP` by `_build_field_help()` — every `_comment_*` key you add here becomes a tooltip automatically.
+- [ ] `src/ai_guardian/help_content.py` — for any field not covered by a `_comment_*` key in `setup/config.py`, add a manual entry to `_FIELD_HELP_SUPPLEMENT` following the `"<scanner>.<field>"` key convention.
 - [ ] `src/ai_guardian/schemas/ai-guardian-config.schema.json`:
   - Add `"<scanner>"` object with full property definitions
   - Add `"<scanner>"` to the `violation_type` enum array (two places: `enum` + `default`)
@@ -1256,8 +1256,8 @@ A scanner is a new detection engine that integrates into the hook pipeline and `
 - [ ] `tests/unit/test_<scanner>.py` — unit tests: clean input, known-bad input, config options (threshold, allowlist), suppression annotations, robustness (empty input, parse errors)
 
 #### 12. Help tooltips
-- [ ] `src/ai_guardian/setup_config.py` — add `_comment_*` keys inside the scanner dict in `_get_default_config_template()` for each configurable field so they surface automatically as tooltips in both consoles
-- [ ] `src/ai_guardian/help_content.py` → `_FIELD_HELP_SUPPLEMENT` — add any field that `setup_config.py` doesn't cover with a `_comment_*` key (use `"<scanner>.<field>"` keys)
+- [ ] `src/ai_guardian/setup/config.py` — add `_comment_*` keys inside the scanner dict in `_get_default_config_template()` for each configurable field so they surface automatically as tooltips in both consoles
+- [ ] `src/ai_guardian/help_content.py` → `_FIELD_HELP_SUPPLEMENT` — add any field that `setup/config.py` doesn't cover with a `_comment_*` key (use `"<scanner>.<field>"` keys)
 - [ ] `src/ai_guardian/tui/<scanner>.py` — `_apply_tooltips()` sets `.tooltip` on key widgets from `CONFIG_FIELD_HELP`
 - [ ] `src/ai_guardian/web/pages/<scanner>.py` — `field_help_icon("<scanner>.<field>")` called next to every section and field label
 - [ ] `src/ai_guardian/web/pages/global_settings.py` — existing loop calls `field_help_icon(section)` and `field_help_icon(f"{section}.action")` automatically for any new scanner added to `FEATURE_GROUPS`

@@ -3,9 +3,26 @@
 import logging
 from typing import Dict, Optional
 
+from ai_guardian.config.loaders import (
+    _load_annotations_config,
+)
 from ai_guardian.config.utils import get_project_dir, is_feature_enabled
 from ai_guardian.constants import ActionMode, ViolationType, HookEvent
+from ai_guardian.hook_events.utils import (  # noqa: F401
+    _format_response,
+    _load_secret_scanning_config,
+    _load_pii_config,
+    check_secrets_with_gitleaks,
+    _get_on_scan_error_action,
+    _extract_pii_matched_text,
+    _pii_redactions_to_findings,
+    _extract_file_path_from_pii_warning,
+)
 from ai_guardian.scanners.scan_result import ScanResult
+from ai_guardian.secret_scanning import (
+    _build_violation_context,
+    _enrich_blocked_from_details,
+)
 from ai_guardian.transcript_scanning import _advance_transcript_position
 
 from ai_guardian.ask_mode import (
@@ -13,11 +30,6 @@ from ai_guardian.ask_mode import (
     _format_ask_info_message,
     _log_ask_decision,
     _compute_pii_transcript_fingerprints,
-)
-
-from ai_guardian.secret_scanning import (
-    _build_violation_context,
-    _enrich_blocked_from_details,
 )
 
 from ai_guardian.hook_events.scanners import (
@@ -28,6 +40,7 @@ from ai_guardian.hook_events.scanners import (
     run_pii_scan,
 )
 
+# _hp delegation keeps test patches on hook_processing propagating into this module
 import ai_guardian.hook_processing as _hp
 import ai_guardian.secret_scanning as _secret_scanning_mod
 
@@ -35,57 +48,21 @@ logger = logging.getLogger(__name__)
 
 
 # ---------------------------------------------------------------------------
-# Module-attribute delegation wrappers (keeps test patches on hook_processing
-# propagating into this module — same pattern as scanners.py).
+# Module-attribute delegation wrappers — tests mock these on hook_processing,
+# so direct imports from canonical modules would break mock propagation.
 # ---------------------------------------------------------------------------
-
-
-def _format_response(adapter, **kwargs):
-    return _hp._format_response(adapter, **kwargs)
-
-
-def _load_secret_scanning_config():
-    return _hp._load_secret_scanning_config()
-
-
-def _load_pii_config():
-    return _hp._load_pii_config()
 
 
 def _load_secret_redaction_config():
     return _hp._load_secret_redaction_config()
 
 
-def _load_annotations_config():
-    return _hp._load_annotations_config()
-
-
 def extract_tool_result(hook_data):
     return _hp.extract_tool_result(hook_data)
 
 
-def check_secrets_with_gitleaks(*args, **kwargs):
-    return _hp.check_secrets_with_gitleaks(*args, **kwargs)
-
-
 def _extract_context_snippet(text, line_number):
     return _hp._extract_context_snippet(text, line_number)
-
-
-def _get_on_scan_error_action():
-    return _hp._get_on_scan_error_action()
-
-
-def _extract_pii_matched_text(pii_redactions, content):
-    return _hp._extract_pii_matched_text(pii_redactions, content)
-
-
-def _pii_redactions_to_findings(pii_redactions, content, error_msg=""):
-    return _hp._pii_redactions_to_findings(pii_redactions, content, error_msg)
-
-
-def _extract_file_path_from_pii_warning(pii_warning):
-    return _hp._extract_file_path_from_pii_warning(pii_warning)
 
 
 # ---------------------------------------------------------------------------

@@ -349,7 +349,7 @@ class TestScanOpenCodeTranscriptIncremental(unittest.TestCase):
         shutil.rmtree(self.state_dir, ignore_errors=True)
 
     def test_first_scan_skips_to_end(self):
-        from ai_guardian.hook_processing import scan_opencode_transcript_incremental
+        from ai_guardian.transcript_scanning import scan_opencode_transcript_incremental
 
         _insert_part(
             self.conn,
@@ -376,7 +376,7 @@ class TestScanOpenCodeTranscriptIncremental(unittest.TestCase):
         self.assertEqual(positions.get("opencode:ses_scan1"), 1000)
 
     def test_second_scan_reads_new_parts(self):
-        from ai_guardian.hook_processing import scan_opencode_transcript_incremental
+        from ai_guardian.transcript_scanning import scan_opencode_transcript_incremental
 
         _insert_part(
             self.conn,
@@ -418,7 +418,7 @@ class TestScanOpenCodeTranscriptIncremental(unittest.TestCase):
             self.assertIn("new text", call_args[0][0])
 
     def test_nothing_new_returns_empty(self):
-        from ai_guardian.hook_processing import scan_opencode_transcript_incremental
+        from ai_guardian.transcript_scanning import scan_opencode_transcript_incremental
 
         _insert_part(
             self.conn,
@@ -466,7 +466,7 @@ class TestScanTranscriptText(unittest.TestCase):
         shutil.rmtree(self.state_dir, ignore_errors=True)
 
     def test_both_disabled_returns_empty(self):
-        from ai_guardian.hook_processing import _scan_transcript_text
+        from ai_guardian.transcript_scanning import _scan_transcript_text
 
         result = _scan_transcript_text(
             "some text",
@@ -477,7 +477,7 @@ class TestScanTranscriptText(unittest.TestCase):
         self.assertEqual(result, [])
 
     def test_empty_text_returns_empty(self):
-        from ai_guardian.hook_processing import _scan_transcript_text
+        from ai_guardian.transcript_scanning import _scan_transcript_text
 
         result = _scan_transcript_text(
             "",
@@ -489,7 +489,7 @@ class TestScanTranscriptText(unittest.TestCase):
 
     @mock.patch("ai_guardian.transcript_scanning.check_secrets_with_gitleaks")
     def test_secret_detection(self, mock_gitleaks):
-        from ai_guardian.hook_processing import _scan_transcript_text
+        from ai_guardian.transcript_scanning import _scan_transcript_text
 
         mock_gitleaks.return_value = (
             True,
@@ -507,7 +507,7 @@ class TestScanTranscriptText(unittest.TestCase):
 
     @mock.patch("ai_guardian.transcript_scanning.check_secrets_with_gitleaks")
     def test_dedup_same_secret(self, mock_gitleaks):
-        from ai_guardian.hook_processing import _scan_transcript_text
+        from ai_guardian.transcript_scanning import _scan_transcript_text
 
         mock_gitleaks.return_value = (
             True,

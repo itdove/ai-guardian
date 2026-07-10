@@ -7,13 +7,22 @@ from datetime import datetime, timezone
 
 from ai_guardian.config.utils import is_feature_enabled
 from ai_guardian.constants import HookEvent
+from ai_guardian.latency_logger import _CheckTimer
 from ai_guardian.scanners.scan_result import ScanResult
+
+_NULL_TIMER = _CheckTimer(enabled=False)
 
 import ai_guardian.secret_scanning as _secret_scanning_mod
 
 # Import config loaders and check_secrets_with_gitleaks via hook_processing
 # module-attribute access so that test patches on hook_processing propagate here.
 import ai_guardian.hook_processing as _hp
+
+from ai_guardian.hook_events.utils import (
+    _load_secret_scanning_config,
+    _load_pii_config,
+    check_secrets_with_gitleaks,
+)
 
 
 def _load_prompt_injection_config():
@@ -22,14 +31,6 @@ def _load_prompt_injection_config():
 
 def _load_config_scanner_config():
     return _hp._load_config_scanner_config()
-
-
-def _load_secret_scanning_config():
-    return _hp._load_secret_scanning_config()
-
-
-def _load_pii_config():
-    return _hp._load_pii_config()
 
 
 def _load_image_scanning_config():
@@ -54,10 +55,6 @@ def _load_canary_detection_config():
 
 def _load_exfil_detection_config():
     return _hp._load_exfil_detection_config()
-
-
-def check_secrets_with_gitleaks(*args, **kwargs):
-    return _hp.check_secrets_with_gitleaks(*args, **kwargs)
 
 
 # --- Conditional imports for scanner modules ---
@@ -171,15 +168,7 @@ def run_prompt_injection_scan(
         return None
 
     detector = PromptInjectionDetector(config)
-    if latency_timer:
-        with latency_timer.check("prompt_injection"):
-            should_block, error_msg, detected = detector.detect(
-                content,
-                file_path=file_path,
-                tool_name=tool_name,
-                source_type=source_type,
-            )
-    else:
+    with (latency_timer or _NULL_TIMER).check("prompt_injection"):
         should_block, error_msg, detected = detector.detect(
             content,
             file_path=file_path,
@@ -246,10 +235,7 @@ def run_context_poisoning_scan(
         return None
 
     detector = ContextPoisoningDetector(config)
-    if latency_timer:
-        with latency_timer.check("context_poisoning"):
-            should_block, error_msg, detected = detector.detect(content)
-    else:
+    with (latency_timer or _NULL_TIMER).check("context_poisoning"):
         should_block, error_msg, detected = detector.detect(content)
 
     result = ScanResult.from_context_poisoning(
@@ -311,10 +297,7 @@ def run_supply_chain_scan(
     scanner = SupplyChainScanner(config)
     scan_path = file_path or "unknown"
 
-    if latency_timer:
-        with latency_timer.check("supply_chain"):
-            should_block, error_msg, detected = scanner.scan(scan_path, content)
-    else:
+    with (latency_timer or _NULL_TIMER).check("supply_chain"):
         should_block, error_msg, detected = scanner.scan(scan_path, content)
 
     result = ScanResult.from_supply_chain(
@@ -393,10 +376,7 @@ def run_offensive_language_scan(
     scanner = OffensiveLanguageScanner(config)
     action = config.get("action", "log")
 
-    if latency_timer:
-        with latency_timer.check("offensive_language"):
-            findings = scanner.scan(content, file_path=file_path)
-    else:
+    with (latency_timer or _NULL_TIMER).check("offensive_language"):
         findings = scanner.scan(content, file_path=file_path)
 
     result = ScanResult.from_offensive_language(
@@ -443,10 +423,7 @@ def run_canary_detection_scan(
 
     scanner = CanaryTokenScanner(config)
 
-    if latency_timer:
-        with latency_timer.check("canary_detection"):
-            should_block, error_msg, detected = scanner.scan(content, source)
-    else:
+    with (latency_timer or _NULL_TIMER).check("canary_detection"):
         should_block, error_msg, detected = scanner.scan(content, source)
 
     result = ScanResult.from_canary_detection(
@@ -513,10 +490,7 @@ def run_code_security_scan(
 
     scanner = BanditScanner(config)
 
-    if latency_timer:
-        with latency_timer.check("code_security"):
-            findings = scanner.scan(content, file_path=file_path)
-    else:
+    with (latency_timer or _NULL_TIMER).check("code_security"):
         findings = scanner.scan(content, file_path=file_path)
 
     if not findings:
@@ -577,12 +551,7 @@ def run_config_file_scan(
     if not is_enabled:
         return None
 
-    if latency_timer:
-        with latency_timer.check("config_file_scanning"):
-            should_block, error_msg, details = check_config_file_threats(
-                file_path, content, config
-            )
-    else:
+    with (latency_timer or _NULL_TIMER).check("config_file_scanning"):
         should_block, error_msg, details = check_config_file_threats(
             file_path, content, config
         )
@@ -628,12 +597,7 @@ def run_bash_exfil_scan(
     if not config or not is_feature_enabled(config.get("enabled"), now, default=True):
         return None
 
-    if latency_timer:
-        with latency_timer.check("bash_command_exfil_check"):
-            should_block, error_msg, details = check_bash_command_threats(
-                command, config
-            )
-    else:
+    with (latency_timer or _NULL_TIMER).check("bash_command_exfil_check"):
         should_block, error_msg, details = check_bash_command_threats(command, config)
 
     return ScanResult.from_config_exfil(
@@ -673,12 +637,7 @@ def run_exfil_detection_scan(
     if not config or not is_feature_enabled(config.get("enabled"), now, default=True):
         return None
 
-    if latency_timer:
-        with latency_timer.check("exfil_detection"):
-            should_block, error_msg, details = ExfilDetectionScanner(
-                config
-            ).check_command(command)
-    else:
+    with (latency_timer or _NULL_TIMER).check("exfil_detection"):
         should_block, error_msg, details = ExfilDetectionScanner(config).check_command(
             command
         )
@@ -747,10 +706,7 @@ def run_image_scan(
     with open(file_path, "rb") as f:
         image_data = f.read()
 
-    if latency_timer:
-        with latency_timer.check("image_scanning"):
-            result = scan_image(image_data, config)
-    else:
+    with (latency_timer or _NULL_TIMER).check("image_scanning"):
         result = scan_image(image_data, config)
 
     logging.info(
@@ -805,12 +761,7 @@ def run_pii_scan(
     if _should_skip_pii_scan(config, tool_identifier, file_path):
         return ScanResult.clean("pii_detected", extra={"skipped": True})
 
-    if latency_timer:
-        with latency_timer.check("pii_detection"):
-            has_pii, redacted_text, redactions, warning = _scan_for_pii(
-                content, config, file_path=file_path
-            )
-    else:
+    with (latency_timer or _NULL_TIMER).check("pii_detection"):
         has_pii, redacted_text, redactions, warning = _scan_for_pii(
             content, config, file_path=file_path
         )
@@ -875,20 +826,7 @@ def run_secret_scan(
     if allowlist_patterns is None:
         allowlist_patterns = config.get("allowlist_patterns", []) if config else []
 
-    if latency_timer:
-        with latency_timer.check("secret_scanning"):
-            has_secrets, error_message = check_secrets_with_gitleaks(
-                content,
-                filename,
-                context=context,
-                file_path=file_path,
-                tool_name=tool_name,
-                ignore_files=ignore_files,
-                ignore_tools=ignore_tools,
-                allowlist_patterns=allowlist_patterns,
-                secret_config=config,
-            )
-    else:
+    with (latency_timer or _NULL_TIMER).check("secret_scanning"):
         has_secrets, error_message = check_secrets_with_gitleaks(
             content,
             filename,
