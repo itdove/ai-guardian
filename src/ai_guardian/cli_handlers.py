@@ -661,7 +661,7 @@ def _handle_tray_stop():
     Waits for the process to exit after sending SIGTERM so that a
     subsequent ``tray start`` does not race against a dying process.
     """
-    from ai_guardian.daemon.tray import _get_tray_lock_path
+    from ai_guardian.tray.app import _get_tray_lock_path
     from ai_guardian.daemon import is_pid_alive
 
     lock_path = _get_tray_lock_path()
@@ -729,7 +729,7 @@ def _handle_tray_start(args):
             print(f"Failed to start tray in background: {e}", file=sys.stderr)
             return 1
 
-    from ai_guardian.daemon.tray import DaemonTray, is_tray_available, _is_tray_running
+    from ai_guardian.tray.app import DaemonTray, is_tray_available, _is_tray_running
     from ai_guardian.daemon.discovery import DaemonDiscovery
     from ai_guardian.daemon.multi_client import MultiDaemonClient
 

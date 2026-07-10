@@ -8,7 +8,7 @@ from unittest.mock import patch
 
 import pytest
 
-from ai_guardian.daemon.tray_plugins import load_plugins, load_merged_plugins
+from ai_guardian.tray.plugins import load_plugins, load_merged_plugins
 
 _TEMPLATE_DIR = (
     Path(__file__).resolve().parents[2]
@@ -187,8 +187,8 @@ class TestBundledPluginVariantSelection:
     """Verify the right daemon variant is loaded based on Python version."""
 
     def test_web_variant_on_310(self):
-        with patch("ai_guardian.daemon.tray_plugins._HAS_WEB_CONSOLE", True):
-            from ai_guardian.daemon.tray_plugins import _load_bundled_plugins
+        with patch("ai_guardian.tray.plugins._HAS_WEB_CONSOLE", True):
+            from ai_guardian.tray.plugins import _load_bundled_plugins
 
             plugins = _load_bundled_plugins()
         names = {p.name for p in plugins}
@@ -199,8 +199,8 @@ class TestBundledPluginVariantSelection:
         assert "health-check" in doctor.command["darwin"]
 
     def test_tui_variant_on_39(self):
-        with patch("ai_guardian.daemon.tray_plugins._HAS_WEB_CONSOLE", False):
-            from ai_guardian.daemon.tray_plugins import _load_bundled_plugins
+        with patch("ai_guardian.tray.plugins._HAS_WEB_CONSOLE", False):
+            from ai_guardian.tray.plugins import _load_bundled_plugins
 
             plugins = _load_bundled_plugins()
         names = {p.name for p in plugins}
@@ -210,7 +210,7 @@ class TestBundledPluginVariantSelection:
         assert "--web" not in doctor.command
 
     def test_only_one_maintenance_loaded(self):
-        from ai_guardian.daemon.tray_plugins import _load_bundled_plugins
+        from ai_guardian.tray.plugins import _load_bundled_plugins
 
         plugins = _load_bundled_plugins()
         maintenance_count = sum(1 for p in plugins if p.name == "Maintenance")

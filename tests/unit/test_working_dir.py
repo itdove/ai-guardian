@@ -165,7 +165,7 @@ class TestChooseDirectory:
 
     @mock.patch("ai_guardian.daemon.working_dir.platform.system", return_value="Linux")
     @mock.patch("ai_guardian.daemon.working_dir.subprocess.run")
-    @mock.patch("ai_guardian.daemon.tray_plugins._find_icon", return_value="")
+    @mock.patch("ai_guardian.tray.plugins._find_icon", return_value="")
     def test_linux_returns_path(self, _icon, mock_run, _mock_sys):
         mock_run.return_value = mock.Mock(returncode=0, stdout="/home/user/project\n")
         result = choose_directory()
@@ -173,7 +173,7 @@ class TestChooseDirectory:
 
     @mock.patch("ai_guardian.daemon.working_dir.platform.system", return_value="Linux")
     @mock.patch("ai_guardian.daemon.working_dir.subprocess.run")
-    @mock.patch("ai_guardian.daemon.tray_plugins._find_icon", return_value="")
+    @mock.patch("ai_guardian.tray.plugins._find_icon", return_value="")
     def test_linux_cancel_returns_none(self, _icon, mock_run, _mock_sys):
         mock_run.return_value = mock.Mock(returncode=1, stdout="")
         result = choose_directory()

@@ -320,7 +320,7 @@ class _RestHandler(BaseHTTPRequestHandler):
 
     def _get_tray_plugins(self):
         try:
-            from ai_guardian.daemon.tray_plugins import (
+            from ai_guardian.tray.plugins import (
                 load_merged_plugins,
                 plugins_to_dict,
             )

@@ -140,7 +140,7 @@ def _choose_directory_macos(current: Optional[str] = None) -> Optional[str]:
 
 
 def _choose_directory_linux(current: Optional[str] = None) -> Optional[str]:
-    from ai_guardian.daemon.tray_plugins import _find_icon
+    from ai_guardian.tray.plugins import _find_icon
 
     cmd = [
         "zenity",

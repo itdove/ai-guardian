@@ -302,7 +302,7 @@ class TestAutoSetupTray:
             mock.patch(
                 "ai_guardian.config_loaders._load_config_file", return_value=({}, None)
             ),
-            mock.patch("ai_guardian.daemon.tray.is_tray_available", return_value=False),
+            mock.patch("ai_guardian.tray.app.is_tray_available", return_value=False),
             mock.patch(
                 "ai_guardian.daemon.desktop.get_desktop_integration",
                 return_value=desktop,
@@ -334,7 +334,7 @@ class TestAutoSetupTray:
             mock.patch(
                 "ai_guardian.config_loaders._load_config_file", return_value=({}, None)
             ),
-            mock.patch("ai_guardian.daemon.tray.is_tray_available", return_value=True),
+            mock.patch("ai_guardian.tray.app.is_tray_available", return_value=True),
             mock.patch(
                 "ai_guardian.daemon.desktop.get_desktop_integration",
                 return_value=desktop,
@@ -368,12 +368,12 @@ class TestAutoSetupTray:
             mock.patch(
                 "ai_guardian.config_loaders._load_config_file", return_value=({}, None)
             ),
-            mock.patch("ai_guardian.daemon.tray.is_tray_available", return_value=True),
+            mock.patch("ai_guardian.tray.app.is_tray_available", return_value=True),
             mock.patch(
                 "ai_guardian.daemon.desktop.get_desktop_integration",
                 return_value=desktop,
             ),
-            mock.patch("ai_guardian.daemon.tray._is_tray_running", return_value=False),
+            mock.patch("ai_guardian.tray.app._is_tray_running", return_value=False),
             mock.patch("ai_guardian.daemon.auto_setup._start_tray_background"),
         ):
             auto_setup_tray()
@@ -405,12 +405,12 @@ class TestAutoSetupTray:
             mock.patch(
                 "ai_guardian.config_loaders._load_config_file", return_value=({}, None)
             ),
-            mock.patch("ai_guardian.daemon.tray.is_tray_available", return_value=True),
+            mock.patch("ai_guardian.tray.app.is_tray_available", return_value=True),
             mock.patch(
                 "ai_guardian.daemon.desktop.get_desktop_integration",
                 return_value=desktop,
             ),
-            mock.patch("ai_guardian.daemon.tray._is_tray_running", return_value=False),
+            mock.patch("ai_guardian.tray.app._is_tray_running", return_value=False),
             mock.patch(
                 "ai_guardian.daemon.auto_setup._start_tray_background"
             ) as mock_start,
@@ -443,12 +443,12 @@ class TestAutoSetupTray:
             mock.patch(
                 "ai_guardian.config_loaders._load_config_file", return_value=({}, None)
             ),
-            mock.patch("ai_guardian.daemon.tray.is_tray_available", return_value=True),
+            mock.patch("ai_guardian.tray.app.is_tray_available", return_value=True),
             mock.patch(
                 "ai_guardian.daemon.desktop.get_desktop_integration",
                 return_value=desktop,
             ),
-            mock.patch("ai_guardian.daemon.tray._is_tray_running", return_value=12345),
+            mock.patch("ai_guardian.tray.app._is_tray_running", return_value=12345),
             mock.patch(
                 "ai_guardian.daemon.auto_setup._start_tray_background"
             ) as mock_start,
@@ -487,7 +487,7 @@ class TestAutoSetupTray:
             mock.patch(
                 "ai_guardian.config_loaders._load_config_file", return_value=({}, None)
             ),
-            mock.patch("ai_guardian.daemon.tray.is_tray_available", return_value=True),
+            mock.patch("ai_guardian.tray.app.is_tray_available", return_value=True),
             mock.patch(
                 "ai_guardian.daemon.desktop.get_desktop_integration",
                 return_value=desktop,
@@ -520,12 +520,12 @@ class TestAutoSetupTray:
             mock.patch(
                 "ai_guardian.config_loaders._load_config_file", return_value=({}, None)
             ),
-            mock.patch("ai_guardian.daemon.tray.is_tray_available", return_value=True),
+            mock.patch("ai_guardian.tray.app.is_tray_available", return_value=True),
             mock.patch(
                 "ai_guardian.daemon.desktop.get_desktop_integration",
                 return_value=desktop,
             ),
-            mock.patch("ai_guardian.daemon.tray._is_tray_running", return_value=False),
+            mock.patch("ai_guardian.tray.app._is_tray_running", return_value=False),
             mock.patch("ai_guardian.daemon.auto_setup._start_tray_background"),
         ):
             auto_setup_tray()
@@ -558,12 +558,12 @@ class TestAutoSetupTray:
                 "ai_guardian.config_loaders._load_config_file",
                 side_effect=Exception("config error"),
             ),
-            mock.patch("ai_guardian.daemon.tray.is_tray_available", return_value=True),
+            mock.patch("ai_guardian.tray.app.is_tray_available", return_value=True),
             mock.patch(
                 "ai_guardian.daemon.desktop.get_desktop_integration",
                 return_value=desktop,
             ),
-            mock.patch("ai_guardian.daemon.tray._is_tray_running", return_value=False),
+            mock.patch("ai_guardian.tray.app._is_tray_running", return_value=False),
             mock.patch("ai_guardian.daemon.auto_setup._start_tray_background"),
         ):
             auto_setup_tray()

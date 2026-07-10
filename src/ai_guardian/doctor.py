@@ -1705,7 +1705,7 @@ class Doctor:
     def check_tray_plugins(self) -> CheckResult:
         """Check tray plugin files for validity and circular imports."""
         from ai_guardian.daemon import get_tray_plugins_dir
-        from ai_guardian.daemon.tray_plugins import check_circular_imports
+        from ai_guardian.tray.plugins import check_circular_imports
 
         plugins_dir = get_tray_plugins_dir()
         if not plugins_dir.is_dir():

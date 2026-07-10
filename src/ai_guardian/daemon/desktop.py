@@ -259,7 +259,7 @@ class MacOSDesktop(DesktopIntegration):
     @staticmethod
     def _find_icns():
         """Find the ai-guardian.icns file for the .app bundle."""
-        from ai_guardian.daemon.tray_plugins import _find_icon
+        from ai_guardian.tray.plugins import _find_icon
 
         path = _find_icon("ai-guardian.icns")
         return path if path else None

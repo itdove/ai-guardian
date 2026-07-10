@@ -380,7 +380,7 @@ class TestTrayPluginsEndpoint:
                 "ai_guardian.daemon.get_tray_plugins_dir", return_value=plugins_dir
             ),
             mock.patch(
-                "ai_guardian.daemon.tray_plugins._load_bundled_plugins", return_value=[]
+                "ai_guardian.tray.plugins._load_bundled_plugins", return_value=[]
             ),
         ):
             url = f"http://127.0.0.1:{port}/api/tray-plugins"
@@ -398,7 +398,7 @@ class TestTrayPluginsEndpoint:
                 return_value=tmp_path / "nonexistent",
             ),
             mock.patch(
-                "ai_guardian.daemon.tray_plugins._load_bundled_plugins", return_value=[]
+                "ai_guardian.tray.plugins._load_bundled_plugins", return_value=[]
             ),
         ):
             url = f"http://127.0.0.1:{port}/api/tray-plugins"
@@ -424,7 +424,7 @@ class TestTrayPluginsEndpoint:
                 "ai_guardian.daemon.get_tray_plugins_dir", return_value=plugins_dir
             ),
             mock.patch(
-                "ai_guardian.daemon.tray_plugins._load_bundled_plugins", return_value=[]
+                "ai_guardian.tray.plugins._load_bundled_plugins", return_value=[]
             ),
         ):
             url = f"http://127.0.0.1:{port}/api/tray-plugins"

@@ -207,7 +207,7 @@ class _TkinterPromptApp:
     def _resolve_default(self, value):
         if not value or not self._extra_vars or "{" not in str(value):
             return value
-        from ai_guardian.daemon.tray_plugins import substitute_params
+        from ai_guardian.tray.plugins import substitute_params
 
         return substitute_params(str(value), self._extra_vars)
 
@@ -233,7 +233,7 @@ class _TkinterPromptApp:
 
     def _submit(self):
         import shlex
-        from ai_guardian.daemon.tray_plugins import (
+        from ai_guardian.tray.plugins import (
             PluginParam,
             substitute_params,
             validate_param_value,
@@ -422,7 +422,7 @@ class _TextualPromptApp:
 
             def _do_submit(self_inner):
                 import shlex
-                from ai_guardian.daemon.tray_plugins import (
+                from ai_guardian.tray.plugins import (
                     PluginParam,
                     substitute_params,
                     validate_param_value,
@@ -487,7 +487,7 @@ class _TextualPromptApp:
 def _resolve(value, extra_vars):
     if not value or not extra_vars or "{" not in value:
         return value
-    from ai_guardian.daemon.tray_plugins import substitute_params
+    from ai_guardian.tray.plugins import substitute_params
 
     return substitute_params(value, extra_vars)
 
@@ -734,7 +734,7 @@ class _NiceGuiPromptApp:
 
         def _submit():
             import shlex
-            from ai_guardian.daemon.tray_plugins import (
+            from ai_guardian.tray.plugins import (
                 PluginParam,
                 substitute_params,
                 validate_param_value,
