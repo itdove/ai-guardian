@@ -114,6 +114,12 @@ class TestCheckTimerAskWait:
         assert timer.ask_wait_total_ms == 0.0
 
 
+def _recent_ts(offset_seconds=0):
+    """Generate a recent UTC timestamp string that won't expire from rotation."""
+    dt = datetime.now(timezone.utc) - timedelta(seconds=offset_seconds)
+    return dt.isoformat().replace("+00:00", "Z")
+
+
 class TestLatencyLogger:
     def test_log_timing_creates_file(self, tmp_path):
         log_path = tmp_path / "latency.jsonl"
@@ -123,7 +129,7 @@ class TestLatencyLogger:
         )
         ll.log_timing(
             {
-                "timestamp": "2026-06-10T12:00:00Z",
+                "timestamp": _recent_ts(),
                 "hook_event": "PreToolUse",
                 "tool": "Bash",
                 "total_ms": 10.5,
@@ -142,7 +148,7 @@ class TestLatencyLogger:
         ll = LatencyLogger(log_path=log_path, config={"enabled": False})
         ll.log_timing(
             {
-                "timestamp": "2026-06-10T12:00:00Z",
+                "timestamp": _recent_ts(),
                 "hook_event": "PreToolUse",
                 "total_ms": 10.0,
                 "checks": {},
@@ -192,7 +198,7 @@ class TestLatencyLogger:
         )
         ll.log_timing(
             {
-                "timestamp": "2026-06-10T12:00:00Z",
+                "timestamp": _recent_ts(),
                 "hook_event": "A",
                 "total_ms": 1.0,
                 "checks": {},
@@ -200,7 +206,7 @@ class TestLatencyLogger:
         )
         ll.log_timing(
             {
-                "timestamp": "2026-06-10T12:00:01Z",
+                "timestamp": _recent_ts(1),
                 "hook_event": "B",
                 "total_ms": 2.0,
                 "checks": {},
@@ -237,7 +243,7 @@ class TestLatencyLogger:
         )
         ll.log_timing(
             {
-                "timestamp": "2026-06-10T12:00:00Z",
+                "timestamp": _recent_ts(),
                 "hook_event": "A",
                 "total_ms": 1.0,
                 "checks": {},
@@ -299,13 +305,13 @@ class TestLatencyComputer:
     def test_computes_hook_stats(self):
         entries = [
             {
-                "timestamp": "2026-06-10T12:00:00Z",
+                "timestamp": _recent_ts(),
                 "hook_event": "PreToolUse",
                 "total_ms": 10.0,
                 "checks": {"secret_scanning": 5.0, "permissions": 1.0},
             },
             {
-                "timestamp": "2026-06-10T12:00:01Z",
+                "timestamp": _recent_ts(1),
                 "hook_event": "PreToolUse",
                 "total_ms": 20.0,
                 "checks": {"secret_scanning": 15.0, "permissions": 2.0},
@@ -338,13 +344,13 @@ class TestLatencyComputer:
     def test_computes_check_stats(self):
         entries = [
             {
-                "timestamp": "2026-06-10T12:00:00Z",
+                "timestamp": _recent_ts(),
                 "hook_event": "PreToolUse",
                 "total_ms": 10.0,
                 "checks": {"secret_scanning": 5.0},
             },
             {
-                "timestamp": "2026-06-10T12:00:01Z",
+                "timestamp": _recent_ts(1),
                 "hook_event": "UserPromptSubmit",
                 "total_ms": 30.0,
                 "checks": {"secret_scanning": 20.0, "prompt_injection": 8.0},
@@ -364,7 +370,7 @@ class TestLatencyComputer:
     def test_zero_ms_checks_excluded(self):
         entries = [
             {
-                "timestamp": "2026-06-10T12:00:00Z",
+                "timestamp": _recent_ts(),
                 "hook_event": "PreToolUse",
                 "total_ms": 5.0,
                 "checks": {"secret_scanning": 3.0, "prompt_injection": 0.0},
@@ -381,7 +387,7 @@ class TestLatencyComputer:
         """Hook stats should use processing_ms (excludes ask wait) when available."""
         entries = [
             {
-                "timestamp": "2026-06-10T12:00:00Z",
+                "timestamp": _recent_ts(),
                 "hook_event": "PreToolUse",
                 "total_ms": 45050.0,
                 "processing_ms": 50.0,
@@ -401,7 +407,7 @@ class TestLatencyComputer:
         """Old entries without processing_ms fall back to total_ms."""
         entries = [
             {
-                "timestamp": "2026-06-10T12:00:00Z",
+                "timestamp": _recent_ts(),
                 "hook_event": "PreToolUse",
                 "total_ms": 25.0,
                 "checks": {},
@@ -418,7 +424,7 @@ class TestLatencyComputer:
         """Multiple ask dialog entries should produce valid aggregate stats."""
         entries = [
             {
-                "timestamp": "2026-06-10T12:00:00Z",
+                "timestamp": _recent_ts(),
                 "hook_event": "PreToolUse",
                 "total_ms": 3050.0,
                 "processing_ms": 50.0,
@@ -426,7 +432,7 @@ class TestLatencyComputer:
                 "checks": {},
             },
             {
-                "timestamp": "2026-06-10T12:00:01Z",
+                "timestamp": _recent_ts(1),
                 "hook_event": "PreToolUse",
                 "total_ms": 5040.0,
                 "processing_ms": 40.0,
@@ -642,7 +648,7 @@ class TestFailOpen:
         )
         ll.log_timing(
             {
-                "timestamp": "2026-06-10T12:00:00Z",
+                "timestamp": _recent_ts(),
                 "hook_event": "A",
                 "total_ms": 1.0,
                 "checks": {},
