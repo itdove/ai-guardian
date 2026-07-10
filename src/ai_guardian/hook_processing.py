@@ -100,18 +100,7 @@ from ai_guardian.hook_adapters import detect_adapter
 from ai_guardian.latency_logger import _CheckTimer
 
 
-def _format_response(adapter, **kwargs):
-    """Call adapter.format_response() with [ai-guardian] prefix on warning_message.
-
-    Replaces the backward-compat wrapper in response_format.py for internal
-    use, ensuring the correct adapter instance (from detect_adapter) is used
-    instead of re-resolving via IDEType enum.
-    """
-    wm = kwargs.get("warning_message")
-    if wm and not wm.lstrip().startswith("[ai-guardian]"):
-        kwargs["warning_message"] = f"[ai-guardian] {wm}"
-    return adapter.format_response(**kwargs)
-
+from ai_guardian.hook_events.utils import _format_response  # noqa: F401, E402
 
 # Conditional imports for optional features
 try:
@@ -2623,9 +2612,6 @@ def process_hook_data(hook_data, daemon_state=None):
             log_only_count=log_only_count,
             _registry=_registry,
             _post_scan_ctx=_post_scan_ctx,
-            secret_config=None,
-            pii_was_skipped=False,
-            transcript_paths_to_scan=None,
         )
         if pipeline_result is not None:
             return pipeline_result

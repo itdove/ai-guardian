@@ -7,6 +7,40 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **Refactor: extract hook_processing.py into per-event modules** — monolithic `hook_processing.py` (~8800 lines) split into focused modules under `hook_events/`: `content_pipeline.py` (shared content scanning pipeline), `post_tool_use.py` (PostToolUse handler), `scanners.py` (scanner runner functions), `session_events.py` (session lifecycle handlers), `ask_mode.py` (ask-mode dialog helpers), `utils.py` (shared utilities). All public symbols re-exported from `hook_processing.py` for backward compatibility (#1491, #1551).
+
+- **Refactor: extract secret and transcript scanning** — `secret_scanning.py` and `transcript_scanning.py` extracted from `hook_processing.py` as standalone modules (Phase 5a-5b, #1491, #1551).
+
+- **Refactor: ScannerRegistry with pipeline-based invocation** — new `scanners/scanner_registry.py` provides declarative scanner metadata (13 scanners), hook event membership, ordering, and ask-mode support. Content scanning blocks in PreToolUse/UserPromptSubmit are now gated by `_pipeline_names` built from the registry (#1253, #1544).
+
+- **Refactor: post-scan filter pipeline** — new `scanners/post_scan_filters.py` provides `apply_post_scan_pipeline()` for generic violation logging and ask-mode dispatch. Migrated 11 scanner blocks to the shared pipeline, deleting 4 dead helpers (#1254, #1546, #1550).
+
+- **Refactor: extract tray into dedicated package** — `daemon/tray.py` (4000+ lines) split into `tray/` package: `app.py`, `animation.py`, `health.py`, `icons.py`, `menu.py`, `menu_builder.py`, `notifications.py`, `plugin_runner.py`, `plugins.py`. Backward-compat shims at old paths (#1543, #1547, #1561).
+
+- **Refactor: extract config modules into subpackage** — `config_utils.py`, `config_display.py`, `config_loaders.py`, `config_writer.py`, `config_inspector.py`, `config_manager.py` moved to `config/` subpackage. Backward-compat shims at old paths (#1562).
+
+- **Refactor: extract scanners into subpackage** — `prompt_injection.py`, `context_poisoning.py`, `secret_redactor.py`, `supply_chain.py`, `config_scanner.py`, `canary_detection.py`, `exfil_detection.py`, `offensive_language.py`, `scan_result.py`, `bandit_scanner.py`, `ast_scanner.py`, `image_scanner.py`, `ml_detection.py` moved to `scanners/` subpackage (#1562).
+
+- **Refactor: extract setup.py into subpackage** — monolithic `setup.py` split into `setup/` package: `config.py` (default config template), `hooks.py` (IDE hook setup), `mcp.py` (MCP configuration), `rules.py` (guidelines files), `utils.py` (helpers). Backward-compat shims at old paths (#1538).
+
+- **Refactor: extract tool patterns** — `IMMUTABLE_DENY_PATTERNS`, `MIXED_SETTINGS_PATTERNS`, `HOOK_INDICATOR_KEYS`, and `_strip_bash_heredoc_content()` extracted from `tool_policy.py` into new `tool_patterns.py` module (#1537).
+
+- **Refactor: shared response methods in base_agent.py** — `_block_response`, `_warn_response`, `_allow_response` extracted to eliminate duplicated `format_response` branches across adapter subclasses (#1535).
+
+- **Refactor: centralize hook event display names** — `HookEvent` enum in `constants.py` now carries `_DISPLAY_NAMES` dict and `ALL_HOOK_EVENT_DISPLAY_NAMES` frozenset. Adapters use the centralized set instead of hardcoded lists (#1549).
+
+### Fixed
+
+- **Config merge list deduplication** — `deep_merge()` now deduplicates list items during config merge (global + project + SDK overlay), preventing duplicate allowlist entries from accumulating (#1560).
+
+- **Hook event fallback for unmapped events** — adapters now fall back to enum value instead of raising KeyError for hook events not in the display names map (#1548).
+
+- **Moderator scenario expectations** — `config-exfil` and `ssrf-protection` moderator scenarios corrected to expect `block` for immutable core patterns that always block regardless of action mode (#1559).
+
+- **CI: SHA-tagged image cleanup** — new cleanup job in `scenario-tests.yml` deletes ephemeral SHA-tagged container images after scenario tests complete (#1564).
+
 ## [1.13.3] - 2026-07-08
 
 ### Added

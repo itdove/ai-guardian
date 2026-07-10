@@ -1629,7 +1629,7 @@ class TestFormatResponseDispatch:
 
     def test_windsurf_block_dispatches_exit_code_2(self, capsys):
         """WindsurfAdapter.format_response must be called, returning exit_code 2."""
-        from ai_guardian.hook_processing import _format_response
+        from ai_guardian.hook_events.utils import _format_response
 
         adapter = WindsurfAdapter()
         result = _format_response(
@@ -1646,7 +1646,7 @@ class TestFormatResponseDispatch:
         assert "Secret found" in captured.err
 
     def test_windsurf_allow_dispatches_exit_code_0(self):
-        from ai_guardian.hook_processing import _format_response
+        from ai_guardian.hook_events.utils import _format_response
 
         adapter = WindsurfAdapter()
         result = _format_response(
@@ -1658,7 +1658,7 @@ class TestFormatResponseDispatch:
         assert result["output"] is None
 
     def test_format_response_adds_ai_guardian_prefix(self):
-        from ai_guardian.hook_processing import _format_response
+        from ai_guardian.hook_events.utils import _format_response
 
         adapter = BaseAgentAdapter()
         result = _format_response(
@@ -1672,7 +1672,7 @@ class TestFormatResponseDispatch:
         assert "[ai-guardian] some warning" in hook_output.get("additionalContext", "")
 
     def test_format_response_no_double_prefix(self):
-        from ai_guardian.hook_processing import _format_response
+        from ai_guardian.hook_events.utils import _format_response
 
         adapter = BaseAgentAdapter()
         result = _format_response(
@@ -1696,7 +1696,7 @@ class TestFormatResponseDispatch:
 
     def test_augment_block_uses_correct_adapter(self, capsys):
         """AugmentAdapter (also inherits BaseAgentAdapter) must be dispatched."""
-        from ai_guardian.hook_processing import _format_response
+        from ai_guardian.hook_events.utils import _format_response
 
         adapter = AugmentAdapter()
         result = _format_response(

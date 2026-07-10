@@ -6,7 +6,8 @@ from unittest import mock
 
 from ai_guardian.response_format import detect_ide_type, detect_hook_event, IDEType
 from ai_guardian.constants import HookEvent
-from ai_guardian.hook_processing import extract_tool_result, _AUGMENT_TOOL_MAP
+from ai_guardian.constants import AUGMENT_TOOL_MAP
+from ai_guardian.hook_processing import extract_tool_result
 from ai_guardian.tool_policy import ToolPolicyChecker
 
 
@@ -65,11 +66,11 @@ class TestAugmentToolNameMapping:
 
     def test_augment_tool_map_contents(self):
         """Verify the mapping dict contains all expected Augment tool names."""
-        assert _AUGMENT_TOOL_MAP["launch-process"] == "Bash"
-        assert _AUGMENT_TOOL_MAP["str-replace-editor"] == "Edit"
-        assert _AUGMENT_TOOL_MAP["save-file"] == "Write"
-        assert _AUGMENT_TOOL_MAP["view"] == "Read"
-        assert _AUGMENT_TOOL_MAP["remove-files"] == "Delete"
+        assert AUGMENT_TOOL_MAP["launch-process"] == "Bash"
+        assert AUGMENT_TOOL_MAP["str-replace-editor"] == "Edit"
+        assert AUGMENT_TOOL_MAP["save-file"] == "Write"
+        assert AUGMENT_TOOL_MAP["view"] == "Read"
+        assert AUGMENT_TOOL_MAP["remove-files"] == "Delete"
 
     def test_extract_tool_result_augment_launch_process(self):
         """launch-process maps to Bash in PostToolUse extraction."""

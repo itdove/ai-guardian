@@ -55,7 +55,7 @@ class TestBuildSecretDetectedMessage:
     """Test that _build_secret_detected_message uses display names."""
 
     def test_block_message_shows_display_name(self):
-        from ai_guardian.hook_processing import _build_secret_detected_message
+        from ai_guardian.secret_scanning import _build_secret_detected_message
 
         secret_details = {
             "rule_id": "openai-api-key",
@@ -69,7 +69,7 @@ class TestBuildSecretDetectedMessage:
         assert "openai-api-key" not in msg
 
     def test_block_message_unknown_rule_id(self):
-        from ai_guardian.hook_processing import _build_secret_detected_message
+        from ai_guardian.secret_scanning import _build_secret_detected_message
 
         secret_details = {
             "rule_id": "some-new-scanner-rule",
@@ -81,7 +81,7 @@ class TestBuildSecretDetectedMessage:
         assert "Some New Scanner Rule" in msg
 
     def test_block_message_no_details(self):
-        from ai_guardian.hook_processing import _build_secret_detected_message
+        from ai_guardian.secret_scanning import _build_secret_detected_message
 
         msg = _build_secret_detected_message("gitleaks", None, "built-in rules")
         assert "(multiple or unknown)" in msg

@@ -4,50 +4,31 @@ import logging
 
 from ai_guardian.config.utils import is_feature_enabled
 from ai_guardian.constants import HookEvent, ViolationType, ActionMode
+from ai_guardian.hook_events.utils import (  # noqa: F401
+    _format_response,
+    _get_on_scan_error_action,
+    _load_secret_scanning_config,
+    _load_pii_config,
+    _extract_pii_matched_text,
+    _pii_redactions_to_findings,
+    _extract_file_path_from_pii_warning,
+)
 from ai_guardian.scanners.scan_result import ScanResult  # noqa: F401 — used by callers
 
-# _hp delegation for patchable symbols
+# _hp delegation for symbols unique to this module
 import ai_guardian.hook_processing as _hp
-
-
-def _format_response(adapter, **kwargs):
-    return _hp._format_response(adapter, **kwargs)
 
 
 def _matches_ignore_files(file_path, ignore_files):
     return _hp._matches_ignore_files(file_path, ignore_files)
 
 
-def _get_on_scan_error_action():
-    return _hp._get_on_scan_error_action()
-
-
 def _get_transcript_path(hook_data):
     return _hp._get_transcript_path(hook_data)
 
 
-def _load_secret_scanning_config():
-    return _hp._load_secret_scanning_config()
-
-
-def _load_pii_config():
-    return _hp._load_pii_config()
-
-
 def _load_transcript_scanning_config():
     return _hp._load_transcript_scanning_config()
-
-
-def _extract_pii_matched_text(pii_redactions, content):
-    return _hp._extract_pii_matched_text(pii_redactions, content)
-
-
-def _pii_redactions_to_findings(pii_redactions, content, error_msg=""):
-    return _hp._pii_redactions_to_findings(pii_redactions, content, error_msg)
-
-
-def _extract_file_path_from_pii_warning(pii_warning):
-    return _hp._extract_file_path_from_pii_warning(pii_warning)
 
 
 # Scanner runner functions
@@ -118,9 +99,6 @@ def run_content_pipeline(
     log_only_count,
     _registry,
     _post_scan_ctx,
-    secret_config,
-    pii_was_skipped,
-    transcript_paths_to_scan,
     # Legacy individual params (used when ctx is None)
     hook_event=None,
     adapter=None,
