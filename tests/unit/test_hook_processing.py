@@ -463,7 +463,13 @@ class TestBootstrapScanIntegration(TestCase):
 
             from ai_guardian.hook_processing import process_hook_data
 
-            with patch("ai_guardian.hook_processing.get_project_dir", return_value=cwd):
+            with (
+                patch("ai_guardian.hook_processing.get_project_dir", return_value=cwd),
+                patch(
+                    "ai_guardian.hook_events.session_events.get_project_dir",
+                    return_value=cwd,
+                ),
+            ):
                 result = process_hook_data(hook_data, daemon_state=state)
 
             # Claude Code (BaseAgentAdapter) blocks via JSON decision:block in output (exit_code=0)
@@ -513,7 +519,11 @@ class TestBootstrapScanIntegration(TestCase):
             with (
                 patch("ai_guardian.hook_processing.get_project_dir", return_value=cwd),
                 patch(
-                    "ai_guardian.hook_processing._run_bootstrap_scan",
+                    "ai_guardian.hook_events.session_events.get_project_dir",
+                    return_value=cwd,
+                ),
+                patch(
+                    "ai_guardian.hook_events.session_events._run_bootstrap_scan",
                     side_effect=counting_scan,
                 ),
             ):
@@ -563,7 +573,11 @@ class TestBootstrapScanIntegration(TestCase):
             with (
                 patch("ai_guardian.hook_processing.get_project_dir", return_value=cwd),
                 patch(
-                    "ai_guardian.hook_processing._run_bootstrap_scan",
+                    "ai_guardian.hook_events.session_events.get_project_dir",
+                    return_value=cwd,
+                ),
+                patch(
+                    "ai_guardian.hook_events.session_events._run_bootstrap_scan",
                     side_effect=counting_scan,
                 ),
             ):
@@ -604,7 +618,13 @@ class TestBootstrapScanIntegration(TestCase):
 
             from ai_guardian.hook_processing import process_hook_data
 
-            with patch("ai_guardian.hook_processing.get_project_dir", return_value=cwd):
+            with (
+                patch("ai_guardian.hook_processing.get_project_dir", return_value=cwd),
+                patch(
+                    "ai_guardian.hook_events.session_events.get_project_dir",
+                    return_value=cwd,
+                ),
+            ):
                 result = process_hook_data(hook_data, daemon_state=state)
 
             assert (
@@ -654,7 +674,11 @@ class TestBootstrapScanIntegration(TestCase):
             with (
                 patch("ai_guardian.hook_processing.get_project_dir", return_value=cwd),
                 patch(
-                    "ai_guardian.hook_processing._run_bootstrap_scan",
+                    "ai_guardian.hook_events.session_events.get_project_dir",
+                    return_value=cwd,
+                ),
+                patch(
+                    "ai_guardian.hook_events.session_events._run_bootstrap_scan",
                     side_effect=counting_scan,
                 ),
             ):
