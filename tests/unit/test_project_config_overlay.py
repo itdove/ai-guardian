@@ -29,6 +29,7 @@ from ai_guardian.config_utils import (
 )
 from ai_guardian.config_loaders import (
     _clear_config_cache,
+    _dedup_config_lists,
     _load_config_file,
     _normalize_permissions,
 )
@@ -54,6 +55,38 @@ class TestDeepMerge:
         override = {"items": [3, 4]}
         result = deep_merge(base, override, global_only_sections=frozenset())
         assert result == {"items": [1, 2, 3, 4]}
+
+    def test_list_concatenation_dedup(self):
+        base = {"items": ["a", "b", "c"]}
+        override = {"items": ["b", "c", "d"]}
+        result = deep_merge(base, override, global_only_sections=frozenset())
+        assert result == {"items": ["a", "b", "c", "d"]}
+
+    def test_list_dedup_preserves_order(self):
+        base = {"items": ["x", "y"]}
+        override = {"items": ["y", "z", "x"]}
+        result = deep_merge(base, override, global_only_sections=frozenset())
+        assert result == {"items": ["x", "y", "z"]}
+
+    def test_list_dedup_dict_items(self):
+        pattern_a = {"pattern": "xoxb.*", "valid_until": "2026-12-31"}
+        pattern_b = {"pattern": "AKIA.*"}
+        base = {"secret_scanning": {"allowlist_patterns": [pattern_a, pattern_b]}}
+        override = {"secret_scanning": {"allowlist_patterns": [pattern_a, pattern_b]}}
+        result = deep_merge(base, override, global_only_sections=frozenset())
+        assert result["secret_scanning"]["allowlist_patterns"] == [pattern_a, pattern_b]
+
+    def test_list_dedup_repeated_merge(self):
+        """Simulates setup --force being called multiple times."""
+        template = {"secret_scanning": {"allowlist_patterns": ["pat1", "pat2", "pat3"]}}
+        config = {"secret_scanning": {"allowlist_patterns": ["pat1", "pat2", "pat3"]}}
+        for _ in range(5):
+            config = deep_merge(config, template, global_only_sections=frozenset())
+        assert config["secret_scanning"]["allowlist_patterns"] == [
+            "pat1",
+            "pat2",
+            "pat3",
+        ]
 
     def test_global_only_sections_skipped(self):
         base = {"daemon": {"host": "localhost"}, "prompt_injection": {"enabled": True}}
@@ -198,6 +231,48 @@ class TestDeepMerge:
         }
         result = deep_merge(base, override, global_only_sections=frozenset())
         assert result["secret_scanning"]["ignore_files"] == ["*.key"]
+
+
+class TestDedupConfigLists:
+    """Tests for _dedup_config_lists() defensive cleanup."""
+
+    def test_dedup_allowlist_patterns(self):
+        config = {
+            "secret_scanning": {
+                "enabled": True,
+                "allowlist_patterns": ["pat1", "pat2", "pat1", "pat2", "pat3"],
+            }
+        }
+        result = _dedup_config_lists(config)
+        assert result["secret_scanning"]["allowlist_patterns"] == [
+            "pat1",
+            "pat2",
+            "pat3",
+        ]
+
+    def test_dedup_dict_items(self):
+        p = {"pattern": "xoxb.*", "valid_until": "2026-12-31"}
+        config = {"secret_scanning": {"allowlist_patterns": [p, p, p]}}
+        result = _dedup_config_lists(config)
+        assert result["secret_scanning"]["allowlist_patterns"] == [p]
+
+    def test_no_change_when_unique(self):
+        config = {"secret_scanning": {"allowlist_patterns": ["a", "b", "c"]}}
+        result = _dedup_config_lists(config)
+        assert result["secret_scanning"]["allowlist_patterns"] == ["a", "b", "c"]
+
+    def test_non_dict_config_passthrough(self):
+        assert _dedup_config_lists(None) is None
+        assert _dedup_config_lists("string") == "string"
+
+    def test_multiple_sections(self):
+        config = {
+            "secret_scanning": {"allowlist_patterns": ["a", "a", "b"]},
+            "prompt_injection": {"allowlist_patterns": ["x", "x"]},
+        }
+        result = _dedup_config_lists(config)
+        assert result["secret_scanning"]["allowlist_patterns"] == ["a", "b"]
+        assert result["prompt_injection"]["allowlist_patterns"] == ["x"]
 
 
 class TestGetImmutableInfo:

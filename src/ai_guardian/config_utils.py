@@ -6,6 +6,7 @@ Shared utilities for configuration directory resolution and timestamp handling.
 """
 
 import copy
+import json
 import logging
 import os
 import platform
@@ -228,6 +229,18 @@ def _find_git_root() -> Optional[Path]:
     return None
 
 
+def _dedup_list(combined: list) -> list:
+    """Deduplicate a list preserving order. Handles both hashable and dict items."""
+    seen = []
+    result = []
+    for item in combined:
+        key = json.dumps(item, sort_keys=True) if isinstance(item, dict) else item
+        if key not in seen:
+            seen.append(key)
+            result.append(item)
+    return result
+
+
 def deep_merge(
     base: Dict,
     override: Dict,
@@ -280,7 +293,7 @@ def deep_merge(
                     tighten_only,
                 )
             elif isinstance(result[key], list) and isinstance(value, list):
-                result[key] = result[key] + value
+                result[key] = _dedup_list(result[key] + value)
             else:
                 result[key] = copy.deepcopy(value)
         else:
@@ -372,7 +385,7 @@ def _deep_merge_section(
                         if new_items:
                             result[key] = result[key] + new_items
                 else:
-                    result[key] = result[key] + value
+                    result[key] = _dedup_list(result[key] + value)
             else:
                 if tighten_only:
                     if _is_tightening(key, result[key], value):

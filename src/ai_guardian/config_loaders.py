@@ -21,6 +21,7 @@ from ai_guardian.config_utils import (
     get_project_config_path,
     get_project_dir,
     _clear_project_config_cache,
+    _dedup_list,
     deep_merge,
     is_feature_enabled,
 )
@@ -160,6 +161,27 @@ def _get_mtime(path):
         return path.stat().st_mtime
     except OSError:
         return None
+
+
+def _dedup_config_lists(config):
+    """Deduplicate list values in config sections (defensive cleanup for existing configs)."""
+    if not isinstance(config, dict):
+        return config
+    for section_key, section_val in config.items():
+        if isinstance(section_val, dict):
+            for field_key, field_val in section_val.items():
+                if isinstance(field_val, list) and len(field_val) > 0:
+                    deduped = _dedup_list(field_val)
+                    if len(deduped) < len(field_val):
+                        logger.debug(
+                            "Config dedup: %s.%s reduced from %d to %d items",
+                            section_key,
+                            field_key,
+                            len(field_val),
+                            len(deduped),
+                        )
+                        section_val[field_key] = deduped
+    return config
 
 
 def _normalize_permissions(config):
@@ -316,6 +338,9 @@ def _load_config_file():
             else:
                 effective = copy.deepcopy(overlay)
             logger.debug("Config merge: SDK overlay applied")
+
+        if effective is not None:
+            effective = _dedup_config_lists(effective)
 
         entry = _ConfigCacheEntry(
             result=(effective, None),
