@@ -15,6 +15,7 @@ on:
     branches: [main]
   push:
     tags: ['v*']
+  workflow_call:
   workflow_dispatch:
     inputs:
       image_tag:
@@ -30,11 +31,8 @@ jobs:
       contents: read
 
     # For workflow_run: only run when Build Wheel succeeded.
-    # For push/dispatch: always run (tag filtering handled in steps).
-    if: |
-      (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success') ||
-      github.event_name == 'push' ||
-      github.event_name == 'workflow_dispatch'
+    # For push/dispatch/workflow_call (via scenario-tests): always run.
+    if: github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success'
 
     steps:
       - name: Determine build parameters
@@ -45,7 +43,7 @@ jobs:
             echo "wheel_source=artifact" >> "$GITHUB_OUTPUT"
             echo "skip=false" >> "$GITHUB_OUTPUT"
 
-          elif [[ "$GITHUB_EVENT_NAME" == "push" ]]; then
+          elif [[ "$GITHUB_REF" == refs/tags/v* ]]; then
             TAG="${GITHUB_REF#refs/tags/v}"
             if [[ "$TAG" == *-test* ]]; then
               echo "skip=true" >> "$GITHUB_OUTPUT"
@@ -56,10 +54,15 @@ jobs:
               echo "skip=false" >> "$GITHUB_OUTPUT"
             fi
 
-          else
-            # workflow_dispatch
+          elif [[ "$GITHUB_EVENT_NAME" == "workflow_dispatch" ]]; then
             TAG="${{ github.event.inputs.image_tag }}"
             echo "image_tag=${TAG:-latest}" >> "$GITHUB_OUTPUT"
+            echo "wheel_source=build" >> "$GITHUB_OUTPUT"
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+
+          else
+            # workflow_call (from scenario-tests) — use commit SHA
+            echo "image_tag=${{ github.sha }}" >> "$GITHUB_OUTPUT"
             echo "wheel_source=build" >> "$GITHUB_OUTPUT"
             echo "skip=false" >> "$GITHUB_OUTPUT"
           fi
@@ -122,15 +125,26 @@ jobs:
           username: ${{ secrets.QUAY_USERNAME }}
           password: ${{ secrets.QUAY_PASSWORD }}
 
-      # --- Build and push image ---
-      # main merge → :latest  |  release tag → :<version>
-      - name: Build and push image
+      # --- Skip rebuild if commit-tagged image already exists ---
+      - name: Check if image exists
         if: steps.params.outputs.skip != 'true'
+        id: check
+        run: |
+          docker manifest inspect quay.io/itdove/ai-guardian:${{ github.sha }} > /dev/null 2>&1 \
+            && echo "exists=true" >> "$GITHUB_OUTPUT" \
+            || echo "exists=false" >> "$GITHUB_OUTPUT"
+
+      # --- Build and push image ---
+      # main merge → :latest + :sha  |  release tag → :<version> + :sha
+      - name: Build and push image
+        if: steps.params.outputs.skip != 'true' && steps.check.outputs.exists != 'true'
         uses: docker/build-push-action@v6
         with:
           context: container/
           platforms: linux/amd64,linux/arm64
           push: true
-          tags: quay.io/itdove/ai-guardian:${{ steps.params.outputs.image_tag }}
+          tags: |
+            quay.io/itdove/ai-guardian:${{ steps.params.outputs.image_tag }}
+            quay.io/itdove/ai-guardian:${{ github.sha }}
           build-args: |
             AI_GUARDIAN_VERSION=${{ steps.wheel.outputs.version }}
