@@ -331,7 +331,7 @@ class MultiDaemonClient:
 
     @staticmethod
     def _local_plugins(working_dir: Optional[str] = None) -> dict:
-        from ai_guardian.daemon.tray_plugins import load_merged_plugins, plugins_to_dict
+        from ai_guardian.tray.plugins import load_merged_plugins, plugins_to_dict
 
         return plugins_to_dict(load_merged_plugins(working_dir))
 

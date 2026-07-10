@@ -108,7 +108,7 @@ def auto_setup_tray():
             logger.debug("Auto-setup: skipped (disabled in config)")
             return
 
-        from ai_guardian.daemon.tray import is_tray_available
+        from ai_guardian.tray.app import is_tray_available
 
         if not is_tray_available():
             logger.debug("Auto-setup: skipped (tray not available)")
@@ -126,7 +126,7 @@ def auto_setup_tray():
         if desktop.install_autostart():
             logger.info("First run: installed tray autostart")
 
-        from ai_guardian.daemon.tray import _is_tray_running
+        from ai_guardian.tray.app import _is_tray_running
 
         if not _is_tray_running():
             _start_tray_background()
