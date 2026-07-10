@@ -31,11 +31,8 @@ jobs:
       contents: read
 
     # For workflow_run: only run when Build Wheel succeeded.
-    # For push/dispatch: always run (tag filtering handled in steps).
-    if: |
-      (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success') ||
-      github.event_name == 'push' ||
-      github.event_name == 'workflow_dispatch'
+    # For push/dispatch/workflow_call (via scenario-tests): always run.
+    if: github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success'
 
     steps:
       - name: Determine build parameters
