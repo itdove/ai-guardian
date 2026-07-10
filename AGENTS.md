@@ -501,10 +501,11 @@ Ruff configuration is in `pyproject.toml` under `[tool.ruff]`. Pylint only check
 Before submitting a PR:
 
 **For code changes:**
-1. Run all tests: `pytest`
-2. Check test coverage: `pytest --cov=ai_guardian`
-3. Run linters: `black`, `ruff check`, `pylint` (required — CI will block if they fail)
-4. Update CHANGELOG.md if making notable changes
+1. Run `/simplify` on changed files — catch dead code, duplicates, over-abstraction
+2. Run all tests: `pytest`
+3. Check test coverage: `pytest --cov=ai_guardian`
+4. Run linters: `black`, `ruff check`, `pylint` (required — CI will block if they fail)
+5. Update CHANGELOG.md if making notable changes
 
 **For documentation-only changes:**
 1. Update CHANGELOG.md if making notable changes
