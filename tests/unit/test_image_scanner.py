@@ -536,7 +536,9 @@ class TestHookIntegration(TestCase):
 
             with (
                 patch("ai_guardian.hook_events.scanners.HAS_IMAGE_SCANNER", True),
-                patch("ai_guardian.hook_events.scanners.ImageDetector") as mock_detector,
+                patch(
+                    "ai_guardian.hook_events.scanners.ImageDetector"
+                ) as mock_detector,
                 patch("ai_guardian.hook_events.scanners.scan_image") as mock_scan,
             ):
 
@@ -571,7 +573,9 @@ class TestHookIntegration(TestCase):
 
             with (
                 patch("ai_guardian.hook_events.scanners.HAS_IMAGE_SCANNER", True),
-                patch("ai_guardian.hook_events.scanners.ImageDetector") as mock_detector,
+                patch(
+                    "ai_guardian.hook_events.scanners.ImageDetector"
+                ) as mock_detector,
                 patch("ai_guardian.hook_events.scanners.scan_image") as mock_scan,
             ):
 

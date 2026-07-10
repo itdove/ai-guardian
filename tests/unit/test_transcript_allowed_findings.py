@@ -106,7 +106,9 @@ class TestScanTranscriptTextAllowedFindings:
                     "ai_guardian.transcript_scanning._load_seen_findings",
                     return_value={},
                 ):
-                    with mock.patch("ai_guardian.transcript_scanning._save_seen_findings"):
+                    with mock.patch(
+                        "ai_guardian.transcript_scanning._save_seen_findings"
+                    ):
                         warnings = _scan_transcript_text(
                             pii_value + " some other text",
                             "/tmp/test.jsonl",
@@ -140,9 +142,12 @@ class TestScanTranscriptTextAllowedFindings:
                 "ai_guardian.secret_scanning._last_secret_findings", mock_findings
             ):
                 with mock.patch(
-                    "ai_guardian.transcript_scanning._load_seen_findings", return_value={}
+                    "ai_guardian.transcript_scanning._load_seen_findings",
+                    return_value={},
                 ):
-                    with mock.patch("ai_guardian.transcript_scanning._save_seen_findings"):
+                    with mock.patch(
+                        "ai_guardian.transcript_scanning._save_seen_findings"
+                    ):
                         warnings = _scan_transcript_text(
                             "content",
                             "/tmp/test.jsonl",
@@ -181,9 +186,12 @@ class TestScanTranscriptTextAllowedFindings:
                 "ai_guardian.secret_scanning._last_secret_findings", mock_findings
             ):
                 with mock.patch(
-                    "ai_guardian.transcript_scanning._load_seen_findings", return_value={}
+                    "ai_guardian.transcript_scanning._load_seen_findings",
+                    return_value={},
                 ):
-                    with mock.patch("ai_guardian.transcript_scanning._save_seen_findings"):
+                    with mock.patch(
+                        "ai_guardian.transcript_scanning._save_seen_findings"
+                    ):
                         warnings = _scan_transcript_text(
                             "content",
                             "/tmp/test.jsonl",
@@ -218,9 +226,12 @@ class TestScanTranscriptTextAllowedFindings:
                 "ai_guardian.secret_scanning._last_secret_findings", mock_findings
             ):
                 with mock.patch(
-                    "ai_guardian.transcript_scanning._load_seen_findings", return_value={}
+                    "ai_guardian.transcript_scanning._load_seen_findings",
+                    return_value={},
                 ):
-                    with mock.patch("ai_guardian.transcript_scanning._save_seen_findings"):
+                    with mock.patch(
+                        "ai_guardian.transcript_scanning._save_seen_findings"
+                    ):
                         warnings = _scan_transcript_text(
                             "content",
                             "/tmp/test.jsonl",
