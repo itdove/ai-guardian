@@ -2684,7 +2684,7 @@ class TestFormatAskInfoMessage:
 class TestLogAskDecision:
     """Tests for _log_ask_decision helper (#1161)."""
 
-    @patch("ai_guardian.hook_processing.ViolationLogger")
+    @patch("ai_guardian.ask_mode.ViolationLogger")
     def test_logs_allow_once(self, mock_vl_cls):
         from ai_guardian.hook_processing import _log_ask_decision
         from ai_guardian.tui.ask_dialog import AskDecision
@@ -2705,7 +2705,7 @@ class TestLogAskDecision:
         assert call_kwargs["context"]["action_taken"] == "allowed"
         assert call_kwargs["blocked"]["matched_text"] == "AWS_KEY"
 
-    @patch("ai_guardian.hook_processing.ViolationLogger")
+    @patch("ai_guardian.ask_mode.ViolationLogger")
     def test_logs_allow_always(self, mock_vl_cls):
         from ai_guardian.hook_processing import _log_ask_decision
         from ai_guardian.tui.ask_dialog import AskDecision
@@ -2721,7 +2721,7 @@ class TestLogAskDecision:
         call_kwargs = mock_vl.log_violation.call_args[1]
         assert call_kwargs["context"]["ask_decision"] == "allow_always"
 
-    @patch("ai_guardian.hook_processing.ViolationLogger")
+    @patch("ai_guardian.ask_mode.ViolationLogger")
     def test_logs_with_file_path(self, mock_vl_cls):
         from ai_guardian.hook_processing import _log_ask_decision
         from ai_guardian.tui.ask_dialog import AskDecision
@@ -2734,7 +2734,7 @@ class TestLogAskDecision:
         call_kwargs = mock_vl.log_violation.call_args[1]
         assert call_kwargs["blocked"]["file_path"] == "/etc/passwd"
 
-    @patch("ai_guardian.hook_processing.ViolationLogger")
+    @patch("ai_guardian.ask_mode.ViolationLogger")
     def test_no_file_path_omits_key(self, mock_vl_cls):
         from ai_guardian.hook_processing import _log_ask_decision
         from ai_guardian.tui.ask_dialog import AskDecision
@@ -2745,14 +2745,14 @@ class TestLogAskDecision:
         call_kwargs = mock_vl.log_violation.call_args[1]
         assert "file_path" not in call_kwargs["blocked"]
 
-    @patch("ai_guardian.hook_processing.HAS_VIOLATION_LOGGER", False)
+    @patch("ai_guardian.ask_mode.HAS_VIOLATION_LOGGER", False)
     def test_noop_when_logger_unavailable(self):
         from ai_guardian.hook_processing import _log_ask_decision
         from ai_guardian.tui.ask_dialog import AskDecision
 
         _log_ask_decision("secret_detected", AskDecision.ALLOW_ONCE)
 
-    @patch("ai_guardian.hook_processing.ViolationLogger")
+    @patch("ai_guardian.ask_mode.ViolationLogger")
     def test_exception_does_not_propagate(self, mock_vl_cls):
         from ai_guardian.hook_processing import _log_ask_decision
         from ai_guardian.tui.ask_dialog import AskDecision
@@ -3452,7 +3452,7 @@ class TestSecretAskBlockDecision:
 class TestLogAskDecisionBlock:
     """Tests for _log_ask_decision with BLOCK decisions (#1344)."""
 
-    @patch("ai_guardian.hook_processing.ViolationLogger")
+    @patch("ai_guardian.ask_mode.ViolationLogger")
     def test_logs_block_decision(self, mock_vl_cls):
         from ai_guardian.hook_processing import _log_ask_decision
         from ai_guardian.tui.ask_dialog import AskDecision
@@ -3471,7 +3471,7 @@ class TestLogAskDecisionBlock:
         assert call_kwargs["context"]["action_taken"] == "blocked"
         assert call_kwargs["blocked"]["matched_text"] == "AKIA_KEY"
 
-    @patch("ai_guardian.hook_processing.ViolationLogger")
+    @patch("ai_guardian.ask_mode.ViolationLogger")
     def test_logs_block_all_decision(self, mock_vl_cls):
         from ai_guardian.hook_processing import _log_ask_decision
         from ai_guardian.tui.ask_dialog import AskDecision
@@ -3488,7 +3488,7 @@ class TestLogAskDecisionBlock:
         assert call_kwargs["context"]["ask_decision"] == "block_all"
         assert call_kwargs["context"]["action_taken"] == "blocked"
 
-    @patch("ai_guardian.hook_processing.ViolationLogger")
+    @patch("ai_guardian.ask_mode.ViolationLogger")
     def test_logs_block_with_file_and_line(self, mock_vl_cls):
         from ai_guardian.hook_processing import _log_ask_decision
         from ai_guardian.tui.ask_dialog import AskDecision
@@ -3509,7 +3509,7 @@ class TestLogAskDecisionBlock:
         assert call_kwargs["blocked"]["line_number"] == 42
         assert call_kwargs["context"]["dialog_wait_ms"] == 1500.0
 
-    @patch("ai_guardian.hook_processing.ViolationLogger")
+    @patch("ai_guardian.ask_mode.ViolationLogger")
     def test_logs_pii_block_decision(self, mock_vl_cls):
         from ai_guardian.hook_processing import _log_ask_decision
         from ai_guardian.tui.ask_dialog import AskDecision
@@ -3527,7 +3527,7 @@ class TestLogAskDecisionBlock:
         assert call_kwargs["context"]["ask_decision"] == "block"
         assert call_kwargs["context"]["action_taken"] == "blocked"
 
-    @patch("ai_guardian.hook_processing.ViolationLogger")
+    @patch("ai_guardian.ask_mode.ViolationLogger")
     def test_allow_once_still_logs_as_allowed(self, mock_vl_cls):
         """Verify existing ALLOW behavior unchanged after BLOCK support."""
         from ai_guardian.hook_processing import _log_ask_decision
@@ -3574,7 +3574,7 @@ class TestHandleAskModeMultiDedup:
             },
         ]
 
-        with patch("ai_guardian.hook_processing._handle_ask_mode") as mock_ask:
+        with patch("ai_guardian.ask_mode._handle_ask_mode") as mock_ask:
             from ai_guardian.tui.ask_dialog import AskResult
 
             mock_ask.return_value = AskResult(decision=AskDecision.ALLOW_ONCE)
@@ -3608,7 +3608,7 @@ class TestHandleAskModeMultiDedup:
             },
         ]
 
-        with patch("ai_guardian.hook_processing._handle_ask_mode") as mock_ask:
+        with patch("ai_guardian.ask_mode._handle_ask_mode") as mock_ask:
             from ai_guardian.tui.ask_dialog import AskResult
 
             mock_ask.return_value = AskResult(decision=AskDecision.ALLOW_ONCE)
@@ -3652,7 +3652,7 @@ class TestHandleAskModeMultiDedup:
             },
         ]
 
-        with patch("ai_guardian.hook_processing._handle_ask_mode") as mock_ask:
+        with patch("ai_guardian.ask_mode._handle_ask_mode") as mock_ask:
             from ai_guardian.tui.ask_dialog import AskResult
 
             mock_ask.return_value = AskResult(decision=AskDecision.ALLOW_ONCE)
@@ -3708,7 +3708,7 @@ class TestHandleAskModeMultiDedup:
 
         captured_calls = []
 
-        with patch("ai_guardian.hook_processing._handle_ask_mode") as mock_ask:
+        with patch("ai_guardian.ask_mode._handle_ask_mode") as mock_ask:
             from ai_guardian.tui.ask_dialog import AskResult
 
             def capture(*args, **kwargs):

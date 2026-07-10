@@ -242,7 +242,7 @@ class MCPToolPermissionTests(TestCase):
 class MCPSecretScanningTests(TestCase):
     """Test secret scanning in MCP tool inputs (Scenario 2)"""
 
-    @patch("ai_guardian.hook_processing._load_pattern_server_config")
+    @patch("ai_guardian.secret_scanning._load_pattern_server_config")
     def test_secret_in_notebook_title(self, mock_pattern_config):
         """
         Verify secrets in MCP tool parameters are blocked.
@@ -268,7 +268,7 @@ class MCPSecretScanningTests(TestCase):
             "Secret Detected" in error_msg
         ), f"Error should mention secret detection: {error_msg}"
 
-    @patch("ai_guardian.hook_processing._load_pattern_server_config")
+    @patch("ai_guardian.secret_scanning._load_pattern_server_config")
     def test_secret_in_source_text(self, mock_pattern_config):
         """
         Verify secrets in MCP source content are blocked.
@@ -298,7 +298,7 @@ class MCPSecretScanningTests(TestCase):
             "Secret Detected" in error_msg
         ), f"Error should mention secret: {error_msg}"
 
-    @patch("ai_guardian.hook_processing._load_pattern_server_config")
+    @patch("ai_guardian.secret_scanning._load_pattern_server_config")
     def test_multiple_secret_types_detected(self, mock_pattern_config):
         """
         Verify multiple secret types are detected in a single input.
@@ -326,7 +326,7 @@ class MCPSecretScanningTests(TestCase):
         assert has_secrets, "Multiple secrets should be detected"
         assert "Secret Detected" in error_msg, "Error should mention secrets"
 
-    @patch("ai_guardian.hook_processing._load_pattern_server_config")
+    @patch("ai_guardian.secret_scanning._load_pattern_server_config")
     def test_legitimate_content_not_blocked(self, mock_pattern_config):
         """
         Verify legitimate content without secrets is allowed.
@@ -726,7 +726,7 @@ class MCPCombinedProtectionTests(TestCase):
             "SSRF" in error_msg.upper() or "metadata" in error_msg.lower()
         ), f"Error should mention SSRF: {error_msg}"
 
-    @patch("ai_guardian.hook_processing._load_pattern_server_config")
+    @patch("ai_guardian.secret_scanning._load_pattern_server_config")
     def test_defense_in_depth_multiple_triggers(self, mock_pattern_config):
         """
         Verify defense in depth - multiple violations trigger appropriate blocks.

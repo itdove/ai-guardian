@@ -122,7 +122,7 @@ def reset_default_registry() -> None:
 
 def _build_default_registry() -> ScannerRegistry:
     """Build the default registry with all known scanners."""
-    from ai_guardian.hook_processing import (
+    from ai_guardian.hook_events.scanners import (
         run_bash_exfil_scan,
         run_canary_detection_scan,
         run_code_security_scan,

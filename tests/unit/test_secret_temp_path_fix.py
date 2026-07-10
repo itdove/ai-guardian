@@ -52,11 +52,11 @@ class TestSecretMessageShowsOriginalPath:
 class TestCheckSecretsUsesOriginalPath:
     """Verify check_secrets_with_gitleaks replaces temp paths with file_path."""
 
-    @mock.patch("ai_guardian.hook_processing._log_secret_detection_violation")
-    @mock.patch("ai_guardian.hook_processing.select_all_engines")
-    @mock.patch("ai_guardian.hook_processing.get_strategy")
-    @mock.patch("ai_guardian.hook_processing.select_engine")
-    @mock.patch("ai_guardian.hook_processing._load_secret_scanning_config")
+    @mock.patch("ai_guardian.secret_scanning._log_secret_detection_violation")
+    @mock.patch("ai_guardian.secret_scanning.select_all_engines")
+    @mock.patch("ai_guardian.secret_scanning.get_strategy")
+    @mock.patch("ai_guardian.secret_scanning.select_engine")
+    @mock.patch("ai_guardian.secret_scanning._load_secret_scanning_config")
     def test_strategy_path_uses_original_file_path(
         self,
         mock_load_config,
@@ -103,11 +103,11 @@ class TestCheckSecretsUsesOriginalPath:
         assert "Location: /project/Containerfile:9" in error_msg
         assert "/dev/shm/aiguardian_" not in error_msg
 
-    @mock.patch("ai_guardian.hook_processing._log_secret_detection_violation")
-    @mock.patch("ai_guardian.hook_processing.select_all_engines")
-    @mock.patch("ai_guardian.hook_processing.get_strategy")
-    @mock.patch("ai_guardian.hook_processing.select_engine")
-    @mock.patch("ai_guardian.hook_processing._load_secret_scanning_config")
+    @mock.patch("ai_guardian.secret_scanning._log_secret_detection_violation")
+    @mock.patch("ai_guardian.secret_scanning.select_all_engines")
+    @mock.patch("ai_guardian.secret_scanning.get_strategy")
+    @mock.patch("ai_guardian.secret_scanning.select_engine")
+    @mock.patch("ai_guardian.secret_scanning._load_secret_scanning_config")
     def test_strategy_path_falls_back_to_filename(
         self,
         mock_load_config,
@@ -154,11 +154,11 @@ class TestCheckSecretsUsesOriginalPath:
         assert "Location: Containerfile:5" in error_msg
         assert "/dev/shm/aiguardian_" not in error_msg
 
-    @mock.patch("ai_guardian.hook_processing._log_secret_detection_violation")
-    @mock.patch("ai_guardian.hook_processing.select_all_engines")
-    @mock.patch("ai_guardian.hook_processing.get_strategy")
-    @mock.patch("ai_guardian.hook_processing.select_engine")
-    @mock.patch("ai_guardian.hook_processing._load_secret_scanning_config")
+    @mock.patch("ai_guardian.secret_scanning._log_secret_detection_violation")
+    @mock.patch("ai_guardian.secret_scanning.select_all_engines")
+    @mock.patch("ai_guardian.secret_scanning.get_strategy")
+    @mock.patch("ai_guardian.secret_scanning.select_engine")
+    @mock.patch("ai_guardian.secret_scanning._load_secret_scanning_config")
     def test_line_number_preserved_with_path_fix(
         self,
         mock_load_config,
@@ -204,11 +204,11 @@ class TestCheckSecretsUsesOriginalPath:
         assert has_secrets is True
         assert "Location: /home/user/project/main.py:42" in error_msg
 
-    @mock.patch("ai_guardian.hook_processing._log_secret_detection_violation")
-    @mock.patch("ai_guardian.hook_processing.select_all_engines")
-    @mock.patch("ai_guardian.hook_processing.get_strategy")
-    @mock.patch("ai_guardian.hook_processing.select_engine")
-    @mock.patch("ai_guardian.hook_processing._load_secret_scanning_config")
+    @mock.patch("ai_guardian.secret_scanning._log_secret_detection_violation")
+    @mock.patch("ai_guardian.secret_scanning.select_all_engines")
+    @mock.patch("ai_guardian.secret_scanning.get_strategy")
+    @mock.patch("ai_guardian.secret_scanning.select_engine")
+    @mock.patch("ai_guardian.secret_scanning._load_secret_scanning_config")
     def test_violation_log_receives_original_path(
         self,
         mock_load_config,
