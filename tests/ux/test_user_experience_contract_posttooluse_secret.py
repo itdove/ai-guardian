@@ -105,7 +105,9 @@ class PostToolUseSecretBlockingTests(TestCase):
         }
 
         with patch("sys.stdin", StringIO(json.dumps(hook_data))):
-            with patch("ai_guardian.secret_redactor.SecretRedactor") as MockRedactor:
+            with patch(
+                "ai_guardian.scanners.secret_redactor.SecretRedactor"
+            ) as MockRedactor:
                 mock_instance = MockRedactor.return_value
                 mock_instance.redact.return_value = {
                     "redacted_text": "AWS_ACCESS_KEY=***REDACTED***",
@@ -153,7 +155,9 @@ class PostToolUseSecretBlockingTests(TestCase):
         }
 
         with patch("sys.stdin", StringIO(json.dumps(hook_data))):
-            with patch("ai_guardian.secret_redactor.SecretRedactor") as MockRedactor:
+            with patch(
+                "ai_guardian.scanners.secret_redactor.SecretRedactor"
+            ) as MockRedactor:
                 mock_instance = MockRedactor.return_value
                 mock_instance.redact.return_value = {
                     "redacted_text": "AWS_ACCESS_KEY=***REDACTED***",
@@ -326,7 +330,9 @@ class PostToolUseSecretBlockingUXContractTests(TestCase):
         }
 
         with patch("sys.stdin", StringIO(json.dumps(hook_data))):
-            with patch("ai_guardian.secret_redactor.SecretRedactor") as MockRedactor:
+            with patch(
+                "ai_guardian.scanners.secret_redactor.SecretRedactor"
+            ) as MockRedactor:
                 mock_instance = MockRedactor.return_value
                 mock_instance.redact.return_value = {
                     "redacted_text": "AWS_ACCESS_KEY=***REDACTED***",

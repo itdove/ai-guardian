@@ -6,7 +6,7 @@ Tests the SecretRedactor class and its integration with PostToolUse hook.
 
 import re
 import pytest
-from ai_guardian.secret_redactor import SecretRedactor
+from ai_guardian.scanners.secret_redactor import SecretRedactor
 
 
 class TestSecretRedactor:

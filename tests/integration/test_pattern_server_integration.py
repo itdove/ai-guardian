@@ -61,7 +61,7 @@ class TestPatternServerClient:
     def test_pattern_server_disabled_by_default(self):
         """Test that features work without pattern server (backward compatibility)."""
         from ai_guardian.ssrf_protector import SSRFProtector
-        from ai_guardian.secret_redactor import SecretRedactor
+        from ai_guardian.scanners.secret_redactor import SecretRedactor
 
         # No pattern_server config - should use defaults
         ssrf = SSRFProtector({})
@@ -296,7 +296,7 @@ class TestFeatureIntegration:
 
     def test_secret_redactor_loads_from_pattern_server(self):
         """Test SecretRedactor with pattern server configuration."""
-        from ai_guardian.secret_redactor import SecretRedactor
+        from ai_guardian.scanners.secret_redactor import SecretRedactor
 
         config = {
             "pattern_server": {
@@ -311,7 +311,7 @@ class TestFeatureIntegration:
 
     def test_unicode_detector_loads_from_pattern_server(self):
         """Test UnicodeAttackDetector with pattern server configuration."""
-        from ai_guardian.prompt_injection import UnicodeAttackDetector
+        from ai_guardian.scanners.prompt_injection import UnicodeAttackDetector
 
         config = {
             "pattern_server": {
@@ -326,7 +326,7 @@ class TestFeatureIntegration:
 
     def test_config_scanner_loads_from_pattern_server(self):
         """Test ConfigFileScanner with pattern server configuration."""
-        from ai_guardian.config_scanner import ConfigFileScanner
+        from ai_guardian.scanners.config_scanner import ConfigFileScanner
 
         config = {
             "pattern_server": {
@@ -375,7 +375,7 @@ class TestBackwardCompatibility:
 
     def test_secrets_without_pattern_server(self):
         """Test secret redaction works without pattern server config."""
-        from ai_guardian.secret_redactor import SecretRedactor
+        from ai_guardian.scanners.secret_redactor import SecretRedactor
 
         redactor = SecretRedactor({"enabled": True})
 
@@ -389,7 +389,7 @@ class TestBackwardCompatibility:
 
     def test_unicode_without_pattern_server(self):
         """Test unicode detection works without pattern server config."""
-        from ai_guardian.prompt_injection import UnicodeAttackDetector
+        from ai_guardian.scanners.prompt_injection import UnicodeAttackDetector
 
         detector = UnicodeAttackDetector({"enabled": True})
 
@@ -400,7 +400,7 @@ class TestBackwardCompatibility:
 
     def test_config_scanner_without_pattern_server(self):
         """Test config scanner works without pattern server config."""
-        from ai_guardian.config_scanner import ConfigFileScanner
+        from ai_guardian.scanners.config_scanner import ConfigFileScanner
 
         scanner = ConfigFileScanner({"enabled": True})
 
@@ -415,7 +415,7 @@ class TestConfigInspector:
 
     def test_inspector_shows_ssrf_config(self):
         """Test inspector displays SSRF configuration."""
-        from ai_guardian.config_inspector import ConfigInspector
+        from ai_guardian.config.inspector import ConfigInspector
 
         config = {"ssrf_protection": {"enabled": True, "action": "block"}}
         inspector = ConfigInspector(config)
@@ -426,7 +426,7 @@ class TestConfigInspector:
 
     def test_inspector_shows_sources(self):
         """Test inspector shows source attribution."""
-        from ai_guardian.config_inspector import ConfigInspector
+        from ai_guardian.config.inspector import ConfigInspector
 
         config = {"ssrf_protection": {"enabled": True}}
         inspector = ConfigInspector(config)
@@ -437,7 +437,7 @@ class TestConfigInspector:
     def test_inspector_export_json(self):
         """Test inspector exports to JSON."""
         import json
-        from ai_guardian.config_inspector import ConfigInspector
+        from ai_guardian.config.inspector import ConfigInspector
 
         config = {
             "ssrf_protection": {"enabled": True},

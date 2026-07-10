@@ -16,7 +16,7 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Dict, List, Optional
 
-from ai_guardian.config_utils import get_config_dir, get_state_dir, is_feature_enabled
+from ai_guardian.config.utils import get_config_dir, get_state_dir, is_feature_enabled
 
 logger = logging.getLogger(__name__)
 

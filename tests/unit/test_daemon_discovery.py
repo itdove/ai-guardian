@@ -119,7 +119,7 @@ class TestDiscoverLocal:
         mock_pid.return_value = mock.MagicMock(exists=lambda: False)
         d = DaemonDiscovery()
         with mock.patch(
-            "ai_guardian.config_utils.get_config_dir", return_value=config_dir
+            "ai_guardian.config.utils.get_config_dir", return_value=config_dir
         ):
             target = d.discover_local()
         assert target is None
@@ -132,7 +132,7 @@ class TestDiscoverLocal:
         mock_pid.return_value = mock.MagicMock(exists=lambda: False)
         d = DaemonDiscovery()
         with mock.patch(
-            "ai_guardian.config_utils.get_config_dir", return_value=config_dir
+            "ai_guardian.config.utils.get_config_dir", return_value=config_dir
         ):
             target = d.discover_local()
         assert target is not None
@@ -147,7 +147,7 @@ class TestDiscoverLocal:
         mock_pid.return_value = mock.MagicMock(exists=lambda: False)
         d = DaemonDiscovery()
         with mock.patch(
-            "ai_guardian.config_utils.get_config_dir", return_value=config_dir
+            "ai_guardian.config.utils.get_config_dir", return_value=config_dir
         ):
             target = d.discover_local()
         assert target is not None
@@ -164,7 +164,7 @@ class TestDiscoverLocal:
         mock_pid.return_value = mock.MagicMock(exists=lambda: False)
         d = DaemonDiscovery()
         with mock.patch(
-            "ai_guardian.config_utils.get_config_dir", return_value=config_dir
+            "ai_guardian.config.utils.get_config_dir", return_value=config_dir
         ):
             target = d.discover_local()
         assert target.name == "my-workstation"
@@ -188,7 +188,7 @@ class TestDiscoverLocal:
         try:
             d = DaemonDiscovery()
             with mock.patch(
-                "ai_guardian.config_utils.get_config_dir", return_value=config_dir
+                "ai_guardian.config.utils.get_config_dir", return_value=config_dir
             ):
                 target = d.discover_local()
             assert target.name == "pid-name"
@@ -203,7 +203,7 @@ class TestDiscoverLocal:
         mock_pid.return_value = mock.MagicMock(exists=lambda: False)
         d = DaemonDiscovery()
         with mock.patch(
-            "ai_guardian.config_utils.get_config_dir", return_value=config_dir
+            "ai_guardian.config.utils.get_config_dir", return_value=config_dir
         ):
             target = d.discover_local()
         assert target is not None
@@ -225,7 +225,7 @@ class TestDiscoverLocal:
         try:
             d = DaemonDiscovery()
             with mock.patch(
-                "ai_guardian.config_utils.get_config_dir", return_value=config_dir
+                "ai_guardian.config.utils.get_config_dir", return_value=config_dir
             ):
                 target = d.discover_local()
             assert target.port == 54321
@@ -806,7 +806,7 @@ class TestDiscoverPausedState:
             d = DaemonDiscovery()
             with (
                 mock.patch(
-                    "ai_guardian.config_utils.get_config_dir", return_value=config_dir
+                    "ai_guardian.config.utils.get_config_dir", return_value=config_dir
                 ),
                 mock.patch.object(d, "_probe_daemon", return_value={"paused": True}),
             ):
@@ -834,7 +834,7 @@ class TestDiscoverPausedState:
             d = DaemonDiscovery()
             with (
                 mock.patch(
-                    "ai_guardian.config_utils.get_config_dir", return_value=config_dir
+                    "ai_guardian.config.utils.get_config_dir", return_value=config_dir
                 ),
                 mock.patch.object(d, "_probe_daemon", return_value={"paused": False}),
             ):
@@ -855,7 +855,7 @@ class TestDiscoverPausedState:
         d = DaemonDiscovery()
         with (
             mock.patch(
-                "ai_guardian.config_utils.get_config_dir", return_value=config_dir
+                "ai_guardian.config.utils.get_config_dir", return_value=config_dir
             ),
             mock.patch.object(d, "_check_pause_via_socket", return_value=False),
         ):
@@ -883,7 +883,7 @@ class TestDiscoverPausedState:
             d = DaemonDiscovery()
             with (
                 mock.patch(
-                    "ai_guardian.config_utils.get_config_dir", return_value=config_dir
+                    "ai_guardian.config.utils.get_config_dir", return_value=config_dir
                 ),
                 mock.patch.object(d, "_probe_daemon", return_value=None),
                 mock.patch.object(d, "_check_pause_via_socket", return_value=True),
@@ -907,7 +907,7 @@ class TestDiscoverPausedState:
         d = DaemonDiscovery()
         with (
             mock.patch(
-                "ai_guardian.config_utils.get_config_dir", return_value=config_dir
+                "ai_guardian.config.utils.get_config_dir", return_value=config_dir
             ),
             mock.patch.object(d, "_check_pause_via_socket", return_value=True),
         ):
@@ -932,7 +932,7 @@ class TestDiscoverPausedState:
             d = DaemonDiscovery()
             with (
                 mock.patch(
-                    "ai_guardian.config_utils.get_config_dir", return_value=config_dir
+                    "ai_guardian.config.utils.get_config_dir", return_value=config_dir
                 ),
                 mock.patch.object(d, "_check_pause_via_socket", return_value=True),
             ):

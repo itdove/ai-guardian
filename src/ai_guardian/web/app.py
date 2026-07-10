@@ -23,7 +23,7 @@ logger = logging.getLogger(__name__)
 
 
 def _get_port_file():
-    from ai_guardian.config_utils import get_state_dir
+    from ai_guardian.config.utils import get_state_dir
 
     return get_state_dir() / "web-console.port"
 
@@ -59,7 +59,7 @@ class WebConsole:
     def _load_saved_theme():
         """Load preferred_theme from config and apply it."""
         try:
-            from ai_guardian.config_utils import get_config_dir
+            from ai_guardian.config.utils import get_config_dir
             import json
 
             config_path = get_config_dir() / "ai-guardian.json"
@@ -105,7 +105,7 @@ class WebConsole:
                 pass  # intentionally silent — best-effort operation
 
         if not os.environ.get("NICEGUI_STORAGE_PATH"):
-            from ai_guardian.config_utils import get_state_dir
+            from ai_guardian.config.utils import get_state_dir
 
             storage_path = get_state_dir() / ".nicegui"
             try:

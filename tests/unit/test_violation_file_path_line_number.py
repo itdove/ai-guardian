@@ -523,7 +523,7 @@ class TestSecretRedactorLineNumber:
 
     def test_line_number_on_first_line(self):
         """PII on line 1 should return line_number=1."""
-        from ai_guardian.secret_redactor import SecretRedactor
+        from ai_guardian.scanners.secret_redactor import SecretRedactor
 
         redactor = SecretRedactor(
             config={"enabled": True},
@@ -538,7 +538,7 @@ class TestSecretRedactorLineNumber:
 
     def test_line_number_on_third_line(self):
         """PII on line 3 should return line_number=3."""
-        from ai_guardian.secret_redactor import SecretRedactor
+        from ai_guardian.scanners.secret_redactor import SecretRedactor
 
         redactor = SecretRedactor(
             config={"enabled": True},
@@ -554,7 +554,7 @@ class TestSecretRedactorLineNumber:
 
     def test_line_number_multiple_redactions(self):
         """Multiple PII items on different lines should each have correct line_number."""
-        from ai_guardian.secret_redactor import SecretRedactor
+        from ai_guardian.scanners.secret_redactor import SecretRedactor
 
         redactor = SecretRedactor(
             config={"enabled": True},
@@ -571,7 +571,7 @@ class TestSecretRedactorLineNumber:
 
     def test_column_position_correct(self):
         """Column should be the 1-based position within the line."""
-        from ai_guardian.secret_redactor import SecretRedactor
+        from ai_guardian.scanners.secret_redactor import SecretRedactor
 
         redactor = SecretRedactor(
             config={"enabled": True},

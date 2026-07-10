@@ -17,7 +17,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Dict, Optional
 
-from ai_guardian.config_utils import get_project_dir, get_state_dir, is_feature_enabled
+from ai_guardian.config.utils import get_project_dir, get_state_dir, is_feature_enabled
 from ai_guardian.constants import HookEvent, ViolationType
 from ai_guardian.secret_scanning import check_secrets_with_gitleaks
 

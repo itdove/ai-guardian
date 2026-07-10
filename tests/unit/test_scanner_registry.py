@@ -3,8 +3,8 @@
 import pytest
 
 from ai_guardian.constants import HookEvent, ViolationType
-from ai_guardian.scan_result import ScanResult
-from ai_guardian.scanner_registry import (
+from ai_guardian.scanners.scan_result import ScanResult
+from ai_guardian.scanners.scanner_registry import (
     ScannerEntry,
     ScannerName,
     ScannerRegistry,

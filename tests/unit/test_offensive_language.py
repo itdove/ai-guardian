@@ -2,7 +2,7 @@
 
 import pytest
 
-from ai_guardian.offensive_language import OffensiveLanguageScanner
+from ai_guardian.scanners.offensive_language import OffensiveLanguageScanner
 
 
 def _scanner(categories=None, enabled=True):

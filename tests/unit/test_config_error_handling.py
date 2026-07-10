@@ -38,7 +38,7 @@ class TestConfigErrorHandling(unittest.TestCase):
             # Mock get_config_dir to return a non-existent path
             # This forces _load_config_file to use the project local config
             with patch(
-                "ai_guardian.config_loaders.get_config_dir"
+                "ai_guardian.config.loaders.get_config_dir"
             ) as mock_get_config_dir:
                 mock_get_config_dir.return_value = Path("/nonexistent/path")
 
@@ -78,7 +78,7 @@ class TestConfigErrorHandling(unittest.TestCase):
             config_file.write_text(valid_json)
 
             with patch(
-                "ai_guardian.config_loaders.get_config_dir"
+                "ai_guardian.config.loaders.get_config_dir"
             ) as mock_get_config_dir:
                 mock_get_config_dir.return_value = Path("/nonexistent/path")
 
@@ -100,7 +100,7 @@ class TestConfigErrorHandling(unittest.TestCase):
         """Test that missing config file returns None without error."""
         with tempfile.TemporaryDirectory() as tmpdir:
             with patch(
-                "ai_guardian.config_loaders.get_config_dir"
+                "ai_guardian.config.loaders.get_config_dir"
             ) as mock_get_config_dir:
                 mock_get_config_dir.return_value = Path("/nonexistent/path")
 
@@ -132,7 +132,7 @@ class TestConfigErrorHandling(unittest.TestCase):
             os.chmod(config_file, 0o000)
 
             with patch(
-                "ai_guardian.config_loaders.get_config_dir"
+                "ai_guardian.config.loaders.get_config_dir"
             ) as mock_get_config_dir:
                 mock_get_config_dir.return_value = Path("/nonexistent/path")
 
@@ -167,7 +167,7 @@ class TestConfigErrorHandling(unittest.TestCase):
             config_file.write_text(malformed_json)
 
             with patch(
-                "ai_guardian.config_loaders.get_config_dir"
+                "ai_guardian.config.loaders.get_config_dir"
             ) as mock_get_config_dir:
                 mock_get_config_dir.return_value = Path("/nonexistent/path")
 

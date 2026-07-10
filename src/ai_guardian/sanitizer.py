@@ -48,7 +48,7 @@ def _sanitize_unicode(text: str) -> tuple:
     Returns:
         Tuple of (sanitized_text, list of changes made)
     """
-    from ai_guardian.prompt_injection import UnicodeAttackDetector
+    from ai_guardian.scanners.prompt_injection import UnicodeAttackDetector
 
     changes = []
 
@@ -108,7 +108,7 @@ def _sanitize_prompt_injection(text: str) -> tuple:
     Returns:
         Tuple of (sanitized_text, list of redactions)
     """
-    from ai_guardian.prompt_injection import PromptInjectionDetector
+    from ai_guardian.scanners.prompt_injection import PromptInjectionDetector
 
     detector = PromptInjectionDetector(
         {
@@ -197,7 +197,7 @@ def sanitize_text(
 
     # 2. Secrets + PII (via SecretRedactor)
     if not no_secrets or not no_pii:
-        from ai_guardian.secret_redactor import SecretRedactor
+        from ai_guardian.scanners.secret_redactor import SecretRedactor
 
         config = get_sanitize_config()
 
@@ -374,7 +374,7 @@ def _is_text_file(file_path: Path) -> bool:
 def _is_image_file(file_path: Path) -> bool:
     """Check if a file is an image (guarded for missing OCR deps)."""
     try:
-        from ai_guardian.image_scanner import ImageDetector
+        from ai_guardian.scanners.image_scanner import ImageDetector
 
         return ImageDetector.is_image_file(str(file_path))
     except ImportError:
@@ -524,7 +524,7 @@ def _sanitize_image_to_path(
 ) -> Dict:
     """Sanitize an image file writing to output_path. Returns stats dict."""
     try:
-        from ai_guardian.image_scanner import (
+        from ai_guardian.scanners.image_scanner import (
             ImageRedactor,
             scan_image,
             TextRegion,
@@ -595,7 +595,7 @@ def _sanitize_image_to_path(
 def _sanitize_image(input_path: str, args) -> int:
     """Sanitize an image file: OCR text regions, redact those containing secrets/PII."""
     try:
-        from ai_guardian.image_scanner import (
+        from ai_guardian.scanners.image_scanner import (
             ImageRedactor,
             OCREngine,
             scan_image,
@@ -857,7 +857,7 @@ def sanitize_command(args) -> int:
     # Check if input is an image file
     if hasattr(args, "input") and args.input:
         try:
-            from ai_guardian.image_scanner import ImageDetector
+            from ai_guardian.scanners.image_scanner import ImageDetector
 
             if ImageDetector.is_image_file(args.input):
                 return _sanitize_image(args.input, args)

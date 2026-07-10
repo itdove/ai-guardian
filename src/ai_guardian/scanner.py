@@ -28,7 +28,7 @@ except ImportError:
     HAS_SSRF = False
 
 try:
-    from ai_guardian.prompt_injection import (
+    from ai_guardian.scanners.prompt_injection import (
         UnicodeAttackDetector,
         _offset_to_line_number,
     )
@@ -38,7 +38,7 @@ except ImportError:
     HAS_UNICODE = False
 
 try:
-    from ai_guardian.config_scanner import check_config_file_threats
+    from ai_guardian.scanners.config_scanner import check_config_file_threats
 
     HAS_CONFIG_SCANNER = True
 except ImportError:
@@ -79,7 +79,7 @@ except ImportError:
     HAS_PII_SCANNER = False
 
 try:
-    from ai_guardian.prompt_injection import (
+    from ai_guardian.scanners.prompt_injection import (
         check_prompt_injection,
         PromptInjectionDetector,
     )
@@ -89,35 +89,42 @@ except ImportError:
     HAS_PROMPT_INJECTION = False
 
 try:
-    from ai_guardian.image_scanner import ImageDetector, scan_image
+    from ai_guardian.scanners.image_scanner import ImageDetector, scan_image
 
     HAS_IMAGE_SCANNER = True
 except ImportError:
     HAS_IMAGE_SCANNER = False
 
 try:
-    from ai_guardian.supply_chain import SupplyChainScanner, check_supply_chain_threats
+    from ai_guardian.scanners.supply_chain import (
+        SupplyChainScanner,
+        check_supply_chain_threats,
+    )
 
     HAS_SUPPLY_CHAIN = True
 except ImportError:
     HAS_SUPPLY_CHAIN = False
 
 try:
-    from ai_guardian.canary_detection import CanaryTokenScanner as _CanaryScanner
+    from ai_guardian.scanners.canary_detection import (
+        CanaryTokenScanner as _CanaryScanner,
+    )
 
     HAS_CANARY_DETECTION = True
 except ImportError:
     HAS_CANARY_DETECTION = False
 
 try:
-    from ai_guardian.exfil_detection import ExfilDetectionScanner as _ExfilScanner
+    from ai_guardian.scanners.exfil_detection import (
+        ExfilDetectionScanner as _ExfilScanner,
+    )
 
     HAS_EXFIL_DETECTION = True
 except ImportError:
     HAS_EXFIL_DETECTION = False
 
 try:
-    from ai_guardian.offensive_language import (
+    from ai_guardian.scanners.offensive_language import (
         OffensiveLanguageScanner as _OffensiveLangScanner,
     )
 
@@ -127,14 +134,14 @@ except ImportError:
 
 try:
     from ai_guardian.annotations import process_annotations
-    from ai_guardian.config_loaders import _load_annotations_config
-    from ai_guardian.config_utils import is_feature_enabled
+    from ai_guardian.config.loaders import _load_annotations_config
+    from ai_guardian.config.utils import is_feature_enabled
 
     HAS_ANNOTATIONS = True
 except ImportError:
     HAS_ANNOTATIONS = False
 
-from ai_guardian.bandit_scanner import BanditScanner, BanditUnavailableError
+from ai_guardian.scanners.bandit_scanner import BanditScanner, BanditUnavailableError
 
 logger = logging.getLogger(__name__)
 
@@ -1083,7 +1090,7 @@ class FileScanner:
         try:
             ol_config = self.config.get("scan_offensive") if self.config else None
             if not ol_config:
-                from ai_guardian.config_loaders import _load_offensive_language_config
+                from ai_guardian.config.loaders import _load_offensive_language_config
 
                 ol_config, _ = _load_offensive_language_config()
             if not ol_config or not ol_config.get("enabled", False):
@@ -1122,7 +1129,7 @@ class FileScanner:
         try:
             cd_config = self.config.get("canary_detection") if self.config else None
             if not cd_config:
-                from ai_guardian.config_loaders import _load_canary_detection_config
+                from ai_guardian.config.loaders import _load_canary_detection_config
 
                 cd_config, _ = _load_canary_detection_config()
             if not cd_config or not cd_config.get("enabled", False):
@@ -1165,7 +1172,7 @@ class FileScanner:
     def scan_agent_configs(self) -> None:
         """Scan known agent configuration files for supply chain threats."""
         import glob as glob_mod
-        from ai_guardian.supply_chain import (
+        from ai_guardian.scanners.supply_chain import (
             AGENT_CONFIG_PATHS_HOME,
             PLUGIN_PATHS_HOME,
         )

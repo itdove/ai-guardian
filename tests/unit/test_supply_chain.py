@@ -2,7 +2,7 @@
 
 import os
 
-from ai_guardian.supply_chain import (
+from ai_guardian.scanners.supply_chain import (
     SupplyChainScanner,
     check_supply_chain_threats,
 )

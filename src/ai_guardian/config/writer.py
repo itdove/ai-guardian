@@ -23,7 +23,7 @@ except ImportError:
     HAS_FCNTL = False
 
 from ai_guardian.allowlist_utils import validate_allowlist_patterns
-from ai_guardian.config_utils import (
+from ai_guardian.config.utils import (
     get_config_dir,
     get_project_config_path,
     GLOBAL_ONLY_SECTIONS,
@@ -97,7 +97,7 @@ def _atomic_config_update(
                 raise
 
             try:
-                from ai_guardian.config_loaders import _clear_config_cache
+                from ai_guardian.config.loaders import _clear_config_cache
 
                 _clear_config_cache()
             except ImportError:
@@ -392,7 +392,7 @@ def load_scoped_config(
     """
     if scope == "merged":
         try:
-            from ai_guardian.config_loaders import _load_config_file
+            from ai_guardian.config.loaders import _load_config_file
 
             result, _ = _load_config_file()
             return result or {}
@@ -400,7 +400,7 @@ def load_scoped_config(
             global_cfg = _load_json_file(_resolve_config_path("global"))
             project_cfg = _load_json_file(_resolve_config_path("project", project_dir))
             if project_cfg:
-                from ai_guardian.config_utils import deep_merge
+                from ai_guardian.config.utils import deep_merge
 
                 return deep_merge(global_cfg, project_cfg)
             return global_cfg
@@ -530,7 +530,7 @@ def _compute_provenance_impl(
     if not project_cfg:
         return _mark_all_provenance(global_cfg, "global", detailed)
 
-    from ai_guardian.config_utils import deep_merge
+    from ai_guardian.config.utils import deep_merge
 
     merged = deep_merge(global_cfg, project_cfg)
     return _compute_provenance_recursive(global_cfg, project_cfg, merged, detailed)

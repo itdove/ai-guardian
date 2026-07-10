@@ -15,7 +15,7 @@ import os
 from unittest import mock
 
 
-from ai_guardian.config_loaders import (
+from ai_guardian.config.loaders import (
     _clear_config_cache,
     _load_config_file,
     _resolve_sdk_overlay,
@@ -52,7 +52,7 @@ class TestResolveSDKOverlay:
         assert result == {"secret_scanning": {"action": "block"}}
 
     def test_configure_overlay(self):
-        import ai_guardian.config_loaders as cl
+        import ai_guardian.config.loaders as cl
 
         old = cl._sdk_overlay
         try:
@@ -84,7 +84,7 @@ class TestResolveSDKOverlay:
         assert result["secret_scanning"]["action"] == "warn"
 
     def test_configure_overrides_inline(self):
-        import ai_guardian.config_loaders as cl
+        import ai_guardian.config.loaders as cl
 
         old = cl._sdk_overlay
         try:
@@ -103,7 +103,7 @@ class TestResolveSDKOverlay:
     def test_all_three_merged(self, tmp_path):
         overlay_file = tmp_path / "overlay.json"
         overlay_file.write_text(json.dumps({"from_file": True, "shared": "file"}))
-        import ai_guardian.config_loaders as cl
+        import ai_guardian.config.loaders as cl
 
         old = cl._sdk_overlay
         try:
@@ -287,7 +287,7 @@ class TestLoadConfigFileWithOverlay:
         assert config["daemon"]["host"] == "0.0.0.0"
 
     def test_overlay_does_not_mutate_overlay_dict(self):
-        import ai_guardian.config_loaders as cl
+        import ai_guardian.config.loaders as cl
 
         old = cl._sdk_overlay
         try:
@@ -380,7 +380,7 @@ class TestConfigure:
     def test_configure_replaces_previous(self):
         configure(overlay={"a": 1})
         configure(overlay={"b": 2})
-        import ai_guardian.config_loaders as cl
+        import ai_guardian.config.loaders as cl
 
         assert cl._sdk_overlay == {"b": 2}
 
@@ -489,7 +489,7 @@ class TestDoctorOverlayCheck:
         assert "inline env var" in result.message
 
     def test_configure_overlay_detected(self):
-        import ai_guardian.config_loaders as cl
+        import ai_guardian.config.loaders as cl
 
         old = cl._sdk_overlay
         try:

@@ -25,7 +25,7 @@ from ai_guardian import (
     _save_transcript_positions,
     scan_transcript_incremental,
 )
-from ai_guardian.config_utils import get_state_dir
+from ai_guardian.config.utils import get_state_dir
 
 
 class TestGetTranscriptPath(unittest.TestCase):
@@ -224,7 +224,7 @@ class TestLoadTranscriptScanningConfig(unittest.TestCase):
         config_dir = get_state_dir().parent / "auto_config"
         config_dir.mkdir(parents=True, exist_ok=True)
 
-        from ai_guardian.config_utils import get_config_dir
+        from ai_guardian.config.utils import get_config_dir
 
         cfg_dir = get_config_dir()
         cfg_dir.mkdir(parents=True, exist_ok=True)
@@ -236,7 +236,7 @@ class TestLoadTranscriptScanningConfig(unittest.TestCase):
         self.assertFalse(config.get("enabled"))
 
     def test_returns_defaults_on_missing_section(self):
-        from ai_guardian.config_utils import get_config_dir
+        from ai_guardian.config.utils import get_config_dir
 
         cfg_dir = get_config_dir()
         cfg_dir.mkdir(parents=True, exist_ok=True)
@@ -1148,7 +1148,7 @@ class TestAdvanceTranscriptPosition(unittest.TestCase):
         _save_transcript_positions({str(transcript): file_size})
 
         state_dir = Path(__file__).parent  # unused, just need the real state dir
-        from ai_guardian.config_utils import get_state_dir
+        from ai_guardian.config.utils import get_state_dir
 
         pos_file = get_state_dir() / "transcript_positions.json"
         mtime_before = os.path.getmtime(str(pos_file))

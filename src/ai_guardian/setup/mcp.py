@@ -4,7 +4,7 @@ import json
 import logging
 from pathlib import Path
 
-from ai_guardian.setup_utils import _resolve_binary_path, _strip_jsonc_comments
+from ai_guardian.setup.utils import _resolve_binary_path, _strip_jsonc_comments
 
 logger = logging.getLogger(__name__)
 

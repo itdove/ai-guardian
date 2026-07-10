@@ -272,7 +272,7 @@ class TestLogsEndpoint:
 
     def test_local_logs_returns_entries(self, tmp_path, monkeypatch):
         from ai_guardian.daemon.multi_client import MultiDaemonClient
-        import ai_guardian.config_utils as cu
+        import ai_guardian.config.utils as cu
 
         log_file = tmp_path / "ai-guardian.log"
         log_file.write_text(
@@ -289,7 +289,7 @@ class TestLogsEndpoint:
 
     def test_local_logs_debug_includes_all(self, tmp_path, monkeypatch):
         from ai_guardian.daemon.multi_client import MultiDaemonClient
-        import ai_guardian.config_utils as cu
+        import ai_guardian.config.utils as cu
 
         log_file = tmp_path / "ai-guardian.log"
         log_file.write_text(
@@ -304,7 +304,7 @@ class TestLogsEndpoint:
 
     def test_local_logs_missing_file(self, tmp_path, monkeypatch):
         from ai_guardian.daemon.multi_client import MultiDaemonClient
-        import ai_guardian.config_utils as cu
+        import ai_guardian.config.utils as cu
 
         monkeypatch.setattr(cu, "get_state_dir", lambda: tmp_path)
 

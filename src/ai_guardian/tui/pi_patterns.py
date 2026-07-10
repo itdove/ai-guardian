@@ -13,7 +13,7 @@ from textual.app import ComposeResult
 from textual.containers import Container, VerticalScroll
 from textual.widgets import Static, Input
 
-from ai_guardian.config_utils import get_config_dir
+from ai_guardian.config.utils import get_config_dir
 from ai_guardian.tui.widgets import format_local_time
 
 

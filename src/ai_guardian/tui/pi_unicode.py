@@ -12,7 +12,7 @@ from textual.app import ComposeResult
 from textual.containers import Container, Horizontal, VerticalScroll
 from textual.widgets import Static, Checkbox
 
-from ai_guardian.config_utils import get_config_dir
+from ai_guardian.config.utils import get_config_dir
 from ai_guardian.tui.schema_defaults import SchemaDefaultsMixin, default_indicator
 
 UNICODE_SETTINGS = [

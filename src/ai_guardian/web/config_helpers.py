@@ -142,8 +142,8 @@ def load_web_config() -> dict:
     if _is_target_expected():
         return {}
 
-    from ai_guardian.config_utils import get_config_dir, get_project_config_path
-    from ai_guardian.config_writer import _load_json_file
+    from ai_guardian.config.utils import get_config_dir, get_project_config_path
+    from ai_guardian.config.writer import _load_json_file
 
     global_path = get_config_dir() / "ai-guardian.json"
     global_cfg = _load_json_file(global_path)
@@ -152,7 +152,7 @@ def load_web_config() -> dict:
     if project_path:
         project_cfg = _load_json_file(project_path)
         if project_cfg:
-            from ai_guardian.config_utils import deep_merge
+            from ai_guardian.config.utils import deep_merge
 
             return deep_merge(global_cfg, project_cfg)
 
@@ -174,13 +174,13 @@ def load_web_config_global() -> dict:
         return {}
 
     try:
-        from ai_guardian.config_writer import load_scoped_config
+        from ai_guardian.config.writer import load_scoped_config
 
         return load_scoped_config("global")
     except Exception:
         pass  # intentionally silent — optional dependency
 
-    from ai_guardian.config_utils import get_config_dir
+    from ai_guardian.config.utils import get_config_dir
 
     path = get_config_dir() / "ai-guardian.json"
     if path.exists():
@@ -223,7 +223,7 @@ def save_web_config(config: dict) -> None:
     project_dir = _get_project_dir()
 
     try:
-        from ai_guardian.config_writer import (
+        from ai_guardian.config.writer import (
             _resolve_config_path,
             _atomic_config_update,
         )
@@ -241,7 +241,7 @@ def save_web_config(config: dict) -> None:
     except Exception:
         pass  # intentionally silent — optional dependency
 
-    from ai_guardian.config_utils import get_config_dir
+    from ai_guardian.config.utils import get_config_dir
 
     path = get_config_dir() / "ai-guardian.json"
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -262,7 +262,7 @@ def _invalidate_config_cache_after_save(scope: str, project_dir: Optional[str]) 
         return
 
     try:
-        from ai_guardian.config_loaders import _clear_config_cache
+        from ai_guardian.config.loaders import _clear_config_cache
 
         if scope == "project" and project_dir:
             _clear_config_cache(project_key=project_dir)
@@ -287,7 +287,7 @@ def get_web_config_provenance() -> dict:
         return {}
 
     try:
-        from ai_guardian.config_writer import compute_provenance
+        from ai_guardian.config.writer import compute_provenance
 
         return compute_provenance(_get_project_dir())
     except Exception:

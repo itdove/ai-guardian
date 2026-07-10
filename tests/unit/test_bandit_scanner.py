@@ -2,7 +2,7 @@
 
 import pytest
 from unittest import mock
-from ai_guardian.bandit_scanner import (
+from ai_guardian.scanners.bandit_scanner import (
     BanditScanner,
     BanditUnavailableError,
     CodeSecurityFinding,

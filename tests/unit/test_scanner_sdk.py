@@ -366,7 +366,7 @@ class TestDiscoverScannerDirectory:
             scanner_dir = Path(tmpdir) / "scanners"
             scanner_dir.mkdir()
             with patch(
-                "ai_guardian.config_utils.get_config_dir", return_value=Path(tmpdir)
+                "ai_guardian.config.utils.get_config_dir", return_value=Path(tmpdir)
             ):
                 result = discover_scanner_directory()
                 assert result == {}
@@ -374,7 +374,7 @@ class TestDiscoverScannerDirectory:
     def test_discover_dir_not_exists(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             with patch(
-                "ai_guardian.config_utils.get_config_dir", return_value=Path(tmpdir)
+                "ai_guardian.config.utils.get_config_dir", return_value=Path(tmpdir)
             ):
                 result = discover_scanner_directory()
                 assert result == {}
@@ -396,7 +396,7 @@ class TestDiscoverScannerDirectory:
             (scanner_dir / "my_scanner.py").write_text(scanner_code)
 
             with patch(
-                "ai_guardian.config_utils.get_config_dir", return_value=Path(tmpdir)
+                "ai_guardian.config.utils.get_config_dir", return_value=Path(tmpdir)
             ):
                 result = discover_scanner_directory()
                 assert "dir-scanner" in result
@@ -409,7 +409,7 @@ class TestDiscoverScannerDirectory:
             (scanner_dir / "_helper.py").write_text("# not a scanner")
 
             with patch(
-                "ai_guardian.config_utils.get_config_dir", return_value=Path(tmpdir)
+                "ai_guardian.config.utils.get_config_dir", return_value=Path(tmpdir)
             ):
                 result = discover_scanner_directory()
                 assert result == {}

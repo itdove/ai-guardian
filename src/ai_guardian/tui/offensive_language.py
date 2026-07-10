@@ -9,7 +9,7 @@ from textual.app import ComposeResult
 from textual.containers import Container, VerticalScroll
 from textual.widgets import Static
 
-from ai_guardian.config_utils import get_config_dir, get_project_config_path
+from ai_guardian.config.utils import get_config_dir, get_project_config_path
 
 
 def _format_enabled(value: Union[bool, Dict[str, Any]]) -> str:

@@ -123,7 +123,7 @@ class ProjectInitializer:
     def generate_allowlist(
         self, languages: List[DetectedLanguage]
     ) -> Tuple[List[AllowlistEntry], List[str]]:
-        from ai_guardian.prompt_injection import PromptInjectionDetector
+        from ai_guardian.scanners.prompt_injection import PromptInjectionDetector
 
         detector = PromptInjectionDetector({"enabled": True})
 

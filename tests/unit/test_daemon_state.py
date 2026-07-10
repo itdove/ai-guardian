@@ -123,7 +123,7 @@ class TestConfigCaching:
 
         state = DaemonState(config_path=config_path)
 
-        from ai_guardian import config_loaders
+        from ai_guardian.config import loaders as config_loaders
 
         config_loaders._caches["proj-a"] = object()
         config_loaders._caches["proj-b"] = object()

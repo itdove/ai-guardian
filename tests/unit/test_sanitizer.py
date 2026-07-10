@@ -406,10 +406,10 @@ class TestSanitizeImageCommand:
         defaults.update(kwargs)
         return SimpleNamespace(**defaults)
 
-    @mock.patch("ai_guardian.image_scanner.scan_image")
+    @mock.patch("ai_guardian.scanners.image_scanner.scan_image")
     def test_image_no_text_passes_through(self, mock_scan, tmp_path):
         """Image with no OCR text should pass through unchanged."""
-        from ai_guardian.image_scanner import ImageScanResult
+        from ai_guardian.scanners.image_scanner import ImageScanResult
 
         img_file = tmp_path / "clean.png"
         img_file.write_bytes(self.PNG_HEADER)
@@ -428,13 +428,13 @@ class TestSanitizeImageCommand:
         assert code == 0
         assert stdout_buf.getvalue() == self.PNG_HEADER
 
-    @mock.patch("ai_guardian.image_scanner.ImageRedactor")
-    @mock.patch("ai_guardian.image_scanner.scan_image")
+    @mock.patch("ai_guardian.scanners.image_scanner.ImageRedactor")
+    @mock.patch("ai_guardian.scanners.image_scanner.scan_image")
     def test_image_with_secret_redacts_region(
         self, mock_scan, mock_redactor_cls, tmp_path
     ):
         """Image with secret text should produce redacted image output."""
-        from ai_guardian.image_scanner import ImageScanResult, TextRegion
+        from ai_guardian.scanners.image_scanner import ImageScanResult, TextRegion
 
         img_file = tmp_path / "secret.png"
         img_file.write_bytes(self.PNG_HEADER)
@@ -478,10 +478,10 @@ class TestSanitizeImageCommand:
         mock_redactor_instance.redact_regions.assert_called_once()
         assert "Sanitized image" in stderr_buf.getvalue()
 
-    @mock.patch("ai_guardian.image_scanner.scan_image")
+    @mock.patch("ai_guardian.scanners.image_scanner.scan_image")
     def test_image_ocr_no_secrets_passes_through(self, mock_scan, tmp_path):
         """Image with clean OCR text should pass through unchanged."""
-        from ai_guardian.image_scanner import ImageScanResult, TextRegion
+        from ai_guardian.scanners.image_scanner import ImageScanResult, TextRegion
 
         img_file = tmp_path / "clean.png"
         img_file.write_bytes(self.PNG_HEADER)
@@ -518,13 +518,13 @@ class TestSanitizeImageCommand:
         assert code == 0
         assert "just plain text" in stdout_buf.getvalue()
 
-    @mock.patch("ai_guardian.image_scanner.ImageRedactor")
-    @mock.patch("ai_guardian.image_scanner.scan_image")
+    @mock.patch("ai_guardian.scanners.image_scanner.ImageRedactor")
+    @mock.patch("ai_guardian.scanners.image_scanner.scan_image")
     def test_redact_strategy_blackout_passed_to_redactor(
         self, mock_scan, mock_redactor_cls, tmp_path
     ):
         """--redact-strategy blackout should instantiate ImageRedactor with method='blackout'."""
-        from ai_guardian.image_scanner import ImageScanResult, TextRegion
+        from ai_guardian.scanners.image_scanner import ImageScanResult, TextRegion
 
         img_file = tmp_path / "secret.png"
         img_file.write_bytes(self.PNG_HEADER)
@@ -565,13 +565,13 @@ class TestSanitizeImageCommand:
         assert code == 0
         mock_redactor_cls.assert_called_once_with(method="blackout")
 
-    @mock.patch("ai_guardian.image_scanner.ImageRedactor")
-    @mock.patch("ai_guardian.image_scanner.scan_image")
+    @mock.patch("ai_guardian.scanners.image_scanner.ImageRedactor")
+    @mock.patch("ai_guardian.scanners.image_scanner.scan_image")
     def test_redact_strategy_pixelate_passed_to_redactor(
         self, mock_scan, mock_redactor_cls, tmp_path
     ):
         """--redact-strategy pixelate should instantiate ImageRedactor with method='pixelate'."""
-        from ai_guardian.image_scanner import ImageScanResult, TextRegion
+        from ai_guardian.scanners.image_scanner import ImageScanResult, TextRegion
 
         img_file = tmp_path / "secret.png"
         img_file.write_bytes(self.PNG_HEADER)

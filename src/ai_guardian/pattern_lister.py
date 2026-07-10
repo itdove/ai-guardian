@@ -13,7 +13,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from ai_guardian.config_utils import get_cache_dir
+from ai_guardian.config.utils import get_cache_dir
 from ai_guardian.patterns import BUNDLED_FILES
 from ai_guardian.patterns.toml_parser import load_toml_file
 

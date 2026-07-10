@@ -23,16 +23,16 @@ class TestLoadWebConfig:
 
     def test_returns_empty_dict_when_missing(self, tmp_path):
         with (
-            patch("ai_guardian.config_utils.get_config_dir", return_value=tmp_path),
-            patch("ai_guardian.config_writer.get_config_dir", return_value=tmp_path),
+            patch("ai_guardian.config.utils.get_config_dir", return_value=tmp_path),
+            patch("ai_guardian.config.writer.get_config_dir", return_value=tmp_path),
         ):
             assert load_web_config() == {}
 
     def test_returns_empty_dict_on_invalid_json(self, tmp_path):
         (tmp_path / "ai-guardian.json").write_text("not json", encoding="utf-8")
         with (
-            patch("ai_guardian.config_utils.get_config_dir", return_value=tmp_path),
-            patch("ai_guardian.config_writer.get_config_dir", return_value=tmp_path),
+            patch("ai_guardian.config.utils.get_config_dir", return_value=tmp_path),
+            patch("ai_guardian.config.writer.get_config_dir", return_value=tmp_path),
         ):
             assert load_web_config() == {}
 
@@ -40,8 +40,8 @@ class TestLoadWebConfig:
         data = {"features": {"secrets": True}}
         (tmp_path / "ai-guardian.json").write_text(json.dumps(data), encoding="utf-8")
         with (
-            patch("ai_guardian.config_utils.get_config_dir", return_value=tmp_path),
-            patch("ai_guardian.config_writer.get_config_dir", return_value=tmp_path),
+            patch("ai_guardian.config.utils.get_config_dir", return_value=tmp_path),
+            patch("ai_guardian.config.writer.get_config_dir", return_value=tmp_path),
         ):
             assert load_web_config() == data
 
@@ -51,8 +51,8 @@ class TestSaveWebConfig:
 
     def test_creates_file(self, tmp_path):
         with (
-            patch("ai_guardian.config_utils.get_config_dir", return_value=tmp_path),
-            patch("ai_guardian.config_writer.get_config_dir", return_value=tmp_path),
+            patch("ai_guardian.config.utils.get_config_dir", return_value=tmp_path),
+            patch("ai_guardian.config.writer.get_config_dir", return_value=tmp_path),
         ):
             save_web_config({"key": "value"})
         written = (tmp_path / "ai-guardian.json").read_text(encoding="utf-8")
@@ -62,16 +62,16 @@ class TestSaveWebConfig:
     def test_creates_parent_dirs(self, tmp_path):
         nested = tmp_path / "sub" / "dir"
         with (
-            patch("ai_guardian.config_utils.get_config_dir", return_value=nested),
-            patch("ai_guardian.config_writer.get_config_dir", return_value=nested),
+            patch("ai_guardian.config.utils.get_config_dir", return_value=nested),
+            patch("ai_guardian.config.writer.get_config_dir", return_value=nested),
         ):
             save_web_config({"a": 1})
         assert (nested / "ai-guardian.json").exists()
 
     def test_indent_is_two(self, tmp_path):
         with (
-            patch("ai_guardian.config_utils.get_config_dir", return_value=tmp_path),
-            patch("ai_guardian.config_writer.get_config_dir", return_value=tmp_path),
+            patch("ai_guardian.config.utils.get_config_dir", return_value=tmp_path),
+            patch("ai_guardian.config.writer.get_config_dir", return_value=tmp_path),
         ):
             save_web_config({"a": 1})
         written = (tmp_path / "ai-guardian.json").read_text(encoding="utf-8")
@@ -83,18 +83,18 @@ class TestCacheInvalidation:
 
     def test_save_clears_config_cache(self, tmp_path):
         with (
-            patch("ai_guardian.config_utils.get_config_dir", return_value=tmp_path),
-            patch("ai_guardian.config_writer.get_config_dir", return_value=tmp_path),
-            patch("ai_guardian.config_loaders._clear_config_cache") as mock_clear,
+            patch("ai_guardian.config.utils.get_config_dir", return_value=tmp_path),
+            patch("ai_guardian.config.writer.get_config_dir", return_value=tmp_path),
+            patch("ai_guardian.config.loaders._clear_config_cache") as mock_clear,
         ):
             save_web_config({"key": "value"})
         assert mock_clear.called
 
     def test_save_global_scope_clears_all_caches(self, tmp_path):
         with (
-            patch("ai_guardian.config_utils.get_config_dir", return_value=tmp_path),
-            patch("ai_guardian.config_writer.get_config_dir", return_value=tmp_path),
-            patch("ai_guardian.config_loaders._clear_config_cache") as mock_clear,
+            patch("ai_guardian.config.utils.get_config_dir", return_value=tmp_path),
+            patch("ai_guardian.config.writer.get_config_dir", return_value=tmp_path),
+            patch("ai_guardian.config.loaders._clear_config_cache") as mock_clear,
         ):
             save_web_config({"key": "value"})
         assert any(c == ((), {}) for c in mock_clear.call_args_list)
@@ -106,8 +106,8 @@ class TestRoundTrip:
     def test_round_trip(self, tmp_path):
         data = {"features": {"pii": True}, "permissions": {"rules": []}}
         with (
-            patch("ai_guardian.config_utils.get_config_dir", return_value=tmp_path),
-            patch("ai_guardian.config_writer.get_config_dir", return_value=tmp_path),
+            patch("ai_guardian.config.utils.get_config_dir", return_value=tmp_path),
+            patch("ai_guardian.config.writer.get_config_dir", return_value=tmp_path),
         ):
             save_web_config(data)
             assert load_web_config() == data
@@ -192,8 +192,8 @@ class TestRemoteConfigRouting:
     def test_load_web_config_local_when_no_daemon_name(self, tmp_path):
         set_current_daemon_name("")
         with (
-            patch("ai_guardian.config_utils.get_config_dir", return_value=tmp_path),
-            patch("ai_guardian.config_writer.get_config_dir", return_value=tmp_path),
+            patch("ai_guardian.config.utils.get_config_dir", return_value=tmp_path),
+            patch("ai_guardian.config.writer.get_config_dir", return_value=tmp_path),
         ):
             result = load_web_config()
         assert result == {}
@@ -237,8 +237,8 @@ class TestRemoteConfigRouting:
     def test_no_service_falls_through_to_local(self, tmp_path):
         set_daemon_service(None)
         with (
-            patch("ai_guardian.config_utils.get_config_dir", return_value=tmp_path),
-            patch("ai_guardian.config_writer.get_config_dir", return_value=tmp_path),
+            patch("ai_guardian.config.utils.get_config_dir", return_value=tmp_path),
+            patch("ai_guardian.config.writer.get_config_dir", return_value=tmp_path),
         ):
             result = load_web_config()
         assert result == {}

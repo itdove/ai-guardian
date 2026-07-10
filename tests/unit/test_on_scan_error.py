@@ -59,32 +59,32 @@ DISABLE_ALL_SCANNERS = {
 class TestGetOnScanErrorAction(TestCase):
     """Tests for the _get_on_scan_error_action() helper."""
 
-    @patch("ai_guardian.config_loaders._load_config_file")
+    @patch("ai_guardian.config.loaders._load_config_file")
     def test_default_when_no_config(self, mock_load):
         mock_load.return_value = (None, None)
         self.assertEqual(ai_guardian._get_on_scan_error_action(), "allow")
 
-    @patch("ai_guardian.config_loaders._load_config_file")
+    @patch("ai_guardian.config.loaders._load_config_file")
     def test_default_when_key_missing(self, mock_load):
         mock_load.return_value = ({"secret_scanning": {"enabled": True}}, None)
         self.assertEqual(ai_guardian._get_on_scan_error_action(), "allow")
 
-    @patch("ai_guardian.config_loaders._load_config_file")
+    @patch("ai_guardian.config.loaders._load_config_file")
     def test_allow_value(self, mock_load):
         mock_load.return_value = ({"on_scan_error": "allow"}, None)
         self.assertEqual(ai_guardian._get_on_scan_error_action(), "allow")
 
-    @patch("ai_guardian.config_loaders._load_config_file")
+    @patch("ai_guardian.config.loaders._load_config_file")
     def test_block_value(self, mock_load):
         mock_load.return_value = ({"on_scan_error": "block"}, None)
         self.assertEqual(ai_guardian._get_on_scan_error_action(), "block")
 
-    @patch("ai_guardian.config_loaders._load_config_file")
+    @patch("ai_guardian.config.loaders._load_config_file")
     def test_invalid_value_defaults_to_allow(self, mock_load):
         mock_load.return_value = ({"on_scan_error": "invalid"}, None)
         self.assertEqual(ai_guardian._get_on_scan_error_action(), "allow")
 
-    @patch("ai_guardian.config_loaders._load_config_file")
+    @patch("ai_guardian.config.loaders._load_config_file")
     def test_config_load_error_defaults_to_allow(self, mock_load):
         mock_load.return_value = (None, "Config error")
         self.assertEqual(ai_guardian._get_on_scan_error_action(), "allow")
@@ -530,7 +530,7 @@ class TestOnScanErrorPiiScanning(TestCase):
                 return_value="allow",
             ),
             patch(
-                "ai_guardian.secret_redactor.SecretRedactor",
+                "ai_guardian.scanners.secret_redactor.SecretRedactor",
                 side_effect=Exception("PII scan crashed"),
             ),
         ):
@@ -551,7 +551,7 @@ class TestOnScanErrorPiiScanning(TestCase):
                 return_value="block",
             ),
             patch(
-                "ai_guardian.secret_redactor.SecretRedactor",
+                "ai_guardian.scanners.secret_redactor.SecretRedactor",
                 side_effect=Exception("PII scan crashed"),
             ),
         ):

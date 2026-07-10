@@ -178,7 +178,7 @@ class TestJunieConfigScanner:
 
     def test_junie_guidelines_in_default_config_files(self):
         """Junie guidelines.md is scanned for config file threats."""
-        from ai_guardian.config_scanner import ConfigFileScanner
+        from ai_guardian.scanners.config_scanner import ConfigFileScanner
 
         assert ".junie/guidelines.md" in ConfigFileScanner.DEFAULT_CONFIG_FILES
 

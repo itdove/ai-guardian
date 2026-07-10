@@ -328,7 +328,7 @@ def check_engine_consent(engine_config: EngineConfig) -> bool:
     """Check if user has consented to cloud engine usage."""
     if not engine_config.requires_consent:
         return True
-    from ai_guardian.config_utils import get_config_dir
+    from ai_guardian.config.utils import get_config_dir
 
     consent_file = get_config_dir() / "consent" / f"{engine_config.type}.consent"
     return consent_file.exists()
@@ -337,7 +337,7 @@ def check_engine_consent(engine_config: EngineConfig) -> bool:
 def grant_engine_consent(engine_type: str) -> None:
     """Record user consent for a cloud engine."""
     from datetime import datetime, timezone
-    from ai_guardian.config_utils import get_config_dir
+    from ai_guardian.config.utils import get_config_dir
 
     consent_dir = get_config_dir() / "consent"
     consent_dir.mkdir(parents=True, exist_ok=True)
@@ -351,7 +351,7 @@ def grant_engine_consent(engine_type: str) -> None:
 
 def revoke_engine_consent(engine_type: str) -> bool:
     """Revoke user consent for a cloud engine. Returns True if file existed."""
-    from ai_guardian.config_utils import get_config_dir
+    from ai_guardian.config.utils import get_config_dir
 
     consent_file = get_config_dir() / "consent" / f"{engine_type}.consent"
     if consent_file.exists():

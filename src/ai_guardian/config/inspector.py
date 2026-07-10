@@ -15,7 +15,7 @@ import logging
 from pathlib import Path
 from typing import Dict, Any
 
-from ai_guardian.config_utils import get_cache_dir, is_feature_enabled
+from ai_guardian.config.utils import get_cache_dir, is_feature_enabled
 
 logger = logging.getLogger(__name__)
 
@@ -207,7 +207,7 @@ class ConfigInspector:
 
         # Load effective patterns
         try:
-            from ai_guardian.secret_redactor import SecretRedactor
+            from ai_guardian.scanners.secret_redactor import SecretRedactor
 
             redactor = SecretRedactor(secret_config)
 
@@ -280,7 +280,7 @@ class ConfigInspector:
 
         # Load effective patterns
         try:
-            from ai_guardian.prompt_injection import UnicodeAttackDetector
+            from ai_guardian.scanners.prompt_injection import UnicodeAttackDetector
 
             detector = UnicodeAttackDetector(unicode_config)
 
@@ -349,7 +349,7 @@ class ConfigInspector:
 
         # Load effective patterns
         try:
-            from ai_guardian.config_scanner import ConfigFileScanner
+            from ai_guardian.scanners.config_scanner import ConfigFileScanner
 
             scanner = ConfigFileScanner(scanner_config)
 
@@ -445,7 +445,7 @@ class ConfigInspector:
 
         # Secret Redaction
         try:
-            from ai_guardian.secret_redactor import SecretRedactor
+            from ai_guardian.scanners.secret_redactor import SecretRedactor
 
             secret_config = self.config.get("secret_redaction", {})
 
@@ -471,7 +471,7 @@ class ConfigInspector:
 
         # Unicode Detection
         try:
-            from ai_guardian.prompt_injection import UnicodeAttackDetector
+            from ai_guardian.scanners.prompt_injection import UnicodeAttackDetector
 
             unicode_config = self.config.get("prompt_injection", {}).get(
                 "unicode_detection", {}
@@ -490,7 +490,7 @@ class ConfigInspector:
 
         # Config Scanner
         try:
-            from ai_guardian.config_scanner import ConfigFileScanner
+            from ai_guardian.scanners.config_scanner import ConfigFileScanner
 
             scanner_config = self.config.get("config_file_scanning", {})
             scanner = ConfigFileScanner(scanner_config)

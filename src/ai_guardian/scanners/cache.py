@@ -13,7 +13,7 @@ import time
 from pathlib import Path
 from typing import Optional, Dict, Any
 
-from ai_guardian.config_utils import get_cache_dir
+from ai_guardian.config.utils import get_cache_dir
 from ai_guardian.scanners.strategies import ScanResult, SecretMatch
 
 logger = logging.getLogger(__name__)

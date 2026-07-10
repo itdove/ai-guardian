@@ -13,7 +13,7 @@ from dataclasses import dataclass, field
 from typing import Callable, Dict, List, Optional, Set
 
 from ai_guardian.constants import HookEvent, ViolationType
-from ai_guardian.scan_result import ScanResult
+from ai_guardian.scanners.scan_result import ScanResult
 
 logger = logging.getLogger(__name__)
 

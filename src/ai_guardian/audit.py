@@ -376,8 +376,8 @@ class AuditComputer:
     @staticmethod
     def _load_compliance() -> Dict[str, bool]:
         try:
-            from ai_guardian.config_loaders import _load_config_file
-            from ai_guardian.config_utils import get_feature_flags
+            from ai_guardian.config.loaders import _load_config_file
+            from ai_guardian.config.utils import get_feature_flags
 
             cfg, _ = _load_config_file()
             if not cfg:

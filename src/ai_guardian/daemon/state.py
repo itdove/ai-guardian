@@ -18,8 +18,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Optional
 
-from ai_guardian.config_loaders import _clear_config_cache
-from ai_guardian.config_utils import get_config_dir, get_state_dir, _find_config_in_dir
+from ai_guardian.config.loaders import _clear_config_cache
+from ai_guardian.config.utils import get_config_dir, get_state_dir, _find_config_in_dir
 
 logger = logging.getLogger(__name__)
 
@@ -1056,7 +1056,7 @@ class DaemonState:
         Returns:
             dict with 'projects' list and 'summary' metadata.
         """
-        from ai_guardian.config_loaders import _caches as config_caches
+        from ai_guardian.config.loaders import _caches as config_caches
 
         now_mono = time.monotonic()
         now_unix = time.time()
@@ -1197,7 +1197,10 @@ class DaemonState:
             self._ml_load_attempted = True
 
         try:
-            from ai_guardian.ml_detection import is_ml_available, MLEngineManager
+            from ai_guardian.scanners.ml_detection import (
+                is_ml_available,
+                MLEngineManager,
+            )
 
             if not is_ml_available():
                 with self._lock:

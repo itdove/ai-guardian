@@ -11,7 +11,7 @@ import logging
 from dataclasses import dataclass, field
 from typing import Any, Callable, Dict, List, Optional
 
-from ai_guardian.scan_result import ScanResult
+from ai_guardian.scanners.scan_result import ScanResult
 
 logger = logging.getLogger(__name__)
 
@@ -103,7 +103,7 @@ def log_scan_violation(
         if blocked_overrides:
             blocked.update(blocked_overrides)
 
-        from ai_guardian.config_utils import get_project_dir
+        from ai_guardian.config.utils import get_project_dir
 
         violation_ctx: Dict[str, Any] = {
             "ide_type": ctx.ide_type_value,
@@ -139,7 +139,7 @@ def log_scan_violations_per_finding(
     if ctx.violation_logger is None or not findings:
         return
     try:
-        from ai_guardian.config_utils import get_project_dir
+        from ai_guardian.config.utils import get_project_dir
 
         violation_ctx: Dict[str, Any] = {
             "ide_type": ctx.ide_type_value,
@@ -219,7 +219,7 @@ def apply_post_scan_pipeline(
     if entry.supports_ask_mode and should_block:
         action_str = result.extra.get("action", "block") if result.extra else "block"
 
-        from ai_guardian.config_utils import get_project_dir
+        from ai_guardian.config.utils import get_project_dir
 
         ask_result = ctx.handle_ask_mode_auto(
             action_str,

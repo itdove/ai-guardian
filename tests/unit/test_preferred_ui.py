@@ -20,7 +20,7 @@ class TestGetPreferredUi:
 
         with patch.dict(os.environ, {}, clear=False):
             os.environ.pop("AI_GUARDIAN_PREFERRED_UI", None)
-            with patch("ai_guardian.config_utils.get_config_dir") as mock_dir:
+            with patch("ai_guardian.config.utils.get_config_dir") as mock_dir:
                 mock_dir.return_value = Path("/nonexistent")
                 assert get_preferred_ui() == "auto"
 
@@ -46,7 +46,7 @@ class TestGetPreferredUi:
         config_path.write_text(json.dumps({"console": {"preferred_ui": "nicegui"}}))
         with patch.dict(os.environ, {"AI_GUARDIAN_PREFERRED_UI": "invalid"}):
             with patch(
-                "ai_guardian.config_utils.get_config_dir", return_value=tmp_path
+                "ai_guardian.config.utils.get_config_dir", return_value=tmp_path
             ):
                 assert get_preferred_ui() == "nicegui"
 
@@ -58,7 +58,7 @@ class TestGetPreferredUi:
         with patch.dict(os.environ, {}, clear=False):
             os.environ.pop("AI_GUARDIAN_PREFERRED_UI", None)
             with patch(
-                "ai_guardian.config_utils.get_config_dir", return_value=tmp_path
+                "ai_guardian.config.utils.get_config_dir", return_value=tmp_path
             ):
                 assert get_preferred_ui() == "textual"
 
@@ -72,7 +72,7 @@ class TestGetPreferredUi:
         with patch.dict(os.environ, {}, clear=False):
             os.environ.pop("AI_GUARDIAN_PREFERRED_UI", None)
             with patch(
-                "ai_guardian.config_utils.get_config_dir", return_value=tmp_path
+                "ai_guardian.config.utils.get_config_dir", return_value=tmp_path
             ):
                 assert get_preferred_ui() == "auto"
 
@@ -84,7 +84,7 @@ class TestGetPreferredUi:
         with patch.dict(os.environ, {}, clear=False):
             os.environ.pop("AI_GUARDIAN_PREFERRED_UI", None)
             with patch(
-                "ai_guardian.config_utils.get_config_dir", return_value=tmp_path
+                "ai_guardian.config.utils.get_config_dir", return_value=tmp_path
             ):
                 assert get_preferred_ui() == "auto"
 
@@ -95,7 +95,7 @@ class TestGetPreferredUi:
         config_path.write_text(json.dumps({"console": {"preferred_ui": "nicegui"}}))
         with patch.dict(os.environ, {"AI_GUARDIAN_PREFERRED_UI": "headless"}):
             with patch(
-                "ai_guardian.config_utils.get_config_dir", return_value=tmp_path
+                "ai_guardian.config.utils.get_config_dir", return_value=tmp_path
             ):
                 assert get_preferred_ui() == "headless"
 

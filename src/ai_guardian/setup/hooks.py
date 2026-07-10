@@ -8,9 +8,9 @@ import sys
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
-from ai_guardian.config_utils import get_config_dir
+from ai_guardian.config.utils import get_config_dir
 from ai_guardian.constants import HookEvent
-from ai_guardian.setup_utils import (
+from ai_guardian.setup.utils import (
     _create_vbs_wrapper,
     _is_ai_guardian_command,
     _resolve_binary_path,

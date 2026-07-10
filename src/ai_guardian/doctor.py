@@ -172,7 +172,7 @@ class Doctor:
 
     def check_config_file(self) -> CheckResult:
         self._ensure_config()
-        from ai_guardian.config_utils import get_config_dir
+        from ai_guardian.config.utils import get_config_dir
 
         config_dir = get_config_dir()
         config_path = config_dir / "ai-guardian.json"
@@ -238,7 +238,7 @@ class Doctor:
     def check_project_config(self) -> CheckResult:
         """Check if a project-level ai-guardian.json is detected."""
         try:
-            from ai_guardian.config_utils import get_project_config_path
+            from ai_guardian.config.utils import get_project_config_path
 
             project_path = get_project_config_path()
             if project_path:
@@ -262,7 +262,7 @@ class Doctor:
     def check_config_overlay(self) -> CheckResult:
         """Check if an SDK config overlay is active."""
         import os
-        from ai_guardian.config_loaders import _sdk_overlay
+        from ai_guardian.config.loaders import _sdk_overlay
 
         sources = []
 
@@ -501,7 +501,7 @@ class Doctor:
         if cache_config.get("path"):
             cache_dir = Path(cache_config["path"]).expanduser().parent
         else:
-            from ai_guardian.config_utils import get_cache_dir
+            from ai_guardian.config.utils import get_cache_dir
 
             cache_dir = get_cache_dir()
 
@@ -711,7 +711,7 @@ class Doctor:
         if cache_config.get("path"):
             cache_file = Path(cache_config["path"]).expanduser()
         else:
-            from ai_guardian.config_utils import get_cache_dir
+            from ai_guardian.config.utils import get_cache_dir
 
             cache_file = get_cache_dir() / "patterns.toml"
 
@@ -932,7 +932,7 @@ class Doctor:
             return 0
 
     def check_state_dir(self) -> CheckResult:
-        from ai_guardian.config_utils import get_state_dir, get_config_dir
+        from ai_guardian.config.utils import get_state_dir, get_config_dir
 
         state_dir = get_state_dir()
         config_dir = get_config_dir()
@@ -979,7 +979,7 @@ class Doctor:
             ]
             if old_files:
                 if self.fix:
-                    from ai_guardian.config_utils import migrate_state_files
+                    from ai_guardian.config.utils import migrate_state_files
 
                     migrate_state_files()
                     # Remove old files after successful migration
@@ -1026,7 +1026,7 @@ class Doctor:
         )
 
     def check_cache_dir(self) -> CheckResult:
-        from ai_guardian.config_utils import get_cache_dir
+        from ai_guardian.config.utils import get_cache_dir
 
         cache_dir = get_cache_dir()
 
@@ -1656,7 +1656,7 @@ class Doctor:
             )
 
         try:
-            from ai_guardian.ml_detection import is_ml_available, verify_model
+            from ai_guardian.scanners.ml_detection import is_ml_available, verify_model
         except ImportError:
             return CheckResult(
                 name="ml_detection",
@@ -1757,7 +1757,7 @@ class Doctor:
         except Exception:
             version = getattr(tree_sitter, "__version__", "unknown")
 
-        from ai_guardian.ast_scanner import _GRAMMAR_IMPORTS
+        from ai_guardian.scanners.ast_scanner import _GRAMMAR_IMPORTS
 
         available = []
         for lang_name, module_name in sorted(_GRAMMAR_IMPORTS.items()):
@@ -1792,7 +1792,7 @@ class Doctor:
         code_cfg = (self._config or {}).get("code_scanning", {})
 
         try:
-            from ai_guardian.config_utils import is_feature_enabled
+            from ai_guardian.config.utils import is_feature_enabled
 
             code_enabled = is_feature_enabled(code_cfg.get("enabled"), default=True)
         except Exception:

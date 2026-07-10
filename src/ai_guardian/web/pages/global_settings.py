@@ -360,7 +360,7 @@ def create_global_settings_page(service, daemon_name: str):
                         if _is_remote_target(_target):
                             path_label = f"Config: (remote: {_target.name})"
                         else:
-                            from ai_guardian.config_utils import get_config_dir
+                            from ai_guardian.config.utils import get_config_dir
 
                             path_label = (
                                 f"Config: {get_config_dir() / 'ai-guardian.json'}"
@@ -574,7 +574,7 @@ def create_global_settings_page(service, daemon_name: str):
                                             ).classes("text-xs")
 
                                             async def do_reset(sec=section):
-                                                from ai_guardian.config_writer import (
+                                                from ai_guardian.config.writer import (
                                                     delete_project_override,
                                                 )
 

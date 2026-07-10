@@ -15,7 +15,7 @@ from textual.app import ComposeResult
 from textual.containers import Container, Horizontal, VerticalScroll
 from textual.widgets import Static, Label, Select
 
-from ai_guardian.config_utils import (
+from ai_guardian.config.utils import (
     get_config_dir,
     get_project_config_path,
     GLOBAL_ONLY_SECTIONS,
@@ -332,7 +332,7 @@ class GlobalSettingsContent(SchemaDefaultsMixin, Container):
             project_path = get_project_config_path()
             if project_path:
                 return project_path
-            from ai_guardian.config_utils import _find_git_root
+            from ai_guardian.config.utils import _find_git_root
 
             root = _find_git_root() or Path.cwd()
             return root / ".ai-guardian" / "ai-guardian.json"
@@ -460,7 +460,7 @@ class GlobalSettingsContent(SchemaDefaultsMixin, Container):
         if not self._is_project_scope:
             return
         try:
-            from ai_guardian.config_writer import compute_provenance
+            from ai_guardian.config.writer import compute_provenance
 
             prov = compute_provenance()
         except Exception:

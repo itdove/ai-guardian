@@ -16,7 +16,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Dict, Optional
 
-from ai_guardian.config_utils import (
+from ai_guardian.config.utils import (
     get_config_dir,
     get_project_config_path,
     get_project_dir,

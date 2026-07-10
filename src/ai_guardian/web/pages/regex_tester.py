@@ -61,7 +61,7 @@ def _validate_pattern(pattern):
     if not pattern:
         return False, "Empty pattern"
     try:
-        from ai_guardian.config_utils import validate_regex_pattern
+        from ai_guardian.config.utils import validate_regex_pattern
 
         is_safe = validate_regex_pattern(pattern)
         if not is_safe:

@@ -5,8 +5,8 @@ from importlib.resources import files
 from pathlib import Path
 from typing import Dict, Optional, Tuple
 
-from ai_guardian.config_utils import get_cache_dir, get_config_dir
-from ai_guardian.setup_utils import _strip_deprecated_config_keys
+from ai_guardian.config.utils import get_cache_dir, get_config_dir
+from ai_guardian.setup.utils import _strip_deprecated_config_keys
 
 
 def create_default_config(

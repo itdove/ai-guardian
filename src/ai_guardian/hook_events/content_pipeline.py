@@ -2,9 +2,9 @@
 
 import logging
 
-from ai_guardian.config_utils import is_feature_enabled
+from ai_guardian.config.utils import is_feature_enabled
 from ai_guardian.constants import HookEvent, ViolationType, ActionMode
-from ai_guardian.scan_result import ScanResult  # noqa: F401 — used by callers
+from ai_guardian.scanners.scan_result import ScanResult  # noqa: F401 — used by callers
 
 # _hp delegation for patchable symbols
 import ai_guardian.hook_processing as _hp
@@ -63,10 +63,10 @@ from ai_guardian.hook_events.scanners import (
 )
 
 # Scanner registry
-from ai_guardian.scanner_registry import ScannerName
+from ai_guardian.scanners.scanner_registry import ScannerName
 
 # Post-scan filters
-from ai_guardian.post_scan_filters import apply_post_scan_pipeline
+from ai_guardian.scanners.post_scan_filters import apply_post_scan_pipeline
 
 # Ask mode helpers
 from ai_guardian.ask_mode import _compute_pii_transcript_fingerprints
@@ -83,7 +83,7 @@ def scan_opencode_transcript_incremental(*args, **kwargs):
 
 # Conditional imports
 try:
-    from ai_guardian.prompt_injection import (
+    from ai_guardian.scanners.prompt_injection import (
         PromptInjectionDetector,  # noqa: F401
     )
 
@@ -92,7 +92,7 @@ except ImportError:
     HAS_PROMPT_INJECTION = False
 
 try:
-    from ai_guardian.config_scanner import (
+    from ai_guardian.scanners.config_scanner import (
         check_config_file_threats,  # noqa: F401
     )
 

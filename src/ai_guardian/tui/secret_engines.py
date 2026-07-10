@@ -15,7 +15,7 @@ from textual.binding import Binding
 from textual.containers import Container, Horizontal
 from textual.widgets import Static, Label, Select, Input, TextArea
 
-from ai_guardian.config_utils import get_config_dir, get_project_config_path
+from ai_guardian.config.utils import get_config_dir, get_project_config_path
 from ai_guardian.tui.console_settings import load_editor_theme
 
 
@@ -114,7 +114,7 @@ class SecretEnginesContent(Container):
             project_path = get_project_config_path()
             if project_path:
                 return project_path
-            from ai_guardian.config_utils import _find_git_root
+            from ai_guardian.config.utils import _find_git_root
 
             root = _find_git_root() or Path.cwd()
             return root / ".ai-guardian" / "ai-guardian.json"

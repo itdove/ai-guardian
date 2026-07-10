@@ -290,7 +290,7 @@ class _RestHandler(BaseHTTPRequestHandler):
     def _get_instance_name(self):
         """Get instance name from current config, falling back to startup value."""
         try:
-            from ai_guardian.config_loaders import _load_config_file
+            from ai_guardian.config.loaders import _load_config_file
 
             cfg, _ = _load_config_file()
             if cfg:
@@ -346,7 +346,7 @@ class _RestHandler(BaseHTTPRequestHandler):
     @staticmethod
     def _get_config_scoped(scope, project_dir=None):
         try:
-            from ai_guardian.config_writer import load_scoped_config
+            from ai_guardian.config.writer import load_scoped_config
 
             return load_scoped_config(scope, project_dir)
         except Exception as e:
@@ -358,7 +358,7 @@ class _RestHandler(BaseHTTPRequestHandler):
     @staticmethod
     def _get_config_provenance(project_dir=None):
         try:
-            from ai_guardian.config_writer import compute_provenance
+            from ai_guardian.config.writer import compute_provenance
 
             return compute_provenance(project_dir)
         except Exception as e:
@@ -383,7 +383,7 @@ class _RestHandler(BaseHTTPRequestHandler):
         project_dir = body.get("project_dir")
 
         try:
-            from ai_guardian.config_writer import write_scoped_config
+            from ai_guardian.config.writer import write_scoped_config
 
             success, msg = write_scoped_config(scope, section, key, value, project_dir)
             if success:
@@ -405,7 +405,7 @@ class _RestHandler(BaseHTTPRequestHandler):
         project_dir = body.get("project_dir")
 
         try:
-            from ai_guardian.config_writer import delete_project_override
+            from ai_guardian.config.writer import delete_project_override
 
             success, msg = delete_project_override(section, key, project_dir)
             if success:
@@ -430,7 +430,7 @@ class _RestHandler(BaseHTTPRequestHandler):
         project_dir = body.get("project_dir")
 
         try:
-            from ai_guardian.config_writer import (
+            from ai_guardian.config.writer import (
                 _resolve_config_path,
                 _atomic_config_update,
             )
@@ -595,7 +595,7 @@ class _RestHandler(BaseHTTPRequestHandler):
                 pi_cfg = cfg.get("prompt_injection", {})
                 if pi_cfg.get("enabled", True):
                     try:
-                        from ai_guardian.prompt_injection import (
+                        from ai_guardian.scanners.prompt_injection import (
                             check_prompt_injection,
                         )
 
@@ -620,7 +620,7 @@ class _RestHandler(BaseHTTPRequestHandler):
                 cp_cfg = cfg.get("context_poisoning", {})
                 if cp_cfg.get("enabled", True):
                     try:
-                        from ai_guardian.context_poisoning import (
+                        from ai_guardian.scanners.context_poisoning import (
                             check_context_poisoning,
                         )
 

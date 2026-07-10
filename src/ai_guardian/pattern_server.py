@@ -24,7 +24,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional, Dict, Any
 
-from ai_guardian.config_utils import get_cache_dir, is_feature_enabled
+from ai_guardian.config.utils import get_cache_dir, is_feature_enabled
 
 logger = logging.getLogger(__name__)
 

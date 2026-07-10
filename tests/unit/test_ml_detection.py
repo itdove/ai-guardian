@@ -13,7 +13,7 @@ class TestIsMLAvailable(unittest.TestCase):
     """Test ML dependency checking."""
 
     def test_available_when_deps_installed(self):
-        from ai_guardian.ml_detection import is_ml_available
+        from ai_guardian.scanners.ml_detection import is_ml_available
 
         # If deps are installed this returns True, otherwise False
         # We just test it doesn't crash
@@ -21,7 +21,7 @@ class TestIsMLAvailable(unittest.TestCase):
         assert isinstance(result, bool)
 
     def test_unavailable_when_onnxruntime_missing(self):
-        import ai_guardian.ml_detection as mod
+        import ai_guardian.scanners.ml_detection as mod
 
         with patch.dict("sys.modules", {"onnxruntime": None}):
             # Force re-check
@@ -30,7 +30,7 @@ class TestIsMLAvailable(unittest.TestCase):
             # Note: patch.dict with None causes ImportError on import
 
     def test_unavailable_when_tokenizers_missing(self):
-        import ai_guardian.ml_detection as mod
+        import ai_guardian.scanners.ml_detection as mod
 
         with patch.dict("sys.modules", {"tokenizers": None}):
             result = mod.is_ml_available()
@@ -40,37 +40,41 @@ class TestModelManagement(unittest.TestCase):
     """Test model download, verification, directory structure."""
 
     def test_get_models_dir_creates_dir(self):
-        from ai_guardian.ml_detection import get_models_dir
+        from ai_guardian.scanners.ml_detection import get_models_dir
 
         models_dir = get_models_dir()
         assert models_dir.exists()
         assert models_dir.name == "models"
 
     def test_model_slug(self):
-        from ai_guardian.ml_detection import _model_slug
+        from ai_guardian.scanners.ml_detection import _model_slug
 
         slug = _model_slug("protectai/deberta-v3-base-prompt-injection-v2")
         assert "/" not in slug
         assert slug == "protectai_deberta-v3-base-prompt-injection-v2"
 
     def test_verify_model_not_downloaded(self):
-        from ai_guardian.ml_detection import verify_model
+        from ai_guardian.scanners.ml_detection import verify_model
 
-        with patch("ai_guardian.ml_detection._model_dir") as mock_dir:
+        with patch("ai_guardian.scanners.ml_detection._model_dir") as mock_dir:
             mock_dir.return_value = Path("/nonexistent/path")
             is_valid, msg = verify_model()
             assert not is_valid
             assert "not downloaded" in msg.lower() or "Run:" in msg
 
     def test_verify_model_unknown(self):
-        from ai_guardian.ml_detection import verify_model
+        from ai_guardian.scanners.ml_detection import verify_model
 
         is_valid, msg = verify_model("unknown/model")
         assert not is_valid
         assert "Unknown model" in msg
 
     def test_verify_model_with_valid_files(self):
-        from ai_guardian.ml_detection import verify_model, MODEL_REGISTRY, DEFAULT_MODEL
+        from ai_guardian.scanners.ml_detection import (
+            verify_model,
+            MODEL_REGISTRY,
+            DEFAULT_MODEL,
+        )
 
         info = MODEL_REGISTRY[DEFAULT_MODEL]
 
@@ -80,13 +84,19 @@ class TestModelManagement(unittest.TestCase):
             for fname in info["files"]:
                 (model_dir / fname).write_text("fake content")
 
-            with patch("ai_guardian.ml_detection._model_dir", return_value=model_dir):
+            with patch(
+                "ai_guardian.scanners.ml_detection._model_dir", return_value=model_dir
+            ):
                 is_valid, msg = verify_model()
                 assert is_valid
                 assert "verified" in msg.lower()
 
     def test_verify_model_checksum_mismatch(self):
-        from ai_guardian.ml_detection import verify_model, MODEL_REGISTRY, DEFAULT_MODEL
+        from ai_guardian.scanners.ml_detection import (
+            verify_model,
+            MODEL_REGISTRY,
+            DEFAULT_MODEL,
+        )
 
         info = MODEL_REGISTRY[DEFAULT_MODEL]
 
@@ -102,19 +112,21 @@ class TestModelManagement(unittest.TestCase):
             }
             (model_dir / "manifest.json").write_text(json.dumps(manifest))
 
-            with patch("ai_guardian.ml_detection._model_dir", return_value=model_dir):
+            with patch(
+                "ai_guardian.scanners.ml_detection._model_dir", return_value=model_dir
+            ):
                 is_valid, msg = verify_model()
                 assert not is_valid
                 assert "Checksum mismatch" in msg
 
     def test_download_unknown_model(self):
-        from ai_guardian.ml_detection import download_model
+        from ai_guardian.scanners.ml_detection import download_model
 
         with pytest.raises(ValueError, match="Unknown model"):
             download_model("nonexistent/model")
 
     def test_list_registered_models(self):
-        from ai_guardian.ml_detection import list_registered_models
+        from ai_guardian.scanners.ml_detection import list_registered_models
 
         models = list_registered_models()
         assert len(models) > 0
@@ -125,9 +137,9 @@ class TestModelManagement(unittest.TestCase):
 class TestMLEngine(unittest.TestCase):
     """Test MLEngine class with mocked ONNX session."""
 
-    @patch("ai_guardian.ml_detection.is_ml_available", return_value=True)
+    @patch("ai_guardian.scanners.ml_detection.is_ml_available", return_value=True)
     def test_engine_missing_model_raises(self, _):
-        from ai_guardian.ml_detection import MLEngine
+        from ai_guardian.scanners.ml_detection import MLEngine
 
         with pytest.raises((FileNotFoundError, ImportError)):
             MLEngine(
@@ -140,7 +152,7 @@ class TestMLEngine(unittest.TestCase):
     def test_predict_injection(self):
         """Mocked model returns injection score > threshold."""
         np = pytest.importorskip("numpy")
-        from ai_guardian.ml_detection import MLEngine
+        from ai_guardian.scanners.ml_detection import MLEngine
 
         engine = MLEngine.__new__(MLEngine)
         engine.engine_type = "llm-guard"
@@ -175,7 +187,7 @@ class TestMLEngine(unittest.TestCase):
     def test_predict_safe(self):
         """Mocked model returns safe score."""
         np = pytest.importorskip("numpy")
-        from ai_guardian.ml_detection import MLEngine
+        from ai_guardian.scanners.ml_detection import MLEngine
 
         engine = MLEngine.__new__(MLEngine)
         engine.engine_type = "llm-guard"
@@ -226,7 +238,7 @@ class TestMLEngineManager(unittest.TestCase):
         return engine
 
     def test_any_match_one_detects(self):
-        from ai_guardian.ml_detection import MLEngineManager
+        from ai_guardian.scanners.ml_detection import MLEngineManager
 
         manager = MLEngineManager.__new__(MLEngineManager)
         manager.strategy = "any-match"
@@ -244,7 +256,7 @@ class TestMLEngineManager(unittest.TestCase):
         assert len(result["results"]) == 2
 
     def test_any_match_none_detect(self):
-        from ai_guardian.ml_detection import MLEngineManager
+        from ai_guardian.scanners.ml_detection import MLEngineManager
 
         manager = MLEngineManager.__new__(MLEngineManager)
         manager.strategy = "any-match"
@@ -259,7 +271,7 @@ class TestMLEngineManager(unittest.TestCase):
         assert result["is_injection"] is False
 
     def test_first_match_returns_first_detection(self):
-        from ai_guardian.ml_detection import MLEngineManager
+        from ai_guardian.scanners.ml_detection import MLEngineManager
 
         manager = MLEngineManager.__new__(MLEngineManager)
         manager.strategy = "first-match"
@@ -275,7 +287,7 @@ class TestMLEngineManager(unittest.TestCase):
         assert result["confidence"] == 0.9
 
     def test_consensus_requires_threshold(self):
-        from ai_guardian.ml_detection import MLEngineManager
+        from ai_guardian.scanners.ml_detection import MLEngineManager
 
         manager = MLEngineManager.__new__(MLEngineManager)
         manager.strategy = "consensus"
@@ -291,7 +303,7 @@ class TestMLEngineManager(unittest.TestCase):
         assert result["is_injection"] is False
 
     def test_consensus_met(self):
-        from ai_guardian.ml_detection import MLEngineManager
+        from ai_guardian.scanners.ml_detection import MLEngineManager
 
         manager = MLEngineManager.__new__(MLEngineManager)
         manager.strategy = "consensus"
@@ -307,7 +319,7 @@ class TestMLEngineManager(unittest.TestCase):
         assert result["is_injection"] is True
 
     def test_no_engines_returns_unavailable(self):
-        from ai_guardian.ml_detection import MLEngineManager
+        from ai_guardian.scanners.ml_detection import MLEngineManager
 
         manager = MLEngineManager.__new__(MLEngineManager)
         manager.strategy = "any-match"
@@ -319,7 +331,7 @@ class TestMLEngineManager(unittest.TestCase):
         assert result["available"] is False
 
     def test_get_status(self):
-        from ai_guardian.ml_detection import MLEngineManager
+        from ai_guardian.scanners.ml_detection import MLEngineManager
 
         manager = MLEngineManager.__new__(MLEngineManager)
         manager.strategy = "any-match"
@@ -334,7 +346,7 @@ class TestMLEngineManager(unittest.TestCase):
         assert status["ml_strategy"] == "any-match"
 
     def test_engine_error_handled_gracefully(self):
-        from ai_guardian.ml_detection import MLEngineManager
+        from ai_guardian.scanners.ml_detection import MLEngineManager
 
         manager = MLEngineManager.__new__(MLEngineManager)
         manager.strategy = "any-match"

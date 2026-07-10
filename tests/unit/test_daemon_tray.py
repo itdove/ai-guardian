@@ -3096,7 +3096,7 @@ class TestAboutMenuItem:
         from pathlib import Path
 
         with mock.patch(
-            "ai_guardian.config_utils.get_config_dir", return_value=Path("/fake/config")
+            "ai_guardian.config.utils.get_config_dir", return_value=Path("/fake/config")
         ):
             text = build_about_text()
         assert "Config: " in text
@@ -4790,7 +4790,7 @@ class TestDiscoveryStartingStatus:
 
         with (
             mock.patch(
-                "ai_guardian.config_utils.get_config_dir", return_value=mock_cfg_dir
+                "ai_guardian.config.utils.get_config_dir", return_value=mock_cfg_dir
             ),
             mock.patch(
                 "ai_guardian.daemon.discovery.get_pid_path", return_value=mock_pp
@@ -4832,7 +4832,7 @@ class TestDiscoveryStartingStatus:
 
         with (
             mock.patch(
-                "ai_guardian.config_utils.get_config_dir", return_value=mock_cfg_dir
+                "ai_guardian.config.utils.get_config_dir", return_value=mock_cfg_dir
             ),
             mock.patch(
                 "ai_guardian.daemon.discovery.get_pid_path", return_value=mock_pp
@@ -4994,7 +4994,7 @@ class TestCanAutostartDaemon:
     def test_can_autostart_when_standalone_no_marker(self):
         tray = self._make_tray(standalone=True)
         with mock.patch(
-            "ai_guardian.config_utils.get_state_dir",
+            "ai_guardian.config.utils.get_state_dir",
         ) as mock_dir:
             mock_marker = mock.MagicMock()
             mock_marker.exists.return_value = False
@@ -5010,7 +5010,7 @@ class TestCanAutostartDaemon:
     def test_cannot_autostart_when_stop_requested(self):
         tray = self._make_tray(standalone=True)
         with mock.patch(
-            "ai_guardian.config_utils.get_state_dir",
+            "ai_guardian.config.utils.get_state_dir",
         ) as mock_dir:
             mock_marker = mock.MagicMock()
             mock_marker.exists.return_value = True

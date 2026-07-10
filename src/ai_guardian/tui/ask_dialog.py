@@ -152,7 +152,7 @@ def _save_pattern_to_config(
     """Save a pattern to the config file. Returns True on success."""
     try:
         from pathlib import Path
-        from ai_guardian.config_writer import save_ask_pattern
+        from ai_guardian.config.writer import save_ask_pattern
 
         cp = Path(config_path) if config_path else None
         return save_ask_pattern(config_section, pattern, config_path=cp)
@@ -174,11 +174,11 @@ def _write_config_text(json_text: str, config_path_str: Optional[str] = None) ->
         if config_path_str:
             config_path = Path(config_path_str)
         else:
-            from ai_guardian.config_utils import get_config_dir
+            from ai_guardian.config.utils import get_config_dir
 
             config_path = get_config_dir() / "ai-guardian.json"
 
-        from ai_guardian.config_writer import _atomic_config_update
+        from ai_guardian.config.writer import _atomic_config_update
 
         def _replace_config(config):
             config.clear()

@@ -144,7 +144,7 @@ def launch_create_config():
 
 def open_web_console(daemon_name="", page=""):
     """Open the web console for a specific daemon and optional page."""
-    from ai_guardian.config_utils import get_state_dir
+    from ai_guardian.config.utils import get_state_dir
     from ai_guardian.desktop_utils import open_url
 
     port_file = get_state_dir() / "web-console.port"

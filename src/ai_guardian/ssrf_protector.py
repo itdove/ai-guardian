@@ -182,7 +182,7 @@ class SSRFProtector:
                 continue
             if _regex_metachar_re.search(domain):
                 try:
-                    from ai_guardian.config_utils import validate_regex_pattern
+                    from ai_guardian.config.utils import validate_regex_pattern
 
                     if not validate_regex_pattern(domain):
                         logger.warning(

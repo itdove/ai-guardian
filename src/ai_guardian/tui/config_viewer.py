@@ -9,7 +9,7 @@ from textual.app import ComposeResult
 from textual.containers import Container, VerticalScroll
 from textual.widgets import Static, Button
 
-from ai_guardian.config_utils import get_config_dir, get_project_config_path
+from ai_guardian.config.utils import get_config_dir, get_project_config_path
 
 
 class ConfigContent(Container):
@@ -115,7 +115,7 @@ class ConfigContent(Container):
         self.query_one("#config-sources", Static).update("\n".join(sources))
 
         try:
-            from ai_guardian.config_writer import (
+            from ai_guardian.config.writer import (
                 load_scoped_config,
                 compute_detailed_provenance,
                 format_provenance_text,

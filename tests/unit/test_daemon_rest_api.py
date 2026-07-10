@@ -85,7 +85,7 @@ class TestRestAPIEndpoints:
         api, port, state = rest_api
         cfg = {"menu_tags": ["carbonite", "container"]}
         with mock.patch(
-            "ai_guardian.config_loaders._load_config_file",
+            "ai_guardian.config.loaders._load_config_file",
             return_value=(cfg, None),
         ):
             url = f"http://127.0.0.1:{port}/api/status"
@@ -112,7 +112,7 @@ class TestRestAPIEndpoints:
         api, port, state = rest_api
         cfg = {"menu_tags": ["carbonite", "container"]}
         with mock.patch(
-            "ai_guardian.config_loaders._load_config_file",
+            "ai_guardian.config.loaders._load_config_file",
             return_value=(cfg, None),
         ):
             url = f"http://127.0.0.1:{port}/api/stats"
@@ -201,7 +201,7 @@ class TestConfigEndpoint:
             "scan_pii": {"enabled": False},
         }
         with mock.patch(
-            "ai_guardian.config_loaders._load_config_file",
+            "ai_guardian.config.loaders._load_config_file",
             return_value=(cfg, None),
         ):
             url = f"http://127.0.0.1:{port}/api/config"
@@ -214,7 +214,7 @@ class TestConfigEndpoint:
     def test_get_config_no_config_file(self, rest_api):
         api, port, state = rest_api
         with mock.patch(
-            "ai_guardian.config_loaders._load_config_file",
+            "ai_guardian.config.loaders._load_config_file",
             return_value=(None, None),
         ):
             url = f"http://127.0.0.1:{port}/api/config"
@@ -230,7 +230,7 @@ class TestConfigEndpoint:
             "prompt_injection": {"action": "warn"},
         }
         with mock.patch(
-            "ai_guardian.config_loaders._load_config_file",
+            "ai_guardian.config.loaders._load_config_file",
             return_value=(cfg, None),
         ):
             url = f"http://127.0.0.1:{port}/api/config"
@@ -245,7 +245,7 @@ class TestConfigEndpoint:
         api, port, state = rest_api
         cfg = {"mcp_server": {"proactive_level": "high"}}
         with mock.patch(
-            "ai_guardian.config_loaders._load_config_file",
+            "ai_guardian.config.loaders._load_config_file",
             return_value=(cfg, None),
         ):
             url = f"http://127.0.0.1:{port}/api/config"
