@@ -64,3 +64,16 @@ jobs:
 
       - name: Run ${{ matrix.profile }} scenarios
         run: docker run --rm -e AI_GUARDIAN_PROFILE=${{ matrix.profile }} ai-guardian-test /sandbox/run-scenarios.sh
+
+  cleanup-image:
+    name: Cleanup SHA Image
+    needs: scenario-tests
+    if: always() && github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Delete SHA-tagged image
+        continue-on-error: true
+        run: |
+          skopeo delete \
+            --creds "${{ secrets.QUAY_USERNAME }}:${{ secrets.QUAY_PASSWORD }}" \
+            "docker://quay.io/itdove/ai-guardian:${{ github.sha }}"
