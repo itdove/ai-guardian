@@ -28,7 +28,7 @@ logger = logging.getLogger(__name__)
 
 def _get_tray_lock_path():
     """Get the tray lock file path."""
-    from ai_guardian.config_utils import get_state_dir
+    from ai_guardian.config.utils import get_state_dir
 
     return get_state_dir() / "tray.lock"
 
@@ -382,7 +382,7 @@ class DaemonTray:
                 proc.wait(timeout=3)
             except subprocess.TimeoutExpired:
                 proc.kill()
-        from ai_guardian.config_utils import get_state_dir
+        from ai_guardian.config.utils import get_state_dir
 
         port_file = get_state_dir() / "web-console.port"
         try:
@@ -401,7 +401,7 @@ class DaemonTray:
         if not self._standalone:
             return False
         try:
-            from ai_guardian.config_utils import get_state_dir
+            from ai_guardian.config.utils import get_state_dir
 
             marker = get_state_dir() / "daemon.stop-requested"
             return not marker.exists()
@@ -583,7 +583,7 @@ class DaemonTray:
         """Change MCP proactive check level in config file."""
         try:
             import json
-            from ai_guardian.config_utils import get_config_dir
+            from ai_guardian.config.utils import get_config_dir
 
             config_path = get_config_dir() / "ai-guardian.json"
             if config_path.exists():
@@ -609,7 +609,7 @@ class DaemonTray:
         """Read current MCP proactive level from config file."""
         try:
             import json
-            from ai_guardian.config_utils import get_config_dir
+            from ai_guardian.config.utils import get_config_dir
 
             config_path = get_config_dir() / "ai-guardian.json"
             if config_path.exists():
@@ -637,7 +637,7 @@ class DaemonTray:
 
     def _start_web_console(self):
         """Start the web console server as a subprocess."""
-        from ai_guardian.config_utils import get_state_dir
+        from ai_guardian.config.utils import get_state_dir
 
         port_file = get_state_dir() / "web-console.port"
         if port_file.exists():
@@ -674,7 +674,7 @@ class DaemonTray:
 
     def _notify_web_console_ready(self):
         """Wait for web console to be ready, update menu, then notify."""
-        from ai_guardian.config_utils import get_state_dir
+        from ai_guardian.config.utils import get_state_dir
 
         port_file = get_state_dir() / "web-console.port"
         for _ in range(30):
@@ -710,7 +710,7 @@ class DaemonTray:
     @staticmethod
     def _is_web_console_ready():
         """Check if web console is running and reachable."""
-        from ai_guardian.config_utils import get_state_dir
+        from ai_guardian.config.utils import get_state_dir
 
         port_file = get_state_dir() / "web-console.port"
         if not port_file.exists():

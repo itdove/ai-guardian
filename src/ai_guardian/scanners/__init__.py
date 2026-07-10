@@ -1,10 +1,16 @@
 """
-Scanner engine modules for flexible secret detection.
+Scanner engine and detection modules.
 
 This package provides:
-- engine_builder: Configuration and command building for different scanner engines
-- output_parsers: Parsers for different scanner output formats
-- strategies: Execution strategies for running multiple scanners
+- Engine infrastructure: engine_builder, output_parsers, strategies, executor, cache
+- Detection scanners: prompt_injection, config_scanner, secret_redactor, etc.
+- Scanner registry and post-scan filter pipeline
+
+NOTE: Two different ScanResult classes coexist in this package:
+- scanners.strategies.ScanResult (engine-level execution result)
+- scanners.scan_result.ScanResult (detection-level universal result)
+Only the engine-level ScanResult is re-exported from this __init__.py.
+Import the detection-level one explicitly: from ai_guardian.scanners.scan_result import ScanResult
 """
 
 from ai_guardian.scanners.engine_builder import (

@@ -6,7 +6,7 @@ import time
 from typing import Dict, Optional  # noqa: F401
 
 from ai_guardian.constants import ViolationType, ActionMode, parse_ask_action
-from ai_guardian.config_utils import get_project_dir
+from ai_guardian.config.utils import get_project_dir
 
 try:
     from ai_guardian.tool_policy import ToolPolicyChecker
@@ -176,7 +176,7 @@ def _handle_ask_mode(
         if result.decision == AskDecision.ALLOW_ALWAYS and result.allowlist_pattern:
             if not getattr(result, "config_saved", False):
                 from pathlib import Path as _Path
-                from ai_guardian.config_writer import save_ask_pattern
+                from ai_guardian.config.writer import save_ask_pattern
 
                 cp = (
                     _Path(result.config_path)
@@ -186,7 +186,7 @@ def _handle_ask_mode(
                 save_ask_pattern(
                     config_section, result.allowlist_pattern, config_path=cp
                 )
-            from ai_guardian.config_loaders import _clear_config_cache
+            from ai_guardian.config.loaders import _clear_config_cache
 
             _clear_config_cache(project_key=hctx.get("project_path") or os.getcwd())
 
@@ -195,7 +195,7 @@ def _handle_ask_mode(
                 from ai_guardian.tui.ask_dialog import _save_ignore_path
 
                 _save_ignore_path(result.ignore_path, result.ignore_scanner_types)
-            from ai_guardian.config_loaders import _clear_config_cache
+            from ai_guardian.config.loaders import _clear_config_cache
 
             _clear_config_cache(project_key=hctx.get("project_path") or os.getcwd())
 

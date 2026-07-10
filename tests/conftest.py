@@ -43,7 +43,7 @@ def _isolate_config_dir(tmp_path):
             env_overrides[key] = ""
     with mock.patch.dict(os.environ, env_overrides):
         # Clear SDK overlay and caches so tests don't see stale state
-        import ai_guardian.config_loaders as _cl
+        import ai_guardian.config.loaders as _cl
 
         _cl._sdk_overlay = None
         _cl._clear_config_cache()

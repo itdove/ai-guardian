@@ -14,7 +14,7 @@ from pathlib import Path
 from ai_guardian import __version__
 from ai_guardian.constants import ViolationType
 
-from ai_guardian.config_loaders import (
+from ai_guardian.config.loaders import (
     _load_config_file,
 )
 
@@ -82,7 +82,7 @@ def _handle_ml_command(args, ml_parser):
         return 1
 
     if cmd == "download":
-        from ai_guardian.ml_detection import is_ml_available, download_model
+        from ai_guardian.scanners.ml_detection import is_ml_available, download_model
 
         if not is_ml_available():
             print(
@@ -99,7 +99,10 @@ def _handle_ml_command(args, ml_parser):
             return 1
 
     elif cmd == "list":
-        from ai_guardian.ml_detection import is_ml_available, list_registered_models
+        from ai_guardian.scanners.ml_detection import (
+            is_ml_available,
+            list_registered_models,
+        )
 
         print("ML Dependencies:", "installed" if is_ml_available() else "NOT installed")
         print()
@@ -117,7 +120,7 @@ def _handle_ml_command(args, ml_parser):
         return 0
 
     elif cmd == "status":
-        from ai_guardian.ml_detection import (
+        from ai_guardian.scanners.ml_detection import (
             is_ml_available,
             verify_model,
             get_models_dir,
@@ -148,7 +151,7 @@ def _handle_ml_command(args, ml_parser):
         return 0
 
     elif cmd == "verify":
-        from ai_guardian.ml_detection import verify_model
+        from ai_guardian.scanners.ml_detection import verify_model
 
         is_valid, msg = verify_model(args.model)
         print(msg)
@@ -1343,7 +1346,7 @@ def main():
                 file=sys.stderr,
             )
             try:
-                from ai_guardian.config_inspector import ConfigInspector
+                from ai_guardian.config.inspector import ConfigInspector
 
                 # Load config
                 if args.config:
@@ -1410,7 +1413,7 @@ def main():
         # Handle config command (NEW in v1.8.0, Issue #144)
         if args.command == "config":
             try:
-                from ai_guardian.config_display import ConfigDisplay
+                from ai_guardian.config.display import ConfigDisplay
 
                 if args.config_command is None:
                     config_parser.print_help()
@@ -1419,7 +1422,7 @@ def main():
                 if args.config_command == "show":
                     # Summary mode: scanner feature summaries (replaces show-config)
                     if getattr(args, "summary", False):
-                        from ai_guardian.config_inspector import ConfigInspector
+                        from ai_guardian.config.inspector import ConfigInspector
 
                         if getattr(args, "config", None):
                             config_path = Path(args.config)

@@ -13,7 +13,7 @@ def get_project_dir():
 
 
 try:
-    from ai_guardian.config_scanner import ConfigFileScanner  # noqa: F401
+    from ai_guardian.scanners.config_scanner import ConfigFileScanner  # noqa: F401
 
     HAS_CONFIG_SCANNER = True
 except ImportError:
@@ -191,7 +191,7 @@ def _run_bootstrap_scan(cwd: str, config=None) -> list:
     if not HAS_CONFIG_SCANNER:
         return []
 
-    from ai_guardian.config_scanner import ConfigFileScanner
+    from ai_guardian.scanners.config_scanner import ConfigFileScanner
     from pathlib import Path as _Path
 
     if config is None:

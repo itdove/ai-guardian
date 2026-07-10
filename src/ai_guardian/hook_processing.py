@@ -59,17 +59,17 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, Optional, Set
 
-from ai_guardian.config_utils import (
+from ai_guardian.config.utils import (
     get_config_dir,
     get_project_dir,
     get_state_dir,
     is_feature_enabled,
 )
 from ai_guardian.constants import ActionMode, ViolationType, HookEvent, AUGMENT_TOOL_MAP
-from ai_guardian.scan_result import ScanResult
+from ai_guardian.scanners.scan_result import ScanResult
 from ai_guardian.utils.path_matching import match_leading_doublestar_pattern
 
-from ai_guardian.config_loaders import (
+from ai_guardian.config.loaders import (
     _load_pattern_server_config,
     _load_prompt_injection_config,
     _load_config_scanner_config,
@@ -136,7 +136,7 @@ except ImportError:
     HAS_PATTERN_SERVER = False
 
 try:
-    from ai_guardian.prompt_injection import (
+    from ai_guardian.scanners.prompt_injection import (
         check_prompt_injection,
         PromptInjectionDetector,
     )
@@ -146,14 +146,14 @@ except ImportError:
     HAS_PROMPT_INJECTION = False
 
 try:
-    from ai_guardian.context_poisoning import ContextPoisoningDetector
+    from ai_guardian.scanners.context_poisoning import ContextPoisoningDetector
 
     HAS_CONTEXT_POISONING = True
 except ImportError:
     HAS_CONTEXT_POISONING = False
 
 try:
-    from ai_guardian.config_scanner import (
+    from ai_guardian.scanners.config_scanner import (
         check_config_file_threats,
         check_bash_command_threats,
     )
@@ -163,28 +163,28 @@ except ImportError:
     HAS_CONFIG_SCANNER = False
 
 try:
-    from ai_guardian.supply_chain import SupplyChainScanner
+    from ai_guardian.scanners.supply_chain import SupplyChainScanner
 
     HAS_SUPPLY_CHAIN = True
 except ImportError:
     HAS_SUPPLY_CHAIN = False
 
 try:
-    from ai_guardian.offensive_language import OffensiveLanguageScanner
+    from ai_guardian.scanners.offensive_language import OffensiveLanguageScanner
 
     HAS_OFFENSIVE_LANGUAGE = True
 except ImportError:
     HAS_OFFENSIVE_LANGUAGE = False
 
 try:
-    from ai_guardian.canary_detection import CanaryTokenScanner
+    from ai_guardian.scanners.canary_detection import CanaryTokenScanner
 
     HAS_CANARY_DETECTION = True
 except ImportError:
     HAS_CANARY_DETECTION = False
 
 try:
-    from ai_guardian.exfil_detection import ExfilDetectionScanner
+    from ai_guardian.scanners.exfil_detection import ExfilDetectionScanner
 
     HAS_EXFIL_DETECTION = True
 except ImportError:
@@ -225,14 +225,18 @@ except ImportError:
     HAS_ANNOTATIONS = False
 
 try:
-    from ai_guardian.image_scanner import ImageDetector, scan_image, ImageRedactor
+    from ai_guardian.scanners.image_scanner import (
+        ImageDetector,
+        scan_image,
+        ImageRedactor,
+    )
 
     HAS_IMAGE_SCANNER = True
 except ImportError:
     HAS_IMAGE_SCANNER = False
 
 try:
-    from ai_guardian.ast_scanner import extract_scannable_content
+    from ai_guardian.scanners.ast_scanner import extract_scannable_content
 
     HAS_AST_SCANNER = True
 except ImportError:
@@ -1211,7 +1215,7 @@ def _scan_for_pii(text, pii_config, file_path=None):
         tuple: (has_pii, redacted_text, redactions, warning_message)
     """
     try:
-        from ai_guardian.secret_redactor import SecretRedactor
+        from ai_guardian.scanners.secret_redactor import SecretRedactor
 
         # pii_only=True skips loading secret patterns, only loads PII patterns
         redactor = SecretRedactor(
@@ -2070,8 +2074,11 @@ def process_hook_data(hook_data, daemon_state=None):
         # Build registry + PostScanContext early so command-based scanners
         # (BASH_EXFIL, EXFIL_DETECTION) can use apply_post_scan_pipeline().
         # _pipeline_names is deferred until content_to_scan is known.
-        from ai_guardian.scanner_registry import ScannerName, get_default_registry
-        from ai_guardian.post_scan_filters import (
+        from ai_guardian.scanners.scanner_registry import (
+            ScannerName,
+            get_default_registry,
+        )
+        from ai_guardian.scanners.post_scan_filters import (
             PostScanContext,
             apply_post_scan_pipeline,
             log_scan_violations_per_finding,

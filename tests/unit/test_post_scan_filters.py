@@ -4,7 +4,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from ai_guardian.post_scan_filters import (
+from ai_guardian.scanners.post_scan_filters import (
     PostScanContext,
     PostScanDecision,
     apply_post_scan_pipeline,
@@ -12,7 +12,7 @@ from ai_guardian.post_scan_filters import (
     log_scan_violation,
     log_scan_violations_per_finding,
 )
-from ai_guardian.scan_result import ScanResult
+from ai_guardian.scanners.scan_result import ScanResult
 
 
 def _make_ctx(**overrides):
@@ -128,7 +128,7 @@ class TestLogScanViolation:
         ctx = _make_ctx()
         entry = _make_entry()
         result = _detected_result()
-        with patch("ai_guardian.config_utils.get_project_dir", return_value="/proj"):
+        with patch("ai_guardian.config.utils.get_project_dir", return_value="/proj"):
             log_scan_violation(entry, result, ctx)
         ctx.violation_logger.log_violation.assert_called_once()
         call_kwargs = ctx.violation_logger.log_violation.call_args[1]
@@ -146,7 +146,7 @@ class TestLogScanViolation:
         ctx = _make_ctx()
         entry = _make_entry()
         result = _detected_result()
-        with patch("ai_guardian.config_utils.get_project_dir", return_value="/proj"):
+        with patch("ai_guardian.config.utils.get_project_dir", return_value="/proj"):
             log_scan_violation(entry, result, ctx, severity_override="critical")
         call_kwargs = ctx.violation_logger.log_violation.call_args[1]
         assert call_kwargs["severity"] == "critical"
@@ -155,7 +155,7 @@ class TestLogScanViolation:
         ctx = _make_ctx()
         entry = _make_entry()
         result = _detected_result()
-        with patch("ai_guardian.config_utils.get_project_dir", return_value="/proj"):
+        with patch("ai_guardian.config.utils.get_project_dir", return_value="/proj"):
             log_scan_violation(entry, result, ctx)
         call_kwargs = ctx.violation_logger.log_violation.call_args[1]
         vctx = call_kwargs["context"]
@@ -168,7 +168,7 @@ class TestLogScanViolation:
         ctx.violation_logger.log_violation.side_effect = RuntimeError("boom")
         entry = _make_entry()
         result = _detected_result()
-        with patch("ai_guardian.config_utils.get_project_dir", return_value="/proj"):
+        with patch("ai_guardian.config.utils.get_project_dir", return_value="/proj"):
             log_scan_violation(entry, result, ctx)
 
 
@@ -189,7 +189,7 @@ class TestApplyPostScanPipeline:
         ctx = _make_ctx()
         entry = _make_entry()
         result = _detected_result()
-        with patch("ai_guardian.config_utils.get_project_dir", return_value="/proj"):
+        with patch("ai_guardian.config.utils.get_project_dir", return_value="/proj"):
             apply_post_scan_pipeline(entry, result, ctx, file_path="/tmp/t.py")
         ctx.violation_logger.log_violation.assert_called_once()
 
@@ -202,7 +202,7 @@ class TestApplyPostScanPipeline:
         ctx = _make_ctx(handle_ask_mode_auto=MagicMock(return_value=ask_result))
         entry = _make_entry()
         result = _detected_result()
-        with patch("ai_guardian.config_utils.get_project_dir", return_value="/proj"):
+        with patch("ai_guardian.config.utils.get_project_dir", return_value="/proj"):
             decision = apply_post_scan_pipeline(entry, result, ctx)
         assert decision.should_block
 
@@ -215,7 +215,7 @@ class TestApplyPostScanPipeline:
         ctx = _make_ctx(handle_ask_mode_auto=MagicMock(return_value=ask_result))
         entry = _make_entry()
         result = _detected_result()
-        with patch("ai_guardian.config_utils.get_project_dir", return_value="/proj"):
+        with patch("ai_guardian.config.utils.get_project_dir", return_value="/proj"):
             decision = apply_post_scan_pipeline(
                 entry, result, ctx, file_path="/tmp/t.py"
             )
@@ -226,7 +226,7 @@ class TestApplyPostScanPipeline:
         ctx = _make_ctx()
         entry = _make_entry(supports_ask_mode=False)
         result = _detected_result()
-        with patch("ai_guardian.config_utils.get_project_dir", return_value="/proj"):
+        with patch("ai_guardian.config.utils.get_project_dir", return_value="/proj"):
             decision = apply_post_scan_pipeline(entry, result, ctx)
         assert decision.should_block
         ctx.handle_ask_mode_auto.assert_not_called()
@@ -235,7 +235,7 @@ class TestApplyPostScanPipeline:
         ctx = _make_ctx()
         entry = _make_entry()
         result = _detected_result(should_block=False)
-        with patch("ai_guardian.config_utils.get_project_dir", return_value="/proj"):
+        with patch("ai_guardian.config.utils.get_project_dir", return_value="/proj"):
             decision = apply_post_scan_pipeline(entry, result, ctx)
         assert not decision.should_block
         ctx.handle_ask_mode_auto.assert_not_called()
@@ -245,7 +245,7 @@ class TestApplyPostScanPipeline:
         ctx = _make_ctx()
         entry = _make_entry()
         result = _detected_result(should_block=False, error_message="OL: slur found")
-        with patch("ai_guardian.config_utils.get_project_dir", return_value="/proj"):
+        with patch("ai_guardian.config.utils.get_project_dir", return_value="/proj"):
             decision = apply_post_scan_pipeline(entry, result, ctx)
         assert "OL: slur found" in decision.warnings
 
@@ -258,7 +258,7 @@ class TestApplyPostScanPipeline:
         ctx = _make_ctx(handle_ask_mode_auto=MagicMock(return_value=ask_result))
         entry = _make_entry()
         result = _detected_result()
-        with patch("ai_guardian.config_utils.get_project_dir", return_value="/proj"):
+        with patch("ai_guardian.config.utils.get_project_dir", return_value="/proj"):
             decision = apply_post_scan_pipeline(entry, result, ctx)
         assert decision.ask_decision is ask_result
 
@@ -271,7 +271,7 @@ class TestApplyPostScanPipeline:
         ctx = _make_ctx(handle_ask_mode_auto=MagicMock(return_value=ask_result))
         entry = _make_entry()
         result = _detected_result()
-        with patch("ai_guardian.config_utils.get_project_dir", return_value="/proj"):
+        with patch("ai_guardian.config.utils.get_project_dir", return_value="/proj"):
             apply_post_scan_pipeline(entry, result, ctx, file_path="/f.py")
         ctx.log_ask_decision.assert_called_once()
         call_kwargs = ctx.log_ask_decision.call_args[1]
@@ -289,7 +289,7 @@ class TestApplyPostScanPipeline:
         ctx = _make_ctx()
         entry = _make_entry()
         result = _detected_result()
-        with patch("ai_guardian.config_utils.get_project_dir", return_value="/proj"):
+        with patch("ai_guardian.config.utils.get_project_dir", return_value="/proj"):
             decision = apply_post_scan_pipeline(
                 entry, result, ctx, skip_violation_log=True
             )
@@ -306,7 +306,7 @@ class TestApplyPostScanPipeline:
         entry = _make_entry()
         result = _detected_result()
         fps = ["fp1", "fp2"]
-        with patch("ai_guardian.config_utils.get_project_dir", return_value="/proj"):
+        with patch("ai_guardian.config.utils.get_project_dir", return_value="/proj"):
             apply_post_scan_pipeline(entry, result, ctx, finding_fingerprints=fps)
         call_kwargs = ctx.log_ask_decision.call_args[1]
         assert call_kwargs["finding_fingerprints"] == fps
@@ -324,7 +324,7 @@ class TestApplyPostScanPipeline:
         )
         entry = _make_entry()
         result = _detected_result()
-        with patch("ai_guardian.config_utils.get_project_dir", return_value="/proj"):
+        with patch("ai_guardian.config.utils.get_project_dir", return_value="/proj"):
             apply_post_scan_pipeline(entry, result, ctx)
         call_kwargs = ctx.log_ask_decision.call_args[1]
         assert call_kwargs["invocation_allowed_findings"] is allowed_set
@@ -353,7 +353,7 @@ class TestLogScanViolationsPerFinding:
                 start_column=4,
             ),
         ]
-        with patch("ai_guardian.config_utils.get_project_dir", return_value="/proj"):
+        with patch("ai_guardian.config.utils.get_project_dir", return_value="/proj"):
             log_scan_violations_per_finding(
                 entry, findings, ctx, file_path="/tmp/app.py"
             )
@@ -373,7 +373,7 @@ class TestLogScanViolationsPerFinding:
     def test_noop_when_empty_findings(self):
         ctx = _make_ctx()
         entry = _make_entry()
-        with patch("ai_guardian.config_utils.get_project_dir", return_value="/proj"):
+        with patch("ai_guardian.config.utils.get_project_dir", return_value="/proj"):
             log_scan_violations_per_finding(entry, [], ctx)
         ctx.violation_logger.log_violation.assert_not_called()
 
@@ -387,7 +387,7 @@ class TestLogScanViolationsPerFinding:
             line_number=1,
             start_column=None,
         )
-        with patch("ai_guardian.config_utils.get_project_dir", return_value="/proj"):
+        with patch("ai_guardian.config.utils.get_project_dir", return_value="/proj"):
             log_scan_violations_per_finding(entry, [finding], ctx)
         call_kwargs = ctx.violation_logger.log_violation.call_args[1]
         assert call_kwargs["severity"] == "medium"

@@ -18,7 +18,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Dict, List, Optional
 
-from ai_guardian.config_utils import get_project_dir, validate_regex_pattern
+from ai_guardian.config.utils import get_project_dir, validate_regex_pattern
 from ai_guardian.utils.path_matching import match_ignore_pattern
 
 logger = logging.getLogger(__name__)

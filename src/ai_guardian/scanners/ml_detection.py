@@ -60,7 +60,7 @@ def get_models_dir():
 
     Uses get_cache_dir() / 'models'. Creates directory if needed.
     """
-    from ai_guardian.config_utils import get_cache_dir
+    from ai_guardian.config.utils import get_cache_dir
 
     models_dir = get_cache_dir() / "models"
     models_dir.mkdir(parents=True, exist_ok=True)

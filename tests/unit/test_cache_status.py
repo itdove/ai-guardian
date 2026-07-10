@@ -45,7 +45,7 @@ class TestDaemonStateGetProjectCacheStatus:
         state = self._init_state()
         with (
             patch("ai_guardian.daemon.state._caches", {}, create=True),
-            patch("ai_guardian.config_loaders._caches", {}),
+            patch("ai_guardian.config.loaders._caches", {}),
         ):
             result = state.get_project_cache_status()
         assert result["projects"] == []
@@ -60,7 +60,7 @@ class TestDaemonStateGetProjectCacheStatus:
         state._project_config_paths = {"/home/user/myproject": None}
         state._project_config_mtimes = {}
 
-        with patch("ai_guardian.config_loaders._caches", {}):
+        with patch("ai_guardian.config.loaders._caches", {}):
             result = state.get_project_cache_status()
 
         assert result["total_tracked"] == 1
@@ -78,7 +78,7 @@ class TestDaemonStateGetProjectCacheStatus:
         state._project_config_paths = {"/home/user/proj": config_path}
         state._project_config_mtimes = {"/home/user/proj": 1718000000.0}
 
-        with patch("ai_guardian.config_loaders._caches", {}):
+        with patch("ai_guardian.config.loaders._caches", {}):
             result = state.get_project_cache_status()
 
         proj = result["projects"][0]
@@ -98,7 +98,7 @@ class TestDaemonStateGetProjectCacheStatus:
             "/a/project": None,
         }
 
-        with patch("ai_guardian.config_loaders._caches", {}):
+        with patch("ai_guardian.config.loaders._caches", {}):
             result = state.get_project_cache_status()
 
         assert result["total_tracked"] == 2
@@ -135,7 +135,7 @@ class TestDaemonStateGetProjectCacheStatus:
         )
 
         with patch(
-            "ai_guardian.config_loaders._caches",
+            "ai_guardian.config.loaders._caches",
             {config_path: fake_entry},
         ):
             result = state.get_project_cache_status()
@@ -150,7 +150,7 @@ class TestDaemonStateGetProjectCacheStatus:
         state = self._init_state()
         state._last_project_config_reload_at = 1718000500.0
 
-        with patch("ai_guardian.config_loaders._caches", {}):
+        with patch("ai_guardian.config.loaders._caches", {}):
             result = state.get_project_cache_status()
 
         assert result["last_project_config_reload_at"] == 1718000500.0
@@ -189,7 +189,7 @@ class TestMultiDaemonClientCacheStatus:
     def test_local_cache_status_returns_structure(self):
         from ai_guardian.daemon.multi_client import MultiDaemonClient
 
-        with patch("ai_guardian.config_loaders._caches", {}):
+        with patch("ai_guardian.config.loaders._caches", {}):
             result = MultiDaemonClient._local_cache_status()
 
         assert "projects" in result
@@ -217,7 +217,7 @@ class TestMultiDaemonClientCacheStatus:
         entry = FakeCacheEntry(last_accessed=_time.monotonic())
 
         with patch(
-            "ai_guardian.config_loaders._caches",
+            "ai_guardian.config.loaders._caches",
             {"/p/config.json": entry},
         ):
             result = MultiDaemonClient._local_cache_status()

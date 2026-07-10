@@ -29,7 +29,7 @@ def _load_effective_data(project_dir=None):
         return merged or {}, provenance or {}, {}, None
 
     try:
-        from ai_guardian.config_writer import (
+        from ai_guardian.config.writer import (
             load_scoped_config,
             compute_detailed_provenance,
         )

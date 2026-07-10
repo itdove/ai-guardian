@@ -41,7 +41,7 @@ def _is_auto_install_disabled(config):
     if isinstance(auto_install, bool):
         return not auto_install
     if isinstance(auto_install, dict):
-        from ai_guardian.config_utils import is_feature_enabled
+        from ai_guardian.config.utils import is_feature_enabled
 
         return not is_feature_enabled(auto_install, default=True)
     return False
@@ -98,7 +98,7 @@ def auto_setup_tray():
 
         config = None
         try:
-            from ai_guardian.config_loaders import _load_config_file
+            from ai_guardian.config.loaders import _load_config_file
 
             config, _ = _load_config_file()
         except Exception:

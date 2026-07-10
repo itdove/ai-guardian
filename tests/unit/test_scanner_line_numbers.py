@@ -97,7 +97,7 @@ class TestUnicodeLineNumbers(unittest.TestCase):
         scanner.config = {"prompt_injection": {"unicode_detection": {"enabled": True}}}
         scanner.findings = []
         scanner.verbose = False
-        from ai_guardian.prompt_injection import UnicodeAttackDetector
+        from ai_guardian.scanners.prompt_injection import UnicodeAttackDetector
 
         scanner.unicode_detector = UnicodeAttackDetector(
             scanner.config.get("prompt_injection", {}).get("unicode_detection", {})

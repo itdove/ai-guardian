@@ -30,10 +30,10 @@ def _validate_json(text):
 def _get_config_path(scope):
     """Get the config file path for the given scope."""
     if scope == "project":
-        from ai_guardian.config_utils import get_project_config_path
+        from ai_guardian.config.utils import get_project_config_path
 
         return get_project_config_path()
-    from ai_guardian.config_utils import get_config_dir
+    from ai_guardian.config.utils import get_config_dir
 
     return get_config_dir() / "ai-guardian.json"
 

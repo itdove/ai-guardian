@@ -8,7 +8,7 @@ Manages installation config, user config, and project config files.
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
-from ai_guardian.config_utils import get_config_dir
+from ai_guardian.config.utils import get_config_dir
 
 try:
     import tomllib

@@ -12,7 +12,7 @@ class TestWriteScopedConfig:
         config_dir = tmp_path / "global_cfg"
         config_dir.mkdir()
         with mock.patch.dict(os.environ, {"AI_GUARDIAN_CONFIG_DIR": str(config_dir)}):
-            from ai_guardian.config_writer import write_scoped_config
+            from ai_guardian.config.writer import write_scoped_config
 
             success, msg = write_scoped_config(
                 "global", "secret_scanning", "action", "ask"
@@ -24,7 +24,7 @@ class TestWriteScopedConfig:
     def test_project_write(self, tmp_path):
         project_dir = tmp_path / "project"
         project_dir.mkdir()
-        from ai_guardian.config_writer import write_scoped_config
+        from ai_guardian.config.writer import write_scoped_config
 
         success, msg = write_scoped_config(
             "project",
@@ -42,7 +42,7 @@ class TestWriteScopedConfig:
     def test_project_stores_only_override(self, tmp_path):
         project_dir = tmp_path / "project"
         project_dir.mkdir()
-        from ai_guardian.config_writer import write_scoped_config
+        from ai_guardian.config.writer import write_scoped_config
 
         write_scoped_config(
             "project",
@@ -59,7 +59,7 @@ class TestWriteScopedConfig:
     def test_rejects_global_only_sections(self, tmp_path):
         project_dir = tmp_path / "project"
         project_dir.mkdir()
-        from ai_guardian.config_writer import write_scoped_config
+        from ai_guardian.config.writer import write_scoped_config
 
         success, msg = write_scoped_config(
             "project",
@@ -74,7 +74,7 @@ class TestWriteScopedConfig:
     def test_auto_creates_project_dir(self, tmp_path):
         project_dir = tmp_path / "project"
         project_dir.mkdir()
-        from ai_guardian.config_writer import write_scoped_config
+        from ai_guardian.config.writer import write_scoped_config
 
         success, _ = write_scoped_config(
             "project",
@@ -90,7 +90,7 @@ class TestWriteScopedConfig:
         config_dir = tmp_path / "global_cfg"
         config_dir.mkdir()
         with mock.patch.dict(os.environ, {"AI_GUARDIAN_CONFIG_DIR": str(config_dir)}):
-            from ai_guardian.config_writer import write_scoped_config
+            from ai_guardian.config.writer import write_scoped_config
 
             section_val = {"enabled": True, "action": "block"}
             success, _ = write_scoped_config(
@@ -114,10 +114,10 @@ class TestDeleteProjectOverride:
         )
 
         with mock.patch(
-            "ai_guardian.config_writer.get_project_config_path",
+            "ai_guardian.config.writer.get_project_config_path",
             return_value=cfg_path,
         ):
-            from ai_guardian.config_writer import delete_project_override
+            from ai_guardian.config.writer import delete_project_override
 
             success, msg = delete_project_override("secret_scanning", "action")
             assert success
@@ -140,10 +140,10 @@ class TestDeleteProjectOverride:
         )
 
         with mock.patch(
-            "ai_guardian.config_writer.get_project_config_path",
+            "ai_guardian.config.writer.get_project_config_path",
             return_value=cfg_path,
         ):
-            from ai_guardian.config_writer import delete_project_override
+            from ai_guardian.config.writer import delete_project_override
 
             success, _ = delete_project_override("secret_scanning")
             assert success
@@ -154,15 +154,15 @@ class TestDeleteProjectOverride:
     def test_no_project_config(self, tmp_path):
         with (
             mock.patch(
-                "ai_guardian.config_writer.get_project_config_path",
+                "ai_guardian.config.writer.get_project_config_path",
                 return_value=None,
             ),
             mock.patch(
-                "ai_guardian.config_writer._find_git_root",
+                "ai_guardian.config.writer._find_git_root",
                 return_value=tmp_path,
             ),
         ):
-            from ai_guardian.config_writer import delete_project_override
+            from ai_guardian.config.writer import delete_project_override
 
             success, msg = delete_project_override("secret_scanning", "action")
             assert success
@@ -180,10 +180,10 @@ class TestDeleteProjectOverride:
         cfg_path.write_text(json.dumps({"secret_scanning": {"action": "ask"}}))
 
         with mock.patch(
-            "ai_guardian.config_writer.get_project_config_path",
+            "ai_guardian.config.writer.get_project_config_path",
             return_value=cfg_path,
         ):
-            from ai_guardian.config_writer import delete_project_override
+            from ai_guardian.config.writer import delete_project_override
 
             success, _ = delete_project_override("secret_scanning", "action")
             assert success
@@ -208,11 +208,11 @@ class TestComputeProvenance:
         with (
             mock.patch.dict(os.environ, {"AI_GUARDIAN_CONFIG_DIR": str(config_dir)}),
             mock.patch(
-                "ai_guardian.config_writer.get_project_config_path",
+                "ai_guardian.config.writer.get_project_config_path",
                 return_value=None,
             ),
         ):
-            from ai_guardian.config_writer import compute_provenance
+            from ai_guardian.config.writer import compute_provenance
 
             prov = compute_provenance()
             assert prov["secret_scanning"]["enabled"] == "global"
@@ -243,11 +243,11 @@ class TestComputeProvenance:
         with (
             mock.patch.dict(os.environ, {"AI_GUARDIAN_CONFIG_DIR": str(config_dir)}),
             mock.patch(
-                "ai_guardian.config_writer.get_project_config_path",
+                "ai_guardian.config.writer.get_project_config_path",
                 return_value=ai_dir / "ai-guardian.json",
             ),
         ):
-            from ai_guardian.config_writer import compute_provenance
+            from ai_guardian.config.writer import compute_provenance
 
             prov = compute_provenance()
             assert prov["secret_scanning"]["action"] == "project"
@@ -278,11 +278,11 @@ class TestComputeProvenance:
         with (
             mock.patch.dict(os.environ, {"AI_GUARDIAN_CONFIG_DIR": str(config_dir)}),
             mock.patch(
-                "ai_guardian.config_writer.get_project_config_path",
+                "ai_guardian.config.writer.get_project_config_path",
                 return_value=ai_dir / "ai-guardian.json",
             ),
         ):
-            from ai_guardian.config_writer import compute_provenance
+            from ai_guardian.config.writer import compute_provenance
 
             prov = compute_provenance()
             assert prov["secret_scanning"]["allowlist_patterns"] == "merged"
@@ -312,11 +312,11 @@ class TestComputeProvenance:
         with (
             mock.patch.dict(os.environ, {"AI_GUARDIAN_CONFIG_DIR": str(config_dir)}),
             mock.patch(
-                "ai_guardian.config_writer.get_project_config_path",
+                "ai_guardian.config.writer.get_project_config_path",
                 return_value=ai_dir / "ai-guardian.json",
             ),
         ):
-            from ai_guardian.config_writer import compute_provenance
+            from ai_guardian.config.writer import compute_provenance
 
             prov = compute_provenance()
             assert prov["scan_pii"]["action"] == "project"
@@ -337,7 +337,7 @@ class TestLoadScopedConfig:
             )
         )
         with mock.patch.dict(os.environ, {"AI_GUARDIAN_CONFIG_DIR": str(config_dir)}):
-            from ai_guardian.config_writer import load_scoped_config
+            from ai_guardian.config.writer import load_scoped_config
 
             cfg = load_scoped_config("global")
             assert cfg["secret_scanning"]["action"] == "block"
@@ -355,10 +355,10 @@ class TestLoadScopedConfig:
         )
 
         with mock.patch(
-            "ai_guardian.config_writer.get_project_config_path",
+            "ai_guardian.config.writer.get_project_config_path",
             return_value=ai_dir / "ai-guardian.json",
         ):
-            from ai_guardian.config_writer import load_scoped_config
+            from ai_guardian.config.writer import load_scoped_config
 
             cfg = load_scoped_config("project")
             assert cfg["secret_scanning"]["action"] == "ask"
@@ -366,21 +366,21 @@ class TestLoadScopedConfig:
     def test_project_scope_missing(self, tmp_path):
         with (
             mock.patch(
-                "ai_guardian.config_writer.get_project_config_path",
+                "ai_guardian.config.writer.get_project_config_path",
                 return_value=None,
             ),
             mock.patch(
-                "ai_guardian.config_writer._find_git_root",
+                "ai_guardian.config.writer._find_git_root",
                 return_value=tmp_path,
             ),
         ):
-            from ai_guardian.config_writer import load_scoped_config
+            from ai_guardian.config.writer import load_scoped_config
 
             cfg = load_scoped_config("project")
             assert cfg == {}
 
     def test_invalid_scope(self):
-        from ai_guardian.config_writer import load_scoped_config
+        from ai_guardian.config.writer import load_scoped_config
 
         cfg = load_scoped_config("invalid")
         assert cfg == {}

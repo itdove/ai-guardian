@@ -140,7 +140,7 @@ def discover_scanner_directory() -> Dict[str, Type[Scanner]]:
     Returns:
         Dict mapping scanner name to Scanner subclass
     """
-    from ai_guardian.config_utils import get_config_dir
+    from ai_guardian.config.utils import get_config_dir
 
     scanner_dir = get_config_dir() / "scanners"
     if not scanner_dir.is_dir():

@@ -50,7 +50,7 @@ except ImportError:
 
 def _load_mcp_config() -> Dict:
     """Load ai-guardian.json and return the mcp_server section."""
-    from ai_guardian.config_utils import get_config_dir
+    from ai_guardian.config.utils import get_config_dir
 
     config_path = get_config_dir() / "ai-guardian.json"
     if not config_path.exists():
@@ -67,7 +67,7 @@ def _load_mcp_config() -> Dict:
 
 def _load_full_config() -> Optional[Dict]:
     """Load full ai-guardian.json config."""
-    from ai_guardian.config_utils import get_config_dir
+    from ai_guardian.config.utils import get_config_dir
 
     config_path = get_config_dir() / "ai-guardian.json"
     if not config_path.exists():
@@ -315,7 +315,7 @@ def create_server() -> "FastMCP":
             if not path.exists():
                 return {"valid": False, "warnings": [f"File not found: {file_path}"]}
             resolved = path.resolve()
-            from ai_guardian.config_utils import (
+            from ai_guardian.config.utils import (
                 get_config_dir,
                 get_state_dir,
                 get_cache_dir,
@@ -390,7 +390,7 @@ def create_server() -> "FastMCP":
     def get_config() -> Dict[str, Any]:
         """Get current security posture summary. Returns feature enabled/disabled status only — no security rule details. Re-reads config on every call to reflect changes."""
         try:
-            from ai_guardian.config_utils import is_feature_enabled
+            from ai_guardian.config.utils import is_feature_enabled
 
             config = _load_full_config() or {}
             features = {}
@@ -450,7 +450,7 @@ def create_server() -> "FastMCP":
             features["mcp_server"] = True
             features["proactive_level"] = mcp_section.get("proactive_level", "low")
 
-            from ai_guardian.config_utils import get_project_config_path
+            from ai_guardian.config.utils import get_project_config_path
 
             project_path = get_project_config_path()
             features["project_config"] = str(project_path) if project_path else None

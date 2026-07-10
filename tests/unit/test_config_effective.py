@@ -52,7 +52,7 @@ class TestComputeDetailedProvenance:
         global_path = global_dir / "ai-guardian.json"
         global_path.write_text(json.dumps(global_config))
 
-        with patch("ai_guardian.config_writer._resolve_config_path") as mock_resolve:
+        with patch("ai_guardian.config.writer._resolve_config_path") as mock_resolve:
 
             def resolve(scope, project_dir=None):
                 if scope == "global":
@@ -65,7 +65,7 @@ class TestComputeDetailedProvenance:
 
             mock_resolve.side_effect = resolve
 
-            from ai_guardian.config_writer import compute_detailed_provenance
+            from ai_guardian.config.writer import compute_detailed_provenance
 
             result = compute_detailed_provenance()
 
@@ -83,11 +83,11 @@ class TestComputeDetailedProvenance:
         project_path = project_dir / "ai-guardian.json"
         project_path.write_text(json.dumps(project_config))
 
-        with patch("ai_guardian.config_writer._resolve_config_path") as mock_resolve:
+        with patch("ai_guardian.config.writer._resolve_config_path") as mock_resolve:
             mock_resolve.side_effect = lambda scope, pd=None: (
                 global_path if scope == "global" else project_path
             )
-            from ai_guardian.config_writer import compute_detailed_provenance
+            from ai_guardian.config.writer import compute_detailed_provenance
 
             result = compute_detailed_provenance()
 
@@ -103,11 +103,11 @@ class TestComputeDetailedProvenance:
         project_path = project_dir / "ai-guardian.json"
         project_path.write_text(json.dumps(project_config))
 
-        with patch("ai_guardian.config_writer._resolve_config_path") as mock_resolve:
+        with patch("ai_guardian.config.writer._resolve_config_path") as mock_resolve:
             mock_resolve.side_effect = lambda scope, pd=None: (
                 global_path if scope == "global" else project_path
             )
-            from ai_guardian.config_writer import compute_detailed_provenance
+            from ai_guardian.config.writer import compute_detailed_provenance
 
             result = compute_detailed_provenance()
 
@@ -123,13 +123,13 @@ class TestComputeDetailedProvenance:
         global_path = global_dir / "ai-guardian.json"
         global_path.write_text(json.dumps(global_config))
 
-        with patch("ai_guardian.config_writer._resolve_config_path") as mock_resolve:
+        with patch("ai_guardian.config.writer._resolve_config_path") as mock_resolve:
             mock_resolve.side_effect = lambda scope, pd=None: (
                 global_path
                 if scope == "global"
                 else Path("/nonexistent/ai-guardian.json")
             )
-            from ai_guardian.config_writer import compute_detailed_provenance
+            from ai_guardian.config.writer import compute_detailed_provenance
 
             result = compute_detailed_provenance()
 
@@ -141,7 +141,7 @@ class TestFormatProvenanceText:
     """Tests for format_provenance_text()."""
 
     def test_basic_rendering(self):
-        from ai_guardian.config_writer import format_provenance_text
+        from ai_guardian.config.writer import format_provenance_text
 
         config = {"secret_scanning": {"enabled": True, "action": "ask"}}
         provenance = {"secret_scanning": {"enabled": "global", "action": "project"}}
@@ -155,7 +155,7 @@ class TestFormatProvenanceText:
         assert "action" in text
 
     def test_list_item_provenance(self):
-        from ai_guardian.config_writer import format_provenance_text
+        from ai_guardian.config.writer import format_provenance_text
 
         config = {"patterns": ["a", "b"]}
         provenance = {
@@ -172,12 +172,12 @@ class TestFormatProvenanceText:
         assert any("b" in l and "(Project override)" in l for l in lines)
 
     def test_empty_config(self):
-        from ai_guardian.config_writer import format_provenance_text
+        from ai_guardian.config.writer import format_provenance_text
 
         assert format_provenance_text({}, {}) == ""
 
     def test_skips_underscore_keys(self):
-        from ai_guardian.config_writer import format_provenance_text
+        from ai_guardian.config.writer import format_provenance_text
 
         config = {"_comment": "skip", "enabled": True}
         provenance = {"_comment": "global", "enabled": "global"}
@@ -190,7 +190,7 @@ class TestFormatDiffText:
     """Tests for format_diff_text()."""
 
     def test_shows_only_project_overrides(self):
-        from ai_guardian.config_writer import format_diff_text
+        from ai_guardian.config.writer import format_diff_text
 
         project_cfg = {"secret_scanning": {"action": "ask"}}
         provenance = {
@@ -205,13 +205,13 @@ class TestFormatDiffText:
         assert "ask" in text
 
     def test_empty_when_no_overrides(self):
-        from ai_guardian.config_writer import format_diff_text
+        from ai_guardian.config.writer import format_diff_text
 
         text = format_diff_text({}, {})
         assert text.strip() == ""
 
     def test_list_diff_shows_project_items_only(self):
-        from ai_guardian.config_writer import format_diff_text
+        from ai_guardian.config.writer import format_diff_text
 
         project_cfg = {"patterns": ["a", "b"]}
         provenance = {
@@ -230,23 +230,23 @@ class TestFormatScalar:
     """Tests for _format_scalar()."""
 
     def test_bool(self):
-        from ai_guardian.config_writer import _format_scalar
+        from ai_guardian.config.writer import _format_scalar
 
         assert _format_scalar(True) == "true"
         assert _format_scalar(False) == "false"
 
     def test_none(self):
-        from ai_guardian.config_writer import _format_scalar
+        from ai_guardian.config.writer import _format_scalar
 
         assert _format_scalar(None) == "null"
 
     def test_string(self):
-        from ai_guardian.config_writer import _format_scalar
+        from ai_guardian.config.writer import _format_scalar
 
         assert _format_scalar("hello") == "hello"
 
     def test_list(self):
-        from ai_guardian.config_writer import _format_scalar
+        from ai_guardian.config.writer import _format_scalar
 
         assert _format_scalar(["a", "b"]) == '["a", "b"]'
 

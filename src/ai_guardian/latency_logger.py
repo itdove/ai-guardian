@@ -72,7 +72,7 @@ class LatencyLogger:
     def __init__(self, log_path: Optional[Path] = None, config: Optional[Dict] = None):
         self.config = config or self._load_config()
         if log_path is None:
-            from ai_guardian.config_utils import get_state_dir
+            from ai_guardian.config.utils import get_state_dir
 
             log_path = get_state_dir() / "latency.jsonl"
         self.log_path = log_path
@@ -121,7 +121,7 @@ class LatencyLogger:
             return False
 
     def _is_enabled(self) -> bool:
-        from ai_guardian.config_utils import is_feature_enabled
+        from ai_guardian.config.utils import is_feature_enabled
 
         return is_feature_enabled(self.config.get("enabled"), default=False)
 
@@ -161,7 +161,7 @@ class LatencyLogger:
 
     def _load_config(self) -> Dict:
         try:
-            from ai_guardian.config_utils import get_config_dir
+            from ai_guardian.config.utils import get_config_dir
 
             config_dir = get_config_dir()
             config_path = config_dir / "ai-guardian.json"

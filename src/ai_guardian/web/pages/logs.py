@@ -57,7 +57,7 @@ def _read_last_n_lines(file_path: Path, n: int) -> List[str]:
 
 
 def _get_log_path() -> Path:
-    from ai_guardian.config_utils import get_state_dir
+    from ai_guardian.config.utils import get_state_dir
 
     return get_state_dir() / "ai-guardian.log"
 

@@ -57,7 +57,7 @@ def _load_daemon_config_files(target):
 
 def _load_local_config_files():
     """Load config from local filesystem."""
-    from ai_guardian.config_utils import get_config_dir, get_project_config_path
+    from ai_guardian.config.utils import get_config_dir, get_project_config_path
 
     global_path = get_config_dir() / "ai-guardian.json"
     project_path = get_project_config_path()

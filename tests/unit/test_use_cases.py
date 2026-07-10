@@ -110,7 +110,7 @@ class DataExfiltrationAttackScenario(TestCase):
         Scenario: Attacker uses Bash to send data to external server
         Expected: BLOCKED by SSRF protection or config scanner
         """
-        from ai_guardian.config_scanner import check_config_file_threats
+        from ai_guardian.scanners.config_scanner import check_config_file_threats
 
         # Attacker command to exfiltrate environment variables
         malicious_command = attack_constants.EXFILTRATION_CURL_ENV
@@ -157,7 +157,7 @@ class PromptInjectionChainScenario(TestCase):
 
         Expected: Multiple layers prevent attack
         """
-        from ai_guardian.prompt_injection import check_prompt_injection
+        from ai_guardian.scanners.prompt_injection import check_prompt_injection
 
         # Step 1: Try prompt injection
         injection_prompt = attack_constants.PROMPT_INJECTION_IGNORE_PREVIOUS
@@ -204,7 +204,7 @@ class PromptInjectionChainScenario(TestCase):
         # Disable pattern server
         mock_pattern_config.return_value = None
 
-        from ai_guardian.prompt_injection import check_prompt_injection
+        from ai_guardian.scanners.prompt_injection import check_prompt_injection
 
         # Injection attempt with actual secret
         bypass_attempt = f"""
@@ -309,7 +309,7 @@ class LegitimateWorkflowScenario(TestCase):
         assert not has_secrets, "Legitimate research text should not trigger detection"
 
         # Step 4: Query notebook
-        from ai_guardian.prompt_injection import check_prompt_injection
+        from ai_guardian.scanners.prompt_injection import check_prompt_injection
 
         legitimate_query = "What are the main findings from the research papers?"
 
@@ -341,7 +341,7 @@ class LegitimateWorkflowScenario(TestCase):
         how does it avoid false positives when discussing security?
         """
 
-        from ai_guardian.prompt_injection import check_prompt_injection
+        from ai_guardian.scanners.prompt_injection import check_prompt_injection
 
         config = {"enabled": True}
         is_attack, error_msg, _ = check_prompt_injection(
@@ -467,8 +467,8 @@ class MultiStageAttackScenario(TestCase):
         mock_pattern_config.return_value = None
         mock_redaction_config.return_value = (None, None)
 
-        from ai_guardian.prompt_injection import check_prompt_injection
-        from ai_guardian.config_scanner import check_config_file_threats
+        from ai_guardian.scanners.prompt_injection import check_prompt_injection
+        from ai_guardian.scanners.config_scanner import check_config_file_threats
 
         # Stage 1: Prompt injection
         injection = attack_constants.PROMPT_INJECTION_IGNORE_PREVIOUS
@@ -589,7 +589,7 @@ class RealWorldScenarios(TestCase):
         AI Guardian detects these patterns to protect against attacks.
         """
 
-        from ai_guardian.prompt_injection import check_prompt_injection
+        from ai_guardian.scanners.prompt_injection import check_prompt_injection
 
         config = {"enabled": True}
         is_attack, error_msg, _ = check_prompt_injection(

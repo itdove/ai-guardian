@@ -270,7 +270,7 @@ class TestAutoSetupTray:
                 "ai_guardian.daemon.auto_setup._is_headless", return_value=False
             ),
             mock.patch(
-                "ai_guardian.config_loaders._load_config_file",
+                "ai_guardian.config.loaders._load_config_file",
                 return_value=(config, None),
             ),
             mock.patch(
@@ -300,7 +300,7 @@ class TestAutoSetupTray:
                 "ai_guardian.daemon.auto_setup._is_headless", return_value=False
             ),
             mock.patch(
-                "ai_guardian.config_loaders._load_config_file", return_value=({}, None)
+                "ai_guardian.config.loaders._load_config_file", return_value=({}, None)
             ),
             mock.patch("ai_guardian.tray.app.is_tray_available", return_value=False),
             mock.patch(
@@ -332,7 +332,7 @@ class TestAutoSetupTray:
                 "ai_guardian.daemon.auto_setup._is_headless", return_value=False
             ),
             mock.patch(
-                "ai_guardian.config_loaders._load_config_file", return_value=({}, None)
+                "ai_guardian.config.loaders._load_config_file", return_value=({}, None)
             ),
             mock.patch("ai_guardian.tray.app.is_tray_available", return_value=True),
             mock.patch(
@@ -366,7 +366,7 @@ class TestAutoSetupTray:
                 "ai_guardian.daemon.auto_setup._is_headless", return_value=False
             ),
             mock.patch(
-                "ai_guardian.config_loaders._load_config_file", return_value=({}, None)
+                "ai_guardian.config.loaders._load_config_file", return_value=({}, None)
             ),
             mock.patch("ai_guardian.tray.app.is_tray_available", return_value=True),
             mock.patch(
@@ -403,7 +403,7 @@ class TestAutoSetupTray:
                 "ai_guardian.daemon.auto_setup._is_headless", return_value=False
             ),
             mock.patch(
-                "ai_guardian.config_loaders._load_config_file", return_value=({}, None)
+                "ai_guardian.config.loaders._load_config_file", return_value=({}, None)
             ),
             mock.patch("ai_guardian.tray.app.is_tray_available", return_value=True),
             mock.patch(
@@ -441,7 +441,7 @@ class TestAutoSetupTray:
                 "ai_guardian.daemon.auto_setup._is_headless", return_value=False
             ),
             mock.patch(
-                "ai_guardian.config_loaders._load_config_file", return_value=({}, None)
+                "ai_guardian.config.loaders._load_config_file", return_value=({}, None)
             ),
             mock.patch("ai_guardian.tray.app.is_tray_available", return_value=True),
             mock.patch(
@@ -485,7 +485,7 @@ class TestAutoSetupTray:
                 "ai_guardian.daemon.auto_setup._is_headless", return_value=False
             ),
             mock.patch(
-                "ai_guardian.config_loaders._load_config_file", return_value=({}, None)
+                "ai_guardian.config.loaders._load_config_file", return_value=({}, None)
             ),
             mock.patch("ai_guardian.tray.app.is_tray_available", return_value=True),
             mock.patch(
@@ -518,7 +518,7 @@ class TestAutoSetupTray:
                 "ai_guardian.daemon.auto_setup._is_headless", return_value=False
             ),
             mock.patch(
-                "ai_guardian.config_loaders._load_config_file", return_value=({}, None)
+                "ai_guardian.config.loaders._load_config_file", return_value=({}, None)
             ),
             mock.patch("ai_guardian.tray.app.is_tray_available", return_value=True),
             mock.patch(
@@ -555,7 +555,7 @@ class TestAutoSetupTray:
                 "ai_guardian.daemon.auto_setup._is_headless", return_value=False
             ),
             mock.patch(
-                "ai_guardian.config_loaders._load_config_file",
+                "ai_guardian.config.loaders._load_config_file",
                 side_effect=Exception("config error"),
             ),
             mock.patch("ai_guardian.tray.app.is_tray_available", return_value=True),

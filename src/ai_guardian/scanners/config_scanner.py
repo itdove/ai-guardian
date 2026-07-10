@@ -22,7 +22,7 @@ import re
 from pathlib import Path
 from typing import Tuple, Optional, Dict, Any, List
 
-from ai_guardian.config_utils import validate_regex_pattern
+from ai_guardian.config.utils import validate_regex_pattern
 from ai_guardian.utils.path_matching import match_ignore_pattern
 from ai_guardian.patterns import load_bundled_rules
 

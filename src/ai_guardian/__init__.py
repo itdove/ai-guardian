@@ -32,7 +32,7 @@ def _record_factory(*args, **kwargs):
 logging.setLogRecordFactory(_record_factory)
 
 # Set up file handler with rotation
-from ai_guardian.config_utils import get_state_dir, migrate_state_files
+from ai_guardian.config.utils import get_state_dir, migrate_state_files
 
 migrate_state_files()
 _log_file = get_state_dir() / "ai-guardian.log"
@@ -113,7 +113,7 @@ from ai_guardian.response_format import (  # noqa: F401
 )
 
 # --- config_loaders.py ---
-from ai_guardian.config_loaders import (  # noqa: F401
+from ai_guardian.config.loaders import (  # noqa: F401
     _ConfigCacheEntry,
     _caches,
     HAS_AIGUARDIGNORE,

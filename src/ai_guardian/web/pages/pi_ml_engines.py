@@ -45,7 +45,10 @@ def _validate_ml_engines_json(text):
 def _load_ml_status():
     """Check ML availability and model download status."""
     try:
-        from ai_guardian.ml_detection import is_ml_available, list_registered_models
+        from ai_guardian.scanners.ml_detection import (
+            is_ml_available,
+            list_registered_models,
+        )
 
         available = is_ml_available()
         models = list_registered_models()
@@ -73,7 +76,7 @@ def _install_onnxruntime():
 def _download_ml_model():
     """Download the default ML model. Returns (success, message)."""
     try:
-        from ai_guardian.ml_detection import download_model
+        from ai_guardian.scanners.ml_detection import download_model
 
         download_model()
         return True, "Model downloaded successfully"

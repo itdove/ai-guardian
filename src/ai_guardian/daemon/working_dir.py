@@ -15,7 +15,7 @@ import tempfile
 from pathlib import Path
 from typing import Dict, Optional
 
-from ai_guardian.config_utils import get_state_dir
+from ai_guardian.config.utils import get_state_dir
 
 logger = logging.getLogger(__name__)
 

@@ -17,7 +17,7 @@ import re
 import logging
 from typing import List, Dict, Tuple, Optional
 
-from ai_guardian.config_utils import validate_regex_pattern, is_feature_enabled
+from ai_guardian.config.utils import validate_regex_pattern, is_feature_enabled
 from ai_guardian import allowlist_utils
 from ai_guardian.patterns import load_bundled_rules
 from ai_guardian.patterns.validators import luhn_check, iban_check, VALID_CC_PREFIXES

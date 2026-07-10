@@ -27,7 +27,7 @@ def get_preferred_ui() -> str:
         return env_val
 
     try:
-        from ai_guardian.config_utils import get_config_dir
+        from ai_guardian.config.utils import get_config_dir
 
         config_path = get_config_dir() / "ai-guardian.json"
         if config_path.exists():

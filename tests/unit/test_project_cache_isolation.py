@@ -69,12 +69,12 @@ class TestFindProjectRootDaemonOverride:
         reset_cache()
 
     def teardown_method(self):
-        from ai_guardian.config_utils import clear_project_dir_override
+        from ai_guardian.config.utils import clear_project_dir_override
 
         clear_project_dir_override()
 
     def test_uses_daemon_override_when_set(self, tmp_path):
-        from ai_guardian.config_utils import set_project_dir_override
+        from ai_guardian.config.utils import set_project_dir_override
         from ai_guardian.gitleaks_config import find_project_root, _project_roots
 
         daemon_cwd = tmp_path / "daemon_startup"
@@ -92,7 +92,7 @@ class TestFindProjectRootDaemonOverride:
 
     def test_load_aiguardignore_uses_daemon_override(self, tmp_path):
         from ai_guardian.aiguardignore import load_aiguardignore, reset_cache
-        from ai_guardian.config_utils import set_project_dir_override
+        from ai_guardian.config.utils import set_project_dir_override
 
         reset_cache()
 
@@ -129,7 +129,7 @@ class TestFindProjectRootDaemonOverride:
         assert "keys/**" in paths
 
     def test_load_gitleaks_allowlist_uses_daemon_override(self, tmp_path):
-        from ai_guardian.config_utils import set_project_dir_override
+        from ai_guardian.config.utils import set_project_dir_override
         from ai_guardian.gitleaks_config import load_gitleaks_allowlist, reset_cache
 
         reset_cache()
@@ -151,7 +151,7 @@ class TestFindProjectRootDaemonOverride:
         assert al.paths == ["vendor/**"]
 
     def test_should_skip_file_uses_daemon_override(self, tmp_path):
-        from ai_guardian.config_utils import set_project_dir_override
+        from ai_guardian.config.utils import set_project_dir_override
         from ai_guardian.gitleaks_config import (
             GitleaksAllowlist,
             should_skip_file,
@@ -177,7 +177,7 @@ class TestFindProjectRootDaemonOverride:
         assert result is True
 
     def test_filter_findings_uses_daemon_override(self, tmp_path):
-        from ai_guardian.config_utils import set_project_dir_override
+        from ai_guardian.config.utils import set_project_dir_override
         from ai_guardian.gitleaks_config import (
             GitleaksAllowlist,
             filter_findings,
@@ -312,12 +312,12 @@ class TestConfigLoadersPerProject:
     """_load_config_file() caches per-project path."""
 
     def setup_method(self):
-        from ai_guardian.config_loaders import _clear_config_cache
+        from ai_guardian.config.loaders import _clear_config_cache
 
         _clear_config_cache()
 
     def test_separate_project_configs(self, tmp_path, monkeypatch):
-        from ai_guardian.config_loaders import _load_config_file, _caches
+        from ai_guardian.config.loaders import _load_config_file, _caches
 
         proj_a = tmp_path / "project_a"
         proj_b = tmp_path / "project_b"
@@ -339,13 +339,13 @@ class TestConfigLoadersPerProject:
         )
 
         monkeypatch.setattr(
-            "ai_guardian.config_loaders.get_project_config_path",
+            "ai_guardian.config.loaders.get_project_config_path",
             lambda: config_a_dir / "ai-guardian.json",
         )
         result_a, _ = _load_config_file()
 
         monkeypatch.setattr(
-            "ai_guardian.config_loaders.get_project_config_path",
+            "ai_guardian.config.loaders.get_project_config_path",
             lambda: config_b_dir / "ai-guardian.json",
         )
         result_b, _ = _load_config_file()
@@ -393,7 +393,7 @@ class TestStaleCleanup:
         assert tmp_path not in _cache_last_accessed
 
     def test_config_loaders_cleanup(self):
-        from ai_guardian.config_loaders import (
+        from ai_guardian.config.loaders import (
             _caches,
             _ConfigCacheEntry,
             cleanup_stale_entries,

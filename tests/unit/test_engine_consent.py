@@ -23,7 +23,7 @@ class TestEngineConsent(unittest.TestCase):
     def tearDown(self):
         self.tmp.cleanup()
 
-    @patch("ai_guardian.config_utils.get_config_dir")
+    @patch("ai_guardian.config.utils.get_config_dir")
     def test_consent_not_required_for_local_engine(self, mock_dir):
         mock_dir.return_value = self.config_dir
         config = EngineConfig(
@@ -34,7 +34,7 @@ class TestEngineConsent(unittest.TestCase):
         )
         self.assertTrue(check_engine_consent(config))
 
-    @patch("ai_guardian.config_utils.get_config_dir")
+    @patch("ai_guardian.config.utils.get_config_dir")
     def test_consent_required_not_granted(self, mock_dir):
         mock_dir.return_value = self.config_dir
         config = EngineConfig(
@@ -45,7 +45,7 @@ class TestEngineConsent(unittest.TestCase):
         )
         self.assertFalse(check_engine_consent(config))
 
-    @patch("ai_guardian.config_utils.get_config_dir")
+    @patch("ai_guardian.config.utils.get_config_dir")
     def test_consent_granted(self, mock_dir):
         mock_dir.return_value = self.config_dir
         grant_engine_consent("gitguardian")
@@ -57,7 +57,7 @@ class TestEngineConsent(unittest.TestCase):
         )
         self.assertTrue(check_engine_consent(config))
 
-    @patch("ai_guardian.config_utils.get_config_dir")
+    @patch("ai_guardian.config.utils.get_config_dir")
     def test_grant_creates_file(self, mock_dir):
         mock_dir.return_value = self.config_dir
         grant_engine_consent("gitguardian")
@@ -67,7 +67,7 @@ class TestEngineConsent(unittest.TestCase):
         self.assertIn("gitguardian", content)
         self.assertIn("Timestamp:", content)
 
-    @patch("ai_guardian.config_utils.get_config_dir")
+    @patch("ai_guardian.config.utils.get_config_dir")
     def test_revoke_removes_file(self, mock_dir):
         mock_dir.return_value = self.config_dir
         grant_engine_consent("gitguardian")
@@ -75,7 +75,7 @@ class TestEngineConsent(unittest.TestCase):
         consent_file = self.config_dir / "consent" / "gitguardian.consent"
         self.assertFalse(consent_file.exists())
 
-    @patch("ai_guardian.config_utils.get_config_dir")
+    @patch("ai_guardian.config.utils.get_config_dir")
     def test_revoke_nonexistent_returns_false(self, mock_dir):
         mock_dir.return_value = self.config_dir
         self.assertFalse(revoke_engine_consent("gitguardian"))

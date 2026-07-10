@@ -339,7 +339,7 @@ class DaemonServer:
         if cwd and self.state.is_dir_paused(cwd):
             return {"output": "{}", "exit_code": 0}
         if cwd:
-            from ai_guardian.config_utils import (
+            from ai_guardian.config.utils import (
                 set_project_dir_override,
                 clear_project_dir_override,
             )
@@ -487,7 +487,7 @@ class DaemonServer:
         try:
             from ai_guardian.daemon.rest_api import DaemonRestAPI
             from ai_guardian.daemon import DEFAULT_REST_PORT
-            from ai_guardian.config_loaders import _load_config_file
+            from ai_guardian.config.loaders import _load_config_file
 
             full_cfg = {}
             daemon_cfg = {}

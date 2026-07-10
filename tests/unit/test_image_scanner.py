@@ -16,7 +16,7 @@ import pytest
 
 from PIL import Image, ImageDraw
 
-from ai_guardian.image_scanner import (
+from ai_guardian.scanners.image_scanner import (
     ImageDetector,
     OCREngine,
     OCRResult,
@@ -179,7 +179,7 @@ class TestImageDetector(TestCase):
 class TestOCREngine(TestCase):
     """Test OCR engine with mocked rapidocr."""
 
-    @patch("ai_guardian.image_scanner.HAS_RAPIDOCR", True)
+    @patch("ai_guardian.scanners.image_scanner.HAS_RAPIDOCR", True)
     @pytest.mark.skipif(
         sys.platform == "win32",
         reason="OCR dependencies may not be available on Windows CI",
@@ -233,7 +233,7 @@ class TestOCREngine(TestCase):
         self.assertNotIn("low conf", result.text)
         self.assertEqual(len(result.regions), 1)
 
-    @patch("ai_guardian.image_scanner.HAS_RAPIDOCR", False)
+    @patch("ai_guardian.scanners.image_scanner.HAS_RAPIDOCR", False)
     def test_no_rapidocr_raises(self):
         ocr = OCREngine()
         with self.assertRaises(ImportError):
@@ -386,7 +386,7 @@ class TestScanImage(TestCase):
         sys.platform == "win32",
         reason="OCR dependencies may not be available on Windows CI",
     )
-    @patch("ai_guardian.image_scanner.OCREngine")
+    @patch("ai_guardian.scanners.image_scanner.OCREngine")
     def test_scan_image_with_text(self, mock_engine_cls):
         mock_engine = MagicMock()
         mock_engine_cls.return_value = mock_engine
@@ -415,14 +415,14 @@ class TestScanImage(TestCase):
         self.assertEqual(len(result.text_regions), 1)
         self.assertGreaterEqual(result.elapsed_ms, 0)
 
-    @patch("ai_guardian.image_scanner.OCREngine")
+    @patch("ai_guardian.scanners.image_scanner.OCREngine")
     def test_scan_image_too_large(self, mock_engine_cls):
         config = {"max_image_size_mb": 0}
         result = scan_image(_create_test_image(), config)
         self.assertEqual(result.extracted_text, "")
         mock_engine_cls.assert_not_called()
 
-    @patch("ai_guardian.image_scanner.OCREngine")
+    @patch("ai_guardian.scanners.image_scanner.OCREngine")
     def test_scan_image_ocr_failure(self, mock_engine_cls):
         mock_engine = MagicMock()
         mock_engine_cls.return_value = mock_engine
@@ -436,8 +436,8 @@ class TestScanImage(TestCase):
         result = scan_image(_create_test_image(), config)
         self.assertEqual(result.extracted_text, "")
 
-    @patch("ai_guardian.image_scanner.QRScanner")
-    @patch("ai_guardian.image_scanner.OCREngine")
+    @patch("ai_guardian.scanners.image_scanner.QRScanner")
+    @patch("ai_guardian.scanners.image_scanner.OCREngine")
     def test_scan_image_with_qr(self, mock_engine_cls, mock_qr_cls):
         mock_engine = MagicMock()
         mock_engine_cls.return_value = mock_engine
@@ -458,9 +458,9 @@ class TestScanImage(TestCase):
 class TestQRScanner(TestCase):
     """Test QR scanner (with mocked pyzbar)."""
 
-    @patch("ai_guardian.image_scanner.HAS_PYZBAR", False)
+    @patch("ai_guardian.scanners.image_scanner.HAS_PYZBAR", False)
     def test_no_pyzbar_returns_empty(self):
-        from ai_guardian.image_scanner import QRScanner
+        from ai_guardian.scanners.image_scanner import QRScanner
 
         result = QRScanner.scan(_create_test_image())
         self.assertEqual(result, [])
@@ -469,9 +469,9 @@ class TestQRScanner(TestCase):
 class TestFaceDetector(TestCase):
     """Test face detector (with mocked opencv)."""
 
-    @patch("ai_guardian.image_scanner.HAS_OPENCV", False)
+    @patch("ai_guardian.scanners.image_scanner.HAS_OPENCV", False)
     def test_no_opencv_returns_empty(self):
-        from ai_guardian.image_scanner import FaceDetector
+        from ai_guardian.scanners.image_scanner import FaceDetector
 
         result = FaceDetector.detect_faces(_create_test_image())
         self.assertEqual(result, [])
@@ -480,10 +480,10 @@ class TestFaceDetector(TestCase):
 class TestConfigLoader(TestCase):
     """Test image scanning config loading."""
 
-    @patch("ai_guardian.config_loaders._load_config_file")
+    @patch("ai_guardian.config.loaders._load_config_file")
     def test_default_config(self, mock_load):
         mock_load.return_value = ({}, None)
-        from ai_guardian.config_loaders import _load_image_scanning_config
+        from ai_guardian.config.loaders import _load_image_scanning_config
 
         config, error = _load_image_scanning_config()
         self.assertIsNone(error)
@@ -492,13 +492,13 @@ class TestConfigLoader(TestCase):
         self.assertEqual(config["action"], "block")
         self.assertIn("secrets", config["scan_types"])
 
-    @patch("ai_guardian.config_loaders._load_config_file")
+    @patch("ai_guardian.config.loaders._load_config_file")
     def test_custom_config(self, mock_load):
         mock_load.return_value = (
             {"image_scanning": {"enabled": False, "action": "warn"}},
             None,
         )
-        from ai_guardian.config_loaders import _load_image_scanning_config
+        from ai_guardian.config.loaders import _load_image_scanning_config
 
         config, error = _load_image_scanning_config()
         self.assertIsNone(error)

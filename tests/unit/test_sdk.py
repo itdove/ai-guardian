@@ -232,11 +232,11 @@ class TestDirectSessionCheckContent:
         return_value=(False, None),
     )
     @patch(
-        "ai_guardian.prompt_injection.check_prompt_injection",
+        "ai_guardian.scanners.prompt_injection.check_prompt_injection",
         return_value=(False, None, False),
     )
     @patch(
-        "ai_guardian.context_poisoning.check_context_poisoning",
+        "ai_guardian.scanners.context_poisoning.check_context_poisoning",
         return_value=(False, None, False),
     )
     def test_clean_text(self, mock_cp, mock_pi, mock_secrets, mock_config):
@@ -269,7 +269,7 @@ class TestDirectSessionCheckContent:
 
     @patch("ai_guardian.sdk._DirectSession._ensure_config")
     @patch(
-        "ai_guardian.prompt_injection.check_prompt_injection",
+        "ai_guardian.scanners.prompt_injection.check_prompt_injection",
         return_value=(True, "Injection detected", True),
     )
     def test_prompt_injection_detected(self, mock_pi, mock_config):
@@ -331,7 +331,7 @@ class TestDirectSessionCheckFile:
         return_value=(False, None, None, None),
     )
     @patch(
-        "ai_guardian.config_scanner.check_config_file_threats",
+        "ai_guardian.scanners.config_scanner.check_config_file_threats",
         return_value=(True, "Config exfil detected", {"pattern": "cat"}),
     )
     def test_config_file_threat(self, mock_cfg, mock_dir, mock_config):
@@ -352,7 +352,7 @@ class TestDirectSessionCheckFile:
         return_value=(False, None, None, None),
     )
     @patch(
-        "ai_guardian.supply_chain.check_supply_chain_threats",
+        "ai_guardian.scanners.supply_chain.check_supply_chain_threats",
         return_value=(True, "Suspicious agent config", {"threat": "mcp"}),
     )
     def test_supply_chain_threat(self, mock_sc, mock_dir, mock_config):
@@ -377,7 +377,7 @@ class TestDirectSessionCheckFile:
 class TestDirectSessionCheckCommand:
     @patch("ai_guardian.sdk._DirectSession._ensure_config")
     @patch(
-        "ai_guardian.config_scanner.check_bash_command_threats",
+        "ai_guardian.scanners.config_scanner.check_bash_command_threats",
         return_value=(False, None, None),
     )
     def test_safe_command(self, mock_bash, mock_config):
@@ -388,7 +388,7 @@ class TestDirectSessionCheckCommand:
 
     @patch("ai_guardian.sdk._DirectSession._ensure_config")
     @patch(
-        "ai_guardian.config_scanner.check_bash_command_threats",
+        "ai_guardian.scanners.config_scanner.check_bash_command_threats",
         return_value=(True, "Config exfiltration attempt", {"cmd": "cat"}),
     )
     def test_dangerous_command(self, mock_bash, mock_config):
@@ -579,7 +579,7 @@ class TestRestSessionBlockMode:
 
 class TestConfigLoading:
     @patch(
-        "ai_guardian.config_loaders._load_config_file",
+        "ai_guardian.config.loaders._load_config_file",
         return_value=({"secret_scanning": {"enabled": False}}, None),
     )
     def test_auto_loads_config(self, mock_load):
@@ -595,7 +595,7 @@ class TestConfigLoading:
         session = _DirectSession(action="log", config=custom_config)
         assert session._config is custom_config
 
-    @patch("ai_guardian.config_loaders._load_config_file", return_value=(None, None))
+    @patch("ai_guardian.config.loaders._load_config_file", return_value=(None, None))
     def test_none_config_becomes_empty_dict(self, mock_load):
         session = _DirectSession(action="log")
         assert session._config == {}

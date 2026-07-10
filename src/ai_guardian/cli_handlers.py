@@ -11,7 +11,7 @@ import os
 import sys
 from pathlib import Path
 
-from ai_guardian.config_loaders import _load_config_file
+from ai_guardian.config.loaders import _load_config_file
 from ai_guardian.constants import ViolationType
 
 
@@ -970,7 +970,7 @@ def _handle_prompt_ask(args):
     )
 
     if violation.project_path:
-        from ai_guardian.config_utils import (
+        from ai_guardian.config.utils import (
             set_project_dir_override,
             clear_project_dir_override,
         )

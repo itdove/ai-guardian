@@ -974,7 +974,7 @@ class TestCheckPsCachePath:
         ro_dir = tmp_path / "readonly_cache"
         ro_dir.mkdir()
         ro_dir.chmod(0o444)
-        with mock.patch("ai_guardian.config_utils.get_cache_dir", return_value=ro_dir):
+        with mock.patch("ai_guardian.config.utils.get_cache_dir", return_value=ro_dir):
             doctor = Doctor()
             result = doctor.check_ps_cache_path()
         ro_dir.chmod(0o755)
@@ -985,7 +985,7 @@ class TestCheckPsCachePath:
         self._write_ps_config(_isolate_config_dir)
         missing = tmp_path / "nonexistent"
         # Clear cache-dir env vars so doctor treats the path as the default
-        with mock.patch("ai_guardian.config_utils.get_cache_dir", return_value=missing):
+        with mock.patch("ai_guardian.config.utils.get_cache_dir", return_value=missing):
             with mock.patch.dict(
                 "os.environ", {"AI_GUARDIAN_CACHE_DIR": "", "XDG_CACHE_HOME": ""}
             ):
@@ -997,7 +997,7 @@ class TestCheckPsCachePath:
     def test_missing_dir_xdg_override_fails(self, _isolate_config_dir, tmp_path):
         self._write_ps_config(_isolate_config_dir)
         missing = tmp_path / "nonexistent"
-        with mock.patch("ai_guardian.config_utils.get_cache_dir", return_value=missing):
+        with mock.patch("ai_guardian.config.utils.get_cache_dir", return_value=missing):
             with mock.patch.dict("os.environ", {"XDG_CACHE_HOME": "/custom/cache"}):
                 doctor = Doctor()
                 result = doctor.check_ps_cache_path()
@@ -1007,7 +1007,7 @@ class TestCheckPsCachePath:
     def test_missing_dir_env_override_fails(self, _isolate_config_dir, tmp_path):
         self._write_ps_config(_isolate_config_dir)
         missing = tmp_path / "nonexistent"
-        with mock.patch("ai_guardian.config_utils.get_cache_dir", return_value=missing):
+        with mock.patch("ai_guardian.config.utils.get_cache_dir", return_value=missing):
             with mock.patch.dict(
                 "os.environ", {"AI_GUARDIAN_CACHE_DIR": "/custom/cache"}
             ):
@@ -1600,7 +1600,8 @@ class TestCheckAstScanner:
             ):
                 with mock.patch("importlib.metadata.version", return_value="0.25.0"):
                     with mock.patch(
-                        "ai_guardian.ast_scanner._GRAMMAR_IMPORTS", grammar_imports
+                        "ai_guardian.scanners.ast_scanner._GRAMMAR_IMPORTS",
+                        grammar_imports,
                     ):
                         with mock.patch("importlib.import_module") as mock_import:
                             mock_import.return_value = mock.MagicMock()
@@ -1635,7 +1636,7 @@ class TestCheckAstScanner:
         with mock.patch.dict("sys.modules", {"tree_sitter": mock_ts}):
             with mock.patch("importlib.metadata.version", return_value="0.25.0"):
                 with mock.patch(
-                    "ai_guardian.ast_scanner._GRAMMAR_IMPORTS", grammar_imports
+                    "ai_guardian.scanners.ast_scanner._GRAMMAR_IMPORTS", grammar_imports
                 ):
                     with mock.patch("importlib.import_module", side_effect=ImportError):
                         doctor = Doctor()
@@ -1659,7 +1660,7 @@ class TestCheckAstScanner:
         with mock.patch.dict("sys.modules", {"tree_sitter": mock_ts}):
             with mock.patch("importlib.metadata.version", return_value="0.24.0"):
                 with mock.patch(
-                    "ai_guardian.ast_scanner._GRAMMAR_IMPORTS", grammar_imports
+                    "ai_guardian.scanners.ast_scanner._GRAMMAR_IMPORTS", grammar_imports
                 ):
                     with mock.patch(
                         "importlib.import_module", side_effect=selective_import

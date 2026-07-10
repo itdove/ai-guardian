@@ -15,7 +15,7 @@ from textual.widgets import Static, Button
 
 from textual.widgets import ContentSwitcher
 
-from ai_guardian.config_utils import get_config_dir
+from ai_guardian.config.utils import get_config_dir
 from ai_guardian.tui.widgets import format_local_time
 
 FEATURE_GROUPS = [

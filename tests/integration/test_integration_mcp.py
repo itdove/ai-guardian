@@ -367,7 +367,7 @@ class MCPPromptInjectionTests(TestCase):
         Action: Create notebook with title containing injection attempt
         Expected: BLOCKED with "Prompt Injection Detected"
         """
-        from ai_guardian.prompt_injection import check_prompt_injection
+        from ai_guardian.scanners.prompt_injection import check_prompt_injection
 
         # Action: Notebook title with prompt injection
         malicious_title = attack_constants.PROMPT_INJECTION_IGNORE_PREVIOUS
@@ -395,7 +395,7 @@ class MCPPromptInjectionTests(TestCase):
         Action: Add source with role-switching attack
         Expected: BLOCKED
         """
-        from ai_guardian.prompt_injection import check_prompt_injection
+        from ai_guardian.scanners.prompt_injection import check_prompt_injection
 
         # Action: Source with role-switching injection
         malicious_source = attack_constants.PROMPT_INJECTION_ROLE_SWITCH
@@ -420,7 +420,7 @@ class MCPPromptInjectionTests(TestCase):
         Action: Use content with delimiter escape attempt
         Expected: BLOCKED
         """
-        from ai_guardian.prompt_injection import check_prompt_injection
+        from ai_guardian.scanners.prompt_injection import check_prompt_injection
 
         # Action: Delimiter escape injection
         malicious_content = attack_constants.PROMPT_INJECTION_DELIMITER_ESCAPE
@@ -445,7 +445,7 @@ class MCPPromptInjectionTests(TestCase):
         Action: Query notebook with legitimate question
         Expected: ALLOWED
         """
-        from ai_guardian.prompt_injection import check_prompt_injection
+        from ai_guardian.scanners.prompt_injection import check_prompt_injection
 
         # Action: Legitimate query
         legitimate_query = "What are the main findings from the research?"
@@ -603,7 +603,7 @@ class MCPConfigExfiltrationTests(TestCase):
 
         Note: Config scanner only scans known config files (CLAUDE.md, AGENTS.md, etc.)
         """
-        from ai_guardian.config_scanner import check_config_file_threats
+        from ai_guardian.scanners.config_scanner import check_config_file_threats
 
         # Action: CLAUDE.md with curl env exfiltration
         malicious_text = attack_constants.EXFILTRATION_CURL_ENV
@@ -629,7 +629,7 @@ class MCPConfigExfiltrationTests(TestCase):
         Action: AGENTS.md with printenv piped to curl
         Expected: BLOCKED
         """
-        from ai_guardian.config_scanner import check_config_file_threats
+        from ai_guardian.scanners.config_scanner import check_config_file_threats
 
         # Action: AGENTS.md with credential exfiltration
         malicious_text = attack_constants.EXFILTRATION_CREDENTIALS
@@ -651,7 +651,7 @@ class MCPConfigExfiltrationTests(TestCase):
         Action: Add source discussing config files academically
         Expected: ALLOWED
         """
-        from ai_guardian.config_scanner import check_config_file_threats
+        from ai_guardian.scanners.config_scanner import check_config_file_threats
 
         # Action: Legitimate content that mentions config files
         legitimate_text = """
@@ -738,7 +738,7 @@ class MCPCombinedProtectionTests(TestCase):
         # Disable pattern server
         mock_pattern_config.return_value = None
 
-        from ai_guardian.prompt_injection import check_prompt_injection
+        from ai_guardian.scanners.prompt_injection import check_prompt_injection
 
         # Content with BOTH secret AND prompt injection
         malicious_content = f"""

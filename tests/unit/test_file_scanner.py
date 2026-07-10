@@ -318,7 +318,7 @@ class TestFileScannerImageScanning:
         self, mock_gitleaks, mock_scan_image, tmp_path
     ):
         """Image files should be discovered and OCR-scanned."""
-        from ai_guardian.image_scanner import ImageScanResult
+        from ai_guardian.scanners.image_scanner import ImageScanResult
 
         img_file = tmp_path / "screenshot.png"
         img_file.write_bytes(self.PNG_HEADER)
@@ -370,7 +370,7 @@ class TestFileScannerImageScanning:
     @mock.patch("ai_guardian.scanner.scan_image")
     def test_image_no_text_extracted_no_findings(self, mock_scan_image, tmp_path):
         """If OCR extracts no text, no findings should be produced."""
-        from ai_guardian.image_scanner import ImageScanResult
+        from ai_guardian.scanners.image_scanner import ImageScanResult
 
         img_file = tmp_path / "blank.png"
         img_file.write_bytes(self.PNG_HEADER)
@@ -407,7 +407,7 @@ class TestFileScannerImageScanning:
     @mock.patch("ai_guardian.scanner._scan_for_pii")
     def test_image_pii_detected(self, mock_pii, mock_scan_image, tmp_path):
         """PII in OCR-extracted text should produce PII findings."""
-        from ai_guardian.image_scanner import ImageScanResult
+        from ai_guardian.scanners.image_scanner import ImageScanResult
 
         img_file = tmp_path / "receipt.jpg"
         img_file.write_bytes(self.JPEG_HEADER)
@@ -441,7 +441,7 @@ class TestFileScannerImageScanning:
         self, mock_gitleaks, mock_scan_image, tmp_path
     ):
         """Findings from image files should have source_type=image_ocr in details."""
-        from ai_guardian.image_scanner import ImageScanResult
+        from ai_guardian.scanners.image_scanner import ImageScanResult
 
         img_file = tmp_path / "key.png"
         img_file.write_bytes(self.PNG_HEADER)
@@ -486,7 +486,7 @@ class TestFileScannerImageScanning:
     @mock.patch("ai_guardian.scanner.check_secrets_with_gitleaks")
     def test_mixed_text_and_image_files(self, mock_gitleaks, mock_scan_image, tmp_path):
         """Both text and image files should be scanned in the same directory."""
-        from ai_guardian.image_scanner import ImageScanResult
+        from ai_guardian.scanners.image_scanner import ImageScanResult
 
         text_file = tmp_path / "config.py"
         text_file.write_text("password = 'abc123'")

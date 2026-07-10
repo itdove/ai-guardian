@@ -2,7 +2,10 @@
 
 import pytest
 
-from ai_guardian.exfil_detection import ExfilDetectionScanner, check_exfil_threats
+from ai_guardian.scanners.exfil_detection import (
+    ExfilDetectionScanner,
+    check_exfil_threats,
+)
 
 
 class TestExfilDetectionDisabled:

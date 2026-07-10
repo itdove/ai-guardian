@@ -10,7 +10,7 @@ import logging
 from datetime import datetime
 from typing import Dict, List, Optional, Union
 
-from ai_guardian.config_utils import is_expired, validate_regex_pattern
+from ai_guardian.config.utils import is_expired, validate_regex_pattern
 
 logger = logging.getLogger(__name__)
 

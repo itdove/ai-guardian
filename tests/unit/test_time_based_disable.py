@@ -15,7 +15,7 @@ from pathlib import Path
 from unittest import mock
 
 
-from ai_guardian.config_utils import is_feature_enabled
+from ai_guardian.config.utils import is_feature_enabled
 
 FUTURE_TIME = (datetime.now(timezone.utc) + timedelta(hours=2)).isoformat()
 PAST_TIME = (datetime.now(timezone.utc) - timedelta(hours=2)).isoformat()
@@ -78,7 +78,7 @@ class TestPIITimeBased:
 
     def test_pii_redactor_disabled_until_future(self):
         """SecretRedactor should not load PII patterns when disabled_until is future."""
-        from ai_guardian.secret_redactor import SecretRedactor
+        from ai_guardian.scanners.secret_redactor import SecretRedactor
 
         pii_config = {
             "enabled": {
@@ -95,7 +95,7 @@ class TestPIITimeBased:
 
     def test_pii_redactor_disabled_until_past_reenables(self):
         """SecretRedactor should load PII patterns when disabled_until has expired."""
-        from ai_guardian.secret_redactor import SecretRedactor
+        from ai_guardian.scanners.secret_redactor import SecretRedactor
 
         pii_config = {
             "enabled": {

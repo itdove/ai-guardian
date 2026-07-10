@@ -7,7 +7,7 @@ from ai_guardian.web.components.local_time import inject_local_time_js
 
 
 def _load_local_daemon_config():
-    from ai_guardian.config_loaders import _load_config_file
+    from ai_guardian.config.loaders import _load_config_file
 
     cfg, _ = _load_config_file()
     cfg = cfg or {}
@@ -24,7 +24,7 @@ def _save_local_daemon_config(
     idle_timeout, client_timeout, tray_enabled, tray_auto_install
 ):
     import json
-    from ai_guardian.config_utils import get_config_dir
+    from ai_guardian.config.utils import get_config_dir
 
     config_path = get_config_dir() / "ai-guardian.json"
     if config_path.exists():

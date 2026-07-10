@@ -36,7 +36,7 @@ class TestConfigCache(unittest.TestCase):
             config_file.write_text(json.dumps({"secret_scanning": {"enabled": True}}))
 
             with patch(
-                "ai_guardian.config_loaders.get_config_dir",
+                "ai_guardian.config.loaders.get_config_dir",
                 return_value=Path("/nonexistent"),
             ):
                 old_cwd = os.getcwd()
@@ -57,7 +57,7 @@ class TestConfigCache(unittest.TestCase):
             config_file.write_text(json.dumps({"secret_scanning": {"enabled": True}}))
 
             with patch(
-                "ai_guardian.config_loaders.get_config_dir",
+                "ai_guardian.config.loaders.get_config_dir",
                 return_value=Path("/nonexistent"),
             ):
                 old_cwd = os.getcwd()
@@ -87,7 +87,7 @@ class TestConfigCache(unittest.TestCase):
             config_file.write_text(json.dumps({"key": "value1"}))
 
             with patch(
-                "ai_guardian.config_loaders.get_config_dir",
+                "ai_guardian.config.loaders.get_config_dir",
                 return_value=Path("/nonexistent"),
             ):
                 old_cwd = os.getcwd()
@@ -107,7 +107,7 @@ class TestConfigCache(unittest.TestCase):
         """When no config file exists, (None, None) is cached."""
         with tempfile.TemporaryDirectory() as tmpdir:
             with patch(
-                "ai_guardian.config_loaders.get_config_dir",
+                "ai_guardian.config.loaders.get_config_dir",
                 return_value=Path("/nonexistent"),
             ):
                 old_cwd = os.getcwd()
@@ -128,7 +128,7 @@ class TestConfigCache(unittest.TestCase):
             config_file.write_text("{bad json")
 
             with patch(
-                "ai_guardian.config_loaders.get_config_dir",
+                "ai_guardian.config.loaders.get_config_dir",
                 return_value=Path("/nonexistent"),
             ):
                 old_cwd = os.getcwd()
@@ -154,7 +154,7 @@ class TestConfigCache(unittest.TestCase):
             config_file.write_text(json.dumps(config_data))
 
             with patch(
-                "ai_guardian.config_loaders.get_config_dir",
+                "ai_guardian.config.loaders.get_config_dir",
                 return_value=Path("/nonexistent"),
             ):
                 old_cwd = os.getcwd()
@@ -192,7 +192,7 @@ class TestConfigCache(unittest.TestCase):
             config_file.write_text(json.dumps(config_data))
 
             with patch(
-                "ai_guardian.config_loaders.get_config_dir",
+                "ai_guardian.config.loaders.get_config_dir",
                 return_value=Path("/nonexistent"),
             ):
                 old_cwd = os.getcwd()

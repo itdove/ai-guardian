@@ -3,9 +3,9 @@
 import logging
 from typing import Dict, Optional
 
-from ai_guardian.config_utils import get_project_dir, is_feature_enabled
+from ai_guardian.config.utils import get_project_dir, is_feature_enabled
 from ai_guardian.constants import ActionMode, ViolationType, HookEvent
-from ai_guardian.scan_result import ScanResult
+from ai_guardian.scanners.scan_result import ScanResult
 from ai_guardian.transcript_scanning import _advance_transcript_position
 
 from ai_guardian.ask_mode import (
@@ -692,7 +692,7 @@ def handle_post_tool_use(ctx=None, **kwargs):
             logging.info(f"Secret redaction enabled with action={action}")
 
             try:
-                from ai_guardian.secret_redactor import SecretRedactor
+                from ai_guardian.scanners.secret_redactor import SecretRedactor
 
                 # Also load PII config so secrets+PII are handled in one pass
                 pii_config_for_redactor, _ = _load_pii_config()

@@ -234,7 +234,7 @@ def _run_session_start_event(
     import tempfile
     from pathlib import Path as _Path
 
-    from ai_guardian.config_utils import (
+    from ai_guardian.config.utils import (
         clear_project_dir_override,
         set_project_dir_override,
     )

@@ -54,14 +54,14 @@ except ImportError:
     HAS_SCANNER_ENGINE = False
 
 try:
-    from ai_guardian.ast_scanner import extract_scannable_content
+    from ai_guardian.scanners.ast_scanner import extract_scannable_content
 
     HAS_AST_SCANNER = True
 except ImportError:
     HAS_AST_SCANNER = False
 
-from ai_guardian.config_utils import get_project_dir
-from ai_guardian.config_loaders import (
+from ai_guardian.config.utils import get_project_dir
+from ai_guardian.config.loaders import (
     _load_secret_redaction_config,
     _load_pattern_server_config,
     _load_secret_scanning_config,

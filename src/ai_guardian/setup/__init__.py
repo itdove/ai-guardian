@@ -14,33 +14,33 @@ import sys
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from ai_guardian.config_utils import get_cache_dir, get_config_dir
+from ai_guardian.config.utils import get_cache_dir, get_config_dir
 
 # --- Canonical imports used by orchestrator functions ---
 
-from ai_guardian.setup_utils import (
+from ai_guardian.setup.utils import (
     _notify_daemon_reload,
     _resolve_binary_path,
     _strip_deprecated_config_keys,
 )
-from ai_guardian.setup_config import (
+from ai_guardian.setup.config import (
     create_default_config,
     _get_default_config_template,
 )
-from ai_guardian.setup_hooks import (
+from ai_guardian.setup.hooks import (
     IDESetup,
     _auto_install_hook,
     install_precommit_hooks,
     uninstall_precommit_hooks,
 )
-from ai_guardian.setup_mcp import (
+from ai_guardian.setup.mcp import (
     _MCP_IDE_CONFIGS,
     _MCP_SERVER_ENTRY,
     _handle_mcp_setup,
     _install_mcp_config,
     _remove_mcp_config,
 )
-from ai_guardian.setup_rules import (
+from ai_guardian.setup.rules import (
     _RULES_IDE_CONFIGS,
     _RULES_FILE_CONTENT,
     _handle_rules_setup,
@@ -50,7 +50,7 @@ from ai_guardian.setup_rules import (
 # These symbols are imported by tests and other modules via
 # ``from ai_guardian.setup import X``.
 
-from ai_guardian.setup_utils import (  # noqa: F811,F401
+from ai_guardian.setup.utils import (  # noqa: F811,F401
     _create_vbs_wrapper,
     _is_ai_guardian_command,
     _strip_jsonc_comments,
@@ -58,7 +58,7 @@ from ai_guardian.setup_utils import (  # noqa: F811,F401
     _upgrade_ide_flag,
     _walk_commands,
 )
-from ai_guardian.setup_hooks import (  # noqa: F811,F401
+from ai_guardian.setup.hooks import (  # noqa: F811,F401
     _AIDERDESK_EXTENSION_TS,
     _AIDERDESK_PACKAGE_JSON,
     _OPENCODE_PLUGIN_TS,

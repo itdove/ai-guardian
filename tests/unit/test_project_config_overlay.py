@@ -16,7 +16,7 @@ from pathlib import Path
 from unittest import mock
 
 
-from ai_guardian.config_utils import (
+from ai_guardian.config.utils import (
     GLOBAL_ONLY_SECTIONS,
     deep_merge,
     get_project_config_path,
@@ -27,7 +27,7 @@ from ai_guardian.config_utils import (
     set_project_dir_override,
     clear_project_dir_override,
 )
-from ai_guardian.config_loaders import (
+from ai_guardian.config.loaders import (
     _clear_config_cache,
     _dedup_config_lists,
     _load_config_file,
@@ -1102,7 +1102,7 @@ class TestTightenOnlyMerge:
             }
         }
         override = {"secret_scanning": {"action": "warn"}}
-        with caplog.at_level(logging.WARNING, logger="ai_guardian.config_utils"):
+        with caplog.at_level(logging.WARNING, logger="ai_guardian.config.utils"):
             result = deep_merge(base, override, global_only_sections=frozenset())
         assert result["secret_scanning"]["action"] == "block"
         assert any("cannot be loosened" in msg for msg in caplog.messages)

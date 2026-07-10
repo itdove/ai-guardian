@@ -11,7 +11,7 @@ import logging
 import re
 from typing import Any, Dict, List, Optional, Tuple
 
-from ai_guardian.config_utils import is_feature_enabled
+from ai_guardian.config.utils import is_feature_enabled
 
 logger = logging.getLogger(__name__)
 

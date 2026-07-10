@@ -58,7 +58,7 @@ def _prepare_icon(size=256):
 
     Returns the path to the cached icon, or None if the source icon is missing.
     """
-    from ai_guardian.config_utils import get_state_dir
+    from ai_guardian.config.utils import get_state_dir
 
     state_dir = get_state_dir()
     cached = state_dir / f"icon-{size}.png"
@@ -89,7 +89,7 @@ def _prepare_icon(size=256):
 
 def _prepare_ico():
     """Generate a .ico file for Windows from the cached PNG icon."""
-    from ai_guardian.config_utils import get_state_dir
+    from ai_guardian.config.utils import get_state_dir
 
     state_dir = get_state_dir()
     ico_path = state_dir / "icon.ico"

@@ -13,7 +13,7 @@ from textual.containers import Vertical, Horizontal
 from textual.widgets import Static, Select, Button, Label, Input
 from textual.reactive import reactive
 
-from ai_guardian.config_utils import get_config_dir
+from ai_guardian.config.utils import get_config_dir
 from ai_guardian.tui.schema_defaults import SchemaDefaults
 
 logger = logging.getLogger(__name__)

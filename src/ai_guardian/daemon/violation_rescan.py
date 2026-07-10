@@ -69,7 +69,7 @@ def rescan_violation(
 
 def _load_config() -> Dict:
     try:
-        from ai_guardian.config_loaders import _load_config_file
+        from ai_guardian.config.loaders import _load_config_file
 
         cfg, _ = _load_config_file()
         return cfg or {}
@@ -174,7 +174,7 @@ def _scan_pii(content, file_path, line_number, sub_type, config):
 def _scan_prompt_injection(content, file_path, line_number, sub_type, config):
     """Rescan for prompt injection near line_number."""
     try:
-        from ai_guardian.prompt_injection import check_prompt_injection
+        from ai_guardian.scanners.prompt_injection import check_prompt_injection
     except ImportError:
         return {"status": "not_found", "message": "Injection scanner not available"}
 
@@ -199,7 +199,7 @@ def _scan_prompt_injection(content, file_path, line_number, sub_type, config):
 def _scan_context_poisoning(content, file_path, line_number, sub_type, config):
     """Rescan for context poisoning."""
     try:
-        from ai_guardian.context_poisoning import check_context_poisoning
+        from ai_guardian.scanners.context_poisoning import check_context_poisoning
     except ImportError:
         return {
             "status": "not_found",
@@ -226,7 +226,7 @@ def _scan_context_poisoning(content, file_path, line_number, sub_type, config):
 def _scan_config_exfil(content, file_path, line_number, sub_type, config):
     """Rescan for config file exfiltration."""
     try:
-        from ai_guardian.config_scanner import ConfigFileScanner
+        from ai_guardian.scanners.config_scanner import ConfigFileScanner
     except ImportError:
         return {"status": "not_found", "message": "Config scanner not available"}
 

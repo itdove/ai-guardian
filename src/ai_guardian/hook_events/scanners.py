@@ -5,9 +5,9 @@ import logging
 import os
 from datetime import datetime, timezone
 
-from ai_guardian.config_utils import is_feature_enabled
+from ai_guardian.config.utils import is_feature_enabled
 from ai_guardian.constants import HookEvent
-from ai_guardian.scan_result import ScanResult
+from ai_guardian.scanners.scan_result import ScanResult
 
 import ai_guardian.secret_scanning as _secret_scanning_mod
 
@@ -63,7 +63,7 @@ def check_secrets_with_gitleaks(*args, **kwargs):
 # --- Conditional imports for scanner modules ---
 
 try:
-    from ai_guardian.prompt_injection import (
+    from ai_guardian.scanners.prompt_injection import (
         check_prompt_injection,
         PromptInjectionDetector,
     )
@@ -73,14 +73,14 @@ except ImportError:
     HAS_PROMPT_INJECTION = False
 
 try:
-    from ai_guardian.context_poisoning import ContextPoisoningDetector
+    from ai_guardian.scanners.context_poisoning import ContextPoisoningDetector
 
     HAS_CONTEXT_POISONING = True
 except ImportError:
     HAS_CONTEXT_POISONING = False
 
 try:
-    from ai_guardian.config_scanner import (
+    from ai_guardian.scanners.config_scanner import (
         check_config_file_threats,
         check_bash_command_threats,
     )
@@ -90,35 +90,39 @@ except ImportError:
     HAS_CONFIG_SCANNER = False
 
 try:
-    from ai_guardian.supply_chain import SupplyChainScanner
+    from ai_guardian.scanners.supply_chain import SupplyChainScanner
 
     HAS_SUPPLY_CHAIN = True
 except ImportError:
     HAS_SUPPLY_CHAIN = False
 
 try:
-    from ai_guardian.offensive_language import OffensiveLanguageScanner
+    from ai_guardian.scanners.offensive_language import OffensiveLanguageScanner
 
     HAS_OFFENSIVE_LANGUAGE = True
 except ImportError:
     HAS_OFFENSIVE_LANGUAGE = False
 
 try:
-    from ai_guardian.canary_detection import CanaryTokenScanner
+    from ai_guardian.scanners.canary_detection import CanaryTokenScanner
 
     HAS_CANARY_DETECTION = True
 except ImportError:
     HAS_CANARY_DETECTION = False
 
 try:
-    from ai_guardian.exfil_detection import ExfilDetectionScanner
+    from ai_guardian.scanners.exfil_detection import ExfilDetectionScanner
 
     HAS_EXFIL_DETECTION = True
 except ImportError:
     HAS_EXFIL_DETECTION = False
 
 try:
-    from ai_guardian.image_scanner import ImageDetector, scan_image, ImageRedactor
+    from ai_guardian.scanners.image_scanner import (
+        ImageDetector,
+        scan_image,
+        ImageRedactor,
+    )
 
     HAS_IMAGE_SCANNER = True
 except ImportError:
@@ -494,7 +498,7 @@ def run_code_security_scan(
 
     if config is None:
         try:
-            from ai_guardian.config_loaders import _load_code_scanning_config
+            from ai_guardian.config.loaders import _load_code_scanning_config
 
             config, config_error = _load_code_scanning_config()
             if config_error:
@@ -505,7 +509,7 @@ def run_code_security_scan(
     if not config or not is_feature_enabled(config.get("enabled"), default=True):
         return None
 
-    from ai_guardian.bandit_scanner import BanditScanner
+    from ai_guardian.scanners.bandit_scanner import BanditScanner
 
     scanner = BanditScanner(config)
 

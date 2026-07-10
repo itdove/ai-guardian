@@ -380,8 +380,8 @@ class MultiDaemonClient:
 
     @staticmethod
     def _local_config() -> dict:
-        from ai_guardian.config_loaders import _load_config_file
-        from ai_guardian.config_utils import get_feature_flags, is_feature_enabled
+        from ai_guardian.config.loaders import _load_config_file
+        from ai_guardian.config.utils import get_feature_flags, is_feature_enabled
 
         cfg, _ = _load_config_file()
         if not cfg:
@@ -433,7 +433,7 @@ class MultiDaemonClient:
     ) -> Optional[dict]:
         """Get config for a specific scope."""
         if target.runtime == "local":
-            from ai_guardian.config_writer import load_scoped_config
+            from ai_guardian.config.writer import load_scoped_config
 
             return load_scoped_config(scope, project_dir)
         params = f"?scope={scope}"
@@ -448,7 +448,7 @@ class MultiDaemonClient:
     ) -> Optional[dict]:
         """Get per-key provenance information."""
         if target.runtime == "local":
-            from ai_guardian.config_writer import compute_provenance
+            from ai_guardian.config.writer import compute_provenance
 
             return compute_provenance(project_dir)
         params = f"?project_dir={project_dir}" if project_dir else ""
@@ -465,7 +465,7 @@ class MultiDaemonClient:
     ) -> Optional[dict]:
         """Write a config value to the specified scope."""
         if target.runtime == "local":
-            from ai_guardian.config_writer import write_scoped_config
+            from ai_guardian.config.writer import write_scoped_config
 
             success, msg = write_scoped_config(scope, section, key, value, project_dir)
             return {"status": "ok" if success else "error", "message": msg}
@@ -485,7 +485,7 @@ class MultiDaemonClient:
     ) -> Optional[dict]:
         """Delete a project config override."""
         if target.runtime == "local":
-            from ai_guardian.config_writer import delete_project_override
+            from ai_guardian.config.writer import delete_project_override
 
             success, msg = delete_project_override(section, key, project_dir)
             return {"status": "ok" if success else "error", "message": msg}
@@ -505,7 +505,7 @@ class MultiDaemonClient:
     ) -> Optional[dict]:
         """Write an entire config dict to the specified scope."""
         if target.runtime == "local":
-            from ai_guardian.config_writer import (
+            from ai_guardian.config.writer import (
                 _resolve_config_path,
                 _atomic_config_update,
             )
@@ -533,7 +533,7 @@ class MultiDaemonClient:
     @staticmethod
     def _local_cache_status() -> dict:
         import time as _time
-        from ai_guardian.config_loaders import _caches
+        from ai_guardian.config.loaders import _caches
 
         now = _time.monotonic()
         projects = []
@@ -760,7 +760,7 @@ class MultiDaemonClient:
     @staticmethod
     def _local_logs(limit: int = 500, level: str = "INFO") -> dict:
         from pathlib import Path as _Path
-        from ai_guardian.config_utils import get_state_dir
+        from ai_guardian.config.utils import get_state_dir
 
         log_path = get_state_dir() / "ai-guardian.log"
         if not log_path.exists():
@@ -903,7 +903,7 @@ class MultiDaemonClient:
 
     @staticmethod
     def _local_refresh_pattern_cache() -> dict:
-        from ai_guardian.config_loaders import _load_pattern_server_config
+        from ai_guardian.config.loaders import _load_pattern_server_config
         from ai_guardian.pattern_server import PatternServerClient
 
         config = _load_pattern_server_config()

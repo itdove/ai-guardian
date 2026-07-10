@@ -19,9 +19,12 @@ import threading
 from datetime import datetime, timezone
 from typing import Dict, Any, List, Optional, Tuple
 
-from ai_guardian.config_utils import is_expired, validate_regex_pattern
+from ai_guardian.config.utils import is_expired, validate_regex_pattern
 from ai_guardian.patterns import load_bundled_rules
-from ai_guardian.prompt_injection import _offset_to_line_number, _offset_to_column
+from ai_guardian.scanners.prompt_injection import (
+    _offset_to_line_number,
+    _offset_to_column,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -106,7 +109,7 @@ class ContextPoisoningDetector:
         config = config or {}
         self.enabled = config.get("enabled", True)
         if isinstance(self.enabled, dict):
-            from ai_guardian.config_utils import is_feature_enabled
+            from ai_guardian.config.utils import is_feature_enabled
 
             now = datetime.now(timezone.utc)
             self.enabled = is_feature_enabled(self.enabled, now, default=True)

@@ -2,7 +2,7 @@
 
 from unittest.mock import patch, MagicMock
 
-from ai_guardian.prompt_injection import (
+from ai_guardian.scanners.prompt_injection import (
     _offset_to_line_number,
     _offset_to_column,
     PromptInjectionDetector,

@@ -15,7 +15,7 @@ from urllib.parse import urlparse
 
 from pathlib import Path
 
-from ai_guardian.config_utils import validate_regex_pattern
+from ai_guardian.config.utils import validate_regex_pattern
 from ai_guardian.allowlist_utils import DANGEROUS_PATTERNS
 
 PATTERN_TYPES = {
@@ -156,7 +156,7 @@ def validate_pattern(
 
 def _permission_rule_from_pattern(pattern: str) -> dict:
     """Build a permission allow rule dict from a pattern string."""
-    from ai_guardian.config_writer import _parse_permission_pattern
+    from ai_guardian.config.writer import _parse_permission_pattern
 
     matcher, rule_patterns = _parse_permission_pattern(pattern)
     return {"mode": "allow", "matcher": matcher, "patterns": rule_patterns}
@@ -208,7 +208,7 @@ def get_config_scope_options() -> list:
     Always includes global config. Includes project config when one exists
     or when a project directory is known (config will be created on save).
     """
-    from ai_guardian.config_utils import (
+    from ai_guardian.config.utils import (
         get_config_dir,
         get_project_config_path,
         get_project_dir,
@@ -242,7 +242,7 @@ def prepare_config_with_pattern(
     Returns:
         (formatted_json_string, 1-based_line_number_of_inserted_pattern)
     """
-    from ai_guardian.config_utils import get_config_dir
+    from ai_guardian.config.utils import get_config_dir
 
     resolved = (
         Path(config_path) if config_path else get_config_dir() / "ai-guardian.json"

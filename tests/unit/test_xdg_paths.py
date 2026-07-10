@@ -12,7 +12,7 @@ from unittest import mock
 
 import pytest
 
-from ai_guardian.config_utils import (
+from ai_guardian.config.utils import (
     get_cache_dir,
     get_config_dir,
     get_state_dir,
@@ -113,7 +113,7 @@ class TestGetCacheDir:
 class TestWindowsPaths:
     """Tests for Windows-native default paths (Issue #873)."""
 
-    @mock.patch("ai_guardian.config_utils.platform.system", return_value="Windows")
+    @mock.patch("ai_guardian.config.utils.platform.system", return_value="Windows")
     def test_config_dir_uses_appdata(self, _mock_sys, tmp_path):
         appdata = str(tmp_path / "AppData" / "Roaming")
         with mock.patch.dict(os.environ, {"APPDATA": appdata}, clear=False):
@@ -122,7 +122,7 @@ class TestWindowsPaths:
             result = get_config_dir()
         assert result == Path(appdata) / "ai-guardian"
 
-    @mock.patch("ai_guardian.config_utils.platform.system", return_value="Windows")
+    @mock.patch("ai_guardian.config.utils.platform.system", return_value="Windows")
     def test_state_dir_uses_localappdata(self, _mock_sys, tmp_path):
         localappdata = str(tmp_path / "AppData" / "Local")
         with mock.patch.dict(os.environ, {"LOCALAPPDATA": localappdata}, clear=False):
@@ -131,7 +131,7 @@ class TestWindowsPaths:
             result = get_state_dir()
         assert result == Path(localappdata) / "ai-guardian" / "state"
 
-    @mock.patch("ai_guardian.config_utils.platform.system", return_value="Windows")
+    @mock.patch("ai_guardian.config.utils.platform.system", return_value="Windows")
     def test_cache_dir_uses_localappdata(self, _mock_sys, tmp_path):
         localappdata = str(tmp_path / "AppData" / "Local")
         with mock.patch.dict(os.environ, {"LOCALAPPDATA": localappdata}, clear=False):
@@ -140,7 +140,7 @@ class TestWindowsPaths:
             result = get_cache_dir()
         assert result == Path(localappdata) / "ai-guardian" / "cache"
 
-    @mock.patch("ai_guardian.config_utils.platform.system", return_value="Windows")
+    @mock.patch("ai_guardian.config.utils.platform.system", return_value="Windows")
     def test_env_override_takes_precedence_on_windows(self, _mock_sys, tmp_path):
         custom = str(tmp_path / "custom")
         with mock.patch.dict(
@@ -149,7 +149,7 @@ class TestWindowsPaths:
             result = get_config_dir()
         assert result == Path(custom)
 
-    @mock.patch("ai_guardian.config_utils.platform.system", return_value="Windows")
+    @mock.patch("ai_guardian.config.utils.platform.system", return_value="Windows")
     def test_config_dir_fallback_without_appdata(self, _mock_sys, tmp_path):
         with mock.patch.dict(os.environ, {}, clear=False):
             os.environ.pop("AI_GUARDIAN_CONFIG_DIR", None)
@@ -158,7 +158,7 @@ class TestWindowsPaths:
             result = get_config_dir()
         assert result == Path.home() / "AppData" / "Roaming" / "ai-guardian"
 
-    @mock.patch("ai_guardian.config_utils.platform.system", return_value="Windows")
+    @mock.patch("ai_guardian.config.utils.platform.system", return_value="Windows")
     def test_state_dir_fallback_without_localappdata(self, _mock_sys, tmp_path):
         with mock.patch.dict(os.environ, {}, clear=False):
             os.environ.pop("AI_GUARDIAN_STATE_DIR", None)

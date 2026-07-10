@@ -17,7 +17,7 @@ from textual.binding import Binding
 
 from rich.markup import escape
 
-from ai_guardian.config_utils import get_state_dir
+from ai_guardian.config.utils import get_state_dir
 
 
 class ConfirmClearModal(ModalScreen):

@@ -237,7 +237,7 @@ class MCPUserExperienceContractTests(TestCase):
         This is CORRECT behavior - prompt injection attempts should be blocked
         to prevent manipulation of AI behavior or context poisoning.
         """
-        from ai_guardian.prompt_injection import check_prompt_injection
+        from ai_guardian.scanners.prompt_injection import check_prompt_injection
 
         # Malicious notebook title with prompt injection
         malicious_title = attack_constants.PROMPT_INJECTION_IGNORE_PREVIOUS
@@ -357,7 +357,7 @@ class MCPUserExperienceContractTests(TestCase):
         # Disable pattern server
         mock_pattern_config.return_value = None
 
-        from ai_guardian.prompt_injection import check_prompt_injection
+        from ai_guardian.scanners.prompt_injection import check_prompt_injection
         from ai_guardian.tool_policy import ToolPolicyChecker
 
         # Scenario A: MCP operation with prompt injection

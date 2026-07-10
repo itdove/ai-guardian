@@ -37,7 +37,7 @@ _active_bundles: Dict[str, Dict[str, Any]] = {}
 
 def _get_support_config() -> Dict:
     """Load support config from ai-guardian.json."""
-    from ai_guardian.config_utils import get_config_dir
+    from ai_guardian.config.utils import get_config_dir
 
     config_path = get_config_dir() / "ai-guardian.json"
     if not config_path.exists():
@@ -137,7 +137,7 @@ def _get_system_info() -> Dict:
 
 def _get_sanitized_log() -> tuple:
     """Get sanitized full ai-guardian log. Returns (text, redaction_count)."""
-    from ai_guardian.config_utils import get_state_dir
+    from ai_guardian.config.utils import get_state_dir
 
     log_path = get_state_dir() / "ai-guardian.log"
     if not log_path.exists():
@@ -174,7 +174,7 @@ def prepare_bundle(
     support_config = _get_support_config()
     destination = support_config.get("export_destination", "")
     if not destination:
-        from ai_guardian.config_utils import get_state_dir
+        from ai_guardian.config.utils import get_state_dir
 
         destination = str(get_state_dir() / "support-bundles")
     ttl = support_config.get("bundle_ttl_minutes", 30)
@@ -189,7 +189,7 @@ def prepare_bundle(
 
     # 1. Config (sanitized)
     try:
-        from ai_guardian.config_utils import get_config_dir
+        from ai_guardian.config.utils import get_config_dir
 
         config_path = get_config_dir() / "ai-guardian.json"
         if config_path.exists():
@@ -214,7 +214,7 @@ def prepare_bundle(
 
     # 1b. Project config (sanitized) — Issue #594
     try:
-        from ai_guardian.config_utils import get_project_config_path
+        from ai_guardian.config.utils import get_project_config_path
 
         project_path = get_project_config_path()
         if project_path and project_path.exists():
@@ -351,7 +351,7 @@ def prepare_bundle(
 
     # 7. Session state (injection tracking)
     try:
-        from ai_guardian.config_utils import get_state_dir
+        from ai_guardian.config.utils import get_state_dir
         from ai_guardian.session_state import STATE_FILENAME
 
         state_path = get_state_dir() / STATE_FILENAME
@@ -405,7 +405,7 @@ def prepare_bundle(
 def _persist_bundle_ref(bundle_id: str, bundle_info: Dict) -> None:
     """Write last-prepared bundle reference to state dir for cross-process use."""
     try:
-        from ai_guardian.config_utils import get_state_dir
+        from ai_guardian.config.utils import get_state_dir
 
         state_dir = get_state_dir()
         state_dir.mkdir(parents=True, exist_ok=True)
@@ -433,7 +433,7 @@ def _load_last_bundle() -> Optional[str]:
     Returns bundle_id if found and still valid, None otherwise.
     """
     try:
-        from ai_guardian.config_utils import get_state_dir
+        from ai_guardian.config.utils import get_state_dir
 
         ref_path = get_state_dir() / "last-support-bundle.json"
         if not ref_path.exists():
@@ -485,7 +485,7 @@ def _load_bundle_from_path(bundle_path: str) -> Optional[str]:
     support_config = _get_support_config()
     destination = support_config.get("export_destination", "")
     if not destination:
-        from ai_guardian.config_utils import get_state_dir
+        from ai_guardian.config.utils import get_state_dir
 
         destination = str(get_state_dir() / "support-bundles")
 
@@ -510,7 +510,7 @@ def _get_bundle_status() -> Dict[str, Any]:
     destination = support_config.get("export_destination", "")
 
     if not destination:
-        from ai_guardian.config_utils import get_state_dir
+        from ai_guardian.config.utils import get_state_dir
 
         destination = str(get_state_dir() / "support-bundles")
 

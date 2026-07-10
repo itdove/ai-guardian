@@ -15,7 +15,7 @@ from textual.widgets import Button, Static, Input, Select, Label
 from textual.screen import ModalScreen
 from textual.binding import Binding
 
-from ai_guardian.config_utils import get_config_dir
+from ai_guardian.config.utils import get_config_dir
 
 
 class MCPPermissionCard(Container):

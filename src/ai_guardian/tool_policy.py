@@ -31,13 +31,13 @@ except ImportError:
     Draft7Validator = None
     JsonSchemaValidationError = None
 
-from ai_guardian.config_utils import (
+from ai_guardian.config.utils import (
     get_config_dir,
     get_project_config_path,
     is_expired,
     is_feature_enabled,
 )
-from ai_guardian.config_loaders import _load_json_config
+from ai_guardian.config.loaders import _load_json_config
 from ai_guardian.constants import ViolationType
 from ai_guardian.tool_patterns import (
     IMMUTABLE_DENY_PATTERNS,
@@ -67,7 +67,7 @@ except ImportError:
 
 # Import config exfiltration scanner
 try:
-    from ai_guardian.config_scanner import ConfigFileScanner
+    from ai_guardian.scanners.config_scanner import ConfigFileScanner
 
     HAS_CONFIG_SCANNER = True
 except ImportError:
