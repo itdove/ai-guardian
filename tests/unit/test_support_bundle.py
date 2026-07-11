@@ -56,10 +56,9 @@ class TestSanitizeConfig:
         assert sanitized["enabled"] is True
 
     def test_preserves_non_sensitive(self):
-        config = {"secret_scanning": {"enabled": True, "action": "block"}}
+        config = {"secret_scanning": {"enabled": True}}
         sanitized, count = _sanitize_config(config)
         assert sanitized["secret_scanning"]["enabled"] is True
-        assert sanitized["secret_scanning"]["action"] == "block"
         assert count == 0
 
 

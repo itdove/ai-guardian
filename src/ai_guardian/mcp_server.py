@@ -427,7 +427,6 @@ def create_server() -> "FastMCP":
             )
 
             scanner_action_keys = [
-                "secret_scanning",
                 "secret_redaction",
                 "scan_pii",
                 "prompt_injection",

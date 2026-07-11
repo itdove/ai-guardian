@@ -1421,7 +1421,6 @@ class Doctor:
 
         ask_sections = []
         for section in (
-            "secret_scanning",
             "scan_pii",
             "prompt_injection",
             "context_poisoning",

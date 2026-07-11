@@ -70,7 +70,6 @@ class TestComputeDetailedProvenance:
             result = compute_detailed_provenance()
 
         assert result["secret_scanning"]["enabled"] == "global"
-        assert result["secret_scanning"]["action"] == "global"
         assert isinstance(result["secret_scanning"]["engines"], list)
         assert result["secret_scanning"]["engines"][0]["source"] == "global"
         assert result["prompt_injection"]["enabled"] == "global"
@@ -143,8 +142,8 @@ class TestFormatProvenanceText:
     def test_basic_rendering(self):
         from ai_guardian.config.writer import format_provenance_text
 
-        config = {"secret_scanning": {"enabled": True, "action": "ask"}}
-        provenance = {"secret_scanning": {"enabled": "global", "action": "project"}}
+        config = {"secret_scanning": {"enabled": True}, "ssrf_protection": {"action": "warn"}}
+        provenance = {"secret_scanning": {"enabled": "global"}, "ssrf_protection": {"action": "project"}}
 
         text = format_provenance_text(config, provenance)
 
@@ -192,9 +191,9 @@ class TestFormatDiffText:
     def test_shows_only_project_overrides(self):
         from ai_guardian.config.writer import format_diff_text
 
-        project_cfg = {"secret_scanning": {"action": "ask"}}
+        project_cfg = {"ssrf_protection": {"action": "warn"}}
         provenance = {
-            "secret_scanning": {
+            "ssrf_protection": {
                 "enabled": "global",
                 "action": "project",
             }
@@ -202,7 +201,7 @@ class TestFormatDiffText:
 
         text = format_diff_text(project_cfg, provenance)
         assert "action" in text
-        assert "ask" in text
+        assert "warn" in text
 
     def test_empty_when_no_overrides(self):
         from ai_guardian.config.writer import format_diff_text

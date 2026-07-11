@@ -38,7 +38,6 @@ class TestConfigFieldHelp:
 
     def test_nested_section_field_keys_present(self):
         expected_nested = [
-            "secret_scanning.action",
             "secret_scanning.entropy",
             "secret_scanning.stopwords",
             "secret_scanning.validate_secrets",
@@ -67,9 +66,8 @@ class TestConfigFieldHelp:
         assert "allow" in text.lower() or "fail-open" in text.lower()
         assert "block" in text.lower() or "fail-closed" in text.lower()
 
-    def test_secret_scanning_action_text_mentions_block(self):
-        text = CONFIG_FIELD_HELP.get("secret_scanning.action", "")
-        assert "block" in text.lower()
+    def test_secret_scanning_action_key_absent(self):
+        assert "secret_scanning.action" not in CONFIG_FIELD_HELP
 
 
 nicegui = pytest.importorskip(

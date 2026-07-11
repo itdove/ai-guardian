@@ -15,11 +15,11 @@ class TestWriteScopedConfig:
             from ai_guardian.config.writer import write_scoped_config
 
             success, msg = write_scoped_config(
-                "global", "secret_scanning", "action", "ask"
+                "global", "ssrf_protection", "action", "ask"
             )
             assert success
             cfg = json.loads((config_dir / "ai-guardian.json").read_text())
-            assert cfg["secret_scanning"]["action"] == "ask"
+            assert cfg["ssrf_protection"]["action"] == "ask"
 
     def test_project_write(self, tmp_path):
         project_dir = tmp_path / "project"
@@ -28,7 +28,7 @@ class TestWriteScopedConfig:
 
         success, msg = write_scoped_config(
             "project",
-            "secret_scanning",
+            "ssrf_protection",
             "action",
             "warn",
             project_dir=str(project_dir),
@@ -37,7 +37,7 @@ class TestWriteScopedConfig:
         cfg_path = project_dir / ".ai-guardian" / "ai-guardian.json"
         assert cfg_path.exists()
         cfg = json.loads(cfg_path.read_text())
-        assert cfg["secret_scanning"]["action"] == "warn"
+        assert cfg["ssrf_protection"]["action"] == "warn"
 
     def test_project_stores_only_override(self, tmp_path):
         project_dir = tmp_path / "project"
@@ -46,7 +46,7 @@ class TestWriteScopedConfig:
 
         write_scoped_config(
             "project",
-            "secret_scanning",
+            "ssrf_protection",
             "action",
             "ask",
             project_dir=str(project_dir),
@@ -54,7 +54,7 @@ class TestWriteScopedConfig:
         cfg = json.loads(
             (project_dir / ".ai-guardian" / "ai-guardian.json").read_text()
         )
-        assert cfg == {"secret_scanning": {"action": "ask"}}
+        assert cfg == {"ssrf_protection": {"action": "ask"}}
 
     def test_rejects_global_only_sections(self, tmp_path):
         project_dir = tmp_path / "project"
@@ -110,7 +110,7 @@ class TestDeleteProjectOverride:
         ai_dir.mkdir(parents=True)
         cfg_path = ai_dir / "ai-guardian.json"
         cfg_path.write_text(
-            json.dumps({"secret_scanning": {"action": "ask", "enabled": True}})
+            json.dumps({"ssrf_protection": {"action": "ask", "enabled": True}})
         )
 
         with mock.patch(
@@ -119,11 +119,11 @@ class TestDeleteProjectOverride:
         ):
             from ai_guardian.config.writer import delete_project_override
 
-            success, msg = delete_project_override("secret_scanning", "action")
+            success, msg = delete_project_override("ssrf_protection", "action")
             assert success
             cfg = json.loads(cfg_path.read_text())
-            assert "action" not in cfg["secret_scanning"]
-            assert cfg["secret_scanning"]["enabled"] is True
+            assert "action" not in cfg["ssrf_protection"]
+            assert cfg["ssrf_protection"]["enabled"] is True
 
     def test_remove_section(self, tmp_path):
         project_dir = tmp_path / "project"
@@ -133,7 +133,7 @@ class TestDeleteProjectOverride:
         cfg_path.write_text(
             json.dumps(
                 {
-                    "secret_scanning": {"action": "ask"},
+                    "secret_scanning": {"enabled": True},
                     "ssrf_protection": {"action": "warn"},
                 }
             )
@@ -164,7 +164,7 @@ class TestDeleteProjectOverride:
         ):
             from ai_guardian.config.writer import delete_project_override
 
-            success, msg = delete_project_override("secret_scanning", "action")
+            success, msg = delete_project_override("ssrf_protection", "action")
             assert success
             assert (
                 "No project config" in msg
@@ -177,7 +177,7 @@ class TestDeleteProjectOverride:
         ai_dir = project_dir / ".ai-guardian"
         ai_dir.mkdir(parents=True)
         cfg_path = ai_dir / "ai-guardian.json"
-        cfg_path.write_text(json.dumps({"secret_scanning": {"action": "ask"}}))
+        cfg_path.write_text(json.dumps({"ssrf_protection": {"action": "ask"}}))
 
         with mock.patch(
             "ai_guardian.config.writer.get_project_config_path",
@@ -185,10 +185,10 @@ class TestDeleteProjectOverride:
         ):
             from ai_guardian.config.writer import delete_project_override
 
-            success, _ = delete_project_override("secret_scanning", "action")
+            success, _ = delete_project_override("ssrf_protection", "action")
             assert success
             cfg = json.loads(cfg_path.read_text())
-            assert "secret_scanning" not in cfg
+            assert "ssrf_protection" not in cfg
 
 
 class TestComputeProvenance:
@@ -200,7 +200,7 @@ class TestComputeProvenance:
         (config_dir / "ai-guardian.json").write_text(
             json.dumps(
                 {
-                    "secret_scanning": {"enabled": True, "action": "block"},
+                    "ssrf_protection": {"enabled": True, "action": "block"},
                 }
             )
         )
@@ -215,8 +215,8 @@ class TestComputeProvenance:
             from ai_guardian.config.writer import compute_provenance
 
             prov = compute_provenance()
-            assert prov["secret_scanning"]["enabled"] == "global"
-            assert prov["secret_scanning"]["action"] == "global"
+            assert prov["ssrf_protection"]["enabled"] == "global"
+            assert prov["ssrf_protection"]["action"] == "global"
 
     def test_project_override(self, tmp_path):
         config_dir = tmp_path / "global_cfg"
@@ -224,7 +224,7 @@ class TestComputeProvenance:
         (config_dir / "ai-guardian.json").write_text(
             json.dumps(
                 {
-                    "secret_scanning": {"enabled": True, "action": "block"},
+                    "ssrf_protection": {"enabled": True, "action": "block"},
                 }
             )
         )
@@ -235,7 +235,7 @@ class TestComputeProvenance:
         (ai_dir / "ai-guardian.json").write_text(
             json.dumps(
                 {
-                    "secret_scanning": {"action": "ask"},
+                    "ssrf_protection": {"action": "ask"},
                 }
             )
         )
@@ -250,8 +250,8 @@ class TestComputeProvenance:
             from ai_guardian.config.writer import compute_provenance
 
             prov = compute_provenance()
-            assert prov["secret_scanning"]["action"] == "project"
-            assert prov["secret_scanning"]["enabled"] == "global"
+            assert prov["ssrf_protection"]["action"] == "project"
+            assert prov["ssrf_protection"]["enabled"] == "global"
 
     def test_merged_lists(self, tmp_path):
         config_dir = tmp_path / "global_cfg"
@@ -332,7 +332,7 @@ class TestLoadScopedConfig:
         (config_dir / "ai-guardian.json").write_text(
             json.dumps(
                 {
-                    "secret_scanning": {"action": "block"},
+                    "ssrf_protection": {"action": "block"},
                 }
             )
         )
@@ -340,7 +340,7 @@ class TestLoadScopedConfig:
             from ai_guardian.config.writer import load_scoped_config
 
             cfg = load_scoped_config("global")
-            assert cfg["secret_scanning"]["action"] == "block"
+            assert cfg["ssrf_protection"]["action"] == "block"
 
     def test_project_scope(self, tmp_path):
         project_dir = tmp_path / "project"
@@ -349,7 +349,7 @@ class TestLoadScopedConfig:
         (ai_dir / "ai-guardian.json").write_text(
             json.dumps(
                 {
-                    "secret_scanning": {"action": "ask"},
+                    "ssrf_protection": {"action": "ask"},
                 }
             )
         )
@@ -361,7 +361,7 @@ class TestLoadScopedConfig:
             from ai_guardian.config.writer import load_scoped_config
 
             cfg = load_scoped_config("project")
-            assert cfg["secret_scanning"]["action"] == "ask"
+            assert cfg["ssrf_protection"]["action"] == "ask"
 
     def test_project_scope_missing(self, tmp_path):
         with (

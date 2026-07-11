@@ -348,6 +348,7 @@ def _build_default_registry() -> ScannerRegistry:
             hook_events=CONTENT_EVENTS | {HookEvent.POST_TOOL_USE},
             order=70,
             config_section="secret_scanning",
+            supports_ask_mode=False,
             violation_severity="critical",
             violation_suggestion={
                 "action": "review_and_remove_secret",

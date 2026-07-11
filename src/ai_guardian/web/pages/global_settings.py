@@ -126,14 +126,6 @@ FEATURE_GROUPS = [
 ]
 
 FEATURE_ACTIONS = {
-    "secret_scanning": {
-        "block": "Block",
-        "ask": "Ask (block if headless)",
-        "ask:warn": "Ask (warn if headless)",
-        "ask:log-only": "Ask (log-only if headless)",
-        "warn": "Warn",
-        "log-only": "Log Only",
-    },
     "prompt_injection": {
         "block": "Block",
         "ask": "Ask (block if headless)",
@@ -214,7 +206,6 @@ FEATURE_ACTIONS = {
 }
 
 ACTION_DEFAULTS = {
-    "secret_scanning": "block",
     "prompt_injection": "block",
     "ssrf_protection": "block",
     "config_file_scanning": "block",

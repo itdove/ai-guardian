@@ -45,11 +45,11 @@ class TestResolveSDKOverlay:
         with mock.patch.dict(
             os.environ,
             {
-                "AI_GUARDIAN_CONFIG_INLINE": '{"secret_scanning": {"action": "block"}}',
+                "AI_GUARDIAN_CONFIG_INLINE": '{"ssrf_protection": {"action": "block"}}',
             },
         ):
             result = _resolve_sdk_overlay()
-        assert result == {"secret_scanning": {"action": "block"}}
+        assert result == {"ssrf_protection": {"action": "block"}}
 
     def test_configure_overlay(self):
         import ai_guardian.config.loaders as cl
@@ -68,7 +68,7 @@ class TestResolveSDKOverlay:
             json.dumps(
                 {
                     "preferred_ui": "tkinter",
-                    "secret_scanning": {"action": "warn"},
+                    "ssrf_protection": {"action": "warn"},
                 }
             )
         )
@@ -81,7 +81,7 @@ class TestResolveSDKOverlay:
         ):
             result = _resolve_sdk_overlay()
         assert result["preferred_ui"] == "headless"
-        assert result["secret_scanning"]["action"] == "warn"
+        assert result["ssrf_protection"]["action"] == "warn"
 
     def test_configure_overrides_inline(self):
         import ai_guardian.config.loaders as cl
@@ -164,7 +164,8 @@ class TestLoadConfigFileWithOverlay:
         config_dir = tmp_path / "config"
         config_dir.mkdir()
         global_config = {
-            "secret_scanning": {"enabled": True, "action": "warn"},
+            "secret_scanning": {"enabled": True},
+            "ssrf_protection": {"action": "warn"},
             "preferred_ui": "tkinter",
         }
         (config_dir / "ai-guardian.json").write_text(json.dumps(global_config))
@@ -173,7 +174,7 @@ class TestLoadConfigFileWithOverlay:
             os.environ,
             {
                 "AI_GUARDIAN_CONFIG_DIR": str(config_dir),
-                "AI_GUARDIAN_CONFIG_INLINE": '{"secret_scanning": {"action": "block"}}',
+                "AI_GUARDIAN_CONFIG_INLINE": '{"ssrf_protection": {"action": "block"}}',
             },
         ):
             _clear_config_cache()
@@ -181,21 +182,22 @@ class TestLoadConfigFileWithOverlay:
 
         assert err is None
         assert config["secret_scanning"]["enabled"] is True
-        assert config["secret_scanning"]["action"] == "block"
+        assert config["ssrf_protection"]["action"] == "block"
         assert config["preferred_ui"] == "tkinter"
 
     def test_overlay_merges_on_top_of_project(self, tmp_path):
         config_dir = tmp_path / "config"
         config_dir.mkdir()
         global_config = {
-            "secret_scanning": {"enabled": True, "action": "warn"},
+            "secret_scanning": {"enabled": True},
+            "ssrf_protection": {"action": "warn"},
         }
         (config_dir / "ai-guardian.json").write_text(json.dumps(global_config))
 
         project_dir = tmp_path / "project" / ".ai-guardian"
         project_dir.mkdir(parents=True)
         project_config = {
-            "secret_scanning": {"action": "log-only"},
+            "ssrf_protection": {"action": "log-only"},
             "prompt_injection": {"enabled": False},
         }
         (project_dir / "ai-guardian.json").write_text(json.dumps(project_config))
@@ -205,7 +207,7 @@ class TestLoadConfigFileWithOverlay:
             {
                 "AI_GUARDIAN_CONFIG_DIR": str(config_dir),
                 "AI_GUARDIAN_PROJECT_CONFIG": str(project_dir / "ai-guardian.json"),
-                "AI_GUARDIAN_CONFIG_INLINE": '{"secret_scanning": {"action": "block"}}',
+                "AI_GUARDIAN_CONFIG_INLINE": '{"ssrf_protection": {"action": "block"}}',
             },
         ):
             _clear_config_cache()
@@ -213,15 +215,14 @@ class TestLoadConfigFileWithOverlay:
 
         assert err is None
         assert config["secret_scanning"]["enabled"] is True
-        assert config["secret_scanning"]["action"] == "block"
+        assert config["ssrf_protection"]["action"] == "block"
         assert config["prompt_injection"]["enabled"] is False
 
     def test_overlay_respects_immutable_true(self, tmp_path):
         config_dir = tmp_path / "config"
         config_dir.mkdir()
         global_config = {
-            "secret_scanning": {
-                "enabled": True,
+            "ssrf_protection": {
                 "immutable": True,
                 "action": "warn",
             },
@@ -232,14 +233,14 @@ class TestLoadConfigFileWithOverlay:
             os.environ,
             {
                 "AI_GUARDIAN_CONFIG_DIR": str(config_dir),
-                "AI_GUARDIAN_CONFIG_INLINE": '{"secret_scanning": {"action": "block"}}',
+                "AI_GUARDIAN_CONFIG_INLINE": '{"ssrf_protection": {"action": "block"}}',
             },
         ):
             _clear_config_cache()
             config, err = _load_config_file()
 
         assert err is None
-        assert config["secret_scanning"]["action"] == "warn"
+        assert config["ssrf_protection"]["action"] == "warn"
 
     def test_overlay_respects_immutable_fields(self, tmp_path):
         config_dir = tmp_path / "config"
@@ -248,6 +249,8 @@ class TestLoadConfigFileWithOverlay:
             "secret_scanning": {
                 "enabled": True,
                 "immutable": ["enabled"],
+            },
+            "ssrf_protection": {
                 "action": "warn",
             },
         }
@@ -257,7 +260,7 @@ class TestLoadConfigFileWithOverlay:
             os.environ,
             {
                 "AI_GUARDIAN_CONFIG_DIR": str(config_dir),
-                "AI_GUARDIAN_CONFIG_INLINE": '{"secret_scanning": {"enabled": false, "action": "block"}}',
+                "AI_GUARDIAN_CONFIG_INLINE": '{"secret_scanning": {"enabled": false}, "ssrf_protection": {"action": "block"}}',
             },
         ):
             _clear_config_cache()
@@ -265,7 +268,7 @@ class TestLoadConfigFileWithOverlay:
 
         assert err is None
         assert config["secret_scanning"]["enabled"] is True
-        assert config["secret_scanning"]["action"] == "block"
+        assert config["ssrf_protection"]["action"] == "block"
 
     def test_overlay_can_set_global_only_sections(self, tmp_path):
         config_dir = tmp_path / "config"
@@ -291,18 +294,18 @@ class TestLoadConfigFileWithOverlay:
 
         old = cl._sdk_overlay
         try:
-            overlay = {"secret_scanning": {"action": "block"}}
+            overlay = {"ssrf_protection": {"action": "block"}}
             cl._sdk_overlay = overlay
             _clear_config_cache()
             _load_config_file()
-            assert overlay == {"secret_scanning": {"action": "block"}}
+            assert overlay == {"ssrf_protection": {"action": "block"}}
         finally:
             cl._sdk_overlay = old
 
     def test_no_overlay_backward_compatible(self, tmp_path):
         config_dir = tmp_path / "config"
         config_dir.mkdir()
-        global_config = {"secret_scanning": {"enabled": True, "action": "warn"}}
+        global_config = {"secret_scanning": {"enabled": True}, "ssrf_protection": {"action": "warn"}}
         (config_dir / "ai-guardian.json").write_text(json.dumps(global_config))
 
         with mock.patch.dict(
@@ -315,7 +318,7 @@ class TestLoadConfigFileWithOverlay:
             config, err = _load_config_file()
 
         assert err is None
-        assert config == {"secret_scanning": {"enabled": True, "action": "warn"}}
+        assert config == {"secret_scanning": {"enabled": True}, "ssrf_protection": {"action": "warn"}}
 
     def test_overlay_only_no_config_files(self):
         with mock.patch.dict(
@@ -340,7 +343,7 @@ class TestConfigure:
     def test_configure_clears_cache(self, tmp_path):
         config_dir = tmp_path / "config"
         config_dir.mkdir()
-        global_config = {"secret_scanning": {"action": "warn"}}
+        global_config = {"ssrf_protection": {"action": "warn"}}
         (config_dir / "ai-guardian.json").write_text(json.dumps(global_config))
 
         with mock.patch.dict(
@@ -351,16 +354,16 @@ class TestConfigure:
         ):
             _clear_config_cache()
             config1, _ = _load_config_file()
-            assert config1["secret_scanning"]["action"] == "warn"
+            assert config1["ssrf_protection"]["action"] == "warn"
 
-            configure(overlay={"secret_scanning": {"action": "block"}})
+            configure(overlay={"ssrf_protection": {"action": "block"}})
             config2, _ = _load_config_file()
-            assert config2["secret_scanning"]["action"] == "block"
+            assert config2["ssrf_protection"]["action"] == "block"
 
     def test_configure_none_clears_overlay(self, tmp_path):
         config_dir = tmp_path / "config"
         config_dir.mkdir()
-        global_config = {"secret_scanning": {"action": "warn"}}
+        global_config = {"ssrf_protection": {"action": "warn"}}
         (config_dir / "ai-guardian.json").write_text(json.dumps(global_config))
 
         with mock.patch.dict(
@@ -369,13 +372,13 @@ class TestConfigure:
                 "AI_GUARDIAN_CONFIG_DIR": str(config_dir),
             },
         ):
-            configure(overlay={"secret_scanning": {"action": "block"}})
+            configure(overlay={"ssrf_protection": {"action": "block"}})
             config1, _ = _load_config_file()
-            assert config1["secret_scanning"]["action"] == "block"
+            assert config1["ssrf_protection"]["action"] == "block"
 
             configure(overlay=None)
             config2, _ = _load_config_file()
-            assert config2["secret_scanning"]["action"] == "warn"
+            assert config2["ssrf_protection"]["action"] == "warn"
 
     def test_configure_replaces_previous(self):
         configure(overlay={"a": 1})
@@ -529,18 +532,18 @@ class TestSDKMonitorWithOverlay:
                 "AI_GUARDIAN_CONFIG_DIR": str(config_dir),
             },
         ):
-            configure(overlay={"secret_scanning": {"enabled": True, "action": "block"}})
+            configure(overlay={"secret_scanning": {"enabled": True}, "ssrf_protection": {"action": "block"}})
             from ai_guardian.sdk import monitor
 
             with monitor(action="log") as session:
                 assert session._config["secret_scanning"]["enabled"] is True
-                assert session._config["secret_scanning"]["action"] == "block"
+                assert session._config["ssrf_protection"]["action"] == "block"
 
     def test_monitor_config_param_still_replaces(self):
-        configure(overlay={"secret_scanning": {"action": "block"}})
+        configure(overlay={"ssrf_protection": {"action": "block"}})
         custom_config = {"my_custom": True}
         from ai_guardian.sdk import monitor
 
         with monitor(action="log", config=custom_config) as session:
             assert session._config == {"my_custom": True}
-            assert "secret_scanning" not in session._config
+            assert "ssrf_protection" not in session._config

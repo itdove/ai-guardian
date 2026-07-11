@@ -790,7 +790,7 @@ class TestCheckAskModeDeps:
 
     def test_skip_no_ask_actions(self, _isolate_config_dir):
         doctor = Doctor()
-        doctor._config = {"secret_scanning": {"action": "block"}}
+        doctor._config = {"secret_scanning": {"enabled": True}}
         doctor._config_loaded = True
         result = doctor.check_ask_mode_deps()
         assert result.status == CheckStatus.SKIP
@@ -798,13 +798,13 @@ class TestCheckAskModeDeps:
 
     def test_pass_tkinter_available(self, _isolate_config_dir):
         doctor = Doctor()
-        doctor._config = {"secret_scanning": {"action": "ask"}}
+        doctor._config = {"prompt_injection": {"action": "ask"}}
         doctor._config_loaded = True
         with mock.patch.dict("sys.modules", {"tkinter": mock.MagicMock()}):
             result = doctor.check_ask_mode_deps()
         assert result.status == CheckStatus.PASS
         assert "tkinter" in result.message
-        assert "secret_scanning" in result.message
+        assert "prompt_injection" in result.message
 
     def test_pass_nicegui_fallback(self, _isolate_config_dir):
         doctor = Doctor()
@@ -852,14 +852,14 @@ class TestCheckAskModeDeps:
     def test_multiple_ask_sections(self, _isolate_config_dir):
         doctor = Doctor()
         doctor._config = {
-            "secret_scanning": {"action": "ask"},
+            "prompt_injection": {"action": "ask"},
             "scan_pii": {"action": "ask:log-only"},
         }
         doctor._config_loaded = True
         with mock.patch.dict("sys.modules", {"tkinter": mock.MagicMock()}):
             result = doctor.check_ask_mode_deps()
         assert result.status == CheckStatus.PASS
-        assert "secret_scanning" in result.message
+        assert "prompt_injection" in result.message
         assert "scan_pii" in result.message
 
 

@@ -27,7 +27,6 @@ SCANNER_HELP = {
         ],
         "config_summary": (
             "secret_scanning.enabled — toggle on/off\n"
-            "secret_scanning.action — block | warn | log-only | ask\n"
             "secret_scanning.allowlist_patterns — regex allowlist for false positives"
         ),
         "doc_url": f"{_GITHUB_DOCS}/security/SECRET_SCANNING.md",
