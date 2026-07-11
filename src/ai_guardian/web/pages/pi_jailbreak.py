@@ -157,157 +157,145 @@ def _render_toggle(
 
 def create_pi_jailbreak_page(service, daemon_name: str):
     """Create the Prompt Injection Jailbreak page."""
-    create_header(daemon_name)
+    sidebar = create_sidebar(daemon_name, current=f"/{daemon_name}/pi-jailbreak")
+    create_header(daemon_name, drawer=sidebar)
 
-    with ui.row().classes("w-full min-h-screen no-wrap"):
-        create_sidebar(daemon_name, current=f"/{daemon_name}/pi-jailbreak")
+    with ui.column().classes("flex-grow p-6 gap-4"):
+        ui.label("Jailbreak Detection").classes("text-2xl font-bold")
+        ui.label(
+            "Built-in jailbreak categories and custom jailbreak patterns."
+        ).classes("text-xs text-grey-6")
 
-        with ui.column().classes("flex-grow p-6 gap-4"):
-            ui.label("Jailbreak Detection").classes("text-2xl font-bold")
-            ui.label(
-                "Built-in jailbreak categories and custom jailbreak patterns."
-            ).classes("text-xs text-grey-6")
+        content = ui.column().classes("w-full gap-4")
 
-            content = ui.column().classes("w-full gap-4")
+        async def refresh():
+            content.clear()
+            config = await run.io_bound(load_web_config)
 
-            async def refresh():
-                content.clear()
-                config = await run.io_bound(load_web_config)
+            with content:
+                pi = config.get("prompt_injection", {})
+                if not isinstance(pi, dict):
+                    pi = {}
 
-                with content:
-                    pi = config.get("prompt_injection", {})
-                    if not isinstance(pi, dict):
-                        pi = {}
+                with ui.card().classes("w-full"):
+                    ui.label(
+                        f"Built-in Jailbreak Categories ({len(BUILTIN_JAILBREAK_CATEGORIES)})"
+                    ).classes("text-lg font-bold")
+                    ui.label(
+                        "These categories are always active and cannot be modified."
+                    ).classes("text-xs text-grey-6")
+                    for (
+                        category,
+                        description,
+                    ) in BUILTIN_JAILBREAK_CATEGORIES.items():
+                        with ui.row().classes("items-center gap-2 ml-4"):
+                            ui.icon("shield").classes("text-blue-4").style(
+                                "font-size: 14px"
+                            )
+                            ui.label(category).classes("font-bold text-sm")
+                            ui.label(f"— {description}").classes("text-xs text-grey-6")
 
-                    with ui.card().classes("w-full"):
-                        ui.label(
-                            f"Built-in Jailbreak Categories ({len(BUILTIN_JAILBREAK_CATEGORIES)})"
-                        ).classes("text-lg font-bold")
-                        ui.label(
-                            "These categories are always active and cannot be modified."
-                        ).classes("text-xs text-grey-6")
-                        for (
-                            category,
-                            description,
-                        ) in BUILTIN_JAILBREAK_CATEGORIES.items():
-                            with ui.row().classes("items-center gap-2 ml-4"):
-                                ui.icon("shield").classes("text-blue-4").style(
-                                    "font-size: 14px"
+                with ui.card().classes("w-full"):
+                    ui.label("Custom Jailbreak Patterns").classes("text-lg font-bold")
+                    ui.label(
+                        "Custom regex patterns to detect additional jailbreak attempts."
+                    ).classes("text-xs text-grey-6")
+
+                    patterns = pi.get("jailbreak_patterns", [])
+                    if patterns:
+                        for idx, pat in enumerate(patterns):
+                            with ui.row().classes("items-center gap-2 w-full"):
+                                ui.icon("code").classes("text-blue-4")
+                                ui.label(pat).classes("flex-grow text-sm").style(
+                                    "font-family: monospace"
                                 )
-                                ui.label(category).classes("font-bold text-sm")
-                                ui.label(f"— {description}").classes(
-                                    "text-xs text-grey-6"
-                                )
 
-                    with ui.card().classes("w-full"):
-                        ui.label("Custom Jailbreak Patterns").classes(
-                            "text-lg font-bold"
+                                async def remove_pat(i=idx):
+                                    cfg = await run.io_bound(load_web_config)
+                                    sect = cfg.get("prompt_injection", {})
+                                    if not isinstance(sect, dict):
+                                        return
+                                    pats = sect.get("jailbreak_patterns", [])
+                                    if i < len(pats):
+                                        pats.pop(i)
+                                        sect["jailbreak_patterns"] = pats
+                                        cfg["prompt_injection"] = sect
+                                        await run.io_bound(save_web_config, cfg)
+                                        ui.notify("Pattern removed", type="positive")
+                                        await refresh()
+
+                                ui.button(
+                                    icon="delete", on_click=remove_pat, color="red"
+                                ).props("flat dense size=sm")
+                    else:
+                        ui.label("No custom jailbreak patterns.").classes(
+                            "text-grey-6 text-sm"
                         )
-                        ui.label(
-                            "Custom regex patterns to detect additional jailbreak attempts."
-                        ).classes("text-xs text-grey-6")
 
-                        patterns = pi.get("jailbreak_patterns", [])
-                        if patterns:
-                            for idx, pat in enumerate(patterns):
-                                with ui.row().classes("items-center gap-2 w-full"):
-                                    ui.icon("code").classes("text-blue-4")
-                                    ui.label(pat).classes("flex-grow text-sm").style(
-                                        "font-family: monospace"
+                    with ui.row().classes("items-center gap-2 mt-2"):
+                        pat_input = (
+                            ui.input(placeholder="Enter custom regex pattern")
+                            .props("dense outlined")
+                            .classes("flex-grow")
+                        )
+
+                        async def add_pattern():
+                            pattern = pat_input.value.strip()
+                            if not pattern:
+                                ui.notify("Enter a pattern", type="negative")
+                                return
+                            try:
+                                re_mod.compile(pattern)
+                            except re_mod.error as e:
+                                ui.notify(f"Invalid regex: {e}", type="negative")
+                                return
+                            cfg = await run.io_bound(load_web_config)
+                            sect = cfg.get("prompt_injection", {})
+                            if not isinstance(sect, dict):
+                                sect = {}
+                            pats = sect.get("jailbreak_patterns", [])
+                            if pattern in pats:
+                                ui.notify("Pattern already exists", type="warning")
+                                return
+                            pats.append(pattern)
+                            sect["jailbreak_patterns"] = pats
+                            cfg["prompt_injection"] = sect
+                            await run.io_bound(save_web_config, cfg)
+                            pat_input.value = ""
+                            ui.notify(f"Added: {pattern}", type="positive")
+                            await refresh()
+
+                        ui.button("Add", icon="add", on_click=add_pattern).props(
+                            "dense"
+                        )
+
+                with ui.card().classes("w-full"):
+                    ui.label("Jailbreak Statistics").classes("text-lg font-bold")
+                    total, by_category = await run.io_bound(_load_jailbreak_stats)
+                    if total is None:
+                        ui.label("Violation logging not available.").classes(
+                            "text-grey-6 text-sm"
+                        )
+                    elif total == 0:
+                        ui.label("No jailbreak attempts detected yet.").classes(
+                            "text-grey-6 text-sm"
+                        )
+                    else:
+                        ui.label(f"Total jailbreak attempts: {total}").classes(
+                            "text-sm"
+                        )
+                        if by_category:
+                            ui.label("By category:").classes("text-sm font-bold mt-2")
+                            sorted_cats = sorted(
+                                by_category.items(),
+                                key=lambda x: x[1],
+                                reverse=True,
+                            )[:5]
+                            for cat, count in sorted_cats:
+                                with ui.row().classes("items-center gap-2"):
+                                    ui.label(f"{cat}:").classes(
+                                        "text-sm text-grey-6 w-48"
                                     )
+                                    ui.label(str(count)).classes("text-sm font-bold")
 
-                                    async def remove_pat(i=idx):
-                                        cfg = await run.io_bound(load_web_config)
-                                        sect = cfg.get("prompt_injection", {})
-                                        if not isinstance(sect, dict):
-                                            return
-                                        pats = sect.get("jailbreak_patterns", [])
-                                        if i < len(pats):
-                                            pats.pop(i)
-                                            sect["jailbreak_patterns"] = pats
-                                            cfg["prompt_injection"] = sect
-                                            await run.io_bound(save_web_config, cfg)
-                                            ui.notify(
-                                                "Pattern removed", type="positive"
-                                            )
-                                            await refresh()
-
-                                    ui.button(
-                                        icon="delete", on_click=remove_pat, color="red"
-                                    ).props("flat dense size=sm")
-                        else:
-                            ui.label("No custom jailbreak patterns.").classes(
-                                "text-grey-6 text-sm"
-                            )
-
-                        with ui.row().classes("items-center gap-2 mt-2"):
-                            pat_input = (
-                                ui.input(placeholder="Enter custom regex pattern")
-                                .props("dense outlined")
-                                .classes("flex-grow")
-                            )
-
-                            async def add_pattern():
-                                pattern = pat_input.value.strip()
-                                if not pattern:
-                                    ui.notify("Enter a pattern", type="negative")
-                                    return
-                                try:
-                                    re_mod.compile(pattern)
-                                except re_mod.error as e:
-                                    ui.notify(f"Invalid regex: {e}", type="negative")
-                                    return
-                                cfg = await run.io_bound(load_web_config)
-                                sect = cfg.get("prompt_injection", {})
-                                if not isinstance(sect, dict):
-                                    sect = {}
-                                pats = sect.get("jailbreak_patterns", [])
-                                if pattern in pats:
-                                    ui.notify("Pattern already exists", type="warning")
-                                    return
-                                pats.append(pattern)
-                                sect["jailbreak_patterns"] = pats
-                                cfg["prompt_injection"] = sect
-                                await run.io_bound(save_web_config, cfg)
-                                pat_input.value = ""
-                                ui.notify(f"Added: {pattern}", type="positive")
-                                await refresh()
-
-                            ui.button("Add", icon="add", on_click=add_pattern).props(
-                                "dense"
-                            )
-
-                    with ui.card().classes("w-full"):
-                        ui.label("Jailbreak Statistics").classes("text-lg font-bold")
-                        total, by_category = await run.io_bound(_load_jailbreak_stats)
-                        if total is None:
-                            ui.label("Violation logging not available.").classes(
-                                "text-grey-6 text-sm"
-                            )
-                        elif total == 0:
-                            ui.label("No jailbreak attempts detected yet.").classes(
-                                "text-grey-6 text-sm"
-                            )
-                        else:
-                            ui.label(f"Total jailbreak attempts: {total}").classes(
-                                "text-sm"
-                            )
-                            if by_category:
-                                ui.label("By category:").classes(
-                                    "text-sm font-bold mt-2"
-                                )
-                                sorted_cats = sorted(
-                                    by_category.items(),
-                                    key=lambda x: x[1],
-                                    reverse=True,
-                                )[:5]
-                                for cat, count in sorted_cats:
-                                    with ui.row().classes("items-center gap-2"):
-                                        ui.label(f"{cat}:").classes(
-                                            "text-sm text-grey-6 w-48"
-                                        )
-                                        ui.label(str(count)).classes(
-                                            "text-sm font-bold"
-                                        )
-
-            ui.timer(0.1, refresh, once=True)
+        ui.timer(0.1, refresh, once=True)

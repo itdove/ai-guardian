@@ -321,279 +321,269 @@ def _set_feature_action(section, action_value):
 
 
 def create_global_settings_page(service, daemon_name: str):
-    create_header(daemon_name)
+    sidebar = create_sidebar(daemon_name, current=f"/{daemon_name}/settings")
+    create_header(daemon_name, drawer=sidebar)
 
-    with ui.row().classes("w-full min-h-screen no-wrap"):
-        create_sidebar(daemon_name, current=f"/{daemon_name}/settings")
+    with ui.column().classes("flex-grow p-6 gap-4"):
+        with ui.row().classes("items-center gap-2"):
+            ui.label("Global Settings").classes("text-2xl font-bold")
+            add_help_button("global_settings")
 
-        with ui.column().classes("flex-grow p-6 gap-4"):
-            with ui.row().classes("items-center gap-2"):
-                ui.label("Global Settings").classes("text-2xl font-bold")
-                add_help_button("global_settings")
+        content = ui.column().classes("w-full gap-4")
 
-            content = ui.column().classes("w-full gap-4")
+        async def refresh():
+            content.clear()
+            config = await run.io_bound(load_web_config)
 
-            async def refresh():
-                content.clear()
-                config = await run.io_bound(load_web_config)
+            provenance = await run.io_bound(get_web_config_provenance)
+            scope_label = get_web_config_scope_label()
 
-                provenance = await run.io_bound(get_web_config_provenance)
-                scope_label = get_web_config_scope_label()
+            with content:
+                with ui.row().classes("items-center gap-2"):
+                    from ai_guardian.web.config_helpers import (
+                        _get_current_target,
+                        _is_remote_target,
+                    )
 
-                with content:
-                    with ui.row().classes("items-center gap-2"):
-                        from ai_guardian.web.config_helpers import (
-                            _get_current_target,
-                            _is_remote_target,
-                        )
+                    _target = _get_current_target()
+                    if _is_remote_target(_target):
+                        path_label = f"Config: (remote: {_target.name})"
+                    else:
+                        from ai_guardian.config.utils import get_config_dir
 
-                        _target = _get_current_target()
-                        if _is_remote_target(_target):
-                            path_label = f"Config: (remote: {_target.name})"
-                        else:
-                            from ai_guardian.config.utils import get_config_dir
+                        path_label = f"Config: {get_config_dir() / 'ai-guardian.json'}"
+                    ui.label(path_label).classes("text-xs text-grey-6")
+                    ui.badge(
+                        scope_label,
+                        color="green" if scope_label == "Global" else "blue",
+                    ).classes("text-xs")
 
-                            path_label = (
-                                f"Config: {get_config_dir() / 'ai-guardian.json'}"
-                            )
-                        ui.label(path_label).classes("text-xs text-grey-6")
-                        ui.badge(
-                            scope_label,
-                            color="green" if scope_label == "Global" else "blue",
-                        ).classes("text-xs")
+                # --- On Scan Error ---
+                with ui.card().classes("w-full"):
+                    on_scan_error = config.get("on_scan_error", "allow")
+                    with ui.row().classes("items-center gap-4"):
+                        ui.label("On Scan Error:").classes("text-sm font-bold")
+                        field_help_icon("on_scan_error")
+                        sel = ui.select(
+                            options={
+                                "allow": "Allow (fail-open)",
+                                "block": "Block (fail-closed)",
+                            },
+                            value=on_scan_error,
+                        ).classes("w-48")
 
-                    # --- On Scan Error ---
+                        async def save_err(e):
+                            cfg = await run.io_bound(load_web_config)
+                            cfg["on_scan_error"] = e.value
+                            await run.io_bound(save_web_config, cfg)
+                            ui.notify("Saved", type="positive")
+
+                        sel.on_value_change(save_err)
+
+                    ui.markdown(
+                        "Controls what happens when a scanner itself crashes.\n\n"
+                        "- **allow** (default) — fail-open: log a warning, let the operation through. "
+                        "Best for development and low-friction workflows.\n"
+                        "- **block** — fail-closed: block the operation if *any* scanner fails. "
+                        "Safer but a scanner bug = blocked workflow.\n\n"
+                        "**Applies to all scanners:** secret, PII, prompt injection, "
+                        "Bandit, canary, exfil, etc. "
+                        "Recommended: `allow` for dev, `block` for production/compliance environments."
+                    ).classes("text-xs text-gray-600 mt-2")
+
+                # --- Feature Groups ---
+                for group_name, features in FEATURE_GROUPS:
                     with ui.card().classes("w-full"):
-                        on_scan_error = config.get("on_scan_error", "allow")
-                        with ui.row().classes("items-center gap-4"):
-                            ui.label("On Scan Error:").classes("text-sm font-bold")
-                            field_help_icon("on_scan_error")
-                            sel = ui.select(
-                                options={
-                                    "allow": "Allow (fail-open)",
-                                    "block": "Block (fail-closed)",
-                                },
-                                value=on_scan_error,
-                            ).classes("w-48")
+                        ui.label(group_name).classes("text-lg font-bold")
 
-                            async def save_err(e):
-                                cfg = await run.io_bound(load_web_config)
-                                cfg["on_scan_error"] = e.value
-                                await run.io_bound(save_web_config, cfg)
-                                ui.notify("Saved", type="positive")
+                        for section, label, desc in features:
+                            ui.separator().classes("my-1")
+                            ui.html(f'<div id="feature-{section}"></div>')
+                            raw = _get_enabled(config, section)
+                            if isinstance(raw, tuple) and len(raw) == 3:
+                                is_temp = raw[0] == "temp_disabled"
+                                until = raw[1]
+                                reason = raw[2]
+                                is_enabled = bool(raw[0]) if not is_temp else False
+                            else:
+                                is_temp = False
+                                until = None
+                                reason = ""
+                                is_enabled = (
+                                    bool(raw[0])
+                                    if isinstance(raw, tuple)
+                                    else bool(raw)
+                                )
 
-                            sel.on_value_change(save_err)
-
-                        ui.markdown(
-                            "Controls what happens when a scanner itself crashes.\n\n"
-                            "- **allow** (default) — fail-open: log a warning, let the operation through. "
-                            "Best for development and low-friction workflows.\n"
-                            "- **block** — fail-closed: block the operation if *any* scanner fails. "
-                            "Safer but a scanner bug = blocked workflow.\n\n"
-                            "**Applies to all scanners:** secret, PII, prompt injection, "
-                            "Bandit, canary, exfil, etc. "
-                            "Recommended: `allow` for dev, `block` for production/compliance environments."
-                        ).classes("text-xs text-gray-600 mt-2")
-
-                    # --- Feature Groups ---
-                    for group_name, features in FEATURE_GROUPS:
-                        with ui.card().classes("w-full"):
-                            ui.label(group_name).classes("text-lg font-bold")
-
-                            for section, label, desc in features:
-                                ui.separator().classes("my-1")
-                                ui.html(f'<div id="feature-{section}"></div>')
-                                raw = _get_enabled(config, section)
-                                if isinstance(raw, tuple) and len(raw) == 3:
-                                    is_temp = raw[0] == "temp_disabled"
-                                    until = raw[1]
-                                    reason = raw[2]
-                                    is_enabled = bool(raw[0]) if not is_temp else False
-                                else:
-                                    is_temp = False
-                                    until = None
-                                    reason = ""
-                                    is_enabled = (
-                                        bool(raw[0])
-                                        if isinstance(raw, tuple)
-                                        else bool(raw)
+                            if is_temp and until:
+                                with ui.row().classes("items-center gap-2 w-full"):
+                                    ui.icon("timer").classes("text-amber")
+                                    ui.label(label).classes(
+                                        "font-bold text-sm flex-grow"
+                                    )
+                                    remaining = _format_remaining(until)
+                                    ui.badge(
+                                        f"TEMP DISABLED — {remaining}",
+                                        color="amber",
+                                    ).classes("text-xs")
+                                ui.label(desc).classes("text-xs text-grey-6 ml-8")
+                                if reason:
+                                    ui.label(f"Reason: {reason}").classes(
+                                        "text-xs text-grey-7 ml-8"
                                     )
 
-                                if is_temp and until:
-                                    with ui.row().classes("items-center gap-2 w-full"):
-                                        ui.icon("timer").classes("text-amber")
-                                        ui.label(label).classes(
-                                            "font-bold text-sm flex-grow"
+                                async def do_reenable(sec=section):
+                                    await run.io_bound(_set_feature_enabled, sec, True)
+                                    ui.notify(f"{sec}: re-enabled", type="positive")
+                                    await refresh()
+
+                                ui.button(
+                                    "Re-enable Now",
+                                    icon="play_arrow",
+                                    color="green",
+                                    on_click=do_reenable,
+                                ).props("dense size=sm").classes("ml-8")
+                            else:
+                                with ui.row().classes("items-center gap-2 w-full"):
+                                    sw = ui.switch(label, value=is_enabled).classes(
+                                        "flex-grow"
+                                    )
+                                    sect_prov = provenance.get(section, {})
+                                    prov_src = (
+                                        sect_prov
+                                        if isinstance(sect_prov, str)
+                                        else (
+                                            sect_prov.get("enabled", "global")
+                                            if isinstance(sect_prov, dict)
+                                            else "global"
                                         )
-                                        remaining = _format_remaining(until)
-                                        ui.badge(
-                                            f"TEMP DISABLED — {remaining}",
-                                            color="amber",
+                                    )
+                                    if prov_src == "project":
+                                        ui.badge("P", color="blue").props(
+                                            "dense"
                                         ).classes("text-xs")
-                                    ui.label(desc).classes("text-xs text-grey-6 ml-8")
-                                    if reason:
-                                        ui.label(f"Reason: {reason}").classes(
-                                            "text-xs text-grey-7 ml-8"
+                                    ui.label(desc).classes("text-xs text-grey-6")
+                                    field_help_icon(section)
+
+                                    async def on_toggle(e, sec=section):
+                                        await run.io_bound(
+                                            _set_feature_enabled, sec, e.value
+                                        )
+                                        ui.notify(
+                                            f"{sec}: {'enabled' if e.value else 'disabled'}",
+                                            type="positive",
                                         )
 
-                                    async def do_reenable(sec=section):
+                                    sw.on_value_change(on_toggle)
+
+                                with ui.row().classes("items-center gap-2 ml-8"):
+                                    dur = (
+                                        ui.input(placeholder="e.g. 30m, 2h, 1d")
+                                        .props("dense outlined")
+                                        .classes("w-32")
+                                    )
+                                    rsn = (
+                                        ui.input(placeholder="Reason")
+                                        .props("dense outlined")
+                                        .classes("w-40")
+                                    )
+
+                                    async def do_temp(sec=section, d=dur, r=rsn):
+                                        delta = _parse_duration(d.value or "30m")
+                                        if not delta:
+                                            ui.notify(
+                                                "Invalid duration (e.g. 30m, 2h, 1d)",
+                                                type="negative",
+                                            )
+                                            return
+                                        until_ts = (
+                                            datetime.now(timezone.utc) + delta
+                                        ).strftime("%Y-%m-%dT%H:%M:%SZ")
+                                        entry = {
+                                            "value": False,
+                                            "disabled_until": until_ts,
+                                        }
+                                        rv = r.value.strip()
+                                        if rv:
+                                            entry["reason"] = rv
                                         await run.io_bound(
-                                            _set_feature_enabled, sec, True
+                                            _set_feature_enabled, sec, entry
                                         )
-                                        ui.notify(f"{sec}: re-enabled", type="positive")
+                                        ui.notify(
+                                            f"{sec}: temp disabled for {d.value or '30m'}",
+                                            type="warning",
+                                        )
                                         await refresh()
 
                                     ui.button(
-                                        "Re-enable Now",
-                                        icon="play_arrow",
-                                        color="green",
-                                        on_click=do_reenable,
-                                    ).props("dense size=sm").classes("ml-8")
-                                else:
-                                    with ui.row().classes("items-center gap-2 w-full"):
-                                        sw = ui.switch(label, value=is_enabled).classes(
-                                            "flex-grow"
-                                        )
-                                        sect_prov = provenance.get(section, {})
-                                        prov_src = (
-                                            sect_prov
-                                            if isinstance(sect_prov, str)
-                                            else (
-                                                sect_prov.get("enabled", "global")
-                                                if isinstance(sect_prov, dict)
-                                                else "global"
-                                            )
-                                        )
-                                        if prov_src == "project":
-                                            ui.badge("P", color="blue").props(
-                                                "dense"
-                                            ).classes("text-xs")
-                                        ui.label(desc).classes("text-xs text-grey-6")
-                                        field_help_icon(section)
+                                        "Temp Disable",
+                                        icon="timer",
+                                        on_click=do_temp,
+                                    ).props("dense size=sm")
 
-                                        async def on_toggle(e, sec=section):
+                            # Action dropdown
+                            if section in FEATURE_ACTIONS:
+                                current_action = _get_action(config, section)
+                                with ui.row().classes("items-center gap-2 ml-8 mt-1"):
+                                    ui.label("Action:").classes("text-sm text-grey-6")
+                                    field_help_icon(f"{section}.action")
+                                    act_sel = ui.select(
+                                        options=FEATURE_ACTIONS[section],
+                                        value=current_action,
+                                    ).classes("w-36")
+
+                                    async def on_action(e, sec=section):
+                                        await run.io_bound(
+                                            _set_feature_action, sec, e.value
+                                        )
+                                        ui.notify(
+                                            f"{sec} action: {e.value}",
+                                            type="positive",
+                                        )
+
+                                    act_sel.on_value_change(on_action)
+
+                                    act_prov = provenance.get(section, {})
+                                    act_prov_src = (
+                                        act_prov.get("action", "global")
+                                        if isinstance(act_prov, dict)
+                                        else "global"
+                                    )
+                                    if act_prov_src == "project":
+                                        ui.badge("P", color="blue").props(
+                                            "dense"
+                                        ).classes("text-xs")
+
+                                        async def do_reset(sec=section):
+                                            from ai_guardian.config.writer import (
+                                                delete_project_override,
+                                            )
+
                                             await run.io_bound(
-                                                _set_feature_enabled, sec, e.value
+                                                delete_project_override,
+                                                sec,
+                                                "action",
                                             )
                                             ui.notify(
-                                                f"{sec}: {'enabled' if e.value else 'disabled'}",
-                                                type="positive",
-                                            )
-
-                                        sw.on_value_change(on_toggle)
-
-                                    with ui.row().classes("items-center gap-2 ml-8"):
-                                        dur = (
-                                            ui.input(placeholder="e.g. 30m, 2h, 1d")
-                                            .props("dense outlined")
-                                            .classes("w-32")
-                                        )
-                                        rsn = (
-                                            ui.input(placeholder="Reason")
-                                            .props("dense outlined")
-                                            .classes("w-40")
-                                        )
-
-                                        async def do_temp(sec=section, d=dur, r=rsn):
-                                            delta = _parse_duration(d.value or "30m")
-                                            if not delta:
-                                                ui.notify(
-                                                    "Invalid duration (e.g. 30m, 2h, 1d)",
-                                                    type="negative",
-                                                )
-                                                return
-                                            until_ts = (
-                                                datetime.now(timezone.utc) + delta
-                                            ).strftime("%Y-%m-%dT%H:%M:%SZ")
-                                            entry = {
-                                                "value": False,
-                                                "disabled_until": until_ts,
-                                            }
-                                            rv = r.value.strip()
-                                            if rv:
-                                                entry["reason"] = rv
-                                            await run.io_bound(
-                                                _set_feature_enabled, sec, entry
-                                            )
-                                            ui.notify(
-                                                f"{sec}: temp disabled for {d.value or '30m'}",
-                                                type="warning",
+                                                f"Reset {sec}.action to global default",
+                                                type="info",
                                             )
                                             await refresh()
 
                                         ui.button(
-                                            "Temp Disable",
-                                            icon="timer",
-                                            on_click=do_temp,
-                                        ).props("dense size=sm")
+                                            "Reset",
+                                            icon="undo",
+                                            color="grey",
+                                            on_click=do_reset,
+                                        ).props("dense flat size=sm")
 
-                                # Action dropdown
-                                if section in FEATURE_ACTIONS:
-                                    current_action = _get_action(config, section)
-                                    with ui.row().classes(
-                                        "items-center gap-2 ml-8 mt-1"
-                                    ):
-                                        ui.label("Action:").classes(
-                                            "text-sm text-grey-6"
-                                        )
-                                        field_help_icon(f"{section}.action")
-                                        act_sel = ui.select(
-                                            options=FEATURE_ACTIONS[section],
-                                            value=current_action,
-                                        ).classes("w-36")
+        async def _refresh_and_scroll():
+            await refresh()
+            await ui.run_javascript(
+                "if (location.hash) {"
+                "  const el = document.querySelector(location.hash);"
+                '  if (el) el.scrollIntoView({behavior: "smooth", block: "center"});'
+                "}"
+            )
 
-                                        async def on_action(e, sec=section):
-                                            await run.io_bound(
-                                                _set_feature_action, sec, e.value
-                                            )
-                                            ui.notify(
-                                                f"{sec} action: {e.value}",
-                                                type="positive",
-                                            )
-
-                                        act_sel.on_value_change(on_action)
-
-                                        act_prov = provenance.get(section, {})
-                                        act_prov_src = (
-                                            act_prov.get("action", "global")
-                                            if isinstance(act_prov, dict)
-                                            else "global"
-                                        )
-                                        if act_prov_src == "project":
-                                            ui.badge("P", color="blue").props(
-                                                "dense"
-                                            ).classes("text-xs")
-
-                                            async def do_reset(sec=section):
-                                                from ai_guardian.config.writer import (
-                                                    delete_project_override,
-                                                )
-
-                                                await run.io_bound(
-                                                    delete_project_override,
-                                                    sec,
-                                                    "action",
-                                                )
-                                                ui.notify(
-                                                    f"Reset {sec}.action to global default",
-                                                    type="info",
-                                                )
-                                                await refresh()
-
-                                            ui.button(
-                                                "Reset",
-                                                icon="undo",
-                                                color="grey",
-                                                on_click=do_reset,
-                                            ).props("dense flat size=sm")
-
-            async def _refresh_and_scroll():
-                await refresh()
-                await ui.run_javascript(
-                    "if (location.hash) {"
-                    "  const el = document.querySelector(location.hash);"
-                    '  if (el) el.scrollIntoView({behavior: "smooth", block: "center"});'
-                    "}"
-                )
-
-            ui.timer(0.1, _refresh_and_scroll, once=True)
+        ui.timer(0.1, _refresh_and_scroll, once=True)

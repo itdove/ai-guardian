@@ -204,109 +204,107 @@ def _render_alias_list(title, desc, config_section, config_key, refresh_fn):
 
 def create_annotations_page(service, daemon_name: str):
     """Create the Annotations page."""
-    create_header(daemon_name)
+    sidebar = create_sidebar(daemon_name, current=f"/{daemon_name}/annotations")
+    create_header(daemon_name, drawer=sidebar)
 
-    with ui.row().classes("w-full min-h-screen no-wrap"):
-        create_sidebar(daemon_name, current=f"/{daemon_name}/annotations")
+    with ui.column().classes("flex-grow p-6 gap-4"):
+        ui.label("Annotation Settings").classes("text-2xl font-bold")
+        ui.label(
+            "Configure inline and block annotation markers for suppressing detections."
+        ).classes("text-xs text-grey-6")
 
-        with ui.column().classes("flex-grow p-6 gap-4"):
-            ui.label("Annotation Settings").classes("text-2xl font-bold")
-            ui.label(
-                "Configure inline and block annotation markers for suppressing detections."
-            ).classes("text-xs text-grey-6")
+        content = ui.column().classes("w-full gap-4")
 
-            content = ui.column().classes("w-full gap-4")
+        async def refresh():
+            content.clear()
+            config = await run.io_bound(load_web_config)
 
-            async def refresh():
-                content.clear()
-                config = await run.io_bound(load_web_config)
+            with content:
+                an = config.get("annotations", {})
+                if not isinstance(an, dict):
+                    an = {}
 
-                with content:
-                    an = config.get("annotations", {})
-                    if not isinstance(an, dict):
-                        an = {}
+                is_temp, until_dt, reason, is_enabled = _parse_enabled(
+                    an.get("enabled", True)
+                )
 
-                    is_temp, until_dt, reason, is_enabled = _parse_enabled(
-                        an.get("enabled", True)
+                def save_enabled(value):
+                    cfg = load_web_config()
+                    sect = cfg.get("annotations", {})
+                    if not isinstance(sect, dict):
+                        sect = {}
+                    sect["enabled"] = value
+                    cfg["annotations"] = sect
+                    save_web_config(cfg)
+
+                _render_toggle(
+                    "Annotations",
+                    "Allow inline and block annotations to suppress secret and PII detections.",
+                    is_temp,
+                    until_dt,
+                    reason,
+                    is_enabled,
+                    save_enabled,
+                    refresh,
+                )
+
+                with ui.card().classes("w-full"):
+                    ui.label("Built-in Markers (Always Active)").classes(
+                        "text-lg font-bold"
                     )
+                    ui.label(
+                        "These markers are hardcoded and cannot be removed."
+                    ).classes("text-xs text-grey-6")
+                    with ui.column().classes("gap-1 ml-4 mt-2"):
+                        with ui.row().classes("items-center gap-1"):
+                            ui.icon("shield").classes("text-blue-4").style(
+                                "font-size: 14px"
+                            )
+                            ui.label("Inline: # ai-guardian:allow").classes(
+                                "text-xs"
+                            ).style("font-family: monospace")
+                        with ui.row().classes("items-center gap-1"):
+                            ui.icon("shield").classes("text-blue-4").style(
+                                "font-size: 14px"
+                            )
+                            ui.label(
+                                "Block: # ai-guardian:begin-allow ... # ai-guardian:end-allow"
+                            ).classes("text-xs").style("font-family: monospace")
+                    ui.label(
+                        "Note: Prompt injection, jailbreak, and config exfiltration "
+                        "detections cannot be suppressed via annotations."
+                    ).classes("text-xs text-amber-8 mt-2 ml-4")
 
-                    def save_enabled(value):
-                        cfg = load_web_config()
-                        sect = cfg.get("annotations", {})
-                        if not isinstance(sect, dict):
-                            sect = {}
-                        sect["enabled"] = value
-                        cfg["annotations"] = sect
-                        save_web_config(cfg)
+                _render_alias_list(
+                    "Inline Allow Aliases (secrets + PII)",
+                    "Additional comment markers that act as inline allow annotations.",
+                    "annotations",
+                    "inline_allow",
+                    refresh,
+                )
 
-                    _render_toggle(
-                        "Annotations",
-                        "Allow inline and block annotations to suppress secret and PII detections.",
-                        is_temp,
-                        until_dt,
-                        reason,
-                        is_enabled,
-                        save_enabled,
-                        refresh,
-                    )
+                _render_alias_list(
+                    "Inline Allow Secrets Aliases",
+                    "Comment markers for suppressing only secret detections (default includes gitleaks:allow).",
+                    "annotations",
+                    "inline_allow_secrets",
+                    refresh,
+                )
 
-                    with ui.card().classes("w-full"):
-                        ui.label("Built-in Markers (Always Active)").classes(
-                            "text-lg font-bold"
-                        )
-                        ui.label(
-                            "These markers are hardcoded and cannot be removed."
-                        ).classes("text-xs text-grey-6")
-                        with ui.column().classes("gap-1 ml-4 mt-2"):
-                            with ui.row().classes("items-center gap-1"):
-                                ui.icon("shield").classes("text-blue-4").style(
-                                    "font-size: 14px"
-                                )
-                                ui.label("Inline: # ai-guardian:allow").classes(
-                                    "text-xs"
-                                ).style("font-family: monospace")
-                            with ui.row().classes("items-center gap-1"):
-                                ui.icon("shield").classes("text-blue-4").style(
-                                    "font-size: 14px"
-                                )
-                                ui.label(
-                                    "Block: # ai-guardian:begin-allow ... # ai-guardian:end-allow"
-                                ).classes("text-xs").style("font-family: monospace")
-                        ui.label(
-                            "Note: Prompt injection, jailbreak, and config exfiltration "
-                            "detections cannot be suppressed via annotations."
-                        ).classes("text-xs text-amber-8 mt-2 ml-4")
+                _render_alias_list(
+                    "Block Begin Aliases",
+                    "Additional markers for beginning a block-level allow region.",
+                    "annotations",
+                    "block_begin",
+                    refresh,
+                )
 
-                    _render_alias_list(
-                        "Inline Allow Aliases (secrets + PII)",
-                        "Additional comment markers that act as inline allow annotations.",
-                        "annotations",
-                        "inline_allow",
-                        refresh,
-                    )
+                _render_alias_list(
+                    "Block End Aliases",
+                    "Additional markers for ending a block-level allow region.",
+                    "annotations",
+                    "block_end",
+                    refresh,
+                )
 
-                    _render_alias_list(
-                        "Inline Allow Secrets Aliases",
-                        "Comment markers for suppressing only secret detections (default includes gitleaks:allow).",
-                        "annotations",
-                        "inline_allow_secrets",
-                        refresh,
-                    )
-
-                    _render_alias_list(
-                        "Block Begin Aliases",
-                        "Additional markers for beginning a block-level allow region.",
-                        "annotations",
-                        "block_begin",
-                        refresh,
-                    )
-
-                    _render_alias_list(
-                        "Block End Aliases",
-                        "Additional markers for ending a block-level allow region.",
-                        "annotations",
-                        "block_end",
-                        refresh,
-                    )
-
-            ui.timer(0.1, refresh, once=True)
+        ui.timer(0.1, refresh, once=True)

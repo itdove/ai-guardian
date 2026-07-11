@@ -184,439 +184,427 @@ def _render_toggle(
 
 def create_scan_pii_page(service, daemon_name: str):
     """Create the PII Scanning page."""
-    create_header(daemon_name)
+    sidebar = create_sidebar(daemon_name, current=f"/{daemon_name}/scan-pii")
+    create_header(daemon_name, drawer=sidebar)
 
-    with ui.row().classes("w-full min-h-screen no-wrap"):
-        create_sidebar(daemon_name, current=f"/{daemon_name}/scan-pii")
+    with ui.column().classes("flex-grow p-6 gap-4"):
+        with ui.row().classes("items-center gap-2"):
+            ui.label("PII Scanning Settings").classes("text-2xl font-bold")
+            add_help_button("scan_pii")
+        ui.label(
+            "Configure detection and handling of personally identifiable information."
+        ).classes("text-xs text-grey-6")
 
-        with ui.column().classes("flex-grow p-6 gap-4"):
-            with ui.row().classes("items-center gap-2"):
-                ui.label("PII Scanning Settings").classes("text-2xl font-bold")
-                add_help_button("scan_pii")
-            ui.label(
-                "Configure detection and handling of personally identifiable information."
-            ).classes("text-xs text-grey-6")
+        content = ui.column().classes("w-full gap-4")
 
-            content = ui.column().classes("w-full gap-4")
+        async def refresh():
+            content.clear()
+            config = await run.io_bound(load_web_config)
 
-            async def refresh():
-                content.clear()
-                config = await run.io_bound(load_web_config)
+            with content:
+                sp = config.get("scan_pii", {})
+                if not isinstance(sp, dict):
+                    sp = {}
 
-                with content:
-                    sp = config.get("scan_pii", {})
-                    if not isinstance(sp, dict):
-                        sp = {}
+                is_temp, until_dt, reason, is_enabled = _parse_enabled(
+                    sp.get("enabled", True)
+                )
 
-                    is_temp, until_dt, reason, is_enabled = _parse_enabled(
-                        sp.get("enabled", True)
+                def save_enabled(value):
+                    cfg = load_web_config()
+                    sect = cfg.get("scan_pii", {})
+                    if not isinstance(sect, dict):
+                        sect = {}
+                    sect["enabled"] = value
+                    cfg["scan_pii"] = sect
+                    save_web_config(cfg)
+
+                _render_toggle(
+                    "PII Scanning",
+                    "Detect personally identifiable information in tool inputs and outputs.",
+                    is_temp,
+                    until_dt,
+                    reason,
+                    is_enabled,
+                    save_enabled,
+                    refresh,
+                )
+
+                with ui.card().classes("w-full"):
+                    with ui.row().classes("items-center gap-1"):
+                        ui.label("Action Mode").classes("text-lg font-bold")
+                        field_help_icon("scan_pii")
+                    ui.label("What happens when PII is detected.").classes(
+                        "text-xs text-grey-6"
                     )
+                    action = sp.get("action", "redact")
+                    act_sel = ui.select(
+                        options={
+                            "block": "Block — reject operation",
+                            "ask": "Ask — interactive prompt (block if headless)",
+                            "ask:warn": "Ask — interactive prompt (warn if headless)",
+                            "ask:log-only": "Ask — interactive prompt (log-only if headless)",
+                            "redact": "Redact — mask PII values",
+                            "warn": "Warn — allow with warning",
+                            "log-only": "Log Only — silent logging",
+                        },
+                        value=action,
+                    ).classes("w-64")
 
-                    def save_enabled(value):
-                        cfg = load_web_config()
+                    async def save_action(e):
+                        cfg = await run.io_bound(load_web_config)
                         sect = cfg.get("scan_pii", {})
                         if not isinstance(sect, dict):
                             sect = {}
-                        sect["enabled"] = value
+                        sect["action"] = e.value
                         cfg["scan_pii"] = sect
-                        save_web_config(cfg)
+                        await run.io_bound(save_web_config, cfg)
+                        ui.notify(f"Action: {e.value}", type="positive")
 
-                    _render_toggle(
-                        "PII Scanning",
-                        "Detect personally identifiable information in tool inputs and outputs.",
-                        is_temp,
-                        until_dt,
-                        reason,
-                        is_enabled,
-                        save_enabled,
-                        refresh,
+                    act_sel.on_value_change(save_action)
+
+                with ui.card().classes("w-full"):
+                    with ui.row().classes("items-center gap-1"):
+                        ui.label("PII Types").classes("text-lg font-bold")
+                        field_help_icon("scan_pii.pii_types")
+                    ui.label("Select which PII types to detect.").classes(
+                        "text-xs text-grey-6"
                     )
 
-                    with ui.card().classes("w-full"):
-                        with ui.row().classes("items-center gap-1"):
-                            ui.label("Action Mode").classes("text-lg font-bold")
-                            field_help_icon("scan_pii")
-                        ui.label("What happens when PII is detected.").classes(
-                            "text-xs text-grey-6"
-                        )
-                        action = sp.get("action", "redact")
-                        act_sel = ui.select(
-                            options={
-                                "block": "Block — reject operation",
-                                "ask": "Ask — interactive prompt (block if headless)",
-                                "ask:warn": "Ask — interactive prompt (warn if headless)",
-                                "ask:log-only": "Ask — interactive prompt (log-only if headless)",
-                                "redact": "Redact — mask PII values",
-                                "warn": "Warn — allow with warning",
-                                "log-only": "Log Only — silent logging",
-                            },
-                            value=action,
-                        ).classes("w-64")
+                    enabled_types = sp.get("pii_types", [k for k, _ in ALL_PII_TYPES])
+                    if not isinstance(enabled_types, list):
+                        enabled_types = [k for k, _ in ALL_PII_TYPES]
 
-                        async def save_action(e):
+                    ui.label("Phase 1 — Core PII Types").classes(
+                        "font-bold text-sm mt-2"
+                    )
+                    for key, label in PHASE1_PII_TYPES:
+                        cb = ui.checkbox(label, value=key in enabled_types)
+
+                        async def on_pii_change(e, k=key):
                             cfg = await run.io_bound(load_web_config)
                             sect = cfg.get("scan_pii", {})
                             if not isinstance(sect, dict):
                                 sect = {}
-                            sect["action"] = e.value
+                            current = sect.get(
+                                "pii_types", [t for t, _ in ALL_PII_TYPES]
+                            )
+                            if not isinstance(current, list):
+                                current = [t for t, _ in ALL_PII_TYPES]
+                            if e.value and k not in current:
+                                current.append(k)
+                            elif not e.value and k in current:
+                                current.remove(k)
+                            sect["pii_types"] = current
                             cfg["scan_pii"] = sect
                             await run.io_bound(save_web_config, cfg)
-                            ui.notify(f"Action: {e.value}", type="positive")
+                            ui.notify("Saved", type="positive")
 
-                        act_sel.on_value_change(save_action)
+                        cb.on_value_change(on_pii_change)
 
-                    with ui.card().classes("w-full"):
-                        with ui.row().classes("items-center gap-1"):
-                            ui.label("PII Types").classes("text-lg font-bold")
-                            field_help_icon("scan_pii.pii_types")
-                        ui.label("Select which PII types to detect.").classes(
-                            "text-xs text-grey-6"
-                        )
+                    ui.label("Phase 2 — Extended PII Types").classes(
+                        "font-bold text-sm mt-2"
+                    )
+                    for key, label in PHASE2_PII_TYPES:
+                        cb = ui.checkbox(label, value=key in enabled_types)
 
-                        enabled_types = sp.get(
-                            "pii_types", [k for k, _ in ALL_PII_TYPES]
-                        )
-                        if not isinstance(enabled_types, list):
-                            enabled_types = [k for k, _ in ALL_PII_TYPES]
+                        async def on_pii_change2(e, k=key):
+                            cfg = await run.io_bound(load_web_config)
+                            sect = cfg.get("scan_pii", {})
+                            if not isinstance(sect, dict):
+                                sect = {}
+                            current = sect.get(
+                                "pii_types", [t for t, _ in ALL_PII_TYPES]
+                            )
+                            if not isinstance(current, list):
+                                current = [t for t, _ in ALL_PII_TYPES]
+                            if e.value and k not in current:
+                                current.append(k)
+                            elif not e.value and k in current:
+                                current.remove(k)
+                            sect["pii_types"] = current
+                            cfg["scan_pii"] = sect
+                            await run.io_bound(save_web_config, cfg)
+                            ui.notify("Saved", type="positive")
 
-                        ui.label("Phase 1 — Core PII Types").classes(
-                            "font-bold text-sm mt-2"
-                        )
-                        for key, label in PHASE1_PII_TYPES:
-                            cb = ui.checkbox(label, value=key in enabled_types)
+                        cb.on_value_change(on_pii_change2)
 
-                            async def on_pii_change(e, k=key):
-                                cfg = await run.io_bound(load_web_config)
-                                sect = cfg.get("scan_pii", {})
-                                if not isinstance(sect, dict):
-                                    sect = {}
-                                current = sect.get(
-                                    "pii_types", [t for t, _ in ALL_PII_TYPES]
+                with ui.card().classes("w-full"):
+                    with ui.row().classes("items-center gap-1"):
+                        ui.label("Ignore Files").classes("text-lg font-bold")
+                        field_help_icon("scan_pii.ignore_files")
+                    ui.label(
+                        "Glob patterns for files to exclude from PII scanning."
+                    ).classes("text-xs text-grey-6")
+
+                    ignore_files = sp.get("ignore_files", [])
+                    if ignore_files:
+                        for idx, entry in enumerate(ignore_files):
+                            with ui.row().classes("items-center gap-2 w-full"):
+                                ui.icon("visibility_off").classes("text-grey-6")
+                                ui.label(entry).classes("flex-grow text-sm").style(
+                                    "font-family: monospace"
                                 )
-                                if not isinstance(current, list):
-                                    current = [t for t, _ in ALL_PII_TYPES]
-                                if e.value and k not in current:
-                                    current.append(k)
-                                elif not e.value and k in current:
-                                    current.remove(k)
-                                sect["pii_types"] = current
-                                cfg["scan_pii"] = sect
-                                await run.io_bound(save_web_config, cfg)
-                                ui.notify("Saved", type="positive")
 
-                            cb.on_value_change(on_pii_change)
-
-                        ui.label("Phase 2 — Extended PII Types").classes(
-                            "font-bold text-sm mt-2"
-                        )
-                        for key, label in PHASE2_PII_TYPES:
-                            cb = ui.checkbox(label, value=key in enabled_types)
-
-                            async def on_pii_change2(e, k=key):
-                                cfg = await run.io_bound(load_web_config)
-                                sect = cfg.get("scan_pii", {})
-                                if not isinstance(sect, dict):
-                                    sect = {}
-                                current = sect.get(
-                                    "pii_types", [t for t, _ in ALL_PII_TYPES]
-                                )
-                                if not isinstance(current, list):
-                                    current = [t for t, _ in ALL_PII_TYPES]
-                                if e.value and k not in current:
-                                    current.append(k)
-                                elif not e.value and k in current:
-                                    current.remove(k)
-                                sect["pii_types"] = current
-                                cfg["scan_pii"] = sect
-                                await run.io_bound(save_web_config, cfg)
-                                ui.notify("Saved", type="positive")
-
-                            cb.on_value_change(on_pii_change2)
-
-                    with ui.card().classes("w-full"):
-                        with ui.row().classes("items-center gap-1"):
-                            ui.label("Ignore Files").classes("text-lg font-bold")
-                            field_help_icon("scan_pii.ignore_files")
-                        ui.label(
-                            "Glob patterns for files to exclude from PII scanning."
-                        ).classes("text-xs text-grey-6")
-
-                        ignore_files = sp.get("ignore_files", [])
-                        if ignore_files:
-                            for idx, entry in enumerate(ignore_files):
-                                with ui.row().classes("items-center gap-2 w-full"):
-                                    ui.icon("visibility_off").classes("text-grey-6")
-                                    ui.label(entry).classes("flex-grow text-sm").style(
-                                        "font-family: monospace"
-                                    )
-
-                                    async def remove_ignore_file(i=idx):
-                                        cfg = await run.io_bound(load_web_config)
-                                        sect = cfg.get("scan_pii", {})
-                                        if not isinstance(sect, dict):
-                                            return
-                                        items = sect.get("ignore_files", [])
-                                        if i < len(items):
-                                            items.pop(i)
-                                            sect["ignore_files"] = items
-                                            cfg["scan_pii"] = sect
-                                            await run.io_bound(save_web_config, cfg)
-                                            ui.notify(
-                                                "File pattern removed", type="positive"
-                                            )
-                                            await refresh()
-
-                                    ui.button(
-                                        icon="delete",
-                                        on_click=remove_ignore_file,
-                                        color="red",
-                                    ).props("flat dense size=sm")
-                        else:
-                            ui.label("No ignore file patterns.").classes(
-                                "text-grey-6 text-sm"
-                            )
-
-                        with ui.row().classes("items-center gap-2 mt-2"):
-                            if_input = (
-                                ui.input(placeholder="Enter glob pattern (e.g. *.log)")
-                                .props("dense outlined")
-                                .classes("flex-grow")
-                            )
-
-                            async def add_ignore_file():
-                                val = if_input.value.strip()
-                                if not val:
-                                    ui.notify("Enter a pattern", type="negative")
-                                    return
-                                cfg = await run.io_bound(load_web_config)
-                                sect = cfg.get("scan_pii", {})
-                                if not isinstance(sect, dict):
-                                    sect = {}
-                                items = sect.get("ignore_files", [])
-                                if val in items:
-                                    ui.notify("Pattern already exists", type="warning")
-                                    return
-                                items.append(val)
-                                sect["ignore_files"] = items
-                                cfg["scan_pii"] = sect
-                                await run.io_bound(save_web_config, cfg)
-                                if_input.value = ""
-                                ui.notify(f"Added: {val}", type="positive")
-                                await refresh()
-
-                            ui.button(
-                                "Add", icon="add", on_click=add_ignore_file
-                            ).props("dense")
-
-                    with ui.card().classes("w-full"):
-                        with ui.row().classes("items-center gap-1"):
-                            ui.label("Ignore Tools").classes("text-lg font-bold")
-                            field_help_icon("scan_pii.ignore_tools")
-                        ui.label(
-                            "Tool name patterns to exclude from PII scanning."
-                        ).classes("text-xs text-grey-6")
-
-                        ignore_tools = sp.get("ignore_tools", [])
-                        if ignore_tools:
-                            for idx, entry in enumerate(ignore_tools):
-                                with ui.row().classes("items-center gap-2 w-full"):
-                                    ui.icon("build").classes("text-grey-6")
-                                    ui.label(entry).classes("flex-grow text-sm").style(
-                                        "font-family: monospace"
-                                    )
-
-                                    async def remove_ignore_tool(i=idx):
-                                        cfg = await run.io_bound(load_web_config)
-                                        sect = cfg.get("scan_pii", {})
-                                        if not isinstance(sect, dict):
-                                            return
-                                        items = sect.get("ignore_tools", [])
-                                        if i < len(items):
-                                            items.pop(i)
-                                            sect["ignore_tools"] = items
-                                            cfg["scan_pii"] = sect
-                                            await run.io_bound(save_web_config, cfg)
-                                            ui.notify(
-                                                "Tool pattern removed", type="positive"
-                                            )
-                                            await refresh()
-
-                                    ui.button(
-                                        icon="delete",
-                                        on_click=remove_ignore_tool,
-                                        color="red",
-                                    ).props("flat dense size=sm")
-                        else:
-                            ui.label("No ignore tool patterns.").classes(
-                                "text-grey-6 text-sm"
-                            )
-
-                        with ui.row().classes("items-center gap-2 mt-2"):
-                            it_input = (
-                                ui.input(
-                                    placeholder="Enter tool name pattern (e.g. mcp__*)"
-                                )
-                                .props("dense outlined")
-                                .classes("flex-grow")
-                            )
-
-                            async def add_ignore_tool():
-                                val = it_input.value.strip()
-                                if not val:
-                                    ui.notify("Enter a pattern", type="negative")
-                                    return
-                                cfg = await run.io_bound(load_web_config)
-                                sect = cfg.get("scan_pii", {})
-                                if not isinstance(sect, dict):
-                                    sect = {}
-                                items = sect.get("ignore_tools", [])
-                                if val in items:
-                                    ui.notify("Pattern already exists", type="warning")
-                                    return
-                                items.append(val)
-                                sect["ignore_tools"] = items
-                                cfg["scan_pii"] = sect
-                                await run.io_bound(save_web_config, cfg)
-                                it_input.value = ""
-                                ui.notify(f"Added: {val}", type="positive")
-                                await refresh()
-
-                            ui.button(
-                                "Add", icon="add", on_click=add_ignore_tool
-                            ).props("dense")
-
-                    with ui.card().classes("w-full"):
-                        with ui.row().classes("items-center gap-1"):
-                            ui.label("Allowlist Patterns").classes("text-lg font-bold")
-                            field_help_icon("scan_pii.allowlist_patterns")
-                        ui.label(
-                            "Regex patterns for known-safe PII values. "
-                            "Supports optional expiration via valid_until."
-                        ).classes("text-xs text-grey-6")
-
-                        allowlist = sp.get("allowlist_patterns", [])
-                        if allowlist:
-                            for idx, entry in enumerate(allowlist):
-                                pat_text = _get_pattern_text(entry)
-                                valid_until = (
-                                    entry.get("valid_until")
-                                    if isinstance(entry, dict)
-                                    else None
-                                )
-                                exp_info = _format_expiration(valid_until)
-
-                                with ui.row().classes("items-center gap-2 w-full"):
-                                    ui.icon("check").classes("text-green")
-                                    ui.label(pat_text).classes(
-                                        "flex-grow text-sm"
-                                    ).style("font-family: monospace")
-                                    if exp_info:
-                                        exp_text, exp_color = exp_info
-                                        ui.badge(exp_text, color=exp_color).classes(
-                                            "text-xs"
-                                        )
-
-                                    async def remove_allowlist(i=idx):
-                                        cfg = await run.io_bound(load_web_config)
-                                        sect = cfg.get("scan_pii", {})
-                                        if not isinstance(sect, dict):
-                                            return
-                                        pats = sect.get("allowlist_patterns", [])
-                                        if i < len(pats):
-                                            pats.pop(i)
-                                            sect["allowlist_patterns"] = pats
-                                            cfg["scan_pii"] = sect
-                                            await run.io_bound(save_web_config, cfg)
-                                            ui.notify(
-                                                "Pattern removed", type="positive"
-                                            )
-                                            await refresh()
-
-                                    ui.button(
-                                        icon="delete",
-                                        on_click=remove_allowlist,
-                                        color="red",
-                                    ).props("flat dense size=sm")
-                        else:
-                            ui.label("No allowlist patterns.").classes(
-                                "text-grey-6 text-sm"
-                            )
-
-                        with ui.row().classes("items-center gap-2 mt-2"):
-                            al_input = (
-                                ui.input(placeholder="Enter regex pattern")
-                                .props("dense outlined")
-                                .classes("flex-grow")
-                            )
-                            al_exp = (
-                                ui.input(
-                                    placeholder="valid_until (e.g. 2025-12-31T23:59:59Z)"
-                                )
-                                .props("dense outlined")
-                                .classes("w-64")
-                            )
-
-                            async def add_allowlist_pat():
-                                pattern = al_input.value.strip()
-                                if not pattern:
-                                    ui.notify("Enter a pattern", type="negative")
-                                    return
-                                try:
-                                    re_mod.compile(pattern)
-                                except re_mod.error as e:
-                                    ui.notify(f"Invalid regex: {e}", type="negative")
-                                    return
-                                cfg = await run.io_bound(load_web_config)
-                                sect = cfg.get("scan_pii", {})
-                                if not isinstance(sect, dict):
-                                    sect = {}
-                                pats = sect.get("allowlist_patterns", [])
-                                existing = [_get_pattern_text(p) for p in pats]
-                                if pattern in existing:
-                                    ui.notify("Pattern already exists", type="warning")
-                                    return
-                                exp_val = al_exp.value.strip()
-                                if exp_val:
-                                    try:
-                                        datetime.fromisoformat(
-                                            exp_val.replace("Z", "+00:00")
-                                        )
-                                    except (ValueError, TypeError):
-                                        ui.notify(
-                                            "Invalid date format", type="negative"
-                                        )
+                                async def remove_ignore_file(i=idx):
+                                    cfg = await run.io_bound(load_web_config)
+                                    sect = cfg.get("scan_pii", {})
+                                    if not isinstance(sect, dict):
                                         return
-                                    pats.append(
-                                        {"pattern": pattern, "valid_until": exp_val}
+                                    items = sect.get("ignore_files", [])
+                                    if i < len(items):
+                                        items.pop(i)
+                                        sect["ignore_files"] = items
+                                        cfg["scan_pii"] = sect
+                                        await run.io_bound(save_web_config, cfg)
+                                        ui.notify(
+                                            "File pattern removed", type="positive"
+                                        )
+                                        await refresh()
+
+                                ui.button(
+                                    icon="delete",
+                                    on_click=remove_ignore_file,
+                                    color="red",
+                                ).props("flat dense size=sm")
+                    else:
+                        ui.label("No ignore file patterns.").classes(
+                            "text-grey-6 text-sm"
+                        )
+
+                    with ui.row().classes("items-center gap-2 mt-2"):
+                        if_input = (
+                            ui.input(placeholder="Enter glob pattern (e.g. *.log)")
+                            .props("dense outlined")
+                            .classes("flex-grow")
+                        )
+
+                        async def add_ignore_file():
+                            val = if_input.value.strip()
+                            if not val:
+                                ui.notify("Enter a pattern", type="negative")
+                                return
+                            cfg = await run.io_bound(load_web_config)
+                            sect = cfg.get("scan_pii", {})
+                            if not isinstance(sect, dict):
+                                sect = {}
+                            items = sect.get("ignore_files", [])
+                            if val in items:
+                                ui.notify("Pattern already exists", type="warning")
+                                return
+                            items.append(val)
+                            sect["ignore_files"] = items
+                            cfg["scan_pii"] = sect
+                            await run.io_bound(save_web_config, cfg)
+                            if_input.value = ""
+                            ui.notify(f"Added: {val}", type="positive")
+                            await refresh()
+
+                        ui.button("Add", icon="add", on_click=add_ignore_file).props(
+                            "dense"
+                        )
+
+                with ui.card().classes("w-full"):
+                    with ui.row().classes("items-center gap-1"):
+                        ui.label("Ignore Tools").classes("text-lg font-bold")
+                        field_help_icon("scan_pii.ignore_tools")
+                    ui.label(
+                        "Tool name patterns to exclude from PII scanning."
+                    ).classes("text-xs text-grey-6")
+
+                    ignore_tools = sp.get("ignore_tools", [])
+                    if ignore_tools:
+                        for idx, entry in enumerate(ignore_tools):
+                            with ui.row().classes("items-center gap-2 w-full"):
+                                ui.icon("build").classes("text-grey-6")
+                                ui.label(entry).classes("flex-grow text-sm").style(
+                                    "font-family: monospace"
+                                )
+
+                                async def remove_ignore_tool(i=idx):
+                                    cfg = await run.io_bound(load_web_config)
+                                    sect = cfg.get("scan_pii", {})
+                                    if not isinstance(sect, dict):
+                                        return
+                                    items = sect.get("ignore_tools", [])
+                                    if i < len(items):
+                                        items.pop(i)
+                                        sect["ignore_tools"] = items
+                                        cfg["scan_pii"] = sect
+                                        await run.io_bound(save_web_config, cfg)
+                                        ui.notify(
+                                            "Tool pattern removed", type="positive"
+                                        )
+                                        await refresh()
+
+                                ui.button(
+                                    icon="delete",
+                                    on_click=remove_ignore_tool,
+                                    color="red",
+                                ).props("flat dense size=sm")
+                    else:
+                        ui.label("No ignore tool patterns.").classes(
+                            "text-grey-6 text-sm"
+                        )
+
+                    with ui.row().classes("items-center gap-2 mt-2"):
+                        it_input = (
+                            ui.input(
+                                placeholder="Enter tool name pattern (e.g. mcp__*)"
+                            )
+                            .props("dense outlined")
+                            .classes("flex-grow")
+                        )
+
+                        async def add_ignore_tool():
+                            val = it_input.value.strip()
+                            if not val:
+                                ui.notify("Enter a pattern", type="negative")
+                                return
+                            cfg = await run.io_bound(load_web_config)
+                            sect = cfg.get("scan_pii", {})
+                            if not isinstance(sect, dict):
+                                sect = {}
+                            items = sect.get("ignore_tools", [])
+                            if val in items:
+                                ui.notify("Pattern already exists", type="warning")
+                                return
+                            items.append(val)
+                            sect["ignore_tools"] = items
+                            cfg["scan_pii"] = sect
+                            await run.io_bound(save_web_config, cfg)
+                            it_input.value = ""
+                            ui.notify(f"Added: {val}", type="positive")
+                            await refresh()
+
+                        ui.button("Add", icon="add", on_click=add_ignore_tool).props(
+                            "dense"
+                        )
+
+                with ui.card().classes("w-full"):
+                    with ui.row().classes("items-center gap-1"):
+                        ui.label("Allowlist Patterns").classes("text-lg font-bold")
+                        field_help_icon("scan_pii.allowlist_patterns")
+                    ui.label(
+                        "Regex patterns for known-safe PII values. "
+                        "Supports optional expiration via valid_until."
+                    ).classes("text-xs text-grey-6")
+
+                    allowlist = sp.get("allowlist_patterns", [])
+                    if allowlist:
+                        for idx, entry in enumerate(allowlist):
+                            pat_text = _get_pattern_text(entry)
+                            valid_until = (
+                                entry.get("valid_until")
+                                if isinstance(entry, dict)
+                                else None
+                            )
+                            exp_info = _format_expiration(valid_until)
+
+                            with ui.row().classes("items-center gap-2 w-full"):
+                                ui.icon("check").classes("text-green")
+                                ui.label(pat_text).classes("flex-grow text-sm").style(
+                                    "font-family: monospace"
+                                )
+                                if exp_info:
+                                    exp_text, exp_color = exp_info
+                                    ui.badge(exp_text, color=exp_color).classes(
+                                        "text-xs"
                                     )
-                                else:
-                                    pats.append(pattern)
-                                sect["allowlist_patterns"] = pats
-                                cfg["scan_pii"] = sect
-                                await run.io_bound(save_web_config, cfg)
-                                al_input.value = ""
-                                al_exp.value = ""
-                                ui.notify(f"Added: {pattern}", type="positive")
-                                await refresh()
 
-                            ui.button(
-                                "Add", icon="add", on_click=add_allowlist_pat
-                            ).props("dense")
+                                async def remove_allowlist(i=idx):
+                                    cfg = await run.io_bound(load_web_config)
+                                    sect = cfg.get("scan_pii", {})
+                                    if not isinstance(sect, dict):
+                                        return
+                                    pats = sect.get("allowlist_patterns", [])
+                                    if i < len(pats):
+                                        pats.pop(i)
+                                        sect["allowlist_patterns"] = pats
+                                        cfg["scan_pii"] = sect
+                                        await run.io_bound(save_web_config, cfg)
+                                        ui.notify("Pattern removed", type="positive")
+                                        await refresh()
 
-                    with ui.card().classes("w-full"):
-                        ui.label("PII Scanning Statistics").classes("text-lg font-bold")
-                        total = await run.io_bound(_load_stats)
-                        if total is None:
-                            ui.label("Violation logging not available.").classes(
-                                "text-grey-6 text-sm"
-                            )
-                        elif total == 0:
-                            ui.label("No PII detected yet.").classes(
-                                "text-grey-6 text-sm"
-                            )
-                        else:
-                            ui.label(f"Total PII detections: {total}").classes(
-                                "text-sm"
-                            )
+                                ui.button(
+                                    icon="delete",
+                                    on_click=remove_allowlist,
+                                    color="red",
+                                ).props("flat dense size=sm")
+                    else:
+                        ui.label("No allowlist patterns.").classes(
+                            "text-grey-6 text-sm"
+                        )
 
-            ui.timer(0.1, refresh, once=True)
+                    with ui.row().classes("items-center gap-2 mt-2"):
+                        al_input = (
+                            ui.input(placeholder="Enter regex pattern")
+                            .props("dense outlined")
+                            .classes("flex-grow")
+                        )
+                        al_exp = (
+                            ui.input(
+                                placeholder="valid_until (e.g. 2025-12-31T23:59:59Z)"
+                            )
+                            .props("dense outlined")
+                            .classes("w-64")
+                        )
+
+                        async def add_allowlist_pat():
+                            pattern = al_input.value.strip()
+                            if not pattern:
+                                ui.notify("Enter a pattern", type="negative")
+                                return
+                            try:
+                                re_mod.compile(pattern)
+                            except re_mod.error as e:
+                                ui.notify(f"Invalid regex: {e}", type="negative")
+                                return
+                            cfg = await run.io_bound(load_web_config)
+                            sect = cfg.get("scan_pii", {})
+                            if not isinstance(sect, dict):
+                                sect = {}
+                            pats = sect.get("allowlist_patterns", [])
+                            existing = [_get_pattern_text(p) for p in pats]
+                            if pattern in existing:
+                                ui.notify("Pattern already exists", type="warning")
+                                return
+                            exp_val = al_exp.value.strip()
+                            if exp_val:
+                                try:
+                                    datetime.fromisoformat(
+                                        exp_val.replace("Z", "+00:00")
+                                    )
+                                except (ValueError, TypeError):
+                                    ui.notify("Invalid date format", type="negative")
+                                    return
+                                pats.append(
+                                    {"pattern": pattern, "valid_until": exp_val}
+                                )
+                            else:
+                                pats.append(pattern)
+                            sect["allowlist_patterns"] = pats
+                            cfg["scan_pii"] = sect
+                            await run.io_bound(save_web_config, cfg)
+                            al_input.value = ""
+                            al_exp.value = ""
+                            ui.notify(f"Added: {pattern}", type="positive")
+                            await refresh()
+
+                        ui.button("Add", icon="add", on_click=add_allowlist_pat).props(
+                            "dense"
+                        )
+
+                with ui.card().classes("w-full"):
+                    ui.label("PII Scanning Statistics").classes("text-lg font-bold")
+                    total = await run.io_bound(_load_stats)
+                    if total is None:
+                        ui.label("Violation logging not available.").classes(
+                            "text-grey-6 text-sm"
+                        )
+                    elif total == 0:
+                        ui.label("No PII detected yet.").classes("text-grey-6 text-sm")
+                    else:
+                        ui.label(f"Total PII detections: {total}").classes("text-sm")
+
+        ui.timer(0.1, refresh, once=True)

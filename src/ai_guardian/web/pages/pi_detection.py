@@ -150,361 +150,347 @@ def _render_toggle(
 
 def create_pi_detection_page(service, daemon_name: str):
     """Create the Prompt Injection Detection page."""
-    create_header(daemon_name)
+    sidebar = create_sidebar(daemon_name, current=f"/{daemon_name}/pi-detection")
+    create_header(daemon_name, drawer=sidebar)
 
-    with ui.row().classes("w-full min-h-screen no-wrap"):
-        create_sidebar(daemon_name, current=f"/{daemon_name}/pi-detection")
+    with ui.column().classes("flex-grow p-6 gap-4"):
+        with ui.row().classes("items-center gap-2"):
+            ui.label("Prompt Injection Detection").classes("text-2xl font-bold")
+            add_help_button("prompt_injection")
+        ui.label("Configure prompt injection detection settings.").classes(
+            "text-xs text-grey-6"
+        )
 
-        with ui.column().classes("flex-grow p-6 gap-4"):
-            with ui.row().classes("items-center gap-2"):
-                ui.label("Prompt Injection Detection").classes("text-2xl font-bold")
-                add_help_button("prompt_injection")
-            ui.label("Configure prompt injection detection settings.").classes(
-                "text-xs text-grey-6"
-            )
+        content = ui.column().classes("w-full gap-4")
 
-            content = ui.column().classes("w-full gap-4")
+        async def refresh():
+            content.clear()
+            config = await run.io_bound(load_web_config)
 
-            async def refresh():
-                content.clear()
-                config = await run.io_bound(load_web_config)
+            with content:
+                pi = config.get("prompt_injection", {})
+                if not isinstance(pi, dict):
+                    pi = {}
 
-                with content:
-                    pi = config.get("prompt_injection", {})
-                    if not isinstance(pi, dict):
-                        pi = {}
+                is_temp, until_dt, reason, is_enabled = _parse_enabled(
+                    pi.get("enabled", False)
+                )
 
-                    is_temp, until_dt, reason, is_enabled = _parse_enabled(
-                        pi.get("enabled", False)
-                    )
+                def save_enabled(value):
+                    cfg = load_web_config()
+                    sect = cfg.get("prompt_injection", {})
+                    if not isinstance(sect, dict):
+                        sect = {}
+                    sect["enabled"] = value
+                    cfg["prompt_injection"] = sect
+                    save_web_config(cfg)
 
-                    def save_enabled(value):
-                        cfg = load_web_config()
+                _render_toggle(
+                    "Prompt Injection Detection",
+                    "Detect and block prompt injection attempts in tool inputs.",
+                    is_temp,
+                    until_dt,
+                    reason,
+                    is_enabled,
+                    save_enabled,
+                    refresh,
+                )
+
+                with ui.card().classes("w-full"):
+                    with ui.row().classes("items-center gap-1"):
+                        ui.label("Action Mode").classes("text-lg font-bold")
+                        field_help_icon("prompt_injection")
+                    ui.label(
+                        "What happens when a prompt injection is detected."
+                    ).classes("text-xs text-grey-6")
+                    action = pi.get("action", "block")
+                    act_sel = ui.select(
+                        options={
+                            "block": "Block — reject the operation",
+                            "ask": "Ask — interactive prompt (block if headless)",
+                            "ask:warn": "Ask — interactive prompt (warn if headless)",
+                            "ask:log-only": "Ask — interactive prompt (log-only if headless)",
+                            "warn": "Warn — allow with warning",
+                            "log-only": "Log Only — silent logging",
+                        },
+                        value=action,
+                    ).classes("w-64")
+
+                    async def save_action(e):
+                        cfg = await run.io_bound(load_web_config)
                         sect = cfg.get("prompt_injection", {})
                         if not isinstance(sect, dict):
                             sect = {}
-                        sect["enabled"] = value
+                        sect["action"] = e.value
                         cfg["prompt_injection"] = sect
-                        save_web_config(cfg)
+                        await run.io_bound(save_web_config, cfg)
+                        ui.notify(f"Action: {e.value}", type="positive")
 
-                    _render_toggle(
-                        "Prompt Injection Detection",
-                        "Detect and block prompt injection attempts in tool inputs.",
-                        is_temp,
-                        until_dt,
-                        reason,
-                        is_enabled,
-                        save_enabled,
-                        refresh,
+                    act_sel.on_value_change(save_action)
+
+                with ui.card().classes("w-full"):
+                    with ui.row().classes("items-center gap-1"):
+                        ui.label("Detector Engine").classes("text-lg font-bold")
+                        field_help_icon("prompt_injection.detector")
+                    ui.label("Choose which detection engine to use.").classes(
+                        "text-xs text-grey-6"
+                    )
+                    detector = pi.get("detector", "heuristic")
+                    det_sel = ui.select(
+                        options={
+                            "heuristic": "Heuristic (built-in)",
+                            "ml": "ML (DeBERTa via daemon)",
+                            "hybrid": "Hybrid (heuristic + ML)",
+                        },
+                        value=detector,
+                    ).classes("w-64")
+                    ml_hint = ui.label(
+                        "Requires daemon mode and ai-guardian ml download"
+                    ).classes("text-xs text-orange-7 mt-1")
+                    ml_hint.visible = detector in ("ml", "hybrid")
+
+                    async def save_detector(e):
+                        cfg = await run.io_bound(load_web_config)
+                        sect = cfg.get("prompt_injection", {})
+                        if not isinstance(sect, dict):
+                            sect = {}
+                        sect["detector"] = e.value
+                        cfg["prompt_injection"] = sect
+                        await run.io_bound(save_web_config, cfg)
+                        ml_hint.visible = e.value in ("ml", "hybrid")
+                        ui.notify(f"Detector: {e.value}", type="positive")
+
+                    det_sel.on_value_change(save_detector)
+
+                with ui.card().classes("w-full"):
+                    with ui.row().classes("items-center gap-1"):
+                        ui.label("Sensitivity").classes("text-lg font-bold")
+                        field_help_icon("prompt_injection.sensitivity")
+                    ui.label("Set the detection sensitivity level.").classes(
+                        "text-xs text-grey-6"
+                    )
+                    sensitivity = pi.get("sensitivity", "medium")
+                    sens_sel = ui.select(
+                        options={
+                            "low": "Low",
+                            "medium": "Medium",
+                            "high": "High",
+                        },
+                        value=sensitivity,
+                    ).classes("w-64")
+
+                    async def save_sensitivity(e):
+                        cfg = await run.io_bound(load_web_config)
+                        sect = cfg.get("prompt_injection", {})
+                        if not isinstance(sect, dict):
+                            sect = {}
+                        sect["sensitivity"] = e.value
+                        cfg["prompt_injection"] = sect
+                        await run.io_bound(save_web_config, cfg)
+                        ui.notify(f"Sensitivity: {e.value}", type="positive")
+
+                    sens_sel.on_value_change(save_sensitivity)
+
+                with ui.card().classes("w-full"):
+                    with ui.row().classes("items-center gap-1"):
+                        ui.label("Max Score Threshold").classes("text-lg font-bold")
+                        field_help_icon("prompt_injection.max_score_threshold")
+                    ui.label(
+                        "Inputs scoring above this threshold are flagged as injections (0.0-1.0)."
+                    ).classes("text-xs text-grey-6")
+                    threshold = pi.get("max_score_threshold", 0.75)
+                    thr_input = (
+                        ui.number(
+                            value=threshold,
+                            min=0.0,
+                            max=1.0,
+                            step=0.05,
+                        )
+                        .props("dense outlined")
+                        .classes("w-32")
                     )
 
-                    with ui.card().classes("w-full"):
-                        with ui.row().classes("items-center gap-1"):
-                            ui.label("Action Mode").classes("text-lg font-bold")
-                            field_help_icon("prompt_injection")
-                        ui.label(
-                            "What happens when a prompt injection is detected."
-                        ).classes("text-xs text-grey-6")
-                        action = pi.get("action", "block")
-                        act_sel = ui.select(
-                            options={
-                                "block": "Block — reject the operation",
-                                "ask": "Ask — interactive prompt (block if headless)",
-                                "ask:warn": "Ask — interactive prompt (warn if headless)",
-                                "ask:log-only": "Ask — interactive prompt (log-only if headless)",
-                                "warn": "Warn — allow with warning",
-                                "log-only": "Log Only — silent logging",
-                            },
-                            value=action,
-                        ).classes("w-64")
+                    async def save_threshold(e):
+                        cfg = await run.io_bound(load_web_config)
+                        sect = cfg.get("prompt_injection", {})
+                        if not isinstance(sect, dict):
+                            sect = {}
+                        sect["max_score_threshold"] = e.value
+                        cfg["prompt_injection"] = sect
+                        await run.io_bound(save_web_config, cfg)
+                        ui.notify(f"Threshold: {e.value}", type="positive")
 
-                        async def save_action(e):
-                            cfg = await run.io_bound(load_web_config)
-                            sect = cfg.get("prompt_injection", {})
-                            if not isinstance(sect, dict):
-                                sect = {}
-                            sect["action"] = e.value
-                            cfg["prompt_injection"] = sect
-                            await run.io_bound(save_web_config, cfg)
-                            ui.notify(f"Action: {e.value}", type="positive")
+                    thr_input.on_value_change(save_threshold)
 
-                        act_sel.on_value_change(save_action)
+                with ui.card().classes("w-full"):
+                    with ui.row().classes("items-center gap-1"):
+                        ui.label("Ignore Files").classes("text-lg font-bold")
+                        field_help_icon("prompt_injection.ignore_files")
+                    ui.label(
+                        "Glob patterns for files to skip during prompt injection scanning."
+                    ).classes("text-xs text-grey-6")
 
-                    with ui.card().classes("w-full"):
-                        with ui.row().classes("items-center gap-1"):
-                            ui.label("Detector Engine").classes("text-lg font-bold")
-                            field_help_icon("prompt_injection.detector")
-                        ui.label("Choose which detection engine to use.").classes(
-                            "text-xs text-grey-6"
-                        )
-                        detector = pi.get("detector", "heuristic")
-                        det_sel = ui.select(
-                            options={
-                                "heuristic": "Heuristic (built-in)",
-                                "ml": "ML (DeBERTa via daemon)",
-                                "hybrid": "Hybrid (heuristic + ML)",
-                            },
-                            value=detector,
-                        ).classes("w-64")
-                        ml_hint = ui.label(
-                            "Requires daemon mode and ai-guardian ml download"
-                        ).classes("text-xs text-orange-7 mt-1")
-                        ml_hint.visible = detector in ("ml", "hybrid")
-
-                        async def save_detector(e):
-                            cfg = await run.io_bound(load_web_config)
-                            sect = cfg.get("prompt_injection", {})
-                            if not isinstance(sect, dict):
-                                sect = {}
-                            sect["detector"] = e.value
-                            cfg["prompt_injection"] = sect
-                            await run.io_bound(save_web_config, cfg)
-                            ml_hint.visible = e.value in ("ml", "hybrid")
-                            ui.notify(f"Detector: {e.value}", type="positive")
-
-                        det_sel.on_value_change(save_detector)
-
-                    with ui.card().classes("w-full"):
-                        with ui.row().classes("items-center gap-1"):
-                            ui.label("Sensitivity").classes("text-lg font-bold")
-                            field_help_icon("prompt_injection.sensitivity")
-                        ui.label("Set the detection sensitivity level.").classes(
-                            "text-xs text-grey-6"
-                        )
-                        sensitivity = pi.get("sensitivity", "medium")
-                        sens_sel = ui.select(
-                            options={
-                                "low": "Low",
-                                "medium": "Medium",
-                                "high": "High",
-                            },
-                            value=sensitivity,
-                        ).classes("w-64")
-
-                        async def save_sensitivity(e):
-                            cfg = await run.io_bound(load_web_config)
-                            sect = cfg.get("prompt_injection", {})
-                            if not isinstance(sect, dict):
-                                sect = {}
-                            sect["sensitivity"] = e.value
-                            cfg["prompt_injection"] = sect
-                            await run.io_bound(save_web_config, cfg)
-                            ui.notify(f"Sensitivity: {e.value}", type="positive")
-
-                        sens_sel.on_value_change(save_sensitivity)
-
-                    with ui.card().classes("w-full"):
-                        with ui.row().classes("items-center gap-1"):
-                            ui.label("Max Score Threshold").classes("text-lg font-bold")
-                            field_help_icon("prompt_injection.max_score_threshold")
-                        ui.label(
-                            "Inputs scoring above this threshold are flagged as injections (0.0-1.0)."
-                        ).classes("text-xs text-grey-6")
-                        threshold = pi.get("max_score_threshold", 0.75)
-                        thr_input = (
-                            ui.number(
-                                value=threshold,
-                                min=0.0,
-                                max=1.0,
-                                step=0.05,
-                            )
-                            .props("dense outlined")
-                            .classes("w-32")
-                        )
-
-                        async def save_threshold(e):
-                            cfg = await run.io_bound(load_web_config)
-                            sect = cfg.get("prompt_injection", {})
-                            if not isinstance(sect, dict):
-                                sect = {}
-                            sect["max_score_threshold"] = e.value
-                            cfg["prompt_injection"] = sect
-                            await run.io_bound(save_web_config, cfg)
-                            ui.notify(f"Threshold: {e.value}", type="positive")
-
-                        thr_input.on_value_change(save_threshold)
-
-                    with ui.card().classes("w-full"):
-                        with ui.row().classes("items-center gap-1"):
-                            ui.label("Ignore Files").classes("text-lg font-bold")
-                            field_help_icon("prompt_injection.ignore_files")
-                        ui.label(
-                            "Glob patterns for files to skip during prompt injection scanning."
-                        ).classes("text-xs text-grey-6")
-
-                        ignore_files = pi.get("ignore_files", [])
-                        if ignore_files:
-                            for idx, pat in enumerate(ignore_files):
-                                with ui.row().classes("items-center gap-2 w-full"):
-                                    ui.icon("description").classes("text-blue-4")
-                                    ui.label(pat).classes("flex-grow text-sm").style(
-                                        "font-family: monospace"
-                                    )
-
-                                    async def remove_ignore_file(i=idx):
-                                        cfg = await run.io_bound(load_web_config)
-                                        sect = cfg.get("prompt_injection", {})
-                                        if not isinstance(sect, dict):
-                                            return
-                                        items = sect.get("ignore_files", [])
-                                        if i < len(items):
-                                            items.pop(i)
-                                            sect["ignore_files"] = items
-                                            cfg["prompt_injection"] = sect
-                                            await run.io_bound(save_web_config, cfg)
-                                            ui.notify(
-                                                "Pattern removed", type="positive"
-                                            )
-                                            await refresh()
-
-                                    ui.button(
-                                        icon="delete",
-                                        on_click=remove_ignore_file,
-                                        color="red",
-                                    ).props("flat dense size=sm")
-                        else:
-                            ui.label("No ignore patterns.").classes(
-                                "text-grey-6 text-sm"
-                            )
-
-                        with ui.row().classes("items-center gap-2 mt-2"):
-                            if_input = (
-                                ui.input(placeholder="e.g. *.md, tests/**")
-                                .props("dense outlined")
-                                .classes("flex-grow")
-                            )
-
-                            async def add_ignore_file():
-                                val = if_input.value.strip()
-                                if not val:
-                                    ui.notify("Enter a pattern", type="negative")
-                                    return
-                                cfg = await run.io_bound(load_web_config)
-                                sect = cfg.get("prompt_injection", {})
-                                if not isinstance(sect, dict):
-                                    sect = {}
-                                items = sect.get("ignore_files", [])
-                                if val in items:
-                                    ui.notify("Pattern already exists", type="warning")
-                                    return
-                                items.append(val)
-                                sect["ignore_files"] = items
-                                cfg["prompt_injection"] = sect
-                                await run.io_bound(save_web_config, cfg)
-                                if_input.value = ""
-                                ui.notify(f"Added: {val}", type="positive")
-                                await refresh()
-
-                            ui.button(
-                                "Add", icon="add", on_click=add_ignore_file
-                            ).props("dense")
-
-                    with ui.card().classes("w-full"):
-                        with ui.row().classes("items-center gap-1"):
-                            ui.label("Ignore Tools").classes("text-lg font-bold")
-                            field_help_icon("prompt_injection.ignore_tools")
-                        ui.label(
-                            "Tool name patterns to skip during prompt injection scanning."
-                        ).classes("text-xs text-grey-6")
-
-                        ignore_tools = pi.get("ignore_tools", [])
-                        if ignore_tools:
-                            for idx, pat in enumerate(ignore_tools):
-                                with ui.row().classes("items-center gap-2 w-full"):
-                                    ui.icon("build").classes("text-blue-4")
-                                    ui.label(pat).classes("flex-grow text-sm").style(
-                                        "font-family: monospace"
-                                    )
-
-                                    async def remove_ignore_tool(i=idx):
-                                        cfg = await run.io_bound(load_web_config)
-                                        sect = cfg.get("prompt_injection", {})
-                                        if not isinstance(sect, dict):
-                                            return
-                                        items = sect.get("ignore_tools", [])
-                                        if i < len(items):
-                                            items.pop(i)
-                                            sect["ignore_tools"] = items
-                                            cfg["prompt_injection"] = sect
-                                            await run.io_bound(save_web_config, cfg)
-                                            ui.notify(
-                                                "Pattern removed", type="positive"
-                                            )
-                                            await refresh()
-
-                                    ui.button(
-                                        icon="delete",
-                                        on_click=remove_ignore_tool,
-                                        color="red",
-                                    ).props("flat dense size=sm")
-                        else:
-                            ui.label("No ignore patterns.").classes(
-                                "text-grey-6 text-sm"
-                            )
-
-                        with ui.row().classes("items-center gap-2 mt-2"):
-                            it_input = (
-                                ui.input(placeholder="e.g. Read, Bash")
-                                .props("dense outlined")
-                                .classes("flex-grow")
-                            )
-
-                            async def add_ignore_tool():
-                                val = it_input.value.strip()
-                                if not val:
-                                    ui.notify("Enter a tool name", type="negative")
-                                    return
-                                cfg = await run.io_bound(load_web_config)
-                                sect = cfg.get("prompt_injection", {})
-                                if not isinstance(sect, dict):
-                                    sect = {}
-                                items = sect.get("ignore_tools", [])
-                                if val in items:
-                                    ui.notify("Pattern already exists", type="warning")
-                                    return
-                                items.append(val)
-                                sect["ignore_tools"] = items
-                                cfg["prompt_injection"] = sect
-                                await run.io_bound(save_web_config, cfg)
-                                it_input.value = ""
-                                ui.notify(f"Added: {val}", type="positive")
-                                await refresh()
-
-                            ui.button(
-                                "Add", icon="add", on_click=add_ignore_tool
-                            ).props("dense")
-
-                    with ui.card().classes("w-full"):
-                        ui.label("Detection Statistics").classes("text-lg font-bold")
-                        total, by_detector = await run.io_bound(_load_pi_stats)
-                        if total is None:
-                            ui.label("Violation logging not available.").classes(
-                                "text-grey-6 text-sm"
-                            )
-                        elif total == 0:
-                            ui.label("No prompt injections detected yet.").classes(
-                                "text-grey-6 text-sm"
-                            )
-                        else:
-                            ui.label(f"Total injections detected: {total}").classes(
-                                "text-sm"
-                            )
-                            if by_detector:
-                                ui.label("By detector:").classes(
-                                    "text-sm font-bold mt-2"
+                    ignore_files = pi.get("ignore_files", [])
+                    if ignore_files:
+                        for idx, pat in enumerate(ignore_files):
+                            with ui.row().classes("items-center gap-2 w-full"):
+                                ui.icon("description").classes("text-blue-4")
+                                ui.label(pat).classes("flex-grow text-sm").style(
+                                    "font-family: monospace"
                                 )
-                                sorted_dets = sorted(
-                                    by_detector.items(),
-                                    key=lambda x: x[1],
-                                    reverse=True,
-                                )[:5]
-                                for det, count in sorted_dets:
-                                    with ui.row().classes("items-center gap-2"):
-                                        ui.label(f"{det}:").classes(
-                                            "text-sm text-grey-6 w-48"
-                                        )
-                                        ui.label(str(count)).classes(
-                                            "text-sm font-bold"
-                                        )
 
-            ui.timer(0.1, refresh, once=True)
+                                async def remove_ignore_file(i=idx):
+                                    cfg = await run.io_bound(load_web_config)
+                                    sect = cfg.get("prompt_injection", {})
+                                    if not isinstance(sect, dict):
+                                        return
+                                    items = sect.get("ignore_files", [])
+                                    if i < len(items):
+                                        items.pop(i)
+                                        sect["ignore_files"] = items
+                                        cfg["prompt_injection"] = sect
+                                        await run.io_bound(save_web_config, cfg)
+                                        ui.notify("Pattern removed", type="positive")
+                                        await refresh()
+
+                                ui.button(
+                                    icon="delete",
+                                    on_click=remove_ignore_file,
+                                    color="red",
+                                ).props("flat dense size=sm")
+                    else:
+                        ui.label("No ignore patterns.").classes("text-grey-6 text-sm")
+
+                    with ui.row().classes("items-center gap-2 mt-2"):
+                        if_input = (
+                            ui.input(placeholder="e.g. *.md, tests/**")
+                            .props("dense outlined")
+                            .classes("flex-grow")
+                        )
+
+                        async def add_ignore_file():
+                            val = if_input.value.strip()
+                            if not val:
+                                ui.notify("Enter a pattern", type="negative")
+                                return
+                            cfg = await run.io_bound(load_web_config)
+                            sect = cfg.get("prompt_injection", {})
+                            if not isinstance(sect, dict):
+                                sect = {}
+                            items = sect.get("ignore_files", [])
+                            if val in items:
+                                ui.notify("Pattern already exists", type="warning")
+                                return
+                            items.append(val)
+                            sect["ignore_files"] = items
+                            cfg["prompt_injection"] = sect
+                            await run.io_bound(save_web_config, cfg)
+                            if_input.value = ""
+                            ui.notify(f"Added: {val}", type="positive")
+                            await refresh()
+
+                        ui.button("Add", icon="add", on_click=add_ignore_file).props(
+                            "dense"
+                        )
+
+                with ui.card().classes("w-full"):
+                    with ui.row().classes("items-center gap-1"):
+                        ui.label("Ignore Tools").classes("text-lg font-bold")
+                        field_help_icon("prompt_injection.ignore_tools")
+                    ui.label(
+                        "Tool name patterns to skip during prompt injection scanning."
+                    ).classes("text-xs text-grey-6")
+
+                    ignore_tools = pi.get("ignore_tools", [])
+                    if ignore_tools:
+                        for idx, pat in enumerate(ignore_tools):
+                            with ui.row().classes("items-center gap-2 w-full"):
+                                ui.icon("build").classes("text-blue-4")
+                                ui.label(pat).classes("flex-grow text-sm").style(
+                                    "font-family: monospace"
+                                )
+
+                                async def remove_ignore_tool(i=idx):
+                                    cfg = await run.io_bound(load_web_config)
+                                    sect = cfg.get("prompt_injection", {})
+                                    if not isinstance(sect, dict):
+                                        return
+                                    items = sect.get("ignore_tools", [])
+                                    if i < len(items):
+                                        items.pop(i)
+                                        sect["ignore_tools"] = items
+                                        cfg["prompt_injection"] = sect
+                                        await run.io_bound(save_web_config, cfg)
+                                        ui.notify("Pattern removed", type="positive")
+                                        await refresh()
+
+                                ui.button(
+                                    icon="delete",
+                                    on_click=remove_ignore_tool,
+                                    color="red",
+                                ).props("flat dense size=sm")
+                    else:
+                        ui.label("No ignore patterns.").classes("text-grey-6 text-sm")
+
+                    with ui.row().classes("items-center gap-2 mt-2"):
+                        it_input = (
+                            ui.input(placeholder="e.g. Read, Bash")
+                            .props("dense outlined")
+                            .classes("flex-grow")
+                        )
+
+                        async def add_ignore_tool():
+                            val = it_input.value.strip()
+                            if not val:
+                                ui.notify("Enter a tool name", type="negative")
+                                return
+                            cfg = await run.io_bound(load_web_config)
+                            sect = cfg.get("prompt_injection", {})
+                            if not isinstance(sect, dict):
+                                sect = {}
+                            items = sect.get("ignore_tools", [])
+                            if val in items:
+                                ui.notify("Pattern already exists", type="warning")
+                                return
+                            items.append(val)
+                            sect["ignore_tools"] = items
+                            cfg["prompt_injection"] = sect
+                            await run.io_bound(save_web_config, cfg)
+                            it_input.value = ""
+                            ui.notify(f"Added: {val}", type="positive")
+                            await refresh()
+
+                        ui.button("Add", icon="add", on_click=add_ignore_tool).props(
+                            "dense"
+                        )
+
+                with ui.card().classes("w-full"):
+                    ui.label("Detection Statistics").classes("text-lg font-bold")
+                    total, by_detector = await run.io_bound(_load_pi_stats)
+                    if total is None:
+                        ui.label("Violation logging not available.").classes(
+                            "text-grey-6 text-sm"
+                        )
+                    elif total == 0:
+                        ui.label("No prompt injections detected yet.").classes(
+                            "text-grey-6 text-sm"
+                        )
+                    else:
+                        ui.label(f"Total injections detected: {total}").classes(
+                            "text-sm"
+                        )
+                        if by_detector:
+                            ui.label("By detector:").classes("text-sm font-bold mt-2")
+                            sorted_dets = sorted(
+                                by_detector.items(),
+                                key=lambda x: x[1],
+                                reverse=True,
+                            )[:5]
+                            for det, count in sorted_dets:
+                                with ui.row().classes("items-center gap-2"):
+                                    ui.label(f"{det}:").classes(
+                                        "text-sm text-grey-6 w-48"
+                                    )
+                                    ui.label(str(count)).classes("text-sm font-bold")
+
+        ui.timer(0.1, refresh, once=True)

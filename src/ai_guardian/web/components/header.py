@@ -134,8 +134,13 @@ def _init_scope_state():
         pass  # intentionally silent — optional dependency
 
 
-def create_header(daemon_name: str = ""):
-    """Create the shared header bar showing current daemon and scope toggle."""
+def create_header(daemon_name: str = "", drawer=None):
+    """Create the shared header bar showing current daemon and scope toggle.
+
+    Args:
+        daemon_name: Name of the active daemon (empty for picker page).
+        drawer: Optional left_drawer instance — adds a hamburger toggle.
+    """
     from ai_guardian.theme import apply_quasar_theme
 
     apply_quasar_theme()
@@ -157,6 +162,10 @@ def create_header(daemon_name: str = ""):
 
     with ui.header().classes("items-center justify-between bg-blue-grey-10"):
         with ui.row().classes("items-center gap-4"):
+            if drawer is not None:
+                ui.button(icon="menu", on_click=drawer.toggle).props(
+                    "flat round color=white"
+                )
             ui.image("/images/ai-guardian-320.png").classes("w-8 h-8")
             ui.link("AI Guardian", "/").classes(
                 "text-xl font-bold text-white no-underline"
@@ -181,17 +190,38 @@ def create_header(daemon_name: str = ""):
 
 
 def create_sidebar(daemon_name: str, current: str = ""):
-    """Create the navigation sidebar with search for a specific daemon."""
+    """Create a slide-out navigation drawer for a specific daemon.
+
+    Returns the ``ui.left_drawer`` instance so callers can pass it to
+    ``create_header(drawer=...)`` for the hamburger toggle button.
+    """
     prefix = f"/{daemon_name}"
     search_index = _build_search_index(prefix)
 
-    with (
-        ui.column()
-        .classes("w-56 bg-blue-grey-10 p-2 gap-2")
-        .style(
-            "height: calc(100vh - 64px); position: sticky; top: 64px; display: flex; flex-direction: column;"
-        ) as sidebar
-    ):
+    try:
+        from nicegui import app as _app
+
+        initial_open = _app.storage.user.get("sidebar_open", False)
+    except Exception:
+        initial_open = False
+
+    drawer = (
+        ui.left_drawer(value=initial_open)
+        .classes("bg-blue-grey-10 p-2 gap-2")
+        .props("width=224 bordered")
+    )
+
+    def _persist_state(e):
+        try:
+            from nicegui import app as _app2
+
+            _app2.storage.user["sidebar_open"] = e.value
+        except Exception:
+            pass
+
+    drawer.on_value_change(_persist_state)
+
+    with drawer:
         search_input = (
             ui.input(placeholder="Search settings...")
             .props("dense outlined clearable")
@@ -199,7 +229,6 @@ def create_sidebar(daemon_name: str, current: str = ""):
             .style("color: white; --q-color-primary: #78909c;")
         )
 
-        # Scrollable container for navigation
         nav_container = (
             ui.column()
             .classes("w-full gap-0 overflow-y-auto")
@@ -222,7 +251,6 @@ def create_sidebar(daemon_name: str, current: str = ""):
                         classes += "text-grey-4 hover:bg-blue-grey-9"
                         ui.link(label, path).classes(classes)
 
-        # Scroll active item into view after page loads
         if active_link:
             ui.run_javascript("""
                 setTimeout(() => {
@@ -266,7 +294,6 @@ def create_sidebar(daemon_name: str, current: str = ""):
             if not query:
                 nav_container.set_visibility(True)
                 results_container.set_visibility(False)
-                # Re-scroll to active item in nav when clearing search
                 if active_link:
                     ui.run_javascript("""
                         setTimeout(() => {
@@ -293,7 +320,6 @@ def create_sidebar(daemon_name: str, current: str = ""):
 
             no_results_label.set_visibility(not any_visible)
 
-            # Scroll to active item in search results if present
             ui.run_javascript("""
                 setTimeout(() => {
                     const activeResult = document.querySelector('.active-search-result');
@@ -307,6 +333,8 @@ def create_sidebar(daemon_name: str, current: str = ""):
             """)
 
         search_input.on_value_change(on_search)
+
+    return drawer
 
 
 def _create_scope_toggle():

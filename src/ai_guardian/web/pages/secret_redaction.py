@@ -212,256 +212,242 @@ def _render_toggle(
 
 def create_secret_redaction_page(service, daemon_name: str):
     """Create the Secret Redaction page."""
-    create_header(daemon_name)
+    sidebar = create_sidebar(daemon_name, current=f"/{daemon_name}/secret-redaction")
+    create_header(daemon_name, drawer=sidebar)
 
-    with ui.row().classes("w-full min-h-screen no-wrap"):
-        create_sidebar(daemon_name, current=f"/{daemon_name}/secret-redaction")
+    with ui.column().classes("flex-grow p-6 gap-4"):
+        with ui.row().classes("items-center gap-2"):
+            ui.label("Secret Redaction Settings").classes("text-2xl font-bold")
+            add_help_button("secret_redaction")
+        ui.label("Configure how secrets are redacted from tool outputs.").classes(
+            "text-xs text-grey-6"
+        )
 
-        with ui.column().classes("flex-grow p-6 gap-4"):
-            with ui.row().classes("items-center gap-2"):
-                ui.label("Secret Redaction Settings").classes("text-2xl font-bold")
-                add_help_button("secret_redaction")
-            ui.label("Configure how secrets are redacted from tool outputs.").classes(
-                "text-xs text-grey-6"
-            )
+        content = ui.column().classes("w-full gap-4")
 
-            content = ui.column().classes("w-full gap-4")
+        async def refresh():
+            content.clear()
+            config = await run.io_bound(load_web_config)
 
-            async def refresh():
-                content.clear()
-                config = await run.io_bound(load_web_config)
+            with content:
+                sr = config.get("secret_redaction", {})
+                if not isinstance(sr, dict):
+                    sr = {}
 
-                with content:
-                    sr = config.get("secret_redaction", {})
-                    if not isinstance(sr, dict):
-                        sr = {}
+                # --- Redaction toggle with temp-disable ---
+                is_temp, until_dt, reason, is_enabled = _parse_enabled(
+                    sr.get("enabled", False)
+                )
 
-                    # --- Redaction toggle with temp-disable ---
-                    is_temp, until_dt, reason, is_enabled = _parse_enabled(
-                        sr.get("enabled", False)
-                    )
+                def save_redaction(value):
+                    cfg = load_web_config()
+                    sect = cfg.get("secret_redaction", {})
+                    if not isinstance(sect, dict):
+                        sect = {}
+                    sect["enabled"] = value
+                    cfg["secret_redaction"] = sect
+                    save_web_config(cfg)
 
-                    def save_redaction(value):
-                        cfg = load_web_config()
+                _render_toggle(
+                    "Secret Redaction",
+                    "Redact detected secrets instead of blocking the operation.",
+                    is_temp,
+                    until_dt,
+                    reason,
+                    is_enabled,
+                    save_redaction,
+                    refresh,
+                )
+
+                # --- Protected types with scrollbar ---
+                total_patterns = sum(len(v) for v in PROTECTED_TYPES.values())
+                with ui.card().classes("w-full"):
+                    ui.label(
+                        f"Protected Secret Types ({total_patterns} patterns)"
+                    ).classes("text-lg font-bold")
+                    with ui.scroll_area().classes("w-full").style("max-height: 300px"):
+                        for category, types in PROTECTED_TYPES.items():
+                            ui.label(category).classes("font-bold text-sm mt-2")
+                            for t in types:
+                                with ui.row().classes("items-center gap-1 ml-4"):
+                                    ui.icon("shield").classes("text-blue-4").style(
+                                        "font-size: 14px"
+                                    )
+                                    ui.label(t).classes("text-xs")
+
+                # --- Action mode ---
+                with ui.card().classes("w-full"):
+                    with ui.row().classes("items-center gap-1"):
+                        ui.label("Action Mode").classes("text-lg font-bold")
+                        field_help_icon("secret_redaction")
+                    ui.label(
+                        "What happens when a secret is detected and redacted."
+                    ).classes("text-xs text-grey-6")
+                    action = sr.get("action", "warn")
+                    act_sel = ui.select(
+                        options={
+                            "log-only": "Log Only — redact silently",
+                            "warn": "Warn — redact and notify",
+                        },
+                        value=action,
+                    ).classes("w-64")
+
+                    async def save_action(e):
+                        cfg = await run.io_bound(load_web_config)
                         sect = cfg.get("secret_redaction", {})
                         if not isinstance(sect, dict):
                             sect = {}
-                        sect["enabled"] = value
+                        sect["action"] = e.value
                         cfg["secret_redaction"] = sect
-                        save_web_config(cfg)
+                        await run.io_bound(save_web_config, cfg)
+                        ui.notify(f"Action: {e.value}", type="positive")
 
-                    _render_toggle(
-                        "Secret Redaction",
-                        "Redact detected secrets instead of blocking the operation.",
-                        is_temp,
-                        until_dt,
-                        reason,
-                        is_enabled,
-                        save_redaction,
-                        refresh,
+                    act_sel.on_value_change(save_action)
+
+                # --- Redaction options ---
+                with ui.card().classes("w-full"):
+                    ui.label("Redaction Options").classes("text-lg font-bold")
+
+                    pf = ui.switch(
+                        "Preserve Format",
+                        value=sr.get("preserve_format", True),
                     )
+                    ui.label(
+                        "Show visible prefix/suffix for debugging (e.g., sk-***-xyz)."
+                    ).classes("text-xs text-grey-6 ml-12")
 
-                    # --- Protected types with scrollbar ---
-                    total_patterns = sum(len(v) for v in PROTECTED_TYPES.values())
-                    with ui.card().classes("w-full"):
-                        ui.label(
-                            f"Protected Secret Types ({total_patterns} patterns)"
-                        ).classes("text-lg font-bold")
-                        with (
-                            ui.scroll_area()
-                            .classes("w-full")
-                            .style("max-height: 300px")
-                        ):
-                            for category, types in PROTECTED_TYPES.items():
-                                ui.label(category).classes("font-bold text-sm mt-2")
-                                for t in types:
-                                    with ui.row().classes("items-center gap-1 ml-4"):
-                                        ui.icon("shield").classes("text-blue-4").style(
-                                            "font-size: 14px"
-                                        )
-                                        ui.label(t).classes("text-xs")
+                    lr = ui.switch(
+                        "Log Redactions",
+                        value=sr.get("log_redactions", True),
+                    )
+                    ui.label(
+                        "Record all redactions in violation log for audit trail."
+                    ).classes("text-xs text-grey-6 ml-12")
 
-                    # --- Action mode ---
-                    with ui.card().classes("w-full"):
-                        with ui.row().classes("items-center gap-1"):
-                            ui.label("Action Mode").classes("text-lg font-bold")
-                            field_help_icon("secret_redaction")
-                        ui.label(
-                            "What happens when a secret is detected and redacted."
-                        ).classes("text-xs text-grey-6")
-                        action = sr.get("action", "warn")
-                        act_sel = ui.select(
-                            options={
-                                "log-only": "Log Only — redact silently",
-                                "warn": "Warn — redact and notify",
-                            },
-                            value=action,
-                        ).classes("w-64")
+                    async def save_pf(e):
+                        cfg = await run.io_bound(load_web_config)
+                        sect = cfg.get("secret_redaction", {})
+                        if not isinstance(sect, dict):
+                            sect = {}
+                        sect["preserve_format"] = e.value
+                        cfg["secret_redaction"] = sect
+                        await run.io_bound(save_web_config, cfg)
+                        ui.notify("Saved", type="positive")
 
-                        async def save_action(e):
-                            cfg = await run.io_bound(load_web_config)
-                            sect = cfg.get("secret_redaction", {})
-                            if not isinstance(sect, dict):
-                                sect = {}
-                            sect["action"] = e.value
-                            cfg["secret_redaction"] = sect
-                            await run.io_bound(save_web_config, cfg)
-                            ui.notify(f"Action: {e.value}", type="positive")
+                    async def save_lr(e):
+                        cfg = await run.io_bound(load_web_config)
+                        sect = cfg.get("secret_redaction", {})
+                        if not isinstance(sect, dict):
+                            sect = {}
+                        sect["log_redactions"] = e.value
+                        cfg["secret_redaction"] = sect
+                        await run.io_bound(save_web_config, cfg)
+                        ui.notify("Saved", type="positive")
 
-                        act_sel.on_value_change(save_action)
+                    pf.on_value_change(save_pf)
+                    lr.on_value_change(save_lr)
 
-                    # --- Redaction options ---
-                    with ui.card().classes("w-full"):
-                        ui.label("Redaction Options").classes("text-lg font-bold")
+                # --- Additional patterns ---
+                with ui.card().classes("w-full"):
+                    ui.label("Additional Redaction Patterns").classes(
+                        "text-lg font-bold"
+                    )
+                    ui.label(
+                        "Custom regex patterns for organization-specific secrets."
+                    ).classes("text-xs text-grey-6")
 
-                        pf = ui.switch(
-                            "Preserve Format",
-                            value=sr.get("preserve_format", True),
-                        )
-                        ui.label(
-                            "Show visible prefix/suffix for debugging (e.g., sk-***-xyz)."
-                        ).classes("text-xs text-grey-6 ml-12")
-
-                        lr = ui.switch(
-                            "Log Redactions",
-                            value=sr.get("log_redactions", True),
-                        )
-                        ui.label(
-                            "Record all redactions in violation log for audit trail."
-                        ).classes("text-xs text-grey-6 ml-12")
-
-                        async def save_pf(e):
-                            cfg = await run.io_bound(load_web_config)
-                            sect = cfg.get("secret_redaction", {})
-                            if not isinstance(sect, dict):
-                                sect = {}
-                            sect["preserve_format"] = e.value
-                            cfg["secret_redaction"] = sect
-                            await run.io_bound(save_web_config, cfg)
-                            ui.notify("Saved", type="positive")
-
-                        async def save_lr(e):
-                            cfg = await run.io_bound(load_web_config)
-                            sect = cfg.get("secret_redaction", {})
-                            if not isinstance(sect, dict):
-                                sect = {}
-                            sect["log_redactions"] = e.value
-                            cfg["secret_redaction"] = sect
-                            await run.io_bound(save_web_config, cfg)
-                            ui.notify("Saved", type="positive")
-
-                        pf.on_value_change(save_pf)
-                        lr.on_value_change(save_lr)
-
-                    # --- Additional patterns ---
-                    with ui.card().classes("w-full"):
-                        ui.label("Additional Redaction Patterns").classes(
-                            "text-lg font-bold"
-                        )
-                        ui.label(
-                            "Custom regex patterns for organization-specific secrets."
-                        ).classes("text-xs text-grey-6")
-
-                        patterns = sr.get("additional_patterns", [])
-                        if patterns:
-                            for idx, pat in enumerate(patterns):
-                                with ui.row().classes("items-center gap-2 w-full"):
-                                    ui.icon("code").classes("text-blue-4")
-                                    ui.label(pat).classes("flex-grow text-sm").style(
-                                        "font-family: monospace"
-                                    )
-
-                                    async def remove_pat(i=idx):
-                                        cfg = await run.io_bound(load_web_config)
-                                        sect = cfg.get("secret_redaction", {})
-                                        if not isinstance(sect, dict):
-                                            return
-                                        pats = sect.get("additional_patterns", [])
-                                        if i < len(pats):
-                                            pats.pop(i)
-                                            sect["additional_patterns"] = pats
-                                            cfg["secret_redaction"] = sect
-                                            await run.io_bound(save_web_config, cfg)
-                                            ui.notify(
-                                                "Pattern removed", type="positive"
-                                            )
-                                            await refresh()
-
-                                    ui.button(
-                                        icon="delete", on_click=remove_pat, color="red"
-                                    ).props("flat dense size=sm")
-                        else:
-                            ui.label("No custom patterns.").classes(
-                                "text-grey-6 text-sm"
-                            )
-
-                        with ui.row().classes("items-center gap-2 mt-2"):
-                            pat_input = (
-                                ui.input(placeholder="Enter custom regex pattern")
-                                .props("dense outlined")
-                                .classes("flex-grow")
-                            )
-
-                            async def add_pattern():
-                                pattern = pat_input.value.strip()
-                                if not pattern:
-                                    ui.notify("Enter a pattern", type="negative")
-                                    return
-                                try:
-                                    re_mod.compile(pattern)
-                                except re_mod.error as e:
-                                    ui.notify(f"Invalid regex: {e}", type="negative")
-                                    return
-                                cfg = await run.io_bound(load_web_config)
-                                sect = cfg.get("secret_redaction", {})
-                                if not isinstance(sect, dict):
-                                    sect = {}
-                                pats = sect.get("additional_patterns", [])
-                                if pattern in pats:
-                                    ui.notify("Pattern already exists", type="warning")
-                                    return
-                                pats.append(pattern)
-                                sect["additional_patterns"] = pats
-                                cfg["secret_redaction"] = sect
-                                await run.io_bound(save_web_config, cfg)
-                                pat_input.value = ""
-                                ui.notify(f"Added: {pattern}", type="positive")
-                                await refresh()
-
-                            ui.button("Add", icon="add", on_click=add_pattern).props(
-                                "dense"
-                            )
-
-                    # --- Statistics ---
-                    with ui.card().classes("w-full"):
-                        ui.label("Redaction Statistics").classes("text-lg font-bold")
-                        total, by_type = await run.io_bound(_load_redaction_stats)
-                        if total is None:
-                            ui.label("Violation logging not available.").classes(
-                                "text-grey-6 text-sm"
-                            )
-                        elif total == 0:
-                            ui.label("No secrets redacted yet.").classes(
-                                "text-grey-6 text-sm"
-                            )
-                        else:
-                            ui.label(f"Total secrets detected: {total}").classes(
-                                "text-sm"
-                            )
-                            if by_type:
-                                ui.label("Top secret types:").classes(
-                                    "text-sm font-bold mt-2"
+                    patterns = sr.get("additional_patterns", [])
+                    if patterns:
+                        for idx, pat in enumerate(patterns):
+                            with ui.row().classes("items-center gap-2 w-full"):
+                                ui.icon("code").classes("text-blue-4")
+                                ui.label(pat).classes("flex-grow text-sm").style(
+                                    "font-family: monospace"
                                 )
-                                sorted_types = sorted(
-                                    by_type.items(), key=lambda x: x[1], reverse=True
-                                )[:5]
-                                for stype, count in sorted_types:
-                                    with ui.row().classes("items-center gap-2"):
-                                        ui.label(f"{stype}:").classes(
-                                            "text-sm text-grey-6 w-48"
-                                        )
-                                        ui.label(str(count)).classes(
-                                            "text-sm font-bold"
-                                        )
 
-            ui.timer(0.1, refresh, once=True)
+                                async def remove_pat(i=idx):
+                                    cfg = await run.io_bound(load_web_config)
+                                    sect = cfg.get("secret_redaction", {})
+                                    if not isinstance(sect, dict):
+                                        return
+                                    pats = sect.get("additional_patterns", [])
+                                    if i < len(pats):
+                                        pats.pop(i)
+                                        sect["additional_patterns"] = pats
+                                        cfg["secret_redaction"] = sect
+                                        await run.io_bound(save_web_config, cfg)
+                                        ui.notify("Pattern removed", type="positive")
+                                        await refresh()
+
+                                ui.button(
+                                    icon="delete", on_click=remove_pat, color="red"
+                                ).props("flat dense size=sm")
+                    else:
+                        ui.label("No custom patterns.").classes("text-grey-6 text-sm")
+
+                    with ui.row().classes("items-center gap-2 mt-2"):
+                        pat_input = (
+                            ui.input(placeholder="Enter custom regex pattern")
+                            .props("dense outlined")
+                            .classes("flex-grow")
+                        )
+
+                        async def add_pattern():
+                            pattern = pat_input.value.strip()
+                            if not pattern:
+                                ui.notify("Enter a pattern", type="negative")
+                                return
+                            try:
+                                re_mod.compile(pattern)
+                            except re_mod.error as e:
+                                ui.notify(f"Invalid regex: {e}", type="negative")
+                                return
+                            cfg = await run.io_bound(load_web_config)
+                            sect = cfg.get("secret_redaction", {})
+                            if not isinstance(sect, dict):
+                                sect = {}
+                            pats = sect.get("additional_patterns", [])
+                            if pattern in pats:
+                                ui.notify("Pattern already exists", type="warning")
+                                return
+                            pats.append(pattern)
+                            sect["additional_patterns"] = pats
+                            cfg["secret_redaction"] = sect
+                            await run.io_bound(save_web_config, cfg)
+                            pat_input.value = ""
+                            ui.notify(f"Added: {pattern}", type="positive")
+                            await refresh()
+
+                        ui.button("Add", icon="add", on_click=add_pattern).props(
+                            "dense"
+                        )
+
+                # --- Statistics ---
+                with ui.card().classes("w-full"):
+                    ui.label("Redaction Statistics").classes("text-lg font-bold")
+                    total, by_type = await run.io_bound(_load_redaction_stats)
+                    if total is None:
+                        ui.label("Violation logging not available.").classes(
+                            "text-grey-6 text-sm"
+                        )
+                    elif total == 0:
+                        ui.label("No secrets redacted yet.").classes(
+                            "text-grey-6 text-sm"
+                        )
+                    else:
+                        ui.label(f"Total secrets detected: {total}").classes("text-sm")
+                        if by_type:
+                            ui.label("Top secret types:").classes(
+                                "text-sm font-bold mt-2"
+                            )
+                            sorted_types = sorted(
+                                by_type.items(), key=lambda x: x[1], reverse=True
+                            )[:5]
+                            for stype, count in sorted_types:
+                                with ui.row().classes("items-center gap-2"):
+                                    ui.label(f"{stype}:").classes(
+                                        "text-sm text-grey-6 w-48"
+                                    )
+                                    ui.label(str(count)).classes("text-sm font-bold")
+
+        ui.timer(0.1, refresh, once=True)
