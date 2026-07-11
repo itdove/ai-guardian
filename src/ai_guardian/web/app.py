@@ -495,3 +495,9 @@ class WebConsole:
             )
 
             create_daemon_detail_page(service, daemon_name)
+
+        @ui.page("/{daemon_name}/about")
+        def about_page(daemon_name: str):
+            from ai_guardian.web.pages.about import create_about_page
+
+            create_about_page(service, daemon_name)

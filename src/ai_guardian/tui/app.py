@@ -180,6 +180,7 @@ NAV_GROUPS = [
             ("Console Settings", "panel-console-settings"),
             ("Effective Config", "panel-config-effective"),
             ("Daemon", "panel-daemon"),
+            ("About", "panel-about"),
         ],
     ),
     (
@@ -850,6 +851,14 @@ HELP_DOCS = {
         "The daemon auto-starts on any CLI command and falls back\n"
         "to direct processing if it cannot start."
     ),
+    "panel-about": (
+        "[bold]About[/bold]\n\n"
+        "Version and system information for AI Guardian.\n\n"
+        "[bold]Displays:[/bold]\n"
+        "  - AI Guardian version\n"
+        "  - Python version and platform\n"
+        "  - License information"
+    ),
     "panel-cache-status": (
         "[bold]Config Cache Status[/bold]\n\n"
         "Per-project config cache state tracked by the daemon.\n\n"
@@ -1228,6 +1237,10 @@ class AIGuardianTUI(App):
         Binding("d", "add_deny_pattern", "Deny", show=True),
         Binding("s", "save_setting", "Save", show=True),
         Binding("t", "test_connection", "Test", show=True),
+        Binding("ctrl+d", "nav_dashboard", "Dashboard", show=False),
+        Binding("ctrl+v", "nav_violations", "Violations", show=False),
+        Binding("ctrl+l", "nav_logs", "Logs", show=False),
+        Binding("ctrl+m", "nav_metrics", "Metrics", show=False),
     ]
 
     def copy_to_clipboard(self, text: str) -> bool:
@@ -1493,6 +1506,11 @@ class AIGuardianTUI(App):
 
                     yield DaemonPanelContent()
 
+                with Container(id="panel-about"):
+                    from ai_guardian.tui.about import AboutContent
+
+                    yield AboutContent()
+
                 with Container(id="panel-detection-patterns"):
                     from ai_guardian.tui.detection_patterns import (
                         DetectionPatternsContent,
@@ -1729,6 +1747,27 @@ class AIGuardianTUI(App):
         content = self._get_current_content()
         if content and hasattr(content, "action_test_server"):
             content.action_test_server()
+
+    def _navigate_to_panel(self, panel_id: str) -> None:
+        """Switch the content switcher to a panel by ID."""
+        switcher = self.query_one("#panels", ContentSwitcher)
+        switcher.current = panel_id
+
+    def action_nav_dashboard(self) -> None:
+        """Navigate to Security Dashboard."""
+        self._navigate_to_panel("panel-security-dashboard")
+
+    def action_nav_violations(self) -> None:
+        """Navigate to Violations."""
+        self._navigate_to_panel("panel-violations")
+
+    def action_nav_logs(self) -> None:
+        """Navigate to Logs."""
+        self._navigate_to_panel("panel-logs")
+
+    def action_nav_metrics(self) -> None:
+        """Navigate to Metrics."""
+        self._navigate_to_panel("panel-metrics")
 
     def check_action(self, action: str, parameters) -> Optional[bool]:
         """Show p when in global scope, g when in project scope."""
