@@ -30,6 +30,9 @@ SLUG_TO_CONFIG_SECTION = {
 }
 
 
+_show_disabled_scanners = True
+
+
 def _is_feature_enabled(config, section_key):
     """Check if a feature/scanner is enabled in config."""
     section = config.get(section_key, {})
@@ -168,8 +171,6 @@ def _init_scope_state():
             app.storage.user["config_scope"] = "global"
         if "project_dir" not in app.storage.user:
             app.storage.user["project_dir"] = None
-        if "show_disabled_scanners" not in app.storage.user:
-            app.storage.user["show_disabled_scanners"] = False
     except Exception:
         pass  # intentionally silent — optional dependency
 
@@ -255,13 +256,6 @@ def create_sidebar(daemon_name: str, current: str = ""):
 
     drawer.on_value_change(_persist_state)
 
-    try:
-        from nicegui import app as _app_storage
-
-        show_disabled = _app_storage.storage.user.get("show_disabled_scanners", False)
-    except Exception:
-        show_disabled = False
-
     with drawer:
         search_input = (
             ui.input(placeholder="Search settings...")
@@ -292,17 +286,10 @@ def create_sidebar(daemon_name: str, current: str = ""):
                     else:
                         classes += "text-grey-4 hover:bg-blue-grey-9"
                     config_section = SLUG_TO_CONFIG_SECTION.get(suffix)
+                    link = ui.link(label, path).classes(classes)
                     if config_section:
-                        with ui.row().classes("w-full items-center gap-0") as link_row:
-                            link = ui.link(label, path).classes(classes)
-                            badge = (
-                                ui.badge("OFF")
-                                .props("color=grey-8 text-color=grey-5")
-                                .classes("ml-1 text-xs hidden")
-                            )
-                        g_links.append((link_row, badge, config_section))
+                        g_links.append((link, config_section))
                     else:
-                        link = ui.link(label, path).classes(classes)
                         g_links.append(None)
                     if current == path:
                         active_link = link
@@ -310,7 +297,7 @@ def create_sidebar(daemon_name: str, current: str = ""):
                 group_items.append(g_links)
 
         async def _apply_scanner_filter():
-            """Load config and hide/dim disabled scanner nav items."""
+            """Load config and hide disabled scanner nav items."""
             try:
                 from nicegui import run
 
@@ -326,16 +313,12 @@ def create_sidebar(daemon_name: str, current: str = ""):
                     if entry is None:
                         visible_count += 1
                         continue
-                    link_row, badge, config_section = entry
+                    link, config_section = entry
                     enabled = _is_feature_enabled(config, config_section)
-                    if enabled:
+                    if enabled or _show_disabled_scanners:
                         visible_count += 1
-                    elif show_disabled:
-                        visible_count += 1
-                        link_row.style("opacity: 0.5;")
-                        badge.classes(remove="hidden")
                     else:
-                        link_row.set_visibility(False)
+                        link.set_visibility(False)
                 g_label.set_visibility(visible_count > 0)
 
         ui.timer(0.1, _apply_scanner_filter, once=True)
@@ -591,29 +574,20 @@ def _create_project_selector(daemon_name: str):
 
 def _create_scanner_toggle():
     """Create the show/hide disabled scanners toggle in the header."""
-    try:
-        from nicegui import app
-
-        current = app.storage.user.get("show_disabled_scanners", False)
-    except Exception:
-        current = False
+    global _show_disabled_scanners
 
     with ui.row().classes("items-center gap-1"):
         ui.label("|").classes("text-grey-6")
         switch = (
-            ui.switch("Show disabled", value=current)
+            ui.switch("Show disabled", value=_show_disabled_scanners)
             .props("dense dark color=blue-grey-6")
             .classes("text-xs text-grey-4")
         )
 
         async def on_toggle(e):
-            try:
-                from nicegui import app as _app
-
-                _app.storage.user["show_disabled_scanners"] = e.value
-                await ui.run_javascript("location.reload()")
-            except Exception:
-                pass
+            global _show_disabled_scanners
+            _show_disabled_scanners = e.value
+            await ui.run_javascript("location.reload()")
 
         switch.on_value_change(on_toggle)
 

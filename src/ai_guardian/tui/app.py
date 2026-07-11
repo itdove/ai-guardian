@@ -1111,7 +1111,7 @@ class AIGuardianTUI(App):
         self._input_original_values = {}
         self.initial_panel = None
         self.config_scope = "global"
-        self._show_disabled_scanners = False
+        self._show_disabled_scanners = True
 
     CSS = f"""
     Screen {{
@@ -1861,8 +1861,6 @@ class AIGuardianTUI(App):
                     enabled = _is_feature_enabled(config, config_section)
                     if not enabled and not self._show_disabled_scanners:
                         continue
-                    if not enabled:
-                        label = f"[dim]{label} [OFF][/dim]"
                 visible_items.append((label, panel_id))
 
             if not visible_items:

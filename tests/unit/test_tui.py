@@ -196,9 +196,9 @@ class TestToggleDisabledScanners:
         binding_actions = [b.action for b in app.BINDINGS]
         assert "toggle_disabled_scanners" in binding_actions
 
-    def test_initial_state_is_false(self):
+    def test_initial_state_is_true(self):
         app = AIGuardianTUI()
-        assert app._show_disabled_scanners is False
+        assert app._show_disabled_scanners is True
 
     def test_has_rebuild_nav_tree_method(self):
         app = AIGuardianTUI()
