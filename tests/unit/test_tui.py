@@ -14,6 +14,8 @@ import pytest
 from ai_guardian.tui.app import (
     AIGuardianTUI,
     NAV_GROUPS,
+    PANEL_TO_CONFIG_SECTION,
+    _is_feature_enabled,
     HELP_DOCS,
     HelpModal,
     copy_to_system_clipboard,
@@ -123,6 +125,85 @@ class TestNavGroups:
         assert "panel-config-effective" in nav_dict["Configuration"]
         assert "panel-regex-tester" in nav_dict["Tools"]
         assert "panel-hook-simulator" in nav_dict["Tools"]
+
+
+class TestPanelToConfigSection:
+    """Tests for PANEL_TO_CONFIG_SECTION mapping."""
+
+    def test_mapping_has_expected_entries(self):
+        assert "panel-secrets" in PANEL_TO_CONFIG_SECTION
+        assert "panel-pi-detection" in PANEL_TO_CONFIG_SECTION
+        assert "panel-ssrf" in PANEL_TO_CONFIG_SECTION
+        assert "panel-supply-chain" in PANEL_TO_CONFIG_SECTION
+
+    def test_sub_pages_map_to_parent_scanner(self):
+        assert PANEL_TO_CONFIG_SECTION["panel-secret-engines"] == "secret_scanning"
+        assert PANEL_TO_CONFIG_SECTION["panel-pi-ml-engines"] == "prompt_injection"
+        assert PANEL_TO_CONFIG_SECTION["panel-pi-patterns"] == "prompt_injection"
+        assert PANEL_TO_CONFIG_SECTION["panel-pi-jailbreak"] == "prompt_injection"
+        assert PANEL_TO_CONFIG_SECTION["panel-pi-unicode"] == "prompt_injection"
+
+    def test_always_visible_panels_not_in_mapping(self):
+        assert "panel-security-dashboard" not in PANEL_TO_CONFIG_SECTION
+        assert "panel-global-settings" not in PANEL_TO_CONFIG_SECTION
+        assert "panel-health-check" not in PANEL_TO_CONFIG_SECTION
+        assert "panel-violations" not in PANEL_TO_CONFIG_SECTION
+        assert "panel-metrics" not in PANEL_TO_CONFIG_SECTION
+        assert "panel-logs" not in PANEL_TO_CONFIG_SECTION
+        assert "panel-about" not in PANEL_TO_CONFIG_SECTION
+
+    def test_all_panel_ids_exist_in_nav_groups(self):
+        all_panels = {pid for _, items in NAV_GROUPS for _, pid in items}
+        for panel_id in PANEL_TO_CONFIG_SECTION:
+            assert panel_id in all_panels, f"{panel_id} not found in NAV_GROUPS"
+
+    def test_mapping_consistent_with_web(self):
+        """Web and TUI mappings should cover same config sections."""
+        try:
+            from ai_guardian.web.components.header import SLUG_TO_CONFIG_SECTION
+
+            web_sections = set(SLUG_TO_CONFIG_SECTION.values())
+            tui_sections = set(PANEL_TO_CONFIG_SECTION.values())
+            assert web_sections == tui_sections
+        except ImportError:
+            pytest.skip("NiceGUI not available")
+
+
+class TestIsFeatureEnabled:
+    """Tests for _is_feature_enabled helper in TUI."""
+
+    def test_enabled_true(self):
+        config = {"secret_scanning": {"enabled": True}}
+        assert _is_feature_enabled(config, "secret_scanning") is True
+
+    def test_enabled_false(self):
+        config = {"secret_scanning": {"enabled": False}}
+        assert _is_feature_enabled(config, "secret_scanning") is False
+
+    def test_missing_section_defaults_true(self):
+        assert _is_feature_enabled({}, "secret_scanning") is True
+
+    def test_enabled_dict_with_value_false(self):
+        config = {"ssrf_protection": {"enabled": {"value": False}}}
+        assert _is_feature_enabled(config, "ssrf_protection") is False
+
+
+class TestToggleDisabledScanners:
+    """Tests for toggle_disabled_scanners action."""
+
+    def test_app_has_toggle_binding(self):
+        app = AIGuardianTUI()
+        binding_actions = [b.action for b in app.BINDINGS]
+        assert "toggle_disabled_scanners" in binding_actions
+
+    def test_initial_state_is_false(self):
+        app = AIGuardianTUI()
+        assert app._show_disabled_scanners is False
+
+    def test_has_rebuild_nav_tree_method(self):
+        app = AIGuardianTUI()
+        assert hasattr(app, "_rebuild_nav_tree")
+        assert callable(app._rebuild_nav_tree)
 
 
 class TestHelpDocs:

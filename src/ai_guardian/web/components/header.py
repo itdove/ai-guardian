@@ -4,6 +4,43 @@ from nicegui import ui
 
 from ai_guardian import __version__
 
+SLUG_TO_CONFIG_SECTION = {
+    "/secrets": "secret_scanning",
+    "/secret-engines": "secret_scanning",
+    "/secret-redaction": "secret_redaction",
+    "/scan-pii": "scan_pii",
+    "/pi-detection": "prompt_injection",
+    "/pi-ml-engines": "prompt_injection",
+    "/pi-patterns": "prompt_injection",
+    "/pi-jailbreak": "prompt_injection",
+    "/pi-unicode": "prompt_injection",
+    "/ssrf": "ssrf_protection",
+    "/config-scanner": "config_file_scanning",
+    "/context-poisoning": "context_poisoning",
+    "/supply-chain": "supply_chain",
+    "/code-security": "code_scanning",
+    "/offensive-language": "scan_offensive",
+    "/canary-detection": "canary_detection",
+    "/exfil-detection": "exfil_detection",
+    "/annotations": "annotations",
+    "/permission-rules": "permissions",
+    "/directory-rules": "directory_rules",
+    "/violation-logging": "violation_logging",
+    "/performance": "latency_tracking",
+}
+
+
+def _is_feature_enabled(config, section_key):
+    """Check if a feature/scanner is enabled in config."""
+    section = config.get(section_key, {})
+    if isinstance(section, dict):
+        enabled = section.get("enabled", True)
+        if isinstance(enabled, dict):
+            return bool(enabled.get("value", True))
+        return bool(enabled)
+    return True
+
+
 NAV_GROUPS = [
     (
         "Security Overview",
@@ -131,6 +168,8 @@ def _init_scope_state():
             app.storage.user["config_scope"] = "global"
         if "project_dir" not in app.storage.user:
             app.storage.user["project_dir"] = None
+        if "show_disabled_scanners" not in app.storage.user:
+            app.storage.user["show_disabled_scanners"] = False
     except Exception:
         pass  # intentionally silent — optional dependency
 
@@ -176,8 +215,9 @@ def create_header(daemon_name: str = "", drawer=None):
                 ui.label("|").classes("text-grey-6")
                 ui.label(daemon_name).classes("text-white font-bold")
             _create_project_selector(daemon_name)
-        with ui.row().classes("gap-2"):
+        with ui.row().classes("gap-2 items-center"):
             if daemon_name:
+                _create_scanner_toggle()
                 _create_nav_menu(daemon_name)
             else:
                 ui.link("Select Daemon", "/").classes("text-white no-underline")
@@ -215,6 +255,13 @@ def create_sidebar(daemon_name: str, current: str = ""):
 
     drawer.on_value_change(_persist_state)
 
+    try:
+        from nicegui import app as _app_storage
+
+        show_disabled = _app_storage.storage.user.get("show_disabled_scanners", False)
+    except Exception:
+        show_disabled = False
+
     with drawer:
         search_input = (
             ui.input(placeholder="Search settings...")
@@ -229,21 +276,69 @@ def create_sidebar(daemon_name: str, current: str = ""):
             .style("flex: 1; min-height: 0;")
         )
         active_link = None
+        group_labels = []
+        group_items = []
         with nav_container:
             for group_name, items in NAV_GROUPS:
-                ui.label(group_name).classes(
+                g_label = ui.label(group_name).classes(
                     "text-xs text-grey-6 font-bold uppercase mt-4 mb-1 px-2"
                 )
+                g_links = []
                 for label, suffix in items:
                     path = f"{prefix}{suffix}"
                     classes = "w-full no-underline rounded px-2 py-1 text-sm "
                     if current == path:
                         classes += "bg-blue-grey-8 text-white font-bold"
-                        link = ui.link(label, path).classes(classes)
-                        active_link = link
                     else:
                         classes += "text-grey-4 hover:bg-blue-grey-9"
-                        ui.link(label, path).classes(classes)
+                    config_section = SLUG_TO_CONFIG_SECTION.get(suffix)
+                    if config_section:
+                        with ui.row().classes("w-full items-center gap-0") as link_row:
+                            link = ui.link(label, path).classes(classes)
+                            badge = (
+                                ui.badge("OFF")
+                                .props("color=grey-8 text-color=grey-5")
+                                .classes("ml-1 text-xs hidden")
+                            )
+                        g_links.append((link_row, badge, config_section))
+                    else:
+                        link = ui.link(label, path).classes(classes)
+                        g_links.append(None)
+                    if current == path:
+                        active_link = link
+                group_labels.append(g_label)
+                group_items.append(g_links)
+
+        async def _apply_scanner_filter():
+            """Load config and hide/dim disabled scanner nav items."""
+            try:
+                from nicegui import run
+
+                from ai_guardian.web.config_helpers import load_web_config
+
+                config = await run.io_bound(load_web_config)
+            except Exception:
+                return
+
+            for g_label, g_links in zip(group_labels, group_items):
+                visible_count = 0
+                for entry in g_links:
+                    if entry is None:
+                        visible_count += 1
+                        continue
+                    link_row, badge, config_section = entry
+                    enabled = _is_feature_enabled(config, config_section)
+                    if enabled:
+                        visible_count += 1
+                    elif show_disabled:
+                        visible_count += 1
+                        link_row.style("opacity: 0.5;")
+                        badge.classes(remove="hidden")
+                    else:
+                        link_row.set_visibility(False)
+                g_label.set_visibility(visible_count > 0)
+
+        ui.timer(0.1, _apply_scanner_filter, once=True)
 
         if active_link:
             ui.run_javascript("""
@@ -492,6 +587,35 @@ def _create_project_selector(daemon_name: str):
 
         project_select.on_value_change(on_project_change)
         ui.timer(0.1, _populate, once=True)
+
+
+def _create_scanner_toggle():
+    """Create the show/hide disabled scanners toggle in the header."""
+    try:
+        from nicegui import app
+
+        current = app.storage.user.get("show_disabled_scanners", False)
+    except Exception:
+        current = False
+
+    with ui.row().classes("items-center gap-1"):
+        ui.label("|").classes("text-grey-6")
+        switch = (
+            ui.switch("Show disabled", value=current)
+            .props("dense dark color=blue-grey-6")
+            .classes("text-xs text-grey-4")
+        )
+
+        async def on_toggle(e):
+            try:
+                from nicegui import app as _app
+
+                _app.storage.user["show_disabled_scanners"] = e.value
+                await ui.run_javascript("location.reload()")
+            except Exception:
+                pass
+
+        switch.on_value_change(on_toggle)
 
 
 def _shorten_project_path(path: str) -> str:

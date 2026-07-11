@@ -105,6 +105,43 @@ def copy_to_system_clipboard(text: str) -> Tuple[Optional[str], Optional[str]]:
     return ("Clipboard command failed", None)
 
 
+PANEL_TO_CONFIG_SECTION = {
+    "panel-secrets": "secret_scanning",
+    "panel-secret-engines": "secret_scanning",
+    "panel-secret-redaction": "secret_redaction",
+    "panel-scan-pii": "scan_pii",
+    "panel-pi-detection": "prompt_injection",
+    "panel-pi-ml-engines": "prompt_injection",
+    "panel-pi-patterns": "prompt_injection",
+    "panel-pi-jailbreak": "prompt_injection",
+    "panel-pi-unicode": "prompt_injection",
+    "panel-ssrf": "ssrf_protection",
+    "panel-config-scanner": "config_file_scanning",
+    "panel-context-poisoning": "context_poisoning",
+    "panel-supply-chain": "supply_chain",
+    "panel-code-security": "code_scanning",
+    "panel-offensive-language": "scan_offensive",
+    "panel-canary-detection": "canary_detection",
+    "panel-exfil-detection": "exfil_detection",
+    "panel-annotations": "annotations",
+    "panel-skills": "permissions",
+    "panel-directory-rules": "directory_rules",
+    "panel-violation-logging": "violation_logging",
+    "panel-performance": "latency_tracking",
+}
+
+
+def _is_feature_enabled(config, section_key):
+    """Check if a feature/scanner is enabled in config."""
+    section = config.get(section_key, {})
+    if isinstance(section, dict):
+        enabled = section.get("enabled", True)
+        if isinstance(enabled, dict):
+            return bool(enabled.get("value", True))
+        return bool(enabled)
+    return True
+
+
 # ai-guardian:begin-allow
 NAV_GROUPS = [
     (
@@ -1074,6 +1111,7 @@ class AIGuardianTUI(App):
         self._input_original_values = {}
         self.initial_panel = None
         self.config_scope = "global"
+        self._show_disabled_scanners = False
 
     CSS = f"""
     Screen {{
@@ -1241,6 +1279,7 @@ class AIGuardianTUI(App):
         Binding("ctrl+v", "nav_violations", "Violations", show=False),
         Binding("ctrl+l", "nav_logs", "Logs", show=False),
         Binding("ctrl+m", "nav_metrics", "Metrics", show=False),
+        Binding("ctrl+h", "toggle_disabled_scanners", "Toggle disabled", show=True),
     ]
 
     def copy_to_clipboard(self, text: str) -> bool:
@@ -1546,6 +1585,7 @@ class AIGuardianTUI(App):
         yield Footer()
 
     def on_mount(self) -> None:
+        self._rebuild_nav_tree()
         if self.initial_panel:
             try:
                 switcher = self.query_one("#panels", ContentSwitcher)
@@ -1792,6 +1832,53 @@ class AIGuardianTUI(App):
         self.refresh_bindings()
         self._refresh_scope_panels()
         self.notify("Scope: Global", severity="information")
+
+    def action_toggle_disabled_scanners(self) -> None:
+        """Toggle visibility of disabled scanner pages in the nav tree."""
+        self._show_disabled_scanners = not self._show_disabled_scanners
+        self._rebuild_nav_tree()
+        state = "shown" if self._show_disabled_scanners else "hidden"
+        self.notify(f"Disabled scanners: {state}", severity="information")
+
+    def _rebuild_nav_tree(self) -> None:
+        """Rebuild nav tree, filtering disabled scanner pages."""
+        from ai_guardian.config.utils import get_config
+
+        tree = self.query_one("#nav-tree", Tree)
+        current_panel = self._get_current_panel_id()
+
+        try:
+            config = get_config()
+        except Exception:
+            config = {}
+
+        tree.root.remove_children()
+        for group_label, items in NAV_GROUPS:
+            visible_items = []
+            for label, panel_id in items:
+                config_section = PANEL_TO_CONFIG_SECTION.get(panel_id)
+                if config_section:
+                    enabled = _is_feature_enabled(config, config_section)
+                    if not enabled and not self._show_disabled_scanners:
+                        continue
+                    if not enabled:
+                        label = f"[dim]{label} [OFF][/dim]"
+                visible_items.append((label, panel_id))
+
+            if not visible_items:
+                continue
+
+            group_node = tree.root.add(group_label)
+            group_node.expand()
+            for label, panel_id in visible_items:
+                group_node.add_leaf(label, data=panel_id)
+
+        if current_panel:
+            for node in tree.root.children:
+                for leaf in node.children:
+                    if leaf.data == current_panel:
+                        tree.select_node(leaf)
+                        return
 
     def _refresh_scope_panels(self) -> None:
         """Refresh panels that are scope-aware."""
