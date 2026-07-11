@@ -142,8 +142,14 @@ class TestFormatProvenanceText:
     def test_basic_rendering(self):
         from ai_guardian.config.writer import format_provenance_text
 
-        config = {"secret_scanning": {"enabled": True}, "ssrf_protection": {"action": "warn"}}
-        provenance = {"secret_scanning": {"enabled": "global"}, "ssrf_protection": {"action": "project"}}
+        config = {
+            "secret_scanning": {"enabled": True},
+            "ssrf_protection": {"action": "warn"},
+        }
+        provenance = {
+            "secret_scanning": {"enabled": "global"},
+            "ssrf_protection": {"action": "project"},
+        }
 
         text = format_provenance_text(config, provenance)
 

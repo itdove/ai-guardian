@@ -305,7 +305,10 @@ class TestLoadConfigFileWithOverlay:
     def test_no_overlay_backward_compatible(self, tmp_path):
         config_dir = tmp_path / "config"
         config_dir.mkdir()
-        global_config = {"secret_scanning": {"enabled": True}, "ssrf_protection": {"action": "warn"}}
+        global_config = {
+            "secret_scanning": {"enabled": True},
+            "ssrf_protection": {"action": "warn"},
+        }
         (config_dir / "ai-guardian.json").write_text(json.dumps(global_config))
 
         with mock.patch.dict(
@@ -318,7 +321,10 @@ class TestLoadConfigFileWithOverlay:
             config, err = _load_config_file()
 
         assert err is None
-        assert config == {"secret_scanning": {"enabled": True}, "ssrf_protection": {"action": "warn"}}
+        assert config == {
+            "secret_scanning": {"enabled": True},
+            "ssrf_protection": {"action": "warn"},
+        }
 
     def test_overlay_only_no_config_files(self):
         with mock.patch.dict(
@@ -532,7 +538,12 @@ class TestSDKMonitorWithOverlay:
                 "AI_GUARDIAN_CONFIG_DIR": str(config_dir),
             },
         ):
-            configure(overlay={"secret_scanning": {"enabled": True}, "ssrf_protection": {"action": "block"}})
+            configure(
+                overlay={
+                    "secret_scanning": {"enabled": True},
+                    "ssrf_protection": {"action": "block"},
+                }
+            )
             from ai_guardian.sdk import monitor
 
             with monitor(action="log") as session:
