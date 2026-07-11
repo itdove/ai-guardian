@@ -39,7 +39,7 @@ from ai_guardian.config.utils import (
 )
 from ai_guardian.config.loaders import _load_json_config
 from ai_guardian.constants import ViolationType
-from ai_guardian.tool_patterns import (
+from ai_guardian.tools.patterns import (
     IMMUTABLE_DENY_PATTERNS,
     MIXED_SETTINGS_PATTERNS,
     HOOK_INDICATOR_KEYS,
@@ -49,7 +49,7 @@ from ai_guardian.tool_patterns import (
 
 # Import violation logger
 try:
-    from ai_guardian.violation_logger import ViolationLogger
+    from ai_guardian.violations.logger import ViolationLogger
 
     HAS_VIOLATION_LOGGER = True
 except ImportError:
@@ -58,7 +58,7 @@ except ImportError:
 
 # Import SSRF protector
 try:
-    from ai_guardian.ssrf_protector import SSRFProtector
+    from ai_guardian.scanners.ssrf import SSRFProtector
 
     HAS_SSRF_PROTECTOR = True
 except ImportError:
@@ -1734,7 +1734,9 @@ class ToolPolicyChecker:
             try:
                 # Load schema from package
                 schema_path = (
-                    Path(__file__).parent / "schemas" / "ai-guardian-config.schema.json"
+                    Path(__file__).parent.parent
+                    / "schemas"
+                    / "ai-guardian-config.schema.json"
                 )
                 with open(schema_path, "r") as f:
                     schema = json.load(f)
@@ -2095,7 +2097,7 @@ class ToolPolicyChecker:
             if url.startswith("http://") or url.startswith("https://"):
                 # Remote URL - use RemoteFetcher
                 logger.info(f"Fetching remote config from: {url}")
-                from ai_guardian.remote_fetcher import RemoteFetcher
+                from ai_guardian.patterns.remote import RemoteFetcher
 
                 fetcher = RemoteFetcher()
 
@@ -2392,7 +2394,7 @@ class ToolPolicyChecker:
                 return
 
             # Generate directory rules
-            from ai_guardian.directory_rule_generator import (
+            from ai_guardian.tools.directory_rules import (
                 DirectoryRuleGenerator,
                 insert_generated_rules,
             )

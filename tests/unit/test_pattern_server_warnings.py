@@ -33,7 +33,7 @@ def _minimal_env():
     return keep
 
 
-from ai_guardian.pattern_server import PatternServerClient
+from ai_guardian.patterns.server import PatternServerClient
 
 
 class PatternServerWarningsTest(TestCase):
@@ -64,14 +64,14 @@ class PatternServerWarningsTest(TestCase):
         logging.getLogger().setLevel(logging.DEBUG)
 
         # Also add to specific loggers for pattern_server
-        logging.getLogger("ai_guardian.pattern_server").addHandler(self.log_handler)
-        logging.getLogger("ai_guardian.pattern_server").setLevel(logging.DEBUG)
+        logging.getLogger("ai_guardian.patterns.server").addHandler(self.log_handler)
+        logging.getLogger("ai_guardian.patterns.server").setLevel(logging.DEBUG)
 
     def tearDown(self):
         """Clean up test fixtures"""
         # Remove handlers
         logging.getLogger().removeHandler(self.log_handler)
-        logging.getLogger("ai_guardian.pattern_server").removeHandler(self.log_handler)
+        logging.getLogger("ai_guardian.patterns.server").removeHandler(self.log_handler)
 
         # Restore original logging level
         logging.getLogger().setLevel(self.original_level)
@@ -120,9 +120,9 @@ class PatternServerWarningsTest(TestCase):
             client.warn_on_failure, "warn_on_failure should be False when set"
         )
 
-    @patch("ai_guardian.secret_scanning.select_engine")
-    @patch("ai_guardian.secret_scanning._load_pattern_server_config")
-    @patch("ai_guardian.secret_scanning.PatternServerClient")
+    @patch("ai_guardian.scanners.secret_scanning.select_engine")
+    @patch("ai_guardian.scanners.secret_scanning._load_pattern_server_config")
+    @patch("ai_guardian.scanners.secret_scanning.PatternServerClient")
     def test_pattern_server_failure_falls_back_to_engines(
         self, mock_client_class, mock_pattern_config, mock_select_engine
     ):
@@ -156,8 +156,8 @@ class PatternServerWarningsTest(TestCase):
 
         # Execute: Scan content (will attempt to use pattern server, then fall back)
         content = "This is test content"
-        with patch("ai_guardian.secret_scanning.HAS_PATTERN_SERVER", True):
-            with patch("ai_guardian.secret_scanning.HAS_SCANNER_ENGINE", True):
+        with patch("ai_guardian.scanners.secret_scanning.HAS_PATTERN_SERVER", True):
+            with patch("ai_guardian.scanners.secret_scanning.HAS_SCANNER_ENGINE", True):
                 with patch("shutil.which", return_value="/usr/local/bin/gitleaks"):
                     with patch("subprocess.run") as mock_run:
                         # Mock successful scan with no secrets
@@ -177,9 +177,9 @@ class PatternServerWarningsTest(TestCase):
             mock_select_engine.called, "Should have fallen back to scanner engines"
         )
 
-    @patch("ai_guardian.secret_scanning.select_engine")
-    @patch("ai_guardian.secret_scanning._load_pattern_server_config")
-    @patch("ai_guardian.secret_scanning.PatternServerClient")
+    @patch("ai_guardian.scanners.secret_scanning.select_engine")
+    @patch("ai_guardian.scanners.secret_scanning._load_pattern_server_config")
+    @patch("ai_guardian.scanners.secret_scanning.PatternServerClient")
     def test_pattern_server_fails_falls_back_to_engines(
         self, mock_client_class, mock_pattern_config, mock_select_engine
     ):
@@ -221,8 +221,8 @@ class PatternServerWarningsTest(TestCase):
 
         # Execute: Scan content (will attempt to use pattern server, then fall back)
         content = "This is test content"
-        with patch("ai_guardian.secret_scanning.HAS_PATTERN_SERVER", True):
-            with patch("ai_guardian.secret_scanning.HAS_SCANNER_ENGINE", True):
+        with patch("ai_guardian.scanners.secret_scanning.HAS_PATTERN_SERVER", True):
+            with patch("ai_guardian.scanners.secret_scanning.HAS_SCANNER_ENGINE", True):
                 with patch("shutil.which", return_value="/usr/local/bin/gitleaks"):
                     with patch("subprocess.run") as mock_run:
                         # Mock successful scan with no secrets
@@ -237,9 +237,9 @@ class PatternServerWarningsTest(TestCase):
         )
         self.assertIsNone(error_msg, "No error message should be returned")
 
-    @patch("ai_guardian.secret_scanning.select_engine")
-    @patch("ai_guardian.secret_scanning._load_pattern_server_config")
-    @patch("ai_guardian.secret_scanning.PatternServerClient")
+    @patch("ai_guardian.scanners.secret_scanning.select_engine")
+    @patch("ai_guardian.scanners.secret_scanning._load_pattern_server_config")
+    @patch("ai_guardian.scanners.secret_scanning.PatternServerClient")
     def test_pattern_server_and_no_engines_warns(
         self, mock_client_class, mock_pattern_config, mock_select_engine
     ):
@@ -265,8 +265,8 @@ class PatternServerWarningsTest(TestCase):
 
         # Execute: Scan content (will attempt to use pattern server, then engines, both fail)
         content = "This is test content"
-        with patch("ai_guardian.secret_scanning.HAS_PATTERN_SERVER", True):
-            with patch("ai_guardian.secret_scanning.HAS_SCANNER_ENGINE", True):
+        with patch("ai_guardian.scanners.secret_scanning.HAS_PATTERN_SERVER", True):
+            with patch("ai_guardian.scanners.secret_scanning.HAS_SCANNER_ENGINE", True):
                 has_secrets, error_msg = ai_guardian.check_secrets_with_gitleaks(
                     content, "test.txt"
                 )
@@ -296,7 +296,7 @@ class PatternServerWarningsTest(TestCase):
             "unavailable", error_msg, "Should indicate pattern server was unavailable"
         )
 
-    @patch("ai_guardian.pattern_server.logger")
+    @patch("ai_guardian.patterns.server.logger")
     @patch("requests.get")
     def test_warn_on_failure_auth_error_scenario(self, mock_get, mock_logger):
         """Test warning behavior when pattern server returns 401 auth error"""
@@ -332,7 +332,7 @@ class PatternServerWarningsTest(TestCase):
                     f"Expected 401 auth error in logs. Got: {error_calls}",
                 )
 
-    @patch("ai_guardian.pattern_server.logger")
+    @patch("ai_guardian.patterns.server.logger")
     @patch("requests.get")
     def test_warn_on_failure_network_error_scenario(self, mock_get, mock_logger):
         """Test warning behavior when pattern server has network error"""
@@ -370,7 +370,7 @@ class PatternServerWarningsTest(TestCase):
                     f"Expected connection error in logs. Got: {error_calls}",
                 )
 
-    @patch("ai_guardian.pattern_server.logger")
+    @patch("ai_guardian.patterns.server.logger")
     @patch("requests.get")
     def test_warn_on_failure_timeout_scenario(self, mock_get, mock_logger):
         """Test warning behavior when pattern server times out"""
@@ -406,7 +406,7 @@ class PatternServerWarningsTest(TestCase):
                     f"Expected timeout error in logs. Got: {error_calls}",
                 )
 
-    @patch("ai_guardian.pattern_server.logger")
+    @patch("ai_guardian.patterns.server.logger")
     @patch("requests.get")
     def test_warn_on_failure_server_unavailable_scenario(self, mock_get, mock_logger):
         """Test warning behavior when pattern server returns 503 (unavailable)"""
@@ -447,9 +447,9 @@ class PatternServerWarningsTest(TestCase):
                     f"Expected 503 server error in logs. Got: {error_calls}",
                 )
 
-    @patch("ai_guardian.secret_scanning.select_engine")
-    @patch("ai_guardian.secret_scanning._load_pattern_server_config")
-    @patch("ai_guardian.secret_scanning.PatternServerClient")
+    @patch("ai_guardian.scanners.secret_scanning.select_engine")
+    @patch("ai_guardian.scanners.secret_scanning._load_pattern_server_config")
+    @patch("ai_guardian.scanners.secret_scanning.PatternServerClient")
     def test_pattern_server_unavailable_falls_back_to_engines(
         self, mock_client_class, mock_pattern_config, mock_select_engine
     ):
@@ -488,8 +488,8 @@ class PatternServerWarningsTest(TestCase):
 
         # Execute: Attempt to scan content
         content = "This is test content"
-        with patch("ai_guardian.secret_scanning.HAS_PATTERN_SERVER", True):
-            with patch("ai_guardian.secret_scanning.HAS_SCANNER_ENGINE", True):
+        with patch("ai_guardian.scanners.secret_scanning.HAS_PATTERN_SERVER", True):
+            with patch("ai_guardian.scanners.secret_scanning.HAS_SCANNER_ENGINE", True):
                 with patch("shutil.which", return_value="/usr/local/bin/gitleaks"):
                     with patch("subprocess.run") as mock_run:
                         # Mock successful scan with no secrets
@@ -509,9 +509,9 @@ class PatternServerWarningsTest(TestCase):
             mock_select_engine.called, "Should have fallen back to scanner engines"
         )
 
-    @patch("ai_guardian.secret_scanning.select_engine")
-    @patch("ai_guardian.secret_scanning._load_pattern_server_config")
-    @patch("ai_guardian.secret_scanning.PatternServerClient")
+    @patch("ai_guardian.scanners.secret_scanning.select_engine")
+    @patch("ai_guardian.scanners.secret_scanning._load_pattern_server_config")
+    @patch("ai_guardian.scanners.secret_scanning.PatternServerClient")
     def test_warning_message_when_no_scanner(
         self, mock_client_class, mock_pattern_config, mock_select_engine
     ):
@@ -536,8 +536,8 @@ class PatternServerWarningsTest(TestCase):
 
         # Execute: Scan content
         content = "This is test content"
-        with patch("ai_guardian.secret_scanning.HAS_PATTERN_SERVER", True):
-            with patch("ai_guardian.secret_scanning.HAS_SCANNER_ENGINE", True):
+        with patch("ai_guardian.scanners.secret_scanning.HAS_PATTERN_SERVER", True):
+            with patch("ai_guardian.scanners.secret_scanning.HAS_SCANNER_ENGINE", True):
                 has_secrets, error_msg = ai_guardian.check_secrets_with_gitleaks(
                     content, "test.txt"
                 )
@@ -568,9 +568,9 @@ class PatternServerWarningsTest(TestCase):
     @patch("logging.info")
     @patch("subprocess.run")
     @patch("shutil.which")
-    @patch("ai_guardian.secret_scanning._load_secret_scanning_config")
-    @patch("ai_guardian.secret_scanning._load_pattern_server_config")
-    @patch("ai_guardian.secret_scanning.PatternServerClient")
+    @patch("ai_guardian.scanners.secret_scanning._load_secret_scanning_config")
+    @patch("ai_guardian.scanners.secret_scanning._load_pattern_server_config")
+    @patch("ai_guardian.scanners.secret_scanning.PatternServerClient")
     def test_engines_fallback_order_with_logging(
         self,
         mock_client_class,
@@ -609,8 +609,8 @@ class PatternServerWarningsTest(TestCase):
 
         # Execute: Scan content
         content = "This is test content"
-        with patch("ai_guardian.secret_scanning.HAS_PATTERN_SERVER", True):
-            with patch("ai_guardian.secret_scanning.HAS_SCANNER_ENGINE", True):
+        with patch("ai_guardian.scanners.secret_scanning.HAS_PATTERN_SERVER", True):
+            with patch("ai_guardian.scanners.secret_scanning.HAS_SCANNER_ENGINE", True):
                 has_secrets, error_msg = ai_guardian.check_secrets_with_gitleaks(
                     content, "test.txt"
                 )
@@ -642,7 +642,7 @@ class PatternServerWarningsTest(TestCase):
             f"Expected betterleaks unavailable warning. Got: {warning_calls}",
         )
 
-    @patch("ai_guardian.pattern_server.logger")
+    @patch("ai_guardian.patterns.server.logger")
     @patch("requests.get")
     def test_public_url_without_token_succeeds(self, mock_get, mock_logger):
         """Test that public URLs work without authentication token"""
@@ -692,7 +692,7 @@ class PatternServerWarningsTest(TestCase):
                     f"Expected debug log about unauthenticated request. Got: {debug_calls}",
                 )
 
-    @patch("ai_guardian.pattern_server.logger")
+    @patch("ai_guardian.patterns.server.logger")
     @patch("requests.get")
     def test_public_url_with_token_uses_auth(self, mock_get, mock_logger):
         """Test that authentication is used when token is available, even for public URLs"""
@@ -742,7 +742,7 @@ class PatternServerWarningsTest(TestCase):
                     f"Expected debug log about using authentication. Got: {debug_calls}",
                 )
 
-    @patch("ai_guardian.pattern_server.logger")
+    @patch("ai_guardian.patterns.server.logger")
     @patch("requests.get")
     def test_private_url_without_token_shows_helpful_error(self, mock_get, mock_logger):
         """Test that private URLs without token show helpful error message"""
@@ -787,7 +787,7 @@ class PatternServerWarningsTest(TestCase):
                     f"Expected info about setting token. Got: {info_calls}",
                 )
 
-    @patch("ai_guardian.pattern_server.logger")
+    @patch("ai_guardian.patterns.server.logger")
     @patch("requests.get")
     def test_private_url_with_wrong_token_shows_check_token_error(
         self, mock_get, mock_logger
@@ -839,8 +839,8 @@ class PatternServerWarningsTest(TestCase):
 class TestContextAwareWarningMessages(TestCase):
     """Tests for context-aware scanner warning messages (Issue #384)."""
 
-    @patch("ai_guardian.secret_scanning.select_engine")
-    @patch("ai_guardian.secret_scanning._load_secret_scanning_config")
+    @patch("ai_guardian.scanners.secret_scanning.select_engine")
+    @patch("ai_guardian.scanners.secret_scanning._load_secret_scanning_config")
     def test_warning_path1_no_pattern_server_attempted(
         self, mock_scanning_config, mock_select_engine
     ):
@@ -849,8 +849,8 @@ class TestContextAwareWarningMessages(TestCase):
         mock_select_engine.side_effect = RuntimeError("No secret scanner found")
 
         content = "This is test content"
-        with patch("ai_guardian.secret_scanning.HAS_PATTERN_SERVER", False):
-            with patch("ai_guardian.secret_scanning.HAS_SCANNER_ENGINE", True):
+        with patch("ai_guardian.scanners.secret_scanning.HAS_PATTERN_SERVER", False):
+            with patch("ai_guardian.scanners.secret_scanning.HAS_SCANNER_ENGINE", True):
                 has_secrets, error_msg = ai_guardian.check_secrets_with_gitleaks(
                     content, "test.txt"
                 )
@@ -865,10 +865,10 @@ class TestContextAwareWarningMessages(TestCase):
         self.assertIn("ai-guardian scanner install gitleaks", error_msg)
         self.assertIn("you may leak secrets", error_msg)
 
-    @patch("ai_guardian.secret_scanning.select_engine")
-    @patch("ai_guardian.secret_scanning._load_secret_scanning_config")
-    @patch("ai_guardian.secret_scanning.PatternServerClient")
-    @patch("ai_guardian.secret_scanning._load_pattern_server_config")
+    @patch("ai_guardian.scanners.secret_scanning.select_engine")
+    @patch("ai_guardian.scanners.secret_scanning._load_secret_scanning_config")
+    @patch("ai_guardian.scanners.secret_scanning.PatternServerClient")
+    @patch("ai_guardian.scanners.secret_scanning._load_pattern_server_config")
     def test_warning_path1_pattern_server_attempted_and_failed(
         self,
         mock_pattern_config,
@@ -891,8 +891,8 @@ class TestContextAwareWarningMessages(TestCase):
         mock_select_engine.side_effect = RuntimeError("No secret scanner found")
 
         content = "This is test content"
-        with patch("ai_guardian.secret_scanning.HAS_PATTERN_SERVER", True):
-            with patch("ai_guardian.secret_scanning.HAS_SCANNER_ENGINE", True):
+        with patch("ai_guardian.scanners.secret_scanning.HAS_PATTERN_SERVER", True):
+            with patch("ai_guardian.scanners.secret_scanning.HAS_SCANNER_ENGINE", True):
                 has_secrets, error_msg = ai_guardian.check_secrets_with_gitleaks(
                     content, "test.txt"
                 )
@@ -907,10 +907,10 @@ class TestContextAwareWarningMessages(TestCase):
         self.assertIn("ai-guardian scanner install gitleaks", error_msg)
         self.assertIn("you may leak secrets", error_msg)
 
-    @patch("ai_guardian.secret_scanning.select_engine")
-    @patch("ai_guardian.secret_scanning._load_secret_scanning_config")
-    @patch("ai_guardian.secret_scanning.PatternServerClient")
-    @patch("ai_guardian.secret_scanning._load_pattern_server_config")
+    @patch("ai_guardian.scanners.secret_scanning.select_engine")
+    @patch("ai_guardian.scanners.secret_scanning._load_secret_scanning_config")
+    @patch("ai_guardian.scanners.secret_scanning.PatternServerClient")
+    @patch("ai_guardian.scanners.secret_scanning._load_pattern_server_config")
     def test_warning_path2_pattern_server_ok_no_engines(
         self,
         mock_pattern_config,
@@ -930,8 +930,8 @@ class TestContextAwareWarningMessages(TestCase):
         mock_select_engine.side_effect = RuntimeError("No secret scanner found")
 
         content = "This is test content"
-        with patch("ai_guardian.secret_scanning.HAS_PATTERN_SERVER", True):
-            with patch("ai_guardian.secret_scanning.HAS_SCANNER_ENGINE", True):
+        with patch("ai_guardian.scanners.secret_scanning.HAS_PATTERN_SERVER", True):
+            with patch("ai_guardian.scanners.secret_scanning.HAS_SCANNER_ENGINE", True):
                 has_secrets, error_msg = ai_guardian.check_secrets_with_gitleaks(
                     content, "test.txt"
                 )

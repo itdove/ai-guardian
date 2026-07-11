@@ -7,7 +7,7 @@ from unittest.mock import patch
 
 import pytest
 
-from ai_guardian.latency_logger import (
+from ai_guardian.reporting.latency import (
     LatencyComputer,
     LatencyLogger,
     LatencyReport,
@@ -603,7 +603,7 @@ class TestParseTimestamp:
 class TestCliLatencyRouting:
     def test_latency_flag_routes_correctly(self):
         from types import SimpleNamespace
-        from ai_guardian.metrics import metrics_command
+        from ai_guardian.reporting.metrics import metrics_command
 
         args = SimpleNamespace(
             latency=True,
@@ -620,7 +620,7 @@ class TestCliLatencyRouting:
 
     def test_latency_json_flag(self, capsys):
         from types import SimpleNamespace
-        from ai_guardian.metrics import metrics_command
+        from ai_guardian.reporting.metrics import metrics_command
 
         args = SimpleNamespace(
             latency=True,

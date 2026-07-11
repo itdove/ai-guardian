@@ -3,7 +3,7 @@
 import json
 
 
-from ai_guardian.language_patterns import (
+from ai_guardian.patterns.language import (
     LANGUAGE_REGISTRY,
     SKIP_DIRS,
     LanguageDefinition,

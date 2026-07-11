@@ -22,7 +22,7 @@ def _run_generator(config):
         skill_patterns: list of permission patterns used for matching
     """
     try:
-        from ai_guardian.directory_rule_generator import DirectoryRuleGenerator
+        from ai_guardian.tools.directory_rules import DirectoryRuleGenerator
 
         gen = DirectoryRuleGenerator(config)
         permissions = config.get("permissions", {})

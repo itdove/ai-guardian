@@ -39,7 +39,7 @@ def get_about_info() -> dict:
 
     scanners = []
     try:
-        from ai_guardian.scanner_manager import ScannerManager
+        from ai_guardian.scanners.manager import ScannerManager
         from ai_guardian.config.loaders import _load_config_file
 
         cfg_for_scanners, _ = _load_config_file()

@@ -15,12 +15,12 @@ class TestFindProjectRootPerCwd:
     """find_project_root() caches per-cwd, not globally."""
 
     def setup_method(self):
-        from ai_guardian.gitleaks_config import reset_cache
+        from ai_guardian.scanners.gitleaks import reset_cache
 
         reset_cache()
 
     def test_different_cwds_get_separate_entries(self, tmp_path):
-        from ai_guardian.gitleaks_config import find_project_root, _project_roots
+        from ai_guardian.scanners.gitleaks import find_project_root, _project_roots
 
         dir_a = tmp_path / "project_a"
         dir_b = tmp_path / "project_b"
@@ -37,7 +37,7 @@ class TestFindProjectRootPerCwd:
         assert len(_project_roots) == 2
 
     def test_same_cwd_returns_cached(self, tmp_path):
-        from ai_guardian.gitleaks_config import find_project_root, _project_roots
+        from ai_guardian.scanners.gitleaks import find_project_root, _project_roots
 
         dir_a = tmp_path / "project_a"
         dir_a.mkdir()
@@ -50,7 +50,7 @@ class TestFindProjectRootPerCwd:
         assert len(_project_roots) == 1
 
     def test_no_cwd_uses_os_getcwd(self, tmp_path, monkeypatch):
-        from ai_guardian.gitleaks_config import find_project_root, _project_roots
+        from ai_guardian.scanners.gitleaks import find_project_root, _project_roots
 
         monkeypatch.chdir(tmp_path)
         with patch("subprocess.check_output", side_effect=FileNotFoundError("no git")):
@@ -64,7 +64,7 @@ class TestFindProjectRootDaemonOverride:
     """find_project_root() uses get_project_dir() override in daemon mode (#1399)."""
 
     def setup_method(self):
-        from ai_guardian.gitleaks_config import reset_cache
+        from ai_guardian.scanners.gitleaks import reset_cache
 
         reset_cache()
 
@@ -75,7 +75,7 @@ class TestFindProjectRootDaemonOverride:
 
     def test_uses_daemon_override_when_set(self, tmp_path):
         from ai_guardian.config.utils import set_project_dir_override
-        from ai_guardian.gitleaks_config import find_project_root, _project_roots
+        from ai_guardian.scanners.gitleaks import find_project_root, _project_roots
 
         daemon_cwd = tmp_path / "daemon_startup"
         client_cwd = tmp_path / "client_project"
@@ -130,7 +130,7 @@ class TestFindProjectRootDaemonOverride:
 
     def test_load_gitleaks_allowlist_uses_daemon_override(self, tmp_path):
         from ai_guardian.config.utils import set_project_dir_override
-        from ai_guardian.gitleaks_config import load_gitleaks_allowlist, reset_cache
+        from ai_guardian.scanners.gitleaks import load_gitleaks_allowlist, reset_cache
 
         reset_cache()
 
@@ -152,7 +152,7 @@ class TestFindProjectRootDaemonOverride:
 
     def test_should_skip_file_uses_daemon_override(self, tmp_path):
         from ai_guardian.config.utils import set_project_dir_override
-        from ai_guardian.gitleaks_config import (
+        from ai_guardian.scanners.gitleaks import (
             GitleaksAllowlist,
             should_skip_file,
             reset_cache,
@@ -178,7 +178,7 @@ class TestFindProjectRootDaemonOverride:
 
     def test_filter_findings_uses_daemon_override(self, tmp_path):
         from ai_guardian.config.utils import set_project_dir_override
-        from ai_guardian.gitleaks_config import (
+        from ai_guardian.scanners.gitleaks import (
             GitleaksAllowlist,
             filter_findings,
             reset_cache,
@@ -213,7 +213,7 @@ class TestAiguardignorePerProject:
 
     def setup_method(self):
         from ai_guardian.aiguardignore import reset_cache
-        from ai_guardian.gitleaks_config import reset_cache as reset_gitleaks
+        from ai_guardian.scanners.gitleaks import reset_cache as reset_gitleaks
 
         reset_cache()
         reset_gitleaks()
@@ -278,12 +278,12 @@ class TestGitleaksAllowlistPerProject:
     """load_gitleaks_allowlist() caches per-project root."""
 
     def setup_method(self):
-        from ai_guardian.gitleaks_config import reset_cache
+        from ai_guardian.scanners.gitleaks import reset_cache
 
         reset_cache()
 
     def test_separate_allowlists(self, tmp_path):
-        from ai_guardian.gitleaks_config import (
+        from ai_guardian.scanners.gitleaks import (
             load_gitleaks_allowlist,
             _cached_allowlists,
         )
@@ -359,7 +359,7 @@ class TestStaleCleanup:
     """Stale cache entries are cleaned up."""
 
     def test_gitleaks_cleanup(self, tmp_path):
-        from ai_guardian.gitleaks_config import (
+        from ai_guardian.scanners.gitleaks import (
             _project_roots,
             _cache_last_accessed,
             cleanup_stale_entries,
@@ -410,7 +410,7 @@ class TestStaleCleanup:
         assert "__stale__" not in _caches
 
     def test_fresh_entries_preserved(self, tmp_path):
-        from ai_guardian.gitleaks_config import (
+        from ai_guardian.scanners.gitleaks import (
             _project_roots,
             _cache_last_accessed,
             cleanup_stale_entries,

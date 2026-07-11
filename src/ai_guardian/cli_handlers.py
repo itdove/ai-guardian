@@ -44,7 +44,7 @@ def _handle_violations_command(args):
     Returns:
         int: Exit code (0 for success, 1 for error)
     """
-    from ai_guardian.violation_logger import ViolationLogger
+    from ai_guardian.violations.logger import ViolationLogger
 
     violation_logger = ViolationLogger()
 
@@ -139,7 +139,7 @@ def _handle_violations_command(args):
                 print(location)
             else:
                 print(f"  Source: {source}")
-            from ai_guardian.secret_type_names import get_secret_type_display
+            from ai_guardian.scanners.secret_types import get_secret_type_display
 
             secret_type = blocked.get("secret_type", "Unknown")
             print(f"  Secret type: {get_secret_type_display(secret_type)}")

@@ -25,7 +25,7 @@ import time
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from ai_guardian.language_patterns import SKIP_DIRS
+from ai_guardian.patterns.language import SKIP_DIRS
 from typing import Dict, List, Optional
 
 logger = logging.getLogger(__name__)
@@ -273,7 +273,7 @@ class MCPAuditor:
         """Check if an MCP server is trusted via permissions.rules."""
         try:
             if not hasattr(self, "_policy_checker"):
-                from ai_guardian.tool_policy import ToolPolicyChecker
+                from ai_guardian.tools.policy import ToolPolicyChecker
 
                 self._policy_checker = ToolPolicyChecker(
                     config=self.config if self.config else None
@@ -284,7 +284,7 @@ class MCPAuditor:
                 "tool_name": f"mcp__{server_name}__test",
                 "parameters": {},
             }
-            tp_logger = logging.getLogger("ai_guardian.tool_policy")
+            tp_logger = logging.getLogger("ai_guardian.tools.policy")
             original_level = tp_logger.level
             tp_logger.setLevel(logging.CRITICAL)
             try:

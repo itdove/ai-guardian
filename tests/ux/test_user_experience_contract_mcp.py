@@ -70,7 +70,7 @@ class MCPUserExperienceContractTests(TestCase):
             }
         }
 
-        from ai_guardian.tool_policy import ToolPolicyChecker
+        from ai_guardian.tools.policy import ToolPolicyChecker
 
         policy_checker = ToolPolicyChecker(config=config)
 
@@ -196,7 +196,7 @@ class MCPUserExperienceContractTests(TestCase):
         # Disable pattern server
         mock_pattern_config.return_value = None
 
-        from ai_guardian.ssrf_protector import SSRFProtector
+        from ai_guardian.scanners.ssrf import SSRFProtector
 
         # Configure SSRF protector
         config = {"enabled": True}
@@ -302,7 +302,7 @@ class MCPUserExperienceContractTests(TestCase):
             }
         }
 
-        from ai_guardian.tool_policy import ToolPolicyChecker
+        from ai_guardian.tools.policy import ToolPolicyChecker
 
         policy_checker = ToolPolicyChecker(config=config)
 
@@ -358,7 +358,7 @@ class MCPUserExperienceContractTests(TestCase):
         mock_pattern_config.return_value = None
 
         from ai_guardian.scanners.prompt_injection import check_prompt_injection
-        from ai_guardian.tool_policy import ToolPolicyChecker
+        from ai_guardian.tools.policy import ToolPolicyChecker
 
         # Scenario A: MCP operation with prompt injection
         malicious_title = attack_constants.PROMPT_INJECTION_IGNORE_PREVIOUS
@@ -585,7 +585,7 @@ class MCPAllowRuleActionModesUXTest(TestCase):
         mock_pattern_config.return_value = None
         mock_scan_config.return_value = ({"enabled": True}, None)
 
-        from ai_guardian.tool_policy import ToolPolicyChecker
+        from ai_guardian.tools.policy import ToolPolicyChecker
 
         config = {
             "permissions": {
@@ -637,7 +637,7 @@ class MCPAllowRuleActionModesUXTest(TestCase):
         mock_pattern_config.return_value = None
         mock_scan_config.return_value = ({"enabled": True}, None)
 
-        from ai_guardian.tool_policy import ToolPolicyChecker
+        from ai_guardian.tools.policy import ToolPolicyChecker
 
         config = {
             "permissions": {
@@ -696,7 +696,7 @@ class MCPBlockReasonUXTest(TestCase):
         This test verifies the skill instructions contain the required
         guidance for correct block-reason reporting.
         """
-        from ai_guardian.mcp_server import _load_skill_instructions
+        from ai_guardian.mcp.server import _load_skill_instructions
 
         instructions = _load_skill_instructions()
 
@@ -724,7 +724,7 @@ class MCPBlockReasonUXTest(TestCase):
         This test verifies the skill instructions explicitly forbid
         all known bypass methods.
         """
-        from ai_guardian.mcp_server import _load_skill_instructions
+        from ai_guardian.mcp.server import _load_skill_instructions
 
         instructions = _load_skill_instructions()
 
@@ -762,9 +762,9 @@ class MCPBlockReasonUXTest(TestCase):
         ✅ AI can use this to report: "blocked because a secret was detected"
         """
         from unittest.mock import MagicMock, patch
-        from ai_guardian.mcp_server import create_server
+        from ai_guardian.mcp.server import create_server
 
-        with patch("ai_guardian.violation_logger.ViolationLogger") as mock_vl_cls:
+        with patch("ai_guardian.violations.logger.ViolationLogger") as mock_vl_cls:
             mock_vl = MagicMock()
             mock_vl.get_recent_violations.return_value = [
                 {

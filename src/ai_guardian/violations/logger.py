@@ -98,7 +98,7 @@ class ViolationLogger:
 
             # Increment running counter (independent of log rotation)
             try:
-                from ai_guardian.violation_counter import ViolationCounter
+                from ai_guardian.violations.counter import ViolationCounter
 
                 ViolationCounter().increment(violation_type)
             except Exception as counter_err:

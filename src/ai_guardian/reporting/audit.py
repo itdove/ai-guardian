@@ -26,7 +26,7 @@ from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 from typing import Dict, List, Optional, TextIO, Tuple
 
-from ai_guardian.metrics import (
+from ai_guardian.reporting.metrics import (
     MetricsComputer,
     _parse_since,
     _parse_timestamp,

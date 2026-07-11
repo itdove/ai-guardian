@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Tests for FileScanner (ai_guardian.scanner) — verifies that scan_directory
+Tests for FileScanner (ai_guardian.scanners.file_scanner) — verifies that scan_directory
 invokes all six security scanners (config threats, SSRF, unicode, secrets,
 PII, prompt injection).
 """
@@ -8,13 +8,13 @@ PII, prompt injection).
 from pathlib import Path
 from unittest import mock
 
-from ai_guardian.scanner import FileScanner
+from ai_guardian.scanners.file_scanner import FileScanner
 
 
 class TestFileScannerSecretScanning:
     """Tests for _check_secrets integration."""
 
-    @mock.patch("ai_guardian.scanner.check_secrets_with_gitleaks")
+    @mock.patch("ai_guardian.scanners.file_scanner.check_secrets_with_gitleaks")
     def test_secrets_detected(self, mock_gitleaks, tmp_path):
         mock_gitleaks.return_value = (True, "Secret found: AWS key detected")
 
@@ -28,7 +28,7 @@ class TestFileScannerSecretScanning:
         secret_findings = [f for f in findings if f["rule_id"] == "SECRET-001"]
         assert len(secret_findings) >= 1
 
-    @mock.patch("ai_guardian.scanner.check_secrets_with_gitleaks")
+    @mock.patch("ai_guardian.scanners.file_scanner.check_secrets_with_gitleaks")
     def test_no_secrets(self, mock_gitleaks, tmp_path):
         mock_gitleaks.return_value = (False, None)
 
@@ -41,7 +41,7 @@ class TestFileScannerSecretScanning:
         secret_findings = [f for f in findings if f["rule_id"] == "SECRET-001"]
         assert len(secret_findings) == 0
 
-    @mock.patch("ai_guardian.scanner.check_secrets_with_gitleaks")
+    @mock.patch("ai_guardian.scanners.file_scanner.check_secrets_with_gitleaks")
     def test_secrets_disabled(self, mock_gitleaks, tmp_path):
         test_file = tmp_path / "creds.py"
         test_file.write_text("AWS_KEY = 'AKIA...'")
@@ -51,7 +51,7 @@ class TestFileScannerSecretScanning:
 
         mock_gitleaks.assert_not_called()
 
-    @mock.patch("ai_guardian.scanner.check_secrets_with_gitleaks")
+    @mock.patch("ai_guardian.scanners.file_scanner.check_secrets_with_gitleaks")
     def test_secrets_exception_handled(self, mock_gitleaks, tmp_path):
         mock_gitleaks.side_effect = RuntimeError("scanner not found")
 
@@ -67,7 +67,7 @@ class TestFileScannerSecretScanning:
 class TestFileScannerPIIDetection:
     """Tests for _check_pii integration."""
 
-    @mock.patch("ai_guardian.scanner._scan_for_pii")
+    @mock.patch("ai_guardian.scanners.file_scanner._scan_for_pii")
     def test_pii_detected(self, mock_pii, tmp_path):
         mock_pii.return_value = (
             True,
@@ -87,7 +87,7 @@ class TestFileScannerPIIDetection:
         assert len(pii_findings) >= 1
         assert pii_findings[0]["details"]["pii_type"] == "ssn"
 
-    @mock.patch("ai_guardian.scanner._scan_for_pii")
+    @mock.patch("ai_guardian.scanners.file_scanner._scan_for_pii")
     def test_multiple_pii_types(self, mock_pii, tmp_path):
         mock_pii.return_value = (
             True,
@@ -110,7 +110,7 @@ class TestFileScannerPIIDetection:
         pii_types = {f["details"]["pii_type"] for f in pii_findings}
         assert pii_types == {"ssn", "credit_card"}
 
-    @mock.patch("ai_guardian.scanner._scan_for_pii")
+    @mock.patch("ai_guardian.scanners.file_scanner._scan_for_pii")
     def test_no_pii(self, mock_pii, tmp_path):
         mock_pii.return_value = (False, "clean text", [], None)
 
@@ -123,7 +123,7 @@ class TestFileScannerPIIDetection:
         pii_findings = [f for f in findings if f["rule_id"] == "PII-001"]
         assert len(pii_findings) == 0
 
-    @mock.patch("ai_guardian.scanner._scan_for_pii")
+    @mock.patch("ai_guardian.scanners.file_scanner._scan_for_pii")
     def test_pii_disabled(self, mock_pii, tmp_path):
         test_file = tmp_path / "data.txt"
         test_file.write_text("SSN: 123-45-6789")
@@ -133,7 +133,7 @@ class TestFileScannerPIIDetection:
 
         mock_pii.assert_not_called()
 
-    @mock.patch("ai_guardian.scanner._scan_for_pii")
+    @mock.patch("ai_guardian.scanners.file_scanner._scan_for_pii")
     def test_pii_exception_handled(self, mock_pii, tmp_path):
         mock_pii.side_effect = Exception("PII scanner error")
 
@@ -149,7 +149,7 @@ class TestFileScannerPIIDetection:
 class TestFileScannerPromptInjection:
     """Tests for _check_prompt_injection integration."""
 
-    @mock.patch("ai_guardian.scanner.PromptInjectionDetector")
+    @mock.patch("ai_guardian.scanners.file_scanner.PromptInjectionDetector")
     def test_prompt_injection_detected(self, mock_detector_cls, tmp_path):
         mock_detector = mock.MagicMock()
         mock_detector.detect.return_value = (
@@ -176,7 +176,7 @@ class TestFileScannerPromptInjection:
         pi_findings = [f for f in findings if f["rule_id"] == "PROMPT-INJECTION-001"]
         assert len(pi_findings) >= 1
 
-    @mock.patch("ai_guardian.scanner.PromptInjectionDetector")
+    @mock.patch("ai_guardian.scanners.file_scanner.PromptInjectionDetector")
     def test_prompt_injection_detected_but_not_blocking(
         self, mock_detector_cls, tmp_path
     ):
@@ -195,7 +195,7 @@ class TestFileScannerPromptInjection:
         pi_findings = [f for f in findings if f["rule_id"] == "PROMPT-INJECTION-001"]
         assert len(pi_findings) >= 1
 
-    @mock.patch("ai_guardian.scanner.PromptInjectionDetector")
+    @mock.patch("ai_guardian.scanners.file_scanner.PromptInjectionDetector")
     def test_no_prompt_injection(self, mock_detector_cls, tmp_path):
         mock_detector = mock.MagicMock()
         mock_detector.detect.return_value = (False, None, False)
@@ -212,7 +212,7 @@ class TestFileScannerPromptInjection:
         pi_findings = [f for f in findings if f["rule_id"] == "PROMPT-INJECTION-001"]
         assert len(pi_findings) == 0
 
-    @mock.patch("ai_guardian.scanner.PromptInjectionDetector")
+    @mock.patch("ai_guardian.scanners.file_scanner.PromptInjectionDetector")
     def test_prompt_injection_disabled(self, mock_detector_cls, tmp_path):
         test_file = tmp_path / "file.md"
         test_file.write_text("content")
@@ -222,7 +222,7 @@ class TestFileScannerPromptInjection:
 
         mock_detector_cls.assert_not_called()
 
-    @mock.patch("ai_guardian.scanner.PromptInjectionDetector")
+    @mock.patch("ai_guardian.scanners.file_scanner.PromptInjectionDetector")
     def test_prompt_injection_exception_handled(self, mock_detector_cls, tmp_path):
         mock_detector = mock.MagicMock()
         mock_detector.detect.side_effect = Exception("detector error")
@@ -240,9 +240,9 @@ class TestFileScannerPromptInjection:
 class TestFileScannerAllScanners:
     """Integration-style tests verifying all scanners run together."""
 
-    @mock.patch("ai_guardian.scanner.PromptInjectionDetector")
-    @mock.patch("ai_guardian.scanner._scan_for_pii")
-    @mock.patch("ai_guardian.scanner.check_secrets_with_gitleaks")
+    @mock.patch("ai_guardian.scanners.file_scanner.PromptInjectionDetector")
+    @mock.patch("ai_guardian.scanners.file_scanner._scan_for_pii")
+    @mock.patch("ai_guardian.scanners.file_scanner.check_secrets_with_gitleaks")
     def test_all_scanners_called_on_file(
         self, mock_secrets, mock_pii, mock_pi_cls, tmp_path
     ):
@@ -269,9 +269,9 @@ class TestFileScannerAllScanners:
         mock_pii.assert_called()
         mock_detector.detect.assert_called()
 
-    @mock.patch("ai_guardian.scanner.PromptInjectionDetector")
-    @mock.patch("ai_guardian.scanner._scan_for_pii")
-    @mock.patch("ai_guardian.scanner.check_secrets_with_gitleaks")
+    @mock.patch("ai_guardian.scanners.file_scanner.PromptInjectionDetector")
+    @mock.patch("ai_guardian.scanners.file_scanner._scan_for_pii")
+    @mock.patch("ai_guardian.scanners.file_scanner.check_secrets_with_gitleaks")
     def test_multiple_findings_from_different_scanners(
         self, mock_secrets, mock_pii, mock_pi_cls, tmp_path
     ):
@@ -312,8 +312,8 @@ class TestFileScannerImageScanning:
     PNG_HEADER = b"\x89PNG\r\n\x1a\n" + b"\x00" * 100
     JPEG_HEADER = b"\xff\xd8\xff" + b"\x00" * 100
 
-    @mock.patch("ai_guardian.scanner.scan_image")
-    @mock.patch("ai_guardian.scanner.check_secrets_with_gitleaks")
+    @mock.patch("ai_guardian.scanners.file_scanner.scan_image")
+    @mock.patch("ai_guardian.scanners.file_scanner.check_secrets_with_gitleaks")
     def test_image_file_discovered_and_scanned(
         self, mock_gitleaks, mock_scan_image, tmp_path
     ):
@@ -342,7 +342,7 @@ class TestFileScannerImageScanning:
         secret_findings = [f for f in findings if f["rule_id"] == "SECRET-001"]
         assert len(secret_findings) >= 1
 
-    @mock.patch("ai_guardian.scanner.scan_image")
+    @mock.patch("ai_guardian.scanners.file_scanner.scan_image")
     def test_image_scanning_disabled_skips_images(self, mock_scan_image, tmp_path):
         """When image_scanning.enabled=False, images should be skipped."""
         img_file = tmp_path / "test.png"
@@ -357,7 +357,7 @@ class TestFileScannerImageScanning:
 
         mock_scan_image.assert_not_called()
 
-    @mock.patch("ai_guardian.scanner.HAS_IMAGE_SCANNER", False)
+    @mock.patch("ai_guardian.scanners.file_scanner.HAS_IMAGE_SCANNER", False)
     def test_no_image_scanner_skips_images(self, tmp_path):
         """When image_scanner module is unavailable, images are silently skipped."""
         img_file = tmp_path / "test.png"
@@ -367,7 +367,7 @@ class TestFileScannerImageScanning:
         findings = scanner.scan_directory(str(tmp_path))
         assert len(findings) == 0
 
-    @mock.patch("ai_guardian.scanner.scan_image")
+    @mock.patch("ai_guardian.scanners.file_scanner.scan_image")
     def test_image_no_text_extracted_no_findings(self, mock_scan_image, tmp_path):
         """If OCR extracts no text, no findings should be produced."""
         from ai_guardian.scanners.image_scanner import ImageScanResult
@@ -388,7 +388,7 @@ class TestFileScannerImageScanning:
         findings = scanner.scan_directory(str(tmp_path))
         assert len(findings) == 0
 
-    @mock.patch("ai_guardian.scanner.scan_image")
+    @mock.patch("ai_guardian.scanners.file_scanner.scan_image")
     def test_image_too_large_skipped(self, mock_scan_image, tmp_path):
         """Images exceeding max_image_size_mb should be skipped."""
         img_file = tmp_path / "huge.png"
@@ -403,8 +403,8 @@ class TestFileScannerImageScanning:
 
         mock_scan_image.assert_not_called()
 
-    @mock.patch("ai_guardian.scanner.scan_image")
-    @mock.patch("ai_guardian.scanner._scan_for_pii")
+    @mock.patch("ai_guardian.scanners.file_scanner.scan_image")
+    @mock.patch("ai_guardian.scanners.file_scanner._scan_for_pii")
     def test_image_pii_detected(self, mock_pii, mock_scan_image, tmp_path):
         """PII in OCR-extracted text should produce PII findings."""
         from ai_guardian.scanners.image_scanner import ImageScanResult
@@ -435,8 +435,8 @@ class TestFileScannerImageScanning:
         pii_findings = [f for f in findings if f["rule_id"] == "PII-001"]
         assert len(pii_findings) >= 1
 
-    @mock.patch("ai_guardian.scanner.scan_image")
-    @mock.patch("ai_guardian.scanner.check_secrets_with_gitleaks")
+    @mock.patch("ai_guardian.scanners.file_scanner.scan_image")
+    @mock.patch("ai_guardian.scanners.file_scanner.check_secrets_with_gitleaks")
     def test_image_findings_include_source_type(
         self, mock_gitleaks, mock_scan_image, tmp_path
     ):
@@ -466,7 +466,7 @@ class TestFileScannerImageScanning:
         assert secret_findings[0]["details"]["source_type"] == "image_ocr"
         assert secret_findings[0]["details"]["ocr_confidence"] == 0.92
 
-    @mock.patch("ai_guardian.scanner.scan_image")
+    @mock.patch("ai_guardian.scanners.file_scanner.scan_image")
     def test_image_ocr_exception_handled_gracefully(self, mock_scan_image, tmp_path):
         """OCR exceptions should not crash the scanner."""
         img_file = tmp_path / "corrupt.png"
@@ -482,8 +482,8 @@ class TestFileScannerImageScanning:
         findings = scanner.scan_directory(str(tmp_path))
         assert len(findings) == 0
 
-    @mock.patch("ai_guardian.scanner.scan_image")
-    @mock.patch("ai_guardian.scanner.check_secrets_with_gitleaks")
+    @mock.patch("ai_guardian.scanners.file_scanner.scan_image")
+    @mock.patch("ai_guardian.scanners.file_scanner.check_secrets_with_gitleaks")
     def test_mixed_text_and_image_files(self, mock_gitleaks, mock_scan_image, tmp_path):
         """Both text and image files should be scanned in the same directory."""
         from ai_guardian.scanners.image_scanner import ImageScanResult
@@ -512,7 +512,7 @@ class TestFileScannerImageScanning:
         assert len(findings) >= 2
         assert mock_gitleaks.call_count >= 2
 
-    @mock.patch("ai_guardian.scanner.scan_image")
+    @mock.patch("ai_guardian.scanners.file_scanner.scan_image")
     def test_image_ignore_files_pattern(self, mock_scan_image, tmp_path):
         """Images matching ignore_files patterns should be skipped."""
         img_file = tmp_path / "logo.png"
@@ -564,7 +564,7 @@ class TestFileScannerScanFiles:
         findings = scanner.scan_files([], base_path=Path.cwd())
         assert findings == []
 
-    @mock.patch("ai_guardian.scanner.check_secrets_with_gitleaks")
+    @mock.patch("ai_guardian.scanners.file_scanner.check_secrets_with_gitleaks")
     def test_returns_findings(self, mock_gitleaks, tmp_path):
         mock_gitleaks.return_value = (True, "Secret found: key detected")
 
@@ -581,8 +581,8 @@ class TestFileScannerScanFiles:
 class TestFileScannerAnnotationSuppression:
     """Tests for annotation-based suppression in FileScanner (#1237)."""
 
-    @mock.patch("ai_guardian.scanner.check_secrets_with_gitleaks")
-    @mock.patch("ai_guardian.scanner._load_annotations_config")
+    @mock.patch("ai_guardian.scanners.file_scanner.check_secrets_with_gitleaks")
+    @mock.patch("ai_guardian.scanners.file_scanner._load_annotations_config")
     def test_block_annotations_suppress_secrets(
         self, mock_ann_config, mock_gitleaks, tmp_path
     ):
@@ -612,8 +612,8 @@ class TestFileScannerAnnotationSuppression:
         assert scanned_lines[3] == ""
         assert scanned_lines[4] == "another_clean_line"
 
-    @mock.patch("ai_guardian.scanner.check_secrets_with_gitleaks")
-    @mock.patch("ai_guardian.scanner._load_annotations_config")
+    @mock.patch("ai_guardian.scanners.file_scanner.check_secrets_with_gitleaks")
+    @mock.patch("ai_guardian.scanners.file_scanner._load_annotations_config")
     def test_annotations_disabled_passes_original_content(
         self, mock_ann_config, mock_gitleaks, tmp_path
     ):
@@ -634,9 +634,9 @@ class TestFileScannerAnnotationSuppression:
         scanned_content = call_args[0][0]
         assert 'KEY = "secret"' in scanned_content
 
-    @mock.patch("ai_guardian.scanner._scan_for_pii")
-    @mock.patch("ai_guardian.scanner.check_secrets_with_gitleaks")
-    @mock.patch("ai_guardian.scanner._load_annotations_config")
+    @mock.patch("ai_guardian.scanners.file_scanner._scan_for_pii")
+    @mock.patch("ai_guardian.scanners.file_scanner.check_secrets_with_gitleaks")
+    @mock.patch("ai_guardian.scanners.file_scanner._load_annotations_config")
     def test_pii_uses_all_suppressed_content(
         self, mock_ann_config, mock_gitleaks, mock_pii, tmp_path
     ):
@@ -667,7 +667,7 @@ class TestFileScannerAnnotationSuppression:
         assert 'ssn = "123-45-6789"' not in pii_content
         assert "clean_line" in pii_content
 
-    @mock.patch("ai_guardian.scanner._load_annotations_config")
+    @mock.patch("ai_guardian.scanners.file_scanner._load_annotations_config")
     def test_prompt_injection_uses_original_content(self, mock_ann_config, tmp_path):
         """Prompt injection scanner should use ORIGINAL content (not suppressed)."""
         mock_ann_config.return_value = ({"enabled": True}, None)
@@ -681,7 +681,7 @@ class TestFileScannerAnnotationSuppression:
         test_file.write_text(content)
 
         with mock.patch(
-            "ai_guardian.scanner.PromptInjectionDetector"
+            "ai_guardian.scanners.file_scanner.PromptInjectionDetector"
         ) as mock_detector_cls:
             mock_detector = mock.MagicMock()
             mock_detector.detect.return_value = (False, None, False)

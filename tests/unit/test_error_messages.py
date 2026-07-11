@@ -13,7 +13,7 @@ Tests verify that error messages follow the Phase 3 format (Issue #287):
 
 import unittest
 from ai_guardian.scanners.prompt_injection import PromptInjectionDetector
-from ai_guardian.tool_policy import ToolPolicyChecker
+from ai_guardian.tools.policy import ToolPolicyChecker
 
 
 class PromptInjectionErrorMessageTest(unittest.TestCase):

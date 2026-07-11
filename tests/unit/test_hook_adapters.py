@@ -1583,7 +1583,7 @@ class TestCursorToolNameExtraction:
     """Tool name synthesis and tool_policy fallback for Cursor event-based hooks."""
 
     def test_tool_policy_extract_cursor_beforereadfile(self):
-        from ai_guardian.tool_policy import ToolPolicyChecker
+        from ai_guardian.tools.policy import ToolPolicyChecker
 
         checker = ToolPolicyChecker(config={})
         hook_data = {
@@ -1596,7 +1596,7 @@ class TestCursorToolNameExtraction:
         assert tool_input.get("file_path") == "/tmp/secret.txt"
 
     def test_tool_policy_extract_cursor_beforeshellexecution(self):
-        from ai_guardian.tool_policy import ToolPolicyChecker
+        from ai_guardian.tools.policy import ToolPolicyChecker
 
         checker = ToolPolicyChecker(config={})
         hook_data = {
@@ -1608,7 +1608,7 @@ class TestCursorToolNameExtraction:
 
     def test_tool_policy_no_block_on_cursor_beforereadfile(self):
         """check_tool_allowed should not fail with 'unable to determine tool name'."""
-        from ai_guardian.tool_policy import ToolPolicyChecker
+        from ai_guardian.tools.policy import ToolPolicyChecker
 
         checker = ToolPolicyChecker(config={"rules": []})
         hook_data = {

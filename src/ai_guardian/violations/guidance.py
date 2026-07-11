@@ -62,7 +62,7 @@ def get_resolution_instructions(violation: dict) -> Tuple[str, str]:
         placeholder = (
             f"<regex-for-{secret_type}>" if secret_type != "unknown" else "<regex>"
         )
-        from ai_guardian.secret_type_names import get_secret_type_display
+        from ai_guardian.scanners.secret_types import get_secret_type_display
 
         instructions = (
             f"Secret type: {get_secret_type_display(secret_type)}\n\n"

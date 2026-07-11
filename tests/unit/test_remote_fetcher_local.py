@@ -15,7 +15,7 @@ import os
 import sys
 import pytest
 
-from ai_guardian.remote_fetcher import RemoteFetcher
+from ai_guardian.patterns.remote import RemoteFetcher
 
 
 class TestLocalFilePaths:

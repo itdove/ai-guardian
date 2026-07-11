@@ -324,7 +324,7 @@ class TestWebConfigEffective:
             "directory_rules": {"action": "global", "rules": []},
         }
         with patch(
-            "ai_guardian.directory_rule_generator.DirectoryRuleGenerator"
+            "ai_guardian.tools.directory_rules.DirectoryRuleGenerator"
         ) as mock_cls:
             mock_gen = MagicMock()
             mock_gen.generate_directory_rules.return_value = [
@@ -336,7 +336,7 @@ class TestWebConfigEffective:
             ]
             mock_cls.return_value = mock_gen
             with patch(
-                "ai_guardian.directory_rule_generator.insert_generated_rules"
+                "ai_guardian.tools.directory_rules.insert_generated_rules"
             ) as mock_insert:
                 _inject_generated_rules(merged, provenance)
                 mock_insert.assert_called_once()

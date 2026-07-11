@@ -8,7 +8,7 @@ import json
 import tempfile
 from pathlib import Path
 
-from ai_guardian.tool_policy import ToolPolicyChecker
+from ai_guardian.tools.policy import ToolPolicyChecker
 
 
 def test_valid_config_loads_successfully():

@@ -185,7 +185,7 @@ def setup_hooks(
                 )
         else:
             try:
-                from ai_guardian.scanner_installer import ScannerInstaller
+                from ai_guardian.scanners.installer import ScannerInstaller
 
                 installer = ScannerInstaller()
 

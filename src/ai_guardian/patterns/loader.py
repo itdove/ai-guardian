@@ -17,7 +17,7 @@ import logging
 from abc import ABC, abstractmethod
 from typing import Dict, Any, Optional
 
-from ai_guardian.pattern_server import PatternServerClient
+from ai_guardian.patterns.server import PatternServerClient
 from ai_guardian.patterns import BUNDLED_FILES
 
 logger = logging.getLogger(__name__)

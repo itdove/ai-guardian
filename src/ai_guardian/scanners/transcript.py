@@ -19,12 +19,12 @@ from typing import Dict, Optional
 
 from ai_guardian.config.utils import get_project_dir, get_state_dir, is_feature_enabled
 from ai_guardian.constants import HookEvent, ViolationType
-from ai_guardian.secret_scanning import check_secrets_with_gitleaks
+from ai_guardian.scanners.secret_scanning import check_secrets_with_gitleaks
 
-import ai_guardian.secret_scanning as _secret_scanning_mod
+import ai_guardian.scanners.secret_scanning as _secret_scanning_mod
 
 try:
-    from ai_guardian.violation_logger import ViolationLogger
+    from ai_guardian.violations.logger import ViolationLogger
 
     HAS_VIOLATION_LOGGER = True
 except ImportError:

@@ -564,7 +564,7 @@ def resolve_engine_config_path(
         ps_config = engine_config.pattern_server
         if isinstance(ps_config, dict) and ps_config.get("url"):
             try:
-                from ai_guardian.pattern_server import PatternServerClient
+                from ai_guardian.patterns.server import PatternServerClient
 
                 client = PatternServerClient(ps_config)
                 path = client.get_patterns_path()

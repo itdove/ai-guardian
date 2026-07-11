@@ -11,7 +11,7 @@ import json
 from unittest.mock import MagicMock, patch
 
 
-from ai_guardian.mcp_audit import (
+from ai_guardian.mcp.audit import (
     MCPAuditor,
     MCPServerInfo,
     AuditFinding,
@@ -591,7 +591,7 @@ class TestScanSource:
 class TestTrustChecking:
     """Tests for MCPAuditor._check_trust()."""
 
-    @patch("ai_guardian.tool_policy.ToolPolicyChecker", autospec=True)
+    @patch("ai_guardian.tools.policy.ToolPolicyChecker", autospec=True)
     def test_trusted_server(self, mock_checker_cls):
         """Server with allow rule is trusted."""
         mock_instance = MagicMock()
@@ -601,7 +601,7 @@ class TestTrustChecking:
         auditor = MCPAuditor()
         assert auditor._check_trust("allowed-server") is True
 
-    @patch("ai_guardian.tool_policy.ToolPolicyChecker", autospec=True)
+    @patch("ai_guardian.tools.policy.ToolPolicyChecker", autospec=True)
     def test_untrusted_server(self, mock_checker_cls):
         """Server without allow rule is untrusted."""
         mock_instance = MagicMock()
@@ -615,7 +615,7 @@ class TestTrustChecking:
         """Trust check returns False on errors."""
         auditor = MCPAuditor()
         with patch(
-            "ai_guardian.tool_policy.ToolPolicyChecker", side_effect=Exception("boom")
+            "ai_guardian.tools.policy.ToolPolicyChecker", side_effect=Exception("boom")
         ):
             assert auditor._check_trust("error-server") is False
 

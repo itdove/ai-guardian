@@ -145,7 +145,7 @@ class MetricsComputer:
     @staticmethod
     def _load_cumulative() -> Dict:
         try:
-            from ai_guardian.violation_counter import ViolationCounter
+            from ai_guardian.violations.counter import ViolationCounter
 
             return ViolationCounter().get_counters()
         except Exception:
@@ -153,7 +153,7 @@ class MetricsComputer:
 
     def read_filtered_violations(self) -> List[Dict]:
         """Read and filter violations from the JSONL log."""
-        from ai_guardian.violation_logger import ViolationLogger
+        from ai_guardian.violations.logger import ViolationLogger
 
         vl = ViolationLogger()
         if not vl.log_path.exists():
@@ -426,7 +426,7 @@ def metrics_command(args) -> int:
         return _reset_counters(args)
 
     if getattr(args, "latency", False):
-        from ai_guardian.latency_logger import (
+        from ai_guardian.reporting.latency import (
             LatencyComputer,
             format_latency_human,
             format_latency_json,
@@ -448,7 +448,7 @@ def metrics_command(args) -> int:
     )
 
     if use_audit:
-        from ai_guardian.audit import audit_command
+        from ai_guardian.reporting.audit import audit_command
 
         return audit_command(args)
 
@@ -481,7 +481,7 @@ def metrics_command(args) -> int:
 
 def _reset_counters(args) -> int:
     """Handle --reset flag: reset cumulative counters to current log counts."""
-    from ai_guardian.violation_counter import ViolationCounter
+    from ai_guardian.violations.counter import ViolationCounter
 
     counter = ViolationCounter()
     old = counter.get_counters()

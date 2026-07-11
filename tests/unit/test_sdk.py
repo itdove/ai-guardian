@@ -406,7 +406,7 @@ class TestDirectSessionCheckCommand:
 class TestDirectSessionSanitize:
     @patch("ai_guardian.sdk._DirectSession._ensure_config")
     @patch(
-        "ai_guardian.sanitizer.sanitize_text",
+        "ai_guardian.scanners.sanitizer.sanitize_text",
         return_value={
             "sanitized_text": "clean",
             "redactions": [],

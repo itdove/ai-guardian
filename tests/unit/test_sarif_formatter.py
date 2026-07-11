@@ -6,7 +6,7 @@ import tempfile
 from pathlib import Path
 
 
-from ai_guardian.sarif_formatter import (
+from ai_guardian.reporting.sarif import (
     SARIFFormatter,
     create_ssrf_finding,
     create_unicode_finding,

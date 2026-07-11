@@ -395,7 +395,7 @@ class Doctor:
 
     def check_scanners(self) -> CheckResult:
         try:
-            from ai_guardian.scanner_manager import ScannerManager
+            from ai_guardian.scanners.manager import ScannerManager
         except ImportError:
             return CheckResult(
                 name="scanners",
@@ -458,7 +458,7 @@ class Doctor:
     def _refresh_ps_cache(self, ps_config: Dict) -> tuple:
         """Attempt to refresh pattern cache. Returns (success, error_msg)."""
         try:
-            from ai_guardian.pattern_server import PatternServerClient
+            from ai_guardian.patterns.server import PatternServerClient
 
             client = PatternServerClient(ps_config)
             result = client.get_patterns_path()
@@ -1559,7 +1559,7 @@ class Doctor:
 
     def check_self_protection(self) -> CheckResult:
         """Verify immutable patterns protect config/state/cache from agent access."""
-        from ai_guardian.tool_patterns import IMMUTABLE_DENY_PATTERNS
+        from ai_guardian.tools.patterns import IMMUTABLE_DENY_PATTERNS
 
         issues = []
 

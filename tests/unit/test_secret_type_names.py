@@ -1,6 +1,6 @@
 """Tests for human-readable secret type display names."""
 
-from ai_guardian.secret_type_names import SECRET_TYPE_NAMES, get_secret_type_display
+from ai_guardian.scanners.secret_types import SECRET_TYPE_NAMES, get_secret_type_display
 
 
 class TestSecretTypeNames:
@@ -55,7 +55,7 @@ class TestBuildSecretDetectedMessage:
     """Test that _build_secret_detected_message uses display names."""
 
     def test_block_message_shows_display_name(self):
-        from ai_guardian.secret_scanning import _build_secret_detected_message
+        from ai_guardian.scanners.secret_scanning import _build_secret_detected_message
 
         secret_details = {
             "rule_id": "openai-api-key",
@@ -69,7 +69,7 @@ class TestBuildSecretDetectedMessage:
         assert "openai-api-key" not in msg
 
     def test_block_message_unknown_rule_id(self):
-        from ai_guardian.secret_scanning import _build_secret_detected_message
+        from ai_guardian.scanners.secret_scanning import _build_secret_detected_message
 
         secret_details = {
             "rule_id": "some-new-scanner-rule",
@@ -81,7 +81,7 @@ class TestBuildSecretDetectedMessage:
         assert "Some New Scanner Rule" in msg
 
     def test_block_message_no_details(self):
-        from ai_guardian.secret_scanning import _build_secret_detected_message
+        from ai_guardian.scanners.secret_scanning import _build_secret_detected_message
 
         msg = _build_secret_detected_message("gitleaks", None, "built-in rules")
         assert "(multiple or unknown)" in msg
@@ -91,7 +91,7 @@ class TestSarifFormatterDisplayName:
     """Test that SARIF formatter uses display names."""
 
     def test_sarif_finding_message(self):
-        from ai_guardian.sarif_formatter import create_secret_finding
+        from ai_guardian.reporting.sarif import create_secret_finding
 
         finding = create_secret_finding("github-personal-token", "test.py", 10)
         assert finding["message"] == "Secret detected: GitHub Personal Token"

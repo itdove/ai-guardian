@@ -3106,7 +3106,7 @@ class TestAboutMenuItem:
         assert "https://github.com/itdove/ai-guardian" in text
 
     def test_build_about_text_contains_scanners(self):
-        from ai_guardian.scanner_manager import InstalledScanner
+        from ai_guardian.scanners.manager import InstalledScanner
 
         fake_scanners = [
             InstalledScanner(
@@ -3123,7 +3123,7 @@ class TestAboutMenuItem:
             ),
         ]
         with mock.patch(
-            "ai_guardian.scanner_manager.ScannerManager.list_configured",
+            "ai_guardian.scanners.manager.ScannerManager.list_configured",
             return_value=fake_scanners,
         ):
             text = build_about_text()
@@ -3132,7 +3132,7 @@ class TestAboutMenuItem:
 
     def test_build_about_text_no_scanners_installed(self):
         with mock.patch(
-            "ai_guardian.scanner_manager.ScannerManager.list_configured",
+            "ai_guardian.scanners.manager.ScannerManager.list_configured",
             return_value=[],
         ):
             text = build_about_text()

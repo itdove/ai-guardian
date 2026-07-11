@@ -10,7 +10,7 @@ import os
 from typing import Optional, Dict, Any, List
 
 try:
-    from ai_guardian.remote_fetcher import RemoteFetcher
+    from ai_guardian.patterns.remote import RemoteFetcher
 
     HAS_REMOTE_FETCHER = True
 except ImportError:

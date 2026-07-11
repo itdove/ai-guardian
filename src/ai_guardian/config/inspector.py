@@ -97,7 +97,7 @@ class ConfigInspector:
 
         # Load effective patterns
         try:
-            from ai_guardian.ssrf_protector import SSRFProtector
+            from ai_guardian.scanners.ssrf import SSRFProtector
 
             protector = SSRFProtector(ssrf_config)
 
@@ -425,7 +425,7 @@ class ConfigInspector:
 
         # SSRF
         try:
-            from ai_guardian.ssrf_protector import SSRFProtector
+            from ai_guardian.scanners.ssrf import SSRFProtector
 
             ssrf_config = self.config.get("ssrf_protection", {})
             protector = SSRFProtector(ssrf_config)

@@ -223,7 +223,7 @@ class SecretRedactor:
     def _load_pii_patterns_via_server(self, pattern_server_config: Dict) -> Dict:
         """Load PII patterns via pattern server with fallback to bundled TOML."""
         try:
-            from ai_guardian.pattern_loader import PIIPatternLoader
+            from ai_guardian.patterns.loader import PIIPatternLoader
 
             loader = PIIPatternLoader()
             merged = loader.load_patterns(
@@ -273,7 +273,7 @@ class SecretRedactor:
             List of patterns (either from server or defaults)
         """
         try:
-            from ai_guardian.pattern_loader import SecretPatternLoader
+            from ai_guardian.patterns.loader import SecretPatternLoader
 
             loader = SecretPatternLoader()
             merged_patterns = loader.load_patterns(

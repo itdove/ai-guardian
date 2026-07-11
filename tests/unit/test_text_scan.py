@@ -7,13 +7,13 @@ from io import StringIO
 from unittest import mock
 
 
-from ai_guardian.scanner import FileScanner, scan_command
+from ai_guardian.scanners.file_scanner import FileScanner, scan_command
 
 
 class TestScanText:
     """Tests for FileScanner.scan_text() method."""
 
-    @mock.patch("ai_guardian.scanner.check_secrets_with_gitleaks")
+    @mock.patch("ai_guardian.scanners.file_scanner.check_secrets_with_gitleaks")
     def test_detects_secrets(self, mock_gitleaks):
         mock_gitleaks.return_value = (
             True,
@@ -27,7 +27,7 @@ class TestScanText:
         assert len(findings) >= 1
         assert findings[0]["rule_id"] == "SECRET-001"
 
-    @mock.patch("ai_guardian.scanner.check_secrets_with_gitleaks")
+    @mock.patch("ai_guardian.scanners.file_scanner.check_secrets_with_gitleaks")
     def test_source_label_stdin(self, mock_gitleaks):
         mock_gitleaks.return_value = (True, "Secret Type: api-key")
 
@@ -36,7 +36,7 @@ class TestScanText:
 
         assert all(f["file_path"] == "stdin" for f in findings)
 
-    @mock.patch("ai_guardian.scanner.check_secrets_with_gitleaks")
+    @mock.patch("ai_guardian.scanners.file_scanner.check_secrets_with_gitleaks")
     def test_source_label_inline(self, mock_gitleaks):
         mock_gitleaks.return_value = (True, "Secret Type: api-key")
 
@@ -55,7 +55,7 @@ class TestScanText:
         findings = scanner.scan_text("   \n\n  \t  ")
         assert findings == []
 
-    @mock.patch("ai_guardian.scanner.check_secrets_with_gitleaks")
+    @mock.patch("ai_guardian.scanners.file_scanner.check_secrets_with_gitleaks")
     def test_clean_text_no_findings(self, mock_gitleaks):
         mock_gitleaks.return_value = (False, None)
 
@@ -64,7 +64,7 @@ class TestScanText:
 
         assert findings == []
 
-    @mock.patch("ai_guardian.scanner.check_secrets_with_gitleaks")
+    @mock.patch("ai_guardian.scanners.file_scanner.check_secrets_with_gitleaks")
     def test_temp_file_cleaned_up(self, mock_gitleaks):
         mock_gitleaks.return_value = (False, None)
 
@@ -77,7 +77,7 @@ class TestScanText:
         remaining = glob.glob(f"{tempfile.gettempdir()}/ai-guardian-text-*")
         assert len(remaining) == 0
 
-    @mock.patch("ai_guardian.scanner._scan_for_pii")
+    @mock.patch("ai_guardian.scanners.file_scanner._scan_for_pii")
     def test_detects_pii(self, mock_pii):
         mock_pii.return_value = (
             True,
@@ -92,7 +92,7 @@ class TestScanText:
         pii_findings = [f for f in findings if f["rule_id"] == "PII-001"]
         assert len(pii_findings) >= 1
 
-    @mock.patch("ai_guardian.scanner.PromptInjectionDetector")
+    @mock.patch("ai_guardian.scanners.file_scanner.PromptInjectionDetector")
     def test_detects_prompt_injection(self, mock_pi_cls):
         mock_detector = mock.MagicMock()
         mock_detector.detect.return_value = (True, "Prompt injection detected", True)
@@ -135,7 +135,7 @@ class TestScanCommandText:
         defaults.update(overrides)
         return Namespace(**defaults)
 
-    @mock.patch("ai_guardian.scanner.FileScanner.scan_text")
+    @mock.patch("ai_guardian.scanners.file_scanner.FileScanner.scan_text")
     def test_text_flag_routes_to_scan_text(self, mock_scan_text):
         mock_scan_text.return_value = []
         args = self._make_args(text="some test content")
@@ -147,7 +147,7 @@ class TestScanCommandText:
         )
         assert result == 0
 
-    @mock.patch("ai_guardian.scanner.FileScanner.scan_text")
+    @mock.patch("ai_guardian.scanners.file_scanner.FileScanner.scan_text")
     def test_dash_dash_reads_stdin(self, mock_scan_text):
         mock_scan_text.return_value = []
         args = self._make_args(path="--")
@@ -158,7 +158,7 @@ class TestScanCommandText:
         mock_scan_text.assert_called_once_with("piped content\n", source_label="stdin")
         assert result == 0
 
-    @mock.patch("ai_guardian.scanner.FileScanner.scan_text")
+    @mock.patch("ai_guardian.scanners.file_scanner.FileScanner.scan_text")
     def test_auto_detect_stdin_no_path(self, mock_scan_text):
         mock_scan_text.return_value = []
         args = self._make_args(path=None)
@@ -178,7 +178,7 @@ class TestScanCommandText:
 
         assert result == 1
 
-    @mock.patch("ai_guardian.scanner.FileScanner.scan_text")
+    @mock.patch("ai_guardian.scanners.file_scanner.FileScanner.scan_text")
     def test_text_with_json_output(self, mock_scan_text, tmp_path):
         mock_scan_text.return_value = [
             {"rule_id": "SECRET-001", "message": "test", "file_path": "inline"}
@@ -194,7 +194,7 @@ class TestScanCommandText:
         assert len(data) == 1
         assert data[0]["file_path"] == "inline"
 
-    @mock.patch("ai_guardian.scanner.FileScanner.scan_text")
+    @mock.patch("ai_guardian.scanners.file_scanner.FileScanner.scan_text")
     def test_text_with_exit_code(self, mock_scan_text):
         mock_scan_text.return_value = [
             {"rule_id": "SECRET-001", "message": "found", "file_path": "inline"}
@@ -205,7 +205,7 @@ class TestScanCommandText:
 
         assert result == 1
 
-    @mock.patch("ai_guardian.scanner.FileScanner.scan_text")
+    @mock.patch("ai_guardian.scanners.file_scanner.FileScanner.scan_text")
     def test_text_clean_exit_code_zero(self, mock_scan_text):
         mock_scan_text.return_value = []
         args = self._make_args(text="clean content", exit_code=True)
@@ -214,7 +214,7 @@ class TestScanCommandText:
 
         assert result == 0
 
-    @mock.patch("ai_guardian.scanner.FileScanner.scan_directory")
+    @mock.patch("ai_guardian.scanners.file_scanner.FileScanner.scan_directory")
     def test_no_path_no_stdin_defaults_to_directory(self, mock_scan_dir):
         mock_scan_dir.return_value = []
         args = self._make_args(path=None)

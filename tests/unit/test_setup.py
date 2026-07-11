@@ -1002,7 +1002,7 @@ class TestConfigDirEnvironmentVariable:
 
     def test_tool_policy_uses_custom_config_dir(self, tmp_path):
         """Test that ToolPolicyChecker respects AI_GUARDIAN_CONFIG_DIR."""
-        from ai_guardian.tool_policy import ToolPolicyChecker
+        from ai_guardian.tools.policy import ToolPolicyChecker
 
         custom_dir = tmp_path / "custom-config"
         custom_dir.mkdir()
@@ -1502,7 +1502,7 @@ class TestInstallScannerMultiple:
             mock_instance.setup_ide_hooks.return_value = (True, "Success")
 
             with mock.patch(
-                "ai_guardian.scanner_installer.ScannerInstaller"
+                "ai_guardian.scanners.installer.ScannerInstaller"
             ) as MockInstaller:
                 mock_inst = MockInstaller.return_value
                 mock_inst.install.return_value = True
@@ -1525,7 +1525,7 @@ class TestInstallScannerMultiple:
             mock_instance.setup_ide_hooks.return_value = (True, "Success")
 
             with mock.patch(
-                "ai_guardian.scanner_installer.ScannerInstaller"
+                "ai_guardian.scanners.installer.ScannerInstaller"
             ) as MockInstaller:
                 mock_inst = MockInstaller.return_value
                 mock_inst.install.return_value = True
@@ -1553,7 +1553,7 @@ class TestInstallScannerMultiple:
             mock_instance.setup_ide_hooks.return_value = (True, "Success")
 
             with mock.patch(
-                "ai_guardian.scanner_installer.ScannerInstaller"
+                "ai_guardian.scanners.installer.ScannerInstaller"
             ) as MockInstaller:
                 success = setup_hooks(install_scanner=None, interactive=False)
 
@@ -1588,7 +1588,7 @@ class TestInstallScannerMultiple:
             mock_instance.setup_ide_hooks.return_value = (True, "Success")
 
             with mock.patch(
-                "ai_guardian.scanner_installer.ScannerInstaller"
+                "ai_guardian.scanners.installer.ScannerInstaller"
             ) as MockInstaller:
                 mock_inst = MockInstaller.return_value
                 mock_inst.install.side_effect = [False, True]
@@ -1610,7 +1610,7 @@ class TestInstallScannerMultiple:
             mock_instance.setup_ide_hooks.return_value = (True, "Success")
 
             with mock.patch(
-                "ai_guardian.scanner_installer.ScannerInstaller"
+                "ai_guardian.scanners.installer.ScannerInstaller"
             ) as MockInstaller:
                 mock_inst = MockInstaller.return_value
                 mock_inst.install.return_value = True
@@ -1631,7 +1631,7 @@ class TestInstallScannerMultiple:
             mock_instance.setup_ide_hooks.return_value = (True, "Success")
 
             with mock.patch(
-                "ai_guardian.scanner_installer.ScannerInstaller"
+                "ai_guardian.scanners.installer.ScannerInstaller"
             ) as MockInstaller:
                 mock_inst = MockInstaller.return_value
                 mock_inst.install.return_value = True
@@ -1657,7 +1657,7 @@ class TestInstallScannerMultiple:
             mock_instance.setup_ide_hooks.return_value = (True, "Success")
 
             with mock.patch(
-                "ai_guardian.scanner_installer.ScannerInstaller"
+                "ai_guardian.scanners.installer.ScannerInstaller"
             ) as MockInstaller:
                 mock_inst = MockInstaller.return_value
                 mock_inst.install.return_value = True
@@ -1681,7 +1681,7 @@ class TestInstallScannerMultiple:
             mock_instance.setup_ide_hooks.return_value = (True, "Success")
 
             with mock.patch(
-                "ai_guardian.scanner_installer.ScannerInstaller"
+                "ai_guardian.scanners.installer.ScannerInstaller"
             ) as MockInstaller:
                 mock_inst = MockInstaller.return_value
                 mock_inst.install.return_value = True

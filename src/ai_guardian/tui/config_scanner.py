@@ -374,7 +374,7 @@ class ConfigScannerContent(SchemaDefaultsMixin, Container):
     def _load_statistics(self) -> None:
         """Load and display config file scanner statistics."""
         try:
-            from ai_guardian.violation_logger import ViolationLogger
+            from ai_guardian.violations.logger import ViolationLogger
 
             logger = ViolationLogger()
 

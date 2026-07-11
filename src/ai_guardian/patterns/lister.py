@@ -148,7 +148,9 @@ class PatternLister:
             return self._schema
         try:
             schema_path = (
-                Path(__file__).parent / "schemas" / "ai-guardian-config.schema.json"
+                Path(__file__).parent.parent
+                / "schemas"
+                / "ai-guardian-config.schema.json"
             )
             with open(schema_path, "r") as f:
                 self._schema = json.load(f)
@@ -593,7 +595,7 @@ class PatternLister:
 
         if not category_filter or category_filter == "self_protection":
             try:
-                from ai_guardian.tool_patterns import IMMUTABLE_DENY_PATTERNS
+                from ai_guardian.tools.patterns import IMMUTABLE_DENY_PATTERNS
 
                 for tool_name, patterns in IMMUTABLE_DENY_PATTERNS.items():
                     for i, pat in enumerate(patterns):

@@ -444,7 +444,7 @@ class SSRFContent(SchemaDefaultsMixin, Container):
     def _load_statistics(self) -> None:
         """Load and display SSRF detection statistics."""
         try:
-            from ai_guardian.violation_logger import ViolationLogger
+            from ai_guardian.violations.logger import ViolationLogger
 
             logger = ViolationLogger()
             stats = logger.get_statistics()

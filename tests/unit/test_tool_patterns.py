@@ -5,7 +5,7 @@ Split from tool_policy tests (Issue #1494) to validate the extracted
 pattern constants and _strip_bash_heredoc_content utility independently.
 """
 
-from ai_guardian.tool_patterns import (
+from ai_guardian.tools.patterns import (
     IMMUTABLE_DENY_PATTERNS,
     MIXED_SETTINGS_PATTERNS,
     HOOK_INDICATOR_KEYS,

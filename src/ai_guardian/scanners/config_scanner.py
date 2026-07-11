@@ -275,7 +275,7 @@ class ConfigFileScanner:
             Dict with 'patterns' list
         """
         try:
-            from ai_guardian.pattern_loader import ConfigExfilPatternLoader
+            from ai_guardian.patterns.loader import ConfigExfilPatternLoader
 
             loader = ConfigExfilPatternLoader()
             merged_patterns = loader.load_patterns(

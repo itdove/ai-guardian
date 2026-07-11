@@ -189,7 +189,7 @@ class TestConfigDisplay:
         assert "Secret Scanning" not in output
         assert "Prompt Injection" not in output
 
-    @patch("ai_guardian.directory_rule_generator.DirectoryRuleGenerator")
+    @patch("ai_guardian.tools.directory_rules.DirectoryRuleGenerator")
     def test_preview_auto_rules(self, mock_generator_class):
         """Should preview auto-generated rules."""
         mock_generator = MagicMock()

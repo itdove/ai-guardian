@@ -53,7 +53,7 @@ def _inject_generated_rules(merged, provenance):
     if not auto_config.get("enabled"):
         return
     try:
-        from ai_guardian.directory_rule_generator import (
+        from ai_guardian.tools.directory_rules import (
             DirectoryRuleGenerator,
             insert_generated_rules,
         )
@@ -99,7 +99,7 @@ def _resolve_project_root(working_dir):
     if not working_dir:
         return None
     try:
-        from ai_guardian.gitleaks_config import find_project_root
+        from ai_guardian.scanners.gitleaks import find_project_root
 
         root = find_project_root(working_dir)
         return str(root) if root else working_dir

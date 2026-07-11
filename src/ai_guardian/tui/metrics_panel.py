@@ -142,7 +142,7 @@ class MetricsContent(Container):
     @staticmethod
     def _get_retention_days() -> int:
         try:
-            from ai_guardian.violation_logger import ViolationLogger
+            from ai_guardian.violations.logger import ViolationLogger
 
             vl = ViolationLogger()
             return vl.config.get("retention_days", 30)
@@ -281,7 +281,7 @@ class MetricsContent(Container):
 
     def _export(self, fmt: str) -> None:
         try:
-            from ai_guardian.audit import (
+            from ai_guardian.reporting.audit import (
                 AuditComputer,
                 format_audit_html,
                 format_audit_json,
@@ -345,7 +345,7 @@ class MetricsContent(Container):
         def handle_confirm(confirmed: bool) -> None:
             if confirmed:
                 try:
-                    from ai_guardian.violation_counter import ViolationCounter
+                    from ai_guardian.violations.counter import ViolationCounter
 
                     ViolationCounter().reset_to_current_log()
                 except Exception:
@@ -356,7 +356,7 @@ class MetricsContent(Container):
 
     def _load_metrics(self) -> None:
         try:
-            from ai_guardian.metrics import MetricsComputer
+            from ai_guardian.reporting.metrics import MetricsComputer
 
             computer = MetricsComputer(since_days=self._since_days)
             report = computer.compute()
@@ -467,7 +467,7 @@ class MetricsContent(Container):
 
     def _load_audit_sections(self) -> None:
         try:
-            from ai_guardian.audit import AuditComputer
+            from ai_guardian.reporting.audit import AuditComputer
 
             computer = AuditComputer(since=f"{self._since_days}d")
             audit = computer.compute()

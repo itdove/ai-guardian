@@ -11,7 +11,7 @@ import tempfile
 import pytest
 from pathlib import Path
 from unittest.mock import patch
-from ai_guardian.tool_policy import ToolPolicyChecker
+from ai_guardian.tools.policy import ToolPolicyChecker
 
 
 @pytest.fixture

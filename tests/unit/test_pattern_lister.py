@@ -7,7 +7,7 @@ from unittest import mock
 
 import pytest
 
-from ai_guardian.pattern_lister import (
+from ai_guardian.patterns.lister import (
     CATEGORY_ALIASES,
     BuiltInGroup,
     DetectionRule,
@@ -482,7 +482,7 @@ group = "test_group"
         self._write_toml(tmp_path / "ssrf-patterns.toml", toml_content)
 
         with mock.patch(
-            "ai_guardian.pattern_lister.get_cache_dir", return_value=tmp_path
+            "ai_guardian.patterns.lister.get_cache_dir", return_value=tmp_path
         ):
             lister = PatternLister()
             rules = lister.get_all_rules()
@@ -513,7 +513,7 @@ description = "Should be skipped"
         self._write_toml(tmp_path / "secrets-patterns.toml", toml_content)
 
         with mock.patch(
-            "ai_guardian.pattern_lister.get_cache_dir", return_value=tmp_path
+            "ai_guardian.patterns.lister.get_cache_dir", return_value=tmp_path
         ):
             lister = PatternLister()
             rules = lister.get_all_rules()
@@ -534,7 +534,7 @@ keywords = ["sk_live_"]
         self._write_toml(tmp_path / "patterns.toml", toml_content)
 
         with mock.patch(
-            "ai_guardian.pattern_lister.get_cache_dir", return_value=tmp_path
+            "ai_guardian.patterns.lister.get_cache_dir", return_value=tmp_path
         ):
             lister = PatternLister()
             rules = lister.get_all_rules()
@@ -552,7 +552,7 @@ keywords = ["sk_live_"]
         """Empty or missing cache dir doesn't cause errors."""
         missing = tmp_path / "nonexistent"
         with mock.patch(
-            "ai_guardian.pattern_lister.get_cache_dir", return_value=missing
+            "ai_guardian.patterns.lister.get_cache_dir", return_value=missing
         ):
             lister = PatternLister()
             rules = lister.get_all_rules()
@@ -573,7 +573,7 @@ description = "SSRF rule"
         self._write_toml(tmp_path / "ssrf-patterns.toml", toml_content)
 
         with mock.patch(
-            "ai_guardian.pattern_lister.get_cache_dir", return_value=tmp_path
+            "ai_guardian.patterns.lister.get_cache_dir", return_value=tmp_path
         ):
             lister = PatternLister()
             rules = lister.get_all_rules(category_filter="pii")

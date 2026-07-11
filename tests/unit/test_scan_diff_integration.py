@@ -6,7 +6,7 @@ from pathlib import Path
 from unittest import mock
 
 
-from ai_guardian.scanner import scan_command
+from ai_guardian.scanners.file_scanner import scan_command
 
 
 def _make_args(**overrides):
@@ -74,8 +74,8 @@ diff --git a/src/foo.py b/src/foo.py
 
 class TestScanCommandDiffMode:
 
-    @mock.patch("ai_guardian.diff_provider.get_diff_unified")
-    @mock.patch("ai_guardian.scanner.FileScanner.scan_files")
+    @mock.patch("ai_guardian.tools.diff_provider.get_diff_unified")
+    @mock.patch("ai_guardian.scanners.file_scanner.FileScanner.scan_files")
     def test_diff_flag_scans_changed_files(self, mock_scan, mock_diff):
         mock_diff.return_value = SAMPLE_DIFF
         mock_scan.return_value = []
@@ -90,8 +90,8 @@ class TestScanCommandDiffMode:
         names = [p.name for p in file_paths]
         assert "foo.py" in names
 
-    @mock.patch("ai_guardian.diff_provider.get_diff_unified")
-    @mock.patch("ai_guardian.scanner.FileScanner.scan_files")
+    @mock.patch("ai_guardian.tools.diff_provider.get_diff_unified")
+    @mock.patch("ai_guardian.scanners.file_scanner.FileScanner.scan_files")
     def test_diff_with_base(self, mock_scan, mock_diff):
         mock_diff.return_value = SAMPLE_DIFF
         mock_scan.return_value = []
@@ -102,8 +102,8 @@ class TestScanCommandDiffMode:
         assert rc == 0
         mock_diff.assert_called_once_with(base_ref="develop", repo_path=".")
 
-    @mock.patch("ai_guardian.diff_provider.get_pr_diff")
-    @mock.patch("ai_guardian.scanner.FileScanner.scan_files")
+    @mock.patch("ai_guardian.tools.diff_provider.get_pr_diff")
+    @mock.patch("ai_guardian.scanners.file_scanner.FileScanner.scan_files")
     def test_pr_flag(self, mock_scan, mock_pr):
         mock_pr.return_value = SAMPLE_DIFF
         mock_scan.return_value = []
@@ -120,8 +120,8 @@ class TestScanCommandDiffMode:
         assert file_paths[0].name == "foo.py"
         assert str(base_path).startswith(str(Path(tempfile.gettempdir())))
 
-    @mock.patch("ai_guardian.diff_provider.get_mr_diff")
-    @mock.patch("ai_guardian.scanner.FileScanner.scan_files")
+    @mock.patch("ai_guardian.tools.diff_provider.get_mr_diff")
+    @mock.patch("ai_guardian.scanners.file_scanner.FileScanner.scan_files")
     def test_mr_flag(self, mock_scan, mock_mr):
         mock_mr.return_value = SAMPLE_DIFF
         mock_scan.return_value = []
@@ -138,8 +138,8 @@ class TestScanCommandDiffMode:
         assert file_paths[0].name == "foo.py"
         assert str(base_path).startswith(str(Path(tempfile.gettempdir())))
 
-    @mock.patch("ai_guardian.scanner.sys.stdin")
-    @mock.patch("ai_guardian.scanner.FileScanner.scan_files")
+    @mock.patch("ai_guardian.scanners.file_scanner.sys.stdin")
+    @mock.patch("ai_guardian.scanners.file_scanner.FileScanner.scan_files")
     def test_stdin_diff(self, mock_scan, mock_stdin):
         mock_stdin.read.return_value = SAMPLE_DIFF
         mock_scan.return_value = []
@@ -151,8 +151,8 @@ class TestScanCommandDiffMode:
         mock_stdin.read.assert_called_once()
         mock_scan.assert_called_once()
 
-    @mock.patch("ai_guardian.diff_provider.get_diff_unified")
-    @mock.patch("ai_guardian.scanner.FileScanner.scan_files")
+    @mock.patch("ai_guardian.tools.diff_provider.get_diff_unified")
+    @mock.patch("ai_guardian.scanners.file_scanner.FileScanner.scan_files")
     def test_no_changed_files(self, mock_scan, mock_diff, capsys):
         mock_diff.return_value = ""
 
@@ -163,8 +163,8 @@ class TestScanCommandDiffMode:
         mock_scan.assert_not_called()
         assert "No changed files" in capsys.readouterr().out
 
-    @mock.patch("ai_guardian.diff_provider.get_diff_unified")
-    @mock.patch("ai_guardian.scanner.FileScanner.scan_files")
+    @mock.patch("ai_guardian.tools.diff_provider.get_diff_unified")
+    @mock.patch("ai_guardian.scanners.file_scanner.FileScanner.scan_files")
     def test_changed_lines_only_filters(self, mock_scan, mock_diff):
         mock_diff.return_value = SAMPLE_DIFF
         mock_scan.return_value = [
@@ -187,9 +187,9 @@ class TestScanCommandDiffMode:
 
         assert rc == 0
 
-    @mock.patch("ai_guardian.diff_provider.get_pr_diff")
+    @mock.patch("ai_guardian.tools.diff_provider.get_pr_diff")
     def test_diff_provider_error(self, mock_pr, capsys):
-        from ai_guardian.diff_provider import DiffProviderError
+        from ai_guardian.tools.diff_provider import DiffProviderError
 
         mock_pr.side_effect = DiffProviderError("gh CLI not found")
 
@@ -199,8 +199,8 @@ class TestScanCommandDiffMode:
         assert rc == 1
         assert "gh CLI not found" in capsys.readouterr().err
 
-    @mock.patch("ai_guardian.diff_provider.get_diff_unified")
-    @mock.patch("ai_guardian.scanner.FileScanner.scan_files")
+    @mock.patch("ai_guardian.tools.diff_provider.get_diff_unified")
+    @mock.patch("ai_guardian.scanners.file_scanner.FileScanner.scan_files")
     def test_exit_code_with_findings(self, mock_scan, mock_diff):
         mock_diff.return_value = SAMPLE_DIFF
         mock_scan.return_value = [
@@ -224,7 +224,7 @@ class TestScanCommandLoggingSuppression:
 
     import logging
 
-    @mock.patch("ai_guardian.scanner.FileScanner.scan_directory")
+    @mock.patch("ai_guardian.scanners.file_scanner.FileScanner.scan_directory")
     def test_default_suppresses_stderr_logging(self, mock_scan):
         """Without --verbose, stderr handlers should be raised to CRITICAL+1."""
         mock_scan.return_value = []
@@ -242,7 +242,7 @@ class TestScanCommandLoggingSuppression:
         for h in stream_handlers:
             assert h.level > self.logging.ERROR
 
-    @mock.patch("ai_guardian.scanner.FileScanner.scan_directory")
+    @mock.patch("ai_guardian.scanners.file_scanner.FileScanner.scan_directory")
     def test_verbose_preserves_stderr_logging(self, mock_scan):
         """With --verbose, stderr handler levels should not be raised."""
         mock_scan.return_value = []
@@ -280,8 +280,8 @@ class TestScanCommandStagedValidation:
 
 class TestScanCommandStagedMode:
 
-    @mock.patch("ai_guardian.diff_provider.get_staged_diff")
-    @mock.patch("ai_guardian.scanner.FileScanner.scan_files")
+    @mock.patch("ai_guardian.tools.diff_provider.get_staged_diff")
+    @mock.patch("ai_guardian.scanners.file_scanner.FileScanner.scan_files")
     def test_staged_scan_calls_get_staged_diff(self, mock_scan, mock_staged):
         mock_staged.return_value = SAMPLE_DIFF
         mock_scan.return_value = []
@@ -291,8 +291,8 @@ class TestScanCommandStagedMode:
         mock_staged.assert_called_once()
         mock_scan.assert_called_once()
 
-    @mock.patch("ai_guardian.diff_provider.get_staged_diff")
-    @mock.patch("ai_guardian.scanner.FileScanner.scan_files")
+    @mock.patch("ai_guardian.tools.diff_provider.get_staged_diff")
+    @mock.patch("ai_guardian.scanners.file_scanner.FileScanner.scan_files")
     def test_staged_with_changed_lines_only(self, mock_scan, mock_staged):
         mock_staged.return_value = SAMPLE_DIFF
         mock_scan.return_value = []
@@ -301,8 +301,8 @@ class TestScanCommandStagedMode:
         assert rc == 0
         mock_staged.assert_called_once()
 
-    @mock.patch("ai_guardian.diff_provider.get_staged_diff")
-    @mock.patch("ai_guardian.scanner.FileScanner.scan_files")
+    @mock.patch("ai_guardian.tools.diff_provider.get_staged_diff")
+    @mock.patch("ai_guardian.scanners.file_scanner.FileScanner.scan_files")
     def test_staged_no_changes(self, mock_scan, mock_staged):
         mock_staged.return_value = ""
         args = _make_args(diff=True, staged=True)

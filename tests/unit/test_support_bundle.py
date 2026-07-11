@@ -11,7 +11,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from ai_guardian.support_bundle import (
+from ai_guardian.reporting.support_bundle import (
     _sanitize_config,
     _sanitize_violations,
     _get_system_info,
@@ -103,7 +103,7 @@ class TestGetSystemInfo:
 class TestPrepareBundle:
     """Test bundle preparation."""
 
-    @patch("ai_guardian.support_bundle._get_support_config")
+    @patch("ai_guardian.reporting.support_bundle._get_support_config")
     def test_creates_bundle(self, mock_config):
         mock_config.return_value = {
             "export_destination": "~/support",
@@ -125,7 +125,7 @@ class TestPrepareBundle:
         # Cleanup
         _cleanup_bundle(result["bundle_id"])
 
-    @patch("ai_guardian.support_bundle._get_support_config")
+    @patch("ai_guardian.reporting.support_bundle._get_support_config")
     def test_bundle_files_exist_on_disk(self, mock_config):
         mock_config.return_value = {"export_destination": "~/support"}
 
@@ -151,7 +151,7 @@ class TestSendBundle:
         sys.platform == "win32",
         reason="Local destination path detection requires Unix-style paths",
     )
-    @patch("ai_guardian.support_bundle._get_support_config")
+    @patch("ai_guardian.reporting.support_bundle._get_support_config")
     def test_sends_to_local_directory(self, mock_config, tmp_path):
         dest = tmp_path / "support-output"
         mock_config.return_value = {
@@ -168,7 +168,7 @@ class TestSendBundle:
     @pytest.mark.skipif(
         sys.platform == "win32", reason="XDG state dir differs on Windows"
     )
-    @patch("ai_guardian.support_bundle._get_support_config")
+    @patch("ai_guardian.reporting.support_bundle._get_support_config")
     def test_defaults_to_xdg_state_dir(self, mock_config):
         """When no export_destination configured, defaults to XDG state dir."""
         mock_config.return_value = {}
@@ -179,7 +179,7 @@ class TestSendBundle:
         result = send_bundle(bundle["bundle_id"])
         assert result["status"] == "sent"
 
-    @patch("ai_guardian.support_bundle._get_support_config")
+    @patch("ai_guardian.reporting.support_bundle._get_support_config")
     def test_cleanup_after_send(self, mock_config, tmp_path):
         dest = tmp_path / "output"
         mock_config.return_value = {
@@ -200,7 +200,7 @@ class TestSendBundle:
 class TestPrepareBundleFlags:
     """Test prepare_bundle with filtering flags."""
 
-    @patch("ai_guardian.support_bundle._get_support_config")
+    @patch("ai_guardian.reporting.support_bundle._get_support_config")
     def test_no_log_excludes_log_file(self, mock_config):
         mock_config.return_value = {"export_destination": "~/support"}
         result = prepare_bundle(include_log=False)
@@ -209,7 +209,7 @@ class TestPrepareBundleFlags:
         assert "system-info.json" in file_names
         _cleanup_bundle(result["bundle_id"])
 
-    @patch("ai_guardian.support_bundle._get_support_config")
+    @patch("ai_guardian.reporting.support_bundle._get_support_config")
     def test_no_violations_excludes_violations(self, mock_config):
         mock_config.return_value = {"export_destination": "~/support"}
         result = prepare_bundle(include_violations=False)
@@ -218,7 +218,7 @@ class TestPrepareBundleFlags:
         assert "system-info.json" in file_names
         _cleanup_bundle(result["bundle_id"])
 
-    @patch("ai_guardian.support_bundle._get_support_config")
+    @patch("ai_guardian.reporting.support_bundle._get_support_config")
     def test_output_path_copies_files(self, mock_config, tmp_path):
         output_dir = tmp_path / "my-bundle"
         mock_config.return_value = {"export_destination": "~/support"}
@@ -229,7 +229,7 @@ class TestPrepareBundleFlags:
             assert (output_dir / f["name"]).exists()
         _cleanup_bundle(result["bundle_id"])
 
-    @patch("ai_guardian.support_bundle._get_support_config")
+    @patch("ai_guardian.reporting.support_bundle._get_support_config")
     def test_both_exclusions(self, mock_config):
         mock_config.return_value = {}
         result = prepare_bundle(include_log=False, include_violations=False)
@@ -243,7 +243,7 @@ class TestPrepareBundleFlags:
 class TestLoadBundleFromPath:
     """Test _load_bundle_from_path helper."""
 
-    @patch("ai_guardian.support_bundle._get_support_config")
+    @patch("ai_guardian.reporting.support_bundle._get_support_config")
     def test_valid_directory(self, mock_config, tmp_path):
         mock_config.return_value = {}
         bundle_dir = tmp_path / "support-20260511-abcd1234"
@@ -264,7 +264,7 @@ class TestLoadBundleFromPath:
         result = _load_bundle_from_path(str(empty_dir))
         assert result is None
 
-    @patch("ai_guardian.support_bundle._get_support_config")
+    @patch("ai_guardian.reporting.support_bundle._get_support_config")
     def test_uses_dir_name_as_bundle_id(self, mock_config, tmp_path):
         mock_config.return_value = {}
         bundle_dir = tmp_path / "support-20260511-test1234"
@@ -278,7 +278,7 @@ class TestLoadBundleFromPath:
 class TestGetBundleStatus:
     """Test _get_bundle_status helper."""
 
-    @patch("ai_guardian.support_bundle._get_support_config")
+    @patch("ai_guardian.reporting.support_bundle._get_support_config")
     def test_returns_expected_fields(self, mock_config):
         mock_config.return_value = {
             "export_destination": "~/support",
@@ -293,19 +293,19 @@ class TestGetBundleStatus:
         assert "pending_bundles" in status
         assert status["bundle_ttl_minutes"] == 15
 
-    @patch("ai_guardian.support_bundle._get_support_config")
+    @patch("ai_guardian.reporting.support_bundle._get_support_config")
     def test_local_destination_type(self, mock_config):
         mock_config.return_value = {"export_destination": "~/support"}
         status = _get_bundle_status()
         assert status["destination_type"] == "local"
 
-    @patch("ai_guardian.support_bundle._get_support_config")
+    @patch("ai_guardian.reporting.support_bundle._get_support_config")
     def test_s3_destination_type(self, mock_config):
         mock_config.return_value = {"export_destination": "s3://bucket/prefix"}
         status = _get_bundle_status()
         assert status["destination_type"] == "s3"
 
-    @patch("ai_guardian.support_bundle._get_support_config")
+    @patch("ai_guardian.reporting.support_bundle._get_support_config")
     def test_no_destination_defaults(self, mock_config):
         mock_config.return_value = {}
         status = _get_bundle_status()
@@ -330,7 +330,7 @@ class TestSupportCommand:
         defaults.update(kwargs)
         return argparse.Namespace(**defaults)
 
-    @patch("ai_guardian.support_bundle._get_support_config")
+    @patch("ai_guardian.reporting.support_bundle._get_support_config")
     def test_prepare_subcommand(self, mock_config, capsys):
         mock_config.return_value = {"export_destination": "~/support"}
         args = self._make_args(support_command_val="prepare")
@@ -339,7 +339,7 @@ class TestSupportCommand:
         captured = capsys.readouterr()
         assert "support-" in captured.out
 
-    @patch("ai_guardian.support_bundle._get_support_config")
+    @patch("ai_guardian.reporting.support_bundle._get_support_config")
     def test_prepare_json(self, mock_config, capsys):
         mock_config.return_value = {}
         args = self._make_args(support_command_val="prepare", json=True)
@@ -349,7 +349,7 @@ class TestSupportCommand:
         assert "bundle_id" in data
         assert "files" in data
 
-    @patch("ai_guardian.support_bundle._get_support_config")
+    @patch("ai_guardian.reporting.support_bundle._get_support_config")
     def test_prepare_no_log(self, mock_config, capsys):
         mock_config.return_value = {}
         args = self._make_args(support_command_val="prepare", no_log=True, json=True)
@@ -359,7 +359,7 @@ class TestSupportCommand:
         file_names = [f["name"] for f in data["files"]]
         assert "ai-guardian.log" not in file_names
 
-    @patch("ai_guardian.support_bundle._get_support_config")
+    @patch("ai_guardian.reporting.support_bundle._get_support_config")
     def test_prepare_with_output(self, mock_config, tmp_path, capsys):
         output_dir = tmp_path / "my-output"
         mock_config.return_value = {}
@@ -372,7 +372,7 @@ class TestSupportCommand:
         sys.platform == "win32",
         reason="Local destination path detection requires Unix-style paths",
     )
-    @patch("ai_guardian.support_bundle._get_support_config")
+    @patch("ai_guardian.reporting.support_bundle._get_support_config")
     def test_send_with_prepare_and_yes(self, mock_config, tmp_path, capsys):
         dest = tmp_path / "send-dest"
         mock_config.return_value = {
@@ -385,7 +385,7 @@ class TestSupportCommand:
         captured = capsys.readouterr()
         assert "Sent" in captured.out or "sent" in captured.out
 
-    @patch("ai_guardian.support_bundle._get_support_config")
+    @patch("ai_guardian.reporting.support_bundle._get_support_config")
     @patch("builtins.input", return_value="n")
     @patch("sys.stdin")
     def test_send_with_prepare_user_declines(
@@ -401,7 +401,7 @@ class TestSupportCommand:
         sys.platform == "win32",
         reason="Local destination path detection requires Unix-style paths",
     )
-    @patch("ai_guardian.support_bundle._get_support_config")
+    @patch("ai_guardian.reporting.support_bundle._get_support_config")
     @patch("builtins.input", return_value="y")
     @patch("sys.stdin")
     def test_send_with_prepare_user_confirms(
@@ -421,7 +421,7 @@ class TestSupportCommand:
         sys.platform == "win32",
         reason="Local destination path detection requires Unix-style paths",
     )
-    @patch("ai_guardian.support_bundle._get_support_config")
+    @patch("ai_guardian.reporting.support_bundle._get_support_config")
     def test_send_with_bundle_path(self, mock_config, tmp_path, capsys):
         dest = tmp_path / "dest"
         bundle_dir = tmp_path / "support-20260511-test1234"
@@ -444,7 +444,7 @@ class TestSupportCommand:
         captured = capsys.readouterr()
         assert "prepare" in captured.err.lower()
 
-    @patch("ai_guardian.support_bundle._get_support_config")
+    @patch("ai_guardian.reporting.support_bundle._get_support_config")
     def test_status_subcommand(self, mock_config, capsys):
         mock_config.return_value = {
             "export_destination": "~/support",
@@ -456,7 +456,7 @@ class TestSupportCommand:
         captured = capsys.readouterr()
         assert "Destination" in captured.out or "destination" in captured.out
 
-    @patch("ai_guardian.support_bundle._get_support_config")
+    @patch("ai_guardian.reporting.support_bundle._get_support_config")
     def test_status_json(self, mock_config, capsys):
         mock_config.return_value = {
             "export_destination": "~/support",
@@ -479,13 +479,13 @@ class TestSupportCommand:
 class TestGCSDestinationType:
     """Test GCS destination type detection."""
 
-    @patch("ai_guardian.support_bundle._get_support_config")
+    @patch("ai_guardian.reporting.support_bundle._get_support_config")
     def test_gcs_destination_type(self, mock_config):
         mock_config.return_value = {"export_destination": "gs://my-bucket"}
         status = _get_bundle_status()
         assert status["destination_type"] == "gcs"
 
-    @patch("ai_guardian.support_bundle._get_support_config")
+    @patch("ai_guardian.reporting.support_bundle._get_support_config")
     def test_gcs_destination_with_trailing_slash(self, mock_config):
         mock_config.return_value = {"export_destination": "gs://my-bucket/"}
         status = _get_bundle_status()
@@ -495,7 +495,7 @@ class TestGCSDestinationType:
 class TestGCSTokenFromADC:
     """Test ADC credential discovery."""
 
-    @patch("ai_guardian.support_bundle.urlopen")
+    @patch("ai_guardian.reporting.support_bundle.urlopen")
     def test_reads_authorized_user_credentials(self, mock_urlopen, tmp_path):
         creds_file = tmp_path / "adc.json"
         creds_file.write_text(
@@ -593,10 +593,11 @@ class TestSendToGCS:
         return bundle_dir
 
     @patch(
-        "ai_guardian.support_bundle._get_gcs_token_from_adc", return_value="test-token"
+        "ai_guardian.reporting.support_bundle._get_gcs_token_from_adc",
+        return_value="test-token",
     )
-    @patch("ai_guardian.support_bundle._get_support_config", return_value={})
-    @patch("ai_guardian.support_bundle.urlopen")
+    @patch("ai_guardian.reporting.support_bundle._get_support_config", return_value={})
+    @patch("ai_guardian.reporting.support_bundle.urlopen")
     def test_upload_success(self, mock_urlopen, mock_config, mock_adc, tmp_path):
         bundle_dir = self._make_bundle_dir(tmp_path)
 
@@ -619,10 +620,11 @@ class TestSendToGCS:
         assert mock_urlopen.call_count == 2
 
     @patch(
-        "ai_guardian.support_bundle._get_gcs_token_from_adc", return_value="test-token"
+        "ai_guardian.reporting.support_bundle._get_gcs_token_from_adc",
+        return_value="test-token",
     )
-    @patch("ai_guardian.support_bundle._get_support_config", return_value={})
-    @patch("ai_guardian.support_bundle.urlopen")
+    @patch("ai_guardian.reporting.support_bundle._get_support_config", return_value={})
+    @patch("ai_guardian.reporting.support_bundle.urlopen")
     def test_upload_uses_correct_object_path(
         self, mock_urlopen, mock_config, mock_adc, tmp_path
     ):
@@ -649,9 +651,15 @@ class TestSendToGCS:
             in request.full_url
         )
 
-    @patch("ai_guardian.support_bundle._get_gcs_token_from_adc", return_value=None)
-    @patch("ai_guardian.support_bundle._get_gcs_token_from_gcloud", return_value=None)
-    @patch("ai_guardian.support_bundle._get_support_config", return_value={})
+    @patch(
+        "ai_guardian.reporting.support_bundle._get_gcs_token_from_adc",
+        return_value=None,
+    )
+    @patch(
+        "ai_guardian.reporting.support_bundle._get_gcs_token_from_gcloud",
+        return_value=None,
+    )
+    @patch("ai_guardian.reporting.support_bundle._get_support_config", return_value={})
     def test_no_credentials_error(self, mock_config, mock_gcloud, mock_adc, tmp_path):
         bundle_dir = self._make_bundle_dir(tmp_path)
 
@@ -663,16 +671,22 @@ class TestSendToGCS:
         assert "credentials" in result["message"].lower()
         assert "gcloud auth" in result["message"]
 
-    @patch("ai_guardian.support_bundle._get_gcs_token_from_adc", return_value=None)
-    @patch("ai_guardian.support_bundle._get_gcs_token_from_gcloud", return_value=None)
-    @patch("ai_guardian.support_bundle._get_support_config")
+    @patch(
+        "ai_guardian.reporting.support_bundle._get_gcs_token_from_adc",
+        return_value=None,
+    )
+    @patch(
+        "ai_guardian.reporting.support_bundle._get_gcs_token_from_gcloud",
+        return_value=None,
+    )
+    @patch("ai_guardian.reporting.support_bundle._get_support_config")
     def test_config_token_env_fallback(
         self, mock_config, mock_gcloud, mock_adc, tmp_path
     ):
         mock_config.return_value = {"auth": {"token_env": "MY_GCS_TOKEN"}}
         bundle_dir = self._make_bundle_dir(tmp_path)
 
-        with patch("ai_guardian.support_bundle.urlopen") as mock_urlopen:
+        with patch("ai_guardian.reporting.support_bundle.urlopen") as mock_urlopen:
             mock_response = MagicMock()
             mock_response.__enter__ = MagicMock(return_value=mock_response)
             mock_response.__exit__ = MagicMock(return_value=False)
@@ -687,10 +701,11 @@ class TestSendToGCS:
         assert result["status"] == "sent"
 
     @patch(
-        "ai_guardian.support_bundle._get_gcs_token_from_adc", return_value="test-token"
+        "ai_guardian.reporting.support_bundle._get_gcs_token_from_adc",
+        return_value="test-token",
     )
-    @patch("ai_guardian.support_bundle._get_support_config", return_value={})
-    @patch("ai_guardian.support_bundle.urlopen")
+    @patch("ai_guardian.reporting.support_bundle._get_support_config", return_value={})
+    @patch("ai_guardian.reporting.support_bundle.urlopen")
     def test_http_error(self, mock_urlopen, mock_config, mock_adc, tmp_path):
         bundle_dir = self._make_bundle_dir(tmp_path)
 
@@ -711,7 +726,7 @@ class TestSendToGCS:
         assert result["status"] == "error"
         assert "403" in result["message"]
 
-    @patch("ai_guardian.support_bundle._get_support_config")
+    @patch("ai_guardian.reporting.support_bundle._get_support_config")
     def test_send_bundle_routes_to_gcs(self, mock_config, tmp_path):
         mock_config.return_value = {
             "export_destination": "gs://test-bucket/ai-guardian/support/config-bundle/",
@@ -721,7 +736,7 @@ class TestSendToGCS:
         bundle = prepare_bundle()
         bundle_id = bundle["bundle_id"]
 
-        with patch("ai_guardian.support_bundle._send_to_gcs") as mock_gcs:
+        with patch("ai_guardian.reporting.support_bundle._send_to_gcs") as mock_gcs:
             mock_gcs.return_value = {
                 "status": "sent",
                 "destination": "gs://test-bucket/...",
@@ -785,8 +800,8 @@ class TestSendToEmail:
         (bundle_dir / ".ai-read-deny").write_text("")
         return bundle_dir
 
-    @patch("ai_guardian.support_bundle._get_support_config")
-    @patch("ai_guardian.support_bundle.smtplib.SMTP")
+    @patch("ai_guardian.reporting.support_bundle._get_support_config")
+    @patch("ai_guardian.reporting.support_bundle.smtplib.SMTP")
     def test_send_with_starttls_no_auth(self, mock_smtp_cls, mock_config, tmp_path):
         """Send via SMTP with STARTTLS and no authentication (corporate relay)."""
         mock_config.return_value = {
@@ -813,8 +828,8 @@ class TestSendToEmail:
         mock_server.sendmail.assert_called_once()
         mock_server.quit.assert_called_once()
 
-    @patch("ai_guardian.support_bundle._get_support_config")
-    @patch("ai_guardian.support_bundle.smtplib.SMTP")
+    @patch("ai_guardian.reporting.support_bundle._get_support_config")
+    @patch("ai_guardian.reporting.support_bundle.smtplib.SMTP")
     def test_send_with_env_auth(
         self, mock_smtp_cls, mock_config, tmp_path, monkeypatch
     ):
@@ -844,8 +859,8 @@ class TestSendToEmail:
         mock_server.login.assert_called_once_with("testuser", "testpass")
         mock_server.sendmail.assert_called_once()
 
-    @patch("ai_guardian.support_bundle._get_support_config")
-    @patch("ai_guardian.support_bundle.smtplib.SMTP")
+    @patch("ai_guardian.reporting.support_bundle._get_support_config")
+    @patch("ai_guardian.reporting.support_bundle.smtplib.SMTP")
     def test_send_with_inline_auth(self, mock_smtp_cls, mock_config, tmp_path):
         """Send via SMTP with inline credentials."""
         mock_config.return_value = {
@@ -870,8 +885,8 @@ class TestSendToEmail:
         assert result["status"] == "sent"
         mock_server.login.assert_called_once_with("inlineuser", "inlinepass")
 
-    @patch("ai_guardian.support_bundle._get_support_config")
-    @patch("ai_guardian.support_bundle.smtplib.SMTP_SSL")
+    @patch("ai_guardian.reporting.support_bundle._get_support_config")
+    @patch("ai_guardian.reporting.support_bundle.smtplib.SMTP_SSL")
     def test_send_with_implicit_ssl(self, mock_smtp_ssl_cls, mock_config, tmp_path):
         """Send via SMTPS (port 465, implicit SSL)."""
         mock_config.return_value = {
@@ -894,8 +909,8 @@ class TestSendToEmail:
         # SMTP_SSL doesn't call starttls
         mock_server.starttls.assert_not_called()
 
-    @patch("ai_guardian.support_bundle._get_support_config")
-    @patch("ai_guardian.support_bundle.smtplib.SMTP")
+    @patch("ai_guardian.reporting.support_bundle._get_support_config")
+    @patch("ai_guardian.reporting.support_bundle.smtplib.SMTP")
     def test_send_without_tls(self, mock_smtp_cls, mock_config, tmp_path):
         """Send via plain SMTP (no TLS, port 25)."""
         mock_config.return_value = {
@@ -917,8 +932,8 @@ class TestSendToEmail:
         mock_smtp_cls.assert_called_once_with("internal-relay.local", 25, timeout=30)
         mock_server.starttls.assert_not_called()
 
-    @patch("ai_guardian.support_bundle._get_support_config")
-    @patch("ai_guardian.support_bundle.smtplib.SMTP")
+    @patch("ai_guardian.reporting.support_bundle._get_support_config")
+    @patch("ai_guardian.reporting.support_bundle.smtplib.SMTP")
     def test_smtp_auth_error(self, mock_smtp_cls, mock_config, tmp_path):
         """SMTP authentication failure returns error status."""
         import smtplib
@@ -948,8 +963,8 @@ class TestSendToEmail:
         assert result["status"] == "error"
         assert "authentication failed" in result["message"].lower()
 
-    @patch("ai_guardian.support_bundle._get_support_config")
-    @patch("ai_guardian.support_bundle.smtplib.SMTP")
+    @patch("ai_guardian.reporting.support_bundle._get_support_config")
+    @patch("ai_guardian.reporting.support_bundle.smtplib.SMTP")
     def test_smtp_connection_error(self, mock_smtp_cls, mock_config, tmp_path):
         """SMTP connection failure returns error with zip path."""
         mock_config.return_value = {
@@ -969,8 +984,8 @@ class TestSendToEmail:
         assert result["status"] == "error"
         assert "Connection refused" in result["message"]
 
-    @patch("ai_guardian.support_bundle._get_support_config")
-    @patch("ai_guardian.support_bundle.webbrowser.open")
+    @patch("ai_guardian.reporting.support_bundle._get_support_config")
+    @patch("ai_guardian.reporting.support_bundle.webbrowser.open")
     def test_fallback_no_smtp_configured(self, mock_webbrowser, mock_config, tmp_path):
         """When no SMTP host is configured, fall back to system mailto:."""
         mock_config.return_value = {
@@ -991,8 +1006,8 @@ class TestSendToEmail:
         # Verify the zip was created
         assert Path(result["zip_path"]).exists()
 
-    @patch("ai_guardian.support_bundle._get_support_config")
-    @patch("ai_guardian.support_bundle.webbrowser.open")
+    @patch("ai_guardian.reporting.support_bundle._get_support_config")
+    @patch("ai_guardian.reporting.support_bundle.webbrowser.open")
     def test_fallback_no_email_config(self, mock_webbrowser, mock_config, tmp_path):
         """When email section is entirely missing, fall back to system mailto:."""
         mock_config.return_value = {}
@@ -1004,8 +1019,8 @@ class TestSendToEmail:
         assert "zip_path" in result
         assert "No SMTP configured" in result["message"]
 
-    @patch("ai_guardian.support_bundle._get_support_config")
-    @patch("ai_guardian.support_bundle.smtplib.SMTP")
+    @patch("ai_guardian.reporting.support_bundle._get_support_config")
+    @patch("ai_guardian.reporting.support_bundle.smtplib.SMTP")
     def test_size_warning_large_bundle(self, mock_smtp_cls, mock_config, tmp_path):
         """Large bundles >10MB produce a size warning in the message."""
         mock_config.return_value = {
@@ -1034,8 +1049,8 @@ class TestSendToEmail:
         assert "Warning" in result["message"]
         assert "MB" in result["message"]
 
-    @patch("ai_guardian.support_bundle._get_support_config")
-    @patch("ai_guardian.support_bundle.smtplib.SMTP")
+    @patch("ai_guardian.reporting.support_bundle._get_support_config")
+    @patch("ai_guardian.reporting.support_bundle.smtplib.SMTP")
     def test_strips_mailto_prefix(self, mock_smtp_cls, mock_config, tmp_path):
         """The mailto: prefix is stripped from the destination address."""
         mock_config.return_value = {
@@ -1062,7 +1077,7 @@ class TestSendToEmail:
 class TestEmailDestinationType:
     """Test email destination detection in _get_bundle_status and send_bundle routing."""
 
-    @patch("ai_guardian.support_bundle._get_support_config")
+    @patch("ai_guardian.reporting.support_bundle._get_support_config")
     def test_mailto_detected_as_email_type(self, mock_config):
         mock_config.return_value = {
             "export_destination": "mailto:support@company.com",
@@ -1070,7 +1085,7 @@ class TestEmailDestinationType:
         status = _get_bundle_status()
         assert status["destination_type"] == "email"
 
-    @patch("ai_guardian.support_bundle._get_support_config")
+    @patch("ai_guardian.reporting.support_bundle._get_support_config")
     def test_at_sign_detected_as_email_type(self, mock_config):
         mock_config.return_value = {
             "export_destination": "support@company.com",
@@ -1078,7 +1093,7 @@ class TestEmailDestinationType:
         status = _get_bundle_status()
         assert status["destination_type"] == "email"
 
-    @patch("ai_guardian.support_bundle._get_support_config")
+    @patch("ai_guardian.reporting.support_bundle._get_support_config")
     def test_send_bundle_routes_to_email(self, mock_config, tmp_path):
         mock_config.return_value = {
             "export_destination": "mailto:support@company.com",
@@ -1087,7 +1102,7 @@ class TestEmailDestinationType:
         bundle = prepare_bundle()
         bundle_id = bundle["bundle_id"]
 
-        with patch("ai_guardian.support_bundle._send_to_email") as mock_email:
+        with patch("ai_guardian.reporting.support_bundle._send_to_email") as mock_email:
             mock_email.return_value = {
                 "status": "sent",
                 "destination": "mailto:support@company.com",
@@ -1098,7 +1113,7 @@ class TestEmailDestinationType:
         assert mock_email.called
         assert result["status"] == "sent"
 
-    @patch("ai_guardian.support_bundle._get_support_config")
+    @patch("ai_guardian.reporting.support_bundle._get_support_config")
     def test_send_bundle_routes_at_sign_to_email(self, mock_config, tmp_path):
         mock_config.return_value = {
             "export_destination": "support@company.com",
@@ -1107,7 +1122,7 @@ class TestEmailDestinationType:
         bundle = prepare_bundle()
         bundle_id = bundle["bundle_id"]
 
-        with patch("ai_guardian.support_bundle._send_to_email") as mock_email:
+        with patch("ai_guardian.reporting.support_bundle._send_to_email") as mock_email:
             mock_email.return_value = {
                 "status": "sent",
                 "destination": "mailto:support@company.com",
@@ -1122,7 +1137,7 @@ class TestEmailDestinationType:
 class TestEmailAuthStatus:
     """Test auth_configured for email destinations in _get_bundle_status."""
 
-    @patch("ai_guardian.support_bundle._get_support_config")
+    @patch("ai_guardian.reporting.support_bundle._get_support_config")
     def test_email_no_auth_configured(self, mock_config):
         """No auth method means auth_configured is True (no creds needed)."""
         mock_config.return_value = {
@@ -1133,7 +1148,7 @@ class TestEmailAuthStatus:
         assert status["auth_configured"] is True
         assert status["auth_method"] == "none"
 
-    @patch("ai_guardian.support_bundle._get_support_config")
+    @patch("ai_guardian.reporting.support_bundle._get_support_config")
     def test_email_env_auth_configured(self, mock_config, monkeypatch):
         """Env auth is configured when both env vars are set."""
         mock_config.return_value = {
@@ -1152,7 +1167,7 @@ class TestEmailAuthStatus:
         assert status["auth_configured"] is True
         assert status["auth_method"] == "env"
 
-    @patch("ai_guardian.support_bundle._get_support_config")
+    @patch("ai_guardian.reporting.support_bundle._get_support_config")
     def test_email_env_auth_not_configured(self, mock_config, monkeypatch):
         """Env auth is not configured when env vars are missing."""
         mock_config.return_value = {
@@ -1170,7 +1185,7 @@ class TestEmailAuthStatus:
         status = _get_bundle_status()
         assert status["auth_configured"] is False
 
-    @patch("ai_guardian.support_bundle._get_support_config")
+    @patch("ai_guardian.reporting.support_bundle._get_support_config")
     def test_email_inline_auth_configured(self, mock_config):
         """Inline auth is configured when username and password are set."""
         mock_config.return_value = {

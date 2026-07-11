@@ -6,7 +6,7 @@ Tests the ability to set expiration timestamps on permission patterns.
 
 from datetime import datetime, timezone
 from unittest import TestCase
-from ai_guardian.tool_policy import ToolPolicyChecker
+from ai_guardian.tools.policy import ToolPolicyChecker
 
 
 class ToolPolicyExpirationTest(TestCase):

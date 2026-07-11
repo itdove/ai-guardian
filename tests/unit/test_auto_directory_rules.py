@@ -10,7 +10,7 @@ import pytest
 from pathlib import Path
 from unittest.mock import patch, MagicMock
 
-from ai_guardian.directory_rule_generator import (
+from ai_guardian.tools.directory_rules import (
     DirectoryRuleGenerator,
     insert_generated_rules,
 )
@@ -43,9 +43,9 @@ class TestDirectoryRuleGenerator:
 
         assert rules == []
 
-    @patch("ai_guardian.directory_rule_generator.Path.exists")
-    @patch("ai_guardian.directory_rule_generator.Path.is_dir")
-    @patch("ai_guardian.directory_rule_generator.Path.iterdir")
+    @patch("ai_guardian.tools.directory_rules.Path.exists")
+    @patch("ai_guardian.tools.directory_rules.Path.is_dir")
+    @patch("ai_guardian.tools.directory_rules.Path.iterdir")
     def test_basic_generation(self, mock_iterdir, mock_is_dir, mock_exists):
         """Should generate rules for matching skills."""
         # Mock skill directory
@@ -145,9 +145,9 @@ class TestDirectoryRuleGenerator:
         assert "gh-cli" in matching
         assert "other-skill" not in matching
 
-    @patch("ai_guardian.directory_rule_generator.Path.exists")
-    @patch("ai_guardian.directory_rule_generator.Path.is_dir")
-    @patch("ai_guardian.directory_rule_generator.Path.iterdir")
+    @patch("ai_guardian.tools.directory_rules.Path.exists")
+    @patch("ai_guardian.tools.directory_rules.Path.is_dir")
+    @patch("ai_guardian.tools.directory_rules.Path.iterdir")
     def test_created_rules_structure(self, mock_iterdir, mock_is_dir, mock_exists):
         """Generated rules should have correct structure."""
         # Mock skill directory exists
@@ -446,8 +446,8 @@ class TestMultiIDESupport:
             ),
         ],
     )
-    @patch("ai_guardian.directory_rule_generator.Path.is_dir")
-    @patch("ai_guardian.directory_rule_generator.Path.exists")
+    @patch("ai_guardian.tools.directory_rules.Path.is_dir")
+    @patch("ai_guardian.tools.directory_rules.Path.exists")
     def test_ide_env_var_skill_directory(
         self, mock_exists, mock_is_dir, env_var, env_value, expected_substring
     ):
@@ -467,8 +467,8 @@ class TestMultiIDESupport:
 
         assert any(expected_substring.replace("/", os.sep) in str(d) for d in dirs)
 
-    @patch("ai_guardian.directory_rule_generator.Path.is_dir")
-    @patch("ai_guardian.directory_rule_generator.Path.exists")
+    @patch("ai_guardian.tools.directory_rules.Path.is_dir")
+    @patch("ai_guardian.tools.directory_rules.Path.exists")
     def test_all_ide_directories_included(self, mock_exists, mock_is_dir):
         """Should scan all IDE skill directories by default."""
         # Mock all paths as existing
@@ -493,8 +493,8 @@ class TestMultiIDESupport:
         assert any(".vscode/skills" in d for d in all_dirs)
         assert any(".windsurf/skills" in d for d in all_dirs)
 
-    @patch("ai_guardian.directory_rule_generator.Path.is_dir")
-    @patch("ai_guardian.directory_rule_generator.Path.exists")
+    @patch("ai_guardian.tools.directory_rules.Path.is_dir")
+    @patch("ai_guardian.tools.directory_rules.Path.exists")
     def test_explicit_skill_directories_override(self, mock_exists, mock_is_dir):
         """Should use explicit directories when configured."""
         # Mock all paths as existing
@@ -552,7 +552,7 @@ class TestPluginCacheDiscovery:
         generator = DirectoryRuleGenerator(config)
 
         with patch(
-            "ai_guardian.directory_rule_generator.Path.home", return_value=tmp_path
+            "ai_guardian.tools.directory_rules.Path.home", return_value=tmp_path
         ):
             rules = generator.generate_directory_rules()
 
@@ -603,9 +603,9 @@ class TestPluginCacheDiscovery:
 class TestSymlinkHandling:
     """Test allow_symlinks flag for container environments (Issue #324)."""
 
-    @patch("ai_guardian.directory_rule_generator.Path.exists")
-    @patch("ai_guardian.directory_rule_generator.Path.is_dir")
-    @patch("ai_guardian.directory_rule_generator.Path.iterdir")
+    @patch("ai_guardian.tools.directory_rules.Path.exists")
+    @patch("ai_guardian.tools.directory_rules.Path.is_dir")
+    @patch("ai_guardian.tools.directory_rules.Path.iterdir")
     def test_symlinks_allowed_by_default(self, mock_iterdir, mock_is_dir, mock_exists):
         """Symlinked skills should be discovered when allow_symlinks is not set (default: true)."""
         mock_exists.return_value = True
@@ -646,9 +646,9 @@ class TestSymlinkHandling:
         assert any("daf-git" in str(rule) for rule in rules)
         assert any("gh-cli" in str(rule) for rule in rules)
 
-    @patch("ai_guardian.directory_rule_generator.Path.exists")
-    @patch("ai_guardian.directory_rule_generator.Path.is_dir")
-    @patch("ai_guardian.directory_rule_generator.Path.iterdir")
+    @patch("ai_guardian.tools.directory_rules.Path.exists")
+    @patch("ai_guardian.tools.directory_rules.Path.is_dir")
+    @patch("ai_guardian.tools.directory_rules.Path.iterdir")
     def test_symlinks_allowed_explicitly(self, mock_iterdir, mock_is_dir, mock_exists):
         """Symlinked skills should be discovered when allow_symlinks is explicitly true."""
         mock_exists.return_value = True
@@ -677,9 +677,9 @@ class TestSymlinkHandling:
         assert len(rules) > 0
         assert any("daf-jira" in str(rule) for rule in rules)
 
-    @patch("ai_guardian.directory_rule_generator.Path.exists")
-    @patch("ai_guardian.directory_rule_generator.Path.is_dir")
-    @patch("ai_guardian.directory_rule_generator.Path.iterdir")
+    @patch("ai_guardian.tools.directory_rules.Path.exists")
+    @patch("ai_guardian.tools.directory_rules.Path.is_dir")
+    @patch("ai_guardian.tools.directory_rules.Path.iterdir")
     def test_symlinks_rejected_when_disabled(
         self, mock_iterdir, mock_is_dir, mock_exists
     ):
@@ -719,9 +719,9 @@ class TestSymlinkHandling:
         assert not any("daf-git" in str(rule) for rule in rules)
         assert any("gh-cli" in str(rule) for rule in rules)
 
-    @patch("ai_guardian.directory_rule_generator.Path.exists")
-    @patch("ai_guardian.directory_rule_generator.Path.is_dir")
-    @patch("ai_guardian.directory_rule_generator.Path.iterdir")
+    @patch("ai_guardian.tools.directory_rules.Path.exists")
+    @patch("ai_guardian.tools.directory_rules.Path.is_dir")
+    @patch("ai_guardian.tools.directory_rules.Path.iterdir")
     def test_broken_symlinks_always_skipped(
         self, mock_iterdir, mock_is_dir, mock_exists
     ):

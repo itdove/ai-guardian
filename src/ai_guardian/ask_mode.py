@@ -9,20 +9,20 @@ from ai_guardian.constants import ViolationType, ActionMode, parse_ask_action
 from ai_guardian.config.utils import get_project_dir
 
 try:
-    from ai_guardian.tool_policy import ToolPolicyChecker
+    from ai_guardian.tools.policy import ToolPolicyChecker
 
     HAS_TOOL_POLICY = True
 except ImportError:
     HAS_TOOL_POLICY = False
 
 try:
-    from ai_guardian.violation_logger import ViolationLogger
+    from ai_guardian.violations.logger import ViolationLogger
 
     HAS_VIOLATION_LOGGER = True
 except ImportError:
     HAS_VIOLATION_LOGGER = False
 
-from ai_guardian.transcript_scanning import (
+from ai_guardian.scanners.transcript import (
     _finding_fingerprint,
     _extract_secret_type_from_error,
 )

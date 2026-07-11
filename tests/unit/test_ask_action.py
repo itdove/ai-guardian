@@ -875,7 +875,7 @@ class TestAskDialogTiming:
     def test_latency_timer_receives_ask_wait(self, mock_dialog):
         from ai_guardian.hook_processing import _handle_ask_mode
         from ai_guardian.tui.ask_dialog import AskResult, AskDecision
-        from ai_guardian.latency_logger import _CheckTimer
+        from ai_guardian.reporting.latency import _CheckTimer
 
         mock_dialog.return_value = AskResult(decision=AskDecision.BLOCK)
         timer = _CheckTimer(enabled=True)
@@ -892,7 +892,7 @@ class TestAskDialogTiming:
 
     def test_non_ask_action_returns_none_no_timing(self):
         from ai_guardian.hook_processing import _handle_ask_mode
-        from ai_guardian.latency_logger import _CheckTimer
+        from ai_guardian.reporting.latency import _CheckTimer
 
         timer = _CheckTimer(enabled=True)
         result = _handle_ask_mode(
@@ -953,7 +953,7 @@ class TestSSRFAskAction:
     ):
         """Headless with 'ask' action should fall back to BLOCK."""
         mock_sub_run.side_effect = FileNotFoundError
-        from ai_guardian.ssrf_protector import SSRFProtector
+        from ai_guardian.scanners.ssrf import SSRFProtector
 
         config = {
             "action": "ask",
@@ -972,7 +972,7 @@ class TestSSRFAskAction:
     def test_ssrf_ask_warn_headless_allows(self, mock_sub_run, _mock_sub, _mock_daemon):
         """With ask:warn, check() returns True (ask needed) — caller handles fallback."""
         mock_sub_run.side_effect = FileNotFoundError
-        from ai_guardian.ssrf_protector import SSRFProtector
+        from ai_guardian.scanners.ssrf import SSRFProtector
 
         config = {
             "action": "ask:warn",
@@ -988,7 +988,7 @@ class TestSSRFAskAction:
 
     def test_ssrf_immutable_skips_ask(self):
         """Private IP with 'ask' action should always block without showing dialog."""
-        from ai_guardian.ssrf_protector import SSRFProtector
+        from ai_guardian.scanners.ssrf import SSRFProtector
 
         config = {"action": "ask", "enabled": True}
         protector = SSRFProtector(config)
@@ -2506,7 +2506,7 @@ class TestToolPermissionAskAction:
 
     def test_tool_policy_exposes_deny_action(self):
         """Verify ToolPolicyChecker sets last_deny_action on deny."""
-        from ai_guardian.tool_policy import ToolPolicyChecker
+        from ai_guardian.tools.policy import ToolPolicyChecker
 
         config = {
             "permissions": {
@@ -2531,7 +2531,7 @@ class TestToolPermissionAskAction:
 
     def test_tool_policy_deny_action_defaults_block(self):
         """Verify last_deny_action is 'block' for standard deny without action."""
-        from ai_guardian.tool_policy import ToolPolicyChecker
+        from ai_guardian.tools.policy import ToolPolicyChecker
 
         config = {
             "permissions": {
@@ -2766,7 +2766,7 @@ class TestDenyByDefaultAskAction:
 
     def test_skill_not_in_allow_list_inherits_ask_from_allow_rule(self):
         """Unmatched Skill inherits ask action from allow rule with action."""
-        from ai_guardian.tool_policy import ToolPolicyChecker
+        from ai_guardian.tools.policy import ToolPolicyChecker
 
         config = {
             "permissions": {
@@ -2789,7 +2789,7 @@ class TestDenyByDefaultAskAction:
 
     def test_mcp_not_in_allow_list_inherits_ask_action(self):
         """Unmatched MCP tool inherits ask action from allow rule."""
-        from ai_guardian.tool_policy import ToolPolicyChecker
+        from ai_guardian.tools.policy import ToolPolicyChecker
 
         config = {
             "permissions": {
@@ -2811,7 +2811,7 @@ class TestDenyByDefaultAskAction:
 
     def test_no_action_field_remains_block(self):
         """Allow rule without action → deny-by-default stays block."""
-        from ai_guardian.tool_policy import ToolPolicyChecker
+        from ai_guardian.tools.policy import ToolPolicyChecker
 
         config = {
             "permissions": {
@@ -2828,7 +2828,7 @@ class TestDenyByDefaultAskAction:
 
     def test_no_rules_at_all_hard_blocks(self):
         """No rules for matcher → hard block, last_deny_action not set (AC #3)."""
-        from ai_guardian.tool_policy import ToolPolicyChecker
+        from ai_guardian.tools.policy import ToolPolicyChecker
 
         config = {"permissions": {"rules": []}}
         checker = ToolPolicyChecker(config=config)
@@ -2839,7 +2839,7 @@ class TestDenyByDefaultAskAction:
 
     def test_last_explicit_action_wins(self):
         """Multiple rules with actions — last explicit action wins."""
-        from ai_guardian.tool_policy import ToolPolicyChecker
+        from ai_guardian.tools.policy import ToolPolicyChecker
 
         config = {
             "permissions": {
@@ -2867,7 +2867,7 @@ class TestDenyByDefaultAskAction:
 
     def test_rule_without_action_does_not_override(self):
         """Rule without action field does not override earlier explicit action."""
-        from ai_guardian.tool_policy import ToolPolicyChecker
+        from ai_guardian.tools.policy import ToolPolicyChecker
 
         config = {
             "permissions": {
@@ -2890,7 +2890,7 @@ class TestDenyByDefaultAskAction:
 
     def test_builtin_tool_not_affected(self):
         """Built-in tools are not restricted — deny-by-default doesn't apply."""
-        from ai_guardian.tool_policy import ToolPolicyChecker
+        from ai_guardian.tools.policy import ToolPolicyChecker
 
         config = {
             "permissions": {

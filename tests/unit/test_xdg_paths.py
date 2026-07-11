@@ -263,14 +263,14 @@ class TestViolationLoggerUsesStateDir:
 
         env = {"AI_GUARDIAN_STATE_DIR": str(state_dir)}
         with mock.patch.dict(os.environ, env, clear=False):
-            from ai_guardian.violation_logger import ViolationLogger
+            from ai_guardian.violations.logger import ViolationLogger
 
             vl = ViolationLogger()
             assert vl.log_path == state_dir / "violations.jsonl"
 
     def test_custom_path_overrides_state_dir(self, tmp_path):
         custom = tmp_path / "custom" / "my-violations.jsonl"
-        from ai_guardian.violation_logger import ViolationLogger
+        from ai_guardian.violations.logger import ViolationLogger
 
         vl = ViolationLogger(log_path=custom)
         assert vl.log_path == custom

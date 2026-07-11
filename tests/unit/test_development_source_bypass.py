@@ -8,7 +8,7 @@ This enables standard open-source contribution workflow (fork + PR + review).
 """
 
 import pytest
-from ai_guardian.tool_policy import ToolPolicyChecker
+from ai_guardian.tools.policy import ToolPolicyChecker
 
 
 @pytest.fixture

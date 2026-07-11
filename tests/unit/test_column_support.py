@@ -6,7 +6,7 @@ import tempfile
 import unittest
 
 try:
-    from ai_guardian.mcp_server import create_server, HAS_MCP as _HAS_MCP
+    from ai_guardian.mcp.server import create_server, HAS_MCP as _HAS_MCP
 except (ImportError, NameError):
     _HAS_MCP = False
 
@@ -515,7 +515,7 @@ class TestMcpViolationsColumnExposure(unittest.TestCase):
         from unittest.mock import patch
 
         violation = self._make_violation(start_col=4, end_col=10)
-        with patch("ai_guardian.violation_logger.ViolationLogger") as MockVL:
+        with patch("ai_guardian.violations.logger.ViolationLogger") as MockVL:
             MockVL.return_value.get_recent_violations.return_value = [violation]
             server = create_server()
             tool = server._tool_manager._tools["get_violations"]
@@ -528,7 +528,7 @@ class TestMcpViolationsColumnExposure(unittest.TestCase):
         from unittest.mock import patch
 
         violation = self._make_violation()
-        with patch("ai_guardian.violation_logger.ViolationLogger") as MockVL:
+        with patch("ai_guardian.violations.logger.ViolationLogger") as MockVL:
             MockVL.return_value.get_recent_violations.return_value = [violation]
             server = create_server()
             tool = server._tool_manager._tools["get_violations"]
@@ -698,7 +698,7 @@ class TestSSRFColumn(unittest.TestCase):
     """SSRF protector reports URL column position."""
 
     def test_url_column_computed(self):
-        from ai_guardian.ssrf_protector import SSRFProtector
+        from ai_guardian.scanners.ssrf import SSRFProtector
 
         protector = SSRFProtector({"enabled": True, "action": "block"})
         command = "curl http://169.254.169.254/latest/meta-data/"
@@ -708,7 +708,7 @@ class TestSSRFColumn(unittest.TestCase):
         self.assertEqual(protector.last_start_column, url_start)
 
     def test_url_column_with_prefix(self):
-        from ai_guardian.ssrf_protector import SSRFProtector
+        from ai_guardian.scanners.ssrf import SSRFProtector
 
         protector = SSRFProtector({"enabled": True, "action": "block"})
         command = "some-prefix && curl http://169.254.169.254/latest/"
@@ -717,7 +717,7 @@ class TestSSRFColumn(unittest.TestCase):
         self.assertGreater(protector.last_start_column, 0)
 
     def test_no_column_when_no_ssrf(self):
-        from ai_guardian.ssrf_protector import SSRFProtector
+        from ai_guardian.scanners.ssrf import SSRFProtector
 
         protector = SSRFProtector({"enabled": True, "action": "block"})
         protector.check("Bash", {"command": "curl https://example.com"})

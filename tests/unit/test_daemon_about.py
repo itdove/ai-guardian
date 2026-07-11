@@ -42,7 +42,7 @@ class TestGetAboutInfo:
         assert info["url"] == PROJECT_URL
 
     def test_scanner_entries_have_name_version_and_default(self):
-        from ai_guardian.scanner_manager import InstalledScanner
+        from ai_guardian.scanners.manager import InstalledScanner
 
         fake = [
             InstalledScanner(
@@ -53,7 +53,7 @@ class TestGetAboutInfo:
             )
         ]
         with mock.patch(
-            "ai_guardian.scanner_manager.ScannerManager.list_configured",
+            "ai_guardian.scanners.manager.ScannerManager.list_configured",
             return_value=fake,
         ):
             info = get_about_info()
@@ -64,7 +64,7 @@ class TestGetAboutInfo:
 
     def test_uses_list_configured_not_list_installed(self):
         """About must use list_configured so unconfigured scanners are excluded."""
-        from ai_guardian.scanner_manager import InstalledScanner
+        from ai_guardian.scanners.manager import InstalledScanner
 
         configured = [
             InstalledScanner(
@@ -84,11 +84,11 @@ class TestGetAboutInfo:
         ]
         with (
             mock.patch(
-                "ai_guardian.scanner_manager.ScannerManager.list_configured",
+                "ai_guardian.scanners.manager.ScannerManager.list_configured",
                 return_value=configured,
             ) as mock_configured,
             mock.patch(
-                "ai_guardian.scanner_manager.ScannerManager.list_installed",
+                "ai_guardian.scanners.manager.ScannerManager.list_installed",
                 return_value=installed,
             ) as mock_installed,
         ):

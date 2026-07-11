@@ -146,7 +146,7 @@ def _get_sanitized_log() -> tuple:
     try:
         text = log_path.read_text(errors="replace")
 
-        from ai_guardian.sanitizer import sanitize_text
+        from ai_guardian.scanners.sanitizer import sanitize_text
 
         result = sanitize_text(text)
         redactions = result.get("stats", {}).get("total", 0)
@@ -247,7 +247,7 @@ def prepare_bundle(
     # 2. Violations (sanitized)
     if include_violations:
         try:
-            from ai_guardian.violation_logger import ViolationLogger
+            from ai_guardian.violations.logger import ViolationLogger
 
             vl = ViolationLogger()
             violations = vl.get_recent_violations(limit=100)
@@ -270,7 +270,7 @@ def prepare_bundle(
 
     # 3. Metrics (aggregate only)
     try:
-        from ai_guardian.metrics import MetricsComputer
+        from ai_guardian.reporting.metrics import MetricsComputer
 
         mc = MetricsComputer(since_days=30)
         report = mc.compute()

@@ -476,11 +476,11 @@ class TestAllowlistLineNumberZeroFallback(unittest.TestCase):
         mock_select_engine.return_value = mock_engine
         mock_select_all.return_value = [mock_engine]
 
-    @patch("ai_guardian.secret_scanning.run_engine")
-    @patch("ai_guardian.secret_scanning.select_all_engines")
-    @patch("ai_guardian.secret_scanning.select_engine")
-    @patch("ai_guardian.secret_scanning._load_secret_scanning_config")
-    @patch("ai_guardian.secret_scanning.HAS_SCANNER_ENGINE", True)
+    @patch("ai_guardian.scanners.secret_scanning.run_engine")
+    @patch("ai_guardian.scanners.secret_scanning.select_all_engines")
+    @patch("ai_guardian.scanners.secret_scanning.select_engine")
+    @patch("ai_guardian.scanners.secret_scanning._load_secret_scanning_config")
+    @patch("ai_guardian.scanners.secret_scanning.HAS_SCANNER_ENGINE", True)
     def test_allowlist_fires_when_line_number_is_zero(
         self, mock_load_config, mock_select_engine, mock_select_all, mock_run_single
     ):
@@ -515,11 +515,11 @@ class TestAllowlistLineNumberZeroFallback(unittest.TestCase):
         )
         self.assertIsNone(error_msg)
 
-    @patch("ai_guardian.secret_scanning.run_engine")
-    @patch("ai_guardian.secret_scanning.select_all_engines")
-    @patch("ai_guardian.secret_scanning.select_engine")
-    @patch("ai_guardian.secret_scanning._load_secret_scanning_config")
-    @patch("ai_guardian.secret_scanning.HAS_SCANNER_ENGINE", True)
+    @patch("ai_guardian.scanners.secret_scanning.run_engine")
+    @patch("ai_guardian.scanners.secret_scanning.select_all_engines")
+    @patch("ai_guardian.scanners.secret_scanning.select_engine")
+    @patch("ai_guardian.scanners.secret_scanning._load_secret_scanning_config")
+    @patch("ai_guardian.scanners.secret_scanning.HAS_SCANNER_ENGINE", True)
     def test_violation_surfaces_when_line_number_zero_no_match(
         self, mock_load_config, mock_select_engine, mock_select_all, mock_run_single
     ):
@@ -551,11 +551,11 @@ class TestAllowlistLineNumberZeroFallback(unittest.TestCase):
 
         self.assertTrue(has_secrets, "Non-matching secret should still be detected")
 
-    @patch("ai_guardian.secret_scanning.run_engine")
-    @patch("ai_guardian.secret_scanning.select_all_engines")
-    @patch("ai_guardian.secret_scanning.select_engine")
-    @patch("ai_guardian.secret_scanning._load_secret_scanning_config")
-    @patch("ai_guardian.secret_scanning.HAS_SCANNER_ENGINE", True)
+    @patch("ai_guardian.scanners.secret_scanning.run_engine")
+    @patch("ai_guardian.scanners.secret_scanning.select_all_engines")
+    @patch("ai_guardian.scanners.secret_scanning.select_engine")
+    @patch("ai_guardian.scanners.secret_scanning._load_secret_scanning_config")
+    @patch("ai_guardian.scanners.secret_scanning.HAS_SCANNER_ENGINE", True)
     def test_violation_surfaces_when_line_number_zero_no_secret_value(
         self, mock_load_config, mock_select_engine, mock_select_all, mock_run_single
     ):
