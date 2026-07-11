@@ -729,9 +729,6 @@ def check_secrets_with_gitleaks(
             - has_secrets: True if secrets detected, False otherwise
             - error_message: Detailed error if secrets found, None otherwise
 
-    Note:
-        Secret scanning ALWAYS blocks when secrets are detected (no "log" mode).
-        This prevents secrets from reaching Claude's API or being exposed in sessions.
     """
 
     global _last_secret_matched_text, _last_secret_line_number, _last_secret_start_column, _last_secret_findings
@@ -1817,11 +1814,6 @@ def check_secrets_with_gitleaks(
                     file_path or filename, context, secret_details, hook_context=context
                 )
 
-                # Always block - secret scanning does not support "log" mode
-                # (unless validation confirmed all secrets are inactive - Issue #971)
-                # Rationale: Allowing secrets through (even in audit mode) creates security risk:
-                #   - UserPromptSubmit: secrets reach Claude's API
-                #   - PostToolUse: secrets in tool outputs go to Claude's session
                 logging.error(
                     f"Secret detected: {secret_details.get('rule_id') if secret_details else 'unknown'}"
                 )

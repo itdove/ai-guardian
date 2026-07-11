@@ -384,21 +384,6 @@
           "description": "Controls override policy. true: section fully locked. 'tighten-only': lower-level configs can tighten but not loosen settings. false: fully overridable.",
           "default": false
         },
-        "action": {
-          "oneOf": [
-            {
-              "type": "string",
-              "enum": ["block", "warn", "log-only"]
-            },
-            {
-              "type": "string",
-              "pattern": "^ask(:(block|warn|log-only))?$",
-              "description": "Interactive ask mode: prompts user on violation. Fallback if headless: ask (defaults to block), ask:warn, ask:log-only"
-            }
-          ],
-          "description": "Action when secrets are detected: 'block' prevents execution (default), 'warn' logs violation and shows warning but allows, 'log-only' logs silently, 'ask' prompts user interactively with Allow Once/Allow Always/Block choices",
-          "default": "block"
-        },
         "ignore_files": {
           "type": "array",
           "description": "Glob patterns for files to skip during secret scanning (NEW in v1.4.0). Useful for test fixtures, examples, and documentation with fake credentials. Supports wildcards: * (any chars except /), ** (any chars including /), ? (single char), ~ (home directory). Examples: '**/tests/fixtures/**', '**/examples/**/*.example.*', '**/.gitleaks.toml'",

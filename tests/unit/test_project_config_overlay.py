@@ -109,7 +109,7 @@ class TestDeepMerge:
 
     def test_immutable_fields_enforced(self):
         base = {
-            "secret_scanning": {
+            "ssrf_protection": {
                 "enabled": True,
                 "immutable": ["enabled", "engines"],
                 "engines": ["gitleaks"],
@@ -117,34 +117,34 @@ class TestDeepMerge:
             }
         }
         override = {
-            "secret_scanning": {
+            "ssrf_protection": {
                 "enabled": False,
                 "engines": ["betterleaks"],
                 "action": "warn",
             }
         }
         result = deep_merge(base, override, global_only_sections=frozenset())
-        assert result["secret_scanning"]["enabled"] is True
-        assert result["secret_scanning"]["engines"] == ["gitleaks"]
-        assert result["secret_scanning"]["action"] == "warn"
+        assert result["ssrf_protection"]["enabled"] is True
+        assert result["ssrf_protection"]["engines"] == ["gitleaks"]
+        assert result["ssrf_protection"]["action"] == "warn"
 
     def test_immutable_true_locks_entire_section(self):
         base = {
-            "secret_scanning": {
+            "ssrf_protection": {
                 "enabled": True,
                 "immutable": True,
                 "action": "block",
             }
         }
         override = {
-            "secret_scanning": {
+            "ssrf_protection": {
                 "enabled": False,
                 "action": "warn",
             }
         }
         result = deep_merge(base, override, global_only_sections=frozenset())
-        assert result["secret_scanning"]["enabled"] is True
-        assert result["secret_scanning"]["action"] == "block"
+        assert result["ssrf_protection"]["enabled"] is True
+        assert result["ssrf_protection"]["action"] == "block"
 
     def test_immutable_kept_in_result(self):
         base = {
@@ -382,8 +382,8 @@ class TestLoadConfigFileMerge:
         assert config["secret_scanning"]["enabled"] is True
 
     def test_project_overlay_merges(self, _isolate_config_dir, tmp_path):
-        global_config = {"secret_scanning": {"enabled": True, "action": "block"}}
-        project_config = {"secret_scanning": {"action": "warn"}}
+        global_config = {"ssrf_protection": {"enabled": True, "action": "block"}}
+        project_config = {"ssrf_protection": {"action": "warn"}}
 
         global_path = _isolate_config_dir / "ai-guardian.json"
         global_path.write_text(json.dumps(global_config))
@@ -400,19 +400,19 @@ class TestLoadConfigFileMerge:
             _clear_config_cache()
             config, error = _load_config_file()
             assert error is None
-            assert config["secret_scanning"]["enabled"] is True
-            assert config["secret_scanning"]["action"] == "warn"
+            assert config["ssrf_protection"]["enabled"] is True
+            assert config["ssrf_protection"]["action"] == "warn"
 
     def test_immutable_enforced_in_merge(self, _isolate_config_dir, tmp_path):
         global_config = {
-            "secret_scanning": {
+            "ssrf_protection": {
                 "enabled": True,
                 "immutable": ["enabled"],
                 "action": "block",
             }
         }
         project_config = {
-            "secret_scanning": {
+            "ssrf_protection": {
                 "enabled": False,
                 "action": "warn",
             }
@@ -433,9 +433,9 @@ class TestLoadConfigFileMerge:
             _clear_config_cache()
             config, error = _load_config_file()
             assert error is None
-            assert config["secret_scanning"]["enabled"] is True
-            assert config["secret_scanning"]["action"] == "warn"
-            assert config["secret_scanning"]["immutable"] == ["enabled"]
+            assert config["ssrf_protection"]["enabled"] is True
+            assert config["ssrf_protection"]["action"] == "warn"
+            assert config["ssrf_protection"]["immutable"] == ["enabled"]
 
     def test_global_only_sections_not_overridden(self, _isolate_config_dir, tmp_path):
         global_config = {"daemon": {"host": "localhost"}}
@@ -919,40 +919,40 @@ class TestTightenOnlyMerge:
     def test_action_tighten_allowed(self):
         """action: warn -> block is tightening, should be accepted."""
         base = {
-            "secret_scanning": {
+            "ssrf_protection": {
                 "enabled": True,
                 "action": "warn",
                 "immutable": "tighten-only",
             }
         }
-        override = {"secret_scanning": {"action": "block"}}
+        override = {"ssrf_protection": {"action": "block"}}
         result = deep_merge(base, override, global_only_sections=frozenset())
-        assert result["secret_scanning"]["action"] == "block"
+        assert result["ssrf_protection"]["action"] == "block"
 
     def test_action_loosen_blocked(self):
         """action: block -> warn is loosening, should be rejected."""
         base = {
-            "secret_scanning": {
+            "ssrf_protection": {
                 "enabled": True,
                 "action": "block",
                 "immutable": "tighten-only",
             }
         }
-        override = {"secret_scanning": {"action": "warn"}}
+        override = {"ssrf_protection": {"action": "warn"}}
         result = deep_merge(base, override, global_only_sections=frozenset())
-        assert result["secret_scanning"]["action"] == "block"
+        assert result["ssrf_protection"]["action"] == "block"
 
     def test_action_equal_allowed(self):
         """Same action value should be accepted."""
         base = {
-            "secret_scanning": {
+            "ssrf_protection": {
                 "action": "block",
                 "immutable": "tighten-only",
             }
         }
-        override = {"secret_scanning": {"action": "block"}}
+        override = {"ssrf_protection": {"action": "block"}}
         result = deep_merge(base, override, global_only_sections=frozenset())
-        assert result["secret_scanning"]["action"] == "block"
+        assert result["ssrf_protection"]["action"] == "block"
 
     def test_enable_allowed(self):
         """enabled: false -> true is tightening (enabling scanning)."""
@@ -1056,68 +1056,68 @@ class TestTightenOnlyMerge:
     def test_backward_compat_immutable_true(self):
         """immutable: true still locks entire section."""
         base = {
-            "secret_scanning": {
+            "ssrf_protection": {
                 "enabled": True,
                 "action": "block",
                 "immutable": True,
             }
         }
-        override = {"secret_scanning": {"action": "warn", "enabled": False}}
+        override = {"ssrf_protection": {"action": "warn", "enabled": False}}
         result = deep_merge(base, override, global_only_sections=frozenset())
-        assert result["secret_scanning"]["enabled"] is True
-        assert result["secret_scanning"]["action"] == "block"
+        assert result["ssrf_protection"]["enabled"] is True
+        assert result["ssrf_protection"]["action"] == "block"
 
     def test_backward_compat_immutable_false(self):
         """immutable: false still allows full override."""
         base = {
-            "secret_scanning": {
+            "ssrf_protection": {
                 "action": "block",
                 "immutable": False,
             }
         }
-        override = {"secret_scanning": {"action": "warn"}}
+        override = {"ssrf_protection": {"action": "warn"}}
         result = deep_merge(base, override, global_only_sections=frozenset())
-        assert result["secret_scanning"]["action"] == "warn"
+        assert result["ssrf_protection"]["action"] == "warn"
 
     def test_backward_compat_immutable_list(self):
         """immutable: [fields] still locks listed fields only."""
         base = {
-            "secret_scanning": {
+            "ssrf_protection": {
                 "enabled": True,
                 "action": "block",
                 "immutable": ["enabled"],
             }
         }
-        override = {"secret_scanning": {"enabled": False, "action": "warn"}}
+        override = {"ssrf_protection": {"enabled": False, "action": "warn"}}
         result = deep_merge(base, override, global_only_sections=frozenset())
-        assert result["secret_scanning"]["enabled"] is True
-        assert result["secret_scanning"]["action"] == "warn"
+        assert result["ssrf_protection"]["enabled"] is True
+        assert result["ssrf_protection"]["action"] == "warn"
 
     def test_warning_logged_when_loosening_blocked(self, caplog):
         """Verify warning is logged when override blocked."""
         base = {
-            "secret_scanning": {
+            "ssrf_protection": {
                 "action": "block",
                 "immutable": "tighten-only",
             }
         }
-        override = {"secret_scanning": {"action": "warn"}}
+        override = {"ssrf_protection": {"action": "warn"}}
         with caplog.at_level(logging.WARNING, logger="ai_guardian.config.utils"):
             result = deep_merge(base, override, global_only_sections=frozenset())
-        assert result["secret_scanning"]["action"] == "block"
+        assert result["ssrf_protection"]["action"] == "block"
         assert any("cannot be loosened" in msg for msg in caplog.messages)
 
     def test_new_fields_added_in_tighten_only(self):
         """New fields not in base can be added even in tighten-only mode."""
         base = {
-            "secret_scanning": {
+            "ssrf_protection": {
                 "enabled": True,
                 "immutable": "tighten-only",
             }
         }
-        override = {"secret_scanning": {"action": "block"}}
+        override = {"ssrf_protection": {"action": "block"}}
         result = deep_merge(base, override, global_only_sections=frozenset())
-        assert result["secret_scanning"]["action"] == "block"
+        assert result["ssrf_protection"]["action"] == "block"
 
     def test_nested_dict_tighten_only_propagates(self):
         """Tighten-only mode applies to nested dicts within a tighten-only section."""
@@ -1164,7 +1164,7 @@ class TestTightenOnlyMerge:
     def test_multiple_fields_tighten_only(self):
         """Multiple fields can be tightened in one override."""
         base = {
-            "secret_scanning": {
+            "ssrf_protection": {
                 "enabled": False,
                 "action": "warn",
                 "sensitivity": "low",
@@ -1172,21 +1172,21 @@ class TestTightenOnlyMerge:
             }
         }
         override = {
-            "secret_scanning": {
+            "ssrf_protection": {
                 "enabled": True,
                 "action": "block",
                 "sensitivity": "high",
             }
         }
         result = deep_merge(base, override, global_only_sections=frozenset())
-        assert result["secret_scanning"]["enabled"] is True
-        assert result["secret_scanning"]["action"] == "block"
-        assert result["secret_scanning"]["sensitivity"] == "high"
+        assert result["ssrf_protection"]["enabled"] is True
+        assert result["ssrf_protection"]["action"] == "block"
+        assert result["ssrf_protection"]["sensitivity"] == "high"
 
     def test_mixed_tighten_and_loosen_partial_applied(self):
         """When some fields tighten and some loosen, only tightening is applied."""
         base = {
-            "secret_scanning": {
+            "ssrf_protection": {
                 "enabled": True,
                 "action": "block",
                 "sensitivity": "low",
@@ -1194,13 +1194,13 @@ class TestTightenOnlyMerge:
             }
         }
         override = {
-            "secret_scanning": {
+            "ssrf_protection": {
                 "enabled": False,
                 "action": "warn",
                 "sensitivity": "high",
             }
         }
         result = deep_merge(base, override, global_only_sections=frozenset())
-        assert result["secret_scanning"]["enabled"] is True
-        assert result["secret_scanning"]["action"] == "block"
-        assert result["secret_scanning"]["sensitivity"] == "high"
+        assert result["ssrf_protection"]["enabled"] is True
+        assert result["ssrf_protection"]["action"] == "block"
+        assert result["ssrf_protection"]["sensitivity"] == "high"

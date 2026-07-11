@@ -190,39 +190,6 @@ def create_secrets_page(service, daemon_name: str):
                         refresh,
                     )
 
-                    # --- Action mode ---
-                    with ui.card().classes("w-full"):
-                        with ui.row().classes("items-center gap-1"):
-                            ui.label("Action Mode").classes("text-lg font-bold")
-                            field_help_icon("secret_scanning.action")
-                        ui.label("What happens when secrets are detected.").classes(
-                            "text-xs text-grey-6"
-                        )
-                        action = ss.get("action", "block")
-                        action_sel = ui.select(
-                            options={
-                                "block": "Block — reject the operation",
-                                "ask": "Ask — interactive prompt (block if headless)",
-                                "ask:warn": "Ask — interactive prompt (warn if headless)",
-                                "ask:log-only": "Ask — interactive prompt (log-only if headless)",
-                                "warn": "Warn — allow with warning",
-                                "log-only": "Log Only — silent logging",
-                            },
-                            value=action,
-                        ).classes("w-64")
-
-                        async def save_action(e):
-                            cfg = await run.io_bound(load_web_config)
-                            sect = cfg.get("secret_scanning", {})
-                            if not isinstance(sect, dict):
-                                sect = {}
-                            sect["action"] = e.value
-                            cfg["secret_scanning"] = sect
-                            await run.io_bound(save_web_config, cfg)
-                            ui.notify(f"Action: {e.value}", type="positive")
-
-                        action_sel.on_value_change(save_action)
-
                     # --- Allowlist patterns ---
                     with ui.card().classes("w-full"):
                         ui.label("Allowlist Patterns").classes("text-lg font-bold")

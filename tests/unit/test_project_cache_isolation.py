@@ -332,10 +332,10 @@ class TestConfigLoadersPerProject:
         import json
 
         (config_a_dir / "ai-guardian.json").write_text(
-            json.dumps({"secret_scanning": {"action": "block"}})
+            json.dumps({"ssrf_protection": {"action": "block"}})
         )
         (config_b_dir / "ai-guardian.json").write_text(
-            json.dumps({"secret_scanning": {"action": "warn"}})
+            json.dumps({"ssrf_protection": {"action": "warn"}})
         )
 
         monkeypatch.setattr(
@@ -350,8 +350,8 @@ class TestConfigLoadersPerProject:
         )
         result_b, _ = _load_config_file()
 
-        assert result_a["secret_scanning"]["action"] == "block"
-        assert result_b["secret_scanning"]["action"] == "warn"
+        assert result_a["ssrf_protection"]["action"] == "block"
+        assert result_b["ssrf_protection"]["action"] == "warn"
         assert len(_caches) >= 2
 
 

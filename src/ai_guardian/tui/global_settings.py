@@ -45,18 +45,6 @@ FEATURES = [
 ]
 
 FEATURE_ACTIONS = {
-    "secret_scanning": {
-        "schema_path": "secret_scanning.action",
-        "options": [
-            ("Block", "block"),
-            ("Ask (block if headless)", "ask"),
-            ("Ask (warn if headless)", "ask:warn"),
-            ("Ask (log-only if headless)", "ask:log-only"),
-            ("Warn", "warn"),
-            ("Log Only", "log-only"),
-        ],
-        "default": "block",
-    },
     "secret_redaction": {
         "schema_path": "secret_redaction.action",
         "options": [

@@ -852,7 +852,6 @@ def run_secret_scan(
         ),
         file_path=file_path,
     )
-    result.extra["action"] = config.get("action", "block") if config else "block"
     return result
 
 

@@ -226,7 +226,6 @@ class TestConfigEndpoint:
         api, port, state = rest_api
         cfg = {
             "action": {"mode": "log"},
-            "secret_scanning": {"action": "ask"},
             "prompt_injection": {"action": "warn"},
         }
         with mock.patch(
@@ -237,7 +236,7 @@ class TestConfigEndpoint:
             with urlopen(url, timeout=5) as resp:
                 data = json.loads(resp.read())
         scanner_actions = data["features"]["scanner_actions"]
-        assert scanner_actions["secret_scanning"] == "ask"
+        assert "secret_scanning" not in scanner_actions
         assert scanner_actions["prompt_injection"] == "warn"
         assert scanner_actions["scan_pii"] == "log"  # falls back to global
 

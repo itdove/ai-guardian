@@ -186,11 +186,11 @@ class TestNoDefaults:
     """Sections without defaults should work as before."""
 
     def test_no_defaults_returns_user_section(self):
-        user_config = {"secret_scanning": {"enabled": True, "action": "block"}}
+        user_config = {"secret_scanning": {"enabled": True, "allowlist_patterns": []}}
         with _mock_config_file(user_config):
             section, err = _load_config_section("secret_scanning")
         assert err is None
-        assert section == {"enabled": True, "action": "block"}
+        assert section == {"enabled": True, "allowlist_patterns": []}
 
     def test_no_defaults_missing_section_returns_none(self):
         with _mock_config_file({}):

@@ -399,7 +399,6 @@ class MultiDaemonClient:
         mcp_cfg = cfg.get("mcp_server", {})
         features["mcp_server"] = bool(mcp_cfg) if mcp_cfg is not None else True
         scanner_action_keys = [
-            "secret_scanning",
             "secret_redaction",
             "scan_pii",
             "prompt_injection",
