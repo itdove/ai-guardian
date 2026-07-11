@@ -3,13 +3,11 @@
 import logging
 from typing import Dict, Optional
 
-from ai_guardian.config.loaders import (
-    _load_annotations_config,
-)
 from ai_guardian.config.utils import get_project_dir, is_feature_enabled
 from ai_guardian.constants import ActionMode, ViolationType, HookEvent
 from ai_guardian.hook_events.utils import (  # noqa: F401
     _format_response,
+    _load_annotations_config,
     _load_secret_scanning_config,
     _load_pii_config,
     check_secrets_with_gitleaks,

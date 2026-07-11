@@ -1192,7 +1192,7 @@ A scanner is a new detection engine that integrates into the hook pipeline and `
 - [ ] `src/ai_guardian/hook_processing.py` — add entry to `_ASK_VIOLATION_LABELS`
 
 #### 4. Config loading
-- [ ] `src/ai_guardian/config_loaders.py` — add `_<SCANNER>_DEFAULTS` dict + `_load_<scanner>_config()` function
+- [ ] `src/ai_guardian/config/loaders.py` — add `_<SCANNER>_DEFAULTS` dict + `_load_<scanner>_config()` function
 
 #### 5. Hook integration
 - [ ] `src/ai_guardian/hook_processing.py`:

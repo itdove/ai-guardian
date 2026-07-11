@@ -232,13 +232,13 @@ def _find_git_root() -> Optional[Path]:
 def _dedup_list(combined: list) -> list:
     """Deduplicate a list preserving order. Handles both hashable and dict items."""
     seen_set: set = set()
-    seen_unhashable: list = []
+    seen_unhashable: set = set()
     result = []
     for item in combined:
         if isinstance(item, dict):
             key = json.dumps(item, sort_keys=True)
             if key not in seen_unhashable:
-                seen_unhashable.append(key)
+                seen_unhashable.add(key)
                 result.append(item)
         else:
             if item not in seen_set:

@@ -25,7 +25,6 @@ except ImportError:
 from ai_guardian.transcript_scanning import (
     _finding_fingerprint,
     _extract_secret_type_from_error,
-    _advance_transcript_position,
 )
 
 
