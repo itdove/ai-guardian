@@ -78,6 +78,7 @@ NAV_GROUPS = [
             ("Config Editor", "/config-editor"),
             ("Console Settings", "/console-settings"),
             ("Effective Config", "/config-effective"),
+            ("About", "/about"),
         ],
     ),
     (
@@ -177,14 +178,7 @@ def create_header(daemon_name: str = "", drawer=None):
             _create_project_selector(daemon_name)
         with ui.row().classes("gap-2"):
             if daemon_name:
-                prefix = f"/{daemon_name}"
-                ui.link("Dashboard", prefix).classes("text-white no-underline")
-                ui.link("Violations", f"{prefix}/violations").classes(
-                    "text-white no-underline"
-                )
-                ui.link("Metrics", f"{prefix}/metrics").classes(
-                    "text-white no-underline"
-                )
+                _create_nav_menu(daemon_name)
             else:
                 ui.link("Select Daemon", "/").classes("text-white no-underline")
 
@@ -335,6 +329,62 @@ def create_sidebar(daemon_name: str, current: str = ""):
         search_input.on_value_change(on_search)
 
     return drawer
+
+
+def _create_nav_menu(daemon_name: str):
+    """Create the header navigation dropdown menu."""
+    prefix = f"/{daemon_name}"
+
+    with ui.button("Menu", icon="menu").props("flat color=white"):
+        with ui.menu().classes("bg-blue-grey-9"):
+            ui.menu_item(
+                "Dashboard",
+                on_click=lambda: ui.navigate.to(prefix),
+            )
+            ui.menu_item(
+                "Violations",
+                on_click=lambda: ui.navigate.to(f"{prefix}/violations"),
+            )
+            ui.menu_item(
+                "Logs",
+                on_click=lambda: ui.navigate.to(f"{prefix}/logs"),
+            )
+            ui.menu_item(
+                "Health Check",
+                on_click=lambda: ui.navigate.to(f"{prefix}/health-check"),
+            )
+            ui.separator()
+            with ui.item().classes("cursor-pointer"):
+                with ui.item_section():
+                    ui.item_label("Settings")
+                with ui.item_section().props("side"):
+                    ui.icon("chevron_right").classes("text-grey-4")
+                with (
+                    ui.menu()
+                    .props("anchor='top end' self='top start'")
+                    .classes("bg-blue-grey-9")
+                ):
+                    ui.menu_item(
+                        "Global Settings",
+                        on_click=lambda: ui.navigate.to(f"{prefix}/settings"),
+                    )
+                    ui.menu_item(
+                        "Config Editor",
+                        on_click=lambda: ui.navigate.to(f"{prefix}/config-editor"),
+                    )
+                    ui.menu_item(
+                        "Console Settings",
+                        on_click=lambda: ui.navigate.to(f"{prefix}/console-settings"),
+                    )
+            ui.menu_item(
+                "Metrics",
+                on_click=lambda: ui.navigate.to(f"{prefix}/metrics"),
+            )
+            ui.separator()
+            ui.menu_item(
+                "About",
+                on_click=lambda: ui.navigate.to(f"{prefix}/about"),
+            )
 
 
 def _create_scope_toggle():
