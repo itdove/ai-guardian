@@ -48,3 +48,7 @@ def _extract_file_path_from_pii_warning(pii_warning):
 
 def check_secrets_with_gitleaks(*args, **kwargs):
     return _hp.check_secrets_with_gitleaks(*args, **kwargs)
+
+
+def _load_annotations_config():
+    return _hp._load_annotations_config()

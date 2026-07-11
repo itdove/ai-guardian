@@ -50,6 +50,9 @@ class TestImmutableDenyPatterns:
         assert any(".claude/hooks.json" in p for p in patterns)
         assert any(".cursor/hooks.json" in p for p in patterns)
 
+    def test_write_and_edit_share_same_list(self):
+        assert IMMUTABLE_DENY_PATTERNS["Write"] is IMMUTABLE_DENY_PATTERNS["Edit"]
+
     def test_bash_protects_cache(self):
         patterns = IMMUTABLE_DENY_PATTERNS["Bash"]
         assert any(".cache/ai-guardian" in p for p in patterns)

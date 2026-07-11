@@ -71,9 +71,14 @@ jobs:
     if: always() && github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     steps:
+      - name: Login to Quay
+        run: |
+          skopeo login quay.io \
+            --username "${{ secrets.QUAY_USERNAME }}" \
+            --password "${{ secrets.QUAY_PASSWORD }}"
+
       - name: Delete SHA-tagged image
         continue-on-error: true
         run: |
           skopeo delete \
-            --creds "${{ secrets.QUAY_USERNAME }}:${{ secrets.QUAY_PASSWORD }}" \
             "docker://quay.io/itdove/ai-guardian:${{ github.sha }}"
