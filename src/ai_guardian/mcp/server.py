@@ -163,7 +163,7 @@ def create_server() -> "FastMCP":
             if not resolved.exists():
                 return {"status": "not_found"}
 
-            from ai_guardian.tool_policy import ToolPolicyChecker
+            from ai_guardian.tools.policy import ToolPolicyChecker
 
             tool_name = _OPERATION_TO_TOOL.get(operation.lower(), "Read")
             checker = ToolPolicyChecker()
@@ -183,7 +183,7 @@ def create_server() -> "FastMCP":
     def check_command(command: str) -> Dict[str, str]:
         """Check if a Bash command would be blocked. Call before running commands with URLs or file paths. Results are advisory — hooks provide enforcement."""
         try:
-            from ai_guardian.tool_policy import ToolPolicyChecker
+            from ai_guardian.tools.policy import ToolPolicyChecker
 
             checker = ToolPolicyChecker()
             hook_data = {
@@ -213,7 +213,7 @@ def create_server() -> "FastMCP":
     def check_mcp_trust(server_name: str) -> Dict[str, str]:
         """Check if an MCP server is trusted based on permission rules. Call before suggesting MCP server usage."""
         try:
-            from ai_guardian.tool_policy import ToolPolicyChecker
+            from ai_guardian.tools.policy import ToolPolicyChecker
 
             checker = ToolPolicyChecker()
             hook_data = {
@@ -232,7 +232,7 @@ def create_server() -> "FastMCP":
     def sanitize_text(text: str) -> Dict[str, Any]:
         """Redact secrets and PII from text. Call before outputting potentially sensitive content."""
         try:
-            from ai_guardian.sanitizer import sanitize_text as _sanitize
+            from ai_guardian.scanners.sanitizer import sanitize_text as _sanitize
 
             result = _sanitize(text)
             return {
@@ -279,7 +279,9 @@ def create_server() -> "FastMCP":
                 out_dir = Path(tempfile.mkdtemp(prefix="ai-guardian-sanitized-"))
                 (out_dir / ".ai-read-deny").touch()
 
-            from ai_guardian.sanitizer import sanitize_directory as _sanitize_dir
+            from ai_guardian.scanners.sanitizer import (
+                sanitize_directory as _sanitize_dir,
+            )
 
             strategy = (
                 redact_strategy
@@ -347,7 +349,7 @@ def create_server() -> "FastMCP":
     ) -> Dict[str, Any]:
         """Get recent security violations. Filter by type (secret_detected, prompt_injection, directory_blocking, tool_permission, ssrf_blocked, config_file_exfil, pii_detected, jailbreak_detected)."""
         try:
-            from ai_guardian.violation_logger import ViolationLogger
+            from ai_guardian.violations.logger import ViolationLogger
 
             vl = ViolationLogger()
             violations = vl.get_recent_violations(
@@ -463,7 +465,7 @@ def create_server() -> "FastMCP":
     def get_scanner_status() -> Dict[str, Any]:
         """Get installed scanner engines and their versions."""
         try:
-            from ai_guardian.scanner_manager import ScannerManager
+            from ai_guardian.scanners.manager import ScannerManager
 
             sm = ScannerManager()
             installed = sm.list_installed()
@@ -484,7 +486,7 @@ def create_server() -> "FastMCP":
     def get_scanner_supported() -> Dict[str, Any]:
         """Get all supported scanner engines that can be installed."""
         try:
-            from ai_guardian.scanner_manager import ScannerManager
+            from ai_guardian.scanners.manager import ScannerManager
 
             return {"scanners": list(ScannerManager.SUPPORTED_SCANNERS)}
         except Exception as e:
@@ -495,7 +497,7 @@ def create_server() -> "FastMCP":
     def get_patterns_list() -> Dict[str, Any]:
         """Get active detection pattern categories and counts. Returns category names and pattern counts only — no regex patterns."""
         try:
-            from ai_guardian.pattern_lister import PatternLister
+            from ai_guardian.patterns.lister import PatternLister
 
             lister = PatternLister()
             categories = lister.get_categories()
@@ -513,7 +515,7 @@ def create_server() -> "FastMCP":
     def get_metrics(since_days: Optional[int] = None) -> Dict[str, Any]:
         """Get violation statistics and trends. Optionally filter to last N days."""
         try:
-            from ai_guardian.metrics import MetricsComputer
+            from ai_guardian.reporting.metrics import MetricsComputer
 
             mc = MetricsComputer(since_days=since_days)
             report = mc.compute()
@@ -568,7 +570,7 @@ def create_server() -> "FastMCP":
     def prepare_support_bundle() -> Dict[str, Any]:
         """Prepare a sanitized support bundle for review. Creates a protected temp directory with sanitized copies of config, violations, metrics, doctor results, system info, and log. IMPORTANT: After calling this, you MUST (1) show the temp_path so the user can review and delete unwanted files, (2) present the file list with redaction counts, and (3) wait for the user to confirm before calling send_support_bundle. Only the user can access the temp directory — do not try to read or delete files in it."""
         try:
-            from ai_guardian.support_bundle import prepare_bundle
+            from ai_guardian.reporting.support_bundle import prepare_bundle
 
             return prepare_bundle()
         except Exception as e:
@@ -579,7 +581,7 @@ def create_server() -> "FastMCP":
     def send_support_bundle(bundle_id: str) -> Dict[str, Any]:
         """Send a previously prepared support bundle to the preconfigured destination. Only call after the user has reviewed the temp directory, deleted any unwanted files, and explicitly approved sending. After sending, tell the user to contact support and give them the bundle_id as their reference number."""
         try:
-            from ai_guardian.support_bundle import send_bundle
+            from ai_guardian.reporting.support_bundle import send_bundle
 
             return send_bundle(bundle_id)
         except Exception as e:
@@ -597,7 +599,7 @@ def create_server() -> "FastMCP":
             if not valid:
                 return {"status": "error", "message": err}
 
-            from ai_guardian.scanner import FileScanner
+            from ai_guardian.scanners.file_scanner import FileScanner
 
             config = _load_full_config() or {}
             scanner = FileScanner(config=config)
@@ -649,7 +651,7 @@ def create_server() -> "FastMCP":
                     "message": f"Unsupported format: {format}. Use 'json' or 'sarif'.",
                 }
 
-            from ai_guardian.scanner import FileScanner
+            from ai_guardian.scanners.file_scanner import FileScanner
 
             config = _load_full_config() or {}
             scanner = FileScanner(config=config)
@@ -660,7 +662,7 @@ def create_server() -> "FastMCP":
 
             if format == "sarif":
                 from ai_guardian import __version__
-                from ai_guardian.sarif_formatter import SARIFFormatter
+                from ai_guardian.reporting.sarif import SARIFFormatter
 
                 formatter = SARIFFormatter(version=__version__)
                 report_file = str(Path(report_dir) / "scan-results.sarif")

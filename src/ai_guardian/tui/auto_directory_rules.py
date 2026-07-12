@@ -278,7 +278,7 @@ class AutoDirectoryRulesContent(Container):
     def _run_generator(self, config):
         """Run the DirectoryRuleGenerator in preview mode."""
         try:
-            from ai_guardian.directory_rule_generator import (
+            from ai_guardian.tools.directory_rules import (
                 DirectoryRuleGenerator,
             )
 

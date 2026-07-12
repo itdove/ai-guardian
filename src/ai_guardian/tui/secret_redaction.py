@@ -323,7 +323,7 @@ class SecretRedactionContent(SchemaDefaultsMixin, Container):
     def _load_statistics(self) -> None:
         """Load and display secret redaction statistics."""
         try:
-            from ai_guardian.violation_logger import ViolationLogger
+            from ai_guardian.violations.logger import ViolationLogger
 
             logger = ViolationLogger()
 

@@ -17,11 +17,11 @@ from ai_guardian.hook_events.utils import (  # noqa: F401
     _extract_file_path_from_pii_warning,
 )
 from ai_guardian.scanners.scan_result import ScanResult
-from ai_guardian.secret_scanning import (
+from ai_guardian.scanners.secret_scanning import (
     _build_violation_context,
     _enrich_blocked_from_details,
 )
-from ai_guardian.transcript_scanning import _advance_transcript_position
+from ai_guardian.scanners.transcript import _advance_transcript_position
 
 from ai_guardian.ask_mode import (
     _handle_ask_mode_auto,
@@ -40,7 +40,7 @@ from ai_guardian.hook_events.scanners import (
 
 # _hp delegation keeps test patches on hook_processing propagating into this module
 import ai_guardian.hook_processing as _hp
-import ai_guardian.secret_scanning as _secret_scanning_mod
+import ai_guardian.scanners.secret_scanning as _secret_scanning_mod
 
 logger = logging.getLogger(__name__)
 
@@ -68,7 +68,7 @@ def _extract_context_snippet(text, line_number):
 # ---------------------------------------------------------------------------
 
 try:
-    from ai_guardian.violation_logger import ViolationLogger as _ViolationLoggerDirect
+    from ai_guardian.violations.logger import ViolationLogger as _ViolationLoggerDirect
 
     HAS_VIOLATION_LOGGER = True
 except ImportError:

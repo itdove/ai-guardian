@@ -41,7 +41,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
-from ai_guardian.gitleaks_config import find_project_root
+from ai_guardian.scanners.gitleaks import find_project_root
 
 logger = logging.getLogger(__name__)
 

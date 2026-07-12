@@ -644,7 +644,7 @@ class _RestHandler(BaseHTTPRequestHandler):
             redacted = None
             if findings:
                 try:
-                    from ai_guardian.sanitizer import sanitize_text
+                    from ai_guardian.scanners.sanitizer import sanitize_text
 
                     san_result = sanitize_text(content)
                     redacted = san_result.get("sanitized_text") or san_result.get(
@@ -745,7 +745,7 @@ class _RestHandler(BaseHTTPRequestHandler):
             self.server.daemon_state.check_project_config(project_dir)
 
         try:
-            from ai_guardian.scanner import FileScanner
+            from ai_guardian.scanners.file_scanner import FileScanner
             from ai_guardian.tui.pattern_editor import config_section_for_rule_id
 
             cfg = self.server.daemon_state.get_config()
@@ -898,7 +898,7 @@ class _RestHandler(BaseHTTPRequestHandler):
             self._send_error(400, "content is required")
             return
         try:
-            from ai_guardian.sanitizer import sanitize_text
+            from ai_guardian.scanners.sanitizer import sanitize_text
 
             result = sanitize_text(content)
             redacted = result.get("sanitized_text") or result.get("redacted")

@@ -21,7 +21,7 @@ import fnmatch
 
 # Import Phase 1-4 scanners
 try:
-    from ai_guardian.ssrf_protector import SSRFProtector
+    from ai_guardian.scanners.ssrf import SSRFProtector
 
     HAS_SSRF = True
 except ImportError:
@@ -45,7 +45,7 @@ except ImportError:
     HAS_CONFIG_SCANNER = False
 
 try:
-    from ai_guardian.sarif_formatter import (
+    from ai_guardian.reporting.sarif import (
         SARIFFormatter,
         create_ssrf_finding,
         create_unicode_finding,
@@ -1305,7 +1305,7 @@ def scan_command(args) -> int:
         if not agent_configs and any(diff_flags):
             # Diff-based scanning
             try:
-                from ai_guardian.diff_provider import (
+                from ai_guardian.tools.diff_provider import (
                     DiffProviderError,
                     extract_file_contents_from_diff,
                     filter_findings_by_changed_lines,

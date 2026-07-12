@@ -1256,7 +1256,7 @@ def main():
         # Handle metrics command (Issue #469)
         if args.command == "metrics":
             try:
-                from ai_guardian.metrics import metrics_command
+                from ai_guardian.reporting.metrics import metrics_command
 
                 return metrics_command(args)
             except ImportError as e:
@@ -1325,7 +1325,7 @@ def main():
         # Handle scan command
         if args.command == "scan":
             try:
-                from ai_guardian.scanner import scan_command
+                from ai_guardian.scanners.file_scanner import scan_command
 
                 return scan_command(args)
             except ImportError as e:
@@ -1532,8 +1532,8 @@ def main():
         # Handle scanner command (NEW in v1.6.0)
         if args.command == "scanner":
             try:
-                from ai_guardian.scanner_installer import ScannerInstaller
-                from ai_guardian.scanner_manager import ScannerManager
+                from ai_guardian.scanners.installer import ScannerInstaller
+                from ai_guardian.scanners.manager import ScannerManager
 
                 if args.scanner_command == "list":
                     manager = ScannerManager()
@@ -1617,7 +1617,7 @@ def main():
         # Handle pattern-servers command
         if args.command == "pattern-servers":
             try:
-                from ai_guardian.scanner_manager import ScannerManager
+                from ai_guardian.scanners.manager import ScannerManager
 
                 if args.pattern_servers_command is None:
                     pattern_servers_parser.print_help()
@@ -1645,7 +1645,7 @@ def main():
         # Handle patterns command (NEW in v1.9.0, Issue #337)
         if args.command == "patterns":
             try:
-                from ai_guardian.pattern_lister import PatternLister
+                from ai_guardian.patterns.lister import PatternLister
 
                 if args.patterns_command is None:
                     patterns_parser.print_help()
@@ -1676,7 +1676,7 @@ def main():
         # Handle sanitize command (Issue #443)
         if args.command == "sanitize":
             try:
-                from ai_guardian.sanitizer import sanitize_command
+                from ai_guardian.scanners.sanitizer import sanitize_command
 
                 return sanitize_command(args)
             except ImportError as e:
@@ -1733,7 +1733,7 @@ def main():
         # Handle mcp-server command (Issue #477)
         if args.command == "mcp-server":
             try:
-                from ai_guardian.mcp_server import run_mcp_server
+                from ai_guardian.mcp.server import run_mcp_server
 
                 return run_mcp_server()
             except ImportError as e:
@@ -1747,7 +1747,7 @@ def main():
         # Handle mcp command (Issue #468)
         if args.command == "mcp":
             try:
-                from ai_guardian.mcp_audit import MCPAuditor
+                from ai_guardian.mcp.audit import MCPAuditor
 
                 if not hasattr(args, "mcp_command") or args.mcp_command is None:
                     mcp_parser.print_help()
@@ -1819,7 +1819,7 @@ def main():
         # Handle support command (Issue #511)
         if args.command == "support":
             try:
-                from ai_guardian.support_bundle import support_command
+                from ai_guardian.reporting.support_bundle import support_command
 
                 return support_command(args)
             except ImportError as e:
@@ -1853,7 +1853,7 @@ def main():
         # Handle engine-test command (Issue #542)
         if args.command == "engine-test":
             try:
-                from ai_guardian.engine_tester import engine_test_command
+                from ai_guardian.scanners.engine_tester import engine_test_command
 
                 return engine_test_command(args)
             except ImportError as e:

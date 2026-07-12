@@ -7,12 +7,12 @@ from datetime import datetime, timezone
 
 from ai_guardian.config.utils import is_feature_enabled
 from ai_guardian.constants import HookEvent
-from ai_guardian.latency_logger import _CheckTimer
+from ai_guardian.reporting.latency import _CheckTimer
 from ai_guardian.scanners.scan_result import ScanResult
 
 _NULL_TIMER = _CheckTimer(enabled=False)
 
-import ai_guardian.secret_scanning as _secret_scanning_mod
+import ai_guardian.scanners.secret_scanning as _secret_scanning_mod
 
 # Import config loaders and check_secrets_with_gitleaks via hook_processing
 # module-attribute access so that test patches on hook_processing propagate here.

@@ -107,7 +107,7 @@ def test_engine(
 
             pattern_config = _load_pattern_server_config()
             if pattern_config and isinstance(pattern_config, dict):
-                from ai_guardian.pattern_server import PatternServerClient
+                from ai_guardian.patterns.server import PatternServerClient
 
                 client = PatternServerClient(pattern_config)
                 global_path = client.get_patterns_path()

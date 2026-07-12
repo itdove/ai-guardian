@@ -14,7 +14,7 @@ STRATEGY_OPTIONS = {
 
 def _get_engines():
     try:
-        from ai_guardian.engine_tester import get_available_engines
+        from ai_guardian.scanners.engine_tester import get_available_engines
 
         return get_available_engines()
     except Exception:
@@ -23,7 +23,7 @@ def _get_engines():
 
 def _get_strategy():
     try:
-        from ai_guardian.engine_tester import get_configured_strategy
+        from ai_guardian.scanners.engine_tester import get_configured_strategy
 
         return get_configured_strategy()
     except Exception:
@@ -31,19 +31,19 @@ def _get_strategy():
 
 
 def _run_single_test(engine_name, text, use_pattern_server):
-    from ai_guardian.engine_tester import test_engine
+    from ai_guardian.scanners.engine_tester import test_engine
 
     return test_engine(engine_name, text, use_pattern_server)
 
 
 def _run_all_tests(text, use_pattern_server):
-    from ai_guardian.engine_tester import test_all_engines
+    from ai_guardian.scanners.engine_tester import test_all_engines
 
     return test_all_engines(text, use_pattern_server)
 
 
 def _run_strategy(strategy_name, results):
-    from ai_guardian.engine_tester import apply_strategy
+    from ai_guardian.scanners.engine_tester import apply_strategy
 
     if strategy_name == "from-config":
         strategy_name = _get_strategy()

@@ -337,7 +337,7 @@ class _DirectSession(GuardSession):
         return self._handle_result(merged)
 
     def sanitize(self, text: str) -> Dict[str, Any]:
-        from ai_guardian.sanitizer import sanitize_text
+        from ai_guardian.scanners.sanitizer import sanitize_text
 
         return sanitize_text(text)
 

@@ -137,7 +137,7 @@ class ViolationCounter:
     @staticmethod
     def _count_current_log() -> Dict[str, int]:
         """Count violations by type from the current violations.jsonl."""
-        from ai_guardian.violation_logger import ViolationLogger
+        from ai_guardian.violations.logger import ViolationLogger
 
         vl = ViolationLogger()
         if not vl.log_path.exists():

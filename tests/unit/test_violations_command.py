@@ -14,7 +14,7 @@ class TestViolationsClearYesFlag:
             clear=clear, yes=yes, export=export, limit=limit, type=type
         )
 
-    @patch("ai_guardian.violation_logger.ViolationLogger")
+    @patch("ai_guardian.violations.logger.ViolationLogger")
     def test_clear_with_yes_skips_prompt(self, mock_logger_cls):
         mock_logger = MagicMock()
         mock_logger.clear_log.return_value = True
@@ -29,7 +29,7 @@ class TestViolationsClearYesFlag:
         mock_logger.clear_log.assert_called_once()
         assert result == 0
 
-    @patch("ai_guardian.violation_logger.ViolationLogger")
+    @patch("ai_guardian.violations.logger.ViolationLogger")
     def test_clear_without_yes_prompts(self, mock_logger_cls):
         mock_logger = MagicMock()
         mock_logger.clear_log.return_value = True
@@ -44,7 +44,7 @@ class TestViolationsClearYesFlag:
         mock_logger.clear_log.assert_called_once()
         assert result == 0
 
-    @patch("ai_guardian.violation_logger.ViolationLogger")
+    @patch("ai_guardian.violations.logger.ViolationLogger")
     def test_clear_without_yes_cancelled(self, mock_logger_cls):
         mock_logger = MagicMock()
         mock_logger_cls.return_value = mock_logger
@@ -57,7 +57,7 @@ class TestViolationsClearYesFlag:
         mock_logger.clear_log.assert_not_called()
         assert result == 0
 
-    @patch("ai_guardian.violation_logger.ViolationLogger")
+    @patch("ai_guardian.violations.logger.ViolationLogger")
     def test_clear_with_yes_handles_failure(self, mock_logger_cls):
         mock_logger = MagicMock()
         mock_logger.clear_log.return_value = False

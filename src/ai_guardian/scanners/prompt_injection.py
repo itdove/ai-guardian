@@ -27,7 +27,7 @@ from typing import Tuple, Optional, Dict, Any, Union, List
 
 from ai_guardian.config.utils import validate_regex_pattern
 from ai_guardian import allowlist_utils
-from ai_guardian.tool_patterns import _strip_bash_heredoc_content
+from ai_guardian.tools.patterns import _strip_bash_heredoc_content
 from ai_guardian.utils.path_matching import match_ignore_pattern
 from ai_guardian.patterns import load_bundled_rules
 
@@ -336,7 +336,7 @@ class UnicodeAttackDetector:
             List of (homoglyph, latin) tuples
         """
         try:
-            from ai_guardian.pattern_loader import UnicodePatternLoader
+            from ai_guardian.patterns.loader import UnicodePatternLoader
 
             loader = UnicodePatternLoader()
             merged_patterns = loader.load_patterns(

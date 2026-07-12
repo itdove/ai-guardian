@@ -412,7 +412,7 @@ class TestToolPolicyViolationIds(unittest.TestCase):
 
     def test_tool_policy_violation_includes_ids(self):
         """ToolPolicyChecker._log_violation should include tool_use_id/session_id."""
-        from ai_guardian.tool_policy import ToolPolicyChecker
+        from ai_guardian.tools.policy import ToolPolicyChecker
 
         checker = ToolPolicyChecker(
             config={
@@ -424,7 +424,7 @@ class TestToolPolicyViolationIds(unittest.TestCase):
             }
         )
 
-        with patch("ai_guardian.tool_policy.ViolationLogger") as MockLogger:
+        with patch("ai_guardian.tools.policy.ViolationLogger") as MockLogger:
             mock_instance = MagicMock()
             MockLogger.return_value = mock_instance
 

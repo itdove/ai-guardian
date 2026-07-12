@@ -515,7 +515,7 @@ class TestSelfProtection:
     """Verify the agent is blocked from reading project-level config."""
 
     def test_project_config_matches_immutable_pattern(self):
-        from ai_guardian.tool_patterns import IMMUTABLE_DENY_PATTERNS
+        from ai_guardian.tools.patterns import IMMUTABLE_DENY_PATTERNS
 
         read_patterns = IMMUTABLE_DENY_PATTERNS.get("Read", [])
         assert any(
@@ -523,20 +523,20 @@ class TestSelfProtection:
         ), "IMMUTABLE_DENY_PATTERNS must block reading *ai-guardian.json"
 
     def test_project_config_blocked_for_write(self):
-        from ai_guardian.tool_patterns import IMMUTABLE_DENY_PATTERNS
+        from ai_guardian.tools.patterns import IMMUTABLE_DENY_PATTERNS
 
         write_patterns = IMMUTABLE_DENY_PATTERNS.get("Write", [])
         assert any("ai-guardian.json" in p for p in write_patterns)
 
     def test_project_config_blocked_for_edit(self):
-        from ai_guardian.tool_patterns import IMMUTABLE_DENY_PATTERNS
+        from ai_guardian.tools.patterns import IMMUTABLE_DENY_PATTERNS
 
         edit_patterns = IMMUTABLE_DENY_PATTERNS.get("Edit", [])
         assert any("ai-guardian.json" in p for p in edit_patterns)
 
     def test_read_blocked_via_policy_checker(self, _isolate_config_dir, tmp_path):
         """ToolPolicyChecker blocks Read of project ai-guardian.json."""
-        from ai_guardian.tool_policy import ToolPolicyChecker
+        from ai_guardian.tools.policy import ToolPolicyChecker
 
         project_config = tmp_path / "ai-guardian.json"
         project_config.write_text("{}")

@@ -10,7 +10,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import Mock, patch
 
-from ai_guardian.remote_fetcher import RemoteFetcher
+from ai_guardian.patterns.remote import RemoteFetcher
 
 
 class RemoteFetcherEnvVarsTest(unittest.TestCase):
@@ -67,7 +67,7 @@ class RemoteFetcherEnvVarsTest(unittest.TestCase):
 
             # Next fetch should try to refresh (because > 12h default)
             with patch(
-                "ai_guardian.remote_fetcher.requests.get", return_value=mock_response
+                "ai_guardian.patterns.remote.requests.get", return_value=mock_response
             ) as mock_get:
                 config = self.fetcher.fetch_config("https://example.com/config.json")
                 # Should have tried to refresh
@@ -97,7 +97,7 @@ class RemoteFetcherEnvVarsTest(unittest.TestCase):
 
             # Next fetch should try to refresh (because > 6h)
             with patch(
-                "ai_guardian.remote_fetcher.requests.get", return_value=mock_response
+                "ai_guardian.patterns.remote.requests.get", return_value=mock_response
             ) as mock_get:
                 config = self.fetcher.fetch_config("https://example.com/config.json")
                 # Should have tried to refresh because 7h > 6h
@@ -130,7 +130,7 @@ class RemoteFetcherEnvVarsTest(unittest.TestCase):
             mock_failed_response.status_code = 500
 
             with patch(
-                "ai_guardian.remote_fetcher.requests.get",
+                "ai_guardian.patterns.remote.requests.get",
                 return_value=mock_failed_response,
             ):
                 config = self.fetcher.fetch_config("https://example.com/config.json")
@@ -165,7 +165,7 @@ class RemoteFetcherEnvVarsTest(unittest.TestCase):
             mock_failed_response.status_code = 500
 
             with patch(
-                "ai_guardian.remote_fetcher.requests.get",
+                "ai_guardian.patterns.remote.requests.get",
                 return_value=mock_failed_response,
             ):
                 config = self.fetcher.fetch_config("https://example.com/config.json")
@@ -199,7 +199,7 @@ class RemoteFetcherEnvVarsTest(unittest.TestCase):
             # Call with explicit refresh_interval_hours=10 (should override env var of 6)
             # 7h < 10h, so cache should be fresh
             with patch(
-                "ai_guardian.remote_fetcher.requests.get", return_value=mock_response
+                "ai_guardian.patterns.remote.requests.get", return_value=mock_response
             ) as mock_get:
                 config = self.fetcher.fetch_config(
                     "https://example.com/config.json", refresh_interval_hours=10

@@ -10,7 +10,7 @@ from ai_guardian.web.components.header import create_header, create_sidebar
 
 
 def _load_local_latency(since_days):
-    from ai_guardian.latency_logger import LatencyComputer
+    from ai_guardian.reporting.latency import LatencyComputer
 
     computer = LatencyComputer(since_days=since_days)
     report = computer.compute()
@@ -39,14 +39,14 @@ def _save_latency_config(updates):
 
 
 def _clear_latency_log():
-    from ai_guardian.latency_logger import LatencyLogger
+    from ai_guardian.reporting.latency import LatencyLogger
 
     return LatencyLogger().clear_log()
 
 
 def _export_latency(since_days, fmt):
     import csv as csv_mod
-    from ai_guardian.latency_logger import (
+    from ai_guardian.reporting.latency import (
         LatencyComputer,
         format_latency_human,
         format_latency_json,
@@ -114,7 +114,7 @@ def _export_latency(since_days, fmt):
 
 
 def _get_clipboard_text(since_days):
-    from ai_guardian.latency_logger import LatencyComputer, format_latency_human
+    from ai_guardian.reporting.latency import LatencyComputer, format_latency_human
 
     computer = LatencyComputer(since_days=since_days)
     report = computer.compute()
@@ -123,7 +123,7 @@ def _get_clipboard_text(since_days):
 
 def _get_retention_days():
     try:
-        from ai_guardian.violation_logger import ViolationLogger
+        from ai_guardian.violations.logger import ViolationLogger
 
         vl = ViolationLogger()
         cfg = getattr(vl, "config", {}) or {}

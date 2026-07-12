@@ -5,14 +5,14 @@ from collections import Counter
 
 from nicegui import run, ui
 
-from ai_guardian.pattern_lister import test_rule_matches as _test_rule_matches
+from ai_guardian.patterns.lister import test_rule_matches as _test_rule_matches
 from ai_guardian.web.components.header import create_header, create_sidebar
 
 _logger = logging.getLogger(__name__)
 
 
 def _load_rules():
-    from ai_guardian.pattern_lister import PatternLister
+    from ai_guardian.patterns.lister import PatternLister
 
     return PatternLister().get_all_rules()
 

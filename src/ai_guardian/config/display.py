@@ -32,7 +32,7 @@ class ConfigDisplay:
         self.config = config
         if self.config is None:
             # Import here to avoid circular dependency
-            from ai_guardian.tool_policy import ToolPolicyChecker
+            from ai_guardian.tools.policy import ToolPolicyChecker
 
             checker = ToolPolicyChecker()
             self.config = checker.config
@@ -388,7 +388,7 @@ class ConfigDisplay:
         output.append("")
 
         # Generate preview of rules
-        from ai_guardian.directory_rule_generator import DirectoryRuleGenerator
+        from ai_guardian.tools.directory_rules import DirectoryRuleGenerator
 
         generator = DirectoryRuleGenerator(self.config)
         generated_rules = generator.generate_directory_rules()

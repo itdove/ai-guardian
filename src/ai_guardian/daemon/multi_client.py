@@ -578,7 +578,7 @@ class MultiDaemonClient:
 
     @staticmethod
     def _local_violations(limit: int, violation_type: Optional[str]) -> dict:
-        from ai_guardian.violation_logger import ViolationLogger
+        from ai_guardian.violations.logger import ViolationLogger
 
         vl = ViolationLogger()
         entries = vl.get_recent_violations(limit=limit, violation_type=violation_type)
@@ -652,7 +652,7 @@ class MultiDaemonClient:
         """Run scan locally via FileScanner."""
         import time
         from pathlib import Path as _Path
-        from ai_guardian.scanner import FileScanner
+        from ai_guardian.scanners.file_scanner import FileScanner
         from ai_guardian.tui.pattern_editor import config_section_for_rule_id
         from ai_guardian.web.config_helpers import load_web_config
 
@@ -690,7 +690,7 @@ class MultiDaemonClient:
 
     @staticmethod
     def _local_metrics(since_days: Optional[int]) -> dict:
-        from ai_guardian.metrics import MetricsComputer
+        from ai_guardian.reporting.metrics import MetricsComputer
 
         mc = MetricsComputer(since_days=since_days)
         report = mc.compute()
@@ -733,7 +733,7 @@ class MultiDaemonClient:
         severity: Optional[str] = None,
     ) -> dict:
         import json as _json
-        from ai_guardian.audit import AuditComputer, format_audit_json
+        from ai_guardian.reporting.audit import AuditComputer, format_audit_json
 
         computer = AuditComputer(
             since=since,
@@ -851,7 +851,7 @@ class MultiDaemonClient:
 
     @staticmethod
     def _local_performance(since_days: int = 30) -> dict:
-        from ai_guardian.latency_logger import LatencyComputer
+        from ai_guardian.reporting.latency import LatencyComputer
 
         computer = LatencyComputer(since_days=since_days)
         report = computer.compute()
@@ -903,7 +903,7 @@ class MultiDaemonClient:
     @staticmethod
     def _local_refresh_pattern_cache() -> dict:
         from ai_guardian.config.loaders import _load_pattern_server_config
-        from ai_guardian.pattern_server import PatternServerClient
+        from ai_guardian.patterns.server import PatternServerClient
 
         config = _load_pattern_server_config()
         if not config:

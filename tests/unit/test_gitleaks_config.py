@@ -8,7 +8,7 @@ from unittest.mock import patch
 
 import pytest
 
-from ai_guardian.gitleaks_config import (
+from ai_guardian.scanners.gitleaks import (
     find_project_root,
     load_gitleaks_allowlist,
     should_skip_file,
@@ -34,7 +34,7 @@ def _clean_cache():
 
 class TestFindProjectRoot:
     def test_finds_git_root(self):
-        with patch("ai_guardian.gitleaks_config.subprocess.check_output") as mock:
+        with patch("ai_guardian.scanners.gitleaks.subprocess.check_output") as mock:
             mock.return_value = b"/home/user/project\n"
             root = find_project_root()
             assert root == Path("/home/user/project")
@@ -43,7 +43,7 @@ class TestFindProjectRoot:
         import subprocess as sp
 
         with patch(
-            "ai_guardian.gitleaks_config.subprocess.check_output",
+            "ai_guardian.scanners.gitleaks.subprocess.check_output",
             side_effect=sp.CalledProcessError(128, "git"),
         ):
             root = find_project_root()
@@ -51,14 +51,14 @@ class TestFindProjectRoot:
 
     def test_fallback_to_cwd_when_git_not_installed(self):
         with patch(
-            "ai_guardian.gitleaks_config.subprocess.check_output",
+            "ai_guardian.scanners.gitleaks.subprocess.check_output",
             side_effect=FileNotFoundError,
         ):
             root = find_project_root()
             assert root == Path(os.getcwd())
 
     def test_caches_result(self):
-        with patch("ai_guardian.gitleaks_config.subprocess.check_output") as mock:
+        with patch("ai_guardian.scanners.gitleaks.subprocess.check_output") as mock:
             mock.return_value = b"/cached/root\n"
             first = find_project_root()
             second = find_project_root()
@@ -234,11 +234,11 @@ class TestShouldSkipFile:
     def test_exact_path_match(self):
         al = GitleaksAllowlist(paths=["tests/unit/test_foo.py"])
         with patch(
-            "ai_guardian.gitleaks_config.find_project_root",
+            "ai_guardian.scanners.gitleaks.find_project_root",
             return_value=Path("/project"),
         ):
             with patch(
-                "ai_guardian.gitleaks_config._normalize_path",
+                "ai_guardian.scanners.gitleaks._normalize_path",
                 return_value="tests/unit/test_foo.py",
             ):
                 assert should_skip_file("/project/tests/unit/test_foo.py", al) is True
@@ -246,11 +246,11 @@ class TestShouldSkipFile:
     def test_glob_pattern(self):
         al = GitleaksAllowlist(paths=["tests/fixtures/*"])
         with patch(
-            "ai_guardian.gitleaks_config.find_project_root",
+            "ai_guardian.scanners.gitleaks.find_project_root",
             return_value=Path("/project"),
         ):
             with patch(
-                "ai_guardian.gitleaks_config._normalize_path",
+                "ai_guardian.scanners.gitleaks._normalize_path",
                 return_value="tests/fixtures/secrets.py",
             ):
                 assert (
@@ -260,11 +260,11 @@ class TestShouldSkipFile:
     def test_no_match(self):
         al = GitleaksAllowlist(paths=["tests/unit/test_foo.py"])
         with patch(
-            "ai_guardian.gitleaks_config.find_project_root",
+            "ai_guardian.scanners.gitleaks.find_project_root",
             return_value=Path("/project"),
         ):
             with patch(
-                "ai_guardian.gitleaks_config._normalize_path",
+                "ai_guardian.scanners.gitleaks._normalize_path",
                 return_value="src/main.py",
             ):
                 assert should_skip_file("/project/src/main.py", al) is False
@@ -276,11 +276,11 @@ class TestShouldSkipFile:
     def test_doublestar_pattern(self):
         al = GitleaksAllowlist(paths=["**/fixtures/**"])
         with patch(
-            "ai_guardian.gitleaks_config.find_project_root",
+            "ai_guardian.scanners.gitleaks.find_project_root",
             return_value=Path("/project"),
         ):
             with patch(
-                "ai_guardian.gitleaks_config._normalize_path",
+                "ai_guardian.scanners.gitleaks._normalize_path",
                 return_value="tests/fixtures/data.json",
             ):
                 assert should_skip_file("/project/tests/fixtures/data.json", al) is True
@@ -300,7 +300,7 @@ class TestFilterFindings:
         findings = [self._make_finding(line_number=1)]
         content_lines = ["token = fake_key_12345"]
         with patch(
-            "ai_guardian.gitleaks_config.find_project_root",
+            "ai_guardian.scanners.gitleaks.find_project_root",
             return_value=Path("/project"),
         ):
             result = filter_findings(findings, content_lines, None, al)
@@ -311,7 +311,7 @@ class TestFilterFindings:
         findings = [self._make_finding(line_number=1)]
         content_lines = ["api_key = FAKE_VALUE_here"]
         with patch(
-            "ai_guardian.gitleaks_config.find_project_root",
+            "ai_guardian.scanners.gitleaks.find_project_root",
             return_value=Path("/project"),
         ):
             result = filter_findings(findings, content_lines, None, al)
@@ -322,11 +322,11 @@ class TestFilterFindings:
         findings = [self._make_finding(line_number=1)]
         content_lines = ["secret = real_secret"]
         with patch(
-            "ai_guardian.gitleaks_config.find_project_root",
+            "ai_guardian.scanners.gitleaks.find_project_root",
             return_value=Path("/project"),
         ):
             with patch(
-                "ai_guardian.gitleaks_config._normalize_path",
+                "ai_guardian.scanners.gitleaks._normalize_path",
                 return_value="tests/test_foo.py",
             ):
                 result = filter_findings(
@@ -340,7 +340,7 @@ class TestFilterFindings:
         findings = [self._make_finding(rule_id="generic-api-key", line_number=1)]
         content_lines = ["key = test_token_abc123"]
         with patch(
-            "ai_guardian.gitleaks_config.find_project_root",
+            "ai_guardian.scanners.gitleaks.find_project_root",
             return_value=Path("/project"),
         ):
             result = filter_findings(findings, content_lines, None, al)
@@ -352,7 +352,7 @@ class TestFilterFindings:
         findings = [self._make_finding(rule_id="aws-access-key", line_number=1)]
         content_lines = ["key = test_token_abc123"]
         with patch(
-            "ai_guardian.gitleaks_config.find_project_root",
+            "ai_guardian.scanners.gitleaks.find_project_root",
             return_value=Path("/project"),
         ):
             result = filter_findings(findings, content_lines, None, al)
@@ -364,7 +364,7 @@ class TestFilterFindings:
         findings = [self._make_finding(rule_id="generic-api-key", line_number=1)]
         content_lines = ["key = example_value"]
         with patch(
-            "ai_guardian.gitleaks_config.find_project_root",
+            "ai_guardian.scanners.gitleaks.find_project_root",
             return_value=Path("/project"),
         ):
             result = filter_findings(findings, content_lines, None, al)
@@ -376,11 +376,11 @@ class TestFilterFindings:
         findings = [self._make_finding(rule_id="generic-api-key", line_number=1)]
         content_lines = ["key = real_secret"]
         with patch(
-            "ai_guardian.gitleaks_config.find_project_root",
+            "ai_guardian.scanners.gitleaks.find_project_root",
             return_value=Path("/project"),
         ):
             with patch(
-                "ai_guardian.gitleaks_config._normalize_path",
+                "ai_guardian.scanners.gitleaks._normalize_path",
                 return_value="tests/fixtures/data.py",
             ):
                 result = filter_findings(
@@ -393,7 +393,7 @@ class TestFilterFindings:
         findings = [self._make_finding(line_number=1)]
         content_lines = ["real_secret_value_here"]
         with patch(
-            "ai_guardian.gitleaks_config.find_project_root",
+            "ai_guardian.scanners.gitleaks.find_project_root",
             return_value=Path("/project"),
         ):
             result = filter_findings(findings, content_lines, None, al)
@@ -404,7 +404,7 @@ class TestFilterFindings:
         findings = [self._make_finding(line_number=1)]
         content_lines = ["secret = abc123"]
         with patch(
-            "ai_guardian.gitleaks_config.find_project_root",
+            "ai_guardian.scanners.gitleaks.find_project_root",
             return_value=Path("/project"),
         ):
             result = filter_findings(findings, content_lines, None, al)
@@ -415,7 +415,7 @@ class TestFilterFindings:
         findings = [self._make_finding(line_number=99)]
         content_lines = ["fake_key = abc"]
         with patch(
-            "ai_guardian.gitleaks_config.find_project_root",
+            "ai_guardian.scanners.gitleaks.find_project_root",
             return_value=Path("/project"),
         ):
             result = filter_findings(findings, content_lines, None, al)
@@ -426,7 +426,7 @@ class TestFilterFindings:
         findings = [self._make_finding(line_number=0)]
         content_lines = ["fake_key = abc"]
         with patch(
-            "ai_guardian.gitleaks_config.find_project_root",
+            "ai_guardian.scanners.gitleaks.find_project_root",
             return_value=Path("/project"),
         ):
             result = filter_findings(findings, content_lines, None, al)
@@ -440,7 +440,7 @@ class TestFilterFindings:
         ]
         content_lines = ["fake_key = abc", "real_secret = xyz"]
         with patch(
-            "ai_guardian.gitleaks_config.find_project_root",
+            "ai_guardian.scanners.gitleaks.find_project_root",
             return_value=Path("/project"),
         ):
             result = filter_findings(findings, content_lines, None, al)
@@ -452,7 +452,7 @@ class TestFilterFindings:
         findings = [self._make_finding(line_number=1)]
         content_lines = ["secret = abc"]
         with patch(
-            "ai_guardian.gitleaks_config.find_project_root",
+            "ai_guardian.scanners.gitleaks.find_project_root",
             return_value=Path("/project"),
         ):
             result = filter_findings(findings, content_lines, None, al)
@@ -527,7 +527,7 @@ class TestIntegrationParsing:
         ]
 
         with patch(
-            "ai_guardian.gitleaks_config.find_project_root", return_value=tmp_path
+            "ai_guardian.scanners.gitleaks.find_project_root", return_value=tmp_path
         ):
             result = filter_findings(findings, content_lines, None, al)
 

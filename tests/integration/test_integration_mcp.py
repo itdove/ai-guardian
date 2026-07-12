@@ -11,7 +11,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from ai_guardian.tool_policy import ToolPolicyChecker
+from ai_guardian.tools.policy import ToolPolicyChecker
 import ai_guardian
 from tests.fixtures.mock_mcp_server import create_hook_data
 from tests.fixtures import attack_constants
@@ -242,7 +242,7 @@ class MCPToolPermissionTests(TestCase):
 class MCPSecretScanningTests(TestCase):
     """Test secret scanning in MCP tool inputs (Scenario 2)"""
 
-    @patch("ai_guardian.secret_scanning._load_pattern_server_config")
+    @patch("ai_guardian.scanners.secret_scanning._load_pattern_server_config")
     def test_secret_in_notebook_title(self, mock_pattern_config):
         """
         Verify secrets in MCP tool parameters are blocked.
@@ -268,7 +268,7 @@ class MCPSecretScanningTests(TestCase):
             "Secret Detected" in error_msg
         ), f"Error should mention secret detection: {error_msg}"
 
-    @patch("ai_guardian.secret_scanning._load_pattern_server_config")
+    @patch("ai_guardian.scanners.secret_scanning._load_pattern_server_config")
     def test_secret_in_source_text(self, mock_pattern_config):
         """
         Verify secrets in MCP source content are blocked.
@@ -298,7 +298,7 @@ class MCPSecretScanningTests(TestCase):
             "Secret Detected" in error_msg
         ), f"Error should mention secret: {error_msg}"
 
-    @patch("ai_guardian.secret_scanning._load_pattern_server_config")
+    @patch("ai_guardian.scanners.secret_scanning._load_pattern_server_config")
     def test_multiple_secret_types_detected(self, mock_pattern_config):
         """
         Verify multiple secret types are detected in a single input.
@@ -326,7 +326,7 @@ class MCPSecretScanningTests(TestCase):
         assert has_secrets, "Multiple secrets should be detected"
         assert "Secret Detected" in error_msg, "Error should mention secrets"
 
-    @patch("ai_guardian.secret_scanning._load_pattern_server_config")
+    @patch("ai_guardian.scanners.secret_scanning._load_pattern_server_config")
     def test_legitimate_content_not_blocked(self, mock_pattern_config):
         """
         Verify legitimate content without secrets is allowed.
@@ -478,7 +478,7 @@ class MCPSSRFProtectionTests(TestCase):
         Action: Bash command with curl to AWS metadata endpoint
         Expected: BLOCKED with "SSRF ATTACK DETECTED"
         """
-        from ai_guardian.ssrf_protector import SSRFProtector
+        from ai_guardian.scanners.ssrf import SSRFProtector
 
         # Configure SSRF protector
         config = {"enabled": True}
@@ -504,7 +504,7 @@ class MCPSSRFProtectionTests(TestCase):
         Action: Bash wget command to GCP metadata
         Expected: BLOCKED
         """
-        from ai_guardian.ssrf_protector import SSRFProtector
+        from ai_guardian.scanners.ssrf import SSRFProtector
 
         config = {"enabled": True}
         protector = SSRFProtector(config)
@@ -526,7 +526,7 @@ class MCPSSRFProtectionTests(TestCase):
         Action: Bash commands with RFC1918 private IPs
         Expected: BLOCKED
         """
-        from ai_guardian.ssrf_protector import SSRFProtector
+        from ai_guardian.scanners.ssrf import SSRFProtector
 
         config = {"enabled": True}
         protector = SSRFProtector(config)
@@ -548,7 +548,7 @@ class MCPSSRFProtectionTests(TestCase):
         Action: curl command with legitimate public URL
         Expected: ALLOWED
         """
-        from ai_guardian.ssrf_protector import SSRFProtector
+        from ai_guardian.scanners.ssrf import SSRFProtector
 
         config = {"enabled": True}
         protector = SSRFProtector(config)
@@ -573,7 +573,7 @@ class MCPSSRFProtectionTests(TestCase):
         Note: This documents current behavior. Future enhancement could add
         MCP-specific URL checking.
         """
-        from ai_guardian.ssrf_protector import SSRFProtector
+        from ai_guardian.scanners.ssrf import SSRFProtector
 
         config = {"enabled": True}
         protector = SSRFProtector(config)
@@ -685,7 +685,7 @@ class MCPCombinedProtectionTests(TestCase):
         3. Check for secrets (should block if found)
         4. Check for prompt injection (should block if detected)
         """
-        from ai_guardian.tool_policy import ToolPolicyChecker
+        from ai_guardian.tools.policy import ToolPolicyChecker
 
         # Configure all protections
         config = {
@@ -726,7 +726,7 @@ class MCPCombinedProtectionTests(TestCase):
             "SSRF" in error_msg.upper() or "metadata" in error_msg.lower()
         ), f"Error should mention SSRF: {error_msg}"
 
-    @patch("ai_guardian.secret_scanning._load_pattern_server_config")
+    @patch("ai_guardian.scanners.secret_scanning._load_pattern_server_config")
     def test_defense_in_depth_multiple_triggers(self, mock_pattern_config):
         """
         Verify defense in depth - multiple violations trigger appropriate blocks.
@@ -783,7 +783,7 @@ class MCPServerToolInputFormatTests(TestCase):
         if sys.version_info < (3, 10):
             pytest.skip("MCP SDK requires Python >= 3.10")
 
-        from ai_guardian.mcp_server import create_server
+        from ai_guardian.mcp.server import create_server
 
         with tempfile.NamedTemporaryFile(suffix=".py") as f:
             f.write(b"x = 1")
@@ -804,7 +804,7 @@ class MCPServerToolInputFormatTests(TestCase):
         if sys.version_info < (3, 10):
             pytest.skip("MCP SDK requires Python >= 3.10")
 
-        from ai_guardian.mcp_server import create_server
+        from ai_guardian.mcp.server import create_server
 
         with tempfile.TemporaryDirectory() as tmpdir:
             protected_dir = os.path.join(tmpdir, "secrets")
@@ -821,7 +821,7 @@ class MCPServerToolInputFormatTests(TestCase):
                     "rules": [{"path": protected_dir + "/**", "action": "deny"}],
                 }
             }
-            with patch("ai_guardian.tool_policy.ToolPolicyChecker") as mock_cls:
+            with patch("ai_guardian.tools.policy.ToolPolicyChecker") as mock_cls:
                 mock_checker = MagicMock()
                 mock_checker.check_tool_allowed.return_value = (
                     False,
@@ -846,13 +846,13 @@ class MCPServerToolInputFormatTests(TestCase):
         if sys.version_info < (3, 10):
             pytest.skip("MCP SDK requires Python >= 3.10")
 
-        from ai_guardian.mcp_server import create_server
+        from ai_guardian.mcp.server import create_server
 
         config = {
             "secret_scanning": {"enabled": True},
         }
 
-        with patch("ai_guardian.tool_policy.ToolPolicyChecker") as mock_cls:
+        with patch("ai_guardian.tools.policy.ToolPolicyChecker") as mock_cls:
             mock_checker = MagicMock()
             mock_checker.check_tool_allowed.return_value = (
                 False,
@@ -883,7 +883,7 @@ class MCPServerToolInputFormatTests(TestCase):
         if sys.version_info < (3, 10):
             pytest.skip("MCP SDK requires Python >= 3.10")
 
-        from ai_guardian.mcp_server import create_server
+        from ai_guardian.mcp.server import create_server
 
         server = create_server()
         tool = server._tool_manager._tools["check_command"]

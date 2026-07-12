@@ -3,7 +3,7 @@
 import logging
 
 from ai_guardian.constants import ViolationType
-from ai_guardian.transcript_scanning import _advance_transcript_position
+from ai_guardian.scanners.transcript import _advance_transcript_position
 
 import ai_guardian.hook_processing as _hp
 

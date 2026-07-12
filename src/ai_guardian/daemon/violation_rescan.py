@@ -98,7 +98,7 @@ def _scan_secrets(content, file_path, line_number, sub_type, config):
             "message": f"Violation no longer present at or near line {line_number}",
         }
 
-    import ai_guardian.secret_scanning as _ss
+    import ai_guardian.scanners.secret_scanning as _ss
 
     matched = _ss._last_secret_matched_text or ""
 

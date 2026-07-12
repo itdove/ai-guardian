@@ -8,7 +8,7 @@ from ai_guardian.response_format import detect_ide_type, detect_hook_event, IDET
 from ai_guardian.constants import HookEvent
 from ai_guardian.constants import AUGMENT_TOOL_MAP
 from ai_guardian.hook_processing import extract_tool_result
-from ai_guardian.tool_policy import ToolPolicyChecker
+from ai_guardian.tools.policy import ToolPolicyChecker
 
 
 class TestAugmentIDEDetection:

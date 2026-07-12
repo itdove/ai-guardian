@@ -267,7 +267,7 @@ class TestViolationsEndpoint:
             },
         ]
         with mock.patch(
-            "ai_guardian.violation_logger.ViolationLogger.get_recent_violations",
+            "ai_guardian.violations.logger.ViolationLogger.get_recent_violations",
             return_value=mock_entries,
         ):
             url = f"http://127.0.0.1:{port}/api/violations"
@@ -286,7 +286,7 @@ class TestViolationsEndpoint:
     def test_get_violations_with_type_filter(self, rest_api):
         api, port, state = rest_api
         with mock.patch(
-            "ai_guardian.violation_logger.ViolationLogger.get_recent_violations",
+            "ai_guardian.violations.logger.ViolationLogger.get_recent_violations",
             return_value=[],
         ) as mock_get:
             url = f"http://127.0.0.1:{port}/api/violations?type=pii_detected&limit=10"
@@ -298,7 +298,7 @@ class TestViolationsEndpoint:
     def test_get_violations_empty(self, rest_api):
         api, port, state = rest_api
         with mock.patch(
-            "ai_guardian.violation_logger.ViolationLogger.get_recent_violations",
+            "ai_guardian.violations.logger.ViolationLogger.get_recent_violations",
             return_value=[],
         ):
             url = f"http://127.0.0.1:{port}/api/violations"
@@ -320,7 +320,7 @@ class TestMetricsEndpoint:
         mock_report.cumulative_by_type = {"secret_detected": 30, "pii_detected": 20}
         mock_report.cumulative_since = "2026-01-01T00:00:00Z"
         with mock.patch(
-            "ai_guardian.metrics.MetricsComputer.compute",
+            "ai_guardian.reporting.metrics.MetricsComputer.compute",
             return_value=mock_report,
         ):
             url = f"http://127.0.0.1:{port}/api/metrics"
@@ -344,11 +344,11 @@ class TestMetricsEndpoint:
         mock_report.cumulative_since = ""
         with (
             mock.patch(
-                "ai_guardian.metrics.MetricsComputer.__init__",
+                "ai_guardian.reporting.metrics.MetricsComputer.__init__",
                 return_value=None,
             ) as mock_init,
             mock.patch(
-                "ai_guardian.metrics.MetricsComputer.compute",
+                "ai_guardian.reporting.metrics.MetricsComputer.compute",
                 return_value=mock_report,
             ),
         ):
@@ -573,7 +573,7 @@ class TestRedactEndpoint:
         api, port, state = rest_api
         url = f"http://127.0.0.1:{port}/api/redact"
         with mock.patch(
-            "ai_guardian.sanitizer.sanitize_text",
+            "ai_guardian.scanners.sanitizer.sanitize_text",
             return_value={
                 "sanitized_text": "my token is [REDACTED]",
                 "redactions": [{"type": "secret"}],

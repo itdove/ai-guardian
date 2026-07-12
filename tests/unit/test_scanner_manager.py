@@ -6,7 +6,7 @@ import json
 from unittest import mock
 
 
-from ai_guardian.scanner_manager import ScannerManager
+from ai_guardian.scanners.manager import ScannerManager
 
 
 class TestScannerManager:
@@ -488,7 +488,7 @@ class TestPatternServers:
     def test_print_pattern_servers_empty(self, mock_print):
         """Test human-readable output when no pattern servers configured."""
         with mock.patch(
-            "ai_guardian.scanner_installer.ScannerInstaller.get_pattern_servers",
+            "ai_guardian.scanners.installer.ScannerInstaller.get_pattern_servers",
             return_value={},
         ):
             manager = ScannerManager()

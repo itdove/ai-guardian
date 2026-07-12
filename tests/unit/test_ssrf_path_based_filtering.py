@@ -11,7 +11,7 @@ Tests path-based filtering rules that allow granular control over URL access:
 - Case sensitivity
 """
 
-from ai_guardian.ssrf_protector import SSRFProtector
+from ai_guardian.scanners.ssrf import SSRFProtector
 
 
 class TestPathBasedFilteringBasics:

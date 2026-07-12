@@ -6,7 +6,7 @@ from textual.app import ComposeResult
 from textual.containers import Container, Horizontal, VerticalScroll
 from textual.widgets import Button, Input, Static
 
-from ai_guardian.pattern_lister import test_rule_matches as _test_rule_matches
+from ai_guardian.patterns.lister import test_rule_matches as _test_rule_matches
 
 CATEGORY_ORDER = [
     "secrets",
@@ -150,7 +150,7 @@ class DetectionPatternsContent(Container):
         self._load_rules()
 
     def _load_rules(self):
-        from ai_guardian.pattern_lister import PatternLister
+        from ai_guardian.patterns.lister import PatternLister
 
         self._all_rules = PatternLister().get_all_rules()
         self._render_summary()

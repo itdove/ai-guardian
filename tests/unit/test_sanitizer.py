@@ -11,7 +11,11 @@ from types import SimpleNamespace
 from unittest import mock
 
 
-from ai_guardian.sanitizer import get_sanitize_config, sanitize_text, sanitize_command
+from ai_guardian.scanners.sanitizer import (
+    get_sanitize_config,
+    sanitize_text,
+    sanitize_command,
+)
 
 
 class TestGetSanitizeConfig:
@@ -239,7 +243,7 @@ class TestSanitizeCommand:
     """Test the CLI command handler."""
 
     def test_file_input(self):
-        from ai_guardian.sanitizer import sanitize_command
+        from ai_guardian.scanners.sanitizer import sanitize_command
 
         with tempfile.NamedTemporaryFile(mode="w", suffix=".txt", delete=False) as f:
             f.write("My SSN is 123-45-6789")
@@ -272,7 +276,7 @@ class TestSanitizeCommand:
             os.unlink(tmp_path)
 
     def test_file_not_found(self):
-        from ai_guardian.sanitizer import sanitize_command
+        from ai_guardian.scanners.sanitizer import sanitize_command
         from types import SimpleNamespace
 
         args = SimpleNamespace(
@@ -288,7 +292,7 @@ class TestSanitizeCommand:
         assert exit_code == 1
 
     def test_exit_code_flag_returns_1_on_redactions(self):
-        from ai_guardian.sanitizer import sanitize_command
+        from ai_guardian.scanners.sanitizer import sanitize_command
         from types import SimpleNamespace
 
         with tempfile.NamedTemporaryFile(mode="w", suffix=".txt", delete=False) as f:
@@ -317,7 +321,7 @@ class TestSanitizeCommand:
             os.unlink(tmp_path)
 
     def test_exit_code_flag_returns_0_on_clean(self):
-        from ai_guardian.sanitizer import sanitize_command
+        from ai_guardian.scanners.sanitizer import sanitize_command
         from types import SimpleNamespace
 
         with tempfile.NamedTemporaryFile(mode="w", suffix=".txt", delete=False) as f:
@@ -346,7 +350,7 @@ class TestSanitizeCommand:
             os.unlink(tmp_path)
 
     def test_summary_to_stderr(self):
-        from ai_guardian.sanitizer import sanitize_command
+        from ai_guardian.scanners.sanitizer import sanitize_command
         from types import SimpleNamespace
 
         with tempfile.NamedTemporaryFile(mode="w", suffix=".txt", delete=False) as f:
@@ -459,7 +463,7 @@ class TestSanitizeImageCommand:
         ):
             mock_stdout.buffer = stdout_buf
             # sanitize_text will detect "TOKEN=abc123" as a secret via SecretRedactor
-            with mock.patch("ai_guardian.sanitizer.sanitize_text") as mock_st:
+            with mock.patch("ai_guardian.scanners.sanitizer.sanitize_text") as mock_st:
                 mock_st.return_value = {
                     "sanitized_text": "[REDACTED]",
                     "redactions": [{"type": "secret"}],
@@ -546,7 +550,7 @@ class TestSanitizeImageCommand:
             mock.patch("sys.stderr", io.StringIO()),
         ):
             mock_stdout.buffer = stdout_buf
-            with mock.patch("ai_guardian.sanitizer.sanitize_text") as mock_st:
+            with mock.patch("ai_guardian.scanners.sanitizer.sanitize_text") as mock_st:
                 mock_st.return_value = {
                     "sanitized_text": "[REDACTED]",
                     "redactions": [{"type": "secret"}],
@@ -593,7 +597,7 @@ class TestSanitizeImageCommand:
             mock.patch("sys.stderr", io.StringIO()),
         ):
             mock_stdout.buffer = stdout_buf
-            with mock.patch("ai_guardian.sanitizer.sanitize_text") as mock_st:
+            with mock.patch("ai_guardian.scanners.sanitizer.sanitize_text") as mock_st:
                 mock_st.return_value = {
                     "sanitized_text": "[REDACTED]",
                     "redactions": [{"type": "secret"}],
@@ -695,8 +699,8 @@ class TestSanitizeDirectoryCommand:
         assert code == 0
         assert (output_dir / "data.bin").read_bytes() == binary_data
 
-    @mock.patch("ai_guardian.sanitizer._is_image_file")
-    @mock.patch("ai_guardian.sanitizer._sanitize_image_to_path")
+    @mock.patch("ai_guardian.scanners.sanitizer._is_image_file")
+    @mock.patch("ai_guardian.scanners.sanitizer._sanitize_image_to_path")
     def test_directory_sanitizes_images(self, mock_sanitize_img, mock_is_img, tmp_path):
         """Image files should be processed through image sanitization."""
         input_dir = tmp_path / "src"
@@ -718,8 +722,8 @@ class TestSanitizeDirectoryCommand:
         assert code == 0
         mock_sanitize_img.assert_called_once()
 
-    @mock.patch("ai_guardian.sanitizer._is_image_file")
-    @mock.patch("ai_guardian.sanitizer._sanitize_image_to_path")
+    @mock.patch("ai_guardian.scanners.sanitizer._is_image_file")
+    @mock.patch("ai_guardian.scanners.sanitizer._sanitize_image_to_path")
     def test_directory_passes_redact_strategy(
         self, mock_sanitize_img, mock_is_img, tmp_path
     ):
@@ -746,7 +750,7 @@ class TestSanitizeDirectoryCommand:
         _, kwargs = mock_sanitize_img.call_args
         assert kwargs.get("redact_strategy") == "pixelate"
 
-    @mock.patch("ai_guardian.sanitizer._is_image_file")
+    @mock.patch("ai_guardian.scanners.sanitizer._is_image_file")
     def test_directory_no_images_flag(self, mock_is_img, tmp_path):
         """With --no-images, image files should be copied as-is."""
         input_dir = tmp_path / "src"
@@ -947,7 +951,7 @@ class TestSanitizeDirectoryFunction:
 
     def test_returns_correct_summary_keys(self, tmp_path):
         """Return dict should have all expected keys."""
-        from ai_guardian.sanitizer import sanitize_directory as sd
+        from ai_guardian.scanners.sanitizer import sanitize_directory as sd
 
         input_dir = tmp_path / "src"
         input_dir.mkdir()
@@ -967,7 +971,7 @@ class TestSanitizeDirectoryFunction:
 
     def test_symlinks_skipped(self, tmp_path):
         """Symlinks should be skipped to avoid cycles."""
-        from ai_guardian.sanitizer import sanitize_directory as sd
+        from ai_guardian.scanners.sanitizer import sanitize_directory as sd
 
         input_dir = tmp_path / "src"
         input_dir.mkdir()

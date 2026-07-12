@@ -10,7 +10,7 @@ from ai_guardian.web.components.local_time import (
 )
 
 from ai_guardian.constants import HookEvent
-from ai_guardian.violation_guidance import get_resolution_instructions
+from ai_guardian.violations.guidance import get_resolution_instructions
 from ai_guardian.web.components.header import create_header, create_sidebar
 
 FILTER_TABS = [
@@ -256,7 +256,7 @@ def _format_violation_markdown(v: dict) -> str:
         val = blocked.get(key)
         if val is not None:
             if key == "secret_type":
-                from ai_guardian.secret_type_names import get_secret_type_display
+                from ai_guardian.scanners.secret_types import get_secret_type_display
 
                 val = get_secret_type_display(str(val))
             if isinstance(val, list):
@@ -277,7 +277,7 @@ def _format_violation_markdown(v: dict) -> str:
 
 
 def _load_local_violations(limit, violation_type):
-    from ai_guardian.violation_logger import ViolationLogger
+    from ai_guardian.violations.logger import ViolationLogger
 
     vl = ViolationLogger()
     return vl.get_recent_violations(
@@ -508,7 +508,7 @@ def _render_violation_card(v: dict, service=None, daemon_name: str = ""):
                         ui.label(f"{label}:").classes("text-xs text-grey-6")
                         display = str(val)
                         if key == "secret_type":
-                            from ai_guardian.secret_type_names import (
+                            from ai_guardian.scanners.secret_types import (
                                 get_secret_type_display,
                             )
 

@@ -6,7 +6,7 @@ user's action="log" configuration for directory_rules.
 """
 
 import unittest
-from ai_guardian.tool_policy import ToolPolicyChecker
+from ai_guardian.tools.policy import ToolPolicyChecker
 
 
 class Issue105LogBypassTest(unittest.TestCase):

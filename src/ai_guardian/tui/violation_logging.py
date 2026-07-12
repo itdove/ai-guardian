@@ -263,7 +263,7 @@ class ViolationLoggingContent(SchemaDefaultsMixin, Container):
 
     def _load_statistics(self) -> None:
         try:
-            from ai_guardian.violation_logger import ViolationLogger
+            from ai_guardian.violations.logger import ViolationLogger
 
             logger = ViolationLogger()
             recent = logger.get_recent_violations(limit=1000)

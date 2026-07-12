@@ -276,7 +276,7 @@ class TestSSRFMultiFindings:
     """SSRF protector collects all SSRF URL findings."""
 
     def test_single_ssrf_url(self):
-        from ai_guardian.ssrf_protector import SSRFProtector
+        from ai_guardian.scanners.ssrf import SSRFProtector
 
         protector = SSRFProtector({"enabled": True})
         should_block, msg = protector.check(
@@ -287,7 +287,7 @@ class TestSSRFMultiFindings:
         assert protector.findings[0]["is_immutable"] is True
 
     def test_multiple_ssrf_urls(self):
-        from ai_guardian.ssrf_protector import SSRFProtector
+        from ai_guardian.scanners.ssrf import SSRFProtector
 
         protector = SSRFProtector({"enabled": True})
         cmd = "curl http://169.254.169.254/latest && curl http://10.0.0.1/admin"
@@ -296,7 +296,7 @@ class TestSSRFMultiFindings:
         assert len(protector.findings) >= 2
 
     def test_findings_reset_on_check(self):
-        from ai_guardian.ssrf_protector import SSRFProtector
+        from ai_guardian.scanners.ssrf import SSRFProtector
 
         protector = SSRFProtector({"enabled": True})
         protector.check("Bash", {"command": "curl http://169.254.169.254/"})
@@ -305,7 +305,7 @@ class TestSSRFMultiFindings:
         assert len(protector.findings) == 0
 
     def test_ask_mode_returns_block_for_caller(self):
-        from ai_guardian.ssrf_protector import SSRFProtector
+        from ai_guardian.scanners.ssrf import SSRFProtector
 
         protector = SSRFProtector(
             {

@@ -184,7 +184,7 @@ class SupplyChainContent(Container):
 
     def _load_violations(self) -> None:
         try:
-            from ai_guardian.violation_logger import ViolationLogger
+            from ai_guardian.violations.logger import ViolationLogger
 
             vl = ViolationLogger()
             violations = vl.get_recent_violations(

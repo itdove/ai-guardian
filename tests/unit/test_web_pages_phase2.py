@@ -568,7 +568,7 @@ class TestMCPSecurityAudit:
         assert report is None
 
     def test_run_audit_handles_import_error(self):
-        with mock.patch.dict("sys.modules", {"ai_guardian.mcp_audit": None}):
+        with mock.patch.dict("sys.modules", {"ai_guardian.mcp.audit": None}):
             from ai_guardian.web.pages.mcp_security import _run_audit
 
             servers, report = _run_audit()

@@ -6,7 +6,7 @@ self-protection rules ALWAYS block attempts to modify critical files.
 """
 
 import unittest
-from ai_guardian.tool_policy import ToolPolicyChecker
+from ai_guardian.tools.policy import ToolPolicyChecker
 
 
 class DemonstrationIssue105(unittest.TestCase):

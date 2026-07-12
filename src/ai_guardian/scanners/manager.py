@@ -315,7 +315,7 @@ class ScannerManager:
         print(f"Default: {'Yes' if scanner.is_default else 'No'}")
 
         # Get GitHub repo
-        from ai_guardian.scanner_installer import ScannerInstaller
+        from ai_guardian.scanners.installer import ScannerInstaller
 
         installer = ScannerInstaller()
         repo = installer.get_github_repo(scanner_name)
@@ -345,7 +345,7 @@ class ScannerManager:
             data = {"error": f"{scanner_name} is not installed"}
             return json.dumps(data, indent=2)
 
-        from ai_guardian.scanner_installer import ScannerInstaller
+        from ai_guardian.scanners.installer import ScannerInstaller
 
         installer = ScannerInstaller()
         repo = installer.get_github_repo(scanner_name)
@@ -361,7 +361,7 @@ class ScannerManager:
 
     def print_supported_scanners(self):
         """Print all supported scanners with versions and repos."""
-        from ai_guardian.scanner_installer import ScannerInstaller
+        from ai_guardian.scanners.installer import ScannerInstaller
 
         installer = ScannerInstaller()
         repos = installer.scanner_config.get("repos", {})
@@ -379,7 +379,7 @@ class ScannerManager:
 
     def get_supported_scanners_json(self) -> str:
         """Return all supported scanners as JSON string."""
-        from ai_guardian.scanner_installer import ScannerInstaller
+        from ai_guardian.scanners.installer import ScannerInstaller
 
         installer = ScannerInstaller()
         repos = installer.scanner_config.get("repos", {})
@@ -398,7 +398,7 @@ class ScannerManager:
 
     def get_pattern_servers_json(self) -> str:
         """Return pattern server configuration as JSON string."""
-        from ai_guardian.scanner_installer import ScannerInstaller
+        from ai_guardian.scanners.installer import ScannerInstaller
 
         installer = ScannerInstaller()
         servers = installer.get_pattern_servers()
@@ -414,7 +414,7 @@ class ScannerManager:
 
     def print_pattern_servers(self):
         """Print all supported pattern servers."""
-        from ai_guardian.scanner_installer import ScannerInstaller
+        from ai_guardian.scanners.installer import ScannerInstaller
 
         installer = ScannerInstaller()
         servers = installer.get_pattern_servers()

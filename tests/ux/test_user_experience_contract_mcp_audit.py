@@ -11,7 +11,7 @@ Issue #468
 from unittest.mock import patch
 
 
-from ai_guardian.mcp_audit import (
+from ai_guardian.mcp.audit import (
     MCPAuditor,
     MCPServerInfo,
 )

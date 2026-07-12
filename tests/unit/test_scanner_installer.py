@@ -10,7 +10,7 @@ from unittest import mock
 
 import pytest
 
-from ai_guardian.scanner_installer import ScannerInstaller
+from ai_guardian.scanners.installer import ScannerInstaller
 
 
 class TestScannerConfigLoading:
@@ -104,7 +104,7 @@ class TestScannerInstaller:
         assert not gitleaks_version.startswith("v")
         assert "." in gitleaks_version  # Should be semantic version
 
-    @mock.patch("ai_guardian.scanner_installer.requests")
+    @mock.patch("ai_guardian.scanners.installer.requests")
     def test_get_latest_version_from_github(self, mock_requests):
         """Test fetching latest version from GitHub API."""
         # Mock successful GitHub API response
@@ -119,7 +119,7 @@ class TestScannerInstaller:
         assert version == "8.30.1"  # Should strip 'v' prefix
         mock_requests.get.assert_called_once()
 
-    @mock.patch("ai_guardian.scanner_installer.requests")
+    @mock.patch("ai_guardian.scanners.installer.requests")
     def test_get_latest_version_fallback_to_pinned(self, mock_requests):
         """Test fallback to pinned version when GitHub API fails."""
         # Mock failed GitHub API response
@@ -226,7 +226,7 @@ class TestScannerInstaller:
                 assert not result, f"{scanner} should skip Linux package managers"
 
     @pytest.mark.skipif(sys.platform == "win32", reason="Unix-specific path test")
-    @mock.patch("ai_guardian.scanner_installer.os.access")
+    @mock.patch("ai_guardian.scanners.installer.os.access")
     def test_init_fallback_when_dir_exists_not_writable(self, mock_access):
         """Test fallback to ~/.local/bin when /usr/local/bin exists but is not writable."""
         mock_access.return_value = False
@@ -250,11 +250,13 @@ class TestScannerInstaller:
         with pytest.raises(ValueError, match="Unsupported scanner"):
             installer.install("invalid_scanner")
 
-    @mock.patch("ai_guardian.scanner_installer.ScannerInstaller._get_installed_version")
-    @mock.patch("ai_guardian.scanner_installer.ScannerInstaller.get_latest_version")
-    @mock.patch("ai_guardian.scanner_installer.ScannerInstaller.install_from_download")
     @mock.patch(
-        "ai_guardian.scanner_installer.ScannerInstaller.install_via_package_manager"
+        "ai_guardian.scanners.installer.ScannerInstaller._get_installed_version"
+    )
+    @mock.patch("ai_guardian.scanners.installer.ScannerInstaller.get_latest_version")
+    @mock.patch("ai_guardian.scanners.installer.ScannerInstaller.install_from_download")
+    @mock.patch(
+        "ai_guardian.scanners.installer.ScannerInstaller.install_via_package_manager"
     )
     def test_install_with_explicit_version(
         self, mock_pkg_mgr, mock_download, mock_get_latest, mock_get_installed
@@ -272,12 +274,14 @@ class TestScannerInstaller:
         mock_download.assert_called_once_with("gitleaks", "8.30.1")
         assert success
 
-    @mock.patch("ai_guardian.scanner_installer.ScannerInstaller._get_installed_version")
-    @mock.patch("ai_guardian.scanner_installer.ScannerInstaller.get_latest_version")
-    @mock.patch("ai_guardian.scanner_installer.ScannerInstaller.get_pinned_version")
-    @mock.patch("ai_guardian.scanner_installer.ScannerInstaller.install_from_download")
     @mock.patch(
-        "ai_guardian.scanner_installer.ScannerInstaller.install_via_package_manager"
+        "ai_guardian.scanners.installer.ScannerInstaller._get_installed_version"
+    )
+    @mock.patch("ai_guardian.scanners.installer.ScannerInstaller.get_latest_version")
+    @mock.patch("ai_guardian.scanners.installer.ScannerInstaller.get_pinned_version")
+    @mock.patch("ai_guardian.scanners.installer.ScannerInstaller.install_from_download")
+    @mock.patch(
+        "ai_guardian.scanners.installer.ScannerInstaller.install_via_package_manager"
     )
     def test_install_with_use_pinned(
         self,
@@ -322,7 +326,7 @@ class TestScannerInstaller:
             installer = ScannerInstaller(install_dir=Path(temp_dir))
             assert not installer.verify_installation("gitleaks")
 
-    @mock.patch("ai_guardian.scanner_installer.requests")
+    @mock.patch("ai_guardian.scanners.installer.requests")
     def test_install_from_download_network_error(self, mock_requests):
         """Test download failure handling."""
         mock_requests.get.side_effect = Exception("Network error")
@@ -344,7 +348,7 @@ class TestScannerInstaller:
             assert installer.install_dir == install_dir
 
     @pytest.mark.skipif(sys.platform == "win32", reason="Unix-specific path test")
-    @mock.patch("ai_guardian.scanner_installer.os.access", return_value=False)
+    @mock.patch("ai_guardian.scanners.installer.os.access", return_value=False)
     def test_init_falls_back_to_local_bin(self, mock_access):
         """Test fallback to ~/.local/bin when /usr/local/bin is not writable."""
         original_mkdir = Path.mkdir
@@ -476,8 +480,10 @@ class TestVersionChecking:
         assert installer._compare_versions("9.0.0", "8.30.1") == 1
         assert installer._compare_versions("8.30.1", "8.30.0") == 1
 
-    @mock.patch("ai_guardian.scanner_installer.ScannerInstaller._get_installed_version")
-    @mock.patch("ai_guardian.scanner_installer.ScannerInstaller.get_latest_version")
+    @mock.patch(
+        "ai_guardian.scanners.installer.ScannerInstaller._get_installed_version"
+    )
+    @mock.patch("ai_guardian.scanners.installer.ScannerInstaller.get_latest_version")
     @mock.patch("shutil.which")
     def test_install_skip_when_up_to_date(
         self, mock_which, mock_get_latest, mock_get_installed
@@ -494,11 +500,13 @@ class TestVersionChecking:
         assert success
         mock_get_installed.assert_called_once_with("gitleaks")
 
-    @mock.patch("ai_guardian.scanner_installer.ScannerInstaller._get_installed_version")
-    @mock.patch("ai_guardian.scanner_installer.ScannerInstaller.get_latest_version")
-    @mock.patch("ai_guardian.scanner_installer.ScannerInstaller.install_from_download")
     @mock.patch(
-        "ai_guardian.scanner_installer.ScannerInstaller.install_via_package_manager"
+        "ai_guardian.scanners.installer.ScannerInstaller._get_installed_version"
+    )
+    @mock.patch("ai_guardian.scanners.installer.ScannerInstaller.get_latest_version")
+    @mock.patch("ai_guardian.scanners.installer.ScannerInstaller.install_from_download")
+    @mock.patch(
+        "ai_guardian.scanners.installer.ScannerInstaller.install_via_package_manager"
     )
     @mock.patch("shutil.which")
     def test_install_upgrade_when_newer_available(
@@ -523,8 +531,10 @@ class TestVersionChecking:
         assert success
         mock_download.assert_called_once_with("gitleaks", "8.31.0")
 
-    @mock.patch("ai_guardian.scanner_installer.ScannerInstaller._get_installed_version")
-    @mock.patch("ai_guardian.scanner_installer.ScannerInstaller.get_latest_version")
+    @mock.patch(
+        "ai_guardian.scanners.installer.ScannerInstaller._get_installed_version"
+    )
+    @mock.patch("ai_guardian.scanners.installer.ScannerInstaller.get_latest_version")
     @mock.patch("shutil.which")
     def test_install_no_auto_downgrade(
         self, mock_which, mock_get_latest, mock_get_installed
@@ -540,10 +550,12 @@ class TestVersionChecking:
         # Should skip downgrade and return True
         assert success
 
-    @mock.patch("ai_guardian.scanner_installer.ScannerInstaller._get_installed_version")
-    @mock.patch("ai_guardian.scanner_installer.ScannerInstaller.install_from_download")
     @mock.patch(
-        "ai_guardian.scanner_installer.ScannerInstaller.install_via_package_manager"
+        "ai_guardian.scanners.installer.ScannerInstaller._get_installed_version"
+    )
+    @mock.patch("ai_guardian.scanners.installer.ScannerInstaller.install_from_download")
+    @mock.patch(
+        "ai_guardian.scanners.installer.ScannerInstaller.install_via_package_manager"
     )
     @mock.patch("shutil.which")
     def test_install_explicit_downgrade_allowed(
@@ -562,10 +574,12 @@ class TestVersionChecking:
         assert success
         mock_download.assert_called_once_with("gitleaks", "8.30.1")
 
-    @mock.patch("ai_guardian.scanner_installer.ScannerInstaller._get_installed_version")
-    @mock.patch("ai_guardian.scanner_installer.ScannerInstaller.install_from_download")
     @mock.patch(
-        "ai_guardian.scanner_installer.ScannerInstaller.install_via_package_manager"
+        "ai_guardian.scanners.installer.ScannerInstaller._get_installed_version"
+    )
+    @mock.patch("ai_guardian.scanners.installer.ScannerInstaller.install_from_download")
+    @mock.patch(
+        "ai_guardian.scanners.installer.ScannerInstaller.install_via_package_manager"
     )
     @mock.patch("shutil.which")
     def test_install_explicit_reinstall_allowed(
@@ -584,11 +598,13 @@ class TestVersionChecking:
         assert success
         mock_download.assert_called_once_with("gitleaks", "8.30.1")
 
-    @mock.patch("ai_guardian.scanner_installer.ScannerInstaller._get_installed_version")
-    @mock.patch("ai_guardian.scanner_installer.ScannerInstaller.get_latest_version")
-    @mock.patch("ai_guardian.scanner_installer.ScannerInstaller.install_from_download")
     @mock.patch(
-        "ai_guardian.scanner_installer.ScannerInstaller.install_via_package_manager"
+        "ai_guardian.scanners.installer.ScannerInstaller._get_installed_version"
+    )
+    @mock.patch("ai_guardian.scanners.installer.ScannerInstaller.get_latest_version")
+    @mock.patch("ai_guardian.scanners.installer.ScannerInstaller.install_from_download")
+    @mock.patch(
+        "ai_guardian.scanners.installer.ScannerInstaller.install_via_package_manager"
     )
     def test_install_when_not_installed(
         self, mock_pkg_mgr, mock_download, mock_get_latest, mock_get_installed
@@ -606,10 +622,12 @@ class TestVersionChecking:
         assert success
         mock_download.assert_called_once_with("gitleaks", "8.30.1")
 
-    @mock.patch("ai_guardian.scanner_installer.ScannerInstaller._get_installed_version")
-    @mock.patch("ai_guardian.scanner_installer.ScannerInstaller.install_from_download")
     @mock.patch(
-        "ai_guardian.scanner_installer.ScannerInstaller.install_via_package_manager"
+        "ai_guardian.scanners.installer.ScannerInstaller._get_installed_version"
+    )
+    @mock.patch("ai_guardian.scanners.installer.ScannerInstaller.install_from_download")
+    @mock.patch(
+        "ai_guardian.scanners.installer.ScannerInstaller.install_via_package_manager"
     )
     def test_install_upgrade_skips_package_manager(
         self, mock_pkg_mgr, mock_download, mock_get_installed
@@ -630,11 +648,13 @@ class TestVersionChecking:
         mock_pkg_mgr.assert_not_called()
         mock_download.assert_called_once_with("gitleaks", "8.30.1")
 
-    @mock.patch("ai_guardian.scanner_installer.ScannerInstaller._get_installed_version")
-    @mock.patch("ai_guardian.scanner_installer.ScannerInstaller.get_pinned_version")
-    @mock.patch("ai_guardian.scanner_installer.ScannerInstaller.install_from_download")
     @mock.patch(
-        "ai_guardian.scanner_installer.ScannerInstaller.install_via_package_manager"
+        "ai_guardian.scanners.installer.ScannerInstaller._get_installed_version"
+    )
+    @mock.patch("ai_guardian.scanners.installer.ScannerInstaller.get_pinned_version")
+    @mock.patch("ai_guardian.scanners.installer.ScannerInstaller.install_from_download")
+    @mock.patch(
+        "ai_guardian.scanners.installer.ScannerInstaller.install_via_package_manager"
     )
     def test_install_upgrade_pinned_skips_package_manager(
         self, mock_pkg_mgr, mock_download, mock_get_pinned, mock_get_installed
@@ -657,10 +677,12 @@ class TestVersionChecking:
         mock_get_pinned.assert_called_once()
         mock_download.assert_called_once_with("gitleaks", "8.30.1")
 
-    @mock.patch("ai_guardian.scanner_installer.ScannerInstaller._get_installed_version")
-    @mock.patch("ai_guardian.scanner_installer.ScannerInstaller.install_from_download")
     @mock.patch(
-        "ai_guardian.scanner_installer.ScannerInstaller.install_via_package_manager"
+        "ai_guardian.scanners.installer.ScannerInstaller._get_installed_version"
+    )
+    @mock.patch("ai_guardian.scanners.installer.ScannerInstaller.install_from_download")
+    @mock.patch(
+        "ai_guardian.scanners.installer.ScannerInstaller.install_via_package_manager"
     )
     def test_install_reinstall_skips_package_manager(
         self, mock_pkg_mgr, mock_download, mock_get_installed
@@ -685,7 +707,7 @@ class TestVersionChecking:
 class TestChecksumVerification:
     """Tests for SHA-256 checksum verification."""
 
-    @mock.patch("ai_guardian.scanner_installer.requests")
+    @mock.patch("ai_guardian.scanners.installer.requests")
     def test_download_checksums_gitleaks(self, mock_requests):
         """Test downloading checksums file for gitleaks."""
         mock_response = mock.Mock()
@@ -707,7 +729,7 @@ class TestChecksumVerification:
         call_args = mock_requests.get.call_args
         assert "gitleaks_8.30.1_checksums.txt" in call_args[0][0]
 
-    @mock.patch("ai_guardian.scanner_installer.requests")
+    @mock.patch("ai_guardian.scanners.installer.requests")
     def test_download_checksums_betterleaks(self, mock_requests):
         """Test downloading checksums file for betterleaks (special naming)."""
         mock_response = mock.Mock()
@@ -730,7 +752,7 @@ class TestChecksumVerification:
         assert "checksums.txt" in call_args[0][0]
         assert "betterleaks_1.1.2_checksums.txt" not in call_args[0][0]
 
-    @mock.patch("ai_guardian.scanner_installer.requests")
+    @mock.patch("ai_guardian.scanners.installer.requests")
     def test_download_checksums_leaktk(self, mock_requests):
         """Test downloading checksums file for leaktk."""
         mock_response = mock.Mock()
@@ -750,7 +772,7 @@ class TestChecksumVerification:
         call_args = mock_requests.get.call_args
         assert "leaktk_0.2.10_checksums.txt" in call_args[0][0]
 
-    @mock.patch("ai_guardian.scanner_installer.requests")
+    @mock.patch("ai_guardian.scanners.installer.requests")
     def test_download_checksums_network_failure(self, mock_requests):
         """Test graceful handling when checksums file download fails."""
         mock_requests.get.side_effect = Exception("Network error")
@@ -763,7 +785,7 @@ class TestChecksumVerification:
         # Should return None on failure, not raise
         assert content is None
 
-    @mock.patch("ai_guardian.scanner_installer.requests")
+    @mock.patch("ai_guardian.scanners.installer.requests")
     def test_download_checksums_http_404(self, mock_requests):
         """Test handling of 404 response for checksums file."""
         mock_response = mock.Mock()
@@ -778,7 +800,7 @@ class TestChecksumVerification:
         # Should return None on HTTP error
         assert content is None
 
-    @mock.patch("ai_guardian.scanner_installer.requests")
+    @mock.patch("ai_guardian.scanners.installer.requests")
     def test_download_checksums_empty_content(self, mock_requests):
         """Test handling of empty checksums file."""
         mock_response = mock.Mock()
@@ -794,7 +816,7 @@ class TestChecksumVerification:
         # Should return None for empty content
         assert content is None
 
-    @mock.patch("ai_guardian.scanner_installer.requests")
+    @mock.patch("ai_guardian.scanners.installer.requests")
     def test_download_checksums_malformed_content(self, mock_requests):
         """Test handling of malformed checksums file (too short)."""
         mock_response = mock.Mock()
@@ -987,7 +1009,7 @@ class TestVersionValidation:
             installer = ScannerInstaller(install_dir=Path(temp_dir))
 
             # Mock requests to avoid actual download
-            with mock.patch("ai_guardian.scanner_installer.requests"):
+            with mock.patch("ai_guardian.scanners.installer.requests"):
                 try:
                     # This will fail on actual download but should pass version validation
                     installer.install_from_download("gitleaks", "8.30.1")
@@ -1001,7 +1023,7 @@ class TestLeaktkNamingConventions:
 
     @mock.patch("platform.system")
     @mock.patch("platform.machine")
-    @mock.patch("ai_guardian.scanner_installer.requests")
+    @mock.patch("ai_guardian.scanners.installer.requests")
     def test_leaktk_filename_format(self, mock_requests, mock_machine, mock_system):
         """Test that leaktk uses hyphens and x86_64 instead of underscores and x64."""
         mock_system.return_value = "Darwin"
@@ -1061,7 +1083,7 @@ class TestLeaktkNamingConventions:
 class TestWindowsSupport:
     """Tests for Windows-specific install path and binary name handling."""
 
-    @mock.patch("ai_guardian.scanner_installer.sys")
+    @mock.patch("ai_guardian.scanners.installer.sys")
     def test_init_windows_default_install_dir_with_localappdata(self, mock_sys):
         """Test Windows default uses %LOCALAPPDATA%\\ai-guardian\\bin."""
         mock_sys.platform = "win32"
@@ -1075,7 +1097,7 @@ class TestWindowsSupport:
                 assert installer.install_dir == expected
                 assert expected.exists()
 
-    @mock.patch("ai_guardian.scanner_installer.sys")
+    @mock.patch("ai_guardian.scanners.installer.sys")
     def test_init_windows_fallback_without_localappdata(self, mock_sys):
         """Test Windows fallback to ~/AppData/Local/ai-guardian/bin when env var missing."""
         mock_sys.platform = "win32"
@@ -1089,7 +1111,7 @@ class TestWindowsSupport:
                 expected = Path.home() / "AppData" / "Local" / "ai-guardian" / "bin"
                 assert installer.install_dir == expected
 
-    @mock.patch("ai_guardian.scanner_installer.sys")
+    @mock.patch("ai_guardian.scanners.installer.sys")
     def test_get_binary_name_windows(self, mock_sys):
         """Test _get_binary_name returns .exe on Windows."""
         mock_sys.platform = "win32"
@@ -1100,7 +1122,7 @@ class TestWindowsSupport:
             assert installer._get_binary_name("gitleaks") == "gitleaks.exe"
             assert installer._get_binary_name("betterleaks") == "betterleaks.exe"
 
-    @mock.patch("ai_guardian.scanner_installer.sys")
+    @mock.patch("ai_guardian.scanners.installer.sys")
     def test_get_binary_name_unix(self, mock_sys):
         """Test _get_binary_name returns bare name on Unix."""
         mock_sys.platform = "linux"
@@ -1109,7 +1131,7 @@ class TestWindowsSupport:
         installer = ScannerInstaller()
         assert installer._get_binary_name("gitleaks") == "gitleaks"
 
-    @mock.patch("ai_guardian.scanner_installer.sys")
+    @mock.patch("ai_guardian.scanners.installer.sys")
     @mock.patch("shutil.which", return_value=None)
     def test_verify_installation_checks_exe_on_windows(self, mock_which, mock_sys):
         """Test verify_installation checks for .exe in install_dir on Windows."""
@@ -1135,7 +1157,7 @@ class TestWindowsSupport:
                 called_path = mock_run.call_args[0][0][0]
                 assert called_path.endswith("gitleaks.exe")
 
-    @mock.patch("ai_guardian.scanner_installer.sys")
+    @mock.patch("ai_guardian.scanners.installer.sys")
     @mock.patch("shutil.which", return_value=None)
     def test_get_installed_version_checks_exe_on_windows(self, mock_which, mock_sys):
         """Test _get_installed_version checks for .exe in install_dir on Windows."""

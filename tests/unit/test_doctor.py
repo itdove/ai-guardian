@@ -210,7 +210,7 @@ class TestCheckScanners:
         mock_manager.list_installed.return_value = []
         mock_cls = mock.MagicMock(return_value=mock_manager)
 
-        with mock.patch("ai_guardian.scanner_manager.ScannerManager", mock_cls):
+        with mock.patch("ai_guardian.scanners.manager.ScannerManager", mock_cls):
             doctor = Doctor()
             result = doctor.check_scanners()
         assert result.status == CheckStatus.FAIL
@@ -224,7 +224,7 @@ class TestCheckScanners:
         mock_manager.list_installed.return_value = [mock_scanner]
         mock_cls = mock.MagicMock(return_value=mock_manager)
 
-        with mock.patch("ai_guardian.scanner_manager.ScannerManager", mock_cls):
+        with mock.patch("ai_guardian.scanners.manager.ScannerManager", mock_cls):
             doctor = Doctor()
             result = doctor.check_scanners()
         assert result.status == CheckStatus.PASS

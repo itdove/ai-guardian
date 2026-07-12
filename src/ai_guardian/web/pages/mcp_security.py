@@ -12,7 +12,7 @@ logger = logging.getLogger(__name__)
 def _run_audit():
     """Run MCP security audit, returning (servers, report) or ([], None)."""
     try:
-        from ai_guardian.mcp_audit import MCPAuditor
+        from ai_guardian.mcp.audit import MCPAuditor
 
         auditor = MCPAuditor()
         servers = auditor.discover_servers()

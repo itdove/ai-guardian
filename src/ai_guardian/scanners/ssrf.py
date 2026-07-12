@@ -339,7 +339,7 @@ class SSRFProtector:
             Dict with 'blocked_ip_ranges' and 'blocked_domains' lists
         """
         try:
-            from ai_guardian.pattern_loader import SSRFPatternLoader
+            from ai_guardian.patterns.loader import SSRFPatternLoader
 
             loader = SSRFPatternLoader()
             merged_patterns = loader.load_patterns(

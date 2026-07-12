@@ -320,7 +320,7 @@ def _local_scan_with_progress(
     """Local scan with progress updates and cancellation support."""
     import time
     from pathlib import Path as P
-    from ai_guardian.scanner import FileScanner
+    from ai_guardian.scanners.file_scanner import FileScanner
     from ai_guardian.tui.pattern_editor import config_section_for_rule_id
     from ai_guardian.web.config_helpers import load_web_config
 

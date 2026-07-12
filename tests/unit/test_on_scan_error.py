@@ -301,9 +301,9 @@ class TestOnScanErrorPromptInjection(TestCase):
 class TestOnScanErrorSecretScanning(TestCase):
     """Tests for on_scan_error behavior in secret scanning."""
 
-    @patch("ai_guardian.secret_scanning._get_on_scan_error_action")
-    @patch("ai_guardian.secret_scanning._load_secret_scanning_config")
-    @patch("ai_guardian.secret_scanning._load_pattern_server_config")
+    @patch("ai_guardian.scanners.secret_scanning._get_on_scan_error_action")
+    @patch("ai_guardian.scanners.secret_scanning._load_secret_scanning_config")
+    @patch("ai_guardian.scanners.secret_scanning._load_pattern_server_config")
     def test_scanner_unavailable_allow(self, mock_pattern, mock_secret, mock_on_error):
         """Scanner unavailable with on_scan_error=allow should fail-open."""
         mock_on_error.return_value = "allow"
@@ -311,9 +311,9 @@ class TestOnScanErrorSecretScanning(TestCase):
         mock_secret.return_value = ({"enabled": True, "engines": ["gitleaks"]}, None)
 
         with (
-            patch("ai_guardian.secret_scanning.HAS_SCANNER_ENGINE", True),
+            patch("ai_guardian.scanners.secret_scanning.HAS_SCANNER_ENGINE", True),
             patch(
-                "ai_guardian.secret_scanning.select_engine",
+                "ai_guardian.scanners.secret_scanning.select_engine",
                 side_effect=RuntimeError("No scanner"),
             ),
         ):
@@ -322,9 +322,9 @@ class TestOnScanErrorSecretScanning(TestCase):
             )
             self.assertFalse(has_secrets, "Should fail-open when on_scan_error=allow")
 
-    @patch("ai_guardian.secret_scanning._get_on_scan_error_action")
-    @patch("ai_guardian.secret_scanning._load_secret_scanning_config")
-    @patch("ai_guardian.secret_scanning._load_pattern_server_config")
+    @patch("ai_guardian.scanners.secret_scanning._get_on_scan_error_action")
+    @patch("ai_guardian.scanners.secret_scanning._load_secret_scanning_config")
+    @patch("ai_guardian.scanners.secret_scanning._load_pattern_server_config")
     def test_scanner_unavailable_block(self, mock_pattern, mock_secret, mock_on_error):
         """Scanner unavailable with on_scan_error=block should fail-closed."""
         mock_on_error.return_value = "block"
@@ -332,9 +332,9 @@ class TestOnScanErrorSecretScanning(TestCase):
         mock_secret.return_value = ({"enabled": True, "engines": ["gitleaks"]}, None)
 
         with (
-            patch("ai_guardian.secret_scanning.HAS_SCANNER_ENGINE", True),
+            patch("ai_guardian.scanners.secret_scanning.HAS_SCANNER_ENGINE", True),
             patch(
-                "ai_guardian.secret_scanning.select_engine",
+                "ai_guardian.scanners.secret_scanning.select_engine",
                 side_effect=RuntimeError("No scanner"),
             ),
         ):
@@ -600,7 +600,7 @@ class TestOnScanErrorPiiScanning(TestCase):
 
         with patch("sys.stdin", StringIO(json.dumps(hook_data))):
             with patch(
-                "ai_guardian.violation_logger.ViolationLogger.log_violation"
+                "ai_guardian.violations.logger.ViolationLogger.log_violation"
             ) as mock_log:
                 result = ai_guardian.process_hook_input()
                 # Should block (scan error with on_scan_error=block)
@@ -651,7 +651,7 @@ class TestOnScanErrorPiiScanning(TestCase):
 
         with patch("sys.stdin", StringIO(json.dumps(hook_data))):
             with patch(
-                "ai_guardian.violation_logger.ViolationLogger.log_violation"
+                "ai_guardian.violations.logger.ViolationLogger.log_violation"
             ) as mock_log:
                 result = ai_guardian.process_hook_input()
                 self.assertFalse(
@@ -710,7 +710,7 @@ class TestOnScanErrorPiiScanning(TestCase):
 
         with patch("sys.stdin", StringIO(json.dumps(hook_data))):
             with patch(
-                "ai_guardian.violation_logger.ViolationLogger.log_violation"
+                "ai_guardian.violations.logger.ViolationLogger.log_violation"
             ) as mock_log:
                 result = ai_guardian.process_hook_input()
                 self.assertTrue(

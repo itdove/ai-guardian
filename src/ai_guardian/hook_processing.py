@@ -97,28 +97,28 @@ from ai_guardian.response_format import (
     IDEType,
 )
 from ai_guardian.hook_adapters import detect_adapter
-from ai_guardian.latency_logger import _CheckTimer
+from ai_guardian.reporting.latency import _CheckTimer
 
 
 from ai_guardian.hook_events.utils import _format_response  # noqa: F401, E402
 
 # Conditional imports for optional features
 try:
-    from ai_guardian import gitleaks_config as _gitleaks_cfg
+    from ai_guardian.scanners import gitleaks as _gitleaks_cfg
 
     HAS_GITLEAKS_CONFIG = True
 except ImportError:
     HAS_GITLEAKS_CONFIG = False
 
 try:
-    from ai_guardian.tool_policy import ToolPolicyChecker
+    from ai_guardian.tools.policy import ToolPolicyChecker
 
     HAS_TOOL_POLICY = True
 except ImportError:
     HAS_TOOL_POLICY = False
 
 try:
-    from ai_guardian.pattern_server import PatternServerClient
+    from ai_guardian.patterns.server import PatternServerClient
 
     HAS_PATTERN_SERVER = True
 except ImportError:
@@ -180,7 +180,7 @@ except ImportError:
     HAS_EXFIL_DETECTION = False
 
 try:
-    from ai_guardian.violation_logger import ViolationLogger
+    from ai_guardian.violations.logger import ViolationLogger
 
     HAS_VIOLATION_LOGGER = True
 except ImportError:
@@ -233,7 +233,7 @@ except ImportError:
 
 
 # --- Re-exports from secret_scanning.py for backward compatibility ---
-from ai_guardian.secret_scanning import (  # noqa: F401
+from ai_guardian.scanners.secret_scanning import (  # noqa: F401
     DEFAULT_ENGINES,
     _AUTH_ERROR_KEYWORDS,
     _NETWORK_ERROR_KEYWORDS,
@@ -251,10 +251,10 @@ from ai_guardian.secret_scanning import (  # noqa: F401
     _extract_matched_text_for_ask,
     check_secrets_with_gitleaks,
 )
-import ai_guardian.secret_scanning as _secret_scanning_mod
+import ai_guardian.scanners.secret_scanning as _secret_scanning_mod
 
 # --- Re-exports from transcript_scanning.py for backward compatibility ---
-from ai_guardian.transcript_scanning import (  # noqa: F401
+from ai_guardian.scanners.transcript import (  # noqa: F401
     _get_transcript_path,
     _load_transcript_positions,
     _save_transcript_positions,
@@ -328,7 +328,7 @@ logger = logging.getLogger(__name__)
 
 def _is_latency_enabled():
     try:
-        from ai_guardian.latency_logger import LatencyLogger
+        from ai_guardian.reporting.latency import LatencyLogger
 
         return LatencyLogger()._is_enabled()
     except Exception:
@@ -339,7 +339,7 @@ def _finalize_latency(timer, hook_event, tool_name):
     if timer is None or not timer._enabled:
         return
     try:
-        from ai_guardian.latency_logger import LatencyLogger
+        from ai_guardian.reporting.latency import LatencyLogger
 
         entry = {
             "timestamp": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),

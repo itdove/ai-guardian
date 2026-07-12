@@ -11,7 +11,7 @@ Security model:
 """
 
 import unittest
-from ai_guardian.tool_policy import ToolPolicyChecker
+from ai_guardian.tools.policy import ToolPolicyChecker
 
 
 class ContributorWorkflowTest(unittest.TestCase):

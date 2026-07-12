@@ -1,11 +1,11 @@
-"""Tests for ai_guardian.diff_provider module."""
+"""Tests for ai_guardian.tools.diff_provider module."""
 
 import subprocess
 from unittest import mock
 
 import pytest
 
-from ai_guardian.diff_provider import (
+from ai_guardian.tools.diff_provider import (
     DiffProviderError,
     detect_platform,
     extract_file_contents_from_diff,
@@ -257,47 +257,47 @@ class TestFilterFindingsByChangedLines:
 
 class TestDetectPlatform:
 
-    @mock.patch("ai_guardian.diff_provider.subprocess.run")
+    @mock.patch("ai_guardian.tools.diff_provider.subprocess.run")
     def test_github_detected(self, mock_run):
         mock_run.return_value = mock.Mock(
             returncode=0, stdout="git@github.com:user/repo.git\n"
         )
         assert detect_platform() == "github"
 
-    @mock.patch("ai_guardian.diff_provider.subprocess.run")
+    @mock.patch("ai_guardian.tools.diff_provider.subprocess.run")
     def test_github_https(self, mock_run):
         mock_run.return_value = mock.Mock(
             returncode=0, stdout="https://github.com/user/repo.git\n"
         )
         assert detect_platform() == "github"
 
-    @mock.patch("ai_guardian.diff_provider.subprocess.run")
+    @mock.patch("ai_guardian.tools.diff_provider.subprocess.run")
     def test_gitlab_detected(self, mock_run):
         mock_run.return_value = mock.Mock(
             returncode=0, stdout="git@gitlab.com:user/repo.git\n"
         )
         assert detect_platform() == "gitlab"
 
-    @mock.patch("ai_guardian.diff_provider.subprocess.run")
+    @mock.patch("ai_guardian.tools.diff_provider.subprocess.run")
     def test_self_hosted_gitlab(self, mock_run):
         mock_run.return_value = mock.Mock(
             returncode=0, stdout="https://gitlab.example.com/group/repo.git\n"
         )
         assert detect_platform() == "gitlab"
 
-    @mock.patch("ai_guardian.diff_provider.subprocess.run")
+    @mock.patch("ai_guardian.tools.diff_provider.subprocess.run")
     def test_unknown_platform(self, mock_run):
         mock_run.return_value = mock.Mock(
             returncode=0, stdout="https://bitbucket.org/user/repo.git\n"
         )
         assert detect_platform() == "unknown"
 
-    @mock.patch("ai_guardian.diff_provider.subprocess.run")
+    @mock.patch("ai_guardian.tools.diff_provider.subprocess.run")
     def test_git_error(self, mock_run):
         mock_run.return_value = mock.Mock(returncode=1, stdout="", stderr="error")
         assert detect_platform() == "unknown"
 
-    @mock.patch("ai_guardian.diff_provider.subprocess.run")
+    @mock.patch("ai_guardian.tools.diff_provider.subprocess.run")
     def test_git_not_installed(self, mock_run):
         mock_run.side_effect = FileNotFoundError()
         assert detect_platform() == "unknown"
@@ -305,15 +305,15 @@ class TestDetectPlatform:
 
 class TestGetMergeBase:
 
-    @mock.patch("ai_guardian.diff_provider.subprocess.run")
+    @mock.patch("ai_guardian.tools.diff_provider.subprocess.run")
     def test_explicit_base(self, mock_run):
         mock_run.return_value = mock.Mock(returncode=0, stdout="abc123\n")
         result = get_merge_base(base_ref="origin/main")
         assert result == "abc123"
         mock_run.assert_called_once()
 
-    @mock.patch("ai_guardian.diff_provider._detect_default_branch")
-    @mock.patch("ai_guardian.diff_provider.subprocess.run")
+    @mock.patch("ai_guardian.tools.diff_provider._detect_default_branch")
+    @mock.patch("ai_guardian.tools.diff_provider.subprocess.run")
     def test_auto_detect_base(self, mock_run, mock_detect):
         mock_detect.return_value = "origin/main"
         mock_run.return_value = mock.Mock(returncode=0, stdout="def456\n")
@@ -321,7 +321,7 @@ class TestGetMergeBase:
         assert result == "def456"
         mock_detect.assert_called_once()
 
-    @mock.patch("ai_guardian.diff_provider.subprocess.run")
+    @mock.patch("ai_guardian.tools.diff_provider.subprocess.run")
     def test_merge_base_fails(self, mock_run):
         mock_run.return_value = mock.Mock(
             returncode=1, stdout="", stderr="fatal: not a commit"
@@ -332,7 +332,7 @@ class TestGetMergeBase:
 
 class TestGetPRDiff:
 
-    @mock.patch("ai_guardian.diff_provider.subprocess.run")
+    @mock.patch("ai_guardian.tools.diff_provider.subprocess.run")
     def test_success_with_number(self, mock_run):
         mock_run.return_value = mock.Mock(
             returncode=0, stdout="diff content here\n", stderr=""
@@ -342,7 +342,7 @@ class TestGetPRDiff:
         cmd = mock_run.call_args[0][0]
         assert cmd == ["gh", "pr", "diff", "123"]
 
-    @mock.patch("ai_guardian.diff_provider.subprocess.run")
+    @mock.patch("ai_guardian.tools.diff_provider.subprocess.run")
     def test_success_with_url(self, mock_run):
         mock_run.return_value = mock.Mock(
             returncode=0, stdout="diff from url\n", stderr=""
@@ -353,19 +353,19 @@ class TestGetPRDiff:
         cmd = mock_run.call_args[0][0]
         assert cmd == ["gh", "pr", "diff", url]
 
-    @mock.patch("ai_guardian.diff_provider.subprocess.run")
+    @mock.patch("ai_guardian.tools.diff_provider.subprocess.run")
     def test_gh_not_installed(self, mock_run):
         mock_run.side_effect = FileNotFoundError()
         with pytest.raises(DiffProviderError, match="gh CLI not found"):
             get_pr_diff("123")
 
-    @mock.patch("ai_guardian.diff_provider.subprocess.run")
+    @mock.patch("ai_guardian.tools.diff_provider.subprocess.run")
     def test_gh_error(self, mock_run):
         mock_run.return_value = mock.Mock(returncode=1, stdout="", stderr="not found")
         with pytest.raises(DiffProviderError, match="gh pr diff failed"):
             get_pr_diff("999")
 
-    @mock.patch("ai_guardian.diff_provider.subprocess.run")
+    @mock.patch("ai_guardian.tools.diff_provider.subprocess.run")
     def test_gh_timeout(self, mock_run):
         mock_run.side_effect = subprocess.TimeoutExpired(cmd="gh", timeout=30)
         with pytest.raises(DiffProviderError, match="timed out"):
@@ -374,7 +374,7 @@ class TestGetPRDiff:
 
 class TestGetMRDiff:
 
-    @mock.patch("ai_guardian.diff_provider.subprocess.run")
+    @mock.patch("ai_guardian.tools.diff_provider.subprocess.run")
     def test_success_with_number(self, mock_run):
         mock_run.return_value = mock.Mock(
             returncode=0, stdout="mr diff content\n", stderr=""
@@ -384,7 +384,7 @@ class TestGetMRDiff:
         cmd = mock_run.call_args[0][0]
         assert cmd == ["glab", "mr", "diff", "42"]
 
-    @mock.patch("ai_guardian.diff_provider.subprocess.run")
+    @mock.patch("ai_guardian.tools.diff_provider.subprocess.run")
     def test_success_with_url(self, mock_run):
         mock_run.return_value = mock.Mock(
             returncode=0, stdout="mr diff from url\n", stderr=""
@@ -402,19 +402,19 @@ class TestGetMRDiff:
             "https://gitlab.cee.redhat.com/atat/harness",
         ]
 
-    @mock.patch("ai_guardian.diff_provider.subprocess.run")
+    @mock.patch("ai_guardian.tools.diff_provider.subprocess.run")
     def test_glab_not_installed(self, mock_run):
         mock_run.side_effect = FileNotFoundError()
         with pytest.raises(DiffProviderError, match="glab CLI not found"):
             get_mr_diff("42")
 
-    @mock.patch("ai_guardian.diff_provider.subprocess.run")
+    @mock.patch("ai_guardian.tools.diff_provider.subprocess.run")
     def test_glab_error(self, mock_run):
         mock_run.return_value = mock.Mock(returncode=1, stdout="", stderr="error")
         with pytest.raises(DiffProviderError, match="glab mr diff failed"):
             get_mr_diff("42")
 
-    @mock.patch("ai_guardian.diff_provider.subprocess.run")
+    @mock.patch("ai_guardian.tools.diff_provider.subprocess.run")
     def test_glab_timeout(self, mock_run):
         mock_run.side_effect = subprocess.TimeoutExpired(cmd="glab", timeout=30)
         with pytest.raises(DiffProviderError, match="timed out"):
@@ -527,7 +527,7 @@ diff --git a/x.py b/x.py
 
 class TestGetStagedDiff:
 
-    @mock.patch("ai_guardian.diff_provider.subprocess.run")
+    @mock.patch("ai_guardian.tools.diff_provider.subprocess.run")
     def test_success(self, mock_run):
         mock_run.return_value = mock.Mock(
             returncode=0, stdout="diff --cached output\n", stderr=""
@@ -537,7 +537,7 @@ class TestGetStagedDiff:
         cmd = mock_run.call_args[0][0]
         assert cmd == ["git", "diff", "--cached"]
 
-    @mock.patch("ai_guardian.diff_provider.subprocess.run")
+    @mock.patch("ai_guardian.tools.diff_provider.subprocess.run")
     def test_custom_repo_path(self, mock_run):
         mock_run.return_value = mock.Mock(
             returncode=0, stdout="staged diff\n", stderr=""
@@ -545,7 +545,7 @@ class TestGetStagedDiff:
         get_staged_diff(repo_path="/some/repo")
         assert mock_run.call_args[1]["cwd"] == "/some/repo"
 
-    @mock.patch("ai_guardian.diff_provider.subprocess.run")
+    @mock.patch("ai_guardian.tools.diff_provider.subprocess.run")
     def test_error(self, mock_run):
         mock_run.return_value = mock.Mock(
             returncode=1, stdout="", stderr="fatal: not a git repo"

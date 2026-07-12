@@ -9,7 +9,7 @@ from ai_guardian.web.components.header import create_header, create_sidebar
 
 
 def _load_local_metrics(since_days):
-    from ai_guardian.metrics import MetricsComputer
+    from ai_guardian.reporting.metrics import MetricsComputer
 
     mc = MetricsComputer(since_days=since_days)
     report = mc.compute()
@@ -31,7 +31,7 @@ def _load_local_metrics(since_days):
 
 
 def _load_local_audit(since_days):
-    from ai_guardian.audit import AuditComputer
+    from ai_guardian.reporting.audit import AuditComputer
 
     computer = AuditComputer(since=f"{since_days}d")
     report = computer.compute()
@@ -47,7 +47,7 @@ def _load_local_audit(since_days):
 
 
 def _export_audit(since_days, fmt):
-    from ai_guardian.audit import (
+    from ai_guardian.reporting.audit import (
         AuditComputer,
         format_audit_html,
         format_audit_json,
@@ -78,7 +78,7 @@ def _export_audit(since_days, fmt):
 
 def _get_retention_days():
     try:
-        from ai_guardian.violation_logger import ViolationLogger
+        from ai_guardian.violations.logger import ViolationLogger
 
         vl = ViolationLogger()
         cfg = getattr(vl, "config", {}) or {}
@@ -88,13 +88,13 @@ def _get_retention_days():
 
 
 def _reset_counters():
-    from ai_guardian.violation_counter import ViolationCounter
+    from ai_guardian.violations.counter import ViolationCounter
 
     return ViolationCounter().reset_to_current_log()
 
 
 def _get_metrics_clipboard_text(since_days):
-    from ai_guardian.metrics import MetricsComputer, format_human
+    from ai_guardian.reporting.metrics import MetricsComputer, format_human
 
     computer = MetricsComputer(since_days=since_days)
     report = computer.compute()

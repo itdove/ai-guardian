@@ -8,7 +8,7 @@ consistent with directory_rules evaluation in hook_processing.py.
 from unittest import TestCase
 from unittest.mock import patch
 
-from ai_guardian.tool_policy import ToolPolicyChecker
+from ai_guardian.tools.policy import ToolPolicyChecker
 from tests.fixtures.mock_mcp_server import create_hook_data
 
 
@@ -391,7 +391,7 @@ class BackwardCompatibilityTests(TestCase):
         assert allowed, "Unlisted tool should be allowed (warn mode from expanded deny)"
         assert warn_msg is not None, "Should have warning for unlisted tool"
 
-    @patch("ai_guardian.tool_policy.logger")
+    @patch("ai_guardian.tools.policy.logger")
     def test_legacy_expansion_logs_deprecation(self, mock_logger):
         """Legacy rule expansion should log a deprecation notice."""
         config = {

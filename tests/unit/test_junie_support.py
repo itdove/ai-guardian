@@ -184,6 +184,6 @@ class TestJunieConfigScanner:
 
     def test_junie_guidelines_in_scanner_patterns(self):
         """Junie guidelines.md is in scanner CONFIG_FILE_PATTERNS."""
-        from ai_guardian.scanner import CONFIG_FILE_PATTERNS
+        from ai_guardian.scanners.file_scanner import CONFIG_FILE_PATTERNS
 
         assert ".junie/guidelines.md" in CONFIG_FILE_PATTERNS

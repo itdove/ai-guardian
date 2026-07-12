@@ -163,8 +163,8 @@ class ScannerInstaller:
         # Try bundled pyproject.toml first (installed via wheel),
         # then fall back to development path (editable install)
         candidates = [
-            Path(__file__).parent / "pyproject.toml",
-            Path(__file__).parent.parent.parent / "pyproject.toml",
+            Path(__file__).parent.parent / "pyproject.toml",
+            Path(__file__).parent.parent.parent.parent / "pyproject.toml",
         ]
 
         for pyproject_path in candidates:

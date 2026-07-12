@@ -98,7 +98,7 @@ class ConfigManager:
         Returns:
             dict: Configuration information
         """
-        from ai_guardian.tool_policy import ToolPolicyChecker
+        from ai_guardian.tools.policy import ToolPolicyChecker
 
         # Load installation config
         installation_url = self.get_installation_url()

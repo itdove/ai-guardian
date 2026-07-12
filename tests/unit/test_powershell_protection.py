@@ -9,7 +9,7 @@ Tests the IMMUTABLE_DENY_PATTERNS for PowerShell tool that protect:
 """
 
 from unittest import TestCase
-from ai_guardian.tool_policy import ToolPolicyChecker
+from ai_guardian.tools.policy import ToolPolicyChecker
 
 
 class PowerShellProtectionTest(TestCase):

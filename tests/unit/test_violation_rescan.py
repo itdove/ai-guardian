@@ -171,7 +171,7 @@ class TestRescanViolation:
         f = tmp_path / "test.py"
         f.write_text("normal\nAPI_KEY=secret123\nnormal\n")
 
-        import ai_guardian.secret_scanning as ss
+        import ai_guardian.scanners.secret_scanning as ss
 
         ss._last_secret_matched_text = "API_KEY=secret123"
 

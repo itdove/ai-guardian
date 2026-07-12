@@ -160,7 +160,7 @@ class TestSSRFTimeBased:
 
     def test_ssrf_tool_policy_with_disabled_until(self):
         """ToolPolicyChecker should skip SSRF when disabled_until is future."""
-        from ai_guardian.tool_policy import ToolPolicyChecker
+        from ai_guardian.tools.policy import ToolPolicyChecker
 
         config = {
             "ssrf_protection": {
@@ -238,7 +238,7 @@ class TestViolationLoggingTimeBased:
 
     def test_logging_disabled_until_future_skips_log(self):
         """ViolationLogger should not log when disabled_until is in the future."""
-        from ai_guardian.violation_logger import ViolationLogger
+        from ai_guardian.violations.logger import ViolationLogger
 
         config = {
             "enabled": {
@@ -265,7 +265,7 @@ class TestViolationLoggingTimeBased:
 
     def test_logging_disabled_until_past_auto_reenables(self):
         """ViolationLogger should log when disabled_until has passed."""
-        from ai_guardian.violation_logger import ViolationLogger
+        from ai_guardian.violations.logger import ViolationLogger
 
         config = {
             "enabled": {
@@ -295,7 +295,7 @@ class TestViolationLoggingTimeBased:
 
     def test_logging_simple_bool_true(self):
         """Backward compat: simple 'enabled': true still works."""
-        from ai_guardian.violation_logger import ViolationLogger
+        from ai_guardian.violations.logger import ViolationLogger
 
         config = {
             "enabled": True,
@@ -310,7 +310,7 @@ class TestViolationLoggingTimeBased:
 
     def test_logging_simple_bool_false(self):
         """Backward compat: simple 'enabled': false still works."""
-        from ai_guardian.violation_logger import ViolationLogger
+        from ai_guardian.violations.logger import ViolationLogger
 
         config = {
             "enabled": False,
@@ -325,7 +325,7 @@ class TestViolationLoggingTimeBased:
 
     def test_logging_missing_enabled_defaults_true(self):
         """When 'enabled' key is missing, logging defaults to enabled."""
-        from ai_guardian.violation_logger import ViolationLogger
+        from ai_guardian.violations.logger import ViolationLogger
 
         config = {
             "max_entries": 1000,

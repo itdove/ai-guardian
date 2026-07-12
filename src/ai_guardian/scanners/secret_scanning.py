@@ -13,21 +13,21 @@ from pathlib import Path
 from typing import Dict, Optional
 
 try:
-    from ai_guardian.violation_logger import ViolationLogger
+    from ai_guardian.violations.logger import ViolationLogger
 
     HAS_VIOLATION_LOGGER = True
 except ImportError:
     HAS_VIOLATION_LOGGER = False
 
 try:
-    from ai_guardian import gitleaks_config as _gitleaks_cfg
+    from ai_guardian.scanners import gitleaks as _gitleaks_cfg
 
     HAS_GITLEAKS_CONFIG = True
 except ImportError:
     HAS_GITLEAKS_CONFIG = False
 
 try:
-    from ai_guardian.pattern_server import PatternServerClient
+    from ai_guardian.patterns.server import PatternServerClient
 
     HAS_PATTERN_SERVER = True
 except ImportError:
@@ -449,7 +449,7 @@ def _build_secret_detected_message(
     )
 
     if secret_details:
-        from ai_guardian.secret_type_names import get_secret_type_display
+        from ai_guardian.scanners.secret_types import get_secret_type_display
 
         display_name = get_secret_type_display(secret_details["rule_id"])
         error_msg += f"{type_label}: {display_name}\n"
