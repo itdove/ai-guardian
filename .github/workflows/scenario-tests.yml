@@ -74,8 +74,17 @@ jobs:
       - name: Delete SHA-tagged image
         continue-on-error: true
         run: |
+          # Get OAuth2 token from Quay registry auth endpoint
+          TOKEN=$(curl -s -u "${{ secrets.QUAY_API_USERNAME }}:${{ secrets.QUAY_API_PASSWORD }}" \
+            "https://quay.io/v2/auth?service=quay.io&scope=repository:itdove/ai-guardian:*" \
+            | python3 -c "import sys,json; print(json.load(sys.stdin).get('token',''))")
+          if [ -z "$TOKEN" ]; then
+            echo "Failed to get auth token"
+            exit 1
+          fi
+          # Delete the tag via Quay API using the registry-issued token
           STATUS=$(curl -s -o /dev/null -w '%{http_code}' -X DELETE \
-            -H "Authorization: Bearer ${{ secrets.QUAY_API_TOKEN }}" \
+            -H "Authorization: Bearer ${TOKEN}" \
             "https://quay.io/api/v1/repository/itdove/ai-guardian/tag/${{ github.sha }}")
           echo "Quay API responded: $STATUS"
           [ "$STATUS" = "204" ] || [ "$STATUS" = "404" ]
