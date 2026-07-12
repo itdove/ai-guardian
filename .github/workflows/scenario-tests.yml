@@ -68,7 +68,7 @@ jobs:
   cleanup-image:
     name: Cleanup SHA Image
     needs: scenario-tests
-    if: always() && github.event_name == 'pull_request'
+    if: always() && (github.event_name == 'pull_request' || (github.event_name == 'push' && github.ref != 'refs/heads/main'))
     runs-on: ubuntu-latest
     steps:
       - name: Login to Quay
