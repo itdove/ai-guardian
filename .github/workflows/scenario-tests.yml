@@ -75,7 +75,7 @@ jobs:
         continue-on-error: true
         run: |
           STATUS=$(curl -s -o /dev/null -w '%{http_code}' -X DELETE \
-            -H "Authorization: Bearer ${{ secrets.QUAY_PASSWORD }}" \
+            -u "${{ secrets.QUAY_USERNAME }}:${{ secrets.QUAY_PASSWORD }}" \
             "https://quay.io/api/v1/repository/itdove/ai-guardian/tag/${{ github.sha }}")
           echo "Quay API responded: $STATUS"
           [ "$STATUS" = "204" ] || [ "$STATUS" = "404" ]
