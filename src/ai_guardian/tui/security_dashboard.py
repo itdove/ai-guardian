@@ -15,7 +15,7 @@ from textual.widgets import Static, Button
 
 from textual.widgets import ContentSwitcher
 
-from ai_guardian.config_utils import get_config_dir
+from ai_guardian.config.utils import get_config_dir
 from ai_guardian.tui.widgets import format_local_time
 
 FEATURE_GROUPS = [
@@ -422,7 +422,7 @@ class SecurityDashboardContent(Container):
     def _load_recent_violations(self) -> None:
         """Load and display recent security violations."""
         try:
-            from ai_guardian.violation_logger import ViolationLogger
+            from ai_guardian.violations.logger import ViolationLogger
 
             logger = ViolationLogger()
             violations = logger.get_recent_violations(limit=100)
@@ -535,7 +535,7 @@ class SecurityDashboardContent(Container):
             )
 
         try:
-            from ai_guardian.violation_logger import ViolationLogger
+            from ai_guardian.violations.logger import ViolationLogger
 
             logger = ViolationLogger()
             recent = logger.get_recent_violations(limit=1000)

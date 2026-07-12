@@ -7,7 +7,8 @@ content mentions protected keywords.
 """
 
 import unittest
-from ai_guardian.tool_policy import ToolPolicyChecker, _strip_bash_heredoc_content
+from ai_guardian.tools.patterns import _strip_bash_heredoc_content
+from ai_guardian.tools.policy import ToolPolicyChecker
 
 
 class BashHeredocTest(unittest.TestCase):

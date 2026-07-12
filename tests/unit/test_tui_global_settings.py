@@ -108,7 +108,7 @@ class TestFeatureActions:
     """Test FEATURE_ACTIONS defines correct mappings."""
 
     def test_nine_features_have_actions(self):
-        assert len(FEATURE_ACTIONS) == 12
+        assert len(FEATURE_ACTIONS) == 11
 
     def test_expected_sections(self):
         assert "secret_redaction" in FEATURE_ACTIONS

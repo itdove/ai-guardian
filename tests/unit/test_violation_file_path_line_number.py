@@ -9,10 +9,10 @@ from unittest import mock
 class TestToolPermissionViolationFilePath:
     """Test that tool_permission violations include file_path for file-path tools."""
 
-    @mock.patch("ai_guardian.tool_policy.ViolationLogger")
-    @mock.patch("ai_guardian.tool_policy.HAS_VIOLATION_LOGGER", True)
+    @mock.patch("ai_guardian.tools.policy.ViolationLogger")
+    @mock.patch("ai_guardian.tools.policy.HAS_VIOLATION_LOGGER", True)
     def test_file_path_present_for_read_tool(self, mock_vl_class):
-        from ai_guardian.tool_policy import ToolPolicyChecker
+        from ai_guardian.tools.policy import ToolPolicyChecker
 
         mock_logger = mock.MagicMock()
         mock_vl_class.return_value = mock_logger
@@ -31,10 +31,10 @@ class TestToolPermissionViolationFilePath:
         blocked = mock_logger.log_violation.call_args[1]["blocked"]
         assert blocked["file_path"] == "/home/user/secret.txt"
 
-    @mock.patch("ai_guardian.tool_policy.ViolationLogger")
-    @mock.patch("ai_guardian.tool_policy.HAS_VIOLATION_LOGGER", True)
+    @mock.patch("ai_guardian.tools.policy.ViolationLogger")
+    @mock.patch("ai_guardian.tools.policy.HAS_VIOLATION_LOGGER", True)
     def test_file_path_present_for_write_tool(self, mock_vl_class):
-        from ai_guardian.tool_policy import ToolPolicyChecker
+        from ai_guardian.tools.policy import ToolPolicyChecker
 
         mock_logger = mock.MagicMock()
         mock_vl_class.return_value = mock_logger
@@ -52,10 +52,10 @@ class TestToolPermissionViolationFilePath:
         blocked = mock_logger.log_violation.call_args[1]["blocked"]
         assert blocked["file_path"] == "/home/user/config.json"
 
-    @mock.patch("ai_guardian.tool_policy.ViolationLogger")
-    @mock.patch("ai_guardian.tool_policy.HAS_VIOLATION_LOGGER", True)
+    @mock.patch("ai_guardian.tools.policy.ViolationLogger")
+    @mock.patch("ai_guardian.tools.policy.HAS_VIOLATION_LOGGER", True)
     def test_file_path_present_for_edit_tool(self, mock_vl_class):
-        from ai_guardian.tool_policy import ToolPolicyChecker
+        from ai_guardian.tools.policy import ToolPolicyChecker
 
         mock_logger = mock.MagicMock()
         mock_vl_class.return_value = mock_logger
@@ -73,10 +73,10 @@ class TestToolPermissionViolationFilePath:
         blocked = mock_logger.log_violation.call_args[1]["blocked"]
         assert blocked["file_path"] == "/home/user/main.py"
 
-    @mock.patch("ai_guardian.tool_policy.ViolationLogger")
-    @mock.patch("ai_guardian.tool_policy.HAS_VIOLATION_LOGGER", True)
+    @mock.patch("ai_guardian.tools.policy.ViolationLogger")
+    @mock.patch("ai_guardian.tools.policy.HAS_VIOLATION_LOGGER", True)
     def test_file_path_present_for_notebook_edit_tool(self, mock_vl_class):
-        from ai_guardian.tool_policy import ToolPolicyChecker
+        from ai_guardian.tools.policy import ToolPolicyChecker
 
         mock_logger = mock.MagicMock()
         mock_vl_class.return_value = mock_logger
@@ -94,10 +94,10 @@ class TestToolPermissionViolationFilePath:
         blocked = mock_logger.log_violation.call_args[1]["blocked"]
         assert blocked["file_path"] == "/home/user/notebook.ipynb"
 
-    @mock.patch("ai_guardian.tool_policy.ViolationLogger")
-    @mock.patch("ai_guardian.tool_policy.HAS_VIOLATION_LOGGER", True)
+    @mock.patch("ai_guardian.tools.policy.ViolationLogger")
+    @mock.patch("ai_guardian.tools.policy.HAS_VIOLATION_LOGGER", True)
     def test_file_path_none_for_bash_tool(self, mock_vl_class):
-        from ai_guardian.tool_policy import ToolPolicyChecker
+        from ai_guardian.tools.policy import ToolPolicyChecker
 
         mock_logger = mock.MagicMock()
         mock_vl_class.return_value = mock_logger
@@ -115,10 +115,10 @@ class TestToolPermissionViolationFilePath:
         blocked = mock_logger.log_violation.call_args[1]["blocked"]
         assert blocked["file_path"] is None
 
-    @mock.patch("ai_guardian.tool_policy.ViolationLogger")
-    @mock.patch("ai_guardian.tool_policy.HAS_VIOLATION_LOGGER", True)
+    @mock.patch("ai_guardian.tools.policy.ViolationLogger")
+    @mock.patch("ai_guardian.tools.policy.HAS_VIOLATION_LOGGER", True)
     def test_file_path_none_for_skill_tool(self, mock_vl_class):
-        from ai_guardian.tool_policy import ToolPolicyChecker
+        from ai_guardian.tools.policy import ToolPolicyChecker
 
         mock_logger = mock.MagicMock()
         mock_vl_class.return_value = mock_logger
@@ -236,7 +236,7 @@ class TestSecretRedactionViolationFields:
     """Test that secret_redaction violations include file_path and line_number."""
 
     def test_fields_present(self):
-        from ai_guardian.violation_logger import ViolationLogger
+        from ai_guardian.violations.logger import ViolationLogger
 
         with tempfile.TemporaryDirectory() as tmp:
             with mock.patch.dict(os.environ, {"AI_GUARDIAN_CONFIG_DIR": tmp}):
@@ -263,7 +263,7 @@ class TestPIIViolationFilePath:
     """Test that pii_detected violations include file_path and line_number."""
 
     def test_pretooluse_pii_has_file_path(self):
-        from ai_guardian.violation_logger import ViolationLogger
+        from ai_guardian.violations.logger import ViolationLogger
 
         with tempfile.TemporaryDirectory() as tmp:
             with mock.patch.dict(os.environ, {"AI_GUARDIAN_CONFIG_DIR": tmp}):
@@ -287,7 +287,7 @@ class TestPIIViolationFilePath:
                 assert "line_number" in blocked
 
     def test_posttooluse_pii_has_null_file_path(self):
-        from ai_guardian.violation_logger import ViolationLogger
+        from ai_guardian.violations.logger import ViolationLogger
 
         with tempfile.TemporaryDirectory() as tmp:
             with mock.patch.dict(os.environ, {"AI_GUARDIAN_CONFIG_DIR": tmp}):
@@ -315,7 +315,7 @@ class TestConfigFileExfilViolationFields:
     """Test that config_file_exfil violations include line_number field."""
 
     def test_line_number_present(self):
-        from ai_guardian.violation_logger import ViolationLogger
+        from ai_guardian.violations.logger import ViolationLogger
 
         with tempfile.TemporaryDirectory() as tmp:
             with mock.patch.dict(os.environ, {"AI_GUARDIAN_CONFIG_DIR": tmp}):
@@ -342,7 +342,7 @@ class TestSecretDetectedViolationFieldsUnchanged:
     """Verify that secret_detected violations still work correctly with existing fields."""
 
     def test_line_number_preserved(self):
-        from ai_guardian.violation_logger import ViolationLogger
+        from ai_guardian.violations.logger import ViolationLogger
 
         with tempfile.TemporaryDirectory() as tmp:
             with mock.patch.dict(os.environ, {"AI_GUARDIAN_CONFIG_DIR": tmp}):
@@ -376,7 +376,7 @@ class TestAllViolationTypesHaveFilePath:
     """Integration test: every violation type's blocked dict includes file_path."""
 
     def _log_and_get(self, violation_type, blocked, context=None, severity="warning"):
-        from ai_guardian.violation_logger import ViolationLogger
+        from ai_guardian.violations.logger import ViolationLogger
 
         with tempfile.TemporaryDirectory() as tmp:
             with mock.patch.dict(os.environ, {"AI_GUARDIAN_CONFIG_DIR": tmp}):
@@ -523,7 +523,7 @@ class TestSecretRedactorLineNumber:
 
     def test_line_number_on_first_line(self):
         """PII on line 1 should return line_number=1."""
-        from ai_guardian.secret_redactor import SecretRedactor
+        from ai_guardian.scanners.secret_redactor import SecretRedactor
 
         redactor = SecretRedactor(
             config={"enabled": True},
@@ -538,7 +538,7 @@ class TestSecretRedactorLineNumber:
 
     def test_line_number_on_third_line(self):
         """PII on line 3 should return line_number=3."""
-        from ai_guardian.secret_redactor import SecretRedactor
+        from ai_guardian.scanners.secret_redactor import SecretRedactor
 
         redactor = SecretRedactor(
             config={"enabled": True},
@@ -554,7 +554,7 @@ class TestSecretRedactorLineNumber:
 
     def test_line_number_multiple_redactions(self):
         """Multiple PII items on different lines should each have correct line_number."""
-        from ai_guardian.secret_redactor import SecretRedactor
+        from ai_guardian.scanners.secret_redactor import SecretRedactor
 
         redactor = SecretRedactor(
             config={"enabled": True},
@@ -571,7 +571,7 @@ class TestSecretRedactorLineNumber:
 
     def test_column_position_correct(self):
         """Column should be the 1-based position within the line."""
-        from ai_guardian.secret_redactor import SecretRedactor
+        from ai_guardian.scanners.secret_redactor import SecretRedactor
 
         redactor = SecretRedactor(
             config={"enabled": True},

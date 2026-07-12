@@ -33,7 +33,7 @@ class TestApplySecretValidationReturnType:
     """Test _apply_secret_validation returns dict with validation_info."""
 
     def test_returns_none_when_disabled(self):
-        from ai_guardian.hook_processing import _apply_secret_validation
+        from ai_guardian.scanners.secret_scanning import _apply_secret_validation
 
         result = _apply_secret_validation(
             {"validate_secrets": False},
@@ -43,7 +43,7 @@ class TestApplySecretValidationReturnType:
         assert result is None
 
     def test_returns_none_when_no_config(self):
-        from ai_guardian.hook_processing import _apply_secret_validation
+        from ai_guardian.scanners.secret_scanning import _apply_secret_validation
 
         result = _apply_secret_validation(
             None, [{"rule_id": "test", "line_number": 1}], "content"
@@ -51,7 +51,7 @@ class TestApplySecretValidationReturnType:
         assert result is None
 
     def test_returns_none_when_no_secrets(self):
-        from ai_guardian.hook_processing import _apply_secret_validation
+        from ai_guardian.scanners.secret_scanning import _apply_secret_validation
 
         result = _apply_secret_validation({"validate_secrets": True}, [], "content")
         assert result is None
@@ -73,7 +73,7 @@ class TestApplySecretValidationReturnType:
                 pass
 
         # Test directly with the function
-        from ai_guardian.hook_processing import _apply_secret_validation
+        from ai_guardian.scanners.secret_scanning import _apply_secret_validation
 
         mock_module = MagicMock()
         mock_module.SecretValidator.return_value = mock_validator
@@ -117,7 +117,7 @@ class TestApplySecretValidationReturnType:
         mock_module.SecretValidator.return_value = mock_validator
         mock_module.ValidationStatus = MockValidationStatus
 
-        from ai_guardian.hook_processing import _apply_secret_validation
+        from ai_guardian.scanners.secret_scanning import _apply_secret_validation
 
         with patch.dict(
             "sys.modules", {"ai_guardian.scanners.secret_validator": mock_module}
@@ -157,7 +157,7 @@ class TestApplySecretValidationReturnType:
         mock_module.SecretValidator.return_value = mock_validator
         mock_module.ValidationStatus = MockValidationStatus
 
-        from ai_guardian.hook_processing import _apply_secret_validation
+        from ai_guardian.scanners.secret_scanning import _apply_secret_validation
 
         with patch.dict(
             "sys.modules", {"ai_guardian.scanners.secret_validator": mock_module}
@@ -181,7 +181,7 @@ class TestApplySecretValidationReturnType:
         mock_module.SecretValidator.side_effect = RuntimeError("connection refused")
         mock_module.ValidationStatus = MockValidationStatus
 
-        from ai_guardian.hook_processing import _apply_secret_validation
+        from ai_guardian.scanners.secret_scanning import _apply_secret_validation
 
         with patch.dict(
             "sys.modules", {"ai_guardian.scanners.secret_validator": mock_module}
@@ -207,7 +207,7 @@ class TestValidationFieldInViolation:
             yield
 
     def test_secret_violation_includes_validation(self):
-        from ai_guardian.hook_processing import _log_secret_detection_violation
+        from ai_guardian.scanners.secret_scanning import _log_secret_detection_violation
 
         mock_logger = MagicMock()
         details = {
@@ -230,7 +230,7 @@ class TestValidationFieldInViolation:
         assert blocked["validation"]["elapsed_ms"] == 156
 
     def test_secret_violation_no_validation_when_absent(self):
-        from ai_guardian.hook_processing import _log_secret_detection_violation
+        from ai_guardian.scanners.secret_scanning import _log_secret_detection_violation
 
         mock_logger = MagicMock()
         details = {
@@ -246,7 +246,7 @@ class TestValidationFieldInViolation:
         assert "validation" not in blocked
 
     def test_finding_violation_includes_validation(self):
-        from ai_guardian.hook_processing import _log_finding_violation
+        from ai_guardian.scanners.secret_scanning import _log_finding_violation
 
         mock_logger = MagicMock()
         details = {
@@ -267,7 +267,7 @@ class TestValidationFieldInViolation:
         assert blocked["validation"]["status"] == "unverified"
 
     def test_finding_violation_no_validation_when_absent(self):
-        from ai_guardian.hook_processing import _log_finding_violation
+        from ai_guardian.scanners.secret_scanning import _log_finding_violation
 
         mock_logger = MagicMock()
         details = {
@@ -283,7 +283,7 @@ class TestValidationFieldInViolation:
 
     def test_inactive_validation_status_in_violation(self):
         """Inactive secrets must still produce a violation log entry."""
-        from ai_guardian.hook_processing import _log_secret_detection_violation
+        from ai_guardian.scanners.secret_scanning import _log_secret_detection_violation
 
         mock_logger = MagicMock()
         details = {
@@ -305,7 +305,7 @@ class TestValidationFieldInViolation:
         assert blocked["validation"]["message"] == "Token returned 401"
 
     def test_error_validation_status_in_violation(self):
-        from ai_guardian.hook_processing import _log_secret_detection_violation
+        from ai_guardian.scanners.secret_scanning import _log_secret_detection_violation
 
         mock_logger = MagicMock()
         details = {

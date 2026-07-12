@@ -7,7 +7,7 @@ in tool permission checking.
 
 from unittest import TestCase
 
-from ai_guardian.tool_policy import ToolPolicyChecker
+from ai_guardian.tools.policy import ToolPolicyChecker
 from tests.fixtures.mock_mcp_server import create_hook_data
 from tests.fixtures import attack_constants
 

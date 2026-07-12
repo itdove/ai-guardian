@@ -14,8 +14,8 @@ import unittest
 from pathlib import Path
 
 from ai_guardian import check_directory_denied
-from ai_guardian.tool_policy import ToolPolicyChecker
-from ai_guardian.prompt_injection import PromptInjectionDetector
+from ai_guardian.tools.policy import ToolPolicyChecker
+from ai_guardian.scanners.prompt_injection import PromptInjectionDetector
 
 
 class ToolPermissionsLogOnlyTest(unittest.TestCase):

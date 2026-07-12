@@ -29,7 +29,7 @@ def _load_effective_data(project_dir=None):
         return merged or {}, provenance or {}, {}, None
 
     try:
-        from ai_guardian.config_writer import (
+        from ai_guardian.config.writer import (
             load_scoped_config,
             compute_detailed_provenance,
         )
@@ -53,7 +53,7 @@ def _inject_generated_rules(merged, provenance):
     if not auto_config.get("enabled"):
         return
     try:
-        from ai_guardian.directory_rule_generator import (
+        from ai_guardian.tools.directory_rules import (
             DirectoryRuleGenerator,
             insert_generated_rules,
         )
@@ -99,7 +99,7 @@ def _resolve_project_root(working_dir):
     if not working_dir:
         return None
     try:
-        from ai_guardian.gitleaks_config import find_project_root
+        from ai_guardian.scanners.gitleaks import find_project_root
 
         root = find_project_root(working_dir)
         return str(root) if root else working_dir
@@ -208,67 +208,63 @@ def _shorten_path(path: str) -> str:
 
 def create_config_effective_page(service, daemon_name: str):
     """Create the Effective Config page."""
-    create_header(daemon_name)
+    sidebar = create_sidebar(daemon_name, current=f"/{daemon_name}/config-effective")
+    create_header(daemon_name, drawer=sidebar)
 
-    with ui.row().classes("w-full min-h-screen no-wrap"):
-        create_sidebar(daemon_name, current=f"/{daemon_name}/config-effective")
+    with ui.column().classes("flex-grow p-6 gap-4"):
+        ui.label("Effective Configuration").classes("text-2xl font-bold")
+        ui.label(
+            "Merged configuration from all sources "
+            "(global + project) with per-key provenance."
+        ).classes("text-xs text-grey-6")
 
-        with ui.column().classes("flex-grow p-6 gap-4"):
-            ui.label("Effective Configuration").classes("text-2xl font-bold")
-            ui.label(
-                "Merged configuration from all sources "
-                "(global + project) with per-key provenance."
-            ).classes("text-xs text-grey-6")
+        from ai_guardian.web.config_helpers import _get_remote_project_dir
 
-            from ai_guardian.web.config_helpers import _get_remote_project_dir
+        with ui.row().classes("items-center gap-4"):
+            view_toggle = ui.toggle(
+                {False: "Show All", True: "Overrides Only"},
+                value=False,
+            ).props("dense")
 
-            with ui.row().classes("items-center gap-4"):
-                view_toggle = ui.toggle(
-                    {False: "Show All", True: "Overrides Only"},
-                    value=False,
-                ).props("dense")
+            ui.button(icon="refresh", on_click=lambda: refresh()).props(
+                "dense flat round"
+            ).tooltip("Refresh")
 
-                ui.button(icon="refresh", on_click=lambda: refresh()).props(
-                    "dense flat round"
-                ).tooltip("Refresh")
+        content = ui.column().classes("w-full gap-1")
 
-            content = ui.column().classes("w-full gap-1")
+        async def refresh():
+            content.clear()
+            selected_dir = _get_remote_project_dir()
+            proj_dir = _resolve_project_root(selected_dir) if selected_dir else None
 
-            async def refresh():
-                content.clear()
-                selected_dir = _get_remote_project_dir()
-                proj_dir = _resolve_project_root(selected_dir) if selected_dir else None
+            merged, provenance, project_cfg, error = await run.io_bound(
+                _load_effective_data, proj_dir
+            )
 
-                merged, provenance, project_cfg, error = await run.io_bound(
-                    _load_effective_data, proj_dir
-                )
-
-                with content:
-                    if error:
-                        with ui.card().classes("w-full"):
-                            ui.label("Error").classes("text-lg font-bold text-red")
-                            ui.label(error).classes("text-sm text-red")
-                        return
-
-                    if not merged:
-                        ui.label(
-                            "No configuration found. Using built-in defaults."
-                        ).classes("text-sm text-grey-6")
-                        return
-
-                    diff_only = view_toggle.value
-
-                    if diff_only and not project_cfg:
-                        ui.label(
-                            "No project overrides — using global config only."
-                        ).classes("text-sm text-grey-6")
-                        return
-
+            with content:
+                if error:
                     with ui.card().classes("w-full"):
-                        tree_container = ui.column().classes("w-full gap-0")
-                        _render_tree(
-                            merged, provenance or {}, tree_container, diff_only
-                        )
+                        ui.label("Error").classes("text-lg font-bold text-red")
+                        ui.label(error).classes("text-sm text-red")
+                    return
 
-            view_toggle.on_value_change(lambda _: refresh())
-            ui.timer(0.1, refresh, once=True)
+                if not merged:
+                    ui.label(
+                        "No configuration found. Using built-in defaults."
+                    ).classes("text-sm text-grey-6")
+                    return
+
+                diff_only = view_toggle.value
+
+                if diff_only and not project_cfg:
+                    ui.label(
+                        "No project overrides — using global config only."
+                    ).classes("text-sm text-grey-6")
+                    return
+
+                with ui.card().classes("w-full"):
+                    tree_container = ui.column().classes("w-full gap-0")
+                    _render_tree(merged, provenance or {}, tree_container, diff_only)
+
+        view_toggle.on_value_change(lambda _: refresh())
+        ui.timer(0.1, refresh, once=True)

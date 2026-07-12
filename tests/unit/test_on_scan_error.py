@@ -59,32 +59,32 @@ DISABLE_ALL_SCANNERS = {
 class TestGetOnScanErrorAction(TestCase):
     """Tests for the _get_on_scan_error_action() helper."""
 
-    @patch("ai_guardian.config_loaders._load_config_file")
+    @patch("ai_guardian.config.loaders._load_config_file")
     def test_default_when_no_config(self, mock_load):
         mock_load.return_value = (None, None)
         self.assertEqual(ai_guardian._get_on_scan_error_action(), "allow")
 
-    @patch("ai_guardian.config_loaders._load_config_file")
+    @patch("ai_guardian.config.loaders._load_config_file")
     def test_default_when_key_missing(self, mock_load):
         mock_load.return_value = ({"secret_scanning": {"enabled": True}}, None)
         self.assertEqual(ai_guardian._get_on_scan_error_action(), "allow")
 
-    @patch("ai_guardian.config_loaders._load_config_file")
+    @patch("ai_guardian.config.loaders._load_config_file")
     def test_allow_value(self, mock_load):
         mock_load.return_value = ({"on_scan_error": "allow"}, None)
         self.assertEqual(ai_guardian._get_on_scan_error_action(), "allow")
 
-    @patch("ai_guardian.config_loaders._load_config_file")
+    @patch("ai_guardian.config.loaders._load_config_file")
     def test_block_value(self, mock_load):
         mock_load.return_value = ({"on_scan_error": "block"}, None)
         self.assertEqual(ai_guardian._get_on_scan_error_action(), "block")
 
-    @patch("ai_guardian.config_loaders._load_config_file")
+    @patch("ai_guardian.config.loaders._load_config_file")
     def test_invalid_value_defaults_to_allow(self, mock_load):
         mock_load.return_value = ({"on_scan_error": "invalid"}, None)
         self.assertEqual(ai_guardian._get_on_scan_error_action(), "allow")
 
-    @patch("ai_guardian.config_loaders._load_config_file")
+    @patch("ai_guardian.config.loaders._load_config_file")
     def test_config_load_error_defaults_to_allow(self, mock_load):
         mock_load.return_value = (None, "Config error")
         self.assertEqual(ai_guardian._get_on_scan_error_action(), "allow")
@@ -225,9 +225,9 @@ class TestOnScanErrorPromptInjection(TestCase):
         )
 
         with (
-            patch("ai_guardian.hook_processing.HAS_PROMPT_INJECTION", True),
+            patch("ai_guardian.hook_events.scanners.HAS_PROMPT_INJECTION", True),
             patch(
-                "ai_guardian.hook_processing.PromptInjectionDetector",
+                "ai_guardian.hook_events.scanners.PromptInjectionDetector",
                 side_effect=Exception("Injection check crashed"),
             ),
         ):
@@ -278,9 +278,9 @@ class TestOnScanErrorPromptInjection(TestCase):
         )
 
         with (
-            patch("ai_guardian.hook_processing.HAS_PROMPT_INJECTION", True),
+            patch("ai_guardian.hook_events.scanners.HAS_PROMPT_INJECTION", True),
             patch(
-                "ai_guardian.hook_processing.PromptInjectionDetector",
+                "ai_guardian.hook_events.scanners.PromptInjectionDetector",
                 side_effect=Exception("Injection check crashed"),
             ),
         ):
@@ -301,9 +301,9 @@ class TestOnScanErrorPromptInjection(TestCase):
 class TestOnScanErrorSecretScanning(TestCase):
     """Tests for on_scan_error behavior in secret scanning."""
 
-    @patch("ai_guardian.hook_processing._get_on_scan_error_action")
-    @patch("ai_guardian.hook_processing._load_secret_scanning_config")
-    @patch("ai_guardian.hook_processing._load_pattern_server_config")
+    @patch("ai_guardian.scanners.secret_scanning._get_on_scan_error_action")
+    @patch("ai_guardian.scanners.secret_scanning._load_secret_scanning_config")
+    @patch("ai_guardian.scanners.secret_scanning._load_pattern_server_config")
     def test_scanner_unavailable_allow(self, mock_pattern, mock_secret, mock_on_error):
         """Scanner unavailable with on_scan_error=allow should fail-open."""
         mock_on_error.return_value = "allow"
@@ -311,9 +311,9 @@ class TestOnScanErrorSecretScanning(TestCase):
         mock_secret.return_value = ({"enabled": True, "engines": ["gitleaks"]}, None)
 
         with (
-            patch("ai_guardian.hook_processing.HAS_SCANNER_ENGINE", True),
+            patch("ai_guardian.scanners.secret_scanning.HAS_SCANNER_ENGINE", True),
             patch(
-                "ai_guardian.hook_processing.select_engine",
+                "ai_guardian.scanners.secret_scanning.select_engine",
                 side_effect=RuntimeError("No scanner"),
             ),
         ):
@@ -322,9 +322,9 @@ class TestOnScanErrorSecretScanning(TestCase):
             )
             self.assertFalse(has_secrets, "Should fail-open when on_scan_error=allow")
 
-    @patch("ai_guardian.hook_processing._get_on_scan_error_action")
-    @patch("ai_guardian.hook_processing._load_secret_scanning_config")
-    @patch("ai_guardian.hook_processing._load_pattern_server_config")
+    @patch("ai_guardian.scanners.secret_scanning._get_on_scan_error_action")
+    @patch("ai_guardian.scanners.secret_scanning._load_secret_scanning_config")
+    @patch("ai_guardian.scanners.secret_scanning._load_pattern_server_config")
     def test_scanner_unavailable_block(self, mock_pattern, mock_secret, mock_on_error):
         """Scanner unavailable with on_scan_error=block should fail-closed."""
         mock_on_error.return_value = "block"
@@ -332,9 +332,9 @@ class TestOnScanErrorSecretScanning(TestCase):
         mock_secret.return_value = ({"enabled": True, "engines": ["gitleaks"]}, None)
 
         with (
-            patch("ai_guardian.hook_processing.HAS_SCANNER_ENGINE", True),
+            patch("ai_guardian.scanners.secret_scanning.HAS_SCANNER_ENGINE", True),
             patch(
-                "ai_guardian.hook_processing.select_engine",
+                "ai_guardian.scanners.secret_scanning.select_engine",
                 side_effect=RuntimeError("No scanner"),
             ),
         ):
@@ -381,7 +381,7 @@ class TestOnScanErrorConfigScanning(TestCase):
             None,
         )
 
-        with patch("ai_guardian.hook_processing.HAS_CONFIG_SCANNER", True):
+        with patch("ai_guardian.hook_events.scanners.HAS_CONFIG_SCANNER", True):
             hook_data = {
                 "hook_event_name": "PreToolUse",
                 "tool_name": "Read",
@@ -428,7 +428,7 @@ class TestOnScanErrorConfigScanning(TestCase):
             None,
         )
 
-        with patch("ai_guardian.hook_processing.HAS_CONFIG_SCANNER", True):
+        with patch("ai_guardian.hook_events.scanners.HAS_CONFIG_SCANNER", True):
             hook_data = {
                 "hook_event_name": "PreToolUse",
                 "tool_name": "Read",
@@ -530,7 +530,7 @@ class TestOnScanErrorPiiScanning(TestCase):
                 return_value="allow",
             ),
             patch(
-                "ai_guardian.secret_redactor.SecretRedactor",
+                "ai_guardian.scanners.secret_redactor.SecretRedactor",
                 side_effect=Exception("PII scan crashed"),
             ),
         ):
@@ -551,7 +551,7 @@ class TestOnScanErrorPiiScanning(TestCase):
                 return_value="block",
             ),
             patch(
-                "ai_guardian.secret_redactor.SecretRedactor",
+                "ai_guardian.scanners.secret_redactor.SecretRedactor",
                 side_effect=Exception("PII scan crashed"),
             ),
         ):
@@ -600,7 +600,7 @@ class TestOnScanErrorPiiScanning(TestCase):
 
         with patch("sys.stdin", StringIO(json.dumps(hook_data))):
             with patch(
-                "ai_guardian.violation_logger.ViolationLogger.log_violation"
+                "ai_guardian.violations.logger.ViolationLogger.log_violation"
             ) as mock_log:
                 result = ai_guardian.process_hook_input()
                 # Should block (scan error with on_scan_error=block)
@@ -651,7 +651,7 @@ class TestOnScanErrorPiiScanning(TestCase):
 
         with patch("sys.stdin", StringIO(json.dumps(hook_data))):
             with patch(
-                "ai_guardian.violation_logger.ViolationLogger.log_violation"
+                "ai_guardian.violations.logger.ViolationLogger.log_violation"
             ) as mock_log:
                 result = ai_guardian.process_hook_input()
                 self.assertFalse(
@@ -710,7 +710,7 @@ class TestOnScanErrorPiiScanning(TestCase):
 
         with patch("sys.stdin", StringIO(json.dumps(hook_data))):
             with patch(
-                "ai_guardian.violation_logger.ViolationLogger.log_violation"
+                "ai_guardian.violations.logger.ViolationLogger.log_violation"
             ) as mock_log:
                 result = ai_guardian.process_hook_input()
                 self.assertTrue(

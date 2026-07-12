@@ -19,6 +19,8 @@ from dataclasses import dataclass
 from enum import Enum
 from typing import List, Optional
 
+from ai_guardian.constants import HookEvent
+
 logger = logging.getLogger(__name__)
 
 
@@ -127,11 +129,11 @@ def format_hook_label(
     ev = raw.lower().replace("_", "").replace("-", "")
     if ev in ("pretooluse", "beforereadfile"):
         ctx = _TOOL_TO_LABEL.get(tool_name or "", "before tool use")
-        return f"PreToolUse ({ctx})"
+        return f"{HookEvent.PRE_TOOL_USE.display_name} ({ctx})"
     if ev == "posttooluse":
-        return "PostToolUse (tool output)"
+        return f"{HookEvent.POST_TOOL_USE.display_name} (tool output)"
     if ev in ("prompt", "userpromptsubmit"):
-        return "UserPromptSubmit (your prompt)"
+        return f"{HookEvent.PROMPT.display_name} (your prompt)"
     return raw
 
 
@@ -150,7 +152,7 @@ def _save_pattern_to_config(
     """Save a pattern to the config file. Returns True on success."""
     try:
         from pathlib import Path
-        from ai_guardian.config_writer import save_ask_pattern
+        from ai_guardian.config.writer import save_ask_pattern
 
         cp = Path(config_path) if config_path else None
         return save_ask_pattern(config_section, pattern, config_path=cp)
@@ -172,11 +174,11 @@ def _write_config_text(json_text: str, config_path_str: Optional[str] = None) ->
         if config_path_str:
             config_path = Path(config_path_str)
         else:
-            from ai_guardian.config_utils import get_config_dir
+            from ai_guardian.config.utils import get_config_dir
 
             config_path = get_config_dir() / "ai-guardian.json"
 
-        from ai_guardian.config_writer import _atomic_config_update
+        from ai_guardian.config.writer import _atomic_config_update
 
         def _replace_config(config):
             config.clear()

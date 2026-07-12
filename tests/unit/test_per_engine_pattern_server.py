@@ -145,7 +145,7 @@ class TestBackwardCompatibility(unittest.TestCase):
 class TestPerEnginePatternServerFetch(unittest.TestCase):
     """Test per-engine pattern server URL fetching."""
 
-    @patch("ai_guardian.pattern_server.PatternServerClient")
+    @patch("ai_guardian.patterns.server.PatternServerClient")
     def test_per_engine_url_overrides_global(self, mock_client_cls):
         """Per-engine pattern_server URL should override global config_path."""
         mock_client = MagicMock()
@@ -166,7 +166,7 @@ class TestPerEnginePatternServerFetch(unittest.TestCase):
         self.assertIn("engine_specific.toml", result)
         self.assertNotIn("global.toml", result)
 
-    @patch("ai_guardian.pattern_server.PatternServerClient")
+    @patch("ai_guardian.patterns.server.PatternServerClient")
     def test_per_engine_url_returns_none_on_failure(self, mock_client_cls):
         """Failed per-engine fetch should return None, not fall back to global."""
         mock_client = MagicMock()

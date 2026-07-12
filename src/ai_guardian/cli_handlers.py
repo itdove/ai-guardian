@@ -11,7 +11,7 @@ import os
 import sys
 from pathlib import Path
 
-from ai_guardian.config_loaders import _load_config_file
+from ai_guardian.config.loaders import _load_config_file
 from ai_guardian.constants import ViolationType
 
 
@@ -44,7 +44,7 @@ def _handle_violations_command(args):
     Returns:
         int: Exit code (0 for success, 1 for error)
     """
-    from ai_guardian.violation_logger import ViolationLogger
+    from ai_guardian.violations.logger import ViolationLogger
 
     violation_logger = ViolationLogger()
 
@@ -139,7 +139,7 @@ def _handle_violations_command(args):
                 print(location)
             else:
                 print(f"  Source: {source}")
-            from ai_guardian.secret_type_names import get_secret_type_display
+            from ai_guardian.scanners.secret_types import get_secret_type_display
 
             secret_type = blocked.get("secret_type", "Unknown")
             print(f"  Secret type: {get_secret_type_display(secret_type)}")
@@ -661,7 +661,7 @@ def _handle_tray_stop():
     Waits for the process to exit after sending SIGTERM so that a
     subsequent ``tray start`` does not race against a dying process.
     """
-    from ai_guardian.daemon.tray import _get_tray_lock_path
+    from ai_guardian.tray.app import _get_tray_lock_path
     from ai_guardian.daemon import is_pid_alive
 
     lock_path = _get_tray_lock_path()
@@ -729,7 +729,7 @@ def _handle_tray_start(args):
             print(f"Failed to start tray in background: {e}", file=sys.stderr)
             return 1
 
-    from ai_guardian.daemon.tray import DaemonTray, is_tray_available, _is_tray_running
+    from ai_guardian.tray.app import DaemonTray, is_tray_available, _is_tray_running
     from ai_guardian.daemon.discovery import DaemonDiscovery
     from ai_guardian.daemon.multi_client import MultiDaemonClient
 
@@ -970,7 +970,7 @@ def _handle_prompt_ask(args):
     )
 
     if violation.project_path:
-        from ai_guardian.config_utils import (
+        from ai_guardian.config.utils import (
             set_project_dir_override,
             clear_project_dir_override,
         )

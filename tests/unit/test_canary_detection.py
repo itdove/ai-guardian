@@ -2,7 +2,7 @@
 
 import pytest
 
-from ai_guardian.canary_detection import CanaryTokenScanner
+from ai_guardian.scanners.canary_detection import CanaryTokenScanner
 
 
 def _scanner(tokens=None, action="block", enabled=True):

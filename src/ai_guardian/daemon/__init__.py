@@ -10,7 +10,7 @@ import os
 import shutil
 import sys
 
-from ai_guardian.config_utils import get_config_dir, get_state_dir
+from ai_guardian.config.utils import get_config_dir, get_state_dir
 
 DEFAULT_REST_PORT = 63152
 DEFAULT_WEB_CONSOLE_PORT = 0
@@ -161,7 +161,7 @@ _IDE_MCP_CONFIGS = [
 def get_local_menu_tags():
     """Get menu_tags from the local daemon config for plugin filtering."""
     try:
-        from ai_guardian.config_loaders import _load_config_file
+        from ai_guardian.config.loaders import _load_config_file
 
         cfg, _ = _load_config_file()
         if cfg:

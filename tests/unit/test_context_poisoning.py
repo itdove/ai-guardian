@@ -3,7 +3,7 @@
 import unittest
 import unittest.mock
 
-from ai_guardian.context_poisoning import (
+from ai_guardian.scanners.context_poisoning import (
     ContextPoisoningDetector,
     check_context_poisoning,
 )

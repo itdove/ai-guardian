@@ -12,7 +12,10 @@ import pytest
 
 import ai_guardian
 from ai_guardian import _log_prompt_injection_violation
-from ai_guardian.prompt_injection import PromptInjectionDetector, check_prompt_injection
+from ai_guardian.scanners.prompt_injection import (
+    PromptInjectionDetector,
+    check_prompt_injection,
+)
 
 
 class PromptInjectionDetectorTest(unittest.TestCase):
@@ -1919,7 +1922,7 @@ class TestToolOutputDetection(unittest.TestCase):
 
     def test_looks_like_tool_output_with_pytest_traceback(self):
         """Pytest output with Traceback + test session markers → detected as tool output."""
-        from ai_guardian.prompt_injection import _looks_like_tool_output
+        from ai_guardian.scanners.prompt_injection import _looks_like_tool_output
 
         text = (
             "== test session starts ==\n"
@@ -1934,14 +1937,14 @@ class TestToolOutputDetection(unittest.TestCase):
 
     def test_looks_like_tool_output_single_marker(self):
         """Single marker should NOT trigger tool output detection."""
-        from ai_guardian.prompt_injection import _looks_like_tool_output
+        from ai_guardian.scanners.prompt_injection import _looks_like_tool_output
 
         text = "This has one FAILED test but nothing else suspicious."
         self.assertFalse(_looks_like_tool_output(text))
 
     def test_looks_like_tool_output_no_markers(self):
         """Normal text without markers → not tool output."""
-        from ai_guardian.prompt_injection import _looks_like_tool_output
+        from ai_guardian.scanners.prompt_injection import _looks_like_tool_output
 
         text = "Please help me refactor the user authentication module."
         self.assertFalse(_looks_like_tool_output(text))
@@ -1995,7 +1998,7 @@ class TestToolOutputDetection(unittest.TestCase):
 
     def test_tool_output_with_multiple_languages(self):
         """Go panic + npm ERR should trigger tool output detection."""
-        from ai_guardian.prompt_injection import _looks_like_tool_output
+        from ai_guardian.scanners.prompt_injection import _looks_like_tool_output
 
         text = (
             "panic: runtime error: index out of range\n"
@@ -2011,7 +2014,7 @@ class TestMixedUnicodeAndHeuristicDetection(unittest.TestCase):
 
     def test_unicode_plus_injection_both_in_findings(self):
         """Content with unicode attack AND injection pattern reports both."""
-        from ai_guardian.prompt_injection import PromptInjectionDetector
+        from ai_guardian.scanners.prompt_injection import PromptInjectionDetector
 
         detector = PromptInjectionDetector({"enabled": True, "sensitivity": "high"})
         # Zero-width space (U+200B) + injection pattern
@@ -2025,7 +2028,7 @@ class TestMixedUnicodeAndHeuristicDetection(unittest.TestCase):
 
     def test_unicode_only_still_detected(self):
         """Content with only unicode attack still detected."""
-        from ai_guardian.prompt_injection import PromptInjectionDetector
+        from ai_guardian.scanners.prompt_injection import PromptInjectionDetector
 
         detector = PromptInjectionDetector({"enabled": True, "sensitivity": "high"})
         content = "Hello​world safe content"

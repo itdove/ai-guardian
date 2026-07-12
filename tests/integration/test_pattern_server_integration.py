@@ -22,7 +22,7 @@ class TestPatternServerClient:
 
     def test_default_endpoints(self):
         """Test that default endpoints are set correctly for each pattern type."""
-        from ai_guardian.pattern_server import PatternServerClient
+        from ai_guardian.patterns.server import PatternServerClient
 
         ssrf_client = PatternServerClient(
             {"url": "https://example.com"}, pattern_type="ssrf"
@@ -46,7 +46,7 @@ class TestPatternServerClient:
 
     def test_default_cache_files(self):
         """Test that default cache filenames are set correctly."""
-        from ai_guardian.pattern_server import PatternServerClient
+        from ai_guardian.patterns.server import PatternServerClient
 
         ssrf_client = PatternServerClient(
             {"url": "https://example.com"}, pattern_type="ssrf"
@@ -60,8 +60,8 @@ class TestPatternServerClient:
 
     def test_pattern_server_disabled_by_default(self):
         """Test that features work without pattern server (backward compatibility)."""
-        from ai_guardian.ssrf_protector import SSRFProtector
-        from ai_guardian.secret_redactor import SecretRedactor
+        from ai_guardian.scanners.ssrf import SSRFProtector
+        from ai_guardian.scanners.secret_redactor import SecretRedactor
 
         # No pattern_server config - should use defaults
         ssrf = SSRFProtector({})
@@ -70,10 +70,10 @@ class TestPatternServerClient:
         redactor = SecretRedactor({})
         assert len(redactor.compiled_patterns) > 0
 
-    @patch("ai_guardian.pattern_server.requests")
+    @patch("ai_guardian.patterns.server.requests")
     def test_fallback_to_cache_on_server_failure(self, mock_requests):
         """Test fallback to cached patterns when server is unavailable."""
-        from ai_guardian.pattern_server import PatternServerClient
+        from ai_guardian.patterns.server import PatternServerClient
 
         # Create a temp cache file
         with tempfile.NamedTemporaryFile(mode="w", suffix=".toml", delete=False) as f:
@@ -96,7 +96,7 @@ class TestPatternServerClient:
 
     def test_fallback_to_defaults_when_no_cache(self):
         """Test that features fall back to hardcoded defaults when pattern server and cache unavailable."""
-        from ai_guardian.ssrf_protector import SSRFProtector
+        from ai_guardian.scanners.ssrf import SSRFProtector
 
         # Pattern server configured but not actually available
         config = {
@@ -116,7 +116,7 @@ class TestPatternLoaders:
 
     def test_ssrf_pattern_loader_immutable_patterns(self):
         """Test that SSRF loader correctly identifies immutable patterns."""
-        from ai_guardian.pattern_loader import SSRFPatternLoader
+        from ai_guardian.patterns.loader import SSRFPatternLoader
 
         loader = SSRFPatternLoader()
         immutable = loader.get_immutable_patterns()
@@ -134,7 +134,7 @@ class TestPatternLoaders:
 
     def test_ssrf_pattern_loader_defaults(self):
         """Test that SSRF loader provides RFC 1918 defaults."""
-        from ai_guardian.pattern_loader import SSRFPatternLoader
+        from ai_guardian.patterns.loader import SSRFPatternLoader
 
         loader = SSRFPatternLoader()
         defaults = loader.get_default_patterns()
@@ -147,7 +147,7 @@ class TestPatternLoaders:
 
     def test_secret_pattern_loader_no_immutable(self):
         """Test that SecretPatternLoader has no immutable patterns."""
-        from ai_guardian.pattern_loader import SecretPatternLoader
+        from ai_guardian.patterns.loader import SecretPatternLoader
 
         loader = SecretPatternLoader()
         immutable = loader.get_immutable_patterns()
@@ -157,7 +157,7 @@ class TestPatternLoaders:
 
     def test_unicode_pattern_loader_immutable_patterns(self):
         """Test that Unicode loader correctly separates immutable from overridable."""
-        from ai_guardian.pattern_loader import UnicodePatternLoader
+        from ai_guardian.patterns.loader import UnicodePatternLoader
 
         loader = UnicodePatternLoader()
         immutable = loader.get_immutable_patterns()
@@ -170,7 +170,7 @@ class TestPatternLoaders:
 
     def test_config_exfil_pattern_loader_immutable_core(self):
         """Test that ConfigExfilPatternLoader identifies core patterns as immutable."""
-        from ai_guardian.pattern_loader import ConfigExfilPatternLoader
+        from ai_guardian.patterns.loader import ConfigExfilPatternLoader
 
         loader = ConfigExfilPatternLoader()
         immutable = loader.get_immutable_patterns()
@@ -187,7 +187,7 @@ class TestThreeTierMerge:
 
     def test_ssrf_three_tier_merge(self):
         """Test SSRF three-tier merge maintains immutable patterns."""
-        from ai_guardian.pattern_loader import SSRFPatternLoader
+        from ai_guardian.patterns.loader import SSRFPatternLoader
 
         loader = SSRFPatternLoader()
 
@@ -219,7 +219,7 @@ class TestThreeTierMerge:
 
     def test_secret_redaction_override_modes(self):
         """Test secret redaction extend vs replace modes."""
-        from ai_guardian.pattern_loader import SecretPatternLoader
+        from ai_guardian.patterns.loader import SecretPatternLoader
 
         loader = SecretPatternLoader()
 
@@ -258,7 +258,7 @@ class TestThreeTierMerge:
 
     def test_local_config_always_additive(self):
         """Test that local config additions are always added (never replaced)."""
-        from ai_guardian.pattern_loader import SSRFPatternLoader
+        from ai_guardian.patterns.loader import SSRFPatternLoader
 
         loader = SSRFPatternLoader()
 
@@ -279,7 +279,7 @@ class TestFeatureIntegration:
 
     def test_ssrf_protector_loads_from_pattern_server(self):
         """Test SSRFProtector with pattern server configuration."""
-        from ai_guardian.ssrf_protector import SSRFProtector
+        from ai_guardian.scanners.ssrf import SSRFProtector
 
         # Mock pattern server config (won't actually fetch)
         config = {
@@ -296,7 +296,7 @@ class TestFeatureIntegration:
 
     def test_secret_redactor_loads_from_pattern_server(self):
         """Test SecretRedactor with pattern server configuration."""
-        from ai_guardian.secret_redactor import SecretRedactor
+        from ai_guardian.scanners.secret_redactor import SecretRedactor
 
         config = {
             "pattern_server": {
@@ -311,7 +311,7 @@ class TestFeatureIntegration:
 
     def test_unicode_detector_loads_from_pattern_server(self):
         """Test UnicodeAttackDetector with pattern server configuration."""
-        from ai_guardian.prompt_injection import UnicodeAttackDetector
+        from ai_guardian.scanners.prompt_injection import UnicodeAttackDetector
 
         config = {
             "pattern_server": {
@@ -326,7 +326,7 @@ class TestFeatureIntegration:
 
     def test_config_scanner_loads_from_pattern_server(self):
         """Test ConfigFileScanner with pattern server configuration."""
-        from ai_guardian.config_scanner import ConfigFileScanner
+        from ai_guardian.scanners.config_scanner import ConfigFileScanner
 
         config = {
             "pattern_server": {
@@ -345,7 +345,7 @@ class TestSourceAttribution:
 
     def test_pattern_sources_tracked(self):
         """Test that pattern sources are tracked for transparency."""
-        from ai_guardian.pattern_loader import SSRFPatternLoader
+        from ai_guardian.patterns.loader import SSRFPatternLoader
 
         loader = SSRFPatternLoader()
 
@@ -362,7 +362,7 @@ class TestBackwardCompatibility:
 
     def test_ssrf_without_pattern_server(self):
         """Test SSRF works without pattern server config."""
-        from ai_guardian.ssrf_protector import SSRFProtector
+        from ai_guardian.scanners.ssrf import SSRFProtector
 
         # No pattern_server in config
         protector = SSRFProtector({"action": "block"})
@@ -375,7 +375,7 @@ class TestBackwardCompatibility:
 
     def test_secrets_without_pattern_server(self):
         """Test secret redaction works without pattern server config."""
-        from ai_guardian.secret_redactor import SecretRedactor
+        from ai_guardian.scanners.secret_redactor import SecretRedactor
 
         redactor = SecretRedactor({"enabled": True})
 
@@ -389,7 +389,7 @@ class TestBackwardCompatibility:
 
     def test_unicode_without_pattern_server(self):
         """Test unicode detection works without pattern server config."""
-        from ai_guardian.prompt_injection import UnicodeAttackDetector
+        from ai_guardian.scanners.prompt_injection import UnicodeAttackDetector
 
         detector = UnicodeAttackDetector({"enabled": True})
 
@@ -400,7 +400,7 @@ class TestBackwardCompatibility:
 
     def test_config_scanner_without_pattern_server(self):
         """Test config scanner works without pattern server config."""
-        from ai_guardian.config_scanner import ConfigFileScanner
+        from ai_guardian.scanners.config_scanner import ConfigFileScanner
 
         scanner = ConfigFileScanner({"enabled": True})
 
@@ -415,7 +415,7 @@ class TestConfigInspector:
 
     def test_inspector_shows_ssrf_config(self):
         """Test inspector displays SSRF configuration."""
-        from ai_guardian.config_inspector import ConfigInspector
+        from ai_guardian.config.inspector import ConfigInspector
 
         config = {"ssrf_protection": {"enabled": True, "action": "block"}}
         inspector = ConfigInspector(config)
@@ -426,7 +426,7 @@ class TestConfigInspector:
 
     def test_inspector_shows_sources(self):
         """Test inspector shows source attribution."""
-        from ai_guardian.config_inspector import ConfigInspector
+        from ai_guardian.config.inspector import ConfigInspector
 
         config = {"ssrf_protection": {"enabled": True}}
         inspector = ConfigInspector(config)
@@ -437,7 +437,7 @@ class TestConfigInspector:
     def test_inspector_export_json(self):
         """Test inspector exports to JSON."""
         import json
-        from ai_guardian.config_inspector import ConfigInspector
+        from ai_guardian.config.inspector import ConfigInspector
 
         config = {
             "ssrf_protection": {"enabled": True},

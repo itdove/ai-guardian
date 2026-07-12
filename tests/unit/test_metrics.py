@@ -10,7 +10,7 @@ from pathlib import Path
 
 import pytest
 
-from ai_guardian.metrics import (
+from ai_guardian.reporting.metrics import (
     MetricsComputer,
     MetricsReport,
     _parse_since,
@@ -20,7 +20,7 @@ from ai_guardian.metrics import (
     format_json,
     metrics_command,
 )
-from ai_guardian.violation_counter import ViolationCounter
+from ai_guardian.violations.counter import ViolationCounter
 
 
 def _make_violation(

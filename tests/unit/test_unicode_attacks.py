@@ -3,7 +3,10 @@ Unit tests for Unicode attack detection
 """
 
 import unittest
-from ai_guardian.prompt_injection import UnicodeAttackDetector, PromptInjectionDetector
+from ai_guardian.scanners.prompt_injection import (
+    UnicodeAttackDetector,
+    PromptInjectionDetector,
+)
 
 
 class UnicodeAttackDetectorTest(unittest.TestCase):

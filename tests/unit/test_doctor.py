@@ -210,7 +210,7 @@ class TestCheckScanners:
         mock_manager.list_installed.return_value = []
         mock_cls = mock.MagicMock(return_value=mock_manager)
 
-        with mock.patch("ai_guardian.scanner_manager.ScannerManager", mock_cls):
+        with mock.patch("ai_guardian.scanners.manager.ScannerManager", mock_cls):
             doctor = Doctor()
             result = doctor.check_scanners()
         assert result.status == CheckStatus.FAIL
@@ -224,7 +224,7 @@ class TestCheckScanners:
         mock_manager.list_installed.return_value = [mock_scanner]
         mock_cls = mock.MagicMock(return_value=mock_manager)
 
-        with mock.patch("ai_guardian.scanner_manager.ScannerManager", mock_cls):
+        with mock.patch("ai_guardian.scanners.manager.ScannerManager", mock_cls):
             doctor = Doctor()
             result = doctor.check_scanners()
         assert result.status == CheckStatus.PASS
@@ -790,7 +790,7 @@ class TestCheckAskModeDeps:
 
     def test_skip_no_ask_actions(self, _isolate_config_dir):
         doctor = Doctor()
-        doctor._config = {"secret_scanning": {"action": "block"}}
+        doctor._config = {"secret_scanning": {"enabled": True}}
         doctor._config_loaded = True
         result = doctor.check_ask_mode_deps()
         assert result.status == CheckStatus.SKIP
@@ -798,13 +798,13 @@ class TestCheckAskModeDeps:
 
     def test_pass_tkinter_available(self, _isolate_config_dir):
         doctor = Doctor()
-        doctor._config = {"secret_scanning": {"action": "ask"}}
+        doctor._config = {"prompt_injection": {"action": "ask"}}
         doctor._config_loaded = True
         with mock.patch.dict("sys.modules", {"tkinter": mock.MagicMock()}):
             result = doctor.check_ask_mode_deps()
         assert result.status == CheckStatus.PASS
         assert "tkinter" in result.message
-        assert "secret_scanning" in result.message
+        assert "prompt_injection" in result.message
 
     def test_pass_nicegui_fallback(self, _isolate_config_dir):
         doctor = Doctor()
@@ -852,14 +852,14 @@ class TestCheckAskModeDeps:
     def test_multiple_ask_sections(self, _isolate_config_dir):
         doctor = Doctor()
         doctor._config = {
-            "secret_scanning": {"action": "ask"},
+            "prompt_injection": {"action": "ask"},
             "scan_pii": {"action": "ask:log-only"},
         }
         doctor._config_loaded = True
         with mock.patch.dict("sys.modules", {"tkinter": mock.MagicMock()}):
             result = doctor.check_ask_mode_deps()
         assert result.status == CheckStatus.PASS
-        assert "secret_scanning" in result.message
+        assert "prompt_injection" in result.message
         assert "scan_pii" in result.message
 
 
@@ -974,7 +974,7 @@ class TestCheckPsCachePath:
         ro_dir = tmp_path / "readonly_cache"
         ro_dir.mkdir()
         ro_dir.chmod(0o444)
-        with mock.patch("ai_guardian.config_utils.get_cache_dir", return_value=ro_dir):
+        with mock.patch("ai_guardian.config.utils.get_cache_dir", return_value=ro_dir):
             doctor = Doctor()
             result = doctor.check_ps_cache_path()
         ro_dir.chmod(0o755)
@@ -985,7 +985,7 @@ class TestCheckPsCachePath:
         self._write_ps_config(_isolate_config_dir)
         missing = tmp_path / "nonexistent"
         # Clear cache-dir env vars so doctor treats the path as the default
-        with mock.patch("ai_guardian.config_utils.get_cache_dir", return_value=missing):
+        with mock.patch("ai_guardian.config.utils.get_cache_dir", return_value=missing):
             with mock.patch.dict(
                 "os.environ", {"AI_GUARDIAN_CACHE_DIR": "", "XDG_CACHE_HOME": ""}
             ):
@@ -997,7 +997,7 @@ class TestCheckPsCachePath:
     def test_missing_dir_xdg_override_fails(self, _isolate_config_dir, tmp_path):
         self._write_ps_config(_isolate_config_dir)
         missing = tmp_path / "nonexistent"
-        with mock.patch("ai_guardian.config_utils.get_cache_dir", return_value=missing):
+        with mock.patch("ai_guardian.config.utils.get_cache_dir", return_value=missing):
             with mock.patch.dict("os.environ", {"XDG_CACHE_HOME": "/custom/cache"}):
                 doctor = Doctor()
                 result = doctor.check_ps_cache_path()
@@ -1007,7 +1007,7 @@ class TestCheckPsCachePath:
     def test_missing_dir_env_override_fails(self, _isolate_config_dir, tmp_path):
         self._write_ps_config(_isolate_config_dir)
         missing = tmp_path / "nonexistent"
-        with mock.patch("ai_guardian.config_utils.get_cache_dir", return_value=missing):
+        with mock.patch("ai_guardian.config.utils.get_cache_dir", return_value=missing):
             with mock.patch.dict(
                 "os.environ", {"AI_GUARDIAN_CACHE_DIR": "/custom/cache"}
             ):
@@ -1600,7 +1600,8 @@ class TestCheckAstScanner:
             ):
                 with mock.patch("importlib.metadata.version", return_value="0.25.0"):
                     with mock.patch(
-                        "ai_guardian.ast_scanner._GRAMMAR_IMPORTS", grammar_imports
+                        "ai_guardian.scanners.ast_scanner._GRAMMAR_IMPORTS",
+                        grammar_imports,
                     ):
                         with mock.patch("importlib.import_module") as mock_import:
                             mock_import.return_value = mock.MagicMock()
@@ -1635,7 +1636,7 @@ class TestCheckAstScanner:
         with mock.patch.dict("sys.modules", {"tree_sitter": mock_ts}):
             with mock.patch("importlib.metadata.version", return_value="0.25.0"):
                 with mock.patch(
-                    "ai_guardian.ast_scanner._GRAMMAR_IMPORTS", grammar_imports
+                    "ai_guardian.scanners.ast_scanner._GRAMMAR_IMPORTS", grammar_imports
                 ):
                     with mock.patch("importlib.import_module", side_effect=ImportError):
                         doctor = Doctor()
@@ -1659,7 +1660,7 @@ class TestCheckAstScanner:
         with mock.patch.dict("sys.modules", {"tree_sitter": mock_ts}):
             with mock.patch("importlib.metadata.version", return_value="0.24.0"):
                 with mock.patch(
-                    "ai_guardian.ast_scanner._GRAMMAR_IMPORTS", grammar_imports
+                    "ai_guardian.scanners.ast_scanner._GRAMMAR_IMPORTS", grammar_imports
                 ):
                     with mock.patch(
                         "importlib.import_module", side_effect=selective_import

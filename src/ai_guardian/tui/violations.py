@@ -8,6 +8,7 @@ Display all recent violations with filtering and resolution instructions.
 import json
 from typing import Dict
 
+from ai_guardian.constants import HookEvent
 from rich.markup import escape
 from textual.app import ComposeResult
 from textual.containers import Container, Horizontal, VerticalScroll, Vertical
@@ -16,8 +17,8 @@ from textual.screen import ModalScreen
 from textual.binding import Binding
 from textual import events
 
-from ai_guardian.violation_logger import ViolationLogger
-from ai_guardian.violation_guidance import get_resolution_instructions
+from ai_guardian.violations.logger import ViolationLogger
+from ai_guardian.violations.guidance import get_resolution_instructions
 from ai_guardian.tui.widgets import format_local_time
 from ai_guardian.tui.pattern_editor import (
     config_section_for_violation,
@@ -742,7 +743,7 @@ class ViolationCard(Vertical):
 
             # Show secret type (human-readable name)
             if secret_type and secret_type != "Unknown":
-                from ai_guardian.secret_type_names import get_secret_type_display
+                from ai_guardian.scanners.secret_types import get_secret_type_display
 
                 yield Static(
                     f"Type: {get_secret_type_display(secret_type)}",
@@ -952,7 +953,7 @@ class ViolationCard(Vertical):
             source = blocked.get("source", "transcript")
             if file_path:
                 yield Static(f"File: {escape(file_path)}", classes="violation-detail")
-            from ai_guardian.secret_type_names import get_secret_type_display
+            from ai_guardian.scanners.secret_types import get_secret_type_display
 
             yield Static(
                 f"Type: {escape(get_secret_type_display(secret_type))}",
@@ -977,7 +978,7 @@ class ViolationCard(Vertical):
             file_path = blocked.get("file_path", "Unknown")
             secret_type = blocked.get("secret_type", "Unknown")
             yield Static(f"Image: {escape(file_path)}", classes="violation-detail")
-            from ai_guardian.secret_type_names import get_secret_type_display
+            from ai_guardian.scanners.secret_types import get_secret_type_display
 
             yield Static(
                 f"Secret type: {escape(get_secret_type_display(secret_type))}",
@@ -1002,9 +1003,10 @@ class ViolationCard(Vertical):
         hook_event = context.get("hook_event", "")
         has_correlation = bool(context.get("pretool_context"))
         if tool_use_id and has_correlation:
-            hook_label = hook_event.replace("posttooluse", "PostToolUse").replace(
-                "pretooluse", "PreToolUse"
-            )
+            try:
+                hook_label = HookEvent(hook_event).display_name
+            except ValueError:
+                hook_label = hook_event
             yield Static(
                 f"[dim]Correlation: {tool_use_id[:16]}... ({hook_label})[/dim]",
                 classes="violation-detail",

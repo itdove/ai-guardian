@@ -9,12 +9,12 @@ import os
 import re
 
 
-from ai_guardian.prompt_injection import PromptInjectionDetector
-from ai_guardian.context_poisoning import ContextPoisoningDetector
-from ai_guardian.ssrf_protector import SSRFProtector
-from ai_guardian.supply_chain import SupplyChainScanner
-from ai_guardian.config_scanner import ConfigFileScanner
-from ai_guardian.tool_policy import ToolPolicyChecker
+from ai_guardian.scanners.prompt_injection import PromptInjectionDetector
+from ai_guardian.scanners.context_poisoning import ContextPoisoningDetector
+from ai_guardian.scanners.ssrf import SSRFProtector
+from ai_guardian.scanners.supply_chain import SupplyChainScanner
+from ai_guardian.scanners.config_scanner import ConfigFileScanner
+from ai_guardian.tools.policy import ToolPolicyChecker
 
 
 class TestPromptInjectionWarnSanitization:

@@ -11,7 +11,7 @@ from textual.app import ComposeResult
 from textual.containers import Container, Horizontal, VerticalScroll
 from textual.widgets import Static, Button, Input, Label, Select, Checkbox
 
-from ai_guardian.config_utils import get_config_dir
+from ai_guardian.config.utils import get_config_dir
 from ai_guardian.tui.schema_defaults import (
     SchemaDefaultsMixin,
     default_indicator,
@@ -468,7 +468,7 @@ class PromptInjectionContent(SchemaDefaultsMixin, Container):
         self._apply_default_indicators(pi_config)
 
         # Get violation stats
-        from ai_guardian.violation_logger import ViolationLogger
+        from ai_guardian.violations.logger import ViolationLogger
 
         violation_logger = ViolationLogger()
         violations = violation_logger.get_recent_violations(

@@ -10,7 +10,7 @@ from textual.app import ComposeResult
 from textual.containers import Container, VerticalScroll
 from textual.widgets import Static
 
-from ai_guardian.config_utils import get_config_dir, get_project_config_path
+from ai_guardian.config.utils import get_config_dir, get_project_config_path
 
 
 def _format_enabled(value: Union[bool, Dict[str, Any]]) -> str:
@@ -111,7 +111,7 @@ class ExfilDetectionContent(Container):
             project_path = get_project_config_path()
             if project_path:
                 return project_path
-            from ai_guardian.config_utils import _find_git_root
+            from ai_guardian.config.utils import _find_git_root
 
             root = _find_git_root() or Path.cwd()
             return root / ".ai-guardian" / "ai-guardian.json"
@@ -164,7 +164,7 @@ class ExfilDetectionContent(Container):
 
     def _load_violations(self) -> None:
         try:
-            from ai_guardian.violation_logger import ViolationLogger
+            from ai_guardian.violations.logger import ViolationLogger
 
             vl = ViolationLogger()
             violations = vl.get_recent_violations(

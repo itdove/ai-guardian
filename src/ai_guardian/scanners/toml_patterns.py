@@ -97,7 +97,7 @@ class TomlPatternsScanner(Scanner):
     def _load_from_server(self, server_config: dict) -> None:
         """Load patterns from a single pattern server."""
         try:
-            from ai_guardian.pattern_server import PatternServerClient
+            from ai_guardian.patterns.server import PatternServerClient
             from ai_guardian.patterns.server_parsers import get_parser
 
             fmt = server_config.get("format", "gitleaks")

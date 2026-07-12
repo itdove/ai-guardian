@@ -8,7 +8,7 @@ and PII-specific redaction strategies.
 import time
 from datetime import datetime, timezone
 
-from ai_guardian.secret_redactor import SecretRedactor
+from ai_guardian.scanners.secret_redactor import SecretRedactor
 from ai_guardian.patterns.validators import luhn_check, iban_check, VALID_CC_PREFIXES
 
 PII_CONFIG = {
@@ -723,7 +723,7 @@ class TestPhase2TypeFiltering:
 
     def test_phase2_default_types_in_defaults(self):
         """Low false-positive Phase 2 types should be in defaults."""
-        from ai_guardian.config_loaders import _PII_DEFAULTS
+        from ai_guardian.config.loaders import _PII_DEFAULTS
 
         default_types = _PII_DEFAULTS["pii_types"]
         for t in ["medical_id", "passport", "uk_nin"]:
@@ -731,7 +731,7 @@ class TestPhase2TypeFiltering:
 
     def test_phase2_optin_types_not_in_defaults(self):
         """High false-positive Phase 2 types should remain opt-in."""
-        from ai_guardian.config_loaders import _PII_DEFAULTS
+        from ai_guardian.config.loaders import _PII_DEFAULTS
 
         default_types = _PII_DEFAULTS["pii_types"]
         optin_types = ["canada_sin", "india_aadhaar", "address"]
@@ -1010,7 +1010,7 @@ class TestPIIPatternLoader:
 
     def test_loader_loads_bundled_defaults(self):
         """PIIPatternLoader loads patterns from bundled pii.toml."""
-        from ai_guardian.pattern_loader import PIIPatternLoader
+        from ai_guardian.patterns.loader import PIIPatternLoader
 
         loader = PIIPatternLoader()
         result = loader.load_patterns()
@@ -1023,7 +1023,7 @@ class TestPIIPatternLoader:
 
     def test_loader_immutable_empty(self):
         """PIIPatternLoader has no immutable patterns."""
-        from ai_guardian.pattern_loader import PIIPatternLoader
+        from ai_guardian.patterns.loader import PIIPatternLoader
 
         loader = PIIPatternLoader()
         immutable = loader.get_immutable_patterns()
@@ -1031,7 +1031,7 @@ class TestPIIPatternLoader:
 
     def test_loader_merge_extend_mode(self):
         """Server patterns extend defaults when override_mode is extend."""
-        from ai_guardian.pattern_loader import PIIPatternLoader
+        from ai_guardian.patterns.loader import PIIPatternLoader
 
         loader = PIIPatternLoader()
         immutable = {"rules": []}
@@ -1062,7 +1062,7 @@ class TestPIIPatternLoader:
 
     def test_loader_merge_replace_mode(self):
         """Server patterns replace defaults when override_mode is replace."""
-        from ai_guardian.pattern_loader import PIIPatternLoader
+        from ai_guardian.patterns.loader import PIIPatternLoader
 
         loader = PIIPatternLoader()
         immutable = {"rules": []}
@@ -1084,7 +1084,7 @@ class TestPIIPatternLoader:
 
     def test_loader_merge_server_overrides_by_id(self):
         """Server rules override defaults with matching id in extend mode."""
-        from ai_guardian.pattern_loader import PIIPatternLoader
+        from ai_guardian.patterns.loader import PIIPatternLoader
 
         loader = PIIPatternLoader()
         immutable = {"rules": []}
@@ -1108,7 +1108,7 @@ class TestPIIPatternLoader:
 
     def test_loader_merge_local_additions(self):
         """Local additional_pii_patterns are always additive."""
-        from ai_guardian.pattern_loader import PIIPatternLoader
+        from ai_guardian.patterns.loader import PIIPatternLoader
 
         loader = PIIPatternLoader()
         immutable = {"rules": []}
@@ -1129,7 +1129,7 @@ class TestPIIPatternLoader:
 
     def test_loader_pattern_type(self):
         """PIIPatternLoader has correct pattern_type for server API."""
-        from ai_guardian.pattern_loader import PIIPatternLoader
+        from ai_guardian.patterns.loader import PIIPatternLoader
 
         loader = PIIPatternLoader()
         assert loader.pattern_type == "pii"
@@ -1166,7 +1166,7 @@ class TestPIIPatternServerWiring:
 
     def test_pii_defaults_include_pattern_server(self):
         """_PII_DEFAULTS includes pattern_server key."""
-        from ai_guardian.config_loaders import _PII_DEFAULTS
+        from ai_guardian.config.loaders import _PII_DEFAULTS
 
         assert "pattern_server" in _PII_DEFAULTS
         assert _PII_DEFAULTS["pattern_server"] is None

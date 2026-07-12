@@ -14,7 +14,7 @@ from textual.app import ComposeResult
 from textual.containers import Container, Horizontal, VerticalScroll
 from textual.widgets import Static, Switch
 
-from ai_guardian.config_utils import get_config_dir, get_project_config_path
+from ai_guardian.config.utils import get_config_dir, get_project_config_path
 
 
 class AutoDirectoryRulesContent(Container):
@@ -150,7 +150,7 @@ class AutoDirectoryRulesContent(Container):
             project_path = get_project_config_path()
             if project_path:
                 return project_path
-            from ai_guardian.config_utils import _find_git_root
+            from ai_guardian.config.utils import _find_git_root
 
             root = _find_git_root() or Path.cwd()
             return root / ".ai-guardian" / "ai-guardian.json"
@@ -278,7 +278,7 @@ class AutoDirectoryRulesContent(Container):
     def _run_generator(self, config):
         """Run the DirectoryRuleGenerator in preview mode."""
         try:
-            from ai_guardian.directory_rule_generator import (
+            from ai_guardian.tools.directory_rules import (
                 DirectoryRuleGenerator,
             )
 

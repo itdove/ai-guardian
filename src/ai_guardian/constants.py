@@ -84,6 +84,33 @@ class HookEvent(str, Enum):
     SESSION_END = "sessionend"
     POST_COMPACT = "postcompact"
 
+    @property
+    def display_name(self) -> str:
+        """PascalCase display name used in IDE protocol responses."""
+        return _DISPLAY_NAMES.get(self, self.value)
+
+    @classmethod
+    def from_display_name(cls, name: str) -> "HookEvent":
+        """Look up a HookEvent by its PascalCase display name."""
+        for event, display in _DISPLAY_NAMES.items():
+            if display == name:
+                return event
+        raise ValueError(f"Unknown hook event display name: {name}")
+
+
+_DISPLAY_NAMES = {
+    HookEvent.SESSION_START: "SessionStart",
+    HookEvent.PROMPT: "UserPromptSubmit",
+    HookEvent.PRE_TOOL_USE: "PreToolUse",
+    HookEvent.POST_TOOL_USE: "PostToolUse",
+    HookEvent.BEFORE_READ_FILE: "PreToolUse",
+    HookEvent.SESSION_END: "SessionEnd",
+    HookEvent.STOP: "Stop",
+    HookEvent.POST_COMPACT: "PostCompact",
+}
+
+ALL_HOOK_EVENT_DISPLAY_NAMES = frozenset(_DISPLAY_NAMES.values())
+
 
 AUGMENT_TOOL_MAP = {
     "launch-process": "Bash",

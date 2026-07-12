@@ -212,7 +212,7 @@ class TestConfigWriter:
     """Tests for config_writer.py safe config file writing."""
 
     def test_add_pattern_to_empty_config(self):
-        from ai_guardian.config_writer import add_allowlist_pattern
+        from ai_guardian.config.writer import add_allowlist_pattern
 
         with tempfile.TemporaryDirectory() as tmpdir:
             config_path = Path(tmpdir) / "ai-guardian.json"
@@ -225,7 +225,7 @@ class TestConfigWriter:
             assert r"CARB\w+" in config["secret_scanning"]["allowlist_patterns"]
 
     def test_add_pattern_to_existing_config(self):
-        from ai_guardian.config_writer import add_allowlist_pattern
+        from ai_guardian.config.writer import add_allowlist_pattern
 
         with tempfile.TemporaryDirectory() as tmpdir:
             config_path = Path(tmpdir) / "ai-guardian.json"
@@ -249,7 +249,7 @@ class TestConfigWriter:
             assert "new_pattern" in config["secret_scanning"]["allowlist_patterns"]
 
     def test_add_duplicate_pattern(self):
-        from ai_guardian.config_writer import add_allowlist_pattern
+        from ai_guardian.config.writer import add_allowlist_pattern
 
         with tempfile.TemporaryDirectory() as tmpdir:
             config_path = Path(tmpdir) / "ai-guardian.json"
@@ -267,7 +267,7 @@ class TestConfigWriter:
             )
 
     def test_add_pattern_with_expiration(self):
-        from ai_guardian.config_writer import add_allowlist_pattern
+        from ai_guardian.config.writer import add_allowlist_pattern
 
         with tempfile.TemporaryDirectory() as tmpdir:
             config_path = Path(tmpdir) / "ai-guardian.json"
@@ -286,7 +286,7 @@ class TestConfigWriter:
             assert entry["valid_until"] == "2027-01-01T00:00:00Z"
 
     def test_reject_dangerous_pattern(self):
-        from ai_guardian.config_writer import add_allowlist_pattern
+        from ai_guardian.config.writer import add_allowlist_pattern
 
         with tempfile.TemporaryDirectory() as tmpdir:
             config_path = Path(tmpdir) / "ai-guardian.json"
@@ -296,13 +296,13 @@ class TestConfigWriter:
             assert result is False
 
     def test_reject_empty_inputs(self):
-        from ai_guardian.config_writer import add_allowlist_pattern
+        from ai_guardian.config.writer import add_allowlist_pattern
 
         assert add_allowlist_pattern("", "pattern") is False
         assert add_allowlist_pattern("section", "") is False
 
     def test_new_section_created(self):
-        from ai_guardian.config_writer import add_allowlist_pattern
+        from ai_guardian.config.writer import add_allowlist_pattern
 
         with tempfile.TemporaryDirectory() as tmpdir:
             config_path = Path(tmpdir) / "ai-guardian.json"
@@ -321,7 +321,7 @@ class TestSaveAskPattern:
     """Tests for save_ask_pattern() unified dispatcher."""
 
     def test_dispatches_to_ssrf(self):
-        from ai_guardian.config_writer import save_ask_pattern
+        from ai_guardian.config.writer import save_ask_pattern
 
         with tempfile.TemporaryDirectory() as tmpdir:
             config_path = Path(tmpdir) / "ai-guardian.json"
@@ -336,7 +336,7 @@ class TestSaveAskPattern:
             assert "example.com" in config["ssrf_protection"]["allowed_domains"]
 
     def test_dispatches_to_directory_rules(self):
-        from ai_guardian.config_writer import save_ask_pattern
+        from ai_guardian.config.writer import save_ask_pattern
 
         with tempfile.TemporaryDirectory() as tmpdir:
             config_path = Path(tmpdir) / "ai-guardian.json"
@@ -349,7 +349,7 @@ class TestSaveAskPattern:
             assert "/tmp/**" in config["directory_rules"]["exclusions"]
 
     def test_dispatches_to_supply_chain(self):
-        from ai_guardian.config_writer import save_ask_pattern
+        from ai_guardian.config.writer import save_ask_pattern
 
         with tempfile.TemporaryDirectory() as tmpdir:
             config_path = Path(tmpdir) / "ai-guardian.json"
@@ -366,7 +366,7 @@ class TestSaveAskPattern:
             )
 
     def test_dispatches_to_config_file_scanning(self):
-        from ai_guardian.config_writer import save_ask_pattern
+        from ai_guardian.config.writer import save_ask_pattern
 
         with tempfile.TemporaryDirectory() as tmpdir:
             config_path = Path(tmpdir) / "ai-guardian.json"
@@ -381,7 +381,7 @@ class TestSaveAskPattern:
             assert "CLAUDE.md" in config["config_file_scanning"]["ignore_files"]
 
     def test_dispatches_to_permissions(self):
-        from ai_guardian.config_writer import save_ask_pattern
+        from ai_guardian.config.writer import save_ask_pattern
 
         with tempfile.TemporaryDirectory() as tmpdir:
             config_path = Path(tmpdir) / "ai-guardian.json"
@@ -401,7 +401,7 @@ class TestSaveAskPattern:
             }
 
     def test_dispatches_to_default_allowlist(self):
-        from ai_guardian.config_writer import save_ask_pattern
+        from ai_guardian.config.writer import save_ask_pattern
 
         with tempfile.TemporaryDirectory() as tmpdir:
             config_path = Path(tmpdir) / "ai-guardian.json"
@@ -418,21 +418,21 @@ class TestParsePermissionPattern:
     """Tests for _parse_permission_pattern() helper."""
 
     def test_with_colon(self):
-        from ai_guardian.config_writer import _parse_permission_pattern
+        from ai_guardian.config.writer import _parse_permission_pattern
 
         matcher, patterns = _parse_permission_pattern("Bash:npm test")
         assert matcher == "Bash"
         assert patterns == ["npm test"]
 
     def test_without_colon(self):
-        from ai_guardian.config_writer import _parse_permission_pattern
+        from ai_guardian.config.writer import _parse_permission_pattern
 
         matcher, patterns = _parse_permission_pattern("Skill")
         assert matcher == "Skill"
         assert patterns == ["*"]
 
     def test_colon_in_value(self):
-        from ai_guardian.config_writer import _parse_permission_pattern
+        from ai_guardian.config.writer import _parse_permission_pattern
 
         matcher, patterns = _parse_permission_pattern("Bash:echo foo:bar")
         assert matcher == "Bash"
@@ -443,7 +443,7 @@ class TestPermissionRuleMerging:
     """Tests for permission rule merging into existing matcher (#1192)."""
 
     def test_merge_pattern_into_existing_matcher(self):
-        from ai_guardian.config_writer import add_permission_rule
+        from ai_guardian.config.writer import add_permission_rule
 
         with tempfile.TemporaryDirectory() as tmpdir:
             config_path = Path(tmpdir) / "ai-guardian.json"
@@ -476,7 +476,7 @@ class TestPermissionRuleMerging:
             ]
 
     def test_merge_mcp_tool_pattern_into_existing_matcher(self):
-        from ai_guardian.config_writer import add_permission_rule
+        from ai_guardian.config.writer import add_permission_rule
 
         with tempfile.TemporaryDirectory() as tmpdir:
             config_path = Path(tmpdir) / "ai-guardian.json"
@@ -506,7 +506,7 @@ class TestPermissionRuleMerging:
             assert "*" in rules[0]["patterns"]
 
     def test_no_duplicate_pattern_in_merge(self):
-        from ai_guardian.config_writer import add_permission_rule
+        from ai_guardian.config.writer import add_permission_rule
 
         with tempfile.TemporaryDirectory() as tmpdir:
             config_path = Path(tmpdir) / "ai-guardian.json"
@@ -535,7 +535,7 @@ class TestPermissionRuleMerging:
             )
 
     def test_new_rule_when_no_matching_matcher(self):
-        from ai_guardian.config_writer import add_permission_rule
+        from ai_guardian.config.writer import add_permission_rule
 
         with tempfile.TemporaryDirectory() as tmpdir:
             config_path = Path(tmpdir) / "ai-guardian.json"
@@ -568,7 +568,7 @@ class TestPermissionRuleMerging:
             }
 
     def test_merge_via_save_ask_pattern(self):
-        from ai_guardian.config_writer import save_ask_pattern
+        from ai_guardian.config.writer import save_ask_pattern
 
         with tempfile.TemporaryDirectory() as tmpdir:
             config_path = Path(tmpdir) / "ai-guardian.json"
@@ -618,7 +618,7 @@ class TestPermissionRuleMerging:
                 )
             )
             with patch(
-                "ai_guardian.config_utils.get_config_dir", return_value=Path(tmpdir)
+                "ai_guardian.config.utils.get_config_dir", return_value=Path(tmpdir)
             ):
                 json_text, line_num = prepare_config_with_pattern(
                     "Skill:daf-workflow", "permissions"
@@ -741,7 +741,7 @@ class TestHandleAskMode:
         mock_dialog.return_value = AskResult(
             decision=AskDecision.ALLOW_ALWAYS, allowlist_pattern=r"FAKE\w+"
         )
-        with patch("ai_guardian.config_writer.save_ask_pattern") as mock_write:
+        with patch("ai_guardian.config.writer.save_ask_pattern") as mock_write:
             mock_write.return_value = True
             result = _handle_ask_mode(
                 "ask", "secret_detected", "FAKE_TOKEN", "secret_scanning", "error"
@@ -764,8 +764,8 @@ class TestAskCacheInvalidation:
             decision=AskDecision.ALLOW_ALWAYS, allowlist_pattern=r"FAKE\w+"
         )
         with (
-            patch("ai_guardian.config_writer.save_ask_pattern") as mock_write,
-            patch("ai_guardian.config_loaders._clear_config_cache") as mock_clear,
+            patch("ai_guardian.config.writer.save_ask_pattern") as mock_write,
+            patch("ai_guardian.config.loaders._clear_config_cache") as mock_clear,
         ):
             mock_write.return_value = True
             _handle_ask_mode(
@@ -784,8 +784,8 @@ class TestAskCacheInvalidation:
             decision=AskDecision.ALLOW_ALWAYS, allowlist_pattern=r"FAKE\w+"
         )
         with (
-            patch("ai_guardian.config_writer.save_ask_pattern") as mock_write,
-            patch("ai_guardian.config_loaders._clear_config_cache") as mock_clear,
+            patch("ai_guardian.config.writer.save_ask_pattern") as mock_write,
+            patch("ai_guardian.config.loaders._clear_config_cache") as mock_clear,
         ):
             mock_write.return_value = True
             _handle_ask_mode(
@@ -809,7 +809,7 @@ class TestAskCacheInvalidation:
             allowlist_pattern=r"FAKE\w+",
             config_saved=True,
         )
-        with patch("ai_guardian.config_loaders._clear_config_cache") as mock_clear:
+        with patch("ai_guardian.config.loaders._clear_config_cache") as mock_clear:
             _handle_ask_mode(
                 "ask",
                 "secret_detected",
@@ -831,7 +831,7 @@ class TestAskCacheInvalidation:
         )
         with (
             patch("ai_guardian.tui.ask_dialog._save_ignore_path") as mock_save,
-            patch("ai_guardian.config_loaders._clear_config_cache") as mock_clear,
+            patch("ai_guardian.config.loaders._clear_config_cache") as mock_clear,
         ):
             mock_save.return_value = True
             _handle_ask_mode(
@@ -850,7 +850,7 @@ class TestAskCacheInvalidation:
         from ai_guardian.tui.ask_dialog import AskResult, AskDecision
 
         mock_dialog.return_value = AskResult(decision=AskDecision.ALLOW_ONCE)
-        with patch("ai_guardian.config_loaders._clear_config_cache") as mock_clear:
+        with patch("ai_guardian.config.loaders._clear_config_cache") as mock_clear:
             _handle_ask_mode(
                 "ask", "secret_detected", "FAKE_TOKEN", "secret_scanning", "error"
             )
@@ -875,7 +875,7 @@ class TestAskDialogTiming:
     def test_latency_timer_receives_ask_wait(self, mock_dialog):
         from ai_guardian.hook_processing import _handle_ask_mode
         from ai_guardian.tui.ask_dialog import AskResult, AskDecision
-        from ai_guardian.latency_logger import _CheckTimer
+        from ai_guardian.reporting.latency import _CheckTimer
 
         mock_dialog.return_value = AskResult(decision=AskDecision.BLOCK)
         timer = _CheckTimer(enabled=True)
@@ -892,7 +892,7 @@ class TestAskDialogTiming:
 
     def test_non_ask_action_returns_none_no_timing(self):
         from ai_guardian.hook_processing import _handle_ask_mode
-        from ai_guardian.latency_logger import _CheckTimer
+        from ai_guardian.reporting.latency import _CheckTimer
 
         timer = _CheckTimer(enabled=True)
         result = _handle_ask_mode(
@@ -953,7 +953,7 @@ class TestSSRFAskAction:
     ):
         """Headless with 'ask' action should fall back to BLOCK."""
         mock_sub_run.side_effect = FileNotFoundError
-        from ai_guardian.ssrf_protector import SSRFProtector
+        from ai_guardian.scanners.ssrf import SSRFProtector
 
         config = {
             "action": "ask",
@@ -972,7 +972,7 @@ class TestSSRFAskAction:
     def test_ssrf_ask_warn_headless_allows(self, mock_sub_run, _mock_sub, _mock_daemon):
         """With ask:warn, check() returns True (ask needed) — caller handles fallback."""
         mock_sub_run.side_effect = FileNotFoundError
-        from ai_guardian.ssrf_protector import SSRFProtector
+        from ai_guardian.scanners.ssrf import SSRFProtector
 
         config = {
             "action": "ask:warn",
@@ -988,7 +988,7 @@ class TestSSRFAskAction:
 
     def test_ssrf_immutable_skips_ask(self):
         """Private IP with 'ask' action should always block without showing dialog."""
-        from ai_guardian.ssrf_protector import SSRFProtector
+        from ai_guardian.scanners.ssrf import SSRFProtector
 
         config = {"action": "ask", "enabled": True}
         protector = SSRFProtector(config)
@@ -1007,7 +1007,7 @@ class TestSSRFAskAction:
         mock_dialog.return_value = AskResult(
             decision=AskDecision.ALLOW_ALWAYS, allowlist_pattern="evil.internal.corp"
         )
-        with patch("ai_guardian.config_writer.save_ask_pattern") as mock_write:
+        with patch("ai_guardian.config.writer.save_ask_pattern") as mock_write:
             mock_write.return_value = True
             result = _handle_ask_mode(
                 "ask",
@@ -1080,7 +1080,7 @@ class TestAddAllowedDomain:
     """Tests for add_allowed_domain() in config_writer."""
 
     def test_add_domain_to_empty_config(self):
-        from ai_guardian.config_writer import add_allowed_domain
+        from ai_guardian.config.writer import add_allowed_domain
 
         with tempfile.TemporaryDirectory() as tmpdir:
             config_path = Path(tmpdir) / "ai-guardian.json"
@@ -1091,7 +1091,7 @@ class TestAddAllowedDomain:
             assert "api.example.com" in config["ssrf_protection"]["allowed_domains"]
 
     def test_add_domain_to_existing_config(self):
-        from ai_guardian.config_writer import add_allowed_domain
+        from ai_guardian.config.writer import add_allowed_domain
 
         with tempfile.TemporaryDirectory() as tmpdir:
             config_path = Path(tmpdir) / "ai-guardian.json"
@@ -1113,7 +1113,7 @@ class TestAddAllowedDomain:
             assert "new.example.com" in config["ssrf_protection"]["allowed_domains"]
 
     def test_add_duplicate_domain(self):
-        from ai_guardian.config_writer import add_allowed_domain
+        from ai_guardian.config.writer import add_allowed_domain
 
         with tempfile.TemporaryDirectory() as tmpdir:
             config_path = Path(tmpdir) / "ai-guardian.json"
@@ -1129,7 +1129,7 @@ class TestAddAllowedDomain:
             )
 
     def test_add_domain_normalizes_case(self):
-        from ai_guardian.config_writer import add_allowed_domain
+        from ai_guardian.config.writer import add_allowed_domain
 
         with tempfile.TemporaryDirectory() as tmpdir:
             config_path = Path(tmpdir) / "ai-guardian.json"
@@ -1140,7 +1140,7 @@ class TestAddAllowedDomain:
             assert "api.example.com" in config["ssrf_protection"]["allowed_domains"]
 
     def test_reject_empty_domain(self):
-        from ai_guardian.config_writer import add_allowed_domain
+        from ai_guardian.config.writer import add_allowed_domain
 
         assert add_allowed_domain("") is False
         assert add_allowed_domain("   ") is False
@@ -1452,7 +1452,7 @@ class TestPostSaveConfirmation:
     def test_save_pattern_to_config_calls_save_ask_pattern(self):
         from ai_guardian.tui.ask_dialog import _save_pattern_to_config
 
-        with patch("ai_guardian.config_writer.save_ask_pattern") as mock_add:
+        with patch("ai_guardian.config.writer.save_ask_pattern") as mock_add:
             mock_add.return_value = True
             result = _save_pattern_to_config(r"test\w+", "secret_scanning")
         assert result is True
@@ -1463,7 +1463,7 @@ class TestPostSaveConfirmation:
     def test_save_pattern_to_config_ssrf_calls_save_ask_pattern(self):
         from ai_guardian.tui.ask_dialog import _save_pattern_to_config
 
-        with patch("ai_guardian.config_writer.save_ask_pattern") as mock_add:
+        with patch("ai_guardian.config.writer.save_ask_pattern") as mock_add:
             mock_add.return_value = True
             result = _save_pattern_to_config("api.example.com", "ssrf_protection")
         assert result is True
@@ -1474,7 +1474,7 @@ class TestPostSaveConfirmation:
     def test_save_pattern_to_config_handles_failure(self):
         from ai_guardian.tui.ask_dialog import _save_pattern_to_config
 
-        with patch("ai_guardian.config_writer.save_ask_pattern") as mock_add:
+        with patch("ai_guardian.config.writer.save_ask_pattern") as mock_add:
             mock_add.return_value = False
             result = _save_pattern_to_config(r"test\w+", "secret_scanning")
         assert result is False
@@ -1482,7 +1482,7 @@ class TestPostSaveConfirmation:
     def test_save_pattern_to_config_handles_exception(self):
         from ai_guardian.tui.ask_dialog import _save_pattern_to_config
 
-        with patch("ai_guardian.config_writer.save_ask_pattern") as mock_add:
+        with patch("ai_guardian.config.writer.save_ask_pattern") as mock_add:
             mock_add.side_effect = RuntimeError("disk full")
             result = _save_pattern_to_config(r"test\w+", "secret_scanning")
         assert result is False
@@ -1497,7 +1497,7 @@ class TestPostSaveConfirmation:
             allowlist_pattern=r"FAKE\w+",
             config_saved=True,
         )
-        with patch("ai_guardian.config_writer.save_ask_pattern") as mock_write:
+        with patch("ai_guardian.config.writer.save_ask_pattern") as mock_write:
             result = _handle_ask_mode(
                 "ask", "secret_detected", "FAKE_TOKEN", "secret_scanning", "error"
             )
@@ -1514,7 +1514,7 @@ class TestPostSaveConfirmation:
             allowlist_pattern=r"FAKE\w+",
             config_saved=False,
         )
-        with patch("ai_guardian.config_writer.save_ask_pattern") as mock_write:
+        with patch("ai_guardian.config.writer.save_ask_pattern") as mock_write:
             mock_write.return_value = True
             result = _handle_ask_mode(
                 "ask", "secret_detected", "FAKE_TOKEN", "secret_scanning", "error"
@@ -1531,7 +1531,7 @@ class TestPostSaveConfirmation:
             config_path = Path(tmpdir) / "ai-guardian.json"
             config_path.write_text('{"secret_scanning": {}}')
             with patch(
-                "ai_guardian.config_utils.get_config_dir", return_value=Path(tmpdir)
+                "ai_guardian.config.utils.get_config_dir", return_value=Path(tmpdir)
             ):
                 json_text, line_num = prepare_config_with_pattern(
                     r"TEST\w+", "secret_scanning"
@@ -1549,7 +1549,7 @@ class TestPostSaveConfirmation:
             config_path = Path(tmpdir) / "ai-guardian.json"
             config_path.write_text("{}")
             with patch(
-                "ai_guardian.config_utils.get_config_dir", return_value=Path(tmpdir)
+                "ai_guardian.config.utils.get_config_dir", return_value=Path(tmpdir)
             ):
                 json_text, line_num = prepare_config_with_pattern(
                     "api.example.com", "ssrf_protection"
@@ -1562,7 +1562,7 @@ class TestPostSaveConfirmation:
 
         with tempfile.TemporaryDirectory() as tmpdir:
             with patch(
-                "ai_guardian.config_utils.get_config_dir", return_value=Path(tmpdir)
+                "ai_guardian.config.utils.get_config_dir", return_value=Path(tmpdir)
             ):
                 json_text, line_num = prepare_config_with_pattern(
                     r"pat", "prompt_injection"
@@ -1577,7 +1577,7 @@ class TestPostSaveConfirmation:
             config_path = Path(tmpdir) / "ai-guardian.json"
             config_path.write_text("{}")
             with patch(
-                "ai_guardian.config_utils.get_config_dir", return_value=Path(tmpdir)
+                "ai_guardian.config.utils.get_config_dir", return_value=Path(tmpdir)
             ):
                 result = _write_config_text('{"test": true}\n')
             assert result is True
@@ -1590,7 +1590,7 @@ class TestPostSaveConfirmation:
             config_path = Path(tmpdir) / "ai-guardian.json"
             config_path.write_text('{"original": true}')
             with patch(
-                "ai_guardian.config_utils.get_config_dir", return_value=Path(tmpdir)
+                "ai_guardian.config.utils.get_config_dir", return_value=Path(tmpdir)
             ):
                 result = _write_config_text("not valid json{{{")
             assert result is False
@@ -1599,7 +1599,7 @@ class TestPostSaveConfirmation:
     def test_save_pattern_to_config_directory_rules_calls_save_ask_pattern(self):
         from ai_guardian.tui.ask_dialog import _save_pattern_to_config
 
-        with patch("ai_guardian.config_writer.save_ask_pattern") as mock_add:
+        with patch("ai_guardian.config.writer.save_ask_pattern") as mock_add:
             mock_add.return_value = True
             result = _save_pattern_to_config("/home/user/project/**", "directory_rules")
         assert result is True
@@ -1676,7 +1676,7 @@ class TestDirectoryBlockingAskAction:
             decision=AskDecision.ALLOW_ALWAYS,
             allowlist_pattern="/home/user/project/**",
         )
-        with patch("ai_guardian.config_writer.save_ask_pattern") as mock_write:
+        with patch("ai_guardian.config.writer.save_ask_pattern") as mock_write:
             mock_write.return_value = True
             result = _handle_ask_mode(
                 "ask",
@@ -1760,7 +1760,7 @@ class TestDirectoryBlockingAskAction:
 
     def test_add_directory_exclusion_writes_config(self):
         """Verify add_directory_exclusion writes to directory_rules.exclusions."""
-        from ai_guardian.config_writer import add_directory_exclusion
+        from ai_guardian.config.writer import add_directory_exclusion
 
         with tempfile.TemporaryDirectory() as tmpdir:
             config_path = Path(tmpdir) / "ai-guardian.json"
@@ -1776,7 +1776,7 @@ class TestDirectoryBlockingAskAction:
 
     def test_add_directory_exclusion_dedup(self):
         """Verify add_directory_exclusion doesn't add duplicates."""
-        from ai_guardian.config_writer import add_directory_exclusion
+        from ai_guardian.config.writer import add_directory_exclusion
 
         with tempfile.TemporaryDirectory() as tmpdir:
             config_path = Path(tmpdir) / "ai-guardian.json"
@@ -1834,7 +1834,7 @@ class TestDirectoryBlockingAskAction:
             config_path = Path(tmpdir) / "ai-guardian.json"
             config_path.write_text("{}")
             with patch(
-                "ai_guardian.config_utils.get_config_dir", return_value=Path(tmpdir)
+                "ai_guardian.config.utils.get_config_dir", return_value=Path(tmpdir)
             ):
                 json_text, line_num = prepare_config_with_pattern(
                     "/home/user/**", "directory_rules"
@@ -1914,7 +1914,7 @@ class TestSupplyChainAskAction:
             decision=AskDecision.ALLOW_ALWAYS,
             allowlist_pattern="~/.claude/settings.json",
         )
-        with patch("ai_guardian.config_writer.save_ask_pattern") as mock_write:
+        with patch("ai_guardian.config.writer.save_ask_pattern") as mock_write:
             mock_write.return_value = True
             result = _handle_ask_mode(
                 "ask",
@@ -1964,7 +1964,7 @@ class TestSupplyChainAskAction:
 
     def test_add_supply_chain_path_writes_config(self):
         """Verify add_supply_chain_path writes to supply_chain.allowlist_paths."""
-        from ai_guardian.config_writer import add_supply_chain_path
+        from ai_guardian.config.writer import add_supply_chain_path
 
         with tempfile.TemporaryDirectory() as tmpdir:
             config_path = Path(tmpdir) / "ai-guardian.json"
@@ -1980,7 +1980,7 @@ class TestSupplyChainAskAction:
 
     def test_add_supply_chain_path_dedup(self):
         """Verify add_supply_chain_path doesn't add duplicates."""
-        from ai_guardian.config_writer import add_supply_chain_path
+        from ai_guardian.config.writer import add_supply_chain_path
 
         with tempfile.TemporaryDirectory() as tmpdir:
             config_path = Path(tmpdir) / "ai-guardian.json"
@@ -2008,7 +2008,7 @@ class TestSupplyChainAskAction:
 
     def test_add_supply_chain_path_empty_rejected(self):
         """Verify empty pattern is rejected."""
-        from ai_guardian.config_writer import add_supply_chain_path
+        from ai_guardian.config.writer import add_supply_chain_path
 
         assert add_supply_chain_path("") is False
 
@@ -2036,7 +2036,7 @@ class TestSupplyChainAskAction:
             config_path = Path(tmpdir) / "ai-guardian.json"
             config_path.write_text("{}")
             with patch(
-                "ai_guardian.config_utils.get_config_dir", return_value=Path(tmpdir)
+                "ai_guardian.config.utils.get_config_dir", return_value=Path(tmpdir)
             ):
                 json_text, line_num = prepare_config_with_pattern(
                     "~/.claude/settings.json", "supply_chain"
@@ -2103,7 +2103,7 @@ class TestConfigFileExfilAskAction:
             decision=AskDecision.ALLOW_ALWAYS,
             allowlist_pattern="**/docs/security-examples.md",
         )
-        with patch("ai_guardian.config_writer.save_ask_pattern") as mock_write:
+        with patch("ai_guardian.config.writer.save_ask_pattern") as mock_write:
             mock_write.return_value = True
             result = _handle_ask_mode(
                 "ask",
@@ -2157,7 +2157,7 @@ class TestConfigFileExfilAskAction:
 
     def test_add_config_ignore_file_writes_config(self):
         """Verify add_config_ignore_file writes to config_file_scanning.ignore_files."""
-        from ai_guardian.config_writer import add_config_ignore_file
+        from ai_guardian.config.writer import add_config_ignore_file
 
         with tempfile.TemporaryDirectory() as tmpdir:
             config_path = Path(tmpdir) / "ai-guardian.json"
@@ -2174,7 +2174,7 @@ class TestConfigFileExfilAskAction:
 
     def test_add_config_ignore_file_dedup(self):
         """Verify add_config_ignore_file doesn't add duplicates."""
-        from ai_guardian.config_writer import add_config_ignore_file
+        from ai_guardian.config.writer import add_config_ignore_file
 
         with tempfile.TemporaryDirectory() as tmpdir:
             config_path = Path(tmpdir) / "ai-guardian.json"
@@ -2202,13 +2202,13 @@ class TestConfigFileExfilAskAction:
 
     def test_add_config_ignore_file_empty_rejected(self):
         """Verify empty pattern is rejected."""
-        from ai_guardian.config_writer import add_config_ignore_file
+        from ai_guardian.config.writer import add_config_ignore_file
 
         assert add_config_ignore_file("") is False
 
     def test_add_config_ignore_file_creates_section(self):
         """Verify add_config_ignore_file creates config_file_scanning section if missing."""
-        from ai_guardian.config_writer import add_config_ignore_file
+        from ai_guardian.config.writer import add_config_ignore_file
 
         with tempfile.TemporaryDirectory() as tmpdir:
             config_path = Path(tmpdir) / "ai-guardian.json"
@@ -2242,7 +2242,7 @@ class TestConfigFileExfilAskAction:
             config_path = Path(tmpdir) / "ai-guardian.json"
             config_path.write_text("{}")
             with patch(
-                "ai_guardian.config_utils.get_config_dir", return_value=Path(tmpdir)
+                "ai_guardian.config.utils.get_config_dir", return_value=Path(tmpdir)
             ):
                 json_text, line_num = prepare_config_with_pattern(
                     "CLAUDE.md", "config_file_scanning"
@@ -2308,7 +2308,7 @@ class TestToolPermissionAskAction:
             decision=AskDecision.ALLOW_ALWAYS,
             allowlist_pattern="Bash:npm test",
         )
-        with patch("ai_guardian.config_writer.save_ask_pattern") as mock_write:
+        with patch("ai_guardian.config.writer.save_ask_pattern") as mock_write:
             mock_write.return_value = True
             result = _handle_ask_mode(
                 "ask",
@@ -2332,7 +2332,7 @@ class TestToolPermissionAskAction:
             decision=AskDecision.ALLOW_ALWAYS,
             allowlist_pattern="Skill",
         )
-        with patch("ai_guardian.config_writer.save_ask_pattern") as mock_write:
+        with patch("ai_guardian.config.writer.save_ask_pattern") as mock_write:
             mock_write.return_value = True
             result = _handle_ask_mode(
                 "ask",
@@ -2379,7 +2379,7 @@ class TestToolPermissionAskAction:
 
     def test_add_permission_rule_writes_config(self):
         """Verify add_permission_rule appends allow rule to permissions.rules."""
-        from ai_guardian.config_writer import add_permission_rule
+        from ai_guardian.config.writer import add_permission_rule
 
         with tempfile.TemporaryDirectory() as tmpdir:
             config_path = Path(tmpdir) / "ai-guardian.json"
@@ -2397,7 +2397,7 @@ class TestToolPermissionAskAction:
 
     def test_add_permission_rule_dedup(self):
         """Verify add_permission_rule doesn't add duplicate rules."""
-        from ai_guardian.config_writer import add_permission_rule
+        from ai_guardian.config.writer import add_permission_rule
 
         with tempfile.TemporaryDirectory() as tmpdir:
             config_path = Path(tmpdir) / "ai-guardian.json"
@@ -2423,19 +2423,19 @@ class TestToolPermissionAskAction:
 
     def test_add_permission_rule_empty_matcher_rejected(self):
         """Verify empty matcher is rejected."""
-        from ai_guardian.config_writer import add_permission_rule
+        from ai_guardian.config.writer import add_permission_rule
 
         assert add_permission_rule("", ["*"]) is False
 
     def test_add_permission_rule_empty_patterns_rejected(self):
         """Verify empty patterns list is rejected."""
-        from ai_guardian.config_writer import add_permission_rule
+        from ai_guardian.config.writer import add_permission_rule
 
         assert add_permission_rule("Bash", []) is False
 
     def test_add_permission_rule_creates_permissions_section(self):
         """Verify add_permission_rule creates permissions section if missing."""
-        from ai_guardian.config_writer import add_permission_rule
+        from ai_guardian.config.writer import add_permission_rule
 
         with tempfile.TemporaryDirectory() as tmpdir:
             config_path = Path(tmpdir) / "ai-guardian.json"
@@ -2487,7 +2487,7 @@ class TestToolPermissionAskAction:
             config_path = Path(tmpdir) / "ai-guardian.json"
             config_path.write_text("{}")
             with patch(
-                "ai_guardian.config_utils.get_config_dir", return_value=Path(tmpdir)
+                "ai_guardian.config.utils.get_config_dir", return_value=Path(tmpdir)
             ):
                 json_text, line_num = prepare_config_with_pattern(
                     "Bash:npm test", "permissions"
@@ -2506,7 +2506,7 @@ class TestToolPermissionAskAction:
 
     def test_tool_policy_exposes_deny_action(self):
         """Verify ToolPolicyChecker sets last_deny_action on deny."""
-        from ai_guardian.tool_policy import ToolPolicyChecker
+        from ai_guardian.tools.policy import ToolPolicyChecker
 
         config = {
             "permissions": {
@@ -2531,7 +2531,7 @@ class TestToolPermissionAskAction:
 
     def test_tool_policy_deny_action_defaults_block(self):
         """Verify last_deny_action is 'block' for standard deny without action."""
-        from ai_guardian.tool_policy import ToolPolicyChecker
+        from ai_guardian.tools.policy import ToolPolicyChecker
 
         config = {
             "permissions": {
@@ -2684,7 +2684,7 @@ class TestFormatAskInfoMessage:
 class TestLogAskDecision:
     """Tests for _log_ask_decision helper (#1161)."""
 
-    @patch("ai_guardian.hook_processing.ViolationLogger")
+    @patch("ai_guardian.ask_mode.ViolationLogger")
     def test_logs_allow_once(self, mock_vl_cls):
         from ai_guardian.hook_processing import _log_ask_decision
         from ai_guardian.tui.ask_dialog import AskDecision
@@ -2705,7 +2705,7 @@ class TestLogAskDecision:
         assert call_kwargs["context"]["action_taken"] == "allowed"
         assert call_kwargs["blocked"]["matched_text"] == "AWS_KEY"
 
-    @patch("ai_guardian.hook_processing.ViolationLogger")
+    @patch("ai_guardian.ask_mode.ViolationLogger")
     def test_logs_allow_always(self, mock_vl_cls):
         from ai_guardian.hook_processing import _log_ask_decision
         from ai_guardian.tui.ask_dialog import AskDecision
@@ -2721,7 +2721,7 @@ class TestLogAskDecision:
         call_kwargs = mock_vl.log_violation.call_args[1]
         assert call_kwargs["context"]["ask_decision"] == "allow_always"
 
-    @patch("ai_guardian.hook_processing.ViolationLogger")
+    @patch("ai_guardian.ask_mode.ViolationLogger")
     def test_logs_with_file_path(self, mock_vl_cls):
         from ai_guardian.hook_processing import _log_ask_decision
         from ai_guardian.tui.ask_dialog import AskDecision
@@ -2734,7 +2734,7 @@ class TestLogAskDecision:
         call_kwargs = mock_vl.log_violation.call_args[1]
         assert call_kwargs["blocked"]["file_path"] == "/etc/passwd"
 
-    @patch("ai_guardian.hook_processing.ViolationLogger")
+    @patch("ai_guardian.ask_mode.ViolationLogger")
     def test_no_file_path_omits_key(self, mock_vl_cls):
         from ai_guardian.hook_processing import _log_ask_decision
         from ai_guardian.tui.ask_dialog import AskDecision
@@ -2745,14 +2745,14 @@ class TestLogAskDecision:
         call_kwargs = mock_vl.log_violation.call_args[1]
         assert "file_path" not in call_kwargs["blocked"]
 
-    @patch("ai_guardian.hook_processing.HAS_VIOLATION_LOGGER", False)
+    @patch("ai_guardian.ask_mode.HAS_VIOLATION_LOGGER", False)
     def test_noop_when_logger_unavailable(self):
         from ai_guardian.hook_processing import _log_ask_decision
         from ai_guardian.tui.ask_dialog import AskDecision
 
         _log_ask_decision("secret_detected", AskDecision.ALLOW_ONCE)
 
-    @patch("ai_guardian.hook_processing.ViolationLogger")
+    @patch("ai_guardian.ask_mode.ViolationLogger")
     def test_exception_does_not_propagate(self, mock_vl_cls):
         from ai_guardian.hook_processing import _log_ask_decision
         from ai_guardian.tui.ask_dialog import AskDecision
@@ -2766,7 +2766,7 @@ class TestDenyByDefaultAskAction:
 
     def test_skill_not_in_allow_list_inherits_ask_from_allow_rule(self):
         """Unmatched Skill inherits ask action from allow rule with action."""
-        from ai_guardian.tool_policy import ToolPolicyChecker
+        from ai_guardian.tools.policy import ToolPolicyChecker
 
         config = {
             "permissions": {
@@ -2789,7 +2789,7 @@ class TestDenyByDefaultAskAction:
 
     def test_mcp_not_in_allow_list_inherits_ask_action(self):
         """Unmatched MCP tool inherits ask action from allow rule."""
-        from ai_guardian.tool_policy import ToolPolicyChecker
+        from ai_guardian.tools.policy import ToolPolicyChecker
 
         config = {
             "permissions": {
@@ -2811,7 +2811,7 @@ class TestDenyByDefaultAskAction:
 
     def test_no_action_field_remains_block(self):
         """Allow rule without action → deny-by-default stays block."""
-        from ai_guardian.tool_policy import ToolPolicyChecker
+        from ai_guardian.tools.policy import ToolPolicyChecker
 
         config = {
             "permissions": {
@@ -2828,7 +2828,7 @@ class TestDenyByDefaultAskAction:
 
     def test_no_rules_at_all_hard_blocks(self):
         """No rules for matcher → hard block, last_deny_action not set (AC #3)."""
-        from ai_guardian.tool_policy import ToolPolicyChecker
+        from ai_guardian.tools.policy import ToolPolicyChecker
 
         config = {"permissions": {"rules": []}}
         checker = ToolPolicyChecker(config=config)
@@ -2839,7 +2839,7 @@ class TestDenyByDefaultAskAction:
 
     def test_last_explicit_action_wins(self):
         """Multiple rules with actions — last explicit action wins."""
-        from ai_guardian.tool_policy import ToolPolicyChecker
+        from ai_guardian.tools.policy import ToolPolicyChecker
 
         config = {
             "permissions": {
@@ -2867,7 +2867,7 @@ class TestDenyByDefaultAskAction:
 
     def test_rule_without_action_does_not_override(self):
         """Rule without action field does not override earlier explicit action."""
-        from ai_guardian.tool_policy import ToolPolicyChecker
+        from ai_guardian.tools.policy import ToolPolicyChecker
 
         config = {
             "permissions": {
@@ -2890,7 +2890,7 @@ class TestDenyByDefaultAskAction:
 
     def test_builtin_tool_not_affected(self):
         """Built-in tools are not restricted — deny-by-default doesn't apply."""
-        from ai_guardian.tool_policy import ToolPolicyChecker
+        from ai_guardian.tools.policy import ToolPolicyChecker
 
         config = {
             "permissions": {
@@ -2911,14 +2911,14 @@ class TestConfigScopeSelection:
 
         global_dir = Path("/home/user/.config/ai-guardian")
         with patch(
-            "ai_guardian.config_utils.get_project_config_path", return_value=None
+            "ai_guardian.config.utils.get_project_config_path", return_value=None
         ):
             with patch(
-                "ai_guardian.config_utils.get_config_dir",
+                "ai_guardian.config.utils.get_config_dir",
                 return_value=global_dir,
             ):
                 with patch(
-                    "ai_guardian.config_utils.get_project_dir",
+                    "ai_guardian.config.utils.get_project_dir",
                     return_value=str(global_dir),
                 ):
                     options = get_config_scope_options()
@@ -2931,14 +2931,14 @@ class TestConfigScopeSelection:
         from ai_guardian.tui.pattern_editor import get_config_scope_options
 
         with patch(
-            "ai_guardian.config_utils.get_project_config_path", return_value=None
+            "ai_guardian.config.utils.get_project_config_path", return_value=None
         ):
             with patch(
-                "ai_guardian.config_utils.get_config_dir",
+                "ai_guardian.config.utils.get_config_dir",
                 return_value=Path("/home/user/.config/ai-guardian"),
             ):
                 with patch(
-                    "ai_guardian.config_utils.get_project_dir",
+                    "ai_guardian.config.utils.get_project_dir",
                     return_value="/projects/carbonite",
                 ):
                     options = get_config_scope_options()
@@ -2954,11 +2954,11 @@ class TestConfigScopeSelection:
 
         project_path = Path("/project/.ai-guardian/ai-guardian.json")
         with patch(
-            "ai_guardian.config_utils.get_project_config_path",
+            "ai_guardian.config.utils.get_project_config_path",
             return_value=project_path,
         ):
             with patch(
-                "ai_guardian.config_utils.get_config_dir",
+                "ai_guardian.config.utils.get_config_dir",
                 return_value=Path("/home/user/.config/ai-guardian"),
             ):
                 options = get_config_scope_options()
@@ -3001,7 +3001,7 @@ class TestConfigScopeSelection:
 
         with tempfile.TemporaryDirectory() as tmpdir:
             with patch(
-                "ai_guardian.config_utils.get_config_dir", return_value=Path(tmpdir)
+                "ai_guardian.config.utils.get_config_dir", return_value=Path(tmpdir)
             ):
                 result = _write_config_text('{"default": true}')
             config_path = Path(tmpdir) / "ai-guardian.json"
@@ -3011,7 +3011,7 @@ class TestConfigScopeSelection:
     def test_save_pattern_to_config_with_path(self):
         from ai_guardian.tui.ask_dialog import _save_pattern_to_config
 
-        with patch("ai_guardian.config_writer.save_ask_pattern") as mock:
+        with patch("ai_guardian.config.writer.save_ask_pattern") as mock:
             mock.return_value = True
             result = _save_pattern_to_config(
                 r"test\w+",
@@ -3049,7 +3049,7 @@ class TestConfigScopeSelection:
             allowlist_pattern=r"FAKE\w+",
             config_path="/project/.ai-guardian/ai-guardian.json",
         )
-        with patch("ai_guardian.config_writer.save_ask_pattern") as mock_write:
+        with patch("ai_guardian.config.writer.save_ask_pattern") as mock_write:
             mock_write.return_value = True
             result = _handle_ask_mode(
                 "ask",
@@ -3368,91 +3368,10 @@ class TestBuildDialogTitle:
         assert v.tool_name is None
 
 
-class TestSecretAskBlockDecision:
-    """Tests for secret ask dialog Block decision (#1344).
-
-    When secret_scanning.action=ask and user clicks Block, the operation
-    must be blocked immediately — not fall through to redaction logic.
-    """
-
-    def test_secret_block_decision_does_not_allow(self):
-        """Block decision must not map to 'allowed' action."""
-        from ai_guardian.tui.ask_dialog import AskResult, AskDecision
-
-        ask_result = AskResult(decision=AskDecision.BLOCK)
-        assert ask_result.decision in (AskDecision.BLOCK, AskDecision.BLOCK_ALL)
-
-    def test_secret_block_skips_redaction_path(self):
-        """Simulate PostToolUse secret ask flow — BLOCK must return before redaction."""
-        from ai_guardian.tui.ask_dialog import AskResult, AskDecision
-
-        ask_result = AskResult(decision=AskDecision.BLOCK)
-        reached_redaction = False
-
-        if ask_result is not None:
-            if ask_result.decision not in (AskDecision.BLOCK, AskDecision.BLOCK_ALL):
-                pass  # allow path
-            else:
-                blocked = True
-                # In real code, this returns immediately
-                assert blocked is True
-                return
-
-        # This simulates the redaction path — must NOT be reached
-        reached_redaction = True
-        assert not reached_redaction, "BLOCK decision fell through to redaction"
-
-    def test_secret_allow_once_skips_block(self):
-        """Allow Once decision must not enter BLOCK branch."""
-        from ai_guardian.tui.ask_dialog import AskResult, AskDecision
-
-        ask_result = AskResult(decision=AskDecision.ALLOW_ONCE)
-        if ask_result is not None:
-            if ask_result.decision not in (AskDecision.BLOCK, AskDecision.BLOCK_ALL):
-                allowed = True
-            else:
-                allowed = False
-        assert allowed is True
-
-    @patch("ai_guardian.tui.ask_dialog._show_via_daemon", return_value=None)
-    @patch("ai_guardian.tui.ask_dialog._show_via_subprocess", return_value=None)
-    def test_secret_ask_headless_block_fallback(self, _mock_sub, _mock_daemon):
-        """Headless ask for secrets falls back to BLOCK."""
-        from ai_guardian.hook_processing import _handle_ask_mode
-        from ai_guardian.tui.ask_dialog import AskDecision
-
-        result = _handle_ask_mode(
-            "ask",
-            "secret_detected",
-            "AKIA1234567890EXAMPLE",
-            "secret_scanning",
-            "Secret detected: AWS Access Key",
-        )
-        assert result is not None
-        assert result.decision == AskDecision.BLOCK
-
-    @patch("ai_guardian.tui.ask_dialog._show_via_daemon", return_value=None)
-    @patch("ai_guardian.tui.ask_dialog._show_via_subprocess", return_value=None)
-    def test_secret_ask_warn_fallback(self, _mock_sub, _mock_daemon):
-        """ask:warn fallback returns ALLOW_ONCE (not BLOCK)."""
-        from ai_guardian.hook_processing import _handle_ask_mode
-        from ai_guardian.tui.ask_dialog import AskDecision
-
-        result = _handle_ask_mode(
-            "ask:warn",
-            "secret_detected",
-            "AKIA1234567890EXAMPLE",
-            "secret_scanning",
-            "Secret detected: AWS Access Key",
-        )
-        assert result is not None
-        assert result.decision == AskDecision.ALLOW_ONCE
-
-
 class TestLogAskDecisionBlock:
     """Tests for _log_ask_decision with BLOCK decisions (#1344)."""
 
-    @patch("ai_guardian.hook_processing.ViolationLogger")
+    @patch("ai_guardian.ask_mode.ViolationLogger")
     def test_logs_block_decision(self, mock_vl_cls):
         from ai_guardian.hook_processing import _log_ask_decision
         from ai_guardian.tui.ask_dialog import AskDecision
@@ -3471,7 +3390,7 @@ class TestLogAskDecisionBlock:
         assert call_kwargs["context"]["action_taken"] == "blocked"
         assert call_kwargs["blocked"]["matched_text"] == "AKIA_KEY"
 
-    @patch("ai_guardian.hook_processing.ViolationLogger")
+    @patch("ai_guardian.ask_mode.ViolationLogger")
     def test_logs_block_all_decision(self, mock_vl_cls):
         from ai_guardian.hook_processing import _log_ask_decision
         from ai_guardian.tui.ask_dialog import AskDecision
@@ -3488,7 +3407,7 @@ class TestLogAskDecisionBlock:
         assert call_kwargs["context"]["ask_decision"] == "block_all"
         assert call_kwargs["context"]["action_taken"] == "blocked"
 
-    @patch("ai_guardian.hook_processing.ViolationLogger")
+    @patch("ai_guardian.ask_mode.ViolationLogger")
     def test_logs_block_with_file_and_line(self, mock_vl_cls):
         from ai_guardian.hook_processing import _log_ask_decision
         from ai_guardian.tui.ask_dialog import AskDecision
@@ -3509,7 +3428,7 @@ class TestLogAskDecisionBlock:
         assert call_kwargs["blocked"]["line_number"] == 42
         assert call_kwargs["context"]["dialog_wait_ms"] == 1500.0
 
-    @patch("ai_guardian.hook_processing.ViolationLogger")
+    @patch("ai_guardian.ask_mode.ViolationLogger")
     def test_logs_pii_block_decision(self, mock_vl_cls):
         from ai_guardian.hook_processing import _log_ask_decision
         from ai_guardian.tui.ask_dialog import AskDecision
@@ -3527,7 +3446,7 @@ class TestLogAskDecisionBlock:
         assert call_kwargs["context"]["ask_decision"] == "block"
         assert call_kwargs["context"]["action_taken"] == "blocked"
 
-    @patch("ai_guardian.hook_processing.ViolationLogger")
+    @patch("ai_guardian.ask_mode.ViolationLogger")
     def test_allow_once_still_logs_as_allowed(self, mock_vl_cls):
         """Verify existing ALLOW behavior unchanged after BLOCK support."""
         from ai_guardian.hook_processing import _log_ask_decision
@@ -3574,7 +3493,7 @@ class TestHandleAskModeMultiDedup:
             },
         ]
 
-        with patch("ai_guardian.hook_processing._handle_ask_mode") as mock_ask:
+        with patch("ai_guardian.ask_mode._handle_ask_mode") as mock_ask:
             from ai_guardian.tui.ask_dialog import AskResult
 
             mock_ask.return_value = AskResult(decision=AskDecision.ALLOW_ONCE)
@@ -3608,7 +3527,7 @@ class TestHandleAskModeMultiDedup:
             },
         ]
 
-        with patch("ai_guardian.hook_processing._handle_ask_mode") as mock_ask:
+        with patch("ai_guardian.ask_mode._handle_ask_mode") as mock_ask:
             from ai_guardian.tui.ask_dialog import AskResult
 
             mock_ask.return_value = AskResult(decision=AskDecision.ALLOW_ONCE)
@@ -3652,7 +3571,7 @@ class TestHandleAskModeMultiDedup:
             },
         ]
 
-        with patch("ai_guardian.hook_processing._handle_ask_mode") as mock_ask:
+        with patch("ai_guardian.ask_mode._handle_ask_mode") as mock_ask:
             from ai_guardian.tui.ask_dialog import AskResult
 
             mock_ask.return_value = AskResult(decision=AskDecision.ALLOW_ONCE)
@@ -3708,7 +3627,7 @@ class TestHandleAskModeMultiDedup:
 
         captured_calls = []
 
-        with patch("ai_guardian.hook_processing._handle_ask_mode") as mock_ask:
+        with patch("ai_guardian.ask_mode._handle_ask_mode") as mock_ask:
             from ai_guardian.tui.ask_dialog import AskResult
 
             def capture(*args, **kwargs):

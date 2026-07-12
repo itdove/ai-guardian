@@ -170,528 +170,506 @@ def _render_toggle(
 
 def create_ssrf_page(service, daemon_name: str):
     """Create the SSRF Protection page."""
-    create_header(daemon_name)
+    sidebar = create_sidebar(daemon_name, current=f"/{daemon_name}/ssrf")
+    create_header(daemon_name, drawer=sidebar)
 
-    with ui.row().classes("w-full min-h-screen no-wrap"):
-        create_sidebar(daemon_name, current=f"/{daemon_name}/ssrf")
+    with ui.column().classes("flex-grow p-6 gap-4"):
+        with ui.row().classes("items-center gap-2"):
+            ui.label("SSRF Protection Settings").classes("text-2xl font-bold")
+            add_help_button("ssrf_protection")
+        ui.label(
+            "Configure server-side request forgery protection and network filtering."
+        ).classes("text-xs text-grey-6")
 
-        with ui.column().classes("flex-grow p-6 gap-4"):
-            with ui.row().classes("items-center gap-2"):
-                ui.label("SSRF Protection Settings").classes("text-2xl font-bold")
-                add_help_button("ssrf_protection")
-            ui.label(
-                "Configure server-side request forgery protection and network filtering."
-            ).classes("text-xs text-grey-6")
+        content = ui.column().classes("w-full gap-4")
 
-            content = ui.column().classes("w-full gap-4")
+        async def refresh():
+            content.clear()
+            config = await run.io_bound(load_web_config)
 
-            async def refresh():
-                content.clear()
-                config = await run.io_bound(load_web_config)
+            with content:
+                sp = config.get("ssrf_protection", {})
+                if not isinstance(sp, dict):
+                    sp = {}
 
-                with content:
-                    sp = config.get("ssrf_protection", {})
-                    if not isinstance(sp, dict):
-                        sp = {}
+                is_temp, until_dt, reason, is_enabled = _parse_enabled(
+                    sp.get("enabled", True)
+                )
 
-                    is_temp, until_dt, reason, is_enabled = _parse_enabled(
-                        sp.get("enabled", True)
+                def save_enabled(value):
+                    cfg = load_web_config()
+                    sect = cfg.get("ssrf_protection", {})
+                    if not isinstance(sect, dict):
+                        sect = {}
+                    sect["enabled"] = value
+                    cfg["ssrf_protection"] = sect
+                    save_web_config(cfg)
+
+                _render_toggle(
+                    "SSRF Protection",
+                    "Block requests to private networks, cloud metadata, and dangerous schemes.",
+                    is_temp,
+                    until_dt,
+                    reason,
+                    is_enabled,
+                    save_enabled,
+                    refresh,
+                )
+
+                total_items = sum(len(v) for v in CORE_PROTECTIONS.values())
+                with ui.card().classes("w-full"):
+                    ui.label(
+                        f"Core Immutable Protections ({total_items} rules)"
+                    ).classes("text-lg font-bold")
+                    ui.label(
+                        "These protections are always active and cannot be overridden."
+                    ).classes("text-xs text-grey-6")
+                    with ui.scroll_area().classes("w-full").style("max-height: 300px"):
+                        for category, items in CORE_PROTECTIONS.items():
+                            ui.label(category).classes("font-bold text-sm mt-2")
+                            for item in items:
+                                with ui.row().classes("items-center gap-1 ml-4"):
+                                    ui.icon("shield").classes("text-blue-4").style(
+                                        "font-size: 14px"
+                                    )
+                                    ui.label(item).classes("text-xs")
+
+                with ui.card().classes("w-full"):
+                    with ui.row().classes("items-center gap-1"):
+                        ui.label("Action Mode").classes("text-lg font-bold")
+                        field_help_icon("ssrf_protection.action")
+                    ui.label("What happens when an SSRF attempt is detected.").classes(
+                        "text-xs text-grey-6"
                     )
+                    action = sp.get("action", "block")
+                    act_sel = ui.select(
+                        options={
+                            "block": "Block — reject request",
+                            "ask": "Ask — prompt user (block if headless)",
+                            "ask:warn": "Ask — prompt user (warn if headless)",
+                            "ask:log-only": "Ask — prompt user (log-only if headless)",
+                            "warn": "Warn — allow with warning",
+                            "log-only": "Log Only — silent logging",
+                        },
+                        value=action,
+                    ).classes("w-64")
 
-                    def save_enabled(value):
-                        cfg = load_web_config()
+                    async def save_action(e):
+                        cfg = await run.io_bound(load_web_config)
                         sect = cfg.get("ssrf_protection", {})
                         if not isinstance(sect, dict):
                             sect = {}
-                        sect["enabled"] = value
+                        sect["action"] = e.value
                         cfg["ssrf_protection"] = sect
-                        save_web_config(cfg)
+                        await run.io_bound(save_web_config, cfg)
+                        ui.notify(f"Action: {e.value}", type="positive")
 
-                    _render_toggle(
-                        "SSRF Protection",
-                        "Block requests to private networks, cloud metadata, and dangerous schemes.",
-                        is_temp,
-                        until_dt,
-                        reason,
-                        is_enabled,
-                        save_enabled,
-                        refresh,
+                    act_sel.on_value_change(save_action)
+
+                with ui.card().classes("w-full"):
+                    with ui.row().classes("items-center gap-1"):
+                        ui.label("Allow Localhost").classes("text-lg font-bold")
+                        field_help_icon("ssrf_protection.allow_localhost")
+                    ui.label(
+                        "Allow requests to localhost and 127.0.0.1 (not recommended)."
+                    ).classes("text-xs text-grey-6")
+                    lh_sw = ui.switch(
+                        "Allow Localhost",
+                        value=sp.get("allow_localhost", False),
                     )
 
-                    total_items = sum(len(v) for v in CORE_PROTECTIONS.values())
-                    with ui.card().classes("w-full"):
-                        ui.label(
-                            f"Core Immutable Protections ({total_items} rules)"
-                        ).classes("text-lg font-bold")
-                        ui.label(
-                            "These protections are always active and cannot be overridden."
-                        ).classes("text-xs text-grey-6")
-                        with (
-                            ui.scroll_area()
-                            .classes("w-full")
-                            .style("max-height: 300px")
-                        ):
-                            for category, items in CORE_PROTECTIONS.items():
-                                ui.label(category).classes("font-bold text-sm mt-2")
-                                for item in items:
-                                    with ui.row().classes("items-center gap-1 ml-4"):
-                                        ui.icon("shield").classes("text-blue-4").style(
-                                            "font-size: 14px"
-                                        )
-                                        ui.label(item).classes("text-xs")
+                    async def save_localhost(e):
+                        cfg = await run.io_bound(load_web_config)
+                        sect = cfg.get("ssrf_protection", {})
+                        if not isinstance(sect, dict):
+                            sect = {}
+                        sect["allow_localhost"] = e.value
+                        cfg["ssrf_protection"] = sect
+                        await run.io_bound(save_web_config, cfg)
+                        ui.notify("Saved", type="positive")
 
-                    with ui.card().classes("w-full"):
-                        with ui.row().classes("items-center gap-1"):
-                            ui.label("Action Mode").classes("text-lg font-bold")
-                            field_help_icon("ssrf_protection.action")
-                        ui.label(
-                            "What happens when an SSRF attempt is detected."
-                        ).classes("text-xs text-grey-6")
-                        action = sp.get("action", "block")
-                        act_sel = ui.select(
-                            options={
-                                "block": "Block — reject request",
-                                "ask": "Ask — prompt user (block if headless)",
-                                "ask:warn": "Ask — prompt user (warn if headless)",
-                                "ask:log-only": "Ask — prompt user (log-only if headless)",
-                                "warn": "Warn — allow with warning",
-                                "log-only": "Log Only — silent logging",
-                            },
-                            value=action,
-                        ).classes("w-64")
+                    lh_sw.on_value_change(save_localhost)
 
-                        async def save_action(e):
+                with ui.card().classes("w-full"):
+                    with ui.row().classes("items-center gap-1"):
+                        ui.label("Additional Blocked IPs").classes("text-lg font-bold")
+                        field_help_icon("ssrf_protection.additional_blocked_ips")
+                    ui.label("Custom IP addresses or CIDR ranges to block.").classes(
+                        "text-xs text-grey-6"
+                    )
+
+                    blocked_ips = sp.get("additional_blocked_ips", [])
+                    if blocked_ips:
+                        for idx, ip in enumerate(blocked_ips):
+                            with ui.row().classes("items-center gap-2 w-full"):
+                                ui.icon("block").classes("text-red")
+                                ui.label(ip).classes("flex-grow text-sm").style(
+                                    "font-family: monospace"
+                                )
+
+                                async def remove_ip(i=idx):
+                                    cfg = await run.io_bound(load_web_config)
+                                    sect = cfg.get("ssrf_protection", {})
+                                    if not isinstance(sect, dict):
+                                        return
+                                    items = sect.get("additional_blocked_ips", [])
+                                    if i < len(items):
+                                        items.pop(i)
+                                        sect["additional_blocked_ips"] = items
+                                        cfg["ssrf_protection"] = sect
+                                        await run.io_bound(save_web_config, cfg)
+                                        ui.notify("IP removed", type="positive")
+                                        await refresh()
+
+                                ui.button(
+                                    icon="delete", on_click=remove_ip, color="red"
+                                ).props("flat dense size=sm")
+                    else:
+                        ui.label("No additional blocked IPs.").classes(
+                            "text-grey-6 text-sm"
+                        )
+
+                    with ui.row().classes("items-center gap-2 mt-2"):
+                        ip_input = (
+                            ui.input(placeholder="Enter IP or CIDR (e.g. 10.20.0.0/16)")
+                            .props("dense outlined")
+                            .classes("flex-grow")
+                        )
+
+                        async def add_ip():
+                            val = ip_input.value.strip()
+                            if not val:
+                                ui.notify("Enter an IP or CIDR", type="negative")
+                                return
                             cfg = await run.io_bound(load_web_config)
                             sect = cfg.get("ssrf_protection", {})
                             if not isinstance(sect, dict):
                                 sect = {}
-                            sect["action"] = e.value
+                            items = sect.get("additional_blocked_ips", [])
+                            if val in items:
+                                ui.notify("IP already exists", type="warning")
+                                return
+                            items.append(val)
+                            sect["additional_blocked_ips"] = items
                             cfg["ssrf_protection"] = sect
                             await run.io_bound(save_web_config, cfg)
-                            ui.notify(f"Action: {e.value}", type="positive")
+                            ip_input.value = ""
+                            ui.notify(f"Added: {val}", type="positive")
+                            await refresh()
 
-                        act_sel.on_value_change(save_action)
+                        ui.button("Add", icon="add", on_click=add_ip).props("dense")
 
-                    with ui.card().classes("w-full"):
-                        with ui.row().classes("items-center gap-1"):
-                            ui.label("Allow Localhost").classes("text-lg font-bold")
-                            field_help_icon("ssrf_protection.allow_localhost")
-                        ui.label(
-                            "Allow requests to localhost and 127.0.0.1 (not recommended)."
-                        ).classes("text-xs text-grey-6")
-                        lh_sw = ui.switch(
-                            "Allow Localhost",
-                            value=sp.get("allow_localhost", False),
+                with ui.card().classes("w-full"):
+                    ui.label("Additional Blocked Domains").classes("text-lg font-bold")
+                    ui.label("Custom domain names to block.").classes(
+                        "text-xs text-grey-6"
+                    )
+
+                    blocked_domains = sp.get("additional_blocked_domains", [])
+                    if blocked_domains:
+                        for idx, domain in enumerate(blocked_domains):
+                            with ui.row().classes("items-center gap-2 w-full"):
+                                ui.icon("block").classes("text-red")
+                                ui.label(domain).classes("flex-grow text-sm").style(
+                                    "font-family: monospace"
+                                )
+
+                                async def remove_domain(i=idx):
+                                    cfg = await run.io_bound(load_web_config)
+                                    sect = cfg.get("ssrf_protection", {})
+                                    if not isinstance(sect, dict):
+                                        return
+                                    items = sect.get("additional_blocked_domains", [])
+                                    if i < len(items):
+                                        items.pop(i)
+                                        sect["additional_blocked_domains"] = items
+                                        cfg["ssrf_protection"] = sect
+                                        await run.io_bound(save_web_config, cfg)
+                                        ui.notify("Domain removed", type="positive")
+                                        await refresh()
+
+                                ui.button(
+                                    icon="delete",
+                                    on_click=remove_domain,
+                                    color="red",
+                                ).props("flat dense size=sm")
+                    else:
+                        ui.label("No additional blocked domains.").classes(
+                            "text-grey-6 text-sm"
                         )
 
-                        async def save_localhost(e):
+                    with ui.row().classes("items-center gap-2 mt-2"):
+                        dom_input = (
+                            ui.input(placeholder="Enter domain (e.g. evil.example.com)")
+                            .props("dense outlined")
+                            .classes("flex-grow")
+                        )
+
+                        async def add_domain():
+                            val = dom_input.value.strip()
+                            if not val:
+                                ui.notify("Enter a domain", type="negative")
+                                return
                             cfg = await run.io_bound(load_web_config)
                             sect = cfg.get("ssrf_protection", {})
                             if not isinstance(sect, dict):
                                 sect = {}
-                            sect["allow_localhost"] = e.value
+                            items = sect.get("additional_blocked_domains", [])
+                            if val in items:
+                                ui.notify("Domain already exists", type="warning")
+                                return
+                            items.append(val)
+                            sect["additional_blocked_domains"] = items
                             cfg["ssrf_protection"] = sect
                             await run.io_bound(save_web_config, cfg)
-                            ui.notify("Saved", type="positive")
+                            dom_input.value = ""
+                            ui.notify(f"Added: {val}", type="positive")
+                            await refresh()
 
-                        lh_sw.on_value_change(save_localhost)
+                        ui.button("Add", icon="add", on_click=add_domain).props("dense")
 
-                    with ui.card().classes("w-full"):
-                        with ui.row().classes("items-center gap-1"):
-                            ui.label("Additional Blocked IPs").classes(
-                                "text-lg font-bold"
-                            )
-                            field_help_icon("ssrf_protection.additional_blocked_ips")
-                        ui.label(
-                            "Custom IP addresses or CIDR ranges to block."
-                        ).classes("text-xs text-grey-6")
+                with ui.card().classes("w-full"):
+                    with ui.row().classes("items-center gap-1"):
+                        ui.label("Allowed Domains").classes("text-lg font-bold")
+                        field_help_icon("ssrf_protection.allowed_domains")
+                    ui.label(
+                        "Domains explicitly allowed for outbound requests. "
+                        "Cannot override immutable core protections."
+                    ).classes("text-xs text-grey-6")
 
-                        blocked_ips = sp.get("additional_blocked_ips", [])
-                        if blocked_ips:
-                            for idx, ip in enumerate(blocked_ips):
-                                with ui.row().classes("items-center gap-2 w-full"):
-                                    ui.icon("block").classes("text-red")
-                                    ui.label(ip).classes("flex-grow text-sm").style(
-                                        "font-family: monospace"
-                                    )
-
-                                    async def remove_ip(i=idx):
-                                        cfg = await run.io_bound(load_web_config)
-                                        sect = cfg.get("ssrf_protection", {})
-                                        if not isinstance(sect, dict):
-                                            return
-                                        items = sect.get("additional_blocked_ips", [])
-                                        if i < len(items):
-                                            items.pop(i)
-                                            sect["additional_blocked_ips"] = items
-                                            cfg["ssrf_protection"] = sect
-                                            await run.io_bound(save_web_config, cfg)
-                                            ui.notify("IP removed", type="positive")
-                                            await refresh()
-
-                                    ui.button(
-                                        icon="delete", on_click=remove_ip, color="red"
-                                    ).props("flat dense size=sm")
-                        else:
-                            ui.label("No additional blocked IPs.").classes(
-                                "text-grey-6 text-sm"
-                            )
-
-                        with ui.row().classes("items-center gap-2 mt-2"):
-                            ip_input = (
-                                ui.input(
-                                    placeholder="Enter IP or CIDR (e.g. 10.20.0.0/16)"
+                    allowed = sp.get("allowed_domains", [])
+                    if allowed:
+                        for idx, domain in enumerate(allowed):
+                            with ui.row().classes("items-center gap-2 w-full"):
+                                ui.icon("check").classes("text-green")
+                                ui.label(domain).classes("flex-grow text-sm").style(
+                                    "font-family: monospace"
                                 )
-                                .props("dense outlined")
-                                .classes("flex-grow")
-                            )
 
-                            async def add_ip():
-                                val = ip_input.value.strip()
-                                if not val:
-                                    ui.notify("Enter an IP or CIDR", type="negative")
-                                    return
-                                cfg = await run.io_bound(load_web_config)
-                                sect = cfg.get("ssrf_protection", {})
-                                if not isinstance(sect, dict):
-                                    sect = {}
-                                items = sect.get("additional_blocked_ips", [])
-                                if val in items:
-                                    ui.notify("IP already exists", type="warning")
-                                    return
-                                items.append(val)
-                                sect["additional_blocked_ips"] = items
-                                cfg["ssrf_protection"] = sect
-                                await run.io_bound(save_web_config, cfg)
-                                ip_input.value = ""
-                                ui.notify(f"Added: {val}", type="positive")
-                                await refresh()
+                                async def remove_allowed(i=idx):
+                                    cfg = await run.io_bound(load_web_config)
+                                    sect = cfg.get("ssrf_protection", {})
+                                    if not isinstance(sect, dict):
+                                        return
+                                    items = sect.get("allowed_domains", [])
+                                    if i < len(items):
+                                        items.pop(i)
+                                        sect["allowed_domains"] = items
+                                        cfg["ssrf_protection"] = sect
+                                        await run.io_bound(save_web_config, cfg)
+                                        ui.notify("Domain removed", type="positive")
+                                        await refresh()
 
-                            ui.button("Add", icon="add", on_click=add_ip).props("dense")
+                                ui.button(
+                                    icon="delete",
+                                    on_click=remove_allowed,
+                                    color="red",
+                                ).props("flat dense size=sm")
+                    else:
+                        ui.label("No allowed domains.").classes("text-grey-6 text-sm")
 
-                    with ui.card().classes("w-full"):
-                        ui.label("Additional Blocked Domains").classes(
-                            "text-lg font-bold"
-                        )
-                        ui.label("Custom domain names to block.").classes(
-                            "text-xs text-grey-6"
+                    with ui.row().classes("items-center gap-2 mt-2"):
+                        allow_input = (
+                            ui.input(placeholder="Enter domain (e.g. api.example.com)")
+                            .props("dense outlined")
+                            .classes("flex-grow")
                         )
 
-                        blocked_domains = sp.get("additional_blocked_domains", [])
-                        if blocked_domains:
-                            for idx, domain in enumerate(blocked_domains):
-                                with ui.row().classes("items-center gap-2 w-full"):
-                                    ui.icon("block").classes("text-red")
-                                    ui.label(domain).classes("flex-grow text-sm").style(
-                                        "font-family: monospace"
-                                    )
+                        async def add_allowed():
+                            val = allow_input.value.strip()
+                            if not val:
+                                ui.notify("Enter a domain", type="negative")
+                                return
+                            cfg = await run.io_bound(load_web_config)
+                            sect = cfg.get("ssrf_protection", {})
+                            if not isinstance(sect, dict):
+                                sect = {}
+                            items = sect.get("allowed_domains", [])
+                            if val in items:
+                                ui.notify("Domain already exists", type="warning")
+                                return
+                            items.append(val)
+                            sect["allowed_domains"] = items
+                            cfg["ssrf_protection"] = sect
+                            await run.io_bound(save_web_config, cfg)
+                            allow_input.value = ""
+                            ui.notify(f"Added: {val}", type="positive")
+                            await refresh()
 
-                                    async def remove_domain(i=idx):
-                                        cfg = await run.io_bound(load_web_config)
-                                        sect = cfg.get("ssrf_protection", {})
-                                        if not isinstance(sect, dict):
-                                            return
-                                        items = sect.get(
-                                            "additional_blocked_domains", []
+                        ui.button("Add", icon="add", on_click=add_allowed).props(
+                            "dense"
+                        )
+
+                # --- Ignore files ---
+                with ui.card().classes("w-full"):
+                    with ui.row().classes("items-center gap-1"):
+                        ui.label("Ignore Files").classes("text-lg font-bold")
+                        field_help_icon("ssrf_protection.ignore_files")
+                    ui.label(
+                        "Glob patterns for files to exclude from SSRF checks."
+                    ).classes("text-xs text-grey-6")
+
+                    ignore_files = sp.get("ignore_files", [])
+                    if ignore_files:
+                        for idx, entry in enumerate(ignore_files):
+                            with ui.row().classes("items-center gap-2 w-full"):
+                                ui.icon("visibility_off").classes("text-grey-6")
+                                ui.label(entry).classes("flex-grow text-sm").style(
+                                    "font-family: monospace"
+                                )
+
+                                async def remove_ignore_file(i=idx):
+                                    cfg = await run.io_bound(load_web_config)
+                                    sect = cfg.get("ssrf_protection", {})
+                                    if not isinstance(sect, dict):
+                                        return
+                                    items = sect.get("ignore_files", [])
+                                    if i < len(items):
+                                        items.pop(i)
+                                        sect["ignore_files"] = items
+                                        cfg["ssrf_protection"] = sect
+                                        await run.io_bound(save_web_config, cfg)
+                                        ui.notify(
+                                            "File pattern removed", type="positive"
                                         )
-                                        if i < len(items):
-                                            items.pop(i)
-                                            sect["additional_blocked_domains"] = items
-                                            cfg["ssrf_protection"] = sect
-                                            await run.io_bound(save_web_config, cfg)
-                                            ui.notify("Domain removed", type="positive")
-                                            await refresh()
+                                        await refresh()
 
-                                    ui.button(
-                                        icon="delete",
-                                        on_click=remove_domain,
-                                        color="red",
-                                    ).props("flat dense size=sm")
-                        else:
-                            ui.label("No additional blocked domains.").classes(
-                                "text-grey-6 text-sm"
+                                ui.button(
+                                    icon="delete",
+                                    on_click=remove_ignore_file,
+                                    color="red",
+                                ).props("flat dense size=sm")
+                    else:
+                        ui.label("No ignore file patterns.").classes(
+                            "text-grey-6 text-sm"
+                        )
+
+                    with ui.row().classes("items-center gap-2 mt-2"):
+                        if_input = (
+                            ui.input(
+                                placeholder="Enter glob pattern (e.g. **/tests/**)"
                             )
+                            .props("dense outlined")
+                            .classes("flex-grow")
+                        )
 
-                        with ui.row().classes("items-center gap-2 mt-2"):
-                            dom_input = (
-                                ui.input(
-                                    placeholder="Enter domain (e.g. evil.example.com)"
+                        async def add_ignore_file():
+                            val = if_input.value.strip()
+                            if not val:
+                                ui.notify("Enter a pattern", type="negative")
+                                return
+                            cfg = await run.io_bound(load_web_config)
+                            sect = cfg.get("ssrf_protection", {})
+                            if not isinstance(sect, dict):
+                                sect = {}
+                            items = sect.get("ignore_files", [])
+                            if val in items:
+                                ui.notify("Pattern already exists", type="warning")
+                                return
+                            items.append(val)
+                            sect["ignore_files"] = items
+                            cfg["ssrf_protection"] = sect
+                            await run.io_bound(save_web_config, cfg)
+                            if_input.value = ""
+                            ui.notify(f"Added: {val}", type="positive")
+                            await refresh()
+
+                        ui.button("Add", icon="add", on_click=add_ignore_file).props(
+                            "dense"
+                        )
+
+                # --- Ignore tools ---
+                with ui.card().classes("w-full"):
+                    with ui.row().classes("items-center gap-1"):
+                        ui.label("Ignore Tools").classes("text-lg font-bold")
+                        field_help_icon("ssrf_protection.ignore_tools")
+                    ui.label("Tool name patterns to exclude from SSRF checks.").classes(
+                        "text-xs text-grey-6"
+                    )
+
+                    ignore_tools = sp.get("ignore_tools", [])
+                    if ignore_tools:
+                        for idx, entry in enumerate(ignore_tools):
+                            with ui.row().classes("items-center gap-2 w-full"):
+                                ui.icon("build").classes("text-grey-6")
+                                ui.label(entry).classes("flex-grow text-sm").style(
+                                    "font-family: monospace"
                                 )
-                                .props("dense outlined")
-                                .classes("flex-grow")
+
+                                async def remove_ignore_tool(i=idx):
+                                    cfg = await run.io_bound(load_web_config)
+                                    sect = cfg.get("ssrf_protection", {})
+                                    if not isinstance(sect, dict):
+                                        return
+                                    items = sect.get("ignore_tools", [])
+                                    if i < len(items):
+                                        items.pop(i)
+                                        sect["ignore_tools"] = items
+                                        cfg["ssrf_protection"] = sect
+                                        await run.io_bound(save_web_config, cfg)
+                                        ui.notify(
+                                            "Tool pattern removed", type="positive"
+                                        )
+                                        await refresh()
+
+                                ui.button(
+                                    icon="delete",
+                                    on_click=remove_ignore_tool,
+                                    color="red",
+                                ).props("flat dense size=sm")
+                    else:
+                        ui.label("No ignore tool patterns.").classes(
+                            "text-grey-6 text-sm"
+                        )
+
+                    with ui.row().classes("items-center gap-2 mt-2"):
+                        it_input = (
+                            ui.input(
+                                placeholder="Enter tool name pattern (e.g. mcp__*)"
                             )
+                            .props("dense outlined")
+                            .classes("flex-grow")
+                        )
 
-                            async def add_domain():
-                                val = dom_input.value.strip()
-                                if not val:
-                                    ui.notify("Enter a domain", type="negative")
-                                    return
-                                cfg = await run.io_bound(load_web_config)
-                                sect = cfg.get("ssrf_protection", {})
-                                if not isinstance(sect, dict):
-                                    sect = {}
-                                items = sect.get("additional_blocked_domains", [])
-                                if val in items:
-                                    ui.notify("Domain already exists", type="warning")
-                                    return
-                                items.append(val)
-                                sect["additional_blocked_domains"] = items
-                                cfg["ssrf_protection"] = sect
-                                await run.io_bound(save_web_config, cfg)
-                                dom_input.value = ""
-                                ui.notify(f"Added: {val}", type="positive")
-                                await refresh()
+                        async def add_ignore_tool():
+                            val = it_input.value.strip()
+                            if not val:
+                                ui.notify("Enter a pattern", type="negative")
+                                return
+                            cfg = await run.io_bound(load_web_config)
+                            sect = cfg.get("ssrf_protection", {})
+                            if not isinstance(sect, dict):
+                                sect = {}
+                            items = sect.get("ignore_tools", [])
+                            if val in items:
+                                ui.notify("Pattern already exists", type="warning")
+                                return
+                            items.append(val)
+                            sect["ignore_tools"] = items
+                            cfg["ssrf_protection"] = sect
+                            await run.io_bound(save_web_config, cfg)
+                            it_input.value = ""
+                            ui.notify(f"Added: {val}", type="positive")
+                            await refresh()
 
-                            ui.button("Add", icon="add", on_click=add_domain).props(
-                                "dense"
-                            )
+                        ui.button("Add", icon="add", on_click=add_ignore_tool).props(
+                            "dense"
+                        )
 
-                    with ui.card().classes("w-full"):
-                        with ui.row().classes("items-center gap-1"):
-                            ui.label("Allowed Domains").classes("text-lg font-bold")
-                            field_help_icon("ssrf_protection.allowed_domains")
-                        ui.label(
-                            "Domains explicitly allowed for outbound requests. "
-                            "Cannot override immutable core protections."
-                        ).classes("text-xs text-grey-6")
+                with ui.card().classes("w-full"):
+                    ui.label("SSRF Statistics").classes("text-lg font-bold")
+                    total = await run.io_bound(_load_stats)
+                    if total is None:
+                        ui.label("Violation logging not available.").classes(
+                            "text-grey-6 text-sm"
+                        )
+                    elif total == 0:
+                        ui.label("No SSRF attempts blocked yet.").classes(
+                            "text-grey-6 text-sm"
+                        )
+                    else:
+                        ui.label(f"Total SSRF attempts blocked: {total}").classes(
+                            "text-sm"
+                        )
 
-                        allowed = sp.get("allowed_domains", [])
-                        if allowed:
-                            for idx, domain in enumerate(allowed):
-                                with ui.row().classes("items-center gap-2 w-full"):
-                                    ui.icon("check").classes("text-green")
-                                    ui.label(domain).classes("flex-grow text-sm").style(
-                                        "font-family: monospace"
-                                    )
-
-                                    async def remove_allowed(i=idx):
-                                        cfg = await run.io_bound(load_web_config)
-                                        sect = cfg.get("ssrf_protection", {})
-                                        if not isinstance(sect, dict):
-                                            return
-                                        items = sect.get("allowed_domains", [])
-                                        if i < len(items):
-                                            items.pop(i)
-                                            sect["allowed_domains"] = items
-                                            cfg["ssrf_protection"] = sect
-                                            await run.io_bound(save_web_config, cfg)
-                                            ui.notify("Domain removed", type="positive")
-                                            await refresh()
-
-                                    ui.button(
-                                        icon="delete",
-                                        on_click=remove_allowed,
-                                        color="red",
-                                    ).props("flat dense size=sm")
-                        else:
-                            ui.label("No allowed domains.").classes(
-                                "text-grey-6 text-sm"
-                            )
-
-                        with ui.row().classes("items-center gap-2 mt-2"):
-                            allow_input = (
-                                ui.input(
-                                    placeholder="Enter domain (e.g. api.example.com)"
-                                )
-                                .props("dense outlined")
-                                .classes("flex-grow")
-                            )
-
-                            async def add_allowed():
-                                val = allow_input.value.strip()
-                                if not val:
-                                    ui.notify("Enter a domain", type="negative")
-                                    return
-                                cfg = await run.io_bound(load_web_config)
-                                sect = cfg.get("ssrf_protection", {})
-                                if not isinstance(sect, dict):
-                                    sect = {}
-                                items = sect.get("allowed_domains", [])
-                                if val in items:
-                                    ui.notify("Domain already exists", type="warning")
-                                    return
-                                items.append(val)
-                                sect["allowed_domains"] = items
-                                cfg["ssrf_protection"] = sect
-                                await run.io_bound(save_web_config, cfg)
-                                allow_input.value = ""
-                                ui.notify(f"Added: {val}", type="positive")
-                                await refresh()
-
-                            ui.button("Add", icon="add", on_click=add_allowed).props(
-                                "dense"
-                            )
-
-                    # --- Ignore files ---
-                    with ui.card().classes("w-full"):
-                        with ui.row().classes("items-center gap-1"):
-                            ui.label("Ignore Files").classes("text-lg font-bold")
-                            field_help_icon("ssrf_protection.ignore_files")
-                        ui.label(
-                            "Glob patterns for files to exclude from SSRF checks."
-                        ).classes("text-xs text-grey-6")
-
-                        ignore_files = sp.get("ignore_files", [])
-                        if ignore_files:
-                            for idx, entry in enumerate(ignore_files):
-                                with ui.row().classes("items-center gap-2 w-full"):
-                                    ui.icon("visibility_off").classes("text-grey-6")
-                                    ui.label(entry).classes("flex-grow text-sm").style(
-                                        "font-family: monospace"
-                                    )
-
-                                    async def remove_ignore_file(i=idx):
-                                        cfg = await run.io_bound(load_web_config)
-                                        sect = cfg.get("ssrf_protection", {})
-                                        if not isinstance(sect, dict):
-                                            return
-                                        items = sect.get("ignore_files", [])
-                                        if i < len(items):
-                                            items.pop(i)
-                                            sect["ignore_files"] = items
-                                            cfg["ssrf_protection"] = sect
-                                            await run.io_bound(save_web_config, cfg)
-                                            ui.notify(
-                                                "File pattern removed", type="positive"
-                                            )
-                                            await refresh()
-
-                                    ui.button(
-                                        icon="delete",
-                                        on_click=remove_ignore_file,
-                                        color="red",
-                                    ).props("flat dense size=sm")
-                        else:
-                            ui.label("No ignore file patterns.").classes(
-                                "text-grey-6 text-sm"
-                            )
-
-                        with ui.row().classes("items-center gap-2 mt-2"):
-                            if_input = (
-                                ui.input(
-                                    placeholder="Enter glob pattern (e.g. **/tests/**)"
-                                )
-                                .props("dense outlined")
-                                .classes("flex-grow")
-                            )
-
-                            async def add_ignore_file():
-                                val = if_input.value.strip()
-                                if not val:
-                                    ui.notify("Enter a pattern", type="negative")
-                                    return
-                                cfg = await run.io_bound(load_web_config)
-                                sect = cfg.get("ssrf_protection", {})
-                                if not isinstance(sect, dict):
-                                    sect = {}
-                                items = sect.get("ignore_files", [])
-                                if val in items:
-                                    ui.notify("Pattern already exists", type="warning")
-                                    return
-                                items.append(val)
-                                sect["ignore_files"] = items
-                                cfg["ssrf_protection"] = sect
-                                await run.io_bound(save_web_config, cfg)
-                                if_input.value = ""
-                                ui.notify(f"Added: {val}", type="positive")
-                                await refresh()
-
-                            ui.button(
-                                "Add", icon="add", on_click=add_ignore_file
-                            ).props("dense")
-
-                    # --- Ignore tools ---
-                    with ui.card().classes("w-full"):
-                        with ui.row().classes("items-center gap-1"):
-                            ui.label("Ignore Tools").classes("text-lg font-bold")
-                            field_help_icon("ssrf_protection.ignore_tools")
-                        ui.label(
-                            "Tool name patterns to exclude from SSRF checks."
-                        ).classes("text-xs text-grey-6")
-
-                        ignore_tools = sp.get("ignore_tools", [])
-                        if ignore_tools:
-                            for idx, entry in enumerate(ignore_tools):
-                                with ui.row().classes("items-center gap-2 w-full"):
-                                    ui.icon("build").classes("text-grey-6")
-                                    ui.label(entry).classes("flex-grow text-sm").style(
-                                        "font-family: monospace"
-                                    )
-
-                                    async def remove_ignore_tool(i=idx):
-                                        cfg = await run.io_bound(load_web_config)
-                                        sect = cfg.get("ssrf_protection", {})
-                                        if not isinstance(sect, dict):
-                                            return
-                                        items = sect.get("ignore_tools", [])
-                                        if i < len(items):
-                                            items.pop(i)
-                                            sect["ignore_tools"] = items
-                                            cfg["ssrf_protection"] = sect
-                                            await run.io_bound(save_web_config, cfg)
-                                            ui.notify(
-                                                "Tool pattern removed", type="positive"
-                                            )
-                                            await refresh()
-
-                                    ui.button(
-                                        icon="delete",
-                                        on_click=remove_ignore_tool,
-                                        color="red",
-                                    ).props("flat dense size=sm")
-                        else:
-                            ui.label("No ignore tool patterns.").classes(
-                                "text-grey-6 text-sm"
-                            )
-
-                        with ui.row().classes("items-center gap-2 mt-2"):
-                            it_input = (
-                                ui.input(
-                                    placeholder="Enter tool name pattern (e.g. mcp__*)"
-                                )
-                                .props("dense outlined")
-                                .classes("flex-grow")
-                            )
-
-                            async def add_ignore_tool():
-                                val = it_input.value.strip()
-                                if not val:
-                                    ui.notify("Enter a pattern", type="negative")
-                                    return
-                                cfg = await run.io_bound(load_web_config)
-                                sect = cfg.get("ssrf_protection", {})
-                                if not isinstance(sect, dict):
-                                    sect = {}
-                                items = sect.get("ignore_tools", [])
-                                if val in items:
-                                    ui.notify("Pattern already exists", type="warning")
-                                    return
-                                items.append(val)
-                                sect["ignore_tools"] = items
-                                cfg["ssrf_protection"] = sect
-                                await run.io_bound(save_web_config, cfg)
-                                it_input.value = ""
-                                ui.notify(f"Added: {val}", type="positive")
-                                await refresh()
-
-                            ui.button(
-                                "Add", icon="add", on_click=add_ignore_tool
-                            ).props("dense")
-
-                    with ui.card().classes("w-full"):
-                        ui.label("SSRF Statistics").classes("text-lg font-bold")
-                        total = await run.io_bound(_load_stats)
-                        if total is None:
-                            ui.label("Violation logging not available.").classes(
-                                "text-grey-6 text-sm"
-                            )
-                        elif total == 0:
-                            ui.label("No SSRF attempts blocked yet.").classes(
-                                "text-grey-6 text-sm"
-                            )
-                        else:
-                            ui.label(f"Total SSRF attempts blocked: {total}").classes(
-                                "text-sm"
-                            )
-
-            ui.timer(0.1, refresh, once=True)
+        ui.timer(0.1, refresh, once=True)

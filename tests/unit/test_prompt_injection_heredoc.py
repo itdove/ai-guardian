@@ -10,7 +10,10 @@ import unittest
 
 import pytest
 
-from ai_guardian.prompt_injection import PromptInjectionDetector, check_prompt_injection
+from ai_guardian.scanners.prompt_injection import (
+    PromptInjectionDetector,
+    check_prompt_injection,
+)
 
 
 class PromptInjectionHeredocTest(unittest.TestCase):

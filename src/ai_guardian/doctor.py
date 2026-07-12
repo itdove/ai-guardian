@@ -172,7 +172,7 @@ class Doctor:
 
     def check_config_file(self) -> CheckResult:
         self._ensure_config()
-        from ai_guardian.config_utils import get_config_dir
+        from ai_guardian.config.utils import get_config_dir
 
         config_dir = get_config_dir()
         config_path = config_dir / "ai-guardian.json"
@@ -238,7 +238,7 @@ class Doctor:
     def check_project_config(self) -> CheckResult:
         """Check if a project-level ai-guardian.json is detected."""
         try:
-            from ai_guardian.config_utils import get_project_config_path
+            from ai_guardian.config.utils import get_project_config_path
 
             project_path = get_project_config_path()
             if project_path:
@@ -262,7 +262,7 @@ class Doctor:
     def check_config_overlay(self) -> CheckResult:
         """Check if an SDK config overlay is active."""
         import os
-        from ai_guardian.config_loaders import _sdk_overlay
+        from ai_guardian.config.loaders import _sdk_overlay
 
         sources = []
 
@@ -395,7 +395,7 @@ class Doctor:
 
     def check_scanners(self) -> CheckResult:
         try:
-            from ai_guardian.scanner_manager import ScannerManager
+            from ai_guardian.scanners.manager import ScannerManager
         except ImportError:
             return CheckResult(
                 name="scanners",
@@ -458,7 +458,7 @@ class Doctor:
     def _refresh_ps_cache(self, ps_config: Dict) -> tuple:
         """Attempt to refresh pattern cache. Returns (success, error_msg)."""
         try:
-            from ai_guardian.pattern_server import PatternServerClient
+            from ai_guardian.patterns.server import PatternServerClient
 
             client = PatternServerClient(ps_config)
             result = client.get_patterns_path()
@@ -501,7 +501,7 @@ class Doctor:
         if cache_config.get("path"):
             cache_dir = Path(cache_config["path"]).expanduser().parent
         else:
-            from ai_guardian.config_utils import get_cache_dir
+            from ai_guardian.config.utils import get_cache_dir
 
             cache_dir = get_cache_dir()
 
@@ -711,7 +711,7 @@ class Doctor:
         if cache_config.get("path"):
             cache_file = Path(cache_config["path"]).expanduser()
         else:
-            from ai_guardian.config_utils import get_cache_dir
+            from ai_guardian.config.utils import get_cache_dir
 
             cache_file = get_cache_dir() / "patterns.toml"
 
@@ -901,6 +901,7 @@ class Doctor:
             )
 
     def _count_claude_hooks(self, config_path: Path) -> int:
+        from ai_guardian.constants import HookEvent
         from ai_guardian.setup import _is_ai_guardian_command
 
         try:
@@ -909,11 +910,11 @@ class Doctor:
             hooks = config.get("hooks", {})
             count = 0
             for hook_name in [
-                "UserPromptSubmit",
-                "PreToolUse",
-                "PostToolUse",
-                "SessionEnd",
-                "PostCompact",
+                HookEvent.PROMPT.display_name,
+                HookEvent.PRE_TOOL_USE.display_name,
+                HookEvent.POST_TOOL_USE.display_name,
+                HookEvent.SESSION_END.display_name,
+                HookEvent.POST_COMPACT.display_name,
             ]:
                 if hook_name in hooks:
                     hook_list = hooks[hook_name]
@@ -931,7 +932,7 @@ class Doctor:
             return 0
 
     def check_state_dir(self) -> CheckResult:
-        from ai_guardian.config_utils import get_state_dir, get_config_dir
+        from ai_guardian.config.utils import get_state_dir, get_config_dir
 
         state_dir = get_state_dir()
         config_dir = get_config_dir()
@@ -978,7 +979,7 @@ class Doctor:
             ]
             if old_files:
                 if self.fix:
-                    from ai_guardian.config_utils import migrate_state_files
+                    from ai_guardian.config.utils import migrate_state_files
 
                     migrate_state_files()
                     # Remove old files after successful migration
@@ -1025,7 +1026,7 @@ class Doctor:
         )
 
     def check_cache_dir(self) -> CheckResult:
-        from ai_guardian.config_utils import get_cache_dir
+        from ai_guardian.config.utils import get_cache_dir
 
         cache_dir = get_cache_dir()
 
@@ -1420,7 +1421,6 @@ class Doctor:
 
         ask_sections = []
         for section in (
-            "secret_scanning",
             "scan_pii",
             "prompt_injection",
             "context_poisoning",
@@ -1559,7 +1559,7 @@ class Doctor:
 
     def check_self_protection(self) -> CheckResult:
         """Verify immutable patterns protect config/state/cache from agent access."""
-        from ai_guardian.tool_policy import IMMUTABLE_DENY_PATTERNS
+        from ai_guardian.tools.patterns import IMMUTABLE_DENY_PATTERNS
 
         issues = []
 
@@ -1655,7 +1655,7 @@ class Doctor:
             )
 
         try:
-            from ai_guardian.ml_detection import is_ml_available, verify_model
+            from ai_guardian.scanners.ml_detection import is_ml_available, verify_model
         except ImportError:
             return CheckResult(
                 name="ml_detection",
@@ -1704,7 +1704,7 @@ class Doctor:
     def check_tray_plugins(self) -> CheckResult:
         """Check tray plugin files for validity and circular imports."""
         from ai_guardian.daemon import get_tray_plugins_dir
-        from ai_guardian.daemon.tray_plugins import check_circular_imports
+        from ai_guardian.tray.plugins import check_circular_imports
 
         plugins_dir = get_tray_plugins_dir()
         if not plugins_dir.is_dir():
@@ -1756,7 +1756,7 @@ class Doctor:
         except Exception:
             version = getattr(tree_sitter, "__version__", "unknown")
 
-        from ai_guardian.ast_scanner import _GRAMMAR_IMPORTS
+        from ai_guardian.scanners.ast_scanner import _GRAMMAR_IMPORTS
 
         available = []
         for lang_name, module_name in sorted(_GRAMMAR_IMPORTS.items()):
@@ -1791,7 +1791,7 @@ class Doctor:
         code_cfg = (self._config or {}).get("code_scanning", {})
 
         try:
-            from ai_guardian.config_utils import is_feature_enabled
+            from ai_guardian.config.utils import is_feature_enabled
 
             code_enabled = is_feature_enabled(code_cfg.get("enabled"), default=True)
         except Exception:

@@ -7,7 +7,7 @@ from textual.app import ComposeResult
 from textual.containers import Container, Horizontal, VerticalScroll
 from textual.widgets import Button, Input, Static
 
-from ai_guardian.config_utils import get_config_dir
+from ai_guardian.config.utils import get_config_dir
 from ai_guardian.tui.widgets import TimeBasedToggle, sanitize_enabled_value
 
 
@@ -84,7 +84,7 @@ class PerformanceContent(Container):
     @staticmethod
     def _get_retention_days() -> int:
         try:
-            from ai_guardian.violation_logger import ViolationLogger
+            from ai_guardian.violations.logger import ViolationLogger
 
             vl = ViolationLogger()
             return vl.config.get("retention_days", 30)
@@ -173,7 +173,7 @@ class PerformanceContent(Container):
 
     def _load_config_ui(self):
         try:
-            from ai_guardian.latency_logger import LatencyLogger
+            from ai_guardian.reporting.latency import LatencyLogger
 
             cfg = LatencyLogger().config
         except Exception:
@@ -257,7 +257,7 @@ class PerformanceContent(Container):
 
     def _clear_log(self):
         try:
-            from ai_guardian.latency_logger import LatencyLogger
+            from ai_guardian.reporting.latency import LatencyLogger
 
             LatencyLogger().clear_log()
             self.app.notify("Latency log cleared", severity="warning")
@@ -286,7 +286,7 @@ class PerformanceContent(Container):
 
     def _load_data(self):
         try:
-            from ai_guardian.latency_logger import LatencyComputer
+            from ai_guardian.reporting.latency import LatencyComputer
 
             computer = LatencyComputer(since_days=self._since_days)
             report = computer.compute()

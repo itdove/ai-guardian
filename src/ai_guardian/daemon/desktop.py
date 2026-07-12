@@ -58,7 +58,7 @@ def _prepare_icon(size=256):
 
     Returns the path to the cached icon, or None if the source icon is missing.
     """
-    from ai_guardian.config_utils import get_state_dir
+    from ai_guardian.config.utils import get_state_dir
 
     state_dir = get_state_dir()
     cached = state_dir / f"icon-{size}.png"
@@ -89,7 +89,7 @@ def _prepare_icon(size=256):
 
 def _prepare_ico():
     """Generate a .ico file for Windows from the cached PNG icon."""
-    from ai_guardian.config_utils import get_state_dir
+    from ai_guardian.config.utils import get_state_dir
 
     state_dir = get_state_dir()
     ico_path = state_dir / "icon.ico"
@@ -259,7 +259,7 @@ class MacOSDesktop(DesktopIntegration):
     @staticmethod
     def _find_icns():
         """Find the ai-guardian.icns file for the .app bundle."""
-        from ai_guardian.daemon.tray_plugins import _find_icon
+        from ai_guardian.tray.plugins import _find_icon
 
         path = _find_icon("ai-guardian.icns")
         return path if path else None

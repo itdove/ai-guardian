@@ -3,9 +3,9 @@
 # Builds the hook-testing container image and runs all bundled scenarios
 # for each profile to catch regressions in hook processing before merge.
 #
-# Uses quay.io/itdove/ai-guardian:latest as base to avoid rebuilding the full
-# IDE-CLI image on every run. Local source (src/) is installed on top of the
-# base image so PRs that touch Python code are always tested at HEAD.
+# Calls build-container.yml to build a commit-SHA-tagged base image, then
+# layers local source (src/) on top via Dockerfile.test so PRs always test
+# at HEAD with a matching base image (#1554).
 #
 # Profiles tested: standard, strict, minimal
 # Moderator profile is excluded — action=ask auto-dismisses in headless CI,
@@ -15,7 +15,7 @@ name: Scenario Tests
 
 on:
   push:
-    branches: [main]
+    branches: [main, 'dev/*']
     paths:
       - 'container/**'
       - 'src/ai_guardian/**'
@@ -23,6 +23,7 @@ on:
   pull_request:
     branches:
       - main
+      - 'dev/*'
       - 'release-*'
     paths:
       - 'container/**'
@@ -32,8 +33,14 @@ on:
   workflow_dispatch:
 
 jobs:
+  build-image:
+    name: Build Container Image
+    uses: ./.github/workflows/build-container.yml
+    secrets: inherit
+
   scenario-tests:
     name: Scenario Tests (${{ matrix.profile }})
+    needs: build-image
     runs-on: ubuntu-latest
     strategy:
       matrix:
@@ -45,15 +52,30 @@ jobs:
         uses: actions/checkout@v7
 
       - name: Pull base image
-        run: docker pull quay.io/itdove/ai-guardian:latest
+        run: docker pull quay.io/itdove/ai-guardian:${{ github.sha }}
 
       - name: Build test image
         run: |
           docker build \
             -f container/Dockerfile.test \
-            --build-arg BASE_IMAGE=quay.io/itdove/ai-guardian:latest \
+            --build-arg BASE_IMAGE=quay.io/itdove/ai-guardian:${{ github.sha }} \
             -t ai-guardian-test \
             .
 
       - name: Run ${{ matrix.profile }} scenarios
         run: docker run --rm -e AI_GUARDIAN_PROFILE=${{ matrix.profile }} ai-guardian-test /sandbox/run-scenarios.sh
+
+  cleanup-image:
+    name: Cleanup SHA Image
+    needs: scenario-tests
+    if: always() && (github.event_name == 'pull_request' || (github.event_name == 'push' && github.ref != 'refs/heads/main'))
+    runs-on: ubuntu-latest
+    steps:
+      - name: Delete SHA-tagged image
+        continue-on-error: true
+        run: |
+          skopeo login quay.io \
+            --username "${{ secrets.QUAY_PERSONAL_USERNAME }}" \
+            --password "${{ secrets.QUAY_PERSONAL_PASSWORD }}"
+          skopeo delete \
+            "docker://quay.io/itdove/ai-guardian:${{ github.sha }}"

@@ -841,7 +841,7 @@ class TestStartRestApiPortFallback:
 
         with mock.patch("ai_guardian.daemon.rest_api.DaemonRestAPI", FakeAPI):
             with mock.patch(
-                "ai_guardian.config_loaders._load_config_file",
+                "ai_guardian.config.loaders._load_config_file",
                 return_value=(None, None),
             ):
                 server._start_rest_api()
@@ -866,7 +866,7 @@ class TestStartRestApiPortFallback:
 
         with mock.patch("ai_guardian.daemon.rest_api.DaemonRestAPI", FakeAPI):
             with mock.patch(
-                "ai_guardian.config_loaders._load_config_file",
+                "ai_guardian.config.loaders._load_config_file",
                 return_value=(None, None),
             ):
                 with caplog.at_level(
@@ -893,7 +893,7 @@ class TestStartRestApiPortFallback:
 
         with mock.patch("ai_guardian.daemon.rest_api.DaemonRestAPI", FakeAPI):
             with mock.patch(
-                "ai_guardian.config_loaders._load_config_file",
+                "ai_guardian.config.loaders._load_config_file",
                 return_value=(None, None),
             ):
                 with caplog.at_level(

@@ -11,7 +11,7 @@ from unittest import mock
 
 import pytest
 
-from ai_guardian.config_utils import get_config_dir
+from ai_guardian.config.utils import get_config_dir
 from ai_guardian.setup import (
     IDESetup,
     setup_hooks,
@@ -878,7 +878,7 @@ class TestConfigDirEnvironmentVariable:
 
     def test_ai_guardian_config_dir_env_var(self, tmp_path):
         """Test that AI_GUARDIAN_CONFIG_DIR environment variable is respected."""
-        from ai_guardian.config_manager import ConfigManager
+        from ai_guardian.config.manager import ConfigManager
 
         custom_dir = tmp_path / "custom-config"
         custom_dir.mkdir()
@@ -889,7 +889,7 @@ class TestConfigDirEnvironmentVariable:
 
     def test_ai_guardian_config_dir_takes_priority_over_xdg(self, tmp_path):
         """Test that AI_GUARDIAN_CONFIG_DIR takes priority over XDG_CONFIG_HOME."""
-        from ai_guardian.config_manager import ConfigManager
+        from ai_guardian.config.manager import ConfigManager
 
         ai_guardian_dir = tmp_path / "ai-guardian-custom"
         xdg_dir = tmp_path / "xdg-home"
@@ -909,7 +909,7 @@ class TestConfigDirEnvironmentVariable:
 
     def test_xdg_config_home_fallback(self, tmp_path):
         """Test XDG_CONFIG_HOME is used when AI_GUARDIAN_CONFIG_DIR is not set."""
-        from ai_guardian.config_manager import ConfigManager
+        from ai_guardian.config.manager import ConfigManager
 
         xdg_dir = tmp_path / "xdg-home"
         xdg_dir.mkdir()
@@ -922,7 +922,7 @@ class TestConfigDirEnvironmentVariable:
     @pytest.mark.skipif(sys.platform == "win32", reason="Windows uses APPDATA")
     def test_default_config_dir_when_no_env_vars(self):
         """Test default config directory when no environment variables are set."""
-        from ai_guardian.config_manager import ConfigManager
+        from ai_guardian.config.manager import ConfigManager
 
         # Clear both environment variables
         env_backup = os.environ.copy()
@@ -941,7 +941,7 @@ class TestConfigDirEnvironmentVariable:
 
     def test_config_dir_with_tilde_expansion(self, tmp_path):
         """Test that tilde in AI_GUARDIAN_CONFIG_DIR is expanded."""
-        from ai_guardian.config_manager import ConfigManager
+        from ai_guardian.config.manager import ConfigManager
 
         # Use a path with tilde (will be expanded)
         with mock.patch.dict(
@@ -1002,7 +1002,7 @@ class TestConfigDirEnvironmentVariable:
 
     def test_tool_policy_uses_custom_config_dir(self, tmp_path):
         """Test that ToolPolicyChecker respects AI_GUARDIAN_CONFIG_DIR."""
-        from ai_guardian.tool_policy import ToolPolicyChecker
+        from ai_guardian.tools.policy import ToolPolicyChecker
 
         custom_dir = tmp_path / "custom-config"
         custom_dir.mkdir()
@@ -1502,7 +1502,7 @@ class TestInstallScannerMultiple:
             mock_instance.setup_ide_hooks.return_value = (True, "Success")
 
             with mock.patch(
-                "ai_guardian.scanner_installer.ScannerInstaller"
+                "ai_guardian.scanners.installer.ScannerInstaller"
             ) as MockInstaller:
                 mock_inst = MockInstaller.return_value
                 mock_inst.install.return_value = True
@@ -1525,7 +1525,7 @@ class TestInstallScannerMultiple:
             mock_instance.setup_ide_hooks.return_value = (True, "Success")
 
             with mock.patch(
-                "ai_guardian.scanner_installer.ScannerInstaller"
+                "ai_guardian.scanners.installer.ScannerInstaller"
             ) as MockInstaller:
                 mock_inst = MockInstaller.return_value
                 mock_inst.install.return_value = True
@@ -1553,7 +1553,7 @@ class TestInstallScannerMultiple:
             mock_instance.setup_ide_hooks.return_value = (True, "Success")
 
             with mock.patch(
-                "ai_guardian.scanner_installer.ScannerInstaller"
+                "ai_guardian.scanners.installer.ScannerInstaller"
             ) as MockInstaller:
                 success = setup_hooks(install_scanner=None, interactive=False)
 
@@ -1588,7 +1588,7 @@ class TestInstallScannerMultiple:
             mock_instance.setup_ide_hooks.return_value = (True, "Success")
 
             with mock.patch(
-                "ai_guardian.scanner_installer.ScannerInstaller"
+                "ai_guardian.scanners.installer.ScannerInstaller"
             ) as MockInstaller:
                 mock_inst = MockInstaller.return_value
                 mock_inst.install.side_effect = [False, True]
@@ -1610,7 +1610,7 @@ class TestInstallScannerMultiple:
             mock_instance.setup_ide_hooks.return_value = (True, "Success")
 
             with mock.patch(
-                "ai_guardian.scanner_installer.ScannerInstaller"
+                "ai_guardian.scanners.installer.ScannerInstaller"
             ) as MockInstaller:
                 mock_inst = MockInstaller.return_value
                 mock_inst.install.return_value = True
@@ -1631,7 +1631,7 @@ class TestInstallScannerMultiple:
             mock_instance.setup_ide_hooks.return_value = (True, "Success")
 
             with mock.patch(
-                "ai_guardian.scanner_installer.ScannerInstaller"
+                "ai_guardian.scanners.installer.ScannerInstaller"
             ) as MockInstaller:
                 mock_inst = MockInstaller.return_value
                 mock_inst.install.return_value = True
@@ -1657,7 +1657,7 @@ class TestInstallScannerMultiple:
             mock_instance.setup_ide_hooks.return_value = (True, "Success")
 
             with mock.patch(
-                "ai_guardian.scanner_installer.ScannerInstaller"
+                "ai_guardian.scanners.installer.ScannerInstaller"
             ) as MockInstaller:
                 mock_inst = MockInstaller.return_value
                 mock_inst.install.return_value = True
@@ -1681,7 +1681,7 @@ class TestInstallScannerMultiple:
             mock_instance.setup_ide_hooks.return_value = (True, "Success")
 
             with mock.patch(
-                "ai_guardian.scanner_installer.ScannerInstaller"
+                "ai_guardian.scanners.installer.ScannerInstaller"
             ) as MockInstaller:
                 mock_inst = MockInstaller.return_value
                 mock_inst.install.return_value = True
@@ -2293,7 +2293,7 @@ class TestCreateDefaultConfig:
 
     def test_existing_config_with_absolute_cache_path_still_works(self, tmp_path):
         """Test backward compat: existing configs with absolute cache.path still load."""
-        from ai_guardian.config_utils import get_cache_dir
+        from ai_guardian.config.utils import get_cache_dir
 
         abs_path = str(get_cache_dir() / "patterns.toml")
         cache_config = {"path": abs_path, "refresh_interval_hours": 12}
@@ -2837,7 +2837,7 @@ class TestMcpMigrationWarning:
             {"claude": {**_MCP_IDE_CONFIGS["claude"], "config_file": str(claude_json)}},
         ):
             with mock.patch(
-                "ai_guardian.setup.Path",
+                "ai_guardian.setup.mcp.Path",
                 side_effect=lambda p: Path(
                     str(p).replace("~/.claude/settings.json", str(settings_json))
                 ),
@@ -2864,7 +2864,7 @@ class TestMcpMigrationWarning:
             {"claude": {**_MCP_IDE_CONFIGS["claude"], "config_file": str(claude_json)}},
         ):
             with mock.patch(
-                "ai_guardian.setup.Path",
+                "ai_guardian.setup.mcp.Path",
                 side_effect=lambda p: Path(
                     str(p).replace("~/.claude/settings.json", str(settings_json))
                 ),
@@ -3010,7 +3010,7 @@ class TestOpenCodeMcpConfig:
         legacy.write_text('{"mcp": {}}')
 
         with mock.patch(
-            "ai_guardian.setup._MCP_IDE_CONFIGS",
+            "ai_guardian.setup.mcp._MCP_IDE_CONFIGS",
             {
                 "opencode": {
                     "config_file": str(opencode_dir / "opencode.jsonc"),
@@ -3019,7 +3019,7 @@ class TestOpenCodeMcpConfig:
             },
         ):
             with mock.patch(
-                "ai_guardian.setup._resolve_binary_path",
+                "ai_guardian.setup.mcp._resolve_binary_path",
                 return_value="/usr/bin/ai-guardian",
             ):
                 _install_mcp_config(mock.MagicMock(), "opencode")
@@ -3042,7 +3042,7 @@ class TestOpenCodeMcpConfig:
         jsonc.write_text('{"mcp": {}}')
 
         with mock.patch(
-            "ai_guardian.setup._MCP_IDE_CONFIGS",
+            "ai_guardian.setup.mcp._MCP_IDE_CONFIGS",
             {
                 "opencode": {
                     "config_file": str(jsonc),
@@ -3051,7 +3051,7 @@ class TestOpenCodeMcpConfig:
             },
         ):
             with mock.patch(
-                "ai_guardian.setup._resolve_binary_path",
+                "ai_guardian.setup.mcp._resolve_binary_path",
                 return_value="/usr/bin/ai-guardian",
             ):
                 _install_mcp_config(mock.MagicMock(), "opencode")
@@ -3067,7 +3067,7 @@ class TestOpenCodeMcpConfig:
         opencode_dir.mkdir(parents=True)
 
         with mock.patch(
-            "ai_guardian.setup._MCP_IDE_CONFIGS",
+            "ai_guardian.setup.mcp._MCP_IDE_CONFIGS",
             {
                 "opencode": {
                     "config_file": str(opencode_dir / "opencode.jsonc"),
@@ -3076,7 +3076,7 @@ class TestOpenCodeMcpConfig:
             },
         ):
             with mock.patch(
-                "ai_guardian.setup._resolve_binary_path",
+                "ai_guardian.setup.mcp._resolve_binary_path",
                 return_value="/usr/bin/ai-guardian",
             ):
                 _install_mcp_config(mock.MagicMock(), "opencode")
@@ -3091,7 +3091,7 @@ class TestOpenCodeMcpConfig:
         from ai_guardian.setup import _install_mcp_config
 
         with mock.patch(
-            "ai_guardian.setup._MCP_IDE_CONFIGS",
+            "ai_guardian.setup.mcp._MCP_IDE_CONFIGS",
             {
                 "copilot": {"config_key": "mcpServers"},
             },
@@ -3111,20 +3111,18 @@ class TestResolveBinaryPath:
     @pytest.mark.skipif(sys.platform == "win32", reason="Windows prefers pythonw path")
     def test_returns_shutil_which_result(self):
         with mock.patch(
-            "ai_guardian.setup.shutil.which", return_value="/usr/local/bin/ai-guardian"
+            "ai_guardian.setup.utils.shutil.which",
+            return_value="/usr/local/bin/ai-guardian",
         ):
             assert _resolve_binary_path() == "/usr/local/bin/ai-guardian"
 
     def test_falls_back_to_bare_ai_guardian(self, tmp_path):
-        with mock.patch("ai_guardian.setup.shutil.which", return_value=None):
+        with mock.patch("ai_guardian.setup.utils.shutil.which", return_value=None):
             assert _resolve_binary_path() == "ai-guardian"
 
-    def test_falls_back_to_bare_command(self, tmp_path):
-        fake_python = tmp_path / "nonexistent" / "python"
-        with mock.patch("ai_guardian.setup.shutil.which", return_value=None):
-            with mock.patch("ai_guardian.setup.sys") as mock_sys:
-                mock_sys.executable = str(fake_python)
-                assert _resolve_binary_path() == "ai-guardian"
+    def test_falls_back_to_bare_command(self):
+        with mock.patch("ai_guardian.setup.utils.shutil.which", return_value=None):
+            assert _resolve_binary_path() == "ai-guardian"
 
 
 class TestIsAiGuardianCommand:
@@ -3306,7 +3304,7 @@ class TestAbsolutePathWritten:
             },
         ):
             with mock.patch(
-                "ai_guardian.setup._resolve_binary_path",
+                "ai_guardian.setup.hooks._resolve_binary_path",
                 return_value="/mock/bin/ai-guardian",
             ):
                 success, _ = setup.setup_ide_hooks("claude", dry_run=False, force=False)
@@ -3332,7 +3330,7 @@ class TestAbsolutePathWritten:
             },
         ):
             with mock.patch(
-                "ai_guardian.setup._resolve_binary_path",
+                "ai_guardian.setup.hooks._resolve_binary_path",
                 return_value="/mock/bin/ai-guardian",
             ):
                 success, _ = setup.setup_ide_hooks("cursor", dry_run=False, force=False)
@@ -3353,7 +3351,7 @@ class TestAbsolutePathWritten:
             {"cline": {**IDESetup.IDE_CONFIGS["cline"], "config_path": str(hooks_dir)}},
         ):
             with mock.patch(
-                "ai_guardian.setup._resolve_binary_path",
+                "ai_guardian.setup.hooks._resolve_binary_path",
                 return_value="/mock/bin/ai-guardian",
             ):
                 success, _ = setup.setup_ide_hooks("cline", dry_run=False, force=False)
@@ -3409,7 +3407,7 @@ class TestAbsolutePathWritten:
             {"claude": {**_MCP_IDE_CONFIGS["claude"], "config_file": str(mcp_file)}},
         ):
             with mock.patch(
-                "ai_guardian.setup._resolve_binary_path",
+                "ai_guardian.setup.mcp._resolve_binary_path",
                 return_value="/mock/bin/ai-guardian",
             ):
                 _install_mcp_config(setup, "claude", dry_run=False)
@@ -3432,8 +3430,12 @@ class TestWindowsSetup:
                 return fake_pythonw
             return None
 
-        with mock.patch("ai_guardian.setup.platform.system", return_value="Windows"):
-            with mock.patch("ai_guardian.setup.shutil.which", side_effect=mock_which):
+        with mock.patch(
+            "ai_guardian.setup.utils.platform.system", return_value="Windows"
+        ):
+            with mock.patch(
+                "ai_guardian.setup.utils.shutil.which", side_effect=mock_which
+            ):
                 result = _resolve_binary_path()
 
         assert result == f"{fake_pythonw} -m ai_guardian"
@@ -3448,26 +3450,35 @@ class TestWindowsSetup:
                 return "C:\\bin\\ai-guardian.exe"
             return None
 
-        with mock.patch("ai_guardian.setup.platform.system", return_value="Windows"):
-            with mock.patch("ai_guardian.setup.shutil.which", side_effect=mock_which):
+        with mock.patch(
+            "ai_guardian.setup.utils.platform.system", return_value="Windows"
+        ):
+            with mock.patch(
+                "ai_guardian.setup.utils.shutil.which", side_effect=mock_which
+            ):
                 result = _resolve_binary_path()
 
         assert result == "C:\\bin\\ai-guardian.exe"
 
     def test_resolve_binary_path_unchanged_on_macos(self):
         """macOS behavior is unchanged."""
-        with mock.patch("ai_guardian.setup.platform.system", return_value="Darwin"):
+        with mock.patch(
+            "ai_guardian.setup.utils.platform.system", return_value="Darwin"
+        ):
             with mock.patch(
-                "ai_guardian.setup.shutil.which",
+                "ai_guardian.setup.utils.shutil.which",
                 return_value="/usr/local/bin/ai-guardian",
             ):
                 assert _resolve_binary_path() == "/usr/local/bin/ai-guardian"
 
     def test_resolve_binary_path_unchanged_on_linux(self):
         """Linux behavior is unchanged."""
-        with mock.patch("ai_guardian.setup.platform.system", return_value="Linux"):
+        with mock.patch(
+            "ai_guardian.setup.utils.platform.system", return_value="Linux"
+        ):
             with mock.patch(
-                "ai_guardian.setup.shutil.which", return_value="/usr/bin/ai-guardian"
+                "ai_guardian.setup.utils.shutil.which",
+                return_value="/usr/bin/ai-guardian",
             ):
                 assert _resolve_binary_path() == "/usr/bin/ai-guardian"
 
@@ -3519,7 +3530,9 @@ class TestWindowsSetup:
     # -- VBS wrapper --
 
     def test_vbs_wrapper_created_on_windows(self, tmp_path):
-        with mock.patch("ai_guardian.setup.platform.system", return_value="Windows"):
+        with mock.patch(
+            "ai_guardian.setup.hooks.platform.system", return_value="Windows"
+        ):
             vbs_path = _create_vbs_wrapper(
                 "C:\\Python312\\pythonw.exe -m ai_guardian --ide claude", tmp_path
             )
@@ -3532,13 +3545,17 @@ class TestWindowsSetup:
         assert ", 0, True" in content
 
     def test_vbs_wrapper_not_created_on_macos(self, tmp_path):
-        with mock.patch("ai_guardian.setup.platform.system", return_value="Darwin"):
+        with mock.patch(
+            "ai_guardian.setup.hooks.platform.system", return_value="Darwin"
+        ):
             result = _create_vbs_wrapper("ai-guardian", tmp_path)
 
         assert result is None
 
     def test_vbs_wrapper_not_created_on_linux(self, tmp_path):
-        with mock.patch("ai_guardian.setup.platform.system", return_value="Linux"):
+        with mock.patch(
+            "ai_guardian.setup.hooks.platform.system", return_value="Linux"
+        ):
             result = _create_vbs_wrapper("ai-guardian", tmp_path)
 
         assert result is None
@@ -3582,11 +3599,11 @@ class TestWindowsSetup:
             },
         ):
             with mock.patch(
-                "ai_guardian.setup._resolve_binary_path",
+                "ai_guardian.setup.hooks._resolve_binary_path",
                 return_value="C:\\Python312\\pythonw.exe -m ai_guardian",
             ):
                 with mock.patch(
-                    "ai_guardian.setup.platform.system", return_value="Windows"
+                    "ai_guardian.setup.hooks.platform.system", return_value="Windows"
                 ):
                     with mock.patch.object(
                         setup, "verify_gitleaks_installed", return_value=(True, "ok")
@@ -3617,11 +3634,11 @@ class TestWindowsSetup:
             },
         ):
             with mock.patch(
-                "ai_guardian.setup._resolve_binary_path",
+                "ai_guardian.setup.hooks._resolve_binary_path",
                 return_value=r"C:\Python312\pythonw.exe -m ai_guardian",
             ):
                 with mock.patch(
-                    "ai_guardian.setup.platform.system", return_value="Windows"
+                    "ai_guardian.setup.hooks.platform.system", return_value="Windows"
                 ):
                     with mock.patch.object(
                         setup, "verify_gitleaks_installed", return_value=(True, "ok")
@@ -3649,11 +3666,11 @@ class TestWindowsSetup:
             {"cline": {**IDESetup.IDE_CONFIGS["cline"], "config_path": str(hooks_dir)}},
         ):
             with mock.patch(
-                "ai_guardian.setup._resolve_binary_path",
+                "ai_guardian.setup.hooks._resolve_binary_path",
                 return_value="/mock/bin/ai-guardian",
             ):
                 with mock.patch(
-                    "ai_guardian.setup.platform.system", return_value="Linux"
+                    "ai_guardian.setup.hooks.platform.system", return_value="Linux"
                 ):
                     with mock.patch.object(
                         setup, "verify_gitleaks_installed", return_value=(True, "ok")
@@ -3681,7 +3698,7 @@ class TestWindowsSetup:
             {"cline": {**IDESetup.IDE_CONFIGS["cline"], "config_path": str(hooks_dir)}},
         ):
             with mock.patch(
-                "ai_guardian.setup.platform.system", return_value="Windows"
+                "ai_guardian.setup.hooks.platform.system", return_value="Windows"
             ):
                 result = setup.check_hooks_configured(hooks_dir, "cline")
 

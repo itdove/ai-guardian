@@ -15,7 +15,7 @@ Tests cover:
 import unittest
 from unittest.mock import patch
 
-from ai_guardian.prompt_injection import PromptInjectionDetector
+from ai_guardian.scanners.prompt_injection import PromptInjectionDetector
 
 
 class TestJailbreakDetection(unittest.TestCase):

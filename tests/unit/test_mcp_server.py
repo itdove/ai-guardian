@@ -18,7 +18,7 @@ pytestmark = pytest.mark.skipif(
     reason="MCP SDK requires Python >= 3.10",
 )
 
-from ai_guardian.mcp_server import (
+from ai_guardian.mcp.server import (
     _validate_scan_path,
     create_server,
 )
@@ -29,7 +29,7 @@ from ai_guardian.mcp_server import (
 class TestCheckPath:
     """Test check_path tool."""
 
-    @patch("ai_guardian.tool_policy.ToolPolicyChecker")
+    @patch("ai_guardian.tools.policy.ToolPolicyChecker")
     def test_allowed_path(self, mock_checker_cls, tmp_path):
         safe_file = tmp_path / "safe_file.py"
         safe_file.write_text("print('hello')")
@@ -42,7 +42,7 @@ class TestCheckPath:
         result = tool.fn(path=str(safe_file))
         assert result["status"] == "allowed"
 
-    @patch("ai_guardian.tool_policy.ToolPolicyChecker")
+    @patch("ai_guardian.tools.policy.ToolPolicyChecker")
     def test_denied_path(self, mock_checker_cls, tmp_path):
         denied_file = tmp_path / "secret.txt"
         denied_file.write_text("secret")
@@ -65,7 +65,7 @@ class TestCheckPath:
         result = tool.fn(path="/nonexistent/path/file.py")
         assert result["status"] == "not_found"
 
-    @patch("ai_guardian.tool_policy.ToolPolicyChecker")
+    @patch("ai_guardian.tools.policy.ToolPolicyChecker")
     def test_default_operation_is_read(self, mock_checker_cls, tmp_path):
         """Default operation should pass tool_name='Read' to checker."""
         safe_file = tmp_path / "safe_file.py"
@@ -81,7 +81,7 @@ class TestCheckPath:
         hook_data = mock_checker.check_tool_allowed.call_args[0][0]
         assert hook_data["tool_name"] == "Read"
 
-    @patch("ai_guardian.tool_policy.ToolPolicyChecker")
+    @patch("ai_guardian.tools.policy.ToolPolicyChecker")
     def test_operation_write(self, mock_checker_cls, tmp_path):
         """operation='write' should pass tool_name='Write' to checker."""
         f = tmp_path / "file.py"
@@ -98,7 +98,7 @@ class TestCheckPath:
         assert hook_data["tool_name"] == "Write"
         assert result["status"] == "denied"
 
-    @patch("ai_guardian.tool_policy.ToolPolicyChecker")
+    @patch("ai_guardian.tools.policy.ToolPolicyChecker")
     def test_operation_edit(self, mock_checker_cls, tmp_path):
         """operation='edit' should pass tool_name='Edit' to checker."""
         f = tmp_path / "file.py"
@@ -115,7 +115,7 @@ class TestCheckPath:
         assert hook_data["tool_name"] == "Edit"
         assert result["status"] == "allowed"
 
-    @patch("ai_guardian.tool_policy.ToolPolicyChecker")
+    @patch("ai_guardian.tools.policy.ToolPolicyChecker")
     def test_invalid_operation_defaults_to_read(self, mock_checker_cls, tmp_path):
         """Unknown operation should default to Read."""
         f = tmp_path / "file.py"
@@ -131,7 +131,7 @@ class TestCheckPath:
         hook_data = mock_checker.check_tool_allowed.call_args[0][0]
         assert hook_data["tool_name"] == "Read"
 
-    @patch("ai_guardian.tool_policy.ToolPolicyChecker")
+    @patch("ai_guardian.tools.policy.ToolPolicyChecker")
     def test_write_denied_file_allowed_for_read(self, mock_checker_cls, tmp_path):
         """File denied for Write should be allowed for Read if Read rules pass."""
         f = tmp_path / "hooks.json"
@@ -155,7 +155,7 @@ class TestCheckPath:
         write_result = tool.fn(path=str(f), operation="write")
         assert write_result["status"] == "denied"
 
-    @patch("ai_guardian.tool_policy.ToolPolicyChecker")
+    @patch("ai_guardian.tools.policy.ToolPolicyChecker")
     def test_read_denied_file_denied_for_read(self, mock_checker_cls, tmp_path):
         """File denied for Read should return denied for read checks."""
         f = tmp_path / "ai-guardian.json"
@@ -173,7 +173,7 @@ class TestCheckPath:
         result = tool.fn(path=str(f), operation="read")
         assert result["status"] == "denied"
 
-    @patch("ai_guardian.tool_policy.ToolPolicyChecker")
+    @patch("ai_guardian.tools.policy.ToolPolicyChecker")
     def test_no_rule_details_exposed(self, mock_checker_cls, tmp_path):
         """Response must not contain rule details, patterns, or paths."""
         secret_file = tmp_path / "secret.txt"
@@ -197,7 +197,7 @@ class TestCheckPath:
 class TestCheckCommand:
     """Test check_command tool."""
 
-    @patch("ai_guardian.tool_policy.ToolPolicyChecker")
+    @patch("ai_guardian.tools.policy.ToolPolicyChecker")
     def test_allowed_command(self, mock_checker_cls):
         mock_checker = MagicMock()
         mock_checker.check_tool_allowed.return_value = (True, None, "Bash")
@@ -208,7 +208,7 @@ class TestCheckCommand:
         result = tool.fn(command="ls -la")
         assert result["status"] == "allowed"
 
-    @patch("ai_guardian.tool_policy.ToolPolicyChecker")
+    @patch("ai_guardian.tools.policy.ToolPolicyChecker")
     def test_blocked_with_reason(self, mock_checker_cls):
         mock_checker = MagicMock()
         mock_checker.check_tool_allowed.return_value = (
@@ -224,7 +224,7 @@ class TestCheckCommand:
         assert result["status"] == "blocked"
         assert result["reason"] == "secret_detected"
 
-    @patch("ai_guardian.tool_policy.ToolPolicyChecker")
+    @patch("ai_guardian.tools.policy.ToolPolicyChecker")
     def test_ssrf_reason(self, mock_checker_cls):
         mock_checker = MagicMock()
         mock_checker.check_tool_allowed.return_value = (
@@ -244,7 +244,7 @@ class TestCheckCommand:
 class TestCheckPathHookDataFormat:
     """Verify check_path sends tool_input (not parameters) to ToolPolicyChecker."""
 
-    @patch("ai_guardian.tool_policy.ToolPolicyChecker")
+    @patch("ai_guardian.tools.policy.ToolPolicyChecker")
     def test_hook_data_uses_tool_input_key(self, mock_checker_cls, tmp_path):
         safe_file = tmp_path / "test.py"
         safe_file.write_text("x = 1")
@@ -261,7 +261,7 @@ class TestCheckPathHookDataFormat:
         assert "parameters" not in hook_data, "hook_data must not use 'parameters' key"
         assert hook_data["tool_input"]["file_path"] == str(safe_file.resolve())
 
-    @patch("ai_guardian.tool_policy.ToolPolicyChecker")
+    @patch("ai_guardian.tools.policy.ToolPolicyChecker")
     def test_check_path_with_directory_rules(self, mock_checker_cls, tmp_path):
         """check_path returns denied when directory rules block the path."""
         secret_file = tmp_path / ".ssh" / "id_rsa"
@@ -286,7 +286,7 @@ class TestCheckPathHookDataFormat:
 class TestCheckCommandHookDataFormat:
     """Verify check_command sends tool_input (not parameters) to ToolPolicyChecker."""
 
-    @patch("ai_guardian.tool_policy.ToolPolicyChecker")
+    @patch("ai_guardian.tools.policy.ToolPolicyChecker")
     def test_hook_data_uses_tool_input_key(self, mock_checker_cls):
         mock_checker = MagicMock()
         mock_checker.check_tool_allowed.return_value = (True, None, "Bash")
@@ -301,7 +301,7 @@ class TestCheckCommandHookDataFormat:
         assert "parameters" not in hook_data, "hook_data must not use 'parameters' key"
         assert hook_data["tool_input"]["command"] == "echo hello"
 
-    @patch("ai_guardian.tool_policy.ToolPolicyChecker")
+    @patch("ai_guardian.tools.policy.ToolPolicyChecker")
     def test_check_command_blocked_with_secret(self, mock_checker_cls):
         """check_command returns blocked when command contains a secret."""
         mock_checker = MagicMock()
@@ -327,7 +327,7 @@ class TestCheckCommandHookDataFormat:
 class TestCheckMCPTrustHookDataFormat:
     """Verify check_mcp_trust sends tool_input (not parameters) to ToolPolicyChecker."""
 
-    @patch("ai_guardian.tool_policy.ToolPolicyChecker")
+    @patch("ai_guardian.tools.policy.ToolPolicyChecker")
     def test_hook_data_uses_tool_input_key(self, mock_checker_cls):
         mock_checker = MagicMock()
         mock_checker.check_tool_allowed.return_value = (True, None, "mcp__test__test")
@@ -345,7 +345,7 @@ class TestCheckMCPTrustHookDataFormat:
 class TestCheckMCPTrust:
     """Test check_mcp_trust tool."""
 
-    @patch("ai_guardian.tool_policy.ToolPolicyChecker")
+    @patch("ai_guardian.tools.policy.ToolPolicyChecker")
     def test_trusted_server(self, mock_checker_cls):
         mock_checker = MagicMock()
         mock_checker.check_tool_allowed.return_value = (
@@ -360,7 +360,7 @@ class TestCheckMCPTrust:
         result = tool.fn(server_name="myserver")
         assert result["status"] == "trusted"
 
-    @patch("ai_guardian.tool_policy.ToolPolicyChecker")
+    @patch("ai_guardian.tools.policy.ToolPolicyChecker")
     def test_untrusted_server(self, mock_checker_cls):
         mock_checker = MagicMock()
         mock_checker.check_tool_allowed.return_value = (
@@ -379,7 +379,7 @@ class TestCheckMCPTrust:
 class TestSanitizeText:
     """Test sanitize_text tool."""
 
-    @patch("ai_guardian.sanitizer.sanitize_text")
+    @patch("ai_guardian.scanners.sanitizer.sanitize_text")
     def test_sanitizes_secrets(self, mock_sanitize):
         mock_sanitize.return_value = {
             "sanitized_text": "token is [REDACTED]",
@@ -400,7 +400,7 @@ class TestSanitizeText:
         assert result["redaction_count"] == 1
         assert "secrets" in result["types"]
 
-    @patch("ai_guardian.sanitizer.sanitize_text")
+    @patch("ai_guardian.scanners.sanitizer.sanitize_text")
     def test_no_redaction_details(self, mock_sanitize):
         """Response must not expose what was redacted (only type counts)."""
         mock_sanitize.return_value = {
@@ -428,7 +428,7 @@ class TestSanitizeText:
 class TestSanitizeDirectory:
     """Test sanitize_directory tool."""
 
-    @patch("ai_guardian.sanitizer.sanitize_directory")
+    @patch("ai_guardian.scanners.sanitizer.sanitize_directory")
     def test_redact_strategy_passed_through(self, mock_sanitize_dir, tmp_path):
         """redact_strategy parameter should be forwarded to sanitize_directory."""
         input_dir = tmp_path / "src"
@@ -458,7 +458,7 @@ class TestSanitizeDirectory:
         _, kwargs = mock_sanitize_dir.call_args
         assert kwargs.get("redact_strategy") == "blackout"
 
-    @patch("ai_guardian.sanitizer.sanitize_directory")
+    @patch("ai_guardian.scanners.sanitizer.sanitize_directory")
     def test_invalid_redact_strategy_defaults_to_blackout(
         self, mock_sanitize_dir, tmp_path
     ):
@@ -522,7 +522,7 @@ class TestCheckAnnotations:
 class TestGetViolations:
     """Test get_violations tool."""
 
-    @patch("ai_guardian.violation_logger.ViolationLogger")
+    @patch("ai_guardian.violations.logger.ViolationLogger")
     def test_returns_filtered_violations(self, mock_vl_cls):
         mock_vl = MagicMock()
         mock_vl.get_recent_violations.return_value = [
@@ -546,7 +546,7 @@ class TestGetViolations:
         assert "context" not in v
         assert "blocked" not in v
 
-    @patch("ai_guardian.violation_logger.ViolationLogger")
+    @patch("ai_guardian.violations.logger.ViolationLogger")
     def test_filters_annotation_suppressed(self, mock_vl_cls):
         """annotation_suppressed violations must not be exposed to the AI."""
         mock_vl = MagicMock()
@@ -575,7 +575,7 @@ class TestGetViolations:
         assert result["violations"][0]["type"] == "secret_detected"
         assert all(v["type"] != "annotation_suppressed" for v in result["violations"])
 
-    @patch("ai_guardian.violation_logger.ViolationLogger")
+    @patch("ai_guardian.violations.logger.ViolationLogger")
     def test_violations_include_safe_suggestions(self, mock_vl_cls):
         """Each violation entry must include a safe-only fix suggestion."""
         violation_types = [
@@ -609,7 +609,7 @@ class TestGetViolations:
             assert "suggestion" in v, f"Missing suggestion for {v['type']}"
             assert len(v["suggestion"]) > 10, f"Suggestion too short for {v['type']}"
 
-    @patch("ai_guardian.violation_logger.ViolationLogger")
+    @patch("ai_guardian.violations.logger.ViolationLogger")
     def test_suggestions_contain_no_bypass_hints(self, mock_vl_cls):
         """Suggestions must never include bypass instructions."""
         mock_vl = MagicMock()
@@ -650,10 +650,10 @@ class TestGetViolations:
 class TestGetConfig:
     """Test get_config tool."""
 
-    @patch("ai_guardian.mcp_server._load_full_config")
+    @patch("ai_guardian.mcp.server._load_full_config")
     def test_returns_feature_booleans(self, mock_config):
         mock_config.return_value = {
-            "secret_scanning": {"enabled": True, "action": "ask"},
+            "secret_scanning": {"enabled": True},
             "prompt_injection": {"enabled": False, "action": "warn"},
             "scan_pii": {"enabled": True},
             "security_instructions": {"inject_on_prompt": True},
@@ -670,11 +670,11 @@ class TestGetConfig:
         assert features["security_instructions"] is True
         assert "action_mode" not in features
         scanner_actions = features["scanner_actions"]
-        assert scanner_actions["secret_scanning"] == "ask"
+        assert "secret_scanning" not in scanner_actions
         assert scanner_actions["prompt_injection"] == "warn"
         assert scanner_actions["scan_pii"] == "block"  # falls back to global
 
-    @patch("ai_guardian.mcp_server._load_full_config")
+    @patch("ai_guardian.mcp.server._load_full_config")
     def test_no_rules_or_patterns_exposed(self, mock_config):
         """Config response must not contain regex patterns, allowlists, or deny rules."""
         mock_config.return_value = {
@@ -700,9 +700,9 @@ class TestGetConfig:
 class TestGetScannerStatus:
     """Test get_scanner_status tool."""
 
-    @patch("ai_guardian.scanner_manager.ScannerManager")
+    @patch("ai_guardian.scanners.manager.ScannerManager")
     def test_returns_installed_scanners(self, mock_sm_cls):
-        from ai_guardian.scanner_manager import InstalledScanner
+        from ai_guardian.scanners.manager import InstalledScanner
 
         mock_sm = MagicMock()
         mock_sm.list_installed.return_value = [
@@ -737,7 +737,7 @@ class TestGetScannerSupported:
 class TestGetPatternsList:
     """Test get_patterns_list tool."""
 
-    @patch("ai_guardian.pattern_lister.PatternLister")
+    @patch("ai_guardian.patterns.lister.PatternLister")
     def test_returns_counts_only(self, mock_pl_cls):
         mock_cat = MagicMock()
         mock_cat.name = "Prompt Injection"
@@ -753,7 +753,7 @@ class TestGetPatternsList:
         result = tool.fn()
         assert result["categories"]["Prompt Injection"] == 15
 
-    @patch("ai_guardian.pattern_lister.PatternLister")
+    @patch("ai_guardian.patterns.lister.PatternLister")
     def test_no_regex_exposed(self, mock_pl_cls):
         """Pattern counts only, no regex patterns."""
         mock_cat = MagicMock()
@@ -776,7 +776,7 @@ class TestGetPatternsList:
 class TestGetMetrics:
     """Test get_metrics tool."""
 
-    @patch("ai_guardian.metrics.MetricsComputer")
+    @patch("ai_guardian.reporting.metrics.MetricsComputer")
     def test_returns_metrics(self, mock_mc_cls):
         mock_report = MagicMock()
         mock_report.total_violations = 10
@@ -833,8 +833,8 @@ class TestDoctor:
 class TestResources:
     """Test MCP resources."""
 
-    @patch("ai_guardian.mcp_server._load_full_config")
-    @patch("ai_guardian.scanner_manager.ScannerManager")
+    @patch("ai_guardian.mcp.server._load_full_config")
+    @patch("ai_guardian.scanners.manager.ScannerManager")
     def test_security_posture_resource(self, mock_sm_cls, mock_config):
         mock_config.return_value = {"secret_scanning": {"enabled": True}}
         mock_sm = MagicMock()
@@ -854,11 +854,11 @@ class TestResources:
         deny_dir.mkdir()
         (deny_dir / ".ai-read-deny").touch()
 
-        with mock.patch("ai_guardian.mcp_server.Path") as mock_path_cls:
+        with mock.patch("ai_guardian.mcp.server.Path") as mock_path_cls:
             mock_path_cls.cwd.return_value = tmp_path
             server = create_server()
 
-    @patch("ai_guardian.violation_logger.ViolationLogger")
+    @patch("ai_guardian.violations.logger.ViolationLogger")
     def test_recent_violations_resource(self, mock_vl_cls):
         mock_vl = MagicMock()
         mock_vl.get_recent_violations.return_value = []
@@ -879,7 +879,7 @@ class TestResources:
 class TestPrepareSupportBundle:
     """Test prepare_support_bundle tool."""
 
-    @patch("ai_guardian.support_bundle.prepare_bundle")
+    @patch("ai_guardian.reporting.support_bundle.prepare_bundle")
     def test_returns_bundle_info(self, mock_prepare):
         mock_prepare.return_value = {
             "bundle_id": "support-20260509-abc123",
@@ -912,7 +912,7 @@ class TestPrepareSupportBundle:
 class TestSendSupportBundle:
     """Test send_support_bundle tool."""
 
-    @patch("ai_guardian.support_bundle.send_bundle")
+    @patch("ai_guardian.reporting.support_bundle.send_bundle")
     def test_send_with_valid_id(self, mock_send):
         mock_send.return_value = {
             "status": "sent",
@@ -925,7 +925,7 @@ class TestSendSupportBundle:
         result = tool.fn(bundle_id="support-20260509-abc123")
         assert result["status"] == "sent"
 
-    @patch("ai_guardian.support_bundle.send_bundle")
+    @patch("ai_guardian.reporting.support_bundle.send_bundle")
     def test_send_with_invalid_id(self, mock_send):
         mock_send.return_value = {
             "status": "error",
@@ -993,9 +993,9 @@ class TestScanDirectory:
         assert result["scanned_files"] >= 0
         assert "scan_time_ms" in result
 
-    @patch("ai_guardian.scanner.FileScanner.scan_directory")
-    @patch("ai_guardian.scanner.FileScanner._discover_files")
-    @patch("ai_guardian.mcp_server._load_full_config")
+    @patch("ai_guardian.scanners.file_scanner.FileScanner.scan_directory")
+    @patch("ai_guardian.scanners.file_scanner.FileScanner._discover_files")
+    @patch("ai_guardian.mcp.server._load_full_config")
     def test_scan_with_findings(self, mock_config, mock_discover, mock_scan, tmp_path):
         mock_config.return_value = {}
         mock_discover.return_value = [tmp_path / "a.py", tmp_path / "b.py"]
@@ -1024,9 +1024,9 @@ class TestScanDirectory:
         assert result["by_type"]["SSRF-001"] == 1
         assert "files_with_violations" not in result
 
-    @patch("ai_guardian.scanner.FileScanner.scan_directory")
-    @patch("ai_guardian.scanner.FileScanner._discover_files")
-    @patch("ai_guardian.mcp_server._load_full_config")
+    @patch("ai_guardian.scanners.file_scanner.FileScanner.scan_directory")
+    @patch("ai_guardian.scanners.file_scanner.FileScanner._discover_files")
+    @patch("ai_guardian.mcp.server._load_full_config")
     def test_no_secret_values_exposed(
         self, mock_config, mock_discover, mock_scan, tmp_path
     ):
@@ -1075,8 +1075,8 @@ class TestScanDirectory:
 class TestScanDirectoryReport:
     """Test scan_directory_report tool."""
 
-    @patch("ai_guardian.scanner.FileScanner.scan_directory")
-    @patch("ai_guardian.mcp_server._load_full_config")
+    @patch("ai_guardian.scanners.file_scanner.FileScanner.scan_directory")
+    @patch("ai_guardian.mcp.server._load_full_config")
     def test_generates_json_report(self, mock_config, mock_scan, tmp_path):
         mock_config.return_value = {}
         mock_scan.return_value = [
@@ -1092,8 +1092,8 @@ class TestScanDirectoryReport:
         assert result["report_path"].endswith("scan-results.json")
         assert Path(result["report_path"]).exists()
 
-    @patch("ai_guardian.scanner.FileScanner.scan_directory")
-    @patch("ai_guardian.mcp_server._load_full_config")
+    @patch("ai_guardian.scanners.file_scanner.FileScanner.scan_directory")
+    @patch("ai_guardian.mcp.server._load_full_config")
     def test_generates_sarif_report(self, mock_config, mock_scan, tmp_path):
         mock_config.return_value = {}
         mock_scan.return_value = []
@@ -1106,8 +1106,8 @@ class TestScanDirectoryReport:
         assert result["report_path"].endswith("scan-results.sarif")
         assert Path(result["report_path"]).exists()
 
-    @patch("ai_guardian.scanner.FileScanner.scan_directory")
-    @patch("ai_guardian.mcp_server._load_full_config")
+    @patch("ai_guardian.scanners.file_scanner.FileScanner.scan_directory")
+    @patch("ai_guardian.mcp.server._load_full_config")
     def test_report_path_only_no_content(self, mock_config, mock_scan, tmp_path):
         """Response must contain path but not the report content."""
         mock_config.return_value = {}
@@ -1185,7 +1185,7 @@ class TestServerCreation:
 
     def test_skill_instructions_contain_violation_guidance(self):
         """Skill instructions must tell the AI to call get_violations() for block reasons."""
-        from ai_guardian.mcp_server import _load_skill_instructions
+        from ai_guardian.mcp.server import _load_skill_instructions
 
         instructions = _load_skill_instructions()
         assert "get_violations" in instructions
@@ -1193,7 +1193,7 @@ class TestServerCreation:
 
     def test_skill_instructions_no_bypass_content(self):
         """Skill instructions must not teach bypass methods."""
-        from ai_guardian.mcp_server import _load_skill_instructions
+        from ai_guardian.mcp.server import _load_skill_instructions
 
         instructions = _load_skill_instructions()
         assert "! cat" not in instructions

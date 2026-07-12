@@ -9,7 +9,7 @@ Tests the IMMUTABLE_DENY_PATTERNS that protect:
 
 import json
 import pytest
-from ai_guardian.tool_policy import ToolPolicyChecker
+from ai_guardian.tools.policy import ToolPolicyChecker
 
 
 @pytest.fixture

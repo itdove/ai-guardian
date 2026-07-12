@@ -178,7 +178,7 @@ class DaemonDiscovery:
         When config exists but the daemon is not running, returns a
         target with status="stopped" so the tray can show a warning.
         """
-        from ai_guardian.config_utils import get_config_dir
+        from ai_guardian.config.utils import get_config_dir
 
         config_path = get_config_dir() / "ai-guardian.json"
 

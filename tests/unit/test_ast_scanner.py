@@ -6,7 +6,7 @@ from unittest.mock import patch
 
 import pytest
 
-from ai_guardian.ast_scanner import (
+from ai_guardian.scanners.ast_scanner import (
     EXTENSION_TO_LANGUAGE,
     SCANNABLE_NODE_TYPES,
     detect_language,
@@ -219,7 +219,7 @@ class TestLanguageCoverage(unittest.TestCase):
             ), f"Language '{lang}' is in SCANNABLE_NODE_TYPES but has no file extension mapping"
 
     def test_all_languages_have_grammar_imports(self):
-        from ai_guardian.ast_scanner import _GRAMMAR_IMPORTS
+        from ai_guardian.scanners.ast_scanner import _GRAMMAR_IMPORTS
 
         languages = set(EXTENSION_TO_LANGUAGE.values())
         for lang in languages:

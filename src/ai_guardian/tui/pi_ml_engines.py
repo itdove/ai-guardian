@@ -17,7 +17,7 @@ from textual.binding import Binding
 from textual.containers import Container, Horizontal, VerticalScroll
 from textual.widgets import Button, Input, Label, Select, Static, TextArea
 
-from ai_guardian.config_utils import get_config_dir
+from ai_guardian.config.utils import get_config_dir
 from ai_guardian.tui.console_settings import load_editor_theme
 
 VALID_ML_ENGINE_TYPES = {"llm-guard"}
@@ -328,7 +328,10 @@ class PIMLEnginesContent(Container):
 
     def _update_wizard(self, engines: list, detector: str) -> None:
         try:
-            from ai_guardian.ml_detection import is_ml_available, list_registered_models
+            from ai_guardian.scanners.ml_detection import (
+                is_ml_available,
+                list_registered_models,
+            )
 
             deps_ok = is_ml_available()
             models = list_registered_models()
@@ -484,7 +487,7 @@ class PIMLEnginesContent(Container):
             self.app.notify, "Downloading ML model...", severity="information"
         )
         try:
-            from ai_guardian.ml_detection import download_model
+            from ai_guardian.scanners.ml_detection import download_model
 
             download_model()
             self.app.call_from_thread(

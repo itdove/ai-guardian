@@ -7,7 +7,7 @@ merged with defaults — not replace them wholesale.
 from unittest.mock import patch
 
 
-from ai_guardian.config_loaders import (
+from ai_guardian.config.loaders import (
     _CONTEXT_POISONING_DEFAULTS,
     _IMAGE_SCANNING_DEFAULTS,
     _PII_DEFAULTS,
@@ -18,7 +18,7 @@ from ai_guardian.config_loaders import (
 
 def _mock_config_file(config_dict):
     return patch(
-        "ai_guardian.config_loaders._load_config_file",
+        "ai_guardian.config.loaders._load_config_file",
         return_value=(config_dict, None),
     )
 
@@ -186,11 +186,11 @@ class TestNoDefaults:
     """Sections without defaults should work as before."""
 
     def test_no_defaults_returns_user_section(self):
-        user_config = {"secret_scanning": {"enabled": True, "action": "block"}}
+        user_config = {"secret_scanning": {"enabled": True, "allowlist_patterns": []}}
         with _mock_config_file(user_config):
             section, err = _load_config_section("secret_scanning")
         assert err is None
-        assert section == {"enabled": True, "action": "block"}
+        assert section == {"enabled": True, "allowlist_patterns": []}
 
     def test_no_defaults_missing_section_returns_none(self):
         with _mock_config_file({}):
@@ -204,7 +204,7 @@ class TestConfigFileErrors:
 
     def test_config_error_returns_defaults(self):
         with patch(
-            "ai_guardian.config_loaders._load_config_file",
+            "ai_guardian.config.loaders._load_config_file",
             return_value=(None, "File not readable"),
         ):
             section, err = _load_config_section("scan_pii", defaults=_PII_DEFAULTS)
@@ -213,7 +213,7 @@ class TestConfigFileErrors:
 
     def test_no_config_file_returns_defaults(self):
         with patch(
-            "ai_guardian.config_loaders._load_config_file",
+            "ai_guardian.config.loaders._load_config_file",
             return_value=(None, None),
         ):
             section, err = _load_config_section("scan_pii", defaults=_PII_DEFAULTS)

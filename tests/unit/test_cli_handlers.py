@@ -458,9 +458,9 @@ class TestPromptAskProjectPath:
                 "ai_guardian.tui.display.get_preferred_ui",
                 return_value="headless",
             ),
-            mock.patch("ai_guardian.config_utils.set_project_dir_override") as mock_set,
+            mock.patch("ai_guardian.config.utils.set_project_dir_override") as mock_set,
             mock.patch(
-                "ai_guardian.config_utils.clear_project_dir_override"
+                "ai_guardian.config.utils.clear_project_dir_override"
             ) as mock_clear,
         ):
             _handle_prompt_ask(args)
@@ -492,7 +492,7 @@ class TestPromptAskProjectPath:
                 "ai_guardian.tui.display.get_preferred_ui",
                 return_value="headless",
             ),
-            mock.patch("ai_guardian.config_utils.set_project_dir_override") as mock_set,
+            mock.patch("ai_guardian.config.utils.set_project_dir_override") as mock_set,
         ):
             _handle_prompt_ask(args)
 
@@ -524,9 +524,9 @@ class TestPromptAskProjectPath:
                 "ai_guardian.tui.display.get_preferred_ui",
                 side_effect=RuntimeError("boom"),
             ),
-            mock.patch("ai_guardian.config_utils.set_project_dir_override") as mock_set,
+            mock.patch("ai_guardian.config.utils.set_project_dir_override") as mock_set,
             mock.patch(
-                "ai_guardian.config_utils.clear_project_dir_override"
+                "ai_guardian.config.utils.clear_project_dir_override"
             ) as mock_clear,
         ):
             try:

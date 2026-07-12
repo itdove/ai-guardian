@@ -166,7 +166,7 @@ class EngineTesterContent(ScrollableContainer):
     @staticmethod
     def _get_engine_options():
         try:
-            from ai_guardian.engine_tester import get_available_engines
+            from ai_guardian.scanners.engine_tester import get_available_engines
 
             engines = get_available_engines()
         except Exception:
@@ -182,7 +182,7 @@ class EngineTesterContent(ScrollableContainer):
 
     def _populate_strategy(self):
         try:
-            from ai_guardian.engine_tester import get_configured_strategy
+            from ai_guardian.scanners.engine_tester import get_configured_strategy
 
             cfg_strategy = get_configured_strategy()
         except Exception:
@@ -212,7 +212,7 @@ class EngineTesterContent(ScrollableContainer):
         val = self.query_one("#et-strategy-select", Select).value
         if val == "__config__":
             try:
-                from ai_guardian.engine_tester import get_configured_strategy
+                from ai_guardian.scanners.engine_tester import get_configured_strategy
 
                 return get_configured_strategy()
             except Exception:
@@ -260,7 +260,7 @@ class EngineTesterContent(ScrollableContainer):
         def worker():
             prev = self._suppress_logging()
             try:
-                from ai_guardian.engine_tester import test_engine
+                from ai_guardian.scanners.engine_tester import test_engine
 
                 result = test_engine(engine, text, use_pattern_server=use_ps)
                 self.app.call_from_thread(self._display_single, result)
@@ -284,7 +284,10 @@ class EngineTesterContent(ScrollableContainer):
         def worker():
             prev = self._suppress_logging()
             try:
-                from ai_guardian.engine_tester import test_all_engines, apply_strategy
+                from ai_guardian.scanners.engine_tester import (
+                    test_all_engines,
+                    apply_strategy,
+                )
 
                 results = test_all_engines(text, use_pattern_server=use_ps)
                 verdict = apply_strategy(strategy, results)

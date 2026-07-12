@@ -15,7 +15,7 @@ Tests cover:
 """
 
 import pytest
-from ai_guardian.ssrf_protector import SSRFProtector, check_ssrf
+from ai_guardian.scanners.ssrf import SSRFProtector, check_ssrf
 
 
 class TestSSRFProtectorCore:

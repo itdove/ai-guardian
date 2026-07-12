@@ -85,7 +85,7 @@ class TestRestAPIEndpoints:
         api, port, state = rest_api
         cfg = {"menu_tags": ["carbonite", "container"]}
         with mock.patch(
-            "ai_guardian.config_loaders._load_config_file",
+            "ai_guardian.config.loaders._load_config_file",
             return_value=(cfg, None),
         ):
             url = f"http://127.0.0.1:{port}/api/status"
@@ -112,7 +112,7 @@ class TestRestAPIEndpoints:
         api, port, state = rest_api
         cfg = {"menu_tags": ["carbonite", "container"]}
         with mock.patch(
-            "ai_guardian.config_loaders._load_config_file",
+            "ai_guardian.config.loaders._load_config_file",
             return_value=(cfg, None),
         ):
             url = f"http://127.0.0.1:{port}/api/stats"
@@ -201,7 +201,7 @@ class TestConfigEndpoint:
             "scan_pii": {"enabled": False},
         }
         with mock.patch(
-            "ai_guardian.config_loaders._load_config_file",
+            "ai_guardian.config.loaders._load_config_file",
             return_value=(cfg, None),
         ):
             url = f"http://127.0.0.1:{port}/api/config"
@@ -214,7 +214,7 @@ class TestConfigEndpoint:
     def test_get_config_no_config_file(self, rest_api):
         api, port, state = rest_api
         with mock.patch(
-            "ai_guardian.config_loaders._load_config_file",
+            "ai_guardian.config.loaders._load_config_file",
             return_value=(None, None),
         ):
             url = f"http://127.0.0.1:{port}/api/config"
@@ -226,18 +226,17 @@ class TestConfigEndpoint:
         api, port, state = rest_api
         cfg = {
             "action": {"mode": "log"},
-            "secret_scanning": {"action": "ask"},
             "prompt_injection": {"action": "warn"},
         }
         with mock.patch(
-            "ai_guardian.config_loaders._load_config_file",
+            "ai_guardian.config.loaders._load_config_file",
             return_value=(cfg, None),
         ):
             url = f"http://127.0.0.1:{port}/api/config"
             with urlopen(url, timeout=5) as resp:
                 data = json.loads(resp.read())
         scanner_actions = data["features"]["scanner_actions"]
-        assert scanner_actions["secret_scanning"] == "ask"
+        assert "secret_scanning" not in scanner_actions
         assert scanner_actions["prompt_injection"] == "warn"
         assert scanner_actions["scan_pii"] == "log"  # falls back to global
 
@@ -245,7 +244,7 @@ class TestConfigEndpoint:
         api, port, state = rest_api
         cfg = {"mcp_server": {"proactive_level": "high"}}
         with mock.patch(
-            "ai_guardian.config_loaders._load_config_file",
+            "ai_guardian.config.loaders._load_config_file",
             return_value=(cfg, None),
         ):
             url = f"http://127.0.0.1:{port}/api/config"
@@ -268,7 +267,7 @@ class TestViolationsEndpoint:
             },
         ]
         with mock.patch(
-            "ai_guardian.violation_logger.ViolationLogger.get_recent_violations",
+            "ai_guardian.violations.logger.ViolationLogger.get_recent_violations",
             return_value=mock_entries,
         ):
             url = f"http://127.0.0.1:{port}/api/violations"
@@ -287,7 +286,7 @@ class TestViolationsEndpoint:
     def test_get_violations_with_type_filter(self, rest_api):
         api, port, state = rest_api
         with mock.patch(
-            "ai_guardian.violation_logger.ViolationLogger.get_recent_violations",
+            "ai_guardian.violations.logger.ViolationLogger.get_recent_violations",
             return_value=[],
         ) as mock_get:
             url = f"http://127.0.0.1:{port}/api/violations?type=pii_detected&limit=10"
@@ -299,7 +298,7 @@ class TestViolationsEndpoint:
     def test_get_violations_empty(self, rest_api):
         api, port, state = rest_api
         with mock.patch(
-            "ai_guardian.violation_logger.ViolationLogger.get_recent_violations",
+            "ai_guardian.violations.logger.ViolationLogger.get_recent_violations",
             return_value=[],
         ):
             url = f"http://127.0.0.1:{port}/api/violations"
@@ -321,7 +320,7 @@ class TestMetricsEndpoint:
         mock_report.cumulative_by_type = {"secret_detected": 30, "pii_detected": 20}
         mock_report.cumulative_since = "2026-01-01T00:00:00Z"
         with mock.patch(
-            "ai_guardian.metrics.MetricsComputer.compute",
+            "ai_guardian.reporting.metrics.MetricsComputer.compute",
             return_value=mock_report,
         ):
             url = f"http://127.0.0.1:{port}/api/metrics"
@@ -345,11 +344,11 @@ class TestMetricsEndpoint:
         mock_report.cumulative_since = ""
         with (
             mock.patch(
-                "ai_guardian.metrics.MetricsComputer.__init__",
+                "ai_guardian.reporting.metrics.MetricsComputer.__init__",
                 return_value=None,
             ) as mock_init,
             mock.patch(
-                "ai_guardian.metrics.MetricsComputer.compute",
+                "ai_guardian.reporting.metrics.MetricsComputer.compute",
                 return_value=mock_report,
             ),
         ):
@@ -380,7 +379,7 @@ class TestTrayPluginsEndpoint:
                 "ai_guardian.daemon.get_tray_plugins_dir", return_value=plugins_dir
             ),
             mock.patch(
-                "ai_guardian.daemon.tray_plugins._load_bundled_plugins", return_value=[]
+                "ai_guardian.tray.plugins._load_bundled_plugins", return_value=[]
             ),
         ):
             url = f"http://127.0.0.1:{port}/api/tray-plugins"
@@ -398,7 +397,7 @@ class TestTrayPluginsEndpoint:
                 return_value=tmp_path / "nonexistent",
             ),
             mock.patch(
-                "ai_guardian.daemon.tray_plugins._load_bundled_plugins", return_value=[]
+                "ai_guardian.tray.plugins._load_bundled_plugins", return_value=[]
             ),
         ):
             url = f"http://127.0.0.1:{port}/api/tray-plugins"
@@ -424,7 +423,7 @@ class TestTrayPluginsEndpoint:
                 "ai_guardian.daemon.get_tray_plugins_dir", return_value=plugins_dir
             ),
             mock.patch(
-                "ai_guardian.daemon.tray_plugins._load_bundled_plugins", return_value=[]
+                "ai_guardian.tray.plugins._load_bundled_plugins", return_value=[]
             ),
         ):
             url = f"http://127.0.0.1:{port}/api/tray-plugins"
@@ -574,7 +573,7 @@ class TestRedactEndpoint:
         api, port, state = rest_api
         url = f"http://127.0.0.1:{port}/api/redact"
         with mock.patch(
-            "ai_guardian.sanitizer.sanitize_text",
+            "ai_guardian.scanners.sanitizer.sanitize_text",
             return_value={
                 "sanitized_text": "my token is [REDACTED]",
                 "redactions": [{"type": "secret"}],

@@ -213,7 +213,7 @@ class TestRunGenerator:
 
         with mock.patch.dict(
             "sys.modules",
-            {"ai_guardian.directory_rule_generator": None},
+            {"ai_guardian.tools.directory_rules": None},
         ):
             result = _run_generator(
                 {"permissions": {"auto_directory_rules": {"enabled": True}}}

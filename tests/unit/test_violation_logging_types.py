@@ -31,7 +31,7 @@ class TestViolationLoggerDefaults:
     """Test that ViolationLogger default config includes new types."""
 
     def test_default_config_includes_ssrf_blocked(self):
-        from ai_guardian.violation_logger import ViolationLogger
+        from ai_guardian.violations.logger import ViolationLogger
 
         with tempfile.TemporaryDirectory() as tmp:
             with mock.patch.dict(os.environ, {"AI_GUARDIAN_CONFIG_DIR": tmp}):
@@ -40,7 +40,7 @@ class TestViolationLoggerDefaults:
                 assert "ssrf_blocked" in defaults["log_types"]
 
     def test_default_config_includes_config_file_exfil(self):
-        from ai_guardian.violation_logger import ViolationLogger
+        from ai_guardian.violations.logger import ViolationLogger
 
         with tempfile.TemporaryDirectory() as tmp:
             with mock.patch.dict(os.environ, {"AI_GUARDIAN_CONFIG_DIR": tmp}):
@@ -49,7 +49,7 @@ class TestViolationLoggerDefaults:
                 assert "config_file_exfil" in defaults["log_types"]
 
     def test_default_config_has_all_eight_types(self):
-        from ai_guardian.violation_logger import ViolationLogger
+        from ai_guardian.violations.logger import ViolationLogger
 
         with tempfile.TemporaryDirectory() as tmp:
             with mock.patch.dict(os.environ, {"AI_GUARDIAN_CONFIG_DIR": tmp}):
@@ -62,7 +62,7 @@ class TestShouldLogType:
     """Test _should_log_type filtering for new types."""
 
     def test_should_log_ssrf_blocked_when_in_config(self):
-        from ai_guardian.violation_logger import ViolationLogger
+        from ai_guardian.violations.logger import ViolationLogger
 
         with tempfile.TemporaryDirectory() as tmp:
             config_path = os.path.join(tmp, "ai-guardian.json")
@@ -75,7 +75,7 @@ class TestShouldLogType:
                 assert vl._should_log_type("tool_permission") is True
 
     def test_should_log_config_file_exfil_when_in_config(self):
-        from ai_guardian.violation_logger import ViolationLogger
+        from ai_guardian.violations.logger import ViolationLogger
 
         with tempfile.TemporaryDirectory() as tmp:
             config_path = os.path.join(tmp, "ai-guardian.json")
@@ -90,7 +90,7 @@ class TestShouldLogType:
                 assert vl._should_log_type("tool_permission") is True
 
     def test_should_log_all_when_empty_log_types(self):
-        from ai_guardian.violation_logger import ViolationLogger
+        from ai_guardian.violations.logger import ViolationLogger
 
         with tempfile.TemporaryDirectory() as tmp:
             config_path = os.path.join(tmp, "ai-guardian.json")
@@ -102,7 +102,7 @@ class TestShouldLogType:
                 assert vl._should_log_type("config_file_exfil") is True
 
     def test_old_config_auto_enables_new_default_types(self):
-        from ai_guardian.violation_logger import ViolationLogger
+        from ai_guardian.violations.logger import ViolationLogger
 
         with tempfile.TemporaryDirectory() as tmp:
             config_path = os.path.join(tmp, "ai-guardian.json")
@@ -218,10 +218,10 @@ class TestSchemaValidation:
 class TestToolPolicySSRFViolationType:
     """Test that tool_policy._log_violation passes violation_type correctly."""
 
-    @mock.patch("ai_guardian.tool_policy.ViolationLogger")
-    @mock.patch("ai_guardian.tool_policy.HAS_VIOLATION_LOGGER", True)
+    @mock.patch("ai_guardian.tools.policy.ViolationLogger")
+    @mock.patch("ai_guardian.tools.policy.HAS_VIOLATION_LOGGER", True)
     def test_log_violation_default_type_is_tool_permission(self, mock_vl_class):
-        from ai_guardian.tool_policy import ToolPolicyChecker
+        from ai_guardian.tools.policy import ToolPolicyChecker
 
         mock_logger = mock.MagicMock()
         mock_vl_class.return_value = mock_logger
@@ -245,10 +245,10 @@ class TestToolPolicySSRFViolationType:
             == "tool_permission"
         )
 
-    @mock.patch("ai_guardian.tool_policy.ViolationLogger")
-    @mock.patch("ai_guardian.tool_policy.HAS_VIOLATION_LOGGER", True)
+    @mock.patch("ai_guardian.tools.policy.ViolationLogger")
+    @mock.patch("ai_guardian.tools.policy.HAS_VIOLATION_LOGGER", True)
     def test_log_violation_ssrf_type(self, mock_vl_class):
-        from ai_guardian.tool_policy import ToolPolicyChecker
+        from ai_guardian.tools.policy import ToolPolicyChecker
 
         mock_logger = mock.MagicMock()
         mock_vl_class.return_value = mock_logger
@@ -278,7 +278,7 @@ class TestViolationLogging:
     """Test that violations are actually logged with correct types."""
 
     def test_ssrf_blocked_violation_is_logged(self):
-        from ai_guardian.violation_logger import ViolationLogger
+        from ai_guardian.violations.logger import ViolationLogger
 
         with tempfile.TemporaryDirectory() as tmp:
             with mock.patch.dict(os.environ, {"AI_GUARDIAN_CONFIG_DIR": tmp}):
@@ -293,7 +293,7 @@ class TestViolationLogging:
                 assert violations[0]["violation_type"] == "ssrf_blocked"
 
     def test_config_file_exfil_violation_is_logged(self):
-        from ai_guardian.violation_logger import ViolationLogger
+        from ai_guardian.violations.logger import ViolationLogger
 
         with tempfile.TemporaryDirectory() as tmp:
             with mock.patch.dict(os.environ, {"AI_GUARDIAN_CONFIG_DIR": tmp}):
@@ -312,7 +312,7 @@ class TestViolationLogging:
                 assert violations[0]["violation_type"] == "config_file_exfil"
 
     def test_non_default_type_not_logged_when_excluded_from_config(self):
-        from ai_guardian.violation_logger import ViolationLogger
+        from ai_guardian.violations.logger import ViolationLogger
 
         with tempfile.TemporaryDirectory() as tmp:
             config_path = os.path.join(tmp, "ai-guardian.json")

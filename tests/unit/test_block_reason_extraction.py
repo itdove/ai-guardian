@@ -153,7 +153,7 @@ class PolicyBlockedHeaderTest(unittest.TestCase):
 
     def test_deny_message_has_blocked_header(self):
         """Tool deny messages should include 🛡️ BLOCKED BY POLICY header"""
-        from ai_guardian.tool_policy import ToolPolicyChecker
+        from ai_guardian.tools.policy import ToolPolicyChecker
 
         config = {
             "permissions": [
@@ -173,7 +173,7 @@ class PolicyBlockedHeaderTest(unittest.TestCase):
 
     def test_immutable_deny_message_has_blocked_header(self):
         """Immutable file deny messages should include Phase 3 format"""
-        from ai_guardian.tool_policy import ToolPolicyChecker
+        from ai_guardian.tools.policy import ToolPolicyChecker
 
         policy_checker = ToolPolicyChecker()
 

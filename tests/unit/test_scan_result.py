@@ -2,7 +2,7 @@
 
 import pytest
 
-from ai_guardian.scan_result import ScanResult as UniversalScanResult
+from ai_guardian.scanners.scan_result import ScanResult as UniversalScanResult
 
 
 class TestScanResultConstruction:

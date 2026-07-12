@@ -568,7 +568,7 @@ class TestMCPSecurityAudit:
         assert report is None
 
     def test_run_audit_handles_import_error(self):
-        with mock.patch.dict("sys.modules", {"ai_guardian.mcp_audit": None}):
+        with mock.patch.dict("sys.modules", {"ai_guardian.mcp.audit": None}):
             from ai_guardian.web.pages.mcp_security import _run_audit
 
             servers, report = _run_audit()
@@ -585,10 +585,10 @@ class TestConfigLoadSave:
     def test_load_config_missing_file(self, tmp_path):
         with (
             mock.patch(
-                "ai_guardian.config_utils.get_config_dir", return_value=tmp_path
+                "ai_guardian.config.utils.get_config_dir", return_value=tmp_path
             ),
             mock.patch(
-                "ai_guardian.config_writer.get_config_dir", return_value=tmp_path
+                "ai_guardian.config.writer.get_config_dir", return_value=tmp_path
             ),
         ):
             from ai_guardian.web.config_helpers import load_web_config
@@ -601,10 +601,10 @@ class TestConfigLoadSave:
 
         with (
             mock.patch(
-                "ai_guardian.config_utils.get_config_dir", return_value=tmp_path
+                "ai_guardian.config.utils.get_config_dir", return_value=tmp_path
             ),
             mock.patch(
-                "ai_guardian.config_writer.get_config_dir", return_value=tmp_path
+                "ai_guardian.config.writer.get_config_dir", return_value=tmp_path
             ),
         ):
             from ai_guardian.web.config_helpers import load_web_config
@@ -615,10 +615,10 @@ class TestConfigLoadSave:
     def test_save_config_creates_file(self, tmp_path):
         with (
             mock.patch(
-                "ai_guardian.config_utils.get_config_dir", return_value=tmp_path
+                "ai_guardian.config.utils.get_config_dir", return_value=tmp_path
             ),
             mock.patch(
-                "ai_guardian.config_writer.get_config_dir", return_value=tmp_path
+                "ai_guardian.config.writer.get_config_dir", return_value=tmp_path
             ),
         ):
             from ai_guardian.web.config_helpers import save_web_config
@@ -632,10 +632,10 @@ class TestConfigLoadSave:
     def test_save_config_pretty_prints(self, tmp_path):
         with (
             mock.patch(
-                "ai_guardian.config_utils.get_config_dir", return_value=tmp_path
+                "ai_guardian.config.utils.get_config_dir", return_value=tmp_path
             ),
             mock.patch(
-                "ai_guardian.config_writer.get_config_dir", return_value=tmp_path
+                "ai_guardian.config.writer.get_config_dir", return_value=tmp_path
             ),
         ):
             from ai_guardian.web.config_helpers import save_web_config
@@ -661,10 +661,10 @@ class TestSecretValidationConfigLogic:
 
         with (
             mock.patch(
-                "ai_guardian.config_utils.get_config_dir", return_value=tmp_path
+                "ai_guardian.config.utils.get_config_dir", return_value=tmp_path
             ),
             mock.patch(
-                "ai_guardian.config_writer.get_config_dir", return_value=tmp_path
+                "ai_guardian.config.writer.get_config_dir", return_value=tmp_path
             ),
         ):
             from ai_guardian.web.config_helpers import load_web_config
@@ -680,10 +680,10 @@ class TestSecretValidationConfigLogic:
 
         with (
             mock.patch(
-                "ai_guardian.config_utils.get_config_dir", return_value=tmp_path
+                "ai_guardian.config.utils.get_config_dir", return_value=tmp_path
             ),
             mock.patch(
-                "ai_guardian.config_writer.get_config_dir", return_value=tmp_path
+                "ai_guardian.config.writer.get_config_dir", return_value=tmp_path
             ),
         ):
             from ai_guardian.web.config_helpers import load_web_config, save_web_config
@@ -702,10 +702,10 @@ class TestSecretValidationConfigLogic:
 
         with (
             mock.patch(
-                "ai_guardian.config_utils.get_config_dir", return_value=tmp_path
+                "ai_guardian.config.utils.get_config_dir", return_value=tmp_path
             ),
             mock.patch(
-                "ai_guardian.config_writer.get_config_dir", return_value=tmp_path
+                "ai_guardian.config.writer.get_config_dir", return_value=tmp_path
             ),
         ):
             from ai_guardian.web.config_helpers import load_web_config
@@ -721,10 +721,10 @@ class TestSecretValidationConfigLogic:
 
         with (
             mock.patch(
-                "ai_guardian.config_utils.get_config_dir", return_value=tmp_path
+                "ai_guardian.config.utils.get_config_dir", return_value=tmp_path
             ),
             mock.patch(
-                "ai_guardian.config_writer.get_config_dir", return_value=tmp_path
+                "ai_guardian.config.writer.get_config_dir", return_value=tmp_path
             ),
         ):
             from ai_guardian.web.config_helpers import load_web_config, save_web_config
@@ -743,10 +743,10 @@ class TestSecretValidationConfigLogic:
 
         with (
             mock.patch(
-                "ai_guardian.config_utils.get_config_dir", return_value=tmp_path
+                "ai_guardian.config.utils.get_config_dir", return_value=tmp_path
             ),
             mock.patch(
-                "ai_guardian.config_writer.get_config_dir", return_value=tmp_path
+                "ai_guardian.config.writer.get_config_dir", return_value=tmp_path
             ),
         ):
             from ai_guardian.web.config_helpers import load_web_config
@@ -762,10 +762,10 @@ class TestSecretValidationConfigLogic:
 
         with (
             mock.patch(
-                "ai_guardian.config_utils.get_config_dir", return_value=tmp_path
+                "ai_guardian.config.utils.get_config_dir", return_value=tmp_path
             ),
             mock.patch(
-                "ai_guardian.config_writer.get_config_dir", return_value=tmp_path
+                "ai_guardian.config.writer.get_config_dir", return_value=tmp_path
             ),
         ):
             from ai_guardian.web.config_helpers import load_web_config, save_web_config
@@ -794,10 +794,10 @@ class TestSecretValidationConfigLogic:
 
         with (
             mock.patch(
-                "ai_guardian.config_utils.get_config_dir", return_value=tmp_path
+                "ai_guardian.config.utils.get_config_dir", return_value=tmp_path
             ),
             mock.patch(
-                "ai_guardian.config_writer.get_config_dir", return_value=tmp_path
+                "ai_guardian.config.writer.get_config_dir", return_value=tmp_path
             ),
         ):
             from ai_guardian.web.config_helpers import load_web_config, save_web_config
@@ -823,10 +823,10 @@ class TestSecretValidationConfigLogic:
         """Saving validation fields works when starting from empty config."""
         with (
             mock.patch(
-                "ai_guardian.config_utils.get_config_dir", return_value=tmp_path
+                "ai_guardian.config.utils.get_config_dir", return_value=tmp_path
             ),
             mock.patch(
-                "ai_guardian.config_writer.get_config_dir", return_value=tmp_path
+                "ai_guardian.config.writer.get_config_dir", return_value=tmp_path
             ),
         ):
             from ai_guardian.web.config_helpers import load_web_config, save_web_config

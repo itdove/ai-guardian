@@ -144,226 +144,220 @@ def _render_toggle(
 
 def create_supply_chain_page(service, daemon_name: str):
     """Create the Supply Chain Scanning page."""
-    create_header(daemon_name)
+    sidebar = create_sidebar(daemon_name, current=f"/{daemon_name}/supply-chain")
+    create_header(daemon_name, drawer=sidebar)
 
-    with ui.row().classes("w-full min-h-screen no-wrap"):
-        create_sidebar(daemon_name, current=f"/{daemon_name}/supply-chain")
+    with ui.column().classes("flex-grow p-6 gap-4"):
+        with ui.row().classes("items-center gap-2"):
+            ui.label("Supply Chain Scanning").classes("text-2xl font-bold")
+            add_help_button("supply_chain")
+        ui.label(
+            "Detect malicious patterns in agent hooks, MCP server configs, and plugin files."
+        ).classes("text-xs text-grey-6")
 
-        with ui.column().classes("flex-grow p-6 gap-4"):
-            with ui.row().classes("items-center gap-2"):
-                ui.label("Supply Chain Scanning").classes("text-2xl font-bold")
-                add_help_button("supply_chain")
-            ui.label(
-                "Detect malicious patterns in agent hooks, MCP server configs, and plugin files."
-            ).classes("text-xs text-grey-6")
+        content = ui.column().classes("w-full gap-4")
 
-            content = ui.column().classes("w-full gap-4")
+        async def refresh():
+            content.clear()
+            config = await run.io_bound(load_web_config)
 
-            async def refresh():
-                content.clear()
-                config = await run.io_bound(load_web_config)
+            with content:
+                sc = config.get("supply_chain", {})
+                if not isinstance(sc, dict):
+                    sc = {}
 
-                with content:
-                    sc = config.get("supply_chain", {})
-                    if not isinstance(sc, dict):
-                        sc = {}
+                is_temp, until_dt, reason, is_enabled = _parse_enabled(
+                    sc.get("enabled", True)
+                )
 
-                    is_temp, until_dt, reason, is_enabled = _parse_enabled(
-                        sc.get("enabled", True)
-                    )
+                def save_enabled(value):
+                    cfg = load_web_config()
+                    sect = cfg.get("supply_chain", {})
+                    if not isinstance(sect, dict):
+                        sect = {}
+                    sect["enabled"] = value
+                    cfg["supply_chain"] = sect
+                    save_web_config(cfg)
 
-                    def save_enabled(value):
-                        cfg = load_web_config()
+                _render_toggle(
+                    "Supply Chain Scanning",
+                    "Scan agent configuration files for malicious commands and supply chain attacks.",
+                    is_temp,
+                    until_dt,
+                    reason,
+                    is_enabled,
+                    save_enabled,
+                    refresh,
+                )
+
+                # Action mode
+                with ui.card().classes("w-full"):
+                    with ui.row().classes("items-center gap-1"):
+                        ui.label("Action Mode").classes("text-lg font-bold")
+                        field_help_icon("supply_chain")
+                    ui.label(
+                        "What happens when a supply chain threat is detected."
+                    ).classes("text-xs text-grey-6")
+                    action = sc.get("action", "block")
+                    act_sel = ui.select(
+                        options={
+                            "block": "Block — reject the operation (recommended)",
+                            "ask": "Ask — interactive prompt (block if headless)",
+                            "ask:warn": "Ask — interactive prompt (warn if headless)",
+                            "ask:log-only": "Ask — interactive prompt (log-only if headless)",
+                            "warn": "Warn — allow with warning",
+                            "log-only": "Log Only — silent logging",
+                        },
+                        value=action,
+                    ).classes("w-64")
+
+                    async def save_action(e):
+                        cfg = await run.io_bound(load_web_config)
                         sect = cfg.get("supply_chain", {})
                         if not isinstance(sect, dict):
                             sect = {}
-                        sect["enabled"] = value
+                        sect["action"] = e.value
                         cfg["supply_chain"] = sect
-                        save_web_config(cfg)
+                        await run.io_bound(save_web_config, cfg)
+                        ui.notify(f"Action: {e.value}", type="positive")
 
-                    _render_toggle(
-                        "Supply Chain Scanning",
-                        "Scan agent configuration files for malicious commands and supply chain attacks.",
-                        is_temp,
-                        until_dt,
-                        reason,
-                        is_enabled,
-                        save_enabled,
-                        refresh,
-                    )
+                    act_sel.on_value_change(save_action)
 
-                    # Action mode
-                    with ui.card().classes("w-full"):
-                        with ui.row().classes("items-center gap-1"):
-                            ui.label("Action Mode").classes("text-lg font-bold")
-                            field_help_icon("supply_chain")
-                        ui.label(
-                            "What happens when a supply chain threat is detected."
-                        ).classes("text-xs text-grey-6")
-                        action = sc.get("action", "block")
-                        act_sel = ui.select(
-                            options={
-                                "block": "Block — reject the operation (recommended)",
-                                "ask": "Ask — interactive prompt (block if headless)",
-                                "ask:warn": "Ask — interactive prompt (warn if headless)",
-                                "ask:log-only": "Ask — interactive prompt (log-only if headless)",
-                                "warn": "Warn — allow with warning",
-                                "log-only": "Log Only — silent logging",
-                            },
-                            value=action,
-                        ).classes("w-64")
+                # Scan targets
+                with ui.card().classes("w-full"):
+                    with ui.row().classes("items-center gap-1"):
+                        ui.label("Scan Targets").classes("text-lg font-bold")
+                        field_help_icon("supply_chain.scan_targets")
+                    ui.label(
+                        "Choose which types of agent configuration files to scan."
+                    ).classes("text-xs text-grey-6")
 
-                        async def save_action(e):
-                            cfg = await run.io_bound(load_web_config)
-                            sect = cfg.get("supply_chain", {})
-                            if not isinstance(sect, dict):
-                                sect = {}
-                            sect["action"] = e.value
-                            cfg["supply_chain"] = sect
-                            await run.io_bound(save_web_config, cfg)
-                            ui.notify(f"Action: {e.value}", type="positive")
+                    scan_fields = [
+                        (
+                            "scan_hooks",
+                            "Scan Hooks",
+                            "Scan hook configuration files (hooks.json, settings.json)",
+                        ),
+                        (
+                            "scan_mcp_configs",
+                            "Scan MCP Configs",
+                            "Scan MCP server command configurations for suspicious patterns",
+                        ),
+                        (
+                            "scan_plugins",
+                            "Scan Plugins",
+                            "Scan plugin files (OpenCode .ts, AiderDesk extensions) for dangerous APIs",
+                        ),
+                    ]
 
-                        act_sel.on_value_change(save_action)
-
-                    # Scan targets
-                    with ui.card().classes("w-full"):
-                        with ui.row().classes("items-center gap-1"):
-                            ui.label("Scan Targets").classes("text-lg font-bold")
-                            field_help_icon("supply_chain.scan_targets")
-                        ui.label(
-                            "Choose which types of agent configuration files to scan."
-                        ).classes("text-xs text-grey-6")
-
-                        scan_fields = [
-                            (
-                                "scan_hooks",
-                                "Scan Hooks",
-                                "Scan hook configuration files (hooks.json, settings.json)",
-                            ),
-                            (
-                                "scan_mcp_configs",
-                                "Scan MCP Configs",
-                                "Scan MCP server command configurations for suspicious patterns",
-                            ),
-                            (
-                                "scan_plugins",
-                                "Scan Plugins",
-                                "Scan plugin files (OpenCode .ts, AiderDesk extensions) for dangerous APIs",
-                            ),
-                        ]
-
-                        for key, label, desc in scan_fields:
-                            with ui.row().classes("items-center gap-2 w-full"):
-                                sw = ui.switch(label, value=sc.get(key, True)).classes(
-                                    "flex-grow"
-                                )
-                                ui.label(desc).classes("text-xs text-grey-6")
-
-                                async def on_scan_toggle(e, k=key):
-                                    cfg = await run.io_bound(load_web_config)
-                                    sect = cfg.get("supply_chain", {})
-                                    if not isinstance(sect, dict):
-                                        sect = {}
-                                    sect[k] = e.value
-                                    cfg["supply_chain"] = sect
-                                    await run.io_bound(save_web_config, cfg)
-                                    ui.notify(
-                                        f"{k}: {'enabled' if e.value else 'disabled'}",
-                                        type="positive",
-                                    )
-
-                                sw.on_value_change(on_scan_toggle)
-
-                    # Allowlist paths
-                    with ui.card().classes("w-full"):
-                        with ui.row().classes("items-center gap-1"):
-                            ui.label("Allowlist Paths").classes("text-lg font-bold")
-                            field_help_icon("supply_chain.allowlist_paths")
-                        ui.label(
-                            "File paths to skip during supply chain scanning. "
-                            "Supports ~ expansion and glob patterns."
-                        ).classes("text-xs text-grey-6")
-
-                        paths = sc.get("allowlist_paths", [])
-                        if paths:
-                            for idx, path in enumerate(paths):
-                                with ui.row().classes("items-center gap-2 w-full"):
-                                    ui.icon("folder_open").classes("text-blue-4")
-                                    ui.label(path).classes("flex-grow text-sm").style(
-                                        "font-family: monospace"
-                                    )
-
-                                    async def remove_path(i=idx):
-                                        cfg = await run.io_bound(load_web_config)
-                                        sect = cfg.get("supply_chain", {})
-                                        if not isinstance(sect, dict):
-                                            return
-                                        items = sect.get("allowlist_paths", [])
-                                        if i < len(items):
-                                            items.pop(i)
-                                            sect["allowlist_paths"] = items
-                                            cfg["supply_chain"] = sect
-                                            await run.io_bound(save_web_config, cfg)
-                                            ui.notify("Path removed", type="positive")
-                                            await refresh()
-
-                                    ui.button(
-                                        icon="delete", on_click=remove_path, color="red"
-                                    ).props("flat dense size=sm")
-                        else:
-                            ui.label("No allowlisted paths.").classes(
-                                "text-grey-6 text-sm"
+                    for key, label, desc in scan_fields:
+                        with ui.row().classes("items-center gap-2 w-full"):
+                            sw = ui.switch(label, value=sc.get(key, True)).classes(
+                                "flex-grow"
                             )
+                            ui.label(desc).classes("text-xs text-grey-6")
 
-                        with ui.row().classes("items-center gap-2 mt-2"):
-                            path_input = (
-                                ui.input(
-                                    placeholder="e.g. ~/.cursor/hooks.json or ~/dev/**/*.ts"
-                                )
-                                .props("dense outlined")
-                                .classes("flex-grow")
-                            )
-
-                            async def add_path():
-                                val = path_input.value.strip()
-                                if not val:
-                                    ui.notify("Enter a file path", type="negative")
-                                    return
+                            async def on_scan_toggle(e, k=key):
                                 cfg = await run.io_bound(load_web_config)
                                 sect = cfg.get("supply_chain", {})
                                 if not isinstance(sect, dict):
                                     sect = {}
-                                items = sect.get("allowlist_paths", [])
-                                if val in items:
-                                    ui.notify("Path already exists", type="warning")
-                                    return
-                                items.append(val)
-                                sect["allowlist_paths"] = items
+                                sect[k] = e.value
                                 cfg["supply_chain"] = sect
                                 await run.io_bound(save_web_config, cfg)
-                                path_input.value = ""
-                                ui.notify(f"Added: {val}", type="positive")
-                                await refresh()
+                                ui.notify(
+                                    f"{k}: {'enabled' if e.value else 'disabled'}",
+                                    type="positive",
+                                )
 
-                            ui.button("Add", icon="add", on_click=add_path).props(
-                                "dense"
-                            )
+                            sw.on_value_change(on_scan_toggle)
 
-                    # Detection statistics
-                    with ui.card().classes("w-full"):
-                        ui.label("Detection Statistics").classes("text-lg font-bold")
-                        total = await run.io_bound(_load_sc_stats)
-                        if total is None:
-                            ui.label("Violation logging not available.").classes(
-                                "text-grey-6 text-sm"
-                            )
-                        elif total == 0:
-                            ui.label("No supply chain threats detected yet.").classes(
-                                "text-grey-6 text-sm"
-                            )
-                        else:
-                            ui.label(
-                                f"Total supply chain threats detected: {total}"
-                            ).classes("text-sm")
+                # Allowlist paths
+                with ui.card().classes("w-full"):
+                    with ui.row().classes("items-center gap-1"):
+                        ui.label("Allowlist Paths").classes("text-lg font-bold")
+                        field_help_icon("supply_chain.allowlist_paths")
+                    ui.label(
+                        "File paths to skip during supply chain scanning. "
+                        "Supports ~ expansion and glob patterns."
+                    ).classes("text-xs text-grey-6")
 
-            ui.timer(0.1, refresh, once=True)
+                    paths = sc.get("allowlist_paths", [])
+                    if paths:
+                        for idx, path in enumerate(paths):
+                            with ui.row().classes("items-center gap-2 w-full"):
+                                ui.icon("folder_open").classes("text-blue-4")
+                                ui.label(path).classes("flex-grow text-sm").style(
+                                    "font-family: monospace"
+                                )
+
+                                async def remove_path(i=idx):
+                                    cfg = await run.io_bound(load_web_config)
+                                    sect = cfg.get("supply_chain", {})
+                                    if not isinstance(sect, dict):
+                                        return
+                                    items = sect.get("allowlist_paths", [])
+                                    if i < len(items):
+                                        items.pop(i)
+                                        sect["allowlist_paths"] = items
+                                        cfg["supply_chain"] = sect
+                                        await run.io_bound(save_web_config, cfg)
+                                        ui.notify("Path removed", type="positive")
+                                        await refresh()
+
+                                ui.button(
+                                    icon="delete", on_click=remove_path, color="red"
+                                ).props("flat dense size=sm")
+                    else:
+                        ui.label("No allowlisted paths.").classes("text-grey-6 text-sm")
+
+                    with ui.row().classes("items-center gap-2 mt-2"):
+                        path_input = (
+                            ui.input(
+                                placeholder="e.g. ~/.cursor/hooks.json or ~/dev/**/*.ts"
+                            )
+                            .props("dense outlined")
+                            .classes("flex-grow")
+                        )
+
+                        async def add_path():
+                            val = path_input.value.strip()
+                            if not val:
+                                ui.notify("Enter a file path", type="negative")
+                                return
+                            cfg = await run.io_bound(load_web_config)
+                            sect = cfg.get("supply_chain", {})
+                            if not isinstance(sect, dict):
+                                sect = {}
+                            items = sect.get("allowlist_paths", [])
+                            if val in items:
+                                ui.notify("Path already exists", type="warning")
+                                return
+                            items.append(val)
+                            sect["allowlist_paths"] = items
+                            cfg["supply_chain"] = sect
+                            await run.io_bound(save_web_config, cfg)
+                            path_input.value = ""
+                            ui.notify(f"Added: {val}", type="positive")
+                            await refresh()
+
+                        ui.button("Add", icon="add", on_click=add_path).props("dense")
+
+                # Detection statistics
+                with ui.card().classes("w-full"):
+                    ui.label("Detection Statistics").classes("text-lg font-bold")
+                    total = await run.io_bound(_load_sc_stats)
+                    if total is None:
+                        ui.label("Violation logging not available.").classes(
+                            "text-grey-6 text-sm"
+                        )
+                    elif total == 0:
+                        ui.label("No supply chain threats detected yet.").classes(
+                            "text-grey-6 text-sm"
+                        )
+                    else:
+                        ui.label(
+                            f"Total supply chain threats detected: {total}"
+                        ).classes("text-sm")
+
+        ui.timer(0.1, refresh, once=True)

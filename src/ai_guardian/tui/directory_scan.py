@@ -584,7 +584,7 @@ class DirectoryScanContent(ScrollableContainer):
 
     def _load_config(self) -> Dict[str, Any]:
         try:
-            from ai_guardian.config_utils import get_config_dir
+            from ai_guardian.config.utils import get_config_dir
 
             config_path = get_config_dir() / "ai-guardian.json"
             if not config_path.exists():
@@ -617,7 +617,7 @@ class DirectoryScanContent(ScrollableContainer):
         def worker():
             prev = self._suppress_logging()
             try:
-                from ai_guardian.scanner import FileScanner
+                from ai_guardian.scanners.file_scanner import FileScanner
                 from ai_guardian.tui.pattern_editor import config_section_for_rule_id
 
                 def on_progress(file_path, index, total):
@@ -940,7 +940,7 @@ class DirectoryScanContent(ScrollableContainer):
 
             if fmt == "sarif":
                 from ai_guardian import __version__
-                from ai_guardian.sarif_formatter import SARIFFormatter
+                from ai_guardian.reporting.sarif import SARIFFormatter
 
                 formatter = SARIFFormatter(version=__version__)
                 formatter.write_sarif_file(

@@ -15,7 +15,7 @@ from pathlib import Path
 from unittest import mock
 
 
-from ai_guardian.config_utils import is_feature_enabled
+from ai_guardian.config.utils import is_feature_enabled
 
 FUTURE_TIME = (datetime.now(timezone.utc) + timedelta(hours=2)).isoformat()
 PAST_TIME = (datetime.now(timezone.utc) - timedelta(hours=2)).isoformat()
@@ -78,7 +78,7 @@ class TestPIITimeBased:
 
     def test_pii_redactor_disabled_until_future(self):
         """SecretRedactor should not load PII patterns when disabled_until is future."""
-        from ai_guardian.secret_redactor import SecretRedactor
+        from ai_guardian.scanners.secret_redactor import SecretRedactor
 
         pii_config = {
             "enabled": {
@@ -95,7 +95,7 @@ class TestPIITimeBased:
 
     def test_pii_redactor_disabled_until_past_reenables(self):
         """SecretRedactor should load PII patterns when disabled_until has expired."""
-        from ai_guardian.secret_redactor import SecretRedactor
+        from ai_guardian.scanners.secret_redactor import SecretRedactor
 
         pii_config = {
             "enabled": {
@@ -160,7 +160,7 @@ class TestSSRFTimeBased:
 
     def test_ssrf_tool_policy_with_disabled_until(self):
         """ToolPolicyChecker should skip SSRF when disabled_until is future."""
-        from ai_guardian.tool_policy import ToolPolicyChecker
+        from ai_guardian.tools.policy import ToolPolicyChecker
 
         config = {
             "ssrf_protection": {
@@ -238,7 +238,7 @@ class TestViolationLoggingTimeBased:
 
     def test_logging_disabled_until_future_skips_log(self):
         """ViolationLogger should not log when disabled_until is in the future."""
-        from ai_guardian.violation_logger import ViolationLogger
+        from ai_guardian.violations.logger import ViolationLogger
 
         config = {
             "enabled": {
@@ -265,7 +265,7 @@ class TestViolationLoggingTimeBased:
 
     def test_logging_disabled_until_past_auto_reenables(self):
         """ViolationLogger should log when disabled_until has passed."""
-        from ai_guardian.violation_logger import ViolationLogger
+        from ai_guardian.violations.logger import ViolationLogger
 
         config = {
             "enabled": {
@@ -295,7 +295,7 @@ class TestViolationLoggingTimeBased:
 
     def test_logging_simple_bool_true(self):
         """Backward compat: simple 'enabled': true still works."""
-        from ai_guardian.violation_logger import ViolationLogger
+        from ai_guardian.violations.logger import ViolationLogger
 
         config = {
             "enabled": True,
@@ -310,7 +310,7 @@ class TestViolationLoggingTimeBased:
 
     def test_logging_simple_bool_false(self):
         """Backward compat: simple 'enabled': false still works."""
-        from ai_guardian.violation_logger import ViolationLogger
+        from ai_guardian.violations.logger import ViolationLogger
 
         config = {
             "enabled": False,
@@ -325,7 +325,7 @@ class TestViolationLoggingTimeBased:
 
     def test_logging_missing_enabled_defaults_true(self):
         """When 'enabled' key is missing, logging defaults to enabled."""
-        from ai_guardian.violation_logger import ViolationLogger
+        from ai_guardian.violations.logger import ViolationLogger
 
         config = {
             "max_entries": 1000,

@@ -21,7 +21,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Dict, List, Optional, Set, Tuple
 
-from ai_guardian.language_patterns import (
+from ai_guardian.patterns.language import (
     LANGUAGE_REGISTRY,
     SKIP_DIRS,
     LanguageDefinition,
@@ -123,7 +123,7 @@ class ProjectInitializer:
     def generate_allowlist(
         self, languages: List[DetectedLanguage]
     ) -> Tuple[List[AllowlistEntry], List[str]]:
-        from ai_guardian.prompt_injection import PromptInjectionDetector
+        from ai_guardian.scanners.prompt_injection import PromptInjectionDetector
 
         detector = PromptInjectionDetector({"enabled": True})
 

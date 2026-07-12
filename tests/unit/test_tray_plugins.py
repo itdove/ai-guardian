@@ -7,7 +7,7 @@ from unittest import mock
 import jsonschema
 import pytest
 
-from ai_guardian.daemon.tray_plugins import (
+from ai_guardian.tray.plugins import (
     Plugin,
     PluginItem,
     PluginParam,
@@ -383,7 +383,7 @@ class TestResolveCommand:
         ],
     )
     def test_platform_map_resolution(self, platform_name, cmd_map, expected):
-        with mock.patch("ai_guardian.daemon.tray_plugins.platform") as m:
+        with mock.patch("ai_guardian.tray.plugins.platform") as m:
             m.system.return_value = platform_name
             result = resolve_command(cmd_map)
             assert result == expected
@@ -543,7 +543,7 @@ class TestNeedsShell:
         ],
     )
     def test_needs_shell(self, command, expected):
-        from ai_guardian.daemon.tray_plugins import _needs_shell
+        from ai_guardian.tray.plugins import _needs_shell
 
         assert _needs_shell(command) is expected
 
@@ -852,10 +852,10 @@ class TestPluginsToDict:
 
 class TestSendNotification:
     def test_macos_uses_osascript(self):
-        with mock.patch("ai_guardian.daemon.tray_plugins.platform") as m:
+        with mock.patch("ai_guardian.tray.plugins.platform") as m:
             m.system.return_value = "Darwin"
             with mock.patch("subprocess.run") as mock_run:
-                from ai_guardian.daemon.tray_plugins import send_notification
+                from ai_guardian.tray.plugins import send_notification
 
                 result = send_notification("Title", "Hello world")
                 assert result is True
@@ -864,10 +864,10 @@ class TestSendNotification:
                 assert args[0] == "osascript"
 
     def test_linux_uses_notify_send(self):
-        with mock.patch("ai_guardian.daemon.tray_plugins.platform") as m:
+        with mock.patch("ai_guardian.tray.plugins.platform") as m:
             m.system.return_value = "Linux"
             with mock.patch("subprocess.run") as mock_run:
-                from ai_guardian.daemon.tray_plugins import send_notification
+                from ai_guardian.tray.plugins import send_notification
 
                 result = send_notification("Title", "Hello")
                 assert result is True
@@ -876,39 +876,39 @@ class TestSendNotification:
                 assert args[0] == "notify-send"
 
     def test_returns_false_on_unknown_platform(self):
-        with mock.patch("ai_guardian.daemon.tray_plugins.platform") as m:
+        with mock.patch("ai_guardian.tray.plugins.platform") as m:
             m.system.return_value = "FreeBSD"
-            from ai_guardian.daemon.tray_plugins import send_notification
+            from ai_guardian.tray.plugins import send_notification
 
             assert send_notification("T", "M") is False
 
     def test_returns_false_on_error(self):
-        with mock.patch("ai_guardian.daemon.tray_plugins.platform") as m:
+        with mock.patch("ai_guardian.tray.plugins.platform") as m:
             m.system.return_value = "Darwin"
             with mock.patch("subprocess.run", side_effect=FileNotFoundError):
-                from ai_guardian.daemon.tray_plugins import send_notification
+                from ai_guardian.tray.plugins import send_notification
 
                 assert send_notification("T", "M") is False
 
     def test_escapes_quotes_in_message(self):
-        with mock.patch("ai_guardian.daemon.tray_plugins.platform") as m:
+        with mock.patch("ai_guardian.tray.plugins.platform") as m:
             m.system.return_value = "Darwin"
             with mock.patch("subprocess.run") as mock_run:
-                from ai_guardian.daemon.tray_plugins import send_notification
+                from ai_guardian.tray.plugins import send_notification
 
                 send_notification("Title", 'He said "hello"')
                 script = mock_run.call_args[0][0][2]
                 assert '\\"' in script
 
     def test_linux_includes_icon_flag(self):
-        with mock.patch("ai_guardian.daemon.tray_plugins.platform") as m:
+        with mock.patch("ai_guardian.tray.plugins.platform") as m:
             m.system.return_value = "Linux"
             with mock.patch(
-                "ai_guardian.daemon.tray_plugins._find_icon",
+                "ai_guardian.tray.plugins._find_icon",
                 return_value="/path/to/icon.png",
             ):
                 with mock.patch("subprocess.run") as mock_run:
-                    from ai_guardian.daemon.tray_plugins import send_notification
+                    from ai_guardian.tray.plugins import send_notification
 
                     result = send_notification("Title", "Hello")
                     assert result is True
@@ -917,13 +917,11 @@ class TestSendNotification:
                     assert "/path/to/icon.png" in args
 
     def test_linux_no_icon_when_not_found(self):
-        with mock.patch("ai_guardian.daemon.tray_plugins.platform") as m:
+        with mock.patch("ai_guardian.tray.plugins.platform") as m:
             m.system.return_value = "Linux"
-            with mock.patch(
-                "ai_guardian.daemon.tray_plugins._find_icon", return_value=""
-            ):
+            with mock.patch("ai_guardian.tray.plugins._find_icon", return_value=""):
                 with mock.patch("subprocess.run") as mock_run:
-                    from ai_guardian.daemon.tray_plugins import send_notification
+                    from ai_guardian.tray.plugins import send_notification
 
                     result = send_notification("Title", "Hello")
                     assert result is True
@@ -931,14 +929,14 @@ class TestSendNotification:
                     assert "--icon" not in args
 
     def test_windows_loads_custom_icon(self):
-        with mock.patch("ai_guardian.daemon.tray_plugins.platform") as m:
+        with mock.patch("ai_guardian.tray.plugins.platform") as m:
             m.system.return_value = "Windows"
             with mock.patch(
-                "ai_guardian.daemon.tray_plugins._find_icon",
+                "ai_guardian.tray.plugins._find_icon",
                 return_value="C:\\icons\\shield.png",
             ):
                 with mock.patch("subprocess.run") as mock_run:
-                    from ai_guardian.daemon.tray_plugins import send_notification
+                    from ai_guardian.tray.plugins import send_notification
 
                     result = send_notification("Title", "Hello")
                     assert result is True
@@ -947,13 +945,11 @@ class TestSendNotification:
                     assert "shield.png" in ps_cmd
 
     def test_windows_fallback_icon_when_not_found(self):
-        with mock.patch("ai_guardian.daemon.tray_plugins.platform") as m:
+        with mock.patch("ai_guardian.tray.plugins.platform") as m:
             m.system.return_value = "Windows"
-            with mock.patch(
-                "ai_guardian.daemon.tray_plugins._find_icon", return_value=""
-            ):
+            with mock.patch("ai_guardian.tray.plugins._find_icon", return_value=""):
                 with mock.patch("subprocess.run") as mock_run:
-                    from ai_guardian.daemon.tray_plugins import send_notification
+                    from ai_guardian.tray.plugins import send_notification
 
                     result = send_notification("Title", "Hello")
                     assert result is True
@@ -964,10 +960,10 @@ class TestSendNotification:
 
 class TestCopyToClipboard:
     def test_macos_uses_pbcopy(self):
-        with mock.patch("ai_guardian.daemon.tray_plugins.platform") as m:
+        with mock.patch("ai_guardian.tray.plugins.platform") as m:
             m.system.return_value = "Darwin"
             with mock.patch("subprocess.run") as mock_run:
-                from ai_guardian.daemon.tray_plugins import copy_to_clipboard
+                from ai_guardian.tray.plugins import copy_to_clipboard
 
                 result = copy_to_clipboard("hello")
                 assert result is True
@@ -977,11 +973,11 @@ class TestCopyToClipboard:
                 assert mock_run.call_args[1]["input"] == b"hello"
 
     def test_linux_uses_xclip(self):
-        with mock.patch("ai_guardian.daemon.tray_plugins.platform") as m:
+        with mock.patch("ai_guardian.tray.plugins.platform") as m:
             m.system.return_value = "Linux"
             with mock.patch("shutil.which", return_value="/usr/bin/xclip"):
                 with mock.patch("subprocess.run") as mock_run:
-                    from ai_guardian.daemon.tray_plugins import copy_to_clipboard
+                    from ai_guardian.tray.plugins import copy_to_clipboard
 
                     result = copy_to_clipboard("hello")
                     assert result is True
@@ -989,14 +985,14 @@ class TestCopyToClipboard:
                     assert "xclip" in args[0]
 
     def test_linux_falls_back_to_xsel(self):
-        with mock.patch("ai_guardian.daemon.tray_plugins.platform") as m:
+        with mock.patch("ai_guardian.tray.plugins.platform") as m:
             m.system.return_value = "Linux"
             with mock.patch(
                 "shutil.which",
                 side_effect=lambda x: "/usr/bin/xsel" if x == "xsel" else None,
             ):
                 with mock.patch("subprocess.run") as mock_run:
-                    from ai_guardian.daemon.tray_plugins import copy_to_clipboard
+                    from ai_guardian.tray.plugins import copy_to_clipboard
 
                     result = copy_to_clipboard("hello")
                     assert result is True
@@ -1004,25 +1000,25 @@ class TestCopyToClipboard:
                     assert "xsel" in args[0]
 
     def test_linux_returns_false_when_no_tool(self):
-        with mock.patch("ai_guardian.daemon.tray_plugins.platform") as m:
+        with mock.patch("ai_guardian.tray.plugins.platform") as m:
             m.system.return_value = "Linux"
             with mock.patch("shutil.which", return_value=None):
-                from ai_guardian.daemon.tray_plugins import copy_to_clipboard
+                from ai_guardian.tray.plugins import copy_to_clipboard
 
                 assert copy_to_clipboard("hello") is False
 
     def test_returns_false_on_unknown_platform(self):
-        with mock.patch("ai_guardian.daemon.tray_plugins.platform") as m:
+        with mock.patch("ai_guardian.tray.plugins.platform") as m:
             m.system.return_value = "FreeBSD"
-            from ai_guardian.daemon.tray_plugins import copy_to_clipboard
+            from ai_guardian.tray.plugins import copy_to_clipboard
 
             assert copy_to_clipboard("hello") is False
 
     def test_returns_false_on_error(self):
-        with mock.patch("ai_guardian.daemon.tray_plugins.platform") as m:
+        with mock.patch("ai_guardian.tray.plugins.platform") as m:
             m.system.return_value = "Darwin"
             with mock.patch("subprocess.run", side_effect=OSError("broken")):
-                from ai_guardian.daemon.tray_plugins import copy_to_clipboard
+                from ai_guardian.tray.plugins import copy_to_clipboard
 
                 assert copy_to_clipboard("hello") is False
 
@@ -1060,7 +1056,7 @@ class TestDictToPlugins:
 
 class TestShowDialog:
     def test_macos_uses_osascript(self):
-        with mock.patch("ai_guardian.daemon.tray_plugins.platform") as m:
+        with mock.patch("ai_guardian.tray.plugins.platform") as m:
             m.system.return_value = "Darwin"
             with mock.patch("subprocess.run") as mock_run:
                 result = show_dialog("Test Title", "Hello world")
@@ -1071,7 +1067,7 @@ class TestShowDialog:
                 assert "display dialog" in args[2]
 
     def test_linux_uses_zenity(self):
-        with mock.patch("ai_guardian.daemon.tray_plugins.platform") as m:
+        with mock.patch("ai_guardian.tray.plugins.platform") as m:
             m.system.return_value = "Linux"
             with mock.patch("subprocess.run") as mock_run:
                 result = show_dialog("Test Title", "Hello")
@@ -1081,7 +1077,7 @@ class TestShowDialog:
                 assert args[0] == "zenity"
 
     def test_windows_uses_powershell(self):
-        with mock.patch("ai_guardian.daemon.tray_plugins.platform") as m:
+        with mock.patch("ai_guardian.tray.plugins.platform") as m:
             m.system.return_value = "Windows"
             with mock.patch("subprocess.run") as mock_run:
                 result = show_dialog("Test Title", "Hello")
@@ -1092,18 +1088,18 @@ class TestShowDialog:
                 assert "MessageBox" in args[2]
 
     def test_returns_false_on_unknown_platform(self):
-        with mock.patch("ai_guardian.daemon.tray_plugins.platform") as m:
+        with mock.patch("ai_guardian.tray.plugins.platform") as m:
             m.system.return_value = "FreeBSD"
             assert show_dialog("T", "M") is False
 
     def test_returns_false_on_error(self):
-        with mock.patch("ai_guardian.daemon.tray_plugins.platform") as m:
+        with mock.patch("ai_guardian.tray.plugins.platform") as m:
             m.system.return_value = "Darwin"
             with mock.patch("subprocess.run", side_effect=FileNotFoundError):
                 assert show_dialog("T", "M") is False
 
     def test_escapes_quotes_in_message(self):
-        with mock.patch("ai_guardian.daemon.tray_plugins.platform") as m:
+        with mock.patch("ai_guardian.tray.plugins.platform") as m:
             m.system.return_value = "Darwin"
             with mock.patch("subprocess.run") as mock_run:
                 show_dialog("Title", 'He said "hello"')
@@ -1111,10 +1107,10 @@ class TestShowDialog:
                 assert '\\"' in script
 
     def test_macos_includes_icon_when_found(self):
-        with mock.patch("ai_guardian.daemon.tray_plugins.platform") as m:
+        with mock.patch("ai_guardian.tray.plugins.platform") as m:
             m.system.return_value = "Darwin"
             with mock.patch(
-                "ai_guardian.daemon.tray_plugins._find_icon",
+                "ai_guardian.tray.plugins._find_icon",
                 return_value="/path/to/icon.icns",
             ):
                 with mock.patch("subprocess.run") as mock_run:
@@ -1124,7 +1120,7 @@ class TestShowDialog:
                     assert "icon" in script.lower()
 
     def test_multiline_message_on_macos(self):
-        with mock.patch("ai_guardian.daemon.tray_plugins.platform") as m:
+        with mock.patch("ai_guardian.tray.plugins.platform") as m:
             m.system.return_value = "Darwin"
             with mock.patch("subprocess.run") as mock_run:
                 show_dialog("Title", "line1\nline2\nline3")
@@ -2068,14 +2064,14 @@ class TestPluginTarget:
         assert plugins[0].items[0].target is None
 
     def test_target_serialized_when_set(self):
-        from ai_guardian.daemon.tray_plugins import _item_to_dict
+        from ai_guardian.tray.plugins import _item_to_dict
 
         item = PluginItem(label="A", command="cmd", target="select")
         d = _item_to_dict(item)
         assert d["target"] == "select"
 
     def test_target_omitted_when_none(self):
-        from ai_guardian.daemon.tray_plugins import _item_to_dict
+        from ai_guardian.tray.plugins import _item_to_dict
 
         item = PluginItem(label="A", command="cmd", target=None)
         d = _item_to_dict(item)
@@ -2728,7 +2724,7 @@ class TestLoadMergedPlugins:
     @pytest.fixture(autouse=True)
     def _no_bundled(self):
         with mock.patch(
-            "ai_guardian.daemon.tray_plugins._load_bundled_plugins", return_value=[]
+            "ai_guardian.tray.plugins._load_bundled_plugins", return_value=[]
         ):
             yield
 

@@ -13,7 +13,7 @@ from textual.app import ComposeResult
 from textual.containers import Container, Horizontal, VerticalScroll
 from textual.widgets import Static, Button, Input, Label, Checkbox, Select
 
-from ai_guardian.config_utils import (
+from ai_guardian.config.utils import (
     get_cache_dir,
     get_config_dir,
     get_project_config_path,
@@ -141,7 +141,7 @@ class SecretsContent(SchemaDefaultsMixin, Container):
             project_path = get_project_config_path()
             if project_path:
                 return project_path
-            from ai_guardian.config_utils import _find_git_root
+            from ai_guardian.config.utils import _find_git_root
 
             root = _find_git_root() or Path.cwd()
             return root / ".ai-guardian" / "ai-guardian.json"
@@ -173,32 +173,6 @@ class SecretsContent(SchemaDefaultsMixin, Container):
                     "  3. Built-in: Gitleaks default rules (AWS, GitHub, SSH keys, etc.)[/dim]",
                     id="gitleaks-config",
                 )
-
-            # Action mode section
-            with Container(classes="section"):
-                yield Static("[bold]Action Mode[/bold]", classes="section-title")
-                yield Static(
-                    "[dim]What happens when secrets are detected.[/dim]",
-                    classes="section-title",
-                )
-                with Horizontal(classes="setting-row"):
-                    yield Label("Action:")
-                    yield Select(
-                        [
-                            ("Block", "block"),
-                            ("Ask (block if headless)", "ask"),
-                            ("Ask (warn if headless)", "ask:warn"),
-                            ("Ask (log-only if headless)", "ask:log-only"),
-                            ("Warn", "warn"),
-                            ("Log Only", "log-only"),
-                        ],
-                        value="block",
-                        id="secret-action-select",
-                    )
-                    yield Static(
-                        f"[dim]Action when secrets detected[/dim] "
-                        f"{default_indicator('secret_scanning.action')}"
-                    )
 
             # Allowlist patterns section (Issue #357)
             with Container(classes="section"):
@@ -448,7 +422,6 @@ class SecretsContent(SchemaDefaultsMixin, Container):
             return
 
         _tip = {
-            "secret-action-select": CONFIG_FIELD_HELP.get("secret_scanning.action"),
             "min-entropy-input": CONFIG_FIELD_HELP.get("secret_scanning.entropy"),
             "stopwords-input": CONFIG_FIELD_HELP.get("secret_scanning.stopwords"),
             "validate-secrets-checkbox": CONFIG_FIELD_HELP.get(
@@ -711,14 +684,12 @@ class SecretsContent(SchemaDefaultsMixin, Container):
         validate_on = secret_scanning.get("validate_secrets", False)
         timeout_ms = secret_scanning.get("validation_timeout_ms", 3000)
         on_inactive = secret_scanning.get("on_inactive", "warn")
-        secret_action = secret_scanning.get("action", "block")
 
         try:
             self.query_one("#validate-secrets-checkbox", Checkbox).value = bool(
                 validate_on
             )
             self.query_one("#validation-timeout-ms", Input).value = str(timeout_ms)
-            self.query_one("#secret-action-select", Select).value = secret_action
             self.query_one("#on-inactive-select", Select).value = on_inactive
         except Exception:
             pass  # Widgets may not be mounted yet
@@ -867,10 +838,7 @@ class SecretsContent(SchemaDefaultsMixin, Container):
         """Handle select dropdown changes."""
         if getattr(self, "_loading", False):
             return
-        if event.select.id == "secret-action-select":
-            if event.value is not Select.BLANK:
-                self._save_secret_scanning_field("action", event.value)
-        elif event.select.id == "on-inactive-select":
+        if event.select.id == "on-inactive-select":
             if event.value is not Select.BLANK:
                 self._save_secret_scanning_field("on_inactive", event.value)
 

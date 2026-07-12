@@ -144,188 +144,180 @@ def _render_toggle(
 
 def create_exfil_detection_page(service, daemon_name: str):
     """Create the Exfil Detection page."""
-    create_header(daemon_name)
+    sidebar = create_sidebar(daemon_name, current=f"/{daemon_name}/exfil-detection")
+    create_header(daemon_name, drawer=sidebar)
 
-    with ui.row().classes("w-full min-h-screen no-wrap"):
-        create_sidebar(daemon_name, current=f"/{daemon_name}/exfil-detection")
+    with ui.column().classes("flex-grow p-6 gap-4"):
+        with ui.row().classes("items-center gap-2"):
+            ui.label("Exfiltration Behavior Detection").classes("text-2xl font-bold")
+            add_help_button("exfil_detection")
+        ui.label(
+            "Detect bash commands that steal credentials: curl/wget with token vars, "
+            "base64 encoding of secrets, SSH key file theft, cloud credential exfil, "
+            "and environment variable collection."
+        ).classes("text-xs text-grey-6")
 
-        with ui.column().classes("flex-grow p-6 gap-4"):
-            with ui.row().classes("items-center gap-2"):
-                ui.label("Exfiltration Behavior Detection").classes(
-                    "text-2xl font-bold"
+        content = ui.column().classes("w-full gap-4")
+
+        async def refresh():
+            content.clear()
+            config = await run.io_bound(load_web_config)
+
+            with content:
+                ed = config.get("exfil_detection", {})
+                if not isinstance(ed, dict):
+                    ed = {}
+
+                is_temp, until_dt, reason, is_enabled = _parse_enabled(
+                    ed.get("enabled", True)
                 )
-                add_help_button("exfil_detection")
-            ui.label(
-                "Detect bash commands that steal credentials: curl/wget with token vars, "
-                "base64 encoding of secrets, SSH key file theft, cloud credential exfil, "
-                "and environment variable collection."
-            ).classes("text-xs text-grey-6")
 
-            content = ui.column().classes("w-full gap-4")
+                def save_enabled(value):
+                    cfg = load_web_config()
+                    sect = cfg.get("exfil_detection", {})
+                    if not isinstance(sect, dict):
+                        sect = {}
+                    sect["enabled"] = value
+                    cfg["exfil_detection"] = sect
+                    save_web_config(cfg)
 
-            async def refresh():
-                content.clear()
-                config = await run.io_bound(load_web_config)
+                _render_toggle(
+                    "Exfil Detection",
+                    "Detect bash commands that steal credentials via curl, base64, key files, and cloud metadata.",
+                    is_temp,
+                    until_dt,
+                    reason,
+                    is_enabled,
+                    save_enabled,
+                    refresh,
+                )
 
-                with content:
-                    ed = config.get("exfil_detection", {})
-                    if not isinstance(ed, dict):
-                        ed = {}
+                # Action mode
+                with ui.card().classes("w-full"):
+                    with ui.row().classes("items-center gap-1"):
+                        ui.label("Action Mode").classes("text-lg font-bold")
+                        field_help_icon("exfil_detection")
+                    ui.label(
+                        "What happens when a credential exfiltration pattern is detected."
+                    ).classes("text-xs text-grey-6")
+                    action = ed.get("action", "block")
+                    act_sel = ui.select(
+                        options={
+                            "block": "Block — reject the operation (recommended)",
+                            "ask": "Ask — interactive prompt (block if headless)",
+                            "ask:warn": "Ask — interactive prompt (warn if headless)",
+                            "ask:log-only": "Ask — interactive prompt (log-only if headless)",
+                            "warn": "Warn — allow with warning",
+                            "log-only": "Log Only — silent logging",
+                        },
+                        value=action,
+                    ).classes("w-64")
 
-                    is_temp, until_dt, reason, is_enabled = _parse_enabled(
-                        ed.get("enabled", True)
-                    )
-
-                    def save_enabled(value):
-                        cfg = load_web_config()
+                    async def save_action(e):
+                        cfg = await run.io_bound(load_web_config)
                         sect = cfg.get("exfil_detection", {})
                         if not isinstance(sect, dict):
                             sect = {}
-                        sect["enabled"] = value
+                        sect["action"] = e.value
                         cfg["exfil_detection"] = sect
-                        save_web_config(cfg)
+                        await run.io_bound(save_web_config, cfg)
+                        ui.notify(f"Action: {e.value}", type="positive")
 
-                    _render_toggle(
-                        "Exfil Detection",
-                        "Detect bash commands that steal credentials via curl, base64, key files, and cloud metadata.",
-                        is_temp,
-                        until_dt,
-                        reason,
-                        is_enabled,
-                        save_enabled,
-                        refresh,
-                    )
+                    act_sel.on_value_change(save_action)
 
-                    # Action mode
-                    with ui.card().classes("w-full"):
-                        with ui.row().classes("items-center gap-1"):
-                            ui.label("Action Mode").classes("text-lg font-bold")
-                            field_help_icon("exfil_detection")
-                        ui.label(
-                            "What happens when a credential exfiltration pattern is detected."
-                        ).classes("text-xs text-grey-6")
-                        action = ed.get("action", "block")
-                        act_sel = ui.select(
-                            options={
-                                "block": "Block — reject the operation (recommended)",
-                                "ask": "Ask — interactive prompt (block if headless)",
-                                "ask:warn": "Ask — interactive prompt (warn if headless)",
-                                "ask:log-only": "Ask — interactive prompt (log-only if headless)",
-                                "warn": "Warn — allow with warning",
-                                "log-only": "Log Only — silent logging",
-                            },
-                            value=action,
-                        ).classes("w-64")
+                # Allowlist patterns
+                with ui.card().classes("w-full"):
+                    ui.label("Allowlist Patterns").classes("text-lg font-bold")
+                    ui.label(
+                        "Regex patterns to allowlist commands. "
+                        "If any pattern matches the command, scanning is skipped."
+                    ).classes("text-xs text-grey-6")
 
-                        async def save_action(e):
+                    patterns = ed.get("allowlist_patterns", [])
+                    if patterns:
+                        for idx, pat in enumerate(patterns):
+                            with ui.row().classes("items-center gap-2 w-full"):
+                                ui.icon("security").classes("text-blue-4")
+                                ui.label(pat).classes("flex-grow text-sm").style(
+                                    "font-family: monospace"
+                                )
+
+                                async def remove_pattern(i=idx):
+                                    cfg = await run.io_bound(load_web_config)
+                                    sect = cfg.get("exfil_detection", {})
+                                    if not isinstance(sect, dict):
+                                        return
+                                    items = sect.get("allowlist_patterns", [])
+                                    if i < len(items):
+                                        items.pop(i)
+                                        sect["allowlist_patterns"] = items
+                                        cfg["exfil_detection"] = sect
+                                        await run.io_bound(save_web_config, cfg)
+                                        ui.notify("Pattern removed", type="positive")
+                                        await refresh()
+
+                                ui.button(
+                                    icon="delete",
+                                    on_click=remove_pattern,
+                                    color="red",
+                                ).props("flat dense size=sm")
+                    else:
+                        ui.label("No allowlist patterns configured.").classes(
+                            "text-grey-6 text-sm"
+                        )
+
+                    with ui.row().classes("items-center gap-2 mt-2"):
+                        pattern_input = (
+                            ui.input(placeholder="e.g. ^curl.*my-internal-api\\.com")
+                            .props("dense outlined")
+                            .classes("flex-grow")
+                        )
+
+                        async def add_pattern():
+                            val = pattern_input.value.strip()
+                            if not val:
+                                ui.notify("Enter a regex pattern", type="negative")
+                                return
+                            try:
+                                re_mod.compile(val)
+                            except re_mod.error as exc:
+                                ui.notify(f"Invalid regex: {exc}", type="negative")
+                                return
                             cfg = await run.io_bound(load_web_config)
                             sect = cfg.get("exfil_detection", {})
                             if not isinstance(sect, dict):
                                 sect = {}
-                            sect["action"] = e.value
+                            items = sect.get("allowlist_patterns", [])
+                            if val in items:
+                                ui.notify("Pattern already exists", type="warning")
+                                return
+                            items.append(val)
+                            sect["allowlist_patterns"] = items
                             cfg["exfil_detection"] = sect
                             await run.io_bound(save_web_config, cfg)
-                            ui.notify(f"Action: {e.value}", type="positive")
+                            pattern_input.value = ""
+                            ui.notify(f"Added: {val}", type="positive")
+                            await refresh()
 
-                        act_sel.on_value_change(save_action)
+                        ui.button("Add", icon="add", on_click=add_pattern).props(
+                            "dense"
+                        )
 
-                    # Allowlist patterns
-                    with ui.card().classes("w-full"):
-                        ui.label("Allowlist Patterns").classes("text-lg font-bold")
-                        ui.label(
-                            "Regex patterns to allowlist commands. "
-                            "If any pattern matches the command, scanning is skipped."
-                        ).classes("text-xs text-grey-6")
+                # Detection statistics
+                with ui.card().classes("w-full"):
+                    ui.label("Detection Statistics").classes("text-lg font-bold")
+                    total = await run.io_bound(_load_ed_stats)
+                    if total is None:
+                        ui.label("Violation logging not available.").classes(
+                            "text-grey-6 text-sm"
+                        )
+                    elif total == 0:
+                        ui.label("No exfil detection violations logged yet.").classes(
+                            "text-grey-6 text-sm"
+                        )
+                    else:
+                        ui.label(f"Total exfil detection violations: {total}").classes(
+                            "text-sm"
+                        )
 
-                        patterns = ed.get("allowlist_patterns", [])
-                        if patterns:
-                            for idx, pat in enumerate(patterns):
-                                with ui.row().classes("items-center gap-2 w-full"):
-                                    ui.icon("security").classes("text-blue-4")
-                                    ui.label(pat).classes("flex-grow text-sm").style(
-                                        "font-family: monospace"
-                                    )
-
-                                    async def remove_pattern(i=idx):
-                                        cfg = await run.io_bound(load_web_config)
-                                        sect = cfg.get("exfil_detection", {})
-                                        if not isinstance(sect, dict):
-                                            return
-                                        items = sect.get("allowlist_patterns", [])
-                                        if i < len(items):
-                                            items.pop(i)
-                                            sect["allowlist_patterns"] = items
-                                            cfg["exfil_detection"] = sect
-                                            await run.io_bound(save_web_config, cfg)
-                                            ui.notify(
-                                                "Pattern removed", type="positive"
-                                            )
-                                            await refresh()
-
-                                    ui.button(
-                                        icon="delete",
-                                        on_click=remove_pattern,
-                                        color="red",
-                                    ).props("flat dense size=sm")
-                        else:
-                            ui.label("No allowlist patterns configured.").classes(
-                                "text-grey-6 text-sm"
-                            )
-
-                        with ui.row().classes("items-center gap-2 mt-2"):
-                            pattern_input = (
-                                ui.input(
-                                    placeholder="e.g. ^curl.*my-internal-api\\.com"
-                                )
-                                .props("dense outlined")
-                                .classes("flex-grow")
-                            )
-
-                            async def add_pattern():
-                                val = pattern_input.value.strip()
-                                if not val:
-                                    ui.notify("Enter a regex pattern", type="negative")
-                                    return
-                                try:
-                                    re_mod.compile(val)
-                                except re_mod.error as exc:
-                                    ui.notify(f"Invalid regex: {exc}", type="negative")
-                                    return
-                                cfg = await run.io_bound(load_web_config)
-                                sect = cfg.get("exfil_detection", {})
-                                if not isinstance(sect, dict):
-                                    sect = {}
-                                items = sect.get("allowlist_patterns", [])
-                                if val in items:
-                                    ui.notify("Pattern already exists", type="warning")
-                                    return
-                                items.append(val)
-                                sect["allowlist_patterns"] = items
-                                cfg["exfil_detection"] = sect
-                                await run.io_bound(save_web_config, cfg)
-                                pattern_input.value = ""
-                                ui.notify(f"Added: {val}", type="positive")
-                                await refresh()
-
-                            ui.button("Add", icon="add", on_click=add_pattern).props(
-                                "dense"
-                            )
-
-                    # Detection statistics
-                    with ui.card().classes("w-full"):
-                        ui.label("Detection Statistics").classes("text-lg font-bold")
-                        total = await run.io_bound(_load_ed_stats)
-                        if total is None:
-                            ui.label("Violation logging not available.").classes(
-                                "text-grey-6 text-sm"
-                            )
-                        elif total == 0:
-                            ui.label(
-                                "No exfil detection violations logged yet."
-                            ).classes("text-grey-6 text-sm")
-                        else:
-                            ui.label(
-                                f"Total exfil detection violations: {total}"
-                            ).classes("text-sm")
-
-            ui.timer(0.1, refresh, once=True)
+        ui.timer(0.1, refresh, once=True)

@@ -269,7 +269,7 @@ def _build_custom_validator(
                 kwargs["auth"] = (secret, "")
 
             try:
-                from ai_guardian.ssrf_protector import SSRFProtector
+                from ai_guardian.scanners.ssrf import SSRFProtector
 
                 protector = SSRFProtector()
                 is_ssrf, reason, _is_immutable = protector._check_url(config.url)

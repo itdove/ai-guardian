@@ -9,7 +9,7 @@ from textual.app import ComposeResult
 from textual.containers import Container, VerticalScroll
 from textual.widgets import Static
 
-from ai_guardian.config_utils import get_config_dir, get_project_config_path
+from ai_guardian.config.utils import get_config_dir, get_project_config_path
 
 
 def _format_enabled(value: Union[bool, Dict[str, Any]]) -> str:
@@ -175,7 +175,7 @@ class CanaryDetectionContent(Container):
 
     def _load_violations(self) -> None:
         try:
-            from ai_guardian.violation_logger import ViolationLogger
+            from ai_guardian.violations.logger import ViolationLogger
 
             vl = ViolationLogger()
             violations = vl.get_violations(limit=10, violation_type="canary_detected")

@@ -11,10 +11,23 @@ import tempfile
 from pathlib import Path
 import pytest
 
+from textual.app import App, ComposeResult
+
 from ai_guardian.tui.ssrf import SSRFContent
 from ai_guardian.tui.config_scanner import ConfigScannerContent
 from ai_guardian.tui.secret_redaction import SecretRedactionContent
 from ai_guardian.tui.security_dashboard import SecurityDashboardContent, _parse_status
+
+
+class _ContentTestApp(App):
+    """Minimal app wrapper for testing a single content widget."""
+
+    def __init__(self, content_cls):
+        super().__init__()
+        self._content_cls = content_cls
+
+    def compose(self) -> ComposeResult:
+        yield self._content_cls()
 
 
 class TestSSRFContent:
@@ -25,13 +38,12 @@ class TestSSRFContent:
         content = SSRFContent()
         assert content is not None
 
-    @pytest.mark.skip(reason="Compose requires active Textual app context")
-    def test_ssrf_content_compose(self):
-        """Test that SSRF content can compose widgets."""
-        content = SSRFContent()
-        widgets = list(content.compose())
-        assert len(widgets) > 0
-        # Should have header, scroll container, sections, etc.
+    @pytest.mark.asyncio
+    async def test_ssrf_content_compose(self):
+        """Test that SSRF content composes widgets inside an app context."""
+        async with _ContentTestApp(SSRFContent).run_test() as pilot:
+            widgets = pilot.app.query("SSRFContent")
+            assert len(widgets) > 0
 
     def test_ssrf_config_save(self):
         """Test SSRF config saving."""
@@ -59,12 +71,12 @@ class TestConfigScannerContent:
         content = ConfigScannerContent()
         assert content is not None
 
-    @pytest.mark.skip(reason="Compose requires active Textual app context")
-    def test_config_scanner_compose(self):
-        """Test that Config Scanner content can compose widgets."""
-        content = ConfigScannerContent()
-        widgets = list(content.compose())
-        assert len(widgets) > 0
+    @pytest.mark.asyncio
+    async def test_config_scanner_compose(self):
+        """Test that Config Scanner content composes widgets inside an app context."""
+        async with _ContentTestApp(ConfigScannerContent).run_test() as pilot:
+            widgets = pilot.app.query("ConfigScannerContent")
+            assert len(widgets) > 0
 
     def test_config_scanner_config_structure(self):
         """Test config scanner configuration structure."""
@@ -104,12 +116,12 @@ class TestSecretRedactionContent:
         content = SecretRedactionContent()
         assert content is not None
 
-    @pytest.mark.skip(reason="Compose requires active Textual app context")
-    def test_secret_redaction_compose(self):
-        """Test that Secret Redaction content can compose widgets."""
-        content = SecretRedactionContent()
-        widgets = list(content.compose())
-        assert len(widgets) > 0
+    @pytest.mark.asyncio
+    async def test_secret_redaction_compose(self):
+        """Test that Secret Redaction content composes widgets inside an app context."""
+        async with _ContentTestApp(SecretRedactionContent).run_test() as pilot:
+            widgets = pilot.app.query("SecretRedactionContent")
+            assert len(widgets) > 0
 
     def test_secret_redaction_config_structure(self):
         """Test secret redaction configuration structure."""
@@ -149,12 +161,12 @@ class TestSecurityDashboardContent:
         content = SecurityDashboardContent()
         assert content is not None
 
-    @pytest.mark.skip(reason="Compose requires active Textual app context")
-    def test_security_dashboard_compose(self):
-        """Test that Security Dashboard content can compose widgets."""
-        content = SecurityDashboardContent()
-        widgets = list(content.compose())
-        assert len(widgets) > 0
+    @pytest.mark.asyncio
+    async def test_security_dashboard_compose(self):
+        """Test that Security Dashboard content composes widgets inside an app context."""
+        async with _ContentTestApp(SecurityDashboardContent).run_test() as pilot:
+            widgets = pilot.app.query("SecurityDashboardContent")
+            assert len(widgets) > 0
 
     def test_security_dashboard_feature_detection(self):
         """Test that dashboard can detect feature statuses."""

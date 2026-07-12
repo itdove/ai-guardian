@@ -7,7 +7,7 @@ Tests Issue #144: 'config show' command with rule labeling
 
 from unittest.mock import patch, MagicMock
 
-from ai_guardian.config_display import ConfigDisplay
+from ai_guardian.config.display import ConfigDisplay
 
 
 class TestConfigDisplay:
@@ -189,7 +189,7 @@ class TestConfigDisplay:
         assert "Secret Scanning" not in output
         assert "Prompt Injection" not in output
 
-    @patch("ai_guardian.directory_rule_generator.DirectoryRuleGenerator")
+    @patch("ai_guardian.tools.directory_rules.DirectoryRuleGenerator")
     def test_preview_auto_rules(self, mock_generator_class):
         """Should preview auto-generated rules."""
         mock_generator = MagicMock()
@@ -316,7 +316,7 @@ class TestConfigDisplay:
         assert "[GENERATED]" in output
         assert "[IMMUTABLE]" in output
 
-    @patch("ai_guardian.config_display.Path.exists")
+    @patch("ai_guardian.config.display.Path.exists")
     def test_skill_directories_existence_in_preview(self, mock_exists):
         """Preview should show which directories exist."""
         mock_exists.return_value = True  # All exist

@@ -10,7 +10,7 @@ from pathlib import Path
 
 import pytest
 
-from ai_guardian.audit import (
+from ai_guardian.reporting.audit import (
     AuditComputer,
     AuditReport,
     VIOLATION_TYPE_TO_FEATURE,

@@ -368,7 +368,7 @@ class TestResolveEngineConfigPath(unittest.TestCase):
         result = resolve_engine_config_path(config, "/tmp/patterns.toml")
         self.assertIsNone(result)
 
-    @patch("ai_guardian.pattern_server.PatternServerClient")
+    @patch("ai_guardian.patterns.server.PatternServerClient")
     def test_per_engine_pattern_server_url(self, mock_client_cls):
         """Per-engine pattern_server with URL should fetch engine-specific patterns."""
         mock_client = MagicMock()
@@ -385,7 +385,7 @@ class TestResolveEngineConfigPath(unittest.TestCase):
         self.assertIn("engine_patterns.toml", result)
         mock_client_cls.assert_called_once_with({"url": "https://patterns.example.com"})
 
-    @patch("ai_guardian.pattern_server.PatternServerClient")
+    @patch("ai_guardian.patterns.server.PatternServerClient")
     def test_per_engine_pattern_server_fetch_fails(self, mock_client_cls):
         """Per-engine pattern_server fetch failure should return None."""
         mock_client_cls.side_effect = Exception("Connection refused")

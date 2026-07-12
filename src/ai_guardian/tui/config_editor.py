@@ -17,7 +17,7 @@ from textual.containers import Container, Horizontal
 from textual.screen import ModalScreen
 from textual.widgets import Static, Button, TextArea
 
-from ai_guardian.config_utils import get_config_dir, get_project_config_path
+from ai_guardian.config.utils import get_config_dir, get_project_config_path
 from ai_guardian.tui.console_settings import load_editor_theme
 
 try:
@@ -258,7 +258,7 @@ class ConfigEditorContent(Container):
             if project_path:
                 self._config_path = project_path
             else:
-                from ai_guardian.config_utils import _find_git_root
+                from ai_guardian.config.utils import _find_git_root
 
                 root = _find_git_root() or Path.cwd()
                 self._config_path = root / ".ai-guardian" / "ai-guardian.json"

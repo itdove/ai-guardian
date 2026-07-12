@@ -237,7 +237,7 @@ class TestProcessHookDataStop(TestCase):
 
     @patch("ai_guardian.hook_processing._load_secret_redaction_config")
     @patch("ai_guardian.hook_processing._load_pattern_server_config")
-    @patch("ai_guardian.hook_processing._advance_transcript_position")
+    @patch("ai_guardian.hook_events.session_events._advance_transcript_position")
     def test_stop_does_not_call_session_cleanup(
         self, mock_advance, mock_pattern_config, mock_redaction_config
     ):
@@ -285,7 +285,7 @@ class TestProcessHookDataSessionEnd(TestCase):
 
     @patch("ai_guardian.hook_processing._load_secret_redaction_config")
     @patch("ai_guardian.hook_processing._load_pattern_server_config")
-    @patch("ai_guardian.hook_processing._advance_transcript_position")
+    @patch("ai_guardian.hook_events.session_events._advance_transcript_position")
     def test_session_end_calls_cleanup(
         self, mock_advance, mock_pattern_config, mock_redaction_config
     ):
@@ -307,7 +307,7 @@ class TestProcessHookDataSessionEnd(TestCase):
     @patch("ai_guardian.hook_processing._load_secret_redaction_config")
     @patch("ai_guardian.hook_processing._load_pattern_server_config")
     @patch(
-        "ai_guardian.hook_processing._advance_transcript_position",
+        "ai_guardian.hook_events.session_events._advance_transcript_position",
         side_effect=OSError("disk full"),
     )
     def test_session_end_fail_open_on_error(
@@ -436,7 +436,7 @@ class TestHandleSessionEnd(TestCase):
 
         assert result == {"output": None, "exit_code": 0}
 
-    @patch("ai_guardian.hook_processing._advance_transcript_position")
+    @patch("ai_guardian.hook_events.session_events._advance_transcript_position")
     def test_calls_advance_transcript(self, mock_advance):
         from ai_guardian.hook_processing import _handle_session_end
 

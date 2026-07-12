@@ -12,7 +12,7 @@ from io import StringIO
 from unittest.mock import MagicMock, patch
 
 
-from ai_guardian.engine_tester import (
+from ai_guardian.scanners.engine_tester import (
     EngineTestResult,
     apply_strategy,
     engine_test_command,
@@ -115,7 +115,7 @@ class TestGetAvailableEngines:
 
 class TestTestEngine:
 
-    @patch("ai_guardian.engine_tester.run_engine")
+    @patch("ai_guardian.scanners.engine_tester.run_engine")
     def test_found_secret(self, mock_run):
         mock_run.return_value = _scan_result_found()
         result = _test_engine("gitleaks", "AKIAIOSFODNN7EXAMPLE")
@@ -125,14 +125,14 @@ class TestTestEngine:
         assert result.engine == "gitleaks"
         assert result.error is None
 
-    @patch("ai_guardian.engine_tester.run_engine")
+    @patch("ai_guardian.scanners.engine_tester.run_engine")
     def test_no_secret(self, mock_run):
         mock_run.return_value = _scan_result_clean()
         result = _test_engine("gitleaks", "safe text")
         assert result.found is False
         assert result.secrets == []
 
-    @patch("ai_guardian.engine_tester.run_engine")
+    @patch("ai_guardian.scanners.engine_tester.run_engine")
     def test_engine_error(self, mock_run):
         mock_run.return_value = _scan_result_error()
         result = _test_engine("trufflehog", "test")
@@ -144,21 +144,21 @@ class TestTestEngine:
         assert result.found is False
         assert "Unknown engine" in result.error
 
-    @patch("ai_guardian.engine_tester.run_engine")
+    @patch("ai_guardian.scanners.engine_tester.run_engine")
     def test_pattern_server_off(self, mock_run):
         mock_run.return_value = _scan_result_clean()
         _test_engine("gitleaks", "test", use_pattern_server=False)
         _, kwargs = mock_run.call_args
         assert kwargs.get("config_path") is None
 
-    @patch("ai_guardian.engine_tester.run_engine")
+    @patch("ai_guardian.scanners.engine_tester.run_engine")
     def test_scan_time_propagated(self, mock_run):
         mock_run.return_value = _scan_result_clean(time_ms=123.4)
         result = _test_engine("gitleaks", "test")
         assert result.scan_time_ms == 123.4
 
-    @patch("ai_guardian.engine_tester.run_engine")
-    @patch("ai_guardian.engine_tester._build_engine_config")
+    @patch("ai_guardian.scanners.engine_tester.run_engine")
+    @patch("ai_guardian.scanners.engine_tester._build_engine_config")
     def test_toml_patterns_engine(self, mock_build, mock_run):
         from ai_guardian.scanners.engine_builder import EngineConfig
 
@@ -184,8 +184,8 @@ class TestTestEngine:
 
 class TestTestAllEngines:
 
-    @patch("ai_guardian.engine_tester.test_engine")
-    @patch("ai_guardian.engine_tester.get_available_engines")
+    @patch("ai_guardian.scanners.engine_tester.test_engine")
+    @patch("ai_guardian.scanners.engine_tester.get_available_engines")
     def test_runs_all(self, mock_avail, mock_test):
         mock_avail.return_value = ["gitleaks", "betterleaks"]
         mock_test.side_effect = [
@@ -197,7 +197,7 @@ class TestTestAllEngines:
         assert results[0].found is True
         assert results[1].found is False
 
-    @patch("ai_guardian.engine_tester.get_available_engines")
+    @patch("ai_guardian.scanners.engine_tester.get_available_engines")
     def test_empty_when_none_installed(self, mock_avail):
         mock_avail.return_value = []
         assert _test_all_engines("test") == []
@@ -266,7 +266,7 @@ class TestEngineTestCommand:
         defaults.update(kwargs)
         return types.SimpleNamespace(**defaults)
 
-    @patch("ai_guardian.engine_tester.test_engine")
+    @patch("ai_guardian.scanners.engine_tester.test_engine")
     @patch("sys.stdin", new=StringIO("AKIAEXAMPLE"))
     def test_single_engine(self, mock_test):
         mock_test.return_value = EngineTestResult("gitleaks", False, [], 40)
@@ -274,14 +274,14 @@ class TestEngineTestCommand:
         assert rc == 0
         mock_test.assert_called_once()
 
-    @patch("ai_guardian.engine_tester.test_all_engines")
+    @patch("ai_guardian.scanners.engine_tester.test_all_engines")
     @patch("sys.stdin", new=StringIO("AKIAEXAMPLE"))
     def test_all_flag(self, mock_all):
         mock_all.return_value = [EngineTestResult("gitleaks", False, [], 40)]
         rc = engine_test_command(self._make_args(all_engines=True))
         assert rc == 0
 
-    @patch("ai_guardian.engine_tester.test_all_engines")
+    @patch("ai_guardian.scanners.engine_tester.test_all_engines")
     @patch("sys.stdin", new=StringIO("AKIAEXAMPLE"))
     def test_compare_flag(self, mock_all):
         mock_all.return_value = [
@@ -290,7 +290,7 @@ class TestEngineTestCommand:
         rc = engine_test_command(self._make_args(compare=True))
         assert rc == 1  # secrets found
 
-    @patch("ai_guardian.engine_tester.test_engine")
+    @patch("ai_guardian.scanners.engine_tester.test_engine")
     @patch("sys.stdin", new=StringIO("AKIAEXAMPLE"))
     def test_json_output(self, mock_test):
         mock_test.return_value = EngineTestResult("gitleaks", False, [], 40)
@@ -310,7 +310,7 @@ class TestEngineTestCommand:
         rc = engine_test_command(self._make_args(engine="gitleaks"))
         assert rc == 2
 
-    @patch("ai_guardian.engine_tester.test_engine")
+    @patch("ai_guardian.scanners.engine_tester.test_engine")
     @patch("sys.stdin", new=StringIO("AKIAEXAMPLE"))
     def test_exit_code_1_when_found(self, mock_test):
         mock_test.return_value = EngineTestResult(

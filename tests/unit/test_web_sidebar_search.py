@@ -200,7 +200,7 @@ class TestNavGroupsConsistency:
         from ai_guardian.web.components.header import NAV_GROUPS
 
         total = sum(len(items) for _, items in NAV_GROUPS)
-        assert total == 45
+        assert total == 46
 
     def test_first_item_is_dashboard(self):
         from ai_guardian.web.components.header import NAV_GROUPS
@@ -217,3 +217,88 @@ class TestNavGroupsConsistency:
                 assert suffix == "" or suffix.startswith(
                     "/"
                 ), f"{group_name}/{label} has bad suffix: {suffix}"
+
+
+class TestSlugToConfigSection:
+    """Verify SLUG_TO_CONFIG_SECTION mapping."""
+
+    def test_mapping_has_expected_entries(self):
+        from ai_guardian.web.components.header import SLUG_TO_CONFIG_SECTION
+
+        assert "/secrets" in SLUG_TO_CONFIG_SECTION
+        assert "/pi-detection" in SLUG_TO_CONFIG_SECTION
+        assert "/ssrf" in SLUG_TO_CONFIG_SECTION
+        assert "/supply-chain" in SLUG_TO_CONFIG_SECTION
+
+    def test_sub_pages_map_to_parent_scanner(self):
+        from ai_guardian.web.components.header import SLUG_TO_CONFIG_SECTION
+
+        assert SLUG_TO_CONFIG_SECTION["/secret-engines"] == "secret_scanning"
+        assert SLUG_TO_CONFIG_SECTION["/pi-ml-engines"] == "prompt_injection"
+        assert SLUG_TO_CONFIG_SECTION["/pi-patterns"] == "prompt_injection"
+        assert SLUG_TO_CONFIG_SECTION["/pi-jailbreak"] == "prompt_injection"
+        assert SLUG_TO_CONFIG_SECTION["/pi-unicode"] == "prompt_injection"
+
+    def test_always_visible_pages_not_in_mapping(self):
+        from ai_guardian.web.components.header import SLUG_TO_CONFIG_SECTION
+
+        assert "" not in SLUG_TO_CONFIG_SECTION
+        assert "/settings" not in SLUG_TO_CONFIG_SECTION
+        assert "/health-check" not in SLUG_TO_CONFIG_SECTION
+        assert "/violations" not in SLUG_TO_CONFIG_SECTION
+        assert "/metrics" not in SLUG_TO_CONFIG_SECTION
+        assert "/logs" not in SLUG_TO_CONFIG_SECTION
+        assert "/about" not in SLUG_TO_CONFIG_SECTION
+
+    def test_all_slugs_exist_in_nav_groups(self):
+        from ai_guardian.web.components.header import (
+            NAV_GROUPS,
+            SLUG_TO_CONFIG_SECTION,
+        )
+
+        all_suffixes = {s for _, items in NAV_GROUPS for _, s in items}
+        for slug in SLUG_TO_CONFIG_SECTION:
+            assert slug in all_suffixes, f"{slug} not found in NAV_GROUPS"
+
+
+class TestIsFeatureEnabled:
+    """Verify _is_feature_enabled helper logic."""
+
+    def test_enabled_true(self):
+        from ai_guardian.web.components.header import _is_feature_enabled
+
+        config = {"secret_scanning": {"enabled": True}}
+        assert _is_feature_enabled(config, "secret_scanning") is True
+
+    def test_enabled_false(self):
+        from ai_guardian.web.components.header import _is_feature_enabled
+
+        config = {"secret_scanning": {"enabled": False}}
+        assert _is_feature_enabled(config, "secret_scanning") is False
+
+    def test_missing_section_defaults_true(self):
+        from ai_guardian.web.components.header import _is_feature_enabled
+
+        assert _is_feature_enabled({}, "secret_scanning") is True
+
+    def test_missing_enabled_defaults_true(self):
+        from ai_guardian.web.components.header import _is_feature_enabled
+
+        config = {"secret_scanning": {"some_other_key": "value"}}
+        assert _is_feature_enabled(config, "secret_scanning") is True
+
+    def test_enabled_dict_with_value(self):
+        from ai_guardian.web.components.header import _is_feature_enabled
+
+        config = {
+            "ssrf_protection": {
+                "enabled": {"value": False, "disabled_until": "2026-12-31"}
+            }
+        }
+        assert _is_feature_enabled(config, "ssrf_protection") is False
+
+    def test_enabled_dict_with_value_true(self):
+        from ai_guardian.web.components.header import _is_feature_enabled
+
+        config = {"ssrf_protection": {"enabled": {"value": True}}}
+        assert _is_feature_enabled(config, "ssrf_protection") is True

@@ -14,7 +14,7 @@ from textual.app import ComposeResult
 from textual.containers import Container, Horizontal, VerticalScroll
 from textual.widgets import Static, Input, Button, Select, Checkbox, TextArea
 
-from ai_guardian.config_utils import get_config_dir, validate_regex_pattern
+from ai_guardian.config.utils import get_config_dir, validate_regex_pattern
 
 MAX_MATCHES_DISPLAYED = 100
 

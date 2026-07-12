@@ -5,7 +5,7 @@ Unit tests for config_utils module
 import unittest
 from datetime import datetime, timezone
 
-from ai_guardian.config_utils import (
+from ai_guardian.config.utils import (
     parse_iso8601,
     is_expired,
     is_feature_enabled,

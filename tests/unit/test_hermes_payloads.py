@@ -19,28 +19,28 @@ import pytest
 
 # Import Phase 1-4 modules
 try:
-    from ai_guardian.ssrf_protector import SSRFProtector
+    from ai_guardian.scanners.ssrf import SSRFProtector
 
     HAS_SSRF = True
 except ImportError:
     HAS_SSRF = False
 
 try:
-    from ai_guardian.prompt_injection import UnicodeAttackDetector
+    from ai_guardian.scanners.prompt_injection import UnicodeAttackDetector
 
     HAS_UNICODE = True
 except ImportError:
     HAS_UNICODE = False
 
 try:
-    from ai_guardian.config_scanner import check_config_file_threats
+    from ai_guardian.scanners.config_scanner import check_config_file_threats
 
     HAS_CONFIG_SCANNER = True
 except ImportError:
     HAS_CONFIG_SCANNER = False
 
 try:
-    from ai_guardian.secret_redactor import SecretRedactor
+    from ai_guardian.scanners.secret_redactor import SecretRedactor
 
     HAS_SECRET_REDACTOR = True
 except ImportError:

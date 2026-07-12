@@ -163,153 +163,151 @@ def _group_findings(findings):
 
 def create_directory_scan_page(service, daemon_name: str):
     """Create the Directory Scan page with Allow Always support."""
-    create_header(daemon_name)
+    sidebar = create_sidebar(daemon_name, current=f"/{daemon_name}/directory-scan")
+    create_header(daemon_name, drawer=sidebar)
 
-    with ui.row().classes("w-full min-h-screen no-wrap"):
-        create_sidebar(daemon_name, current=f"/{daemon_name}/directory-scan")
+    with ui.column().classes("flex-grow p-6 gap-4"):
+        ui.label("Directory Scan").classes("text-2xl font-bold")
+        ui.label(
+            "Scan directories for security issues. "
+            "Use Allow Always to add allowlist patterns."
+        ).classes("text-xs text-grey-6")
 
-        with ui.column().classes("flex-grow p-6 gap-4"):
-            ui.label("Directory Scan").classes("text-2xl font-bold")
-            ui.label(
-                "Scan directories for security issues. "
-                "Use Allow Always to add allowlist patterns."
-            ).classes("text-xs text-grey-6")
-
-            with ui.card().classes("w-full"):
-                ui.label("Scan Configuration").classes("text-lg font-bold")
-                with ui.row().classes("items-center gap-2 w-full"):
-                    path_input = (
-                        ui.input(
-                            label="File or Directory Path",
-                            value=str(Path.home()),
-                        )
-                        .props("dense outlined")
-                        .classes("flex-grow")
-                        .style("font-family: monospace")
+        with ui.card().classes("w-full"):
+            ui.label("Scan Configuration").classes("text-lg font-bold")
+            with ui.row().classes("items-center gap-2 w-full"):
+                path_input = (
+                    ui.input(
+                        label="File or Directory Path",
+                        value=str(Path.home()),
                     )
-                    ui.button(
-                        icon="folder_open",
-                        on_click=lambda: _open_browse_dialog(path_input),
-                    ).props("dense flat")
-
-                with ui.row().classes("items-center gap-4"):
-                    recursive_check = ui.checkbox("Recursive", value=True)
-                    config_only_check = ui.checkbox("Config files only", value=False)
-
-            results_container = ui.column().classes("w-full gap-4")
-
-            all_findings = []
-            cancel_event = threading.Event()
-
-            with ui.row().classes("items-center gap-2"):
-                scan_btn = ui.button(
-                    "Scan",
-                    icon="search",
-                ).props("dense")
-                stop_btn = ui.button(
-                    "Stop",
-                    icon="stop",
-                ).props("dense color=negative")
-                stop_btn.set_visibility(False)
-
-            progress_state = {"file": "", "index": 0, "total": 0}
-
-            async def do_scan():
-                path = path_input.value.strip()
-                if not path:
-                    ui.notify("Enter a path to scan", type="negative")
-                    return
-
-                cancel_event.clear()
-                scan_btn.disable()
-                stop_btn.set_visibility(True)
-                results_container.clear()
-                with results_container:
-                    with ui.row().classes("items-center gap-4 py-8"):
-                        ui.spinner("dots", size="lg")
-                        progress_label = ui.label(f"Scanning {path}...").classes(
-                            "text-grey-4"
-                        )
-                        progress_file = (
-                            ui.label("")
-                            .classes("text-xs text-grey-6")
-                            .style(
-                                "font-family: monospace; "
-                                "max-width: 500px; "
-                                "overflow: hidden; "
-                                "text-overflow: ellipsis; "
-                                "white-space: nowrap"
-                            )
-                        )
-
-                def update_progress():
-                    if progress_state["total"] > 0:
-                        progress_label.text = (
-                            f"Scanning... "
-                            f"{progress_state['index']}"
-                            f"/{progress_state['total']} files"
-                        )
-                        progress_file.text = progress_state["file"]
-
-                progress_timer = ui.timer(
-                    0.2,
-                    update_progress,
+                    .props("dense outlined")
+                    .classes("flex-grow")
+                    .style("font-family: monospace")
                 )
+                ui.button(
+                    icon="folder_open",
+                    on_click=lambda: _open_browse_dialog(path_input),
+                ).props("dense flat")
 
-                try:
-                    await run.io_bound(service.refresh_targets)
-                    target = service.get_target_by_name(daemon_name)
+            with ui.row().classes("items-center gap-4"):
+                recursive_check = ui.checkbox("Recursive", value=True)
+                config_only_check = ui.checkbox("Config files only", value=False)
 
-                    if target and target.runtime != "local":
-                        result = await run.io_bound(service.scan_path, target, path)
-                    else:
-                        result = await run.io_bound(
-                            _local_scan_with_progress,
-                            path,
-                            recursive_check.value,
-                            config_only_check.value,
-                            progress_state,
-                            cancel_event,
-                        )
+        results_container = ui.column().classes("w-full gap-4")
 
-                    progress_timer.deactivate()
+        all_findings = []
+        cancel_event = threading.Event()
 
-                    if result is None:
-                        results_container.clear()
-                        with results_container:
-                            ui.label(
-                                "Scan failed — check the path and " "daemon status."
-                            ).classes("text-red")
-                        return
+        with ui.row().classes("items-center gap-2"):
+            scan_btn = ui.button(
+                "Scan",
+                icon="search",
+            ).props("dense")
+            stop_btn = ui.button(
+                "Stop",
+                icon="stop",
+            ).props("dense color=negative")
+            stop_btn.set_visibility(False)
 
-                    findings = result.get("findings", [])
-                    elapsed_ms = result.get("scan_time_ms", 0)
-                    cancelled = result.get("cancelled", False)
-                    all_findings.clear()
-                    all_findings.extend(findings)
+        progress_state = {"file": "", "index": 0, "total": 0}
 
-                    _render_results(
-                        results_container,
-                        findings,
-                        elapsed_ms,
-                        daemon_name,
-                        incomplete=cancelled,
-                        service=service,
+        async def do_scan():
+            path = path_input.value.strip()
+            if not path:
+                ui.notify("Enter a path to scan", type="negative")
+                return
+
+            cancel_event.clear()
+            scan_btn.disable()
+            stop_btn.set_visibility(True)
+            results_container.clear()
+            with results_container:
+                with ui.row().classes("items-center gap-4 py-8"):
+                    ui.spinner("dots", size="lg")
+                    progress_label = ui.label(f"Scanning {path}...").classes(
+                        "text-grey-4"
                     )
-                except Exception as exc:
-                    progress_timer.deactivate()
+                    progress_file = (
+                        ui.label("")
+                        .classes("text-xs text-grey-6")
+                        .style(
+                            "font-family: monospace; "
+                            "max-width: 500px; "
+                            "overflow: hidden; "
+                            "text-overflow: ellipsis; "
+                            "white-space: nowrap"
+                        )
+                    )
+
+            def update_progress():
+                if progress_state["total"] > 0:
+                    progress_label.text = (
+                        f"Scanning... "
+                        f"{progress_state['index']}"
+                        f"/{progress_state['total']} files"
+                    )
+                    progress_file.text = progress_state["file"]
+
+            progress_timer = ui.timer(
+                0.2,
+                update_progress,
+            )
+
+            try:
+                await run.io_bound(service.refresh_targets)
+                target = service.get_target_by_name(daemon_name)
+
+                if target and target.runtime != "local":
+                    result = await run.io_bound(service.scan_path, target, path)
+                else:
+                    result = await run.io_bound(
+                        _local_scan_with_progress,
+                        path,
+                        recursive_check.value,
+                        config_only_check.value,
+                        progress_state,
+                        cancel_event,
+                    )
+
+                progress_timer.deactivate()
+
+                if result is None:
                     results_container.clear()
                     with results_container:
-                        ui.label(f"Scan error: {exc}").classes("text-red")
-                finally:
-                    scan_btn.enable()
-                    stop_btn.set_visibility(False)
+                        ui.label(
+                            "Scan failed — check the path and " "daemon status."
+                        ).classes("text-red")
+                    return
 
-            def do_stop():
-                cancel_event.set()
+                findings = result.get("findings", [])
+                elapsed_ms = result.get("scan_time_ms", 0)
+                cancelled = result.get("cancelled", False)
+                all_findings.clear()
+                all_findings.extend(findings)
 
-            scan_btn.on_click(do_scan)
-            stop_btn.on_click(do_stop)
+                _render_results(
+                    results_container,
+                    findings,
+                    elapsed_ms,
+                    daemon_name,
+                    incomplete=cancelled,
+                    service=service,
+                )
+            except Exception as exc:
+                progress_timer.deactivate()
+                results_container.clear()
+                with results_container:
+                    ui.label(f"Scan error: {exc}").classes("text-red")
+            finally:
+                scan_btn.enable()
+                stop_btn.set_visibility(False)
+
+        def do_stop():
+            cancel_event.set()
+
+        scan_btn.on_click(do_scan)
+        stop_btn.on_click(do_stop)
 
 
 def _local_scan_with_progress(
@@ -322,7 +320,7 @@ def _local_scan_with_progress(
     """Local scan with progress updates and cancellation support."""
     import time
     from pathlib import Path as P
-    from ai_guardian.scanner import FileScanner
+    from ai_guardian.scanners.file_scanner import FileScanner
     from ai_guardian.tui.pattern_editor import config_section_for_rule_id
     from ai_guardian.web.config_helpers import load_web_config
 

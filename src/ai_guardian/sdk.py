@@ -22,7 +22,7 @@ Usage:
 
     # Config overlay — deep-merge on top of global + project config
     from ai_guardian import configure
-    configure(overlay={"secret_scanning": {"action": "block"}})
+    configure(overlay={"secret_scanning": {"enabled": True}})
     with monitor() as session:
         session.check_content(text)
 
@@ -146,7 +146,7 @@ class _DirectSession(GuardSession):
 
     def _ensure_config(self):
         if self._config is None:
-            from ai_guardian.config_loaders import _load_config_file
+            from ai_guardian.config.loaders import _load_config_file
 
             cfg, _ = _load_config_file()
             self._config = cfg or {}
@@ -179,7 +179,7 @@ class _DirectSession(GuardSession):
         pi_cfg = self._config.get("prompt_injection", {})
         if pi_cfg.get("enabled", True):
             try:
-                from ai_guardian.prompt_injection import check_prompt_injection
+                from ai_guardian.scanners.prompt_injection import check_prompt_injection
 
                 should_block, msg, detected = check_prompt_injection(
                     text,
@@ -200,7 +200,9 @@ class _DirectSession(GuardSession):
         cp_cfg = self._config.get("context_poisoning", {})
         if cp_cfg.get("enabled", True):
             try:
-                from ai_guardian.context_poisoning import check_context_poisoning
+                from ai_guardian.scanners.context_poisoning import (
+                    check_context_poisoning,
+                )
 
                 should_block, msg, detected = check_context_poisoning(
                     text,
@@ -247,7 +249,9 @@ class _DirectSession(GuardSession):
             cfg_scanner_cfg = self._config.get("config_scanner", {})
             if cfg_scanner_cfg.get("enabled", True):
                 try:
-                    from ai_guardian.config_scanner import check_config_file_threats
+                    from ai_guardian.scanners.config_scanner import (
+                        check_config_file_threats,
+                    )
 
                     should_block, msg, details = check_config_file_threats(
                         file_path,
@@ -270,7 +274,9 @@ class _DirectSession(GuardSession):
             sc_cfg = self._config.get("supply_chain", {})
             if sc_cfg.get("enabled", True):
                 try:
-                    from ai_guardian.supply_chain import check_supply_chain_threats
+                    from ai_guardian.scanners.supply_chain import (
+                        check_supply_chain_threats,
+                    )
 
                     should_block, msg, details = check_supply_chain_threats(
                         file_path,
@@ -306,7 +312,9 @@ class _DirectSession(GuardSession):
         cfg_scanner_cfg = self._config.get("config_scanner", {})
         if cfg_scanner_cfg.get("enabled", True):
             try:
-                from ai_guardian.config_scanner import check_bash_command_threats
+                from ai_guardian.scanners.config_scanner import (
+                    check_bash_command_threats,
+                )
 
                 should_block, msg, details = check_bash_command_threats(
                     command,
@@ -329,7 +337,7 @@ class _DirectSession(GuardSession):
         return self._handle_result(merged)
 
     def sanitize(self, text: str) -> Dict[str, Any]:
-        from ai_guardian.sanitizer import sanitize_text
+        from ai_guardian.scanners.sanitizer import sanitize_text
 
         return sanitize_text(text)
 

@@ -9,10 +9,19 @@ and OpenCode adapters.
 """
 
 import json
+import logging
 from typing import ClassVar, Dict, List, Optional
 
-from ai_guardian.constants import HookEvent
+logger = logging.getLogger(__name__)
+
+from ai_guardian.constants import ALL_HOOK_EVENT_DISPLAY_NAMES, HookEvent
 from ai_guardian.hook_adapters.base import HookAdapter, NormalizedHookInput
+
+_BLOCK_USES_PERMISSION_DECISION = {HookEvent.PRE_TOOL_USE, HookEvent.BEFORE_READ_FILE}
+
+# SESSION_START omits 'reason' — Claude Code UI shows both reason and
+# systemMessage for this event, causing duplicate display.
+_BLOCK_OMITS_REASON = {HookEvent.SESSION_START}
 
 
 class BaseAgentAdapter(HookAdapter):
@@ -37,15 +46,7 @@ class BaseAgentAdapter(HookAdapter):
     @classmethod
     def can_handle(cls, hook_data: Dict) -> bool:
         event = hook_data.get("hook_event_name") or hook_data.get("hookEventName", "")
-        return event in (
-            "UserPromptSubmit",
-            "PreToolUse",
-            "PostToolUse",
-            "Stop",
-            "SessionStart",
-            "SessionEnd",
-            "PostCompact",
-        )
+        return event in ALL_HOOK_EVENT_DISPLAY_NAMES
 
     def normalize_input(self, hook_data: Dict) -> NormalizedHookInput:
         event = self._detect_event_from_all_formats(hook_data)
@@ -69,6 +70,71 @@ class BaseAgentAdapter(HookAdapter):
             raw_data=hook_data,
         )
 
+    # -- Shared response builders --
+
+    @staticmethod
+    def _event_name(hook_event: HookEvent) -> str:
+        if isinstance(hook_event, HookEvent):
+            return hook_event.display_name
+        try:
+            return HookEvent(hook_event).display_name
+        except ValueError:
+            return str(hook_event)
+
+    def _block_response(
+        self,
+        hook_event: HookEvent,
+        error_message: str,
+        violation_type: Optional[str] = None,
+    ) -> Dict:
+        sanitized = self._sanitize_block_reason(violation_type)
+        response: Dict = {
+            "systemMessage": error_message,
+            "hookSpecificOutput": {
+                "hookEventName": self._event_name(hook_event),
+                "additionalContext": sanitized,
+            },
+        }
+        if hook_event in _BLOCK_USES_PERMISSION_DECISION:
+            response["hookSpecificOutput"]["permissionDecision"] = "deny"
+        else:
+            response["decision"] = "block"
+            if hook_event not in _BLOCK_OMITS_REASON:
+                response["reason"] = error_message
+        return response
+
+    def _warn_response(
+        self,
+        hook_event: HookEvent,
+        warning_message: Optional[str] = None,
+        security_message: Optional[str] = None,
+    ) -> Dict:
+        combined = "\n\n".join(filter(None, [security_message, warning_message]))
+        if not combined:
+            return {}
+        return {
+            "systemMessage": combined,
+            "hookSpecificOutput": {
+                "hookEventName": self._event_name(hook_event),
+                "additionalContext": combined,
+            },
+        }
+
+    def _allow_response(
+        self,
+        hook_event: HookEvent,
+        security_message: Optional[str] = None,
+    ) -> Dict:
+        if not security_message:
+            return {}
+        return {
+            "systemMessage": security_message,
+            "hookSpecificOutput": {
+                "hookEventName": self._event_name(hook_event),
+                "additionalContext": security_message,
+            },
+        }
+
     def format_response(
         self,
         has_secrets: bool,
@@ -79,61 +145,29 @@ class BaseAgentAdapter(HookAdapter):
         violation_type: Optional[str] = None,
         security_message: Optional[str] = None,
     ) -> Dict:
-        final_error = (
-            self._combine_error_messages(error_message, warning_message)
-            if has_secrets
-            else None
-        )
-
-        if hook_event == HookEvent.SESSION_START:
-            if has_secrets and error_message:
-                response = {
-                    "decision": "block",
-                    "systemMessage": final_error,
-                    "hookSpecificOutput": {
-                        "hookEventName": "SessionStart",
-                        "additionalContext": self._sanitize_block_reason(
-                            violation_type
-                        ),
-                    },
-                }
-            else:
-                response = {}
-                parts = []
-                if security_message:
-                    parts.append(security_message)
-                if warning_message:
-                    parts.append(warning_message)
-                if parts:
-                    combined = "\n\n".join(parts)
-                    response["hookSpecificOutput"] = {
-                        "hookEventName": "SessionStart",
-                        "additionalContext": combined,
-                    }
+        if has_secrets and error_message:
+            final_error = self._combine_error_messages(error_message, warning_message)
+            response = self._block_response(hook_event, final_error, violation_type)
         elif hook_event == HookEvent.POST_TOOL_USE:
             if has_secrets:
-                response = {
-                    "decision": "block",
-                    "reason": final_error or "Secrets detected in tool output",
-                    "hookSpecificOutput": {
-                        "hookEventName": "PostToolUse",
-                    },
-                }
+                final_error = self._combine_error_messages(
+                    error_message, warning_message
+                )
+                response = self._block_response(
+                    hook_event,
+                    final_error or "Secrets detected in tool output",
+                    violation_type,
+                )
             else:
-                response = {}
-                if warning_message:
-                    response["systemMessage"] = warning_message
-                    if "hookSpecificOutput" not in response:
-                        response["hookSpecificOutput"] = {
-                            "hookEventName": "PostToolUse"
-                        }
-                    response["hookSpecificOutput"][
-                        "additionalContext"
-                    ] = warning_message
+                response = (
+                    self._warn_response(hook_event, warning_message)
+                    if warning_message
+                    else {}
+                )
                 if modified_output is not None:
                     if "hookSpecificOutput" not in response:
                         response["hookSpecificOutput"] = {
-                            "hookEventName": "PostToolUse"
+                            "hookEventName": self._event_name(hook_event)
                         }
                     response["hookSpecificOutput"][
                         "updatedToolOutput"
@@ -141,50 +175,12 @@ class BaseAgentAdapter(HookAdapter):
                     response["hookSpecificOutput"][
                         "updatedMCPToolOutput"
                     ] = modified_output
-        elif hook_event == HookEvent.PROMPT:
-            if has_secrets and error_message:
-                response = {
-                    "decision": "block",
-                    "reason": final_error,
-                    "hookSpecificOutput": {"hookEventName": "UserPromptSubmit"},
-                }
-            else:
-                response = {}
-                parts = []
-                if security_message:
-                    parts.append(security_message)
-                if warning_message:
-                    parts.append(warning_message)
-                if parts:
-                    combined = "\n\n".join(parts)
-                    response["systemMessage"] = combined
-                    response["hookSpecificOutput"] = {
-                        "hookEventName": "UserPromptSubmit",
-                        "additionalContext": combined,
-                    }
+        elif warning_message:
+            response = self._warn_response(
+                hook_event, warning_message, security_message
+            )
         else:
-            # PreToolUse
-            if has_secrets and error_message:
-                response = {
-                    "hookSpecificOutput": {
-                        "permissionDecision": "deny",
-                        "hookEventName": "PreToolUse",
-                        "additionalContext": self._sanitize_block_reason(
-                            violation_type
-                        ),
-                    },
-                    "systemMessage": final_error,
-                }
-            elif warning_message:
-                response = {
-                    "systemMessage": warning_message,
-                    "hookSpecificOutput": {
-                        "hookEventName": "PreToolUse",
-                        "additionalContext": warning_message,
-                    },
-                }
-            else:
-                response = {}
+            response = self._allow_response(hook_event, security_message)
 
         return self._add_metadata(
             {"output": json.dumps(response), "exit_code": 0},

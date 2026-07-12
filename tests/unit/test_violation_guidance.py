@@ -4,7 +4,7 @@ import json
 
 import pytest
 
-from ai_guardian.violation_guidance import (
+from ai_guardian.violations.guidance import (
     get_resolution_instructions,
     _type_placeholders,
 )

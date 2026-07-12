@@ -31,7 +31,7 @@ def get_about_info() -> dict:
 
     config_path = None
     try:
-        from ai_guardian.config_utils import get_config_dir
+        from ai_guardian.config.utils import get_config_dir
 
         config_path = str(get_config_dir() / "ai-guardian.json")
     except Exception:
@@ -39,8 +39,8 @@ def get_about_info() -> dict:
 
     scanners = []
     try:
-        from ai_guardian.scanner_manager import ScannerManager
-        from ai_guardian.config_loaders import _load_config_file
+        from ai_guardian.scanners.manager import ScannerManager
+        from ai_guardian.config.loaders import _load_config_file
 
         cfg_for_scanners, _ = _load_config_file()
         sm = ScannerManager(config=cfg_for_scanners or {})
@@ -58,7 +58,7 @@ def get_about_info() -> dict:
 
     name = None
     try:
-        from ai_guardian.config_loaders import _load_config_file
+        from ai_guardian.config.loaders import _load_config_file
 
         cfg, _ = _load_config_file()
         if cfg:

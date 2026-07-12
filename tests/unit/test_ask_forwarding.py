@@ -311,7 +311,7 @@ class TestCleanupIntegration:
 
 class TestTrayPolling:
     def test_handle_remote_prompt_skips_in_flight(self):
-        from ai_guardian.daemon.tray import DaemonTray
+        from ai_guardian.tray.app import DaemonTray
 
         tray = DaemonTray.__new__(DaemonTray)
         tray._in_flight_prompts = {"prompt-1"}
@@ -323,7 +323,7 @@ class TestTrayPolling:
         tray._multi_client.send_prompt_decision.assert_not_called()
 
     def test_handle_remote_prompt_skips_no_id(self):
-        from ai_guardian.daemon.tray import DaemonTray
+        from ai_guardian.tray.app import DaemonTray
 
         tray = DaemonTray.__new__(DaemonTray)
         tray._in_flight_prompts = set()
@@ -334,7 +334,7 @@ class TestTrayPolling:
         tray._multi_client.send_prompt_decision.assert_not_called()
 
     def test_poll_remote_prompts_iterates_remote_targets(self):
-        from ai_guardian.daemon.tray import DaemonTray
+        from ai_guardian.tray.app import DaemonTray
 
         tray = DaemonTray.__new__(DaemonTray)
         tray._in_flight_prompts = set()
@@ -354,7 +354,7 @@ class TestTrayPolling:
         tray._multi_client.get_pending_prompts.assert_called_once_with(remote_target)
 
     def test_register_tray_with_remotes(self):
-        from ai_guardian.daemon.tray import DaemonTray
+        from ai_guardian.tray.app import DaemonTray
 
         tray = DaemonTray.__new__(DaemonTray)
         tray._multi_client = MagicMock()

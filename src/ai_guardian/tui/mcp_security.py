@@ -2,7 +2,7 @@
 MCP Security Audit Panel
 
 Displays MCP server configurations with trust status and security findings.
-Uses MCPAuditor from ai_guardian.mcp_audit.
+Uses MCPAuditor from ai_guardian.mcp.audit.
 
 Issue #468
 """
@@ -105,7 +105,7 @@ class MCPSecurityContent(ScrollableContainer):
     def _run_audit(self) -> None:
         """Run MCP config audit and update the display."""
         try:
-            from ai_guardian.mcp_audit import MCPAuditor
+            from ai_guardian.mcp.audit import MCPAuditor
 
             auditor = MCPAuditor()
             servers = auditor.discover_servers()
@@ -164,7 +164,7 @@ class MCPSecurityContent(ScrollableContainer):
             env_text = f"{env_count} env" if env_count else "no env"
             lines.append(f"  {s.name:<24s}  {s.command:<10s}  {trust:<22s}  {env_text}")
             if s.config_sources:
-                from ai_guardian.mcp_audit import MCPAuditor
+                from ai_guardian.mcp.audit import MCPAuditor
 
                 sources_str = ", ".join(
                     f"{MCPAuditor.ide_label(p)}: {p}" for p in s.config_sources

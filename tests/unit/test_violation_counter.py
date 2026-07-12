@@ -7,7 +7,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 
-from ai_guardian.violation_counter import ViolationCounter
+from ai_guardian.violations.counter import ViolationCounter
 
 
 class TestViolationCounterIncrement:

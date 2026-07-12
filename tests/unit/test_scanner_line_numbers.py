@@ -3,7 +3,7 @@
 import unittest
 from unittest.mock import patch, MagicMock
 
-from ai_guardian.scanner import (
+from ai_guardian.scanners.file_scanner import (
     FileScanner,
     _get_line_snippet,
     _parse_position_from_details,
@@ -97,7 +97,7 @@ class TestUnicodeLineNumbers(unittest.TestCase):
         scanner.config = {"prompt_injection": {"unicode_detection": {"enabled": True}}}
         scanner.findings = []
         scanner.verbose = False
-        from ai_guardian.prompt_injection import UnicodeAttackDetector
+        from ai_guardian.scanners.prompt_injection import UnicodeAttackDetector
 
         scanner.unicode_detector = UnicodeAttackDetector(
             scanner.config.get("prompt_injection", {}).get("unicode_detection", {})
@@ -124,7 +124,7 @@ class TestUnicodeLineNumbers(unittest.TestCase):
 
 class TestPiiLineNumbers(unittest.TestCase):
 
-    @patch("ai_guardian.scanner._scan_for_pii")
+    @patch("ai_guardian.scanners.file_scanner._scan_for_pii")
     def test_pii_finding_has_line_number(self, mock_scan):
         mock_scan.return_value = (
             True,
@@ -146,7 +146,7 @@ class TestPiiLineNumbers(unittest.TestCase):
         assert finding["snippet"] is not None
         assert "contact" in finding["snippet"]
 
-    @patch("ai_guardian.scanner._scan_for_pii")
+    @patch("ai_guardian.scanners.file_scanner._scan_for_pii")
     def test_pii_no_line_number_still_works(self, mock_scan):
         mock_scan.return_value = (
             True,
@@ -166,7 +166,7 @@ class TestPiiLineNumbers(unittest.TestCase):
 
 class TestSecretLineNumbers(unittest.TestCase):
 
-    @patch("ai_guardian.scanner.check_secrets_with_gitleaks")
+    @patch("ai_guardian.scanners.file_scanner.check_secrets_with_gitleaks")
     def test_secret_line_number_from_error_message(self, mock_check):
         mock_check.return_value = (
             True,
@@ -182,7 +182,7 @@ class TestSecretLineNumbers(unittest.TestCase):
         finding = scanner.findings[0]
         assert finding["line_number"] == 42
 
-    @patch("ai_guardian.scanner.check_secrets_with_gitleaks")
+    @patch("ai_guardian.scanners.file_scanner.check_secrets_with_gitleaks")
     def test_secret_no_line_in_message(self, mock_check):
         mock_check.return_value = (
             True,
@@ -197,7 +197,7 @@ class TestSecretLineNumbers(unittest.TestCase):
         assert len(scanner.findings) == 1
         assert scanner.findings[0]["line_number"] is None
 
-    @patch("ai_guardian.scanner.check_secrets_with_gitleaks")
+    @patch("ai_guardian.scanners.file_scanner.check_secrets_with_gitleaks")
     def test_secret_type_extracted(self, mock_check):
         mock_check.return_value = (
             True,
@@ -215,7 +215,7 @@ class TestSecretLineNumbers(unittest.TestCase):
 
 class TestPromptInjectionLineNumbers(unittest.TestCase):
 
-    @patch("ai_guardian.scanner.PromptInjectionDetector")
+    @patch("ai_guardian.scanners.file_scanner.PromptInjectionDetector")
     def test_prompt_injection_has_line_number(self, mock_detector_cls):
         mock_detector = MagicMock()
         mock_detector.detect.return_value = (
@@ -241,7 +241,7 @@ class TestPromptInjectionLineNumbers(unittest.TestCase):
         assert finding["snippet"] is not None
         assert "ignore" in finding["snippet"]
 
-    @patch("ai_guardian.scanner.PromptInjectionDetector")
+    @patch("ai_guardian.scanners.file_scanner.PromptInjectionDetector")
     def test_prompt_injection_falls_back_to_detector_line(self, mock_detector_cls):
         """When matched text not found in original, use detector's line number."""
         mock_detector = MagicMock()
@@ -258,7 +258,7 @@ class TestPromptInjectionLineNumbers(unittest.TestCase):
         scanner._check_prompt_injection("test.py", "other content here")
         assert scanner.findings[0]["line_number"] == 5
 
-    @patch("ai_guardian.scanner.PromptInjectionDetector")
+    @patch("ai_guardian.scanners.file_scanner.PromptInjectionDetector")
     def test_prompt_injection_no_line_number(self, mock_detector_cls):
         mock_detector = MagicMock()
         mock_detector.detect.return_value = (True, "Prompt injection detected", True)

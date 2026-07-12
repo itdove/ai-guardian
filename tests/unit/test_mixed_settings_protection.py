@@ -14,7 +14,7 @@ import os
 import tempfile
 import pytest
 
-from ai_guardian.tool_policy import ToolPolicyChecker
+from ai_guardian.tools.policy import ToolPolicyChecker
 
 
 def _make_hook_data(tool_name, tool_input):
@@ -200,7 +200,7 @@ class TestWriteContentAware:
                 },
             )
 
-            import ai_guardian.tool_policy as tp
+            import ai_guardian.tools.policy as tp
 
             orig_patterns = tp.MIXED_SETTINGS_PATTERNS
             tp.MIXED_SETTINGS_PATTERNS = ["*"]
@@ -232,7 +232,7 @@ class TestWriteContentAware:
                 },
             )
 
-            import ai_guardian.tool_policy as tp
+            import ai_guardian.tools.policy as tp
 
             orig_patterns = tp.MIXED_SETTINGS_PATTERNS
             tp.MIXED_SETTINGS_PATTERNS = ["*"]
@@ -264,7 +264,7 @@ class TestWriteContentAware:
                 },
             )
 
-            import ai_guardian.tool_policy as tp
+            import ai_guardian.tools.policy as tp
 
             orig_patterns = tp.MIXED_SETTINGS_PATTERNS
             tp.MIXED_SETTINGS_PATTERNS = ["*"]
@@ -289,7 +289,7 @@ class TestWriteContentAware:
             },
         )
 
-        import ai_guardian.tool_policy as tp
+        import ai_guardian.tools.policy as tp
 
         orig_patterns = tp.MIXED_SETTINGS_PATTERNS
         tp.MIXED_SETTINGS_PATTERNS = ["*"]
@@ -312,7 +312,7 @@ class TestWriteContentAware:
             },
         )
 
-        import ai_guardian.tool_policy as tp
+        import ai_guardian.tools.policy as tp
 
         orig_patterns = tp.MIXED_SETTINGS_PATTERNS
         tp.MIXED_SETTINGS_PATTERNS = ["*"]

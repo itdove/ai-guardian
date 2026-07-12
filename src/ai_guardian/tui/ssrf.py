@@ -13,7 +13,7 @@ from textual.app import ComposeResult
 from textual.containers import Container, Horizontal, VerticalScroll
 from textual.widgets import Static, Button, Input, Label, Select, Checkbox
 
-from ai_guardian.config_utils import get_config_dir, get_project_config_path
+from ai_guardian.config.utils import get_config_dir, get_project_config_path
 from ai_guardian.tui.schema_defaults import (
     SchemaDefaultsMixin,
     default_indicator,
@@ -136,7 +136,7 @@ class SSRFContent(SchemaDefaultsMixin, Container):
             project_path = get_project_config_path()
             if project_path:
                 return project_path
-            from ai_guardian.config_utils import _find_git_root
+            from ai_guardian.config.utils import _find_git_root
 
             root = _find_git_root() or Path.cwd()
             return root / ".ai-guardian" / "ai-guardian.json"
@@ -444,7 +444,7 @@ class SSRFContent(SchemaDefaultsMixin, Container):
     def _load_statistics(self) -> None:
         """Load and display SSRF detection statistics."""
         try:
-            from ai_guardian.violation_logger import ViolationLogger
+            from ai_guardian.violations.logger import ViolationLogger
 
             logger = ViolationLogger()
             stats = logger.get_statistics()
