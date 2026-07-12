@@ -71,14 +71,11 @@ jobs:
     if: always() && (github.event_name == 'pull_request' || (github.event_name == 'push' && github.ref != 'refs/heads/main'))
     runs-on: ubuntu-latest
     steps:
-      - name: Login to Quay
-        run: |
-          skopeo login quay.io \
-            --username "${{ secrets.QUAY_USERNAME }}" \
-            --password "${{ secrets.QUAY_PASSWORD }}"
-
       - name: Delete SHA-tagged image
         continue-on-error: true
         run: |
-          skopeo delete \
-            "docker://quay.io/itdove/ai-guardian:${{ github.sha }}"
+          STATUS=$(curl -s -o /dev/null -w '%{http_code}' -X DELETE \
+            -H "Authorization: Bearer ${{ secrets.QUAY_PASSWORD }}" \
+            "https://quay.io/api/v1/repository/itdove/ai-guardian/tag/${{ github.sha }}")
+          echo "Quay API responded: $STATUS"
+          [ "$STATUS" = "204" ] || [ "$STATUS" = "404" ]
