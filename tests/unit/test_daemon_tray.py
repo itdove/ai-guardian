@@ -9,6 +9,7 @@ import pytest
 from ai_guardian.daemon.discovery import DaemonTarget
 from ai_guardian.tray.app import (
     DaemonTray,
+    HAS_PYSTRAY,
     is_tray_available,
     _is_tray_running,
     _check_gi_available,
@@ -363,7 +364,7 @@ class TestCrossPlatform:
 
 
 class TestDaemonTrayIcon:
-    @pytest.mark.skipif(not is_tray_available(), reason="pystray/Pillow not installed")
+    @pytest.mark.skipif(not HAS_PYSTRAY, reason="pystray/Pillow not installed")
     def test_create_icon_returns_image(self):
         tray = DaemonTray(
             get_stats_callback=lambda: {},
@@ -374,7 +375,7 @@ class TestDaemonTrayIcon:
         assert icon is not None
         assert icon.mode == "RGBA"
 
-    @pytest.mark.skipif(not is_tray_available(), reason="pystray/Pillow not installed")
+    @pytest.mark.skipif(not HAS_PYSTRAY, reason="pystray/Pillow not installed")
     def test_fallback_icon_when_no_tray_icon(self):
         tray = DaemonTray(
             get_stats_callback=lambda: {},
@@ -388,7 +389,7 @@ class TestDaemonTrayIcon:
         assert icon is not None
         assert icon.size == (22, 22)
 
-    @pytest.mark.skipif(not is_tray_available(), reason="pystray/Pillow not installed")
+    @pytest.mark.skipif(not HAS_PYSTRAY, reason="pystray/Pillow not installed")
     def test_find_tray_icon_path_returns_path_or_none(self):
         result = find_tray_icon_path()
         if result is not None:
@@ -396,21 +397,21 @@ class TestDaemonTrayIcon:
 
             assert Path(result).exists()
 
-    @pytest.mark.skipif(not is_tray_available(), reason="pystray/Pillow not installed")
+    @pytest.mark.skipif(not HAS_PYSTRAY, reason="pystray/Pillow not installed")
     def test_find_tray_icon_path_macos(self):
         with mock.patch("platform.system", return_value="Darwin"):
             result = find_tray_icon_path()
         if result is not None:
             assert "Template" in result
 
-    @pytest.mark.skipif(not is_tray_available(), reason="pystray/Pillow not installed")
+    @pytest.mark.skipif(not HAS_PYSTRAY, reason="pystray/Pillow not installed")
     def test_find_tray_icon_path_windows(self):
         with mock.patch("platform.system", return_value="Windows"):
             result = find_tray_icon_path()
         if result is not None:
             assert "16" in result
 
-    @pytest.mark.skipif(not is_tray_available(), reason="pystray/Pillow not installed")
+    @pytest.mark.skipif(not HAS_PYSTRAY, reason="pystray/Pillow not installed")
     def test_find_tray_icon_path_linux(self):
         with mock.patch("platform.system", return_value="Linux"):
             result = find_tray_icon_path()
@@ -443,7 +444,7 @@ class TestDaemonTrayIcon:
         for name in required:
             assert (images_dir / name).exists(), f"Missing tray icon: {name}"
 
-    @pytest.mark.skipif(not is_tray_available(), reason="pystray/Pillow not installed")
+    @pytest.mark.skipif(not HAS_PYSTRAY, reason="pystray/Pillow not installed")
     def test_tray_icon_png_dimensions(self):
         from pathlib import Path
         from PIL import Image
@@ -485,7 +486,7 @@ class TestIconInversion:
                 mock_run.return_value = mock.MagicMock(stdout=gsettings_stdout)
             assert needs_dark_icon() is expected
 
-    @pytest.mark.skipif(not is_tray_available(), reason="Pillow not installed")
+    @pytest.mark.skipif(not HAS_PYSTRAY, reason="pystray/Pillow not installed")
     def test_invert_icon_makes_dark(self):
         from PIL import Image as PILImage
 
@@ -871,7 +872,7 @@ class TestIDESetupMenu:
 class TestPausedIconDimming:
     """Tests for visual pause state indicator (issue #684)."""
 
-    @pytest.mark.skipif(not is_tray_available(), reason="pystray/Pillow not installed")
+    @pytest.mark.skipif(not HAS_PYSTRAY, reason="pystray/Pillow not installed")
     def test_apply_paused_dimming_reduces_alpha(self):
         from PIL import Image
 
@@ -881,7 +882,7 @@ class TestPausedIconDimming:
         _, _, _, a = dimmed.getpixel((10, 10))
         assert a == 100
 
-    @pytest.mark.skipif(not is_tray_available(), reason="pystray/Pillow not installed")
+    @pytest.mark.skipif(not HAS_PYSTRAY, reason="pystray/Pillow not installed")
     def test_apply_paused_dimming_does_not_modify_original(self):
         from PIL import Image
 
@@ -890,7 +891,7 @@ class TestPausedIconDimming:
         _, _, _, a = img.getpixel((10, 10))
         assert a == 200
 
-    @pytest.mark.skipif(not is_tray_available(), reason="pystray/Pillow not installed")
+    @pytest.mark.skipif(not HAS_PYSTRAY, reason="pystray/Pillow not installed")
     def test_create_icon_dimmed_when_paused(self):
         tray = DaemonTray(
             get_stats_callback=lambda: {},
@@ -907,7 +908,7 @@ class TestPausedIconDimming:
         for i in non_zero:
             assert paused_alpha[i] <= normal_alpha[i]
 
-    @pytest.mark.skipif(not is_tray_available(), reason="pystray/Pillow not installed")
+    @pytest.mark.skipif(not HAS_PYSTRAY, reason="pystray/Pillow not installed")
     def test_create_icon_normal_when_running(self):
         tray = DaemonTray(
             get_stats_callback=lambda: {},
@@ -3550,7 +3551,7 @@ class TestDiscoveryAnimation:
         assert not tray._anim._discovery_anim_stop.is_set()
 
     @pytest.mark.skipif(
-        not is_tray_available(),
+        not HAS_PYSTRAY,
         reason="pystray/Pillow not installed",
     )
     def test_generate_discovery_frames_returns_four_images(self):
@@ -3567,7 +3568,7 @@ class TestDiscoveryAnimation:
         assert dim_alpha != base_alpha
 
     @pytest.mark.skipif(
-        not is_tray_available(),
+        not HAS_PYSTRAY,
         reason="pystray/Pillow not installed",
     )
     def test_generate_discovery_frames_caches_result(self):
@@ -3577,7 +3578,7 @@ class TestDiscoveryAnimation:
         assert first is second
 
     @pytest.mark.skipif(
-        not is_tray_available(),
+        not HAS_PYSTRAY,
         reason="pystray/Pillow not installed",
     )
     def test_invalidate_clears_frame_cache(self):
@@ -5168,7 +5169,7 @@ class TestGetMergedDirList:
 
 
 @pytest.mark.skipif(
-    not is_tray_available(),
+    not HAS_PYSTRAY,
     reason="pystray/Pillow not installed",
 )
 class TestBuildDirPauseItems:

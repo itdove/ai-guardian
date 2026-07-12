@@ -64,6 +64,7 @@ tray-linux = [
 ml = []
 dev = [
   "pytest>=8.4.2",
+  "pytest-asyncio>=1.0.0",
 ]
 
 [project.urls]

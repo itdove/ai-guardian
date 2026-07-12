@@ -68,17 +68,14 @@ jobs:
   cleanup-image:
     name: Cleanup SHA Image
     needs: scenario-tests
-    if: always() && github.event_name == 'pull_request'
+    if: always() && (github.event_name == 'pull_request' || (github.event_name == 'push' && github.ref != 'refs/heads/main'))
     runs-on: ubuntu-latest
     steps:
-      - name: Login to Quay
-        run: |
-          skopeo login quay.io \
-            --username "${{ secrets.QUAY_USERNAME }}" \
-            --password "${{ secrets.QUAY_PASSWORD }}"
-
       - name: Delete SHA-tagged image
         continue-on-error: true
         run: |
+          skopeo login quay.io \
+            --username "${{ secrets.QUAY_PERSONAL_USERNAME }}" \
+            --password "${{ secrets.QUAY_PERSONAL_PASSWORD }}"
           skopeo delete \
             "docker://quay.io/itdove/ai-guardian:${{ github.sha }}"
