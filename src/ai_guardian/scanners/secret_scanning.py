@@ -20,7 +20,7 @@ except ImportError:
     HAS_VIOLATION_LOGGER = False
 
 try:
-    from ai_guardian import gitleaks_config as _gitleaks_cfg
+    from ai_guardian.scanners import gitleaks as _gitleaks_cfg
 
     HAS_GITLEAKS_CONFIG = True
 except ImportError:

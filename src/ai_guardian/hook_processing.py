@@ -104,7 +104,7 @@ from ai_guardian.hook_events.utils import _format_response  # noqa: F401, E402
 
 # Conditional imports for optional features
 try:
-    from ai_guardian import gitleaks_config as _gitleaks_cfg
+    from ai_guardian.scanners import gitleaks as _gitleaks_cfg
 
     HAS_GITLEAKS_CONFIG = True
 except ImportError:

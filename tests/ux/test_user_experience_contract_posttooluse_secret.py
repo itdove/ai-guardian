@@ -446,7 +446,7 @@ class GitleaksAllowGuidanceTests(TestCase):
         which the TUI imports and delegates to.
         """
         import inspect
-        from ai_guardian import violation_guidance
+        from ai_guardian.violations import guidance as violation_guidance
 
         source = inspect.getsource(violation_guidance)
 
