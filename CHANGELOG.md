@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.14.0] - 2026-07-13
+
 ### Changed
 
 - **Refactor: extract hook_processing.py into per-event modules** — monolithic `hook_processing.py` (~8800 lines) split into focused modules under `hook_events/`: `content_pipeline.py` (shared content scanning pipeline), `post_tool_use.py` (PostToolUse handler), `scanners.py` (scanner runner functions), `session_events.py` (session lifecycle handlers), `ask_mode.py` (ask-mode dialog helpers), `utils.py` (shared utilities). All public symbols re-exported from `hook_processing.py` for backward compatibility (#1491, #1551).
@@ -40,6 +42,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Moderator scenario expectations** — `config-exfil` and `ssrf-protection` moderator scenarios corrected to expect `block` for immutable core patterns that always block regardless of action mode (#1559).
 
 - **CI: SHA-tagged image cleanup** — new cleanup job in `scenario-tests.yml` deletes ephemeral SHA-tagged container images after scenario tests complete (#1564).
+
+- **CI: release readiness secrets passthrough** — `release-readiness.yml` now passes `secrets: inherit` to the `scenario-tests` job so quay.io credentials propagate to the container build step.
+
+- **Docs: stale module paths** — updated 14 references across 6 documentation files to reflect the v1.14.0 package reorganization (mcp_server → mcp/, prompt_injection → scanners/, tool_policy → tools/policy, setup.py → setup/, daemon/tray → tray/, violation_logger → violations/logger).
+
+- **Verified Cursor hook compatibility with Cursor v3.10.20** — `beforeSubmitPrompt`, `beforeReadFile`, and `postToolUse` confirmed firing correctly. Shell execution hooks (`beforeShellExecution`, `afterShellExecution`) verified via #1531 fix in this release.
 
 ## [1.13.3] - 2026-07-08
 
@@ -2867,7 +2875,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Preserves existing configuration
   - Interactive and non-interactive modes
 
-[Unreleased]: https://github.com/itdove/ai-guardian/compare/v1.13.3...HEAD
+[Unreleased]: https://github.com/itdove/ai-guardian/compare/v1.14.0...HEAD
+[1.14.0]: https://github.com/itdove/ai-guardian/compare/v1.13.3...v1.14.0
 [1.13.3]: https://github.com/itdove/ai-guardian/compare/v1.13.2...v1.13.3
 [1.13.2]: https://github.com/itdove/ai-guardian/compare/v1.13.1...v1.13.2
 [1.13.1]: https://github.com/itdove/ai-guardian/compare/v1.13.0...v1.13.1
