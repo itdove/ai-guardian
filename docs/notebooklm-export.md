@@ -67,19 +67,19 @@ Or use the container image (no Python setup required):
 
 ```bash
 # Recommended — run.sh handles auth, port mapping, and ToS consent
-curl -fsSL https://raw.githubusercontent.com/itdove/ai-guardian/v1.13.1/container/run.sh -o run.sh
+curl -fsSL https://raw.githubusercontent.com/itdove/ai-guardian/main/container/run.sh -o run.sh
 chmod +x run.sh
 ANTHROPIC_API_KEY=sk-ant-... ACCEPT_PROPRIETARY_TOS=true \
     ./run.sh --ide claude --repo $(pwd)
 
 # Or manually with podman/docker
-podman pull quay.io/itdove/ai-guardian:v1.13.1
+podman pull quay.io/itdove/ai-guardian:latest
 podman run -it -p 63152:63152 \
     -v $(pwd):/workspace:z \
     -e AI_GUARDIAN_IDE=claude \
     -e ANTHROPIC_API_KEY=sk-ant-... \
     -e ACCEPT_PROPRIETARY_TOS=true \
-    quay.io/itdove/ai-guardian:v1.13.1
+    quay.io/itdove/ai-guardian:latest
 ```
 
 `ACCEPT_PROPRIETARY_TOS=true` accepts the [Claude Code Terms of Service](https://www.anthropic.com/legal/consumer-terms) and installs Claude Code automatically at first start. Omit it to be prompted interactively instead.
@@ -127,8 +127,8 @@ podman pull quay.io/itdove/ai-guardian:latest
 podman run -it -p 63152:63152 -e AI_GUARDIAN_IDE=claude quay.io/itdove/ai-guardian:latest
 
 # Pinned release
-podman pull quay.io/itdove/ai-guardian:v1.13.0
-podman run -it -p 63152:63152 -e AI_GUARDIAN_IDE=claude quay.io/itdove/ai-guardian:v1.13.0
+podman pull quay.io/itdove/ai-guardian:latest
+podman run -it -p 63152:63152 -e AI_GUARDIAN_IDE=claude quay.io/itdove/ai-guardian:latest
 
 # Or build from source
 podman build -t ai-guardian container/
@@ -1102,7 +1102,7 @@ Agent names: `claude`, `cursor`, `copilot`, `codex`, `windsurf`, `gemini`, `clin
 
 1. Create `src/ai_guardian/hook_adapters/<agent>.py` implementing `HookAdapter`
 2. Add the adapter to `ADAPTER_CLASSES` in `hook_adapters/__init__.py`
-3. Add setup config to `IDESetup.IDE_CONFIGS` in `setup.py`
+3. Add setup config to `IDESetup.IDE_CONFIGS` in `setup/hooks.py`
 4. Add tests in `tests/unit/test_<agent>_support.py`
 5. Update the tables in this document:
    - Supported Agents table
@@ -1909,7 +1909,7 @@ A project-level config that merges on top of the global config. Discovered via g
 
 ```json
 {
-  "secret_scanning": {
+  "prompt_injection": {
     "enabled": true,
     "immutable": ["enabled"],
     "action": "block"
@@ -2137,7 +2137,7 @@ ai-guardian validate
 
 Configurations are merged in this order (later sources override earlier ones):
 
-1. **Built-in defaults** (in ai_guardian/tool_policy.py)
+1. **Built-in defaults** (in ai_guardian/setup/config.py)
 2. **Remote configs** (from cascading priority URLs)
 3. **User config** (`~/.config/ai-guardian/ai-guardian.json`)
 4. **Local config** (`~/.ai-guardian.json`)
@@ -6680,16 +6680,16 @@ AI Guardian protects AI-assisted coding tools through multiple layers:
 | CLI | `src/ai_guardian/cli.py` | Command-line interface |
 | Daemon | `src/ai_guardian/daemon/` | Background service for faster hook responses |
 | Console (TUI) | `src/ai_guardian/tui/` | Interactive terminal UI for configuration |
-| MCP Server | `src/ai_guardian/mcp_server.py` | MCP security advisor tools |
+| MCP Server | `src/ai_guardian/mcp/` | MCP security advisor tools |
 | Scanner engines | `src/ai_guardian/scanners/` | Multi-engine secret scanning (gitleaks, betterleaks, leaktk) |
 | Custom Scanner SDK | `src/ai_guardian/scanners/sdk.py` | Python-based scanner base class |
-| Prompt injection | `src/ai_guardian/prompt_injection.py` | Heuristic prompt injection detection |
-| SSRF protection | `src/ai_guardian/ssrf_protector.py` | Private IP / metadata endpoint blocking |
-| Tool policy | `src/ai_guardian/tool_policy.py` | Allow/deny lists for tools and skills |
+| Prompt injection | `src/ai_guardian/scanners/prompt_injection.py` | Heuristic prompt injection detection |
+| SSRF protection | `src/ai_guardian/scanners/ssrf.py` | Private IP / metadata endpoint blocking |
+| Tool policy | `src/ai_guardian/tools/policy.py` | Allow/deny lists for tools and skills |
 | Profiles | `src/ai_guardian/profile_manager.py` | Named configuration profiles |
 | Annotations | `src/ai_guardian/annotations.py` | Inline false-positive suppression |
-| Violation logging | `src/ai_guardian/violation_logger.py` | JSON audit trail |
-| System tray | `src/ai_guardian/daemon/tray.py` | macOS/Linux menu bar icon |
+| Violation logging | `src/ai_guardian/violations/logger.py` | JSON audit trail |
+| System tray | `src/ai_guardian/tray/` | macOS/Linux menu bar icon |
 
 ## Development Setup
 
@@ -6866,9 +6866,9 @@ When adding a new feature, check whether it needs any of these surfaces:
 
 | Surface | When to add | Location |
 |---------|-------------|----------|
-| MCP tool | Read-only/query operation AI would benefit from calling | `src/ai_guardian/mcp_server.py` |
+| MCP tool | Read-only/query operation AI would benefit from calling | `src/ai_guardian/mcp/` |
 | Console panel | Feature has configurable settings | `src/ai_guardian/tui/` |
-| System tray | Feature produces a quick status or count | `src/ai_guardian/daemon/tray.py` |
+| System tray | Feature produces a quick status or count | `src/ai_guardian/tray/` |
 | CLI command | Feature needs a standalone command | `src/ai_guardian/cli.py` |
 
 ### Configuration Schema Changes
@@ -6876,7 +6876,7 @@ When adding a new feature, check whether it needs any of these surfaces:
 When adding new configuration options, update all of these:
 
 1. **JSON Schema**: `src/ai_guardian/schemas/ai-guardian-config.schema.json`
-2. **Setup defaults**: `src/ai_guardian/setup.py` (`_create_default_config()`)
+2. **Setup defaults**: `src/ai_guardian/setup/config.py` (`_create_default_config()`)
 3. **Example config**: `ai-guardian-example.json`
 4. **Console**: Verify auto-generation from schema (most panels auto-generate)
 5. **Code**: Implement reading the new config
@@ -6946,13 +6946,22 @@ Pip-installed ai-guardian on users' systems stays protected even if malicious co
 ```
 ai-guardian/
 ├── src/ai_guardian/         # Main package
-│   ├── daemon/              # Background daemon + system tray
-│   ├── tui/                 # Interactive Console (Textual)
+│   ├── config/              # Configuration loading, writing, display
+│   ├── daemon/              # Background daemon service
+│   ├── hook_adapters/       # IDE-specific hook adapters
+│   ├── hook_events/         # Per-event hook handlers
+│   ├── mcp/                 # MCP security advisor server
+│   ├── patterns/            # Detection patterns and validators
+│   ├── reporting/           # Audit, metrics, SARIF, support bundles
 │   ├── scanners/            # Multi-engine scanner framework + SDK
 │   ├── schemas/             # JSON config schema
-│   ├── skills/              # Built-in skill files
+│   ├── setup/               # IDE hook setup and config creation
 │   ├── templates/           # Config templates
-│   └── utils/               # Shared utilities
+│   ├── tools/               # Tool policy and patterns
+│   ├── tray/                # macOS/Linux system tray
+│   ├── tui/                 # Interactive Console (Textual)
+│   ├── violations/          # Violation tracking and guidance
+│   └── web/                 # Web console (NiceGUI)
 ├── tests/
 │   ├── unit/                # Fast isolated tests
 │   ├── integration/         # Cross-component tests
@@ -9390,7 +9399,7 @@ container or remote daemon appear on the host tray.
 ### Option A — dummy-agent scenario (preferred)
 
 Requires the `action: ask` pattern to be configured in the container's
-`ai-guardian.json` (e.g., `secret_scanning.action: ask`).
+`ai-guardian.json` (e.g., `prompt_injection.action: ask`).
 
 Inside the container:
 
@@ -9439,7 +9448,7 @@ the user responds, then returns `{"decision": "allow_once"}` (or similar).
   - `PreToolUse` with a secret in `tool_input` → blocked by tool permission
     policy before secret scan runs
   - `PostToolUse` with a secret in `tool_response` → uses `secret_redaction`
-    (action=warn), not `secret_scanning` (action=ask)
+    (action=warn), not `secret_scanning` (always blocks)
   - `UserPromptSubmit` with a secret in transcript → transcript scanning always
     warns, never asks
 
@@ -12674,8 +12683,8 @@ from ai_guardian import configure
 # Set overlay — deep-merges on top of resolved config
 configure(overlay={
     "preferred_ui": "headless",
-    "secret_scanning": {"action": "block"},
     "prompt_injection": {"action": "block"},
+    "supply_chain": {"action": "block"},
 })
 
 # All subsequent monitor() sessions use the overlay
@@ -12695,7 +12704,7 @@ For CI/CD and automation where code changes are not possible:
 AI_GUARDIAN_CONFIG_OVERLAY=/path/to/overlay.json ai-guardian scan
 
 # Inline JSON overlay (quick overrides)
-AI_GUARDIAN_CONFIG_INLINE='{"preferred_ui":"headless","secret_scanning":{"action":"block"}}' ai-guardian scan
+AI_GUARDIAN_CONFIG_INLINE='{"preferred_ui":"headless","prompt_injection":{"action":"block"}}' ai-guardian scan
 ```
 
 ### Overlay Priority
@@ -12708,7 +12717,7 @@ When multiple overlay sources are active, they merge in this order (lowest to hi
 
 ### Merge Semantics
 
-- **Deep merge**: Overlay `{"secret_scanning": {"action": "block"}}` only changes `action`, preserving other `secret_scanning` fields (engines, patterns, etc.)
+- **Deep merge**: Overlay `{"prompt_injection": {"action": "block"}}` only changes `action`, preserving other `prompt_injection` fields (detectors, patterns, etc.)
 - **Immutable fields respected**: If the global config marks a field as immutable, the overlay cannot override it
 - **No global-only restriction**: Unlike project configs, overlays CAN set global-only sections (`daemon`, `mcp_server`, etc.)
 
@@ -12717,7 +12726,6 @@ When multiple overlay sources are active, they merge in this order (lowest to hi
 ```json
 {
     "preferred_ui": "headless",
-    "secret_scanning": { "action": "block" },
     "prompt_injection": { "action": "block" },
     "config_file_scanning": { "action": "block" },
     "supply_chain": { "action": "block" }
@@ -13062,7 +13070,7 @@ gh auth login
 
 # Now AI can help edit source files
 # Allowed for maintainers:
-Edit src/ai_guardian/tool_policy.py
+Edit src/ai_guardian/tools/policy.py
 Write tests/test_new_feature.py
 Edit README.md
 
@@ -22105,6 +22113,48 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.14.0] - 2026-07-13
+
+### Changed
+
+- **Refactor: extract hook_processing.py into per-event modules** — monolithic `hook_processing.py` (~8800 lines) split into focused modules under `hook_events/`: `content_pipeline.py` (shared content scanning pipeline), `post_tool_use.py` (PostToolUse handler), `scanners.py` (scanner runner functions), `session_events.py` (session lifecycle handlers), `ask_mode.py` (ask-mode dialog helpers), `utils.py` (shared utilities). All public symbols re-exported from `hook_processing.py` for backward compatibility (#1491, #1551).
+
+- **Refactor: extract secret and transcript scanning** — `secret_scanning.py` and `transcript_scanning.py` extracted from `hook_processing.py` as standalone modules (Phase 5a-5b, #1491, #1551).
+
+- **Refactor: ScannerRegistry with pipeline-based invocation** — new `scanners/scanner_registry.py` provides declarative scanner metadata (13 scanners), hook event membership, ordering, and ask-mode support. Content scanning blocks in PreToolUse/UserPromptSubmit are now gated by `_pipeline_names` built from the registry (#1253, #1544).
+
+- **Refactor: post-scan filter pipeline** — new `scanners/post_scan_filters.py` provides `apply_post_scan_pipeline()` for generic violation logging and ask-mode dispatch. Migrated 11 scanner blocks to the shared pipeline, deleting 4 dead helpers (#1254, #1546, #1550).
+
+- **Refactor: extract tray into dedicated package** — `daemon/tray.py` (4000+ lines) split into `tray/` package: `app.py`, `animation.py`, `health.py`, `icons.py`, `menu.py`, `menu_builder.py`, `notifications.py`, `plugin_runner.py`, `plugins.py`. Backward-compat shims at old paths (#1543, #1547, #1561).
+
+- **Refactor: extract config modules into subpackage** — `config_utils.py`, `config_display.py`, `config_loaders.py`, `config_writer.py`, `config_inspector.py`, `config_manager.py` moved to `config/` subpackage. Backward-compat shims at old paths (#1562).
+
+- **Refactor: extract scanners into subpackage** — `prompt_injection.py`, `context_poisoning.py`, `secret_redactor.py`, `supply_chain.py`, `config_scanner.py`, `canary_detection.py`, `exfil_detection.py`, `offensive_language.py`, `scan_result.py`, `bandit_scanner.py`, `ast_scanner.py`, `image_scanner.py`, `ml_detection.py` moved to `scanners/` subpackage (#1562).
+
+- **Refactor: extract setup.py into subpackage** — monolithic `setup.py` split into `setup/` package: `config.py` (default config template), `hooks.py` (IDE hook setup), `mcp.py` (MCP configuration), `rules.py` (guidelines files), `utils.py` (helpers). Backward-compat shims at old paths (#1538).
+
+- **Refactor: extract tool patterns** — `IMMUTABLE_DENY_PATTERNS`, `MIXED_SETTINGS_PATTERNS`, `HOOK_INDICATOR_KEYS`, and `_strip_bash_heredoc_content()` extracted from `tool_policy.py` into new `tool_patterns.py` module (#1537).
+
+- **Refactor: shared response methods in base_agent.py** — `_block_response`, `_warn_response`, `_allow_response` extracted to eliminate duplicated `format_response` branches across adapter subclasses (#1535).
+
+- **Refactor: centralize hook event display names** — `HookEvent` enum in `constants.py` now carries `_DISPLAY_NAMES` dict and `ALL_HOOK_EVENT_DISPLAY_NAMES` frozenset. Adapters use the centralized set instead of hardcoded lists (#1549).
+
+### Fixed
+
+- **Config merge list deduplication** — `deep_merge()` now deduplicates list items during config merge (global + project + SDK overlay), preventing duplicate allowlist entries from accumulating (#1560).
+
+- **Hook event fallback for unmapped events** — adapters now fall back to enum value instead of raising KeyError for hook events not in the display names map (#1548).
+
+- **Moderator scenario expectations** — `config-exfil` and `ssrf-protection` moderator scenarios corrected to expect `block` for immutable core patterns that always block regardless of action mode (#1559).
+
+- **CI: SHA-tagged image cleanup** — new cleanup job in `scenario-tests.yml` deletes ephemeral SHA-tagged container images after scenario tests complete (#1564).
+
+- **CI: release readiness secrets passthrough** — `release-readiness.yml` now passes `secrets: inherit` to the `scenario-tests` job so quay.io credentials propagate to the container build step.
+
+- **Docs: stale module paths** — updated 14 references across 6 documentation files to reflect the v1.14.0 package reorganization (mcp_server → mcp/, prompt_injection → scanners/, tool_policy → tools/policy, setup.py → setup/, daemon/tray → tray/, violation_logger → violations/logger).
+
+- **Verified Cursor hook compatibility with Cursor v3.10.20** — `beforeSubmitPrompt`, `beforeReadFile`, and `postToolUse` confirmed firing correctly. Shell execution hooks (`beforeShellExecution`, `afterShellExecution`) verified via #1531 fix in this release.
+
 ## [1.13.3] - 2026-07-08
 
 ### Added
@@ -22146,12 +22196,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Hook regression testing guide** — new `docs/hook-regression-testing.md` covers dummy-agent container setup, scenario authoring, and CI integration (#1496).
 
 - **Bootstrap scan limitation documented** — Claude Code does not support a true SessionStart hook; bootstrap scanning fires on the first UserPromptSubmit instead. This limitation is now documented in AGENTS.md and the bootstrap-scan config page (#1506).
-
-## [1.13.2] - 2026-07-06
-
-### Fixed
-
-- **Container quick-start docs corrected** — README example now uses `curl` to download `run.sh` (no full repo clone required), pins image to `v1.13.2` instead of `:latest`, and includes required `ANTHROPIC_API_KEY` and `ACCEPT_PROPRIETARY_TOS=true` variables that were missing from the previous example.
 
 
 *(Earlier versions omitted — see CHANGELOG.md for full history)*
