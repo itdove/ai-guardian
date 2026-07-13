@@ -45,16 +45,16 @@ AI Guardian protects AI-assisted coding tools through multiple layers:
 | CLI | `src/ai_guardian/cli.py` | Command-line interface |
 | Daemon | `src/ai_guardian/daemon/` | Background service for faster hook responses |
 | Console (TUI) | `src/ai_guardian/tui/` | Interactive terminal UI for configuration |
-| MCP Server | `src/ai_guardian/mcp_server.py` | MCP security advisor tools |
+| MCP Server | `src/ai_guardian/mcp/` | MCP security advisor tools |
 | Scanner engines | `src/ai_guardian/scanners/` | Multi-engine secret scanning (gitleaks, betterleaks, leaktk) |
 | Custom Scanner SDK | `src/ai_guardian/scanners/sdk.py` | Python-based scanner base class |
-| Prompt injection | `src/ai_guardian/prompt_injection.py` | Heuristic prompt injection detection |
-| SSRF protection | `src/ai_guardian/ssrf_protector.py` | Private IP / metadata endpoint blocking |
-| Tool policy | `src/ai_guardian/tool_policy.py` | Allow/deny lists for tools and skills |
+| Prompt injection | `src/ai_guardian/scanners/prompt_injection.py` | Heuristic prompt injection detection |
+| SSRF protection | `src/ai_guardian/scanners/ssrf.py` | Private IP / metadata endpoint blocking |
+| Tool policy | `src/ai_guardian/tools/policy.py` | Allow/deny lists for tools and skills |
 | Profiles | `src/ai_guardian/profile_manager.py` | Named configuration profiles |
 | Annotations | `src/ai_guardian/annotations.py` | Inline false-positive suppression |
-| Violation logging | `src/ai_guardian/violation_logger.py` | JSON audit trail |
-| System tray | `src/ai_guardian/daemon/tray.py` | macOS/Linux menu bar icon |
+| Violation logging | `src/ai_guardian/violations/logger.py` | JSON audit trail |
+| System tray | `src/ai_guardian/tray/` | macOS/Linux menu bar icon |
 
 ## Development Setup
 
@@ -231,9 +231,9 @@ When adding a new feature, check whether it needs any of these surfaces:
 
 | Surface | When to add | Location |
 |---------|-------------|----------|
-| MCP tool | Read-only/query operation AI would benefit from calling | `src/ai_guardian/mcp_server.py` |
+| MCP tool | Read-only/query operation AI would benefit from calling | `src/ai_guardian/mcp/` |
 | Console panel | Feature has configurable settings | `src/ai_guardian/tui/` |
-| System tray | Feature produces a quick status or count | `src/ai_guardian/daemon/tray.py` |
+| System tray | Feature produces a quick status or count | `src/ai_guardian/tray/` |
 | CLI command | Feature needs a standalone command | `src/ai_guardian/cli.py` |
 
 ### Configuration Schema Changes
@@ -241,7 +241,7 @@ When adding a new feature, check whether it needs any of these surfaces:
 When adding new configuration options, update all of these:
 
 1. **JSON Schema**: `src/ai_guardian/schemas/ai-guardian-config.schema.json`
-2. **Setup defaults**: `src/ai_guardian/setup.py` (`_create_default_config()`)
+2. **Setup defaults**: `src/ai_guardian/setup/config.py` (`_create_default_config()`)
 3. **Example config**: `ai-guardian-example.json`
 4. **Console**: Verify auto-generation from schema (most panels auto-generate)
 5. **Code**: Implement reading the new config
@@ -311,13 +311,22 @@ Pip-installed ai-guardian on users' systems stays protected even if malicious co
 ```
 ai-guardian/
 ├── src/ai_guardian/         # Main package
-│   ├── daemon/              # Background daemon + system tray
-│   ├── tui/                 # Interactive Console (Textual)
+│   ├── config/              # Configuration loading, writing, display
+│   ├── daemon/              # Background daemon service
+│   ├── hook_adapters/       # IDE-specific hook adapters
+│   ├── hook_events/         # Per-event hook handlers
+│   ├── mcp/                 # MCP security advisor server
+│   ├── patterns/            # Detection patterns and validators
+│   ├── reporting/           # Audit, metrics, SARIF, support bundles
 │   ├── scanners/            # Multi-engine scanner framework + SDK
 │   ├── schemas/             # JSON config schema
-│   ├── skills/              # Built-in skill files
+│   ├── setup/               # IDE hook setup and config creation
 │   ├── templates/           # Config templates
-│   └── utils/               # Shared utilities
+│   ├── tools/               # Tool policy and patterns
+│   ├── tray/                # macOS/Linux system tray
+│   ├── tui/                 # Interactive Console (Textual)
+│   ├── violations/          # Violation tracking and guidance
+│   └── web/                 # Web console (NiceGUI)
 ├── tests/
 │   ├── unit/                # Fast isolated tests
 │   ├── integration/         # Cross-component tests

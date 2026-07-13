@@ -36,7 +36,7 @@ A project-level config that merges on top of the global config. Discovered via g
 
 ```json
 {
-  "secret_scanning": {
+  "prompt_injection": {
     "enabled": true,
     "immutable": ["enabled"],
     "action": "block"
@@ -264,7 +264,7 @@ ai-guardian validate
 
 Configurations are merged in this order (later sources override earlier ones):
 
-1. **Built-in defaults** (in ai_guardian/tool_policy.py)
+1. **Built-in defaults** (in ai_guardian/setup/config.py)
 2. **Remote configs** (from cascading priority URLs)
 3. **User config** (`~/.config/ai-guardian/ai-guardian.json`)
 4. **Local config** (`~/.ai-guardian.json`)

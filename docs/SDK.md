@@ -277,8 +277,8 @@ from ai_guardian import configure
 # Set overlay — deep-merges on top of resolved config
 configure(overlay={
     "preferred_ui": "headless",
-    "secret_scanning": {"action": "block"},
     "prompt_injection": {"action": "block"},
+    "supply_chain": {"action": "block"},
 })
 
 # All subsequent monitor() sessions use the overlay
@@ -298,7 +298,7 @@ For CI/CD and automation where code changes are not possible:
 AI_GUARDIAN_CONFIG_OVERLAY=/path/to/overlay.json ai-guardian scan
 
 # Inline JSON overlay (quick overrides)
-AI_GUARDIAN_CONFIG_INLINE='{"preferred_ui":"headless","secret_scanning":{"action":"block"}}' ai-guardian scan
+AI_GUARDIAN_CONFIG_INLINE='{"preferred_ui":"headless","prompt_injection":{"action":"block"}}' ai-guardian scan
 ```
 
 ### Overlay Priority
@@ -311,7 +311,7 @@ When multiple overlay sources are active, they merge in this order (lowest to hi
 
 ### Merge Semantics
 
-- **Deep merge**: Overlay `{"secret_scanning": {"action": "block"}}` only changes `action`, preserving other `secret_scanning` fields (engines, patterns, etc.)
+- **Deep merge**: Overlay `{"prompt_injection": {"action": "block"}}` only changes `action`, preserving other `prompt_injection` fields (detectors, patterns, etc.)
 - **Immutable fields respected**: If the global config marks a field as immutable, the overlay cannot override it
 - **No global-only restriction**: Unlike project configs, overlays CAN set global-only sections (`daemon`, `mcp_server`, etc.)
 
@@ -320,7 +320,6 @@ When multiple overlay sources are active, they merge in this order (lowest to hi
 ```json
 {
     "preferred_ui": "headless",
-    "secret_scanning": { "action": "block" },
     "prompt_injection": { "action": "block" },
     "config_file_scanning": { "action": "block" },
     "supply_chain": { "action": "block" }

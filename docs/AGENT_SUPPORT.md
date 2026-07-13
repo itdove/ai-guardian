@@ -315,7 +315,7 @@ Agent names: `claude`, `cursor`, `copilot`, `codex`, `windsurf`, `gemini`, `clin
 
 1. Create `src/ai_guardian/hook_adapters/<agent>.py` implementing `HookAdapter`
 2. Add the adapter to `ADAPTER_CLASSES` in `hook_adapters/__init__.py`
-3. Add setup config to `IDESetup.IDE_CONFIGS` in `setup.py`
+3. Add setup config to `IDESetup.IDE_CONFIGS` in `setup/hooks.py`
 4. Add tests in `tests/unit/test_<agent>_support.py`
 5. Update the tables in this document:
    - Supported Agents table

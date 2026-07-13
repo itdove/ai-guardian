@@ -150,7 +150,7 @@ gh auth login
 
 # Now AI can help edit source files
 # Allowed for maintainers:
-Edit src/ai_guardian/tool_policy.py
+Edit src/ai_guardian/tools/policy.py
 Write tests/test_new_feature.py
 Edit README.md
 

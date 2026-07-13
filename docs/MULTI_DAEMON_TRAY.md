@@ -621,7 +621,7 @@ container or remote daemon appear on the host tray.
 ### Option A — dummy-agent scenario (preferred)
 
 Requires the `action: ask` pattern to be configured in the container's
-`ai-guardian.json` (e.g., `secret_scanning.action: ask`).
+`ai-guardian.json` (e.g., `prompt_injection.action: ask`).
 
 Inside the container:
 
@@ -670,7 +670,7 @@ the user responds, then returns `{"decision": "allow_once"}` (or similar).
   - `PreToolUse` with a secret in `tool_input` → blocked by tool permission
     policy before secret scan runs
   - `PostToolUse` with a secret in `tool_response` → uses `secret_redaction`
-    (action=warn), not `secret_scanning` (action=ask)
+    (action=warn), not `secret_scanning` (always blocks)
   - `UserPromptSubmit` with a secret in transcript → transcript scanning always
     warns, never asks
 
