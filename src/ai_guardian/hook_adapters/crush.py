@@ -2,12 +2,13 @@
 
 Crush uses Claude Code's response format (hookSpecificOutput with
 permissionDecision). Detection relies on CRUSH=1 env var or
-event+tool_input field combination in hook data.
+Crush-specific field combination in hook data.
 """
 
 import os
 from typing import ClassVar, Dict, List
 
+from ai_guardian.constants import ALL_HOOK_EVENT_DISPLAY_NAMES
 from ai_guardian.hook_adapters.base import NormalizedHookInput
 from ai_guardian.hook_adapters.base_agent import BaseAgentAdapter
 
@@ -32,7 +33,13 @@ class CrushAdapter(BaseAgentAdapter):
             return True
         if os.environ.get("AI_AGENT", "").lower() == "crush":
             return True
-        if "event" in hook_data and "tool_input" in hook_data:
+        event = hook_data.get("event")
+        if (
+            isinstance(event, str)
+            and event in ALL_HOOK_EVENT_DISPLAY_NAMES
+            and "tool_input" in hook_data
+            and "hook_event_name" not in hook_data
+        ):
             return True
         return False
 

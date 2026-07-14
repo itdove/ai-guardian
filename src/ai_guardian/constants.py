@@ -129,6 +129,8 @@ CURSOR_HOOK_EVENTS = (
     "postToolUse",
 )
 
+CRUSH_HOOK_EVENTS = ("PreToolUse",)
+
 ALL_VIOLATION_TYPES = tuple(v.value for v in ViolationType)
 ALL_HOOK_EVENTS = tuple(e.value for e in HookEvent)
 ALL_ACTION_MODES = tuple(a.value for a in ActionMode)

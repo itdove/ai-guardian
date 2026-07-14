@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
 from ai_guardian.config.utils import get_config_dir
-from ai_guardian.constants import CURSOR_HOOK_EVENTS, HookEvent
+from ai_guardian.constants import CRUSH_HOOK_EVENTS, CURSOR_HOOK_EVENTS, HookEvent
 from ai_guardian.setup.utils import (
     _create_vbs_wrapper,
     _is_ai_guardian_command,
@@ -320,13 +320,14 @@ class IDESetup:
             "config_filename": "crush.json",
             "hooks": {
                 "hooks": {
-                    "PreToolUse": [
+                    event: [
                         {
                             "name": "ai-guardian",
                             "command": "ai-guardian",
                             "timeout": 30,
                         }
-                    ],
+                    ]
+                    for event in CRUSH_HOOK_EVENTS
                 }
             },
         },
@@ -797,7 +798,7 @@ class IDESetup:
                 existing_config["hooks"] = {}
 
             template_hooks = ai_guardian_hooks.get("hooks", ai_guardian_hooks)
-            for event_name in ["PreToolUse"]:
+            for event_name in CRUSH_HOOK_EVENTS:
                 if event_name not in template_hooks:
                     continue
                 if event_name not in existing_config["hooks"]:
@@ -984,7 +985,7 @@ class IDESetup:
 
             elif ide_type == "crush":
                 hooks = config.get("hooks", {})
-                for event_name in ["PreToolUse"]:
+                for event_name in CRUSH_HOOK_EVENTS:
                     if event_name in hooks:
                         hook_list = hooks[event_name]
                         if isinstance(hook_list, list):

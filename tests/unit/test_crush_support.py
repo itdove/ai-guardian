@@ -72,6 +72,26 @@ class TestCrushDetection:
     def test_can_handle_false_tool_input_only(self):
         assert CrushAdapter.can_handle({"tool_input": {}}) is False
 
+    def test_can_handle_false_unknown_event_name(self):
+        assert (
+            CrushAdapter.can_handle({"event": "CustomEvent", "tool_input": {}}) is False
+        )
+
+    def test_can_handle_false_when_hook_event_name_present(self):
+        assert (
+            CrushAdapter.can_handle(
+                {
+                    "event": "PreToolUse",
+                    "tool_input": {},
+                    "hook_event_name": "PreToolUse",
+                }
+            )
+            is False
+        )
+
+    def test_can_handle_false_non_string_event(self):
+        assert CrushAdapter.can_handle({"event": 123, "tool_input": {}}) is False
+
 
 class TestCrushNormalization:
     """Test Crush event normalization."""
