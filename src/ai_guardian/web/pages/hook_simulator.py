@@ -22,6 +22,7 @@ IDE_OPTIONS = [
     ("Augment", "augment"),
     ("Claude Code", "claude"),
     ("Cline / ZooCode", "cline"),
+    ("Crush", "crush"),
     ("Codex", "codex"),
     ("Cursor", "cursor"),
     ("Gemini CLI", "gemini"),

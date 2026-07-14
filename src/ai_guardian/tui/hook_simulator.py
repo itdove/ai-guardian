@@ -39,6 +39,7 @@ TOOL_OPTIONS = [
 
 IDE_OPTIONS = [
     ("Claude Code", "claude"),
+    ("Crush", "crush"),
     ("Cursor", "cursor"),
     ("GitHub Copilot", "copilot"),
     ("OpenCode", "opencode"),
