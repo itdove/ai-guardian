@@ -8,6 +8,7 @@ is not installed.
 
 import logging
 import os
+import socket
 import subprocess
 import sys
 import threading
@@ -307,6 +308,9 @@ class DaemonTray:
         self._last_autostart_attempt = 0.0
         self._last_stats_snapshot = None
 
+        # Push event subscriber (#650)
+        self._subscriber_running = False
+
         # Remote ask prompt forwarding (#1342)
         self._in_flight_prompts = set()
         self._prompt_poll_running = False
@@ -361,6 +365,7 @@ class DaemonTray:
         """Stop tray icon."""
         self._anim._stop_discovery_animation()
         self._stats_refresh_running = False
+        self._subscriber_running = False
         self._prompt_poll_running = False
         self._unregister_wake_handler()
         self._stop_web_console()
@@ -536,7 +541,11 @@ class DaemonTray:
             self._anim._discovery_in_progress = True
             self._anim._start_discovery_animation(delay=0)
             self._discovery.start_background_discovery(self._on_targets_updated)
+            self._discovery.start_container_event_stream(
+                callback=lambda: self._refresh_event.set()
+            )
         self._start_stats_refresh()
+        self._start_subscriber()
         self._start_prompt_poll()
         self._start_web_console()
         self._register_wake_handler()
@@ -958,6 +967,56 @@ class DaemonTray:
 
         thread = threading.Thread(target=_refresh, daemon=True, name="stats-refresh")
         thread.start()
+
+    def _start_subscriber(self):
+        """Start background thread subscribing to daemon push events (#650)."""
+        self._subscriber_running = True
+        thread = threading.Thread(
+            target=self._subscriber_loop, daemon=True, name="daemon-subscriber"
+        )
+        thread.start()
+
+    def _subscriber_sleep(self, seconds):
+        """Sleep in 0.1s slices, returning True if subscriber was stopped."""
+        deadline = time.monotonic() + seconds
+        while time.monotonic() < deadline and self._subscriber_running:
+            time.sleep(0.1)
+        return not self._subscriber_running
+
+    def _subscriber_loop(self):
+        """Connect as subscriber, listen for events, trigger refresh."""
+        from ai_guardian.daemon.client import connect_subscriber
+        from ai_guardian.daemon.protocol import decode_message
+
+        RECONNECT_DELAY = 5.0
+
+        while self._subscriber_running:
+            sock = connect_subscriber(timeout=2.0)
+            if sock is None:
+                if self._subscriber_sleep(RECONNECT_DELAY):
+                    return
+                continue
+
+            logger.info("Subscribed to daemon push events")
+            try:
+                while self._subscriber_running:
+                    try:
+                        msg = decode_message(sock, timeout=300.0)
+                        if msg.get("type") == "event":
+                            logger.debug("Push event: %s", msg.get("event", "?"))
+                            self._refresh_event.set()
+                    except socket.timeout:
+                        continue
+            except (ConnectionError, OSError, ValueError):
+                logger.debug("Subscriber connection lost, will reconnect")
+            finally:
+                try:
+                    sock.close()
+                except OSError:
+                    pass
+
+            if self._subscriber_running:
+                self._subscriber_sleep(RECONNECT_DELAY)
 
     def _on_targets_updated(self, targets):
         """Callback from background discovery with updated target list."""

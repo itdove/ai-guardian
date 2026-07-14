@@ -196,6 +196,24 @@ def make_sdk_check(check_type, data):
     }
 
 
+def make_subscribe():
+    """Create a subscribe message — client opts into push event notifications."""
+    return {"version": PROTOCOL_VERSION, "type": "subscribe"}
+
+
+def make_event(event_type, data=None):
+    """Create a push event notification (daemon → subscriber).
+
+    Args:
+        event_type: Event name, e.g. "state_changed", "paused", "resumed"
+        data: Optional dict with event details
+    """
+    msg = {"version": PROTOCOL_VERSION, "type": "event", "event": event_type}
+    if data is not None:
+        msg["data"] = data
+    return msg
+
+
 def make_ml_detect_request(content, source_type="user_prompt"):
     """Create an ML detection request message.
 

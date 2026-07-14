@@ -23,6 +23,7 @@ from ai_guardian.daemon import (
 from ai_guardian.daemon.protocol import (
     decode_message,
     encode_message,
+    make_event,
     make_pong,
     make_response,
 )
@@ -58,6 +59,11 @@ class DaemonServer:
         self._rest_port = 0
         self._tcp_port = 0
         self.state = DaemonState(idle_timeout=idle_timeout)
+
+        # Push notification subscribers (#650)
+        self._subscribers = []
+        self._subscribers_lock = threading.Lock()
+        self.state.add_state_observer(self._broadcast_event)
 
         from ai_guardian.daemon import set_daemon_state
 
@@ -129,6 +135,15 @@ class DaemonServer:
             self.state.flush_sessions()
         except Exception as e:
             logger.debug(f"Error flushing session state: {e}")
+
+        # Close all subscriber connections (#650)
+        with self._subscribers_lock:
+            for sock in self._subscribers:
+                try:
+                    sock.close()
+                except OSError:
+                    pass
+            self._subscribers.clear()
 
         # Close server socket to unblock accept()
         if self._server_socket:
@@ -224,6 +239,7 @@ class DaemonServer:
 
     def _handle_client(self, client_sock):
         """Handle a single client connection."""
+        is_subscriber = False
         try:
             request = decode_message(client_sock, timeout=5.0)
             msg_type = request.get("type", "")
@@ -238,6 +254,12 @@ class DaemonServer:
                 client_sock.sendall(encode_message(response))
                 client_sock.close()
                 self.stop()
+                return
+            elif msg_type == "subscribe":
+                response = make_response({"status": "subscribed"})
+                client_sock.sendall(encode_message(response))
+                self._add_subscriber(client_sock)
+                is_subscriber = True
                 return
             elif msg_type == "status":
                 response = make_response(self.state.get_stats())
@@ -314,10 +336,48 @@ class DaemonServer:
         except Exception as e:
             logger.error(f"Unexpected error handling client: {e}")
         finally:
+            if not is_subscriber:
+                try:
+                    client_sock.close()
+                except OSError:
+                    pass  # intentionally silent — cleanup best-effort
+
+    # --- Push notification subscribers (#650) ---
+
+    def _add_subscriber(self, sock):
+        """Register a socket for push event notifications."""
+        sock.settimeout(5.0)
+        with self._subscribers_lock:
+            self._subscribers.append(sock)
+            count = len(self._subscribers)
+        logger.info("Subscriber connected (total: %d)", count)
+
+    def _remove_subscriber(self, sock):
+        """Remove a disconnected subscriber socket."""
+        with self._subscribers_lock:
             try:
-                client_sock.close()
-            except OSError:
-                pass  # intentionally silent — cleanup best-effort
+                self._subscribers.remove(sock)
+            except ValueError:
+                pass
+        try:
+            sock.close()
+        except OSError:
+            pass
+
+    def _broadcast_event(self, event_type, data=None):
+        """Send event to all subscribers, removing broken connections."""
+        if not self._subscribers:
+            return
+        msg = encode_message(make_event(event_type, data))
+        dead = []
+        with self._subscribers_lock:
+            for sock in list(self._subscribers):
+                try:
+                    sock.sendall(msg)
+                except (OSError, socket.timeout):
+                    dead.append(sock)
+        for sock in dead:
+            self._remove_subscriber(sock)
 
     def _handle_hook_request(self, hook_data):
         """Process a hook request through existing ai-guardian logic.

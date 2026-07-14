@@ -110,7 +110,6 @@ class DaemonState:
 
         # Config reload tracking (#610)
         self._last_config_reload_at = None  # unix timestamp
-        self._on_config_reloaded = None  # optional callback
 
         # Project config tracking (#617)
         self._project_config_mtimes = {}  # project_dir -> mtime
@@ -152,6 +151,10 @@ class DaemonState:
 
         # Bootstrap session tracking (#1394) — in-memory only, flushed on restart
         self._seen_sessions: set = set()
+
+        # State change observers (#650) — push notifications to subscribers
+        self._state_observers = []
+        self._state_observers_lock = threading.Lock()
 
         # ML engine manager (#185) — lazy-loaded on first ml_detect request
         self._ml_engine_manager = None
@@ -348,6 +351,34 @@ class DaemonState:
                 return False
             return True
 
+    # --- State change observers (#650) ---
+
+    def add_state_observer(self, callback):
+        """Register a callback invoked on state changes.
+
+        Callback signature: (event_type: str, data: dict). Must be non-blocking.
+        """
+        with self._state_observers_lock:
+            self._state_observers.append(callback)
+
+    def remove_state_observer(self, callback):
+        """Unregister a state observer."""
+        with self._state_observers_lock:
+            try:
+                self._state_observers.remove(callback)
+            except ValueError:
+                pass
+
+    def _notify_state_changed(self, event_type, data=None):
+        """Fire all registered state observers. Best-effort, non-blocking."""
+        with self._state_observers_lock:
+            observers = list(self._state_observers)
+        for cb in observers:
+            try:
+                cb(event_type, data or {})
+            except Exception as e:
+                logger.debug("State observer error: %s", e)
+
     def queue_prompt(self, violation_dict, fallback_action, timeout_seconds):
         """Queue an ask prompt for host tray pickup.
 
@@ -472,17 +503,10 @@ class DaemonState:
             dict or None: Parsed config, or None if no config file
         """
         with self._lock:
-            if self._check_config_reload():
-                reloaded = self._reload_config()
-                callback = self._on_config_reloaded if reloaded else None
-            else:
-                callback = None
+            reloaded = self._reload_config() if self._check_config_reload() else False
             config = self._config
-        if callback:
-            try:
-                callback()
-            except Exception:
-                pass  # intentionally silent — cleanup best-effort
+        if reloaded:
+            self._notify_state_changed("config_reloaded")
         return config
 
     def force_reload_config(self):
@@ -490,13 +514,9 @@ class DaemonState:
         _clear_config_cache()
         with self._lock:
             reloaded = self._reload_config()
-            callback = self._on_config_reloaded if reloaded else None
             logger.info("Config force-reloaded (global + per-project caches cleared)")
-        if callback:
-            try:
-                callback()
-            except Exception:
-                pass  # intentionally silent — cleanup best-effort
+        if reloaded:
+            self._notify_state_changed("config_reloaded")
 
     def _check_config_reload(self):
         """Check if config file has changed (must be called with lock held).
@@ -630,15 +650,9 @@ class DaemonState:
                 self._last_project_config_reload_at = time.time()
                 self._compiled_patterns.clear()
                 logger.info(f"Project config changed: {config_path}")
-                callback = self._on_config_reloaded
-            else:
-                callback = None
 
-        if callback:
-            try:
-                callback()
-            except Exception:
-                pass  # intentionally silent — cleanup best-effort
+        if changed:
+            self._notify_state_changed("config_reloaded")
 
     def _cleanup_stale_project_configs(self):
         """Remove project config entries not seen for PROJECT_CONFIG_TTL.
@@ -772,6 +786,7 @@ class DaemonState:
                 self._paused_until = 0.0
                 logger.info("Daemon paused indefinitely")
         self._persist_pause_state()
+        self._notify_state_changed("paused", {"minutes": duration_minutes})
 
     def resume(self):
         """Resume hook scanning."""
@@ -780,6 +795,7 @@ class DaemonState:
             self._paused_until = 0.0
             logger.info("Daemon resumed")
         self._persist_pause_state()
+        self._notify_state_changed("resumed")
 
     def pause_remaining_seconds(self):
         """Get remaining seconds of a time-limited pause."""
@@ -808,6 +824,9 @@ class DaemonState:
                 self._paused_dirs[directory] = 0.0
                 logger.info("Directory paused indefinitely: %s", directory)
         self._persist_pause_state()
+        self._notify_state_changed(
+            "dir_paused", {"dir": directory, "minutes": duration_minutes}
+        )
 
     def resume_dir(self, directory):
         """Resume scanning for a specific project directory.
@@ -823,6 +842,7 @@ class DaemonState:
             else:
                 logger.debug("Directory was not paused: %s", directory)
         self._persist_pause_state()
+        self._notify_state_changed("dir_resumed", {"dir": directory})
 
     def is_dir_paused(self, directory):
         """Check if scanning is paused for a specific directory.

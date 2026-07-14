@@ -3,6 +3,8 @@
 import json
 import os
 import tempfile
+import threading
+import time
 from unittest import mock
 
 
@@ -1305,3 +1307,91 @@ class TestDiscoverAllParallel:
             d.discover_all()
             assert len(d.targets) == 1
             assert d.targets[0].name == "local"
+
+
+class TestContainerEventStream:
+    """Tests for container event streaming (#650)."""
+
+    def test_start_noop_without_docker_sdk(self):
+        d = DaemonDiscovery()
+        with mock.patch("ai_guardian.daemon.discovery.HAS_DOCKER_SDK", False):
+            d.start_container_event_stream(callback=lambda: None)
+        assert not hasattr(d, "_event_threads") or not d._event_threads
+
+    def test_stop_sets_flag(self):
+        d = DaemonDiscovery()
+        d._event_stream_running = True
+        d.stop_container_event_stream()
+        assert d._event_stream_running is False
+
+    def test_stream_calls_callback_on_matching_event(self):
+        d = DaemonDiscovery()
+        d._event_stream_running = True
+        called = threading.Event()
+
+        def fake_callback():
+            called.set()
+            d._event_stream_running = False
+
+        fake_event = {
+            "Action": "start",
+            "Actor": {
+                "Attributes": {
+                    "ai-guardian.daemon": "true",
+                    "name": "ag-test",
+                }
+            },
+        }
+
+        mock_client = mock.MagicMock()
+        mock_client.events.return_value = iter([fake_event])
+
+        d._stream_container_events(mock_client, "podman", fake_callback)
+        assert called.is_set()
+
+    def test_stream_ignores_non_matching_event(self):
+        d = DaemonDiscovery()
+        d._event_stream_running = True
+        called = {"n": 0}
+
+        def fake_callback():
+            called["n"] += 1
+
+        non_matching = {
+            "Action": "start",
+            "Actor": {"Attributes": {"name": "some-other-container"}},
+        }
+
+        call_count = {"n": 0}
+
+        def events_side_effect(**kw):
+            call_count["n"] += 1
+            if call_count["n"] > 1:
+                d._event_stream_running = False
+                return iter([])
+            return iter([non_matching])
+
+        mock_client = mock.MagicMock()
+        mock_client.events.side_effect = events_side_effect
+
+        d._stream_container_events(mock_client, "docker", fake_callback)
+        assert called["n"] == 0
+
+    def test_stream_reconnects_on_error(self):
+        d = DaemonDiscovery()
+        d._event_stream_running = True
+        attempt = {"n": 0}
+
+        def side_effect(*a, **kw):
+            attempt["n"] += 1
+            if attempt["n"] >= 2:
+                d._event_stream_running = False
+            raise ConnectionError("lost")
+
+        mock_client = mock.MagicMock()
+        mock_client.events.side_effect = side_effect
+
+        with mock.patch("time.sleep"):
+            d._stream_container_events(mock_client, "podman", lambda: None)
+
+        assert attempt["n"] >= 2
