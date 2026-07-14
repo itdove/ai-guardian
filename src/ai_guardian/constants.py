@@ -120,6 +120,15 @@ AUGMENT_TOOL_MAP = {
     "remove-files": "Delete",
 }
 
+CURSOR_HOOK_EVENTS = (
+    "beforeSubmitPrompt",
+    "beforeReadFile",
+    "beforeShellExecution",
+    "afterShellExecution",
+    "preToolUse",
+    "postToolUse",
+)
+
 ALL_VIOLATION_TYPES = tuple(v.value for v in ViolationType)
 ALL_HOOK_EVENTS = tuple(e.value for e in HookEvent)
 ALL_ACTION_MODES = tuple(a.value for a in ActionMode)

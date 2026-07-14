@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
 from ai_guardian.config.utils import get_config_dir
-from ai_guardian.constants import HookEvent
+from ai_guardian.constants import CURSOR_HOOK_EVENTS, HookEvent
 from ai_guardian.setup.utils import (
     _create_vbs_wrapper,
     _is_ai_guardian_command,
@@ -106,6 +106,7 @@ class IDESetup:
                 "beforeReadFile": [{"command": "ai-guardian"}],
                 "beforeShellExecution": [{"command": "ai-guardian"}],
                 "afterShellExecution": [{"command": "ai-guardian"}],
+                "preToolUse": [{"command": "ai-guardian"}],
                 "postToolUse": [{"command": "ai-guardian"}],
             },
         },
@@ -586,13 +587,7 @@ class IDESetup:
                 existing_config["version"] = 1
 
             # Merge all Cursor hooks
-            for hook_name in [
-                "beforeSubmitPrompt",
-                "beforeReadFile",
-                "beforeShellExecution",
-                "afterShellExecution",
-                "postToolUse",
-            ]:
+            for hook_name in CURSOR_HOOK_EVENTS:
                 if hook_name in ai_guardian_hooks:
                     existing_config["hooks"][hook_name] = ai_guardian_hooks[hook_name]
 
@@ -872,13 +867,7 @@ class IDESetup:
             elif ide_type == "cursor":
                 hooks = config.get("hooks", {})
                 # Check if any Cursor hooks contain ai-guardian
-                for hook_name in [
-                    "beforeSubmitPrompt",
-                    "beforeReadFile",
-                    "beforeShellExecution",
-                    "afterShellExecution",
-                    "postToolUse",
-                ]:
+                for hook_name in CURSOR_HOOK_EVENTS:
                     if hook_name in hooks:
                         hook_list = hooks[hook_name]
                         if isinstance(hook_list, list):

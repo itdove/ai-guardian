@@ -334,7 +334,7 @@ Before creating the release branch, check for open Dependabot security alerts an
 
 ## Cursor Hook Compatibility Verification (mandatory)
 
-Cursor IDE uses its own hooks in `~/.cursor/hooks.json`. Since Cursor could change hook support in any update, each release must verify all 5 hook events still fire correctly. This is a semi-automated 3-step flow.
+Cursor IDE uses its own hooks in `~/.cursor/hooks.json`. Since Cursor could change hook support in any update, each release must verify all 6 hook events still fire correctly. This is a semi-automated 3-step flow.
 
 **Workflow**: `.claude/skills/release/release_helper.py` (cursor-verify-* subcommands)
 
@@ -347,7 +347,7 @@ python .claude/skills/release/release_helper.py cursor-verify-setup
 This command:
 - Creates a debug hook script at `/tmp/cursor-hook-debug.sh`
 - Backs up `~/.cursor/hooks.json`
-- Adds debug hook entries alongside existing hooks for all 5 events (beforeSubmitPrompt, beforeReadFile, beforeShellExecution, afterShellExecution, postToolUse)
+- Adds debug hook entries alongside existing hooks for all 6 events (beforeSubmitPrompt, beforeReadFile, beforeShellExecution, afterShellExecution, preToolUse, postToolUse)
 - Cleans any old debug log files
 - Prints instructions for the manual test
 
@@ -358,9 +358,11 @@ Follow the printed instructions:
 2. Restart Cursor completely (quit and relaunch)
 3. Open any project in Cursor
 4. Type a prompt that triggers a file read (e.g., "Read the contents of README.md")
-5. Wait for the response to complete
-6. Close the Cursor chat session (or close Cursor entirely)
-7. Return to this release session
+5. Type a prompt that triggers a shell command (e.g., "Run ls in the terminal")
+6. Type a prompt that triggers a tool use (e.g., "Add a comment to README.md")
+7. Wait for the response to complete
+8. Close the Cursor chat session (or close Cursor entirely)
+9. Return to this release session
 
 ### Step 3 — Analysis (automated)
 
@@ -382,7 +384,7 @@ Removes debug hooks from hooks.json, deletes debug script and log files, removes
 
 ### Decision
 
-- **All 5 events PASS**: Proceed with release. Add to CHANGELOG: "Verified Cursor hook compatibility with Cursor vX.Y.Z"
+- **All 6 events PASS**: Proceed with release. Add to CHANGELOG: "Verified Cursor hook compatibility with Cursor vX.Y.Z"
 - **Any event FAIL**: Block the release. Investigate whether Cursor dropped hook support. Only proceed with explicit override and documented justification.
 
 **Skipping**: May be skipped for hotfix releases (`/release hotfix`) when the fix is urgent, but this should be documented in the release notes.
