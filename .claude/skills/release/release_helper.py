@@ -519,6 +519,7 @@ class CursorHookVerifier:
         "beforeReadFile",
         "beforeShellExecution",
         "afterShellExecution",
+        "preToolUse",
         "postToolUse",
     ]
 
@@ -620,9 +621,13 @@ echo '{{}}'
         print("  3. Open any project in Cursor", file=sys.stderr)
         print("  4. Type a prompt that triggers a file read", file=sys.stderr)
         print('     (e.g., "Read the contents of README.md")', file=sys.stderr)
-        print("  5. Wait for the response to complete", file=sys.stderr)
-        print("  6. Close the Cursor chat session", file=sys.stderr)
-        print("  7. Return here and run: cursor-verify-analyze", file=sys.stderr)
+        print("  5. Type a prompt that triggers a shell command", file=sys.stderr)
+        print('     (e.g., "Run ls in the terminal")', file=sys.stderr)
+        print("  6. Type a prompt that triggers a tool use", file=sys.stderr)
+        print('     (e.g., "Add a comment to README.md")', file=sys.stderr)
+        print("  7. Wait for the response to complete", file=sys.stderr)
+        print("  8. Close the Cursor chat session", file=sys.stderr)
+        print("  9. Return here and run: cursor-verify-analyze", file=sys.stderr)
         print("", file=sys.stderr)
         return True
 

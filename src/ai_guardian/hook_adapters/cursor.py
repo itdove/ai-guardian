@@ -8,7 +8,7 @@ import json
 import logging
 from typing import ClassVar, Dict, List, Optional
 
-from ai_guardian.constants import HookEvent
+from ai_guardian.constants import CURSOR_HOOK_EVENTS, HookEvent
 from ai_guardian.hook_adapters.base import HookAdapter, NormalizedHookInput
 
 logger = logging.getLogger(__name__)
@@ -40,14 +40,7 @@ class CursorAdapter(HookAdapter):
         if "hook_name" in hook_data:
             return True
         event = hook_data.get("hook_event_name", "")
-        return event in (
-            "beforeSubmitPrompt",
-            "preToolUse",
-            "postToolUse",
-            "beforeReadFile",
-            "beforeShellExecution",
-            "afterShellExecution",
-        )
+        return event in CURSOR_HOOK_EVENTS
 
     @staticmethod
     def _extract_tool_name(hook_data: Dict) -> Optional[str]:

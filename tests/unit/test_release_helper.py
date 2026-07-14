@@ -332,6 +332,7 @@ def _create_settings(settings_path, hooks=None):
         "beforeReadFile": [{"command": "ai-guardian"}],
         "beforeShellExecution": [{"command": "ai-guardian"}],
         "afterShellExecution": [{"command": "ai-guardian"}],
+        "preToolUse": [{"command": "ai-guardian"}],
         "postToolUse": [{"command": "ai-guardian"}],
     }
     settings_path.write_text(json.dumps(settings, indent=2))
