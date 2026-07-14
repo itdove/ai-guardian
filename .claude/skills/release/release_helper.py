@@ -514,14 +514,19 @@ class CursorHookVerifier:
     SETTINGS_BACKUP_SUFFIX = ".cursor-verify-backup"
     DEBUG_HOOK_MARKER = "cursor-hook-debug.sh"
 
-    EXPECTED_EVENTS = [
-        "beforeSubmitPrompt",
-        "beforeReadFile",
-        "beforeShellExecution",
-        "afterShellExecution",
-        "preToolUse",
-        "postToolUse",
-    ]
+    try:
+        from ai_guardian.constants import CURSOR_HOOK_EVENTS
+
+        EXPECTED_EVENTS = list(CURSOR_HOOK_EVENTS)
+    except ImportError:
+        EXPECTED_EVENTS = [
+            "beforeSubmitPrompt",
+            "beforeReadFile",
+            "beforeShellExecution",
+            "afterShellExecution",
+            "preToolUse",
+            "postToolUse",
+        ]
 
     def __init__(self, settings_path: Optional[str] = None, debug_dir: str = "/tmp"):
         self.debug_dir = Path(debug_dir)

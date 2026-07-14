@@ -871,8 +871,10 @@ class Doctor:
                     if hook_count < 5:
                         all_configured = False
                 elif ide_type == "cursor":
+                    from ai_guardian.constants import CURSOR_HOOK_EVENTS
+
                     hook_count = self._count_cursor_hooks(config_path)
-                    total = len(self._get_cursor_events())
+                    total = len(CURSOR_HOOK_EVENTS)
                     results.append(f"{ide_name}: {hook_count}/{total} hooks")
                     if hook_count < total:
                         all_configured = False
@@ -937,12 +939,6 @@ class Doctor:
         except Exception:
             return 0
 
-    @staticmethod
-    def _get_cursor_events():
-        from ai_guardian.constants import CURSOR_HOOK_EVENTS
-
-        return CURSOR_HOOK_EVENTS
-
     def _count_cursor_hooks(self, config_path: Path) -> int:
         from ai_guardian.constants import CURSOR_HOOK_EVENTS
         from ai_guardian.setup import _is_ai_guardian_command
@@ -950,7 +946,7 @@ class Doctor:
         try:
             with open(config_path) as f:
                 config = json.load(f)
-            hooks = config.get("hooks", config)
+            hooks = config.get("hooks", {})
             count = 0
             for hook_name in CURSOR_HOOK_EVENTS:
                 if hook_name in hooks:
