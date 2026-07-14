@@ -680,7 +680,9 @@ class TestConfigReloadTracking:
         config_path.write_text(json.dumps({"v": 1}))
         fired = []
         state = DaemonState(config_path=config_path)
-        state._on_config_reloaded = lambda: fired.append(True)
+        state.add_state_observer(
+            lambda t, d: fired.append(True) if t == "config_reloaded" else None
+        )
 
         time.sleep(0.05)
         config_path.write_text(json.dumps({"v": 2}))
@@ -693,7 +695,9 @@ class TestConfigReloadTracking:
         config_path.write_text(json.dumps({"v": 1}))
         fired = []
         state = DaemonState(config_path=config_path)
-        state._on_config_reloaded = lambda: fired.append(True)
+        state.add_state_observer(
+            lambda t, d: fired.append(True) if t == "config_reloaded" else None
+        )
 
         state.force_reload_config()
         assert fired == [True]
@@ -703,7 +707,9 @@ class TestConfigReloadTracking:
         config_path.write_text(json.dumps({"v": 1}))
         fired = []
         state = DaemonState(config_path=config_path)
-        state._on_config_reloaded = lambda: fired.append(True)
+        state.add_state_observer(
+            lambda t, d: fired.append(True) if t == "config_reloaded" else None
+        )
 
         state.get_config()  # no change, no callback
         assert fired == []
@@ -712,7 +718,7 @@ class TestConfigReloadTracking:
         config_path = tmp_path / "ai-guardian.json"
         config_path.write_text(json.dumps({"v": 1}))
         state = DaemonState(config_path=config_path)
-        state._on_config_reloaded = lambda: (_ for _ in ()).throw(RuntimeError("boom"))
+        state.add_state_observer(lambda t, d: 1 / 0)
 
         time.sleep(0.05)
         config_path.write_text(json.dumps({"v": 2}))
@@ -730,7 +736,9 @@ class TestProjectConfigTracking:
 
         state = DaemonState(config_path=tmp_path / "nonexistent.json")
         fired = []
-        state._on_config_reloaded = lambda: fired.append(True)
+        state.add_state_observer(
+            lambda t, d: fired.append(True) if t == "config_reloaded" else None
+        )
 
         state.check_project_config(str(project_dir))
 
@@ -749,7 +757,9 @@ class TestProjectConfigTracking:
 
         state = DaemonState(config_path=tmp_path / "nonexistent.json")
         fired = []
-        state._on_config_reloaded = lambda: fired.append(True)
+        state.add_state_observer(
+            lambda t, d: fired.append(True) if t == "config_reloaded" else None
+        )
 
         state.check_project_config(str(project_dir))
         assert fired == []
@@ -781,7 +791,9 @@ class TestProjectConfigTracking:
 
         state = DaemonState(config_path=tmp_path / "nonexistent.json")
         fired = []
-        state._on_config_reloaded = lambda: fired.append(True)
+        state.add_state_observer(
+            lambda t, d: fired.append(True) if t == "config_reloaded" else None
+        )
 
         # First call: no config file
         state.check_project_config(str(project_dir))
@@ -855,7 +867,7 @@ class TestProjectConfigTracking:
         config_path.write_text(json.dumps({"v": 1}))
 
         state = DaemonState(config_path=tmp_path / "nonexistent.json")
-        state._on_config_reloaded = lambda: (_ for _ in ()).throw(RuntimeError("boom"))
+        state.add_state_observer(lambda t, d: 1 / 0)
 
         state.check_project_config(str(project_dir))
         time.sleep(0.05)
@@ -1250,3 +1262,73 @@ class TestBootstrapSessionTracking:
 
         assert results.count(True) == 1
         assert results.count(False) == 9
+
+
+class TestStateObserver:
+    """Tests for state change observer pattern (#650)."""
+
+    def test_observer_fires_on_pause(self, tmp_path):
+        state = DaemonState(config_path=tmp_path / "c.json")
+        events = []
+        state.add_state_observer(lambda t, d: events.append((t, d)))
+        state.pause(5)
+        assert len(events) == 1
+        assert events[0][0] == "paused"
+        assert events[0][1]["minutes"] == 5
+
+    def test_observer_fires_on_resume(self, tmp_path):
+        state = DaemonState(config_path=tmp_path / "c.json")
+        events = []
+        state.add_state_observer(lambda t, d: events.append((t, d)))
+        state.pause()
+        state.resume()
+        assert events[-1][0] == "resumed"
+
+    def test_observer_fires_on_pause_dir(self, tmp_path):
+        state = DaemonState(config_path=tmp_path / "c.json")
+        events = []
+        state.add_state_observer(lambda t, d: events.append((t, d)))
+        state.pause_dir("/project/a", 10)
+        assert events[-1][0] == "dir_paused"
+        assert "/project/a" in events[-1][1]["dir"]
+
+    def test_observer_fires_on_resume_dir(self, tmp_path):
+        state = DaemonState(config_path=tmp_path / "c.json")
+        events = []
+        state.add_state_observer(lambda t, d: events.append((t, d)))
+        state.pause_dir("/project/a")
+        state.resume_dir("/project/a")
+        assert events[-1][0] == "dir_resumed"
+
+    def test_observer_fires_on_config_reload(self, tmp_path):
+        cfg = tmp_path / "ai-guardian.json"
+        cfg.write_text("{}")
+        state = DaemonState(config_path=cfg)
+        events = []
+        state.add_state_observer(lambda t, d: events.append((t, d)))
+        state.force_reload_config()
+        assert any(e[0] == "config_reloaded" for e in events)
+
+    def test_remove_observer(self, tmp_path):
+        state = DaemonState(config_path=tmp_path / "c.json")
+        events = []
+        cb = lambda t, d: events.append((t, d))
+        state.add_state_observer(cb)
+        state.remove_state_observer(cb)
+        state.pause()
+        assert len(events) == 0
+
+    def test_observer_error_does_not_crash(self, tmp_path):
+        state = DaemonState(config_path=tmp_path / "c.json")
+        state.add_state_observer(lambda t, d: 1 / 0)
+        state.pause(5)
+        assert state.paused
+
+    def test_multiple_observers(self, tmp_path):
+        state = DaemonState(config_path=tmp_path / "c.json")
+        a, b = [], []
+        state.add_state_observer(lambda t, d: a.append(t))
+        state.add_state_observer(lambda t, d: b.append(t))
+        state.resume()
+        assert "resumed" in a
+        assert "resumed" in b

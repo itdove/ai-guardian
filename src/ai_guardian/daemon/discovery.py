@@ -690,10 +690,88 @@ class DaemonDiscovery:
             done.wait(timeout=timeout)
 
     def stop(self):
-        """Stop background discovery."""
+        """Stop background discovery and container event streaming."""
         self._running = False
         if hasattr(self, "_refresh_event"):
             self._refresh_event.set()
         if self._thread:
             self._thread.join(timeout=3)
             self._thread = None
+        self.stop_container_event_stream()
+
+    # --- Container event streaming (#650) ---
+
+    def start_container_event_stream(self, callback):
+        """Start background threads streaming container lifecycle events.
+
+        Opens docker SDK ``client.events()`` for each reachable engine
+        socket, filtering for AI Guardian container start/stop events.
+        Calls ``callback()`` (no args) when relevant events occur.
+        """
+        if not HAS_DOCKER_SDK:
+            return
+
+        self._event_stream_running = True
+        self._event_threads = []
+        self._event_clients = []
+
+        clients = self._get_docker_clients()
+        for client, engine in clients:
+            self._event_clients.append(client)
+            thread = threading.Thread(
+                target=self._stream_container_events,
+                args=(client, engine, callback),
+                daemon=True,
+                name=f"container-events-{engine}",
+            )
+            thread.start()
+            self._event_threads.append(thread)
+
+    def _stream_container_events(self, client, engine, callback):
+        """Stream container events, triggering callback on relevant changes."""
+        RECONNECT_DELAY = 10.0
+
+        while self._event_stream_running:
+            try:
+                events = client.events(
+                    decode=True,
+                    filters={
+                        "type": ["container"],
+                        "event": ["start", "stop", "die", "pause", "unpause"],
+                    },
+                )
+                for event in events:
+                    if not self._event_stream_running:
+                        break
+                    attrs = event.get("Actor", {}).get("Attributes", {})
+                    if attrs.get("ai-guardian.daemon") == "true":
+                        logger.info(
+                            "Container event [%s]: %s %s",
+                            engine,
+                            event.get("Action", "?"),
+                            attrs.get("name", "?"),
+                        )
+                        callback()
+            except Exception as e:
+                if self._event_stream_running:
+                    logger.debug(
+                        "Container event stream [%s] error: %s, "
+                        "reconnecting in %.0fs",
+                        engine,
+                        e,
+                        RECONNECT_DELAY,
+                    )
+                    time.sleep(RECONNECT_DELAY)
+
+    def stop_container_event_stream(self):
+        """Stop container event streaming threads."""
+        self._event_stream_running = False
+        for client in getattr(self, "_event_clients", []):
+            try:
+                client.close()
+            except Exception:
+                pass  # intentionally silent — cleanup best-effort
+        for thread in getattr(self, "_event_threads", []):
+            thread.join(timeout=3)
+        self._event_clients = []
+        self._event_threads = []

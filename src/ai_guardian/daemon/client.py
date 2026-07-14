@@ -27,6 +27,7 @@ from ai_guardian.daemon.protocol import (
     make_shutdown,
     make_status_request,
     make_reload_config,
+    make_subscribe,
 )
 
 logger = logging.getLogger(__name__)
@@ -291,6 +292,42 @@ def send_ml_detect(content, source_type="user_prompt", timeout=2.0):
         finally:
             sock.close()
     except Exception:
+        return None
+
+
+def connect_subscriber(timeout=2.0):
+    """Connect to daemon as a push event subscriber (#650).
+
+    Returns a connected socket that receives length-prefixed JSON event
+    messages whenever daemon state changes. Caller owns the socket and
+    must close it when done.
+
+    Returns:
+        socket.socket or None: Subscribed socket, or None on failure
+    """
+    sock = None
+    try:
+        sock = _connect(timeout=timeout)
+        if sock is None:
+            return None
+
+        sock.sendall(encode_message(make_subscribe()))
+        response = decode_message(sock, timeout=timeout)
+
+        if (
+            response.get("type") == "response"
+            and response.get("data", {}).get("status") == "subscribed"
+        ):
+            return sock
+
+        sock.close()
+        return None
+    except Exception:
+        if sock:
+            try:
+                sock.close()
+            except OSError:
+                pass
         return None
 
 

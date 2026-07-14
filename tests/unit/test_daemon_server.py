@@ -23,6 +23,7 @@ from ai_guardian.daemon.protocol import (
     make_ping,
     make_shutdown,
     make_status_request,
+    make_subscribe,
 )
 from ai_guardian.daemon.server import DaemonServer
 from ai_guardian.daemon.state import DaemonState
@@ -425,6 +426,129 @@ class TestDaemonServerProtocol:
             assert "exit_code" in data
         finally:
             sock.close()
+
+
+class TestDaemonServerSubscriber:
+    """Tests for push event subscriber protocol (#650)."""
+
+    @pytest.fixture
+    def running_server(self, monkeypatch):
+        d = tempfile.mkdtemp(prefix="ag")
+        monkeypatch.setenv("AI_GUARDIAN_STATE_DIR", d)
+        from pathlib import Path
+
+        server = DaemonServer(idle_timeout=30, enable_rest_api=False)
+        thread = threading.Thread(target=server.start, daemon=True)
+        thread.start()
+
+        sock_path = Path(d) / "daemon.sock"
+        for _ in range(30):
+            if sock_path.exists():
+                break
+            time.sleep(0.1)
+
+        yield server, sock_path
+
+        server.stop()
+        thread.join(timeout=3)
+        import shutil
+
+        shutil.rmtree(d, ignore_errors=True)
+
+    def _connect(self, sock_path, timeout=2.0):
+        sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+        sock.settimeout(timeout)
+        sock.connect(str(sock_path))
+        return sock
+
+    def test_subscribe_returns_ack(self, running_server):
+        server, sock_path = running_server
+        sock = self._connect(sock_path)
+        try:
+            sock.sendall(encode_message(make_subscribe()))
+            response = decode_message(sock, timeout=2.0)
+            assert response["type"] == "response"
+            assert response["data"]["status"] == "subscribed"
+        finally:
+            sock.close()
+
+    def test_subscriber_receives_event_on_pause(self, running_server):
+        server, sock_path = running_server
+        sock = self._connect(sock_path)
+        try:
+            sock.sendall(encode_message(make_subscribe()))
+            decode_message(sock, timeout=2.0)  # consume ack
+
+            server.state.pause(5)
+
+            event = decode_message(sock, timeout=2.0)
+            assert event["type"] == "event"
+            assert event["event"] == "paused"
+            assert event["data"]["minutes"] == 5
+        finally:
+            sock.close()
+
+    def test_subscriber_receives_event_on_resume(self, running_server):
+        server, sock_path = running_server
+        sock = self._connect(sock_path)
+        try:
+            sock.sendall(encode_message(make_subscribe()))
+            decode_message(sock, timeout=2.0)
+
+            server.state.pause()
+            decode_message(sock, timeout=2.0)  # consume pause event
+
+            server.state.resume()
+            event = decode_message(sock, timeout=2.0)
+            assert event["type"] == "event"
+            assert event["event"] == "resumed"
+        finally:
+            sock.close()
+
+    def test_dead_subscriber_cleaned_on_broadcast(self, running_server):
+        server, sock_path = running_server
+        sock = self._connect(sock_path)
+        sock.sendall(encode_message(make_subscribe()))
+        decode_message(sock, timeout=2.0)
+        sock.close()
+
+        server.state.pause(5)
+        time.sleep(0.2)
+
+        with server._subscribers_lock:
+            assert len(server._subscribers) == 0
+
+    def test_multiple_subscribers(self, running_server):
+        server, sock_path = running_server
+        socks = []
+        for _ in range(3):
+            s = self._connect(sock_path)
+            s.sendall(encode_message(make_subscribe()))
+            decode_message(s, timeout=2.0)
+            socks.append(s)
+
+        server.state.resume()
+
+        for s in socks:
+            event = decode_message(s, timeout=2.0)
+            assert event["type"] == "event"
+            assert event["event"] == "resumed"
+            s.close()
+
+    def test_one_shot_client_still_works_with_subscribers(self, running_server):
+        server, sock_path = running_server
+        sub = self._connect(sock_path)
+        sub.sendall(encode_message(make_subscribe()))
+        decode_message(sub, timeout=2.0)
+
+        ping_sock = self._connect(sock_path)
+        try:
+            ping_sock.sendall(encode_message(make_ping()))
+            response = decode_message(ping_sock, timeout=2.0)
+            assert response["type"] == "pong"
+        finally:
+            ping_sock.close()
+            sub.close()
 
 
 class TestDaemonServerTCP:

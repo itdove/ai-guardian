@@ -1,6 +1,7 @@
 """Tests for daemon system tray integration."""
 
 import sys
+import threading
 import time
 from unittest import mock
 
@@ -6359,3 +6360,77 @@ class TestMkRestartGuard:
         mock_sleep.assert_called_once_with(3.0)
         assert tray._health._restart_in_progress is False
         assert tray._refresh_event.is_set()
+
+
+class TestDaemonTraySubscriber:
+    """Tests for push event subscriber thread (#650)."""
+
+    def _make_tray(self):
+        from ai_guardian.tray.app import DaemonTray
+
+        return DaemonTray(
+            get_stats_callback=lambda: {},
+            stop_callback=lambda: None,
+            pause_callback=lambda: None,
+        )
+
+    def test_subscriber_sets_refresh_event_on_event(self):
+        tray = self._make_tray()
+        tray._subscriber_running = True
+
+        received = threading.Event()
+        orig_set = tray._refresh_event.set
+
+        def capture_set():
+            orig_set()
+            received.set()
+
+        tray._refresh_event.set = capture_set
+
+        with mock.patch("ai_guardian.daemon.client.connect_subscriber") as mock_connect:
+            import socket as _socket
+
+            server_sock, client_sock = _socket.socketpair()
+
+            mock_connect.return_value = client_sock
+
+            thread = threading.Thread(target=tray._subscriber_loop, daemon=True)
+            thread.start()
+
+            from ai_guardian.daemon.protocol import encode_message, make_event
+
+            server_sock.sendall(encode_message(make_event("paused")))
+
+            assert received.wait(timeout=2.0), "refresh_event not set"
+
+            tray._subscriber_running = False
+            server_sock.close()
+            thread.join(timeout=2)
+
+    def test_subscriber_reconnects_on_failure(self):
+        tray = self._make_tray()
+        tray._subscriber_running = True
+        call_count = {"n": 0}
+
+        def mock_connect(timeout=2.0):
+            call_count["n"] += 1
+            if call_count["n"] >= 2:
+                tray._subscriber_running = False
+            return None
+
+        with mock.patch(
+            "ai_guardian.daemon.client.connect_subscriber",
+            side_effect=mock_connect,
+        ):
+            tray._subscriber_loop()
+
+        assert call_count["n"] >= 2
+
+    def test_stop_sets_subscriber_running_false(self):
+        tray = self._make_tray()
+        tray._subscriber_running = True
+        tray._icon = None
+        tray._stats_refresh_running = False
+        tray._prompt_poll_running = False
+        tray.stop()
+        assert tray._subscriber_running is False

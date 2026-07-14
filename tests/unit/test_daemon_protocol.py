@@ -12,6 +12,7 @@ from ai_guardian.daemon.protocol import (
     PROTOCOL_VERSION,
     decode_message,
     encode_message,
+    make_event,
     make_hook_request,
     make_pause_dir,
     make_ping,
@@ -21,6 +22,7 @@ from ai_guardian.daemon.protocol import (
     make_resume_dir,
     make_shutdown,
     make_status_request,
+    make_subscribe,
 )
 
 
@@ -180,3 +182,22 @@ class TestMessageFactories:
         assert msg["version"] == PROTOCOL_VERSION
         assert msg["type"] == "resume_dir"
         assert msg["data"]["dir"] == "/project/a"
+
+    def test_make_subscribe(self):
+        msg = make_subscribe()
+        assert msg["version"] == PROTOCOL_VERSION
+        assert msg["type"] == "subscribe"
+
+    def test_make_event_with_data(self):
+        msg = make_event("paused", {"minutes": 5})
+        assert msg["version"] == PROTOCOL_VERSION
+        assert msg["type"] == "event"
+        assert msg["event"] == "paused"
+        assert msg["data"]["minutes"] == 5
+
+    def test_make_event_without_data(self):
+        msg = make_event("resumed")
+        assert msg["version"] == PROTOCOL_VERSION
+        assert msg["type"] == "event"
+        assert msg["event"] == "resumed"
+        assert "data" not in msg
