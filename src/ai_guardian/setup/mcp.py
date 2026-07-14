@@ -79,6 +79,11 @@ _MCP_IDE_CONFIGS = {
         "config_key": "mcp",
         "skill_dir": ".opencode/skills",
     },
+    "crush": {
+        "config_file": ".crush.json",
+        "config_key": "mcp",
+        "skill_dir": ".crush/skills",
+    },
 }
 
 _MCP_SERVER_ENTRY = {
