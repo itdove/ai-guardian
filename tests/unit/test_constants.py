@@ -7,6 +7,8 @@ from ai_guardian.constants import (
     ALL_VIOLATION_TYPES,
     ALL_HOOK_EVENTS,
     ALL_ACTION_MODES,
+    CRUSH_HOOK_EVENTS,
+    ALL_HOOK_EVENT_DISPLAY_NAMES,
 )
 
 
@@ -83,3 +85,15 @@ class TestHookEvent:
         assert "pretooluse" in events
         assert "beforereadfile" in events
         assert "prompt" not in events
+
+
+class TestCrushHookEvents:
+    def test_is_tuple(self):
+        assert isinstance(CRUSH_HOOK_EVENTS, tuple)
+
+    def test_contains_pretooluse(self):
+        assert "PreToolUse" in CRUSH_HOOK_EVENTS
+
+    def test_all_are_valid_display_names(self):
+        for event in CRUSH_HOOK_EVENTS:
+            assert event in ALL_HOOK_EVENT_DISPLAY_NAMES
