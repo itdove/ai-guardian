@@ -20,6 +20,7 @@ from ai_guardian.hook_adapters.augment import AugmentAdapter
 from ai_guardian.hook_adapters.codex import CodexAdapter
 from ai_guardian.hook_adapters.base_agent import BaseAgentAdapter
 from ai_guardian.hook_adapters.opencode import OpenCodeAdapter
+from ai_guardian.hook_adapters.crush import CrushAdapter
 from ai_guardian.hook_adapters.junie import JunieAdapter
 from ai_guardian.hook_adapters.dummy_agent import DummyAgentAdapter
 
@@ -36,6 +37,7 @@ ADAPTER_CLASSES = [
     KiroAdapter,  # kiro_hook_type or kiro_version
     AugmentAdapter,  # is_mcp_tool + tool_name
     OpenCodeAdapter,  # opencode_version or hook_source
+    CrushAdapter,  # CRUSH env var or event+tool_input fields
     DummyAgentAdapter,  # dummy_agent field (simulated IDE)
     BaseAgentAdapter,  # PascalCase hook_event_name (fallback)
 ]
@@ -135,6 +137,7 @@ __all__ = [
     "KiroAdapter",
     "AugmentAdapter",
     "OpenCodeAdapter",
+    "CrushAdapter",
     "JunieAdapter",
     "DummyAgentAdapter",
     "ADAPTER_CLASSES",

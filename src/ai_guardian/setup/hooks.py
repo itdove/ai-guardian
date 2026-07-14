@@ -313,6 +313,23 @@ class IDESetup:
                 }
             },
         },
+        "crush": {
+            "name": "Crush",
+            "config_path": ".crush.json",
+            "config_dir_env_var": None,
+            "config_filename": "crush.json",
+            "hooks": {
+                "hooks": {
+                    "PreToolUse": [
+                        {
+                            "name": "ai-guardian",
+                            "command": "ai-guardian",
+                            "timeout": 30,
+                        }
+                    ],
+                }
+            },
+        },
         "dummy-agent": {
             "name": "Dummy Agent",
             # No external config file — the dummy agent fires hooks internally.
@@ -775,6 +792,41 @@ class IDESetup:
 
             return existing_config, warnings
 
+        elif ide_type == "crush":
+            if "hooks" not in existing_config:
+                existing_config["hooks"] = {}
+
+            template_hooks = ai_guardian_hooks.get("hooks", ai_guardian_hooks)
+            for event_name in ["PreToolUse"]:
+                if event_name not in template_hooks:
+                    continue
+                if event_name not in existing_config["hooks"]:
+                    existing_config["hooks"][event_name] = []
+
+                hook_list = existing_config["hooks"][event_name]
+                other_hooks = [
+                    h
+                    for h in hook_list
+                    if not (
+                        isinstance(h, dict)
+                        and _is_ai_guardian_command(h.get("command", ""))
+                    )
+                ]
+                ag_hook = template_hooks[event_name][0]
+                if other_hooks:
+                    hook_names = [
+                        h.get("command", "unknown")
+                        for h in other_hooks
+                        if isinstance(h, dict)
+                    ]
+                    warnings.append(
+                        f"⚠️  {event_name}: Found other hooks [{', '.join(hook_names)}]. "
+                        f"ai-guardian has been placed first to ensure warnings display correctly."
+                    )
+                existing_config["hooks"][event_name] = [ag_hook] + other_hooks
+
+            return existing_config, warnings
+
         return existing_config, warnings
 
     def check_hooks_configured(self, config_path: Path, ide_type: str) -> bool:
@@ -929,6 +981,18 @@ class IDESetup:
                                             h.get("command", "")
                                         ):
                                             return True
+
+            elif ide_type == "crush":
+                hooks = config.get("hooks", {})
+                for event_name in ["PreToolUse"]:
+                    if event_name in hooks:
+                        hook_list = hooks[event_name]
+                        if isinstance(hook_list, list):
+                            for h in hook_list:
+                                if isinstance(h, dict) and _is_ai_guardian_command(
+                                    h.get("command", "")
+                                ):
+                                    return True
 
             return False
 
@@ -1260,6 +1324,10 @@ class IDESetup:
                     existing_config, resolved_hooks, ide_type
                 )
             elif ide_type == "augment":
+                merged_config, hook_warnings = self.merge_hooks(
+                    existing_config, resolved_hooks, ide_type
+                )
+            elif ide_type == "crush":
                 merged_config, hook_warnings = self.merge_hooks(
                     existing_config, resolved_hooks, ide_type
                 )
