@@ -1286,18 +1286,22 @@ class TestStateObserver:
 
     def test_observer_fires_on_pause_dir(self, tmp_path):
         state = DaemonState(config_path=tmp_path / "c.json")
+        project = tmp_path / "project_a"
+        project.mkdir()
         events = []
         state.add_state_observer(lambda t, d: events.append((t, d)))
-        state.pause_dir("/project/a", 10)
+        state.pause_dir(str(project), 10)
         assert events[-1][0] == "dir_paused"
-        assert "/project/a" in events[-1][1]["dir"]
+        assert os.path.realpath(str(project)) == events[-1][1]["dir"]
 
     def test_observer_fires_on_resume_dir(self, tmp_path):
         state = DaemonState(config_path=tmp_path / "c.json")
+        project = tmp_path / "project_a"
+        project.mkdir()
         events = []
         state.add_state_observer(lambda t, d: events.append((t, d)))
-        state.pause_dir("/project/a")
-        state.resume_dir("/project/a")
+        state.pause_dir(str(project))
+        state.resume_dir(str(project))
         assert events[-1][0] == "dir_resumed"
 
     def test_observer_fires_on_config_reload(self, tmp_path):
