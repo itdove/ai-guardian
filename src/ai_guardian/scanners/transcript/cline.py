@@ -105,7 +105,8 @@ def _extract_text_from_cline_message(message: dict) -> str:
 
 def get_most_recent_task_dir(storage_dir: str) -> Optional[str]:
     """Find the most recently modified task directory."""
-    best: Optional[Tuple[float, str]] = None
+    best_mtime = -1.0
+    best_path: Optional[str] = None
     try:
         with os.scandir(storage_dir) as it:
             for entry in it:
@@ -114,13 +115,14 @@ def get_most_recent_task_dir(storage_dir: str) -> Optional[str]:
                 history = os.path.join(entry.path, HISTORY_FILENAME)
                 if os.path.isfile(history):
                     mtime = os.path.getmtime(history)
-                    if best is None or mtime > best[0]:
-                        best = (mtime, entry.path)
+                    if mtime > best_mtime:
+                        best_mtime = mtime
+                        best_path = entry.path
     except OSError as e:
         logging.debug(f"Cline storage listing error: {e}")
         return None
 
-    return best[1] if best else None
+    return best_path
 
 
 def read_cline_task_transcript(
