@@ -113,7 +113,9 @@ def read_cursor_transcript(
     seen = set(seen_bubble_ids) if seen_bubble_ids else set()
     texts = []
     new_seen = set(seen)
-    escaped_id = composer_id.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+    escaped_id = (
+        composer_id.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+    )
     prefix = f"bubbleId:{escaped_id}:"
     raw_prefix = f"bubbleId:{composer_id}:"
 

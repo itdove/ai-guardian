@@ -351,7 +351,9 @@ class DaemonServer:
         sock.settimeout(5.0)
         with self._subscribers_lock:
             if len(self._subscribers) >= self._MAX_SUBSCRIBERS:
-                logger.warning("Subscriber limit reached (%d), rejecting", self._MAX_SUBSCRIBERS)
+                logger.warning(
+                    "Subscriber limit reached (%d), rejecting", self._MAX_SUBSCRIBERS
+                )
                 sock.close()
                 return
             self._subscribers.append(sock)
