@@ -35,9 +35,14 @@ from ai_guardian.scanners.transcript.opencode import (
     OpenCodeTranscriptAdapter,
     scan_opencode_transcript_incremental,
 )
+from ai_guardian.scanners.transcript.windsurf import (
+    WindsurfTranscriptAdapter,
+    scan_windsurf_transcript_incremental,
+)
 
 TRANSCRIPT_ADAPTERS = [
     ClineTranscriptAdapter(),
+    WindsurfTranscriptAdapter(),
     JsonlTranscriptAdapter(),
     OpenCodeTranscriptAdapter(),
     CursorTranscriptAdapter(),
@@ -47,6 +52,7 @@ __all__ = [
     "TranscriptAdapter",
     "TRANSCRIPT_ADAPTERS",
     "ClineTranscriptAdapter",
+    "WindsurfTranscriptAdapter",
     "_advance_transcript_position",
     "_extract_secret_type_from_error",
     "_extract_text_from_transcript_line",
@@ -62,4 +68,5 @@ __all__ = [
     "scan_cursor_transcript_incremental",
     "scan_opencode_transcript_incremental",
     "scan_transcript_incremental",
+    "scan_windsurf_transcript_incremental",
 ]
