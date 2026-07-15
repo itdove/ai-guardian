@@ -33,16 +33,19 @@ class TestScanTranscriptTextAllowedFindings:
         allowed = {fp}
 
         with mock.patch(
-            "ai_guardian.scanners.transcript.check_secrets_with_gitleaks"
+            "ai_guardian.scanners.transcript.common.check_secrets_with_gitleaks"
         ) as mock_scan:
             mock_scan.return_value = (
                 True,
                 f"Secret detected\nSecret Type: {rule_id}\n",
             )
             with mock.patch(
-                "ai_guardian.scanners.transcript._load_seen_findings", return_value={}
+                "ai_guardian.scanners.transcript.common._load_seen_findings",
+                return_value={},
             ):
-                with mock.patch("ai_guardian.scanners.transcript._save_seen_findings"):
+                with mock.patch(
+                    "ai_guardian.scanners.transcript.common._save_seen_findings"
+                ):
                     warnings = _scan_transcript_text(
                         content,
                         "/tmp/test_transcript.jsonl",
@@ -61,16 +64,19 @@ class TestScanTranscriptTextAllowedFindings:
         # ai-guardian:end-allow
 
         with mock.patch(
-            "ai_guardian.scanners.transcript.check_secrets_with_gitleaks"
+            "ai_guardian.scanners.transcript.common.check_secrets_with_gitleaks"
         ) as mock_scan:
             mock_scan.return_value = (
                 True,
                 "Secret detected\nSecret Type: aws-access-token\n",
             )
             with mock.patch(
-                "ai_guardian.scanners.transcript._load_seen_findings", return_value={}
+                "ai_guardian.scanners.transcript.common._load_seen_findings",
+                return_value={},
             ):
-                with mock.patch("ai_guardian.scanners.transcript._save_seen_findings"):
+                with mock.patch(
+                    "ai_guardian.scanners.transcript.common._save_seen_findings"
+                ):
                     warnings = _scan_transcript_text(
                         content,
                         "/tmp/test_transcript.jsonl",
@@ -97,17 +103,17 @@ class TestScanTranscriptTextAllowedFindings:
         ]
 
         with mock.patch(
-            "ai_guardian.scanners.transcript.check_secrets_with_gitleaks",
+            "ai_guardian.scanners.transcript.common.check_secrets_with_gitleaks",
             return_value=(False, None),
         ):
             with mock.patch("ai_guardian.hook_processing._scan_for_pii") as mock_pii:
                 mock_pii.return_value = (True, "***", mock_redactions, "PII found")
                 with mock.patch(
-                    "ai_guardian.scanners.transcript._load_seen_findings",
+                    "ai_guardian.scanners.transcript.common._load_seen_findings",
                     return_value={},
                 ):
                     with mock.patch(
-                        "ai_guardian.scanners.transcript._save_seen_findings"
+                        "ai_guardian.scanners.transcript.common._save_seen_findings"
                     ):
                         warnings = _scan_transcript_text(
                             pii_value + " some other text",
@@ -135,7 +141,7 @@ class TestScanTranscriptTextAllowedFindings:
         ]
 
         with mock.patch(
-            "ai_guardian.scanners.transcript.check_secrets_with_gitleaks"
+            "ai_guardian.scanners.transcript.common.check_secrets_with_gitleaks"
         ) as mock_scan:
             mock_scan.return_value = (True, "Secret Type: aws-access-token")
             with mock.patch(
@@ -143,11 +149,11 @@ class TestScanTranscriptTextAllowedFindings:
                 mock_findings,
             ):
                 with mock.patch(
-                    "ai_guardian.scanners.transcript._load_seen_findings",
+                    "ai_guardian.scanners.transcript.common._load_seen_findings",
                     return_value={},
                 ):
                     with mock.patch(
-                        "ai_guardian.scanners.transcript._save_seen_findings"
+                        "ai_guardian.scanners.transcript.common._save_seen_findings"
                     ):
                         warnings = _scan_transcript_text(
                             "content",
@@ -180,7 +186,7 @@ class TestScanTranscriptTextAllowedFindings:
         fp2 = _finding_fingerprint("secret", "github-pat")
 
         with mock.patch(
-            "ai_guardian.scanners.transcript.check_secrets_with_gitleaks"
+            "ai_guardian.scanners.transcript.common.check_secrets_with_gitleaks"
         ) as mock_scan:
             mock_scan.return_value = (True, "Secret Type: aws-access-token")
             with mock.patch(
@@ -188,11 +194,11 @@ class TestScanTranscriptTextAllowedFindings:
                 mock_findings,
             ):
                 with mock.patch(
-                    "ai_guardian.scanners.transcript._load_seen_findings",
+                    "ai_guardian.scanners.transcript.common._load_seen_findings",
                     return_value={},
                 ):
                     with mock.patch(
-                        "ai_guardian.scanners.transcript._save_seen_findings"
+                        "ai_guardian.scanners.transcript.common._save_seen_findings"
                     ):
                         warnings = _scan_transcript_text(
                             "content",
@@ -221,7 +227,7 @@ class TestScanTranscriptTextAllowedFindings:
         fp1 = _finding_fingerprint("secret", "aws-access-token")
 
         with mock.patch(
-            "ai_guardian.scanners.transcript.check_secrets_with_gitleaks"
+            "ai_guardian.scanners.transcript.common.check_secrets_with_gitleaks"
         ) as mock_scan:
             mock_scan.return_value = (True, "Secret Type: aws-access-token")
             with mock.patch(
@@ -229,11 +235,11 @@ class TestScanTranscriptTextAllowedFindings:
                 mock_findings,
             ):
                 with mock.patch(
-                    "ai_guardian.scanners.transcript._load_seen_findings",
+                    "ai_guardian.scanners.transcript.common._load_seen_findings",
                     return_value={},
                 ):
                     with mock.patch(
-                        "ai_guardian.scanners.transcript._save_seen_findings"
+                        "ai_guardian.scanners.transcript.common._save_seen_findings"
                     ):
                         warnings = _scan_transcript_text(
                             "content",
@@ -252,14 +258,16 @@ class TestScanTranscriptTextAllowedFindings:
         from ai_guardian.scanners.transcript import _scan_transcript_text
 
         with mock.patch(
-            "ai_guardian.scanners.transcript.check_secrets_with_gitleaks",
+            "ai_guardian.scanners.transcript.common.check_secrets_with_gitleaks",
             return_value=(False, None),
         ):
             with mock.patch(
-                "ai_guardian.scanners.transcript._load_seen_findings",
+                "ai_guardian.scanners.transcript.common._load_seen_findings",
                 return_value={},
             ):
-                with mock.patch("ai_guardian.scanners.transcript._save_seen_findings"):
+                with mock.patch(
+                    "ai_guardian.scanners.transcript.common._save_seen_findings"
+                ):
                     warnings = _scan_transcript_text(
                         "clean content",
                         "/tmp/test.jsonl",

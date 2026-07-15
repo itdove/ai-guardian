@@ -8,7 +8,7 @@ behavior when scanners encounter errors.
 import json
 from io import StringIO
 from unittest import TestCase
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 import ai_guardian
 
@@ -496,15 +496,17 @@ class TestOnScanErrorTranscriptScanning(TestCase):
         mock_transcript.return_value = ({"enabled": True}, None)
         mock_pii.return_value = ({"enabled": False}, None)
 
-        with (
-            patch(
-                "ai_guardian.hook_processing._get_transcript_path",
-                return_value="/tmp/transcript.jsonl",
-            ),
-            patch(
-                "ai_guardian.hook_processing.scan_transcript_incremental",
-                side_effect=Exception("Transcript scan crashed"),
-            ),
+        from ai_guardian.scanners.transcript.jsonl import JsonlTranscriptAdapter
+
+        failing_adapter = JsonlTranscriptAdapter()
+        failing_adapter.can_scan = lambda hd, a: True
+        failing_adapter.scan_incremental = Mock(
+            side_effect=Exception("Transcript scan crashed")
+        )
+
+        with patch(
+            "ai_guardian.scanners.transcript.TRANSCRIPT_ADAPTERS",
+            [failing_adapter],
         ):
             hook_data = {
                 "hook_event_name": "UserPromptSubmit",

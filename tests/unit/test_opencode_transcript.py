@@ -13,7 +13,7 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
-from ai_guardian.opencode_transcript import (
+from ai_guardian.scanners.transcript.opencode import (
     _extract_text_from_part,
     get_opencode_db_path,
     get_opencode_latest_timestamp,
@@ -404,7 +404,7 @@ class TestScanOpenCodeTranscriptIncremental(unittest.TestCase):
         )
 
         with mock.patch(
-            "ai_guardian.scanners.transcript._scan_transcript_text"
+            "ai_guardian.scanners.transcript.opencode._scan_transcript_text"
         ) as mock_scan:
             mock_scan.return_value = []
             scan_opencode_transcript_incremental(
@@ -487,7 +487,7 @@ class TestScanTranscriptText(unittest.TestCase):
         )
         self.assertEqual(result, [])
 
-    @mock.patch("ai_guardian.scanners.transcript.check_secrets_with_gitleaks")
+    @mock.patch("ai_guardian.scanners.transcript.common.check_secrets_with_gitleaks")
     def test_secret_detection(self, mock_gitleaks):
         from ai_guardian.scanners.transcript import _scan_transcript_text
 
@@ -505,7 +505,7 @@ class TestScanTranscriptText(unittest.TestCase):
         self.assertEqual(len(result), 1)
         self.assertIn("SECRET DETECTED", result[0])
 
-    @mock.patch("ai_guardian.scanners.transcript.check_secrets_with_gitleaks")
+    @mock.patch("ai_guardian.scanners.transcript.common.check_secrets_with_gitleaks")
     def test_dedup_same_secret(self, mock_gitleaks):
         from ai_guardian.scanners.transcript import _scan_transcript_text
 

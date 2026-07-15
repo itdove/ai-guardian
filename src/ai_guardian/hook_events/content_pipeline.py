@@ -23,10 +23,6 @@ def _matches_ignore_files(file_path, ignore_files):
     return _hp._matches_ignore_files(file_path, ignore_files)
 
 
-def _get_transcript_path(hook_data):
-    return _hp._get_transcript_path(hook_data)
-
-
 def _load_transcript_scanning_config():
     return _hp._load_transcript_scanning_config()
 
@@ -51,16 +47,6 @@ from ai_guardian.scanners.post_scan_filters import apply_post_scan_pipeline
 
 # Ask mode helpers
 from ai_guardian.ask_mode import _compute_pii_transcript_fingerprints
-
-
-# Transcript scanning — use _hp delegation so test patches propagate
-def scan_transcript_incremental(*args, **kwargs):
-    return _hp.scan_transcript_incremental(*args, **kwargs)
-
-
-def scan_opencode_transcript_incremental(*args, **kwargs):
-    return _hp.scan_opencode_transcript_incremental(*args, **kwargs)
-
 
 # Conditional imports
 try:
@@ -654,45 +640,41 @@ def run_content_pipeline(
                         f"Unknown PII action '{pii_action}', allowing through"
                     )
 
-    # Transcript scanning for secrets and PII (Issue #430, #442, #935)
-    # Detects threats that entered the transcript via ! shell commands (which bypass hooks)
-    # Prompt injection scanning intentionally excluded — too many false positives in conversation context
-    #
-    # transcript_path may already be injected into hook_data by adapter defaults
-    # resolution above (Issue #935). Build the list of paths to scan:
-    # - IDE-provided path (from hook_data), OR
-    # - All adapter-default paths (Codex may have multiple session files)
-    transcript_path = _get_transcript_path(hook_data)
-    transcript_paths_to_scan = [transcript_path] if transcript_path else []
-    if not transcript_paths_to_scan and adapter:
-        transcript_paths_to_scan = adapter.get_default_transcript_paths()
+    # Transcript scanning for secrets and PII (Issue #430, #442, #935, #936)
+    # Detects threats that entered the transcript via ! shell commands (which bypass hooks).
+    # Uses polymorphic TranscriptAdapter — JSONL, OpenCode SQLite, Cursor SQLite.
+    if hook_event == HookEvent.PROMPT:
+        from ai_guardian.scanners.transcript import TRANSCRIPT_ADAPTERS
 
-    if transcript_paths_to_scan and hook_event == HookEvent.PROMPT:
-        try:
-            ts_config, ts_error = _load_transcript_scanning_config()
-            if ts_error:
-                logging.warning(f"Transcript scanning config error: {ts_error}")
+        for ts_adapter in TRANSCRIPT_ADAPTERS:
+            if not ts_adapter.can_scan(hook_data, adapter):
+                continue
 
-            if ts_config and is_feature_enabled(
-                ts_config.get("enabled"), now, default=True
-            ):
-                logging.info("Scanning transcript for secrets/PII...")
+            try:
+                ts_config, ts_error = _load_transcript_scanning_config()
+                if ts_error:
+                    logging.warning(f"Transcript scanning config error: {ts_error}")
 
-                # Reuse already-loaded configs; load fresh if not yet available
-                try:
-                    ts_secret_config = secret_config
-                except NameError:
-                    ts_secret_config, _ = _load_secret_scanning_config()
-                try:
-                    ts_pii_config = pii_config  # noqa: F821 — NameError fallback
-                except NameError:
-                    ts_pii_config, _ = _load_pii_config()
+                if ts_config and is_feature_enabled(
+                    ts_config.get("enabled"), now, default=True
+                ):
+                    logging.info(
+                        f"Scanning {ts_adapter.name} transcript for secrets/PII..."
+                    )
 
-                ts_allowed = _invocation_allowed or None
-                for ts_path in transcript_paths_to_scan:
+                    try:
+                        ts_secret_config = secret_config
+                    except NameError:
+                        ts_secret_config, _ = _load_secret_scanning_config()
+                    try:
+                        ts_pii_config = pii_config  # noqa: F821 — NameError fallback
+                    except NameError:
+                        ts_pii_config, _ = _load_pii_config()
+
+                    ts_allowed = _invocation_allowed or None
                     with _latency_timer.check("transcript_scanning"):
-                        transcript_warnings = scan_transcript_incremental(
-                            ts_path,
+                        transcript_warnings = ts_adapter.scan_incremental(
+                            hook_data,
                             secret_config=ts_secret_config,
                             pii_config=ts_pii_config,
                             hook_context=(
@@ -705,106 +687,40 @@ def run_content_pipeline(
                     if transcript_warnings:
                         warning_messages.extend(transcript_warnings)
                         logging.warning(
-                            f"Transcript scanning found {len(transcript_warnings)} issue(s) in {ts_path}"
+                            f"{ts_adapter.name} transcript scanning found "
+                            f"{len(transcript_warnings)} issue(s)"
                         )
                     else:
-                        logging.info(f"✓ No threats detected in transcript: {ts_path}")
-            elif ts_config and ide_type != IDEType.CURSOR:
-                logging.info("⚠️  Transcript scanning temporarily disabled")
-        except Exception as e:
-            on_error = _get_on_scan_error_action()
-            if on_error == ActionMode.BLOCK:
-                logging.error(
-                    f"Transcript scanning error (fail-closed, on_scan_error=block): {e}"
-                )
-                return (
-                    _format_response(
-                        adapter,
-                        has_secrets=True,
-                        hook_event=hook_event,
-                        error_message=f"Transcript scanning failed (blocked by on_scan_error=block): {e}",
-                        violation_type=ViolationType.SECRET_DETECTED,
-                        security_message=security_message,
-                    ),
-                    log_only_count,
-                )
-            logging.warning(f"Transcript scanning error (fail-open): {e}")
-
-    # OpenCode transcript scanning via SQLite (Issue #934)
-    # When no transcript_path is available and adapter is OpenCode,
-    # read conversation text from OpenCode's SQLite session DB.
-    if (
-        not transcript_path
-        and hook_event == HookEvent.PROMPT
-        and adapter
-        and adapter.name == "OpenCode"
-    ):
-        try:
-            from ai_guardian.opencode_transcript import get_opencode_db_path
-
-            ts_config, ts_error = _load_transcript_scanning_config()
-            if ts_error:
-                logging.warning(f"Transcript scanning config error: {ts_error}")
-
-            if ts_config and is_feature_enabled(
-                ts_config.get("enabled"), now, default=True
-            ):
-                oc_db_path = get_opencode_db_path()
-                oc_session_id = hook_data.get("session_id")
-                if oc_db_path and oc_session_id:
-                    logging.info(
-                        "Scanning OpenCode transcript (SQLite) for secrets/PII..."
+                        logging.info(
+                            f"✓ No threats detected in {ts_adapter.name} transcript"
+                        )
+                elif ts_config:
+                    logging.info("⚠️  Transcript scanning temporarily disabled")
+            except Exception as e:
+                on_error = _get_on_scan_error_action()
+                if on_error == ActionMode.BLOCK:
+                    logging.error(
+                        f"{ts_adapter.name} transcript scanning error "
+                        f"(fail-closed, on_scan_error=block): {e}"
                     )
-
-                    try:
-                        ts_secret_config = secret_config
-                    except NameError:
-                        ts_secret_config, _ = _load_secret_scanning_config()
-                    try:
-                        ts_pii_config = pii_config  # noqa: F821 — NameError fallback
-                    except NameError:
-                        ts_pii_config, _ = _load_pii_config()
-
-                    oc_allowed = _invocation_allowed or None
-                    transcript_warnings = scan_opencode_transcript_incremental(
-                        oc_db_path,
-                        oc_session_id,
-                        secret_config=ts_secret_config,
-                        pii_config=ts_pii_config,
-                        hook_context=(
-                            {"session_id": hook_session_id} if hook_session_id else None
+                    return (
+                        _format_response(
+                            adapter,
+                            has_secrets=True,
+                            hook_event=hook_event,
+                            error_message=(
+                                f"{ts_adapter.name} transcript scanning failed "
+                                f"(blocked by on_scan_error=block): {e}"
+                            ),
+                            violation_type=ViolationType.SECRET_DETECTED,
+                            security_message=security_message,
                         ),
-                        allowed_findings=oc_allowed,
+                        log_only_count,
                     )
-                    if transcript_warnings:
-                        warning_messages.extend(transcript_warnings)
-                        logging.warning(
-                            f"OpenCode transcript scanning found {len(transcript_warnings)} issue(s)"
-                        )
-                    else:
-                        logging.info("✓ No threats detected in OpenCode transcript")
-                elif not oc_db_path:
-                    logging.debug("OpenCode DB not found, skipping transcript scanning")
-                elif not oc_session_id:
-                    logging.debug(
-                        "No session_id in hook data, skipping OpenCode transcript scanning"
-                    )
-        except Exception as e:
-            on_error = _get_on_scan_error_action()
-            if on_error == ActionMode.BLOCK:
-                logging.error(f"OpenCode transcript scanning error (fail-closed): {e}")
-                return (
-                    _format_response(
-                        adapter,
-                        has_secrets=True,
-                        hook_event=hook_event,
-                        error_message=f"OpenCode transcript scanning failed (blocked): {e}",
-                        violation_type=ViolationType.SECRET_DETECTED,
-                        security_message=security_message,
-                    ),
-                    log_only_count,
+                logging.warning(
+                    f"{ts_adapter.name} transcript scanning error (fail-open): {e}"
                 )
-            logging.warning(f"OpenCode transcript scanning error (fail-open): {e}")
+            break
 
     # Save PreToolUse context for PostToolUse correlation (#366)
     if (
