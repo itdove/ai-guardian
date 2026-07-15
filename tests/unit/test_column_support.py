@@ -388,7 +388,7 @@ class TestEnrichBlockedFromDetails(unittest.TestCase):
     """_enrich_blocked_from_details propagates column fields."""
 
     def test_column_propagated(self):
-        from ai_guardian.hook_processing import _enrich_blocked_from_details
+        from ai_guardian.scanners.secret_scanning import _enrich_blocked_from_details
 
         blocked = {}
         details = {"line_number": 10, "start_column": 5, "end_column": 20}
@@ -397,7 +397,7 @@ class TestEnrichBlockedFromDetails(unittest.TestCase):
         self.assertEqual(blocked["end_column"], 20)
 
     def test_column_zero_propagated(self):
-        from ai_guardian.hook_processing import _enrich_blocked_from_details
+        from ai_guardian.scanners.secret_scanning import _enrich_blocked_from_details
 
         blocked = {}
         details = {"line_number": 1, "start_column": 0, "end_column": 0}
@@ -406,7 +406,7 @@ class TestEnrichBlockedFromDetails(unittest.TestCase):
         self.assertEqual(blocked["end_column"], 0)
 
     def test_column_absent(self):
-        from ai_guardian.hook_processing import _enrich_blocked_from_details
+        from ai_guardian.scanners.secret_scanning import _enrich_blocked_from_details
 
         blocked = {}
         details = {"line_number": 10}
@@ -569,7 +569,7 @@ class TestHandleAskModeColumn(unittest.TestCase):
 
     def test_column_passed_through(self):
         from unittest.mock import patch
-        from ai_guardian.hook_processing import _handle_ask_mode
+        from ai_guardian.ask_mode import _handle_ask_mode
         from ai_guardian.tui.ask_dialog import AskDecision, AskResult
 
         mock_result = AskResult(decision=AskDecision.BLOCK)
@@ -728,7 +728,7 @@ class TestPiiViolationColumn(unittest.TestCase):
     """PII violation logging includes column from redaction data."""
 
     def test_column_extracted_from_redactions(self):
-        from ai_guardian.hook_processing import _log_pii_violation
+        from ai_guardian.hook_events.post_tool_use import _log_pii_violation
 
         pii_redactions = [
             {
@@ -756,7 +756,7 @@ class TestPiiViolationColumn(unittest.TestCase):
         self.assertEqual(result[0], "block")
 
     def test_column_absent_when_no_column_key(self):
-        from ai_guardian.hook_processing import _log_pii_violation
+        from ai_guardian.hook_events.post_tool_use import _log_pii_violation
 
         pii_redactions = [
             {

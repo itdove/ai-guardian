@@ -22,9 +22,9 @@ class PIIPostToolUseIgnoreToolsTests(TestCase):
     """Test that PostToolUse PII scanning respects ignore_tools (Issue #355)."""
 
     @patch("ai_guardian.hook_processing._scan_for_pii")
-    @patch("ai_guardian.hook_processing._load_pii_config")
-    @patch("ai_guardian.hook_processing.check_secrets_with_gitleaks")
-    @patch("ai_guardian.hook_processing._load_secret_scanning_config")
+    @patch("ai_guardian.config.loaders._load_pii_config")
+    @patch("ai_guardian.scanners.secret_scanning.check_secrets_with_gitleaks")
+    @patch("ai_guardian.config.loaders._load_secret_scanning_config")
     def test_posttooluse_pii_ignored_tool_skips_scan(
         self, mock_ss, mock_gitleaks, mock_pii, mock_scan
     ):
@@ -69,9 +69,9 @@ class PIIPostToolUseIgnoreToolsTests(TestCase):
         mock_scan.assert_not_called()
 
     @patch("ai_guardian.hook_processing._scan_for_pii")
-    @patch("ai_guardian.hook_processing._load_pii_config")
-    @patch("ai_guardian.hook_processing.check_secrets_with_gitleaks")
-    @patch("ai_guardian.hook_processing._load_secret_scanning_config")
+    @patch("ai_guardian.config.loaders._load_pii_config")
+    @patch("ai_guardian.scanners.secret_scanning.check_secrets_with_gitleaks")
+    @patch("ai_guardian.config.loaders._load_secret_scanning_config")
     def test_posttooluse_pii_wildcard_ignore_tools(
         self, mock_ss, mock_gitleaks, mock_pii, mock_scan
     ):
@@ -118,9 +118,9 @@ class PIIPostToolUseIgnoreToolsTests(TestCase):
         mock_scan.assert_not_called()
 
     @patch("ai_guardian.hook_processing._scan_for_pii")
-    @patch("ai_guardian.hook_processing._load_pii_config")
-    @patch("ai_guardian.hook_processing.check_secrets_with_gitleaks")
-    @patch("ai_guardian.hook_processing._load_secret_scanning_config")
+    @patch("ai_guardian.config.loaders._load_pii_config")
+    @patch("ai_guardian.scanners.secret_scanning.check_secrets_with_gitleaks")
+    @patch("ai_guardian.config.loaders._load_secret_scanning_config")
     def test_posttooluse_pii_non_matching_tool_still_scans(
         self, mock_ss, mock_gitleaks, mock_pii, mock_scan
     ):
@@ -174,9 +174,9 @@ class PIIPostToolUseIgnoreFilesTests(TestCase):
     """Test that PostToolUse PII scanning respects ignore_files (Issue #355)."""
 
     @patch("ai_guardian.hook_processing._scan_for_pii")
-    @patch("ai_guardian.hook_processing._load_pii_config")
-    @patch("ai_guardian.hook_processing.check_secrets_with_gitleaks")
-    @patch("ai_guardian.hook_processing._load_secret_scanning_config")
+    @patch("ai_guardian.config.loaders._load_pii_config")
+    @patch("ai_guardian.scanners.secret_scanning.check_secrets_with_gitleaks")
+    @patch("ai_guardian.config.loaders._load_secret_scanning_config")
     def test_posttooluse_pii_ignored_file_skips_scan(
         self, mock_ss, mock_gitleaks, mock_pii, mock_scan
     ):
@@ -223,9 +223,9 @@ class PIIPostToolUseIgnoreFilesTests(TestCase):
         mock_scan.assert_not_called()
 
     @patch("ai_guardian.hook_processing._scan_for_pii")
-    @patch("ai_guardian.hook_processing._load_pii_config")
-    @patch("ai_guardian.hook_processing.check_secrets_with_gitleaks")
-    @patch("ai_guardian.hook_processing._load_secret_scanning_config")
+    @patch("ai_guardian.config.loaders._load_pii_config")
+    @patch("ai_guardian.scanners.secret_scanning.check_secrets_with_gitleaks")
+    @patch("ai_guardian.config.loaders._load_secret_scanning_config")
     def test_posttooluse_pii_non_matching_file_still_scans(
         self, mock_ss, mock_gitleaks, mock_pii, mock_scan
     ):
@@ -277,9 +277,9 @@ class PIIPostToolUseIgnoreFilesTests(TestCase):
 class PIIPreToolUseIgnoreToolsTests(TestCase):
     """Test that PreToolUse PII scanning respects ignore_tools (Issue #355)."""
 
-    @patch("ai_guardian.hook_processing._load_pii_config")
-    @patch("ai_guardian.hook_processing.check_secrets_with_gitleaks")
-    @patch("ai_guardian.hook_processing._load_secret_scanning_config")
+    @patch("ai_guardian.config.loaders._load_pii_config")
+    @patch("ai_guardian.scanners.secret_scanning.check_secrets_with_gitleaks")
+    @patch("ai_guardian.config.loaders._load_secret_scanning_config")
     def test_pretooluse_pii_ignored_tool_skips_scan(
         self, mock_ss, mock_gitleaks, mock_pii
     ):
@@ -329,9 +329,9 @@ class PIIPreToolUseIgnoreToolsTests(TestCase):
             os.unlink(tmp_path)
 
     @patch("ai_guardian.hook_processing._load_permissions_config")
-    @patch("ai_guardian.hook_processing._load_pii_config")
-    @patch("ai_guardian.hook_processing.check_secrets_with_gitleaks")
-    @patch("ai_guardian.hook_processing._load_secret_scanning_config")
+    @patch("ai_guardian.config.loaders._load_pii_config")
+    @patch("ai_guardian.scanners.secret_scanning.check_secrets_with_gitleaks")
+    @patch("ai_guardian.config.loaders._load_secret_scanning_config")
     def test_pretooluse_pii_skill_composite_ignored(
         self, mock_ss, mock_gitleaks, mock_pii, mock_perms
     ):
@@ -383,9 +383,9 @@ class PIIIgnoreRegressionTests(TestCase):
     """Regression tests: PII detection still works with empty ignore lists."""
 
     @patch("ai_guardian.hook_processing._scan_for_pii")
-    @patch("ai_guardian.hook_processing._load_pii_config")
-    @patch("ai_guardian.hook_processing.check_secrets_with_gitleaks")
-    @patch("ai_guardian.hook_processing._load_secret_scanning_config")
+    @patch("ai_guardian.config.loaders._load_pii_config")
+    @patch("ai_guardian.scanners.secret_scanning.check_secrets_with_gitleaks")
+    @patch("ai_guardian.config.loaders._load_secret_scanning_config")
     def test_no_ignore_patterns_still_detects_pii(
         self, mock_ss, mock_gitleaks, mock_pii, mock_scan
     ):
@@ -440,9 +440,9 @@ class PIIIgnoreRegressionTests(TestCase):
         assert is_blocked, f"PII should be blocked with empty ignore lists: {output}"
 
     @patch("ai_guardian.hook_processing._scan_for_pii")
-    @patch("ai_guardian.hook_processing._load_pii_config")
-    @patch("ai_guardian.hook_processing.check_secrets_with_gitleaks")
-    @patch("ai_guardian.hook_processing._load_secret_scanning_config")
+    @patch("ai_guardian.config.loaders._load_pii_config")
+    @patch("ai_guardian.scanners.secret_scanning.check_secrets_with_gitleaks")
+    @patch("ai_guardian.config.loaders._load_secret_scanning_config")
     def test_posttooluse_both_ignore_tools_and_files(
         self, mock_ss, mock_gitleaks, mock_pii, mock_scan
     ):

@@ -28,7 +28,7 @@ class ScannerNotInstalledWarningTests(TestCase):
     """
 
     @patch("ai_guardian.scanners.secret_scanning.select_engine")
-    @patch("ai_guardian.hook_processing._load_secret_scanning_config")
+    @patch("ai_guardian.config.loaders._load_secret_scanning_config")
     def test_pretooluse_warns_when_scanner_not_installed(
         self, mock_config, mock_select_engine
     ):
@@ -93,7 +93,7 @@ class ScannerNotInstalledWarningTests(TestCase):
             os.unlink(temp_path)
 
     @patch("ai_guardian.scanners.secret_scanning.select_engine")
-    @patch("ai_guardian.hook_processing._load_secret_scanning_config")
+    @patch("ai_guardian.config.loaders._load_secret_scanning_config")
     def test_posttooluse_warns_when_scanner_not_installed(
         self, mock_config, mock_select_engine
     ):
@@ -142,7 +142,7 @@ class ScannerNotInstalledWarningTests(TestCase):
         assert "you may leak secrets" in warning, "Warning should mention risk"
 
     @patch("ai_guardian.scanners.secret_scanning.select_engine")
-    @patch("ai_guardian.hook_processing._load_secret_scanning_config")
+    @patch("ai_guardian.config.loaders._load_secret_scanning_config")
     def test_prompt_warns_when_scanner_not_installed(
         self, mock_config, mock_select_engine
     ):
@@ -190,7 +190,7 @@ class ScannerNotInstalledWarningTests(TestCase):
         assert "you may leak secrets" in warning, "Warning should mention risk"
 
     @patch("ai_guardian.scanners.secret_scanning.select_engine")
-    @patch("ai_guardian.hook_processing._load_secret_scanning_config")
+    @patch("ai_guardian.config.loaders._load_secret_scanning_config")
     def test_warning_uses_configured_scanner_name(
         self, mock_config, mock_select_engine
     ):
@@ -219,7 +219,7 @@ class ScannerNotInstalledWarningTests(TestCase):
         ), "Warning should suggest the configured default scanner (betterleaks), not hardcoded gitleaks"
 
     @patch("ai_guardian.scanners.secret_scanning.select_engine")
-    @patch("ai_guardian.hook_processing._load_secret_scanning_config")
+    @patch("ai_guardian.config.loaders._load_secret_scanning_config")
     def test_warning_defaults_to_toml_patterns_when_no_config(
         self, mock_config, mock_select_engine
     ):

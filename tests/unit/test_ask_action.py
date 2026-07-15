@@ -694,7 +694,7 @@ class TestHandleAskMode:
     """Tests for _handle_ask_mode() in hook_processing."""
 
     def test_non_ask_action_returns_none(self):
-        from ai_guardian.hook_processing import _handle_ask_mode
+        from ai_guardian.ask_mode import _handle_ask_mode
 
         result = _handle_ask_mode(
             "block", "secret_detected", "text", "secret_scanning", "error"
@@ -702,7 +702,7 @@ class TestHandleAskMode:
         assert result is None
 
     def test_non_ask_warn_returns_none(self):
-        from ai_guardian.hook_processing import _handle_ask_mode
+        from ai_guardian.ask_mode import _handle_ask_mode
 
         result = _handle_ask_mode(
             "warn", "secret_detected", "text", "secret_scanning", "error"
@@ -712,7 +712,7 @@ class TestHandleAskMode:
     @patch("ai_guardian.tui.ask_dialog._show_via_daemon", return_value=None)
     @patch("ai_guardian.tui.ask_dialog._show_via_subprocess", return_value=None)
     def test_ask_headless_block_fallback(self, _mock_sub, _mock_daemon):
-        from ai_guardian.hook_processing import _handle_ask_mode
+        from ai_guardian.ask_mode import _handle_ask_mode
         from ai_guardian.tui.ask_dialog import AskDecision
 
         result = _handle_ask_mode(
@@ -724,7 +724,7 @@ class TestHandleAskMode:
     @patch("ai_guardian.tui.ask_dialog._show_via_daemon", return_value=None)
     @patch("ai_guardian.tui.ask_dialog._show_via_subprocess", return_value=None)
     def test_ask_warn_headless_fallback(self, _mock_sub, _mock_daemon):
-        from ai_guardian.hook_processing import _handle_ask_mode
+        from ai_guardian.ask_mode import _handle_ask_mode
         from ai_guardian.tui.ask_dialog import AskDecision
 
         result = _handle_ask_mode(
@@ -735,7 +735,7 @@ class TestHandleAskMode:
 
     @patch("ai_guardian.tui.ask_dialog.show_ask_dialog")
     def test_ask_allow_always_writes_pattern(self, mock_dialog):
-        from ai_guardian.hook_processing import _handle_ask_mode
+        from ai_guardian.ask_mode import _handle_ask_mode
         from ai_guardian.tui.ask_dialog import AskResult, AskDecision
 
         mock_dialog.return_value = AskResult(
@@ -757,7 +757,7 @@ class TestAskCacheInvalidation:
 
     @patch("ai_guardian.tui.ask_dialog.show_ask_dialog")
     def test_allow_always_clears_config_cache(self, mock_dialog):
-        from ai_guardian.hook_processing import _handle_ask_mode
+        from ai_guardian.ask_mode import _handle_ask_mode
         from ai_guardian.tui.ask_dialog import AskResult, AskDecision
 
         mock_dialog.return_value = AskResult(
@@ -777,7 +777,7 @@ class TestAskCacheInvalidation:
 
     @patch("ai_guardian.tui.ask_dialog.show_ask_dialog")
     def test_allow_always_clears_cache_with_project_path(self, mock_dialog):
-        from ai_guardian.hook_processing import _handle_ask_mode
+        from ai_guardian.ask_mode import _handle_ask_mode
         from ai_guardian.tui.ask_dialog import AskResult, AskDecision
 
         mock_dialog.return_value = AskResult(
@@ -801,7 +801,7 @@ class TestAskCacheInvalidation:
     @patch("ai_guardian.tui.ask_dialog.show_ask_dialog")
     def test_allow_always_config_saved_still_clears_cache(self, mock_dialog):
         """Cache must be cleared even when the dialog already saved the config."""
-        from ai_guardian.hook_processing import _handle_ask_mode
+        from ai_guardian.ask_mode import _handle_ask_mode
         from ai_guardian.tui.ask_dialog import AskResult, AskDecision
 
         mock_dialog.return_value = AskResult(
@@ -822,7 +822,7 @@ class TestAskCacheInvalidation:
 
     @patch("ai_guardian.tui.ask_dialog.show_ask_dialog")
     def test_ignore_file_clears_config_cache(self, mock_dialog):
-        from ai_guardian.hook_processing import _handle_ask_mode
+        from ai_guardian.ask_mode import _handle_ask_mode
         from ai_guardian.tui.ask_dialog import AskResult, AskDecision
 
         mock_dialog.return_value = AskResult(
@@ -846,7 +846,7 @@ class TestAskCacheInvalidation:
 
     @patch("ai_guardian.tui.ask_dialog.show_ask_dialog")
     def test_allow_once_does_not_clear_cache(self, mock_dialog):
-        from ai_guardian.hook_processing import _handle_ask_mode
+        from ai_guardian.ask_mode import _handle_ask_mode
         from ai_guardian.tui.ask_dialog import AskResult, AskDecision
 
         mock_dialog.return_value = AskResult(decision=AskDecision.ALLOW_ONCE)
@@ -862,7 +862,7 @@ class TestAskDialogTiming:
 
     @patch("ai_guardian.tui.ask_dialog.show_ask_dialog")
     def test_dialog_wait_ms_recorded_in_result(self, mock_dialog):
-        from ai_guardian.hook_processing import _handle_ask_mode
+        from ai_guardian.ask_mode import _handle_ask_mode
         from ai_guardian.tui.ask_dialog import AskResult, AskDecision
 
         mock_dialog.return_value = AskResult(decision=AskDecision.ALLOW_ONCE)
@@ -873,7 +873,7 @@ class TestAskDialogTiming:
 
     @patch("ai_guardian.tui.ask_dialog.show_ask_dialog")
     def test_latency_timer_receives_ask_wait(self, mock_dialog):
-        from ai_guardian.hook_processing import _handle_ask_mode
+        from ai_guardian.ask_mode import _handle_ask_mode
         from ai_guardian.tui.ask_dialog import AskResult, AskDecision
         from ai_guardian.reporting.latency import _CheckTimer
 
@@ -891,7 +891,7 @@ class TestAskDialogTiming:
         assert timer.ask_wait_total_ms == pytest.approx(result.dialog_wait_ms, abs=0.1)
 
     def test_non_ask_action_returns_none_no_timing(self):
-        from ai_guardian.hook_processing import _handle_ask_mode
+        from ai_guardian.ask_mode import _handle_ask_mode
         from ai_guardian.reporting.latency import _CheckTimer
 
         timer = _CheckTimer(enabled=True)
@@ -1001,7 +1001,7 @@ class TestSSRFAskAction:
     @patch("ai_guardian.tui.ask_dialog.show_ask_dialog")
     def test_ssrf_ask_allow_always_writes_domain(self, mock_dialog):
         """SSRF Allow Always should call save_ask_pattern with ssrf_protection."""
-        from ai_guardian.hook_processing import _handle_ask_mode
+        from ai_guardian.ask_mode import _handle_ask_mode
         from ai_guardian.tui.ask_dialog import AskResult, AskDecision
 
         mock_dialog.return_value = AskResult(
@@ -1180,7 +1180,7 @@ class TestExtractMatchedTextForAsk:
     """Tests for _extract_matched_text_for_ask helper (Issue #1140)."""
 
     def test_prefers_explicit_matched_text(self):
-        from ai_guardian.hook_processing import _extract_matched_text_for_ask
+        from ai_guardian.scanners.secret_scanning import _extract_matched_text_for_ask
 
         details = {"matched_text": "API_KEY=secret123", "line_number": 5}
         result = _extract_matched_text_for_ask(
@@ -1189,7 +1189,7 @@ class TestExtractMatchedTextForAsk:
         assert result == "API_KEY=secret123"
 
     def test_fallback_to_line_number(self):
-        from ai_guardian.hook_processing import _extract_matched_text_for_ask
+        from ai_guardian.scanners.secret_scanning import _extract_matched_text_for_ask
 
         details = {"line_number": 3}
         result = _extract_matched_text_for_ask(
@@ -1198,19 +1198,19 @@ class TestExtractMatchedTextForAsk:
         assert result == "THE_SECRET_LINE"
 
     def test_empty_details(self):
-        from ai_guardian.hook_processing import _extract_matched_text_for_ask
+        from ai_guardian.scanners.secret_scanning import _extract_matched_text_for_ask
 
         result = _extract_matched_text_for_ask(None, "content")
         assert result == ""
 
     def test_no_matched_text_no_line_number(self):
-        from ai_guardian.hook_processing import _extract_matched_text_for_ask
+        from ai_guardian.scanners.secret_scanning import _extract_matched_text_for_ask
 
         result = _extract_matched_text_for_ask({"rule_id": "test"}, "content")
         assert result == ""
 
     def test_line_number_out_of_range(self):
-        from ai_guardian.hook_processing import _extract_matched_text_for_ask
+        from ai_guardian.scanners.secret_scanning import _extract_matched_text_for_ask
 
         result = _extract_matched_text_for_ask({"line_number": 99}, "line1\nline2")
         assert result == ""
@@ -1315,7 +1315,7 @@ class TestHandleAskModeMatchedText:
 
     @patch("ai_guardian.tui.ask_dialog.show_ask_dialog")
     def test_matched_text_flows_to_violation_info(self, mock_dialog):
-        from ai_guardian.hook_processing import _handle_ask_mode
+        from ai_guardian.ask_mode import _handle_ask_mode
         from ai_guardian.tui.ask_dialog import AskResult, AskDecision
 
         mock_dialog.return_value = AskResult(decision=AskDecision.BLOCK)
@@ -1489,7 +1489,7 @@ class TestPostSaveConfirmation:
 
     @patch("ai_guardian.tui.ask_dialog.show_ask_dialog")
     def test_hook_processing_skips_save_when_config_saved(self, mock_dialog):
-        from ai_guardian.hook_processing import _handle_ask_mode
+        from ai_guardian.ask_mode import _handle_ask_mode
         from ai_guardian.tui.ask_dialog import AskResult, AskDecision
 
         mock_dialog.return_value = AskResult(
@@ -1506,7 +1506,7 @@ class TestPostSaveConfirmation:
 
     @patch("ai_guardian.tui.ask_dialog.show_ask_dialog")
     def test_hook_processing_saves_when_config_not_saved(self, mock_dialog):
-        from ai_guardian.hook_processing import _handle_ask_mode
+        from ai_guardian.ask_mode import _handle_ask_mode
         from ai_guardian.tui.ask_dialog import AskResult, AskDecision
 
         mock_dialog.return_value = AskResult(
@@ -1669,7 +1669,7 @@ class TestDirectoryBlockingAskAction:
 
     @patch("ai_guardian.tui.ask_dialog.show_ask_dialog")
     def test_handle_ask_mode_directory_allow_always_writes_exclusion(self, mock_dialog):
-        from ai_guardian.hook_processing import _handle_ask_mode
+        from ai_guardian.ask_mode import _handle_ask_mode
         from ai_guardian.tui.ask_dialog import AskResult, AskDecision
 
         mock_dialog.return_value = AskResult(
@@ -1693,7 +1693,7 @@ class TestDirectoryBlockingAskAction:
     @patch("ai_guardian.tui.ask_dialog._show_via_daemon", return_value=None)
     @patch("ai_guardian.tui.ask_dialog._show_via_subprocess", return_value=None)
     def test_directory_ask_headless_block_fallback(self, _mock_sub, _mock_daemon):
-        from ai_guardian.hook_processing import _handle_ask_mode
+        from ai_guardian.ask_mode import _handle_ask_mode
         from ai_guardian.tui.ask_dialog import AskDecision
 
         result = _handle_ask_mode(
@@ -1709,7 +1709,7 @@ class TestDirectoryBlockingAskAction:
     @patch("ai_guardian.tui.ask_dialog._show_via_daemon", return_value=None)
     @patch("ai_guardian.tui.ask_dialog._show_via_subprocess", return_value=None)
     def test_directory_ask_warn_headless_fallback(self, _mock_sub, _mock_daemon):
-        from ai_guardian.hook_processing import _handle_ask_mode
+        from ai_guardian.ask_mode import _handle_ask_mode
         from ai_guardian.tui.ask_dialog import AskDecision
 
         result = _handle_ask_mode(
@@ -1803,7 +1803,7 @@ class TestDirectoryBlockingAskAction:
 
     def test_get_directory_action_from_config_default(self):
         """Verify helper returns 'block' when no config available."""
-        from ai_guardian.hook_processing import _get_directory_action_from_config
+        from ai_guardian.ask_mode import _get_directory_action_from_config
 
         with patch("ai_guardian.hook_processing.HAS_TOOL_POLICY", False):
             result = _get_directory_action_from_config()
@@ -1907,7 +1907,7 @@ class TestSupplyChainAskAction:
     @patch("ai_guardian.tui.ask_dialog.show_ask_dialog")
     def test_handle_ask_mode_supply_chain_allow_always_writes_path(self, mock_dialog):
         """Verify Allow Always routes to save_ask_pattern for supply_chain."""
-        from ai_guardian.hook_processing import _handle_ask_mode
+        from ai_guardian.ask_mode import _handle_ask_mode
         from ai_guardian.tui.ask_dialog import AskResult, AskDecision
 
         mock_dialog.return_value = AskResult(
@@ -1932,7 +1932,7 @@ class TestSupplyChainAskAction:
     @patch("ai_guardian.tui.ask_dialog._show_via_subprocess", return_value=None)
     def test_supply_chain_ask_headless_block_fallback(self, _mock_sub, _mock_daemon):
         """Verify headless fallback defaults to block for ask mode."""
-        from ai_guardian.hook_processing import _handle_ask_mode
+        from ai_guardian.ask_mode import _handle_ask_mode
         from ai_guardian.tui.ask_dialog import AskDecision
 
         result = _handle_ask_mode(
@@ -1949,7 +1949,7 @@ class TestSupplyChainAskAction:
     @patch("ai_guardian.tui.ask_dialog._show_via_subprocess", return_value=None)
     def test_supply_chain_ask_warn_headless_fallback(self, _mock_sub, _mock_daemon):
         """Verify ask:warn headless fallback allows with ALLOW_ONCE."""
-        from ai_guardian.hook_processing import _handle_ask_mode
+        from ai_guardian.ask_mode import _handle_ask_mode
         from ai_guardian.tui.ask_dialog import AskDecision
 
         result = _handle_ask_mode(
@@ -2096,7 +2096,7 @@ class TestConfigFileExfilAskAction:
         self, mock_dialog
     ):
         """Verify Allow Always routes to save_ask_pattern for config_file_scanning."""
-        from ai_guardian.hook_processing import _handle_ask_mode
+        from ai_guardian.ask_mode import _handle_ask_mode
         from ai_guardian.tui.ask_dialog import AskResult, AskDecision
 
         mock_dialog.return_value = AskResult(
@@ -2123,7 +2123,7 @@ class TestConfigFileExfilAskAction:
         self, _mock_sub, _mock_daemon
     ):
         """Verify headless fallback defaults to block for ask mode."""
-        from ai_guardian.hook_processing import _handle_ask_mode
+        from ai_guardian.ask_mode import _handle_ask_mode
         from ai_guardian.tui.ask_dialog import AskDecision
 
         result = _handle_ask_mode(
@@ -2142,7 +2142,7 @@ class TestConfigFileExfilAskAction:
         self, _mock_sub, _mock_daemon
     ):
         """Verify ask:warn headless fallback allows with ALLOW_ONCE."""
-        from ai_guardian.hook_processing import _handle_ask_mode
+        from ai_guardian.ask_mode import _handle_ask_mode
         from ai_guardian.tui.ask_dialog import AskDecision
 
         result = _handle_ask_mode(
@@ -2301,7 +2301,7 @@ class TestToolPermissionAskAction:
     @patch("ai_guardian.tui.ask_dialog.show_ask_dialog")
     def test_handle_ask_mode_permissions_allow_always_writes_rule(self, mock_dialog):
         """Verify Allow Always routes to save_ask_pattern for permissions."""
-        from ai_guardian.hook_processing import _handle_ask_mode
+        from ai_guardian.ask_mode import _handle_ask_mode
         from ai_guardian.tui.ask_dialog import AskResult, AskDecision
 
         mock_dialog.return_value = AskResult(
@@ -2325,7 +2325,7 @@ class TestToolPermissionAskAction:
     @patch("ai_guardian.tui.ask_dialog.show_ask_dialog")
     def test_handle_ask_mode_permissions_allow_always_no_colon(self, mock_dialog):
         """Verify Allow Always with no colon uses matcher=pattern, patterns=['*']."""
-        from ai_guardian.hook_processing import _handle_ask_mode
+        from ai_guardian.ask_mode import _handle_ask_mode
         from ai_guardian.tui.ask_dialog import AskResult, AskDecision
 
         mock_dialog.return_value = AskResult(
@@ -2347,7 +2347,7 @@ class TestToolPermissionAskAction:
     @patch("ai_guardian.tui.ask_dialog._show_via_subprocess", return_value=None)
     def test_permissions_ask_headless_block_fallback(self, _mock_sub, _mock_daemon):
         """Verify headless fallback defaults to block for ask mode."""
-        from ai_guardian.hook_processing import _handle_ask_mode
+        from ai_guardian.ask_mode import _handle_ask_mode
         from ai_guardian.tui.ask_dialog import AskDecision
 
         result = _handle_ask_mode(
@@ -2364,7 +2364,7 @@ class TestToolPermissionAskAction:
     @patch("ai_guardian.tui.ask_dialog._show_via_subprocess", return_value=None)
     def test_permissions_ask_warn_headless_fallback(self, _mock_sub, _mock_daemon):
         """Verify ask:warn headless fallback allows with ALLOW_ONCE."""
-        from ai_guardian.hook_processing import _handle_ask_mode
+        from ai_guardian.ask_mode import _handle_ask_mode
         from ai_guardian.tui.ask_dialog import AskDecision
 
         result = _handle_ask_mode(
@@ -2548,14 +2548,14 @@ class TestToolPermissionAskAction:
 
     def test_build_permission_matched_text_bash(self):
         """Verify _build_permission_matched_text formats Bash correctly."""
-        from ai_guardian.hook_processing import _build_permission_matched_text
+        from ai_guardian.ask_mode import _build_permission_matched_text
 
         result = _build_permission_matched_text("Bash", {"command": "npm test"}, "Bash")
         assert result == "Bash:npm test"
 
     def test_build_permission_matched_text_skill(self):
         """Verify _build_permission_matched_text formats Skill correctly."""
-        from ai_guardian.hook_processing import _build_permission_matched_text
+        from ai_guardian.ask_mode import _build_permission_matched_text
 
         result = _build_permission_matched_text(
             "Skill", {"skill": "code-review"}, "Skill:code-review"
@@ -2564,7 +2564,7 @@ class TestToolPermissionAskAction:
 
     def test_build_permission_matched_text_file_tool(self):
         """Verify _build_permission_matched_text formats file tools correctly."""
-        from ai_guardian.hook_processing import _build_permission_matched_text
+        from ai_guardian.ask_mode import _build_permission_matched_text
 
         result = _build_permission_matched_text(
             "Read", {"file_path": "/etc/passwd"}, "Read"
@@ -2573,7 +2573,7 @@ class TestToolPermissionAskAction:
 
     def test_build_permission_matched_text_no_input(self):
         """Verify _build_permission_matched_text handles no tool_input."""
-        from ai_guardian.hook_processing import _build_permission_matched_text
+        from ai_guardian.ask_mode import _build_permission_matched_text
 
         result = _build_permission_matched_text("Bash", None, "Bash")
         assert result == "Bash"
@@ -2610,7 +2610,7 @@ class TestFormatAskInfoMessage:
     """Tests for _format_ask_info_message helper (#1161)."""
 
     def test_allow_once_message(self):
-        from ai_guardian.hook_processing import _format_ask_info_message
+        from ai_guardian.ask_mode import _format_ask_info_message
         from ai_guardian.tui.ask_dialog import AskDecision
 
         msg = _format_ask_info_message("secret_detected", AskDecision.ALLOW_ONCE)
@@ -2619,7 +2619,7 @@ class TestFormatAskInfoMessage:
         assert "Secret detection" in msg
 
     def test_allow_always_message(self):
-        from ai_guardian.hook_processing import _format_ask_info_message
+        from ai_guardian.ask_mode import _format_ask_info_message
         from ai_guardian.tui.ask_dialog import AskDecision
 
         msg = _format_ask_info_message("secret_detected", AskDecision.ALLOW_ALWAYS)
@@ -2627,7 +2627,7 @@ class TestFormatAskInfoMessage:
         assert "pattern added to allowlist (always allowed)" in msg
 
     def test_message_with_detail(self):
-        from ai_guardian.hook_processing import _format_ask_info_message
+        from ai_guardian.ask_mode import _format_ask_info_message
         from ai_guardian.tui.ask_dialog import AskDecision
 
         msg = _format_ask_info_message(
@@ -2637,7 +2637,7 @@ class TestFormatAskInfoMessage:
         assert "Directory access" in msg
 
     def test_all_violation_types_have_labels(self):
-        from ai_guardian.hook_processing import (
+        from ai_guardian.ask_mode import (
             _format_ask_info_message,
             _ASK_VIOLATION_LABELS,
         )
@@ -2649,7 +2649,7 @@ class TestFormatAskInfoMessage:
             assert "allowed by user" in msg
 
     def test_unknown_violation_type_fallback(self):
-        from ai_guardian.hook_processing import _format_ask_info_message
+        from ai_guardian.ask_mode import _format_ask_info_message
         from ai_guardian.tui.ask_dialog import AskDecision
 
         msg = _format_ask_info_message("unknown_type", AskDecision.ALLOW_ONCE)
@@ -2657,14 +2657,14 @@ class TestFormatAskInfoMessage:
         assert "unknown_type" in msg
 
     def test_pii_detection_label(self):
-        from ai_guardian.hook_processing import _format_ask_info_message
+        from ai_guardian.ask_mode import _format_ask_info_message
         from ai_guardian.tui.ask_dialog import AskDecision
 
         msg = _format_ask_info_message("pii_detected", AskDecision.ALLOW_ALWAYS)
         assert "PII detection" in msg
 
     def test_tool_permission_label(self):
-        from ai_guardian.hook_processing import _format_ask_info_message
+        from ai_guardian.ask_mode import _format_ask_info_message
         from ai_guardian.tui.ask_dialog import AskDecision
 
         msg = _format_ask_info_message(
@@ -2674,7 +2674,7 @@ class TestFormatAskInfoMessage:
         assert "Bash" in msg
 
     def test_ssrf_label(self):
-        from ai_guardian.hook_processing import _format_ask_info_message
+        from ai_guardian.ask_mode import _format_ask_info_message
         from ai_guardian.tui.ask_dialog import AskDecision
 
         msg = _format_ask_info_message("ssrf_blocked", AskDecision.ALLOW_ONCE)
@@ -2686,7 +2686,7 @@ class TestLogAskDecision:
 
     @patch("ai_guardian.ask_mode.ViolationLogger")
     def test_logs_allow_once(self, mock_vl_cls):
-        from ai_guardian.hook_processing import _log_ask_decision
+        from ai_guardian.ask_mode import _log_ask_decision
         from ai_guardian.tui.ask_dialog import AskDecision
 
         mock_vl = MagicMock()
@@ -2707,7 +2707,7 @@ class TestLogAskDecision:
 
     @patch("ai_guardian.ask_mode.ViolationLogger")
     def test_logs_allow_always(self, mock_vl_cls):
-        from ai_guardian.hook_processing import _log_ask_decision
+        from ai_guardian.ask_mode import _log_ask_decision
         from ai_guardian.tui.ask_dialog import AskDecision
 
         mock_vl = MagicMock()
@@ -2723,7 +2723,7 @@ class TestLogAskDecision:
 
     @patch("ai_guardian.ask_mode.ViolationLogger")
     def test_logs_with_file_path(self, mock_vl_cls):
-        from ai_guardian.hook_processing import _log_ask_decision
+        from ai_guardian.ask_mode import _log_ask_decision
         from ai_guardian.tui.ask_dialog import AskDecision
 
         mock_vl = MagicMock()
@@ -2736,7 +2736,7 @@ class TestLogAskDecision:
 
     @patch("ai_guardian.ask_mode.ViolationLogger")
     def test_no_file_path_omits_key(self, mock_vl_cls):
-        from ai_guardian.hook_processing import _log_ask_decision
+        from ai_guardian.ask_mode import _log_ask_decision
         from ai_guardian.tui.ask_dialog import AskDecision
 
         mock_vl = MagicMock()
@@ -2747,14 +2747,14 @@ class TestLogAskDecision:
 
     @patch("ai_guardian.ask_mode.HAS_VIOLATION_LOGGER", False)
     def test_noop_when_logger_unavailable(self):
-        from ai_guardian.hook_processing import _log_ask_decision
+        from ai_guardian.ask_mode import _log_ask_decision
         from ai_guardian.tui.ask_dialog import AskDecision
 
         _log_ask_decision("secret_detected", AskDecision.ALLOW_ONCE)
 
     @patch("ai_guardian.ask_mode.ViolationLogger")
     def test_exception_does_not_propagate(self, mock_vl_cls):
-        from ai_guardian.hook_processing import _log_ask_decision
+        from ai_guardian.ask_mode import _log_ask_decision
         from ai_guardian.tui.ask_dialog import AskDecision
 
         mock_vl_cls.side_effect = RuntimeError("boom")
@@ -3041,7 +3041,7 @@ class TestConfigScopeSelection:
 
     @patch("ai_guardian.tui.ask_dialog.show_ask_dialog")
     def test_hook_processing_passes_config_path(self, mock_dialog):
-        from ai_guardian.hook_processing import _handle_ask_mode
+        from ai_guardian.ask_mode import _handle_ask_mode
         from ai_guardian.tui.ask_dialog import AskResult, AskDecision
 
         mock_dialog.return_value = AskResult(
@@ -3077,7 +3077,7 @@ class TestPiiAskBlockDecision:
     @patch("ai_guardian.tui.ask_dialog._show_via_subprocess", return_value=None)
     def test_pii_ask_block_sets_action_to_block(self, _mock_sub, _mock_daemon):
         """Block fallback returns BLOCK decision for PII."""
-        from ai_guardian.hook_processing import _handle_ask_mode
+        from ai_guardian.ask_mode import _handle_ask_mode
         from ai_guardian.tui.ask_dialog import AskDecision
 
         result = _handle_ask_mode(
@@ -3373,7 +3373,7 @@ class TestLogAskDecisionBlock:
 
     @patch("ai_guardian.ask_mode.ViolationLogger")
     def test_logs_block_decision(self, mock_vl_cls):
-        from ai_guardian.hook_processing import _log_ask_decision
+        from ai_guardian.ask_mode import _log_ask_decision
         from ai_guardian.tui.ask_dialog import AskDecision
 
         mock_vl = MagicMock()
@@ -3392,7 +3392,7 @@ class TestLogAskDecisionBlock:
 
     @patch("ai_guardian.ask_mode.ViolationLogger")
     def test_logs_block_all_decision(self, mock_vl_cls):
-        from ai_guardian.hook_processing import _log_ask_decision
+        from ai_guardian.ask_mode import _log_ask_decision
         from ai_guardian.tui.ask_dialog import AskDecision
 
         mock_vl = MagicMock()
@@ -3409,7 +3409,7 @@ class TestLogAskDecisionBlock:
 
     @patch("ai_guardian.ask_mode.ViolationLogger")
     def test_logs_block_with_file_and_line(self, mock_vl_cls):
-        from ai_guardian.hook_processing import _log_ask_decision
+        from ai_guardian.ask_mode import _log_ask_decision
         from ai_guardian.tui.ask_dialog import AskDecision
 
         mock_vl = MagicMock()
@@ -3430,7 +3430,7 @@ class TestLogAskDecisionBlock:
 
     @patch("ai_guardian.ask_mode.ViolationLogger")
     def test_logs_pii_block_decision(self, mock_vl_cls):
-        from ai_guardian.hook_processing import _log_ask_decision
+        from ai_guardian.ask_mode import _log_ask_decision
         from ai_guardian.tui.ask_dialog import AskDecision
 
         mock_vl = MagicMock()
@@ -3449,7 +3449,7 @@ class TestLogAskDecisionBlock:
     @patch("ai_guardian.ask_mode.ViolationLogger")
     def test_allow_once_still_logs_as_allowed(self, mock_vl_cls):
         """Verify existing ALLOW behavior unchanged after BLOCK support."""
-        from ai_guardian.hook_processing import _log_ask_decision
+        from ai_guardian.ask_mode import _log_ask_decision
         from ai_guardian.tui.ask_dialog import AskDecision
 
         mock_vl = MagicMock()
@@ -3477,7 +3477,7 @@ class TestHandleAskModeMultiDedup:
     @patch("ai_guardian.tui.ask_dialog._show_via_subprocess", return_value=None)
     def test_duplicate_matched_text_shows_one_dialog(self, _sub, _daemon):
         """Two findings with identical matched_text → single ask dialog."""
-        from ai_guardian.hook_processing import _handle_ask_mode_multi
+        from ai_guardian.ask_mode import _handle_ask_mode_multi
         from ai_guardian.tui.ask_dialog import AskDecision
 
         findings = [
@@ -3511,7 +3511,7 @@ class TestHandleAskModeMultiDedup:
     @patch("ai_guardian.tui.ask_dialog._show_via_subprocess", return_value=None)
     def test_distinct_matched_text_shows_multiple_dialogs(self, _sub, _daemon):
         """Two findings with different matched_text → two separate dialogs."""
-        from ai_guardian.hook_processing import _handle_ask_mode_multi
+        from ai_guardian.ask_mode import _handle_ask_mode_multi
         from ai_guardian.tui.ask_dialog import AskDecision
 
         findings = [
@@ -3545,7 +3545,7 @@ class TestHandleAskModeMultiDedup:
     @patch("ai_guardian.tui.ask_dialog._show_via_subprocess", return_value=None)
     def test_three_same_one_different_shows_two_dialogs(self, _sub, _daemon):
         """Three duplicates + one unique → two dialogs total."""
-        from ai_guardian.hook_processing import _handle_ask_mode_multi
+        from ai_guardian.ask_mode import _handle_ask_mode_multi
         from ai_guardian.tui.ask_dialog import AskDecision
 
         findings = [
@@ -3589,7 +3589,7 @@ class TestHandleAskModeMultiDedup:
     @patch("ai_guardian.tui.ask_dialog._show_via_subprocess", return_value=None)
     def test_non_ask_action_returns_none_without_dedup(self, _sub, _daemon):
         """Non-ask action returns None before dedup runs."""
-        from ai_guardian.hook_processing import _handle_ask_mode_multi
+        from ai_guardian.ask_mode import _handle_ask_mode_multi
 
         findings = [
             {"matched_text": "sk-proj-abc123", "matched_pattern": "openai-api-key"},
@@ -3609,7 +3609,7 @@ class TestHandleAskModeMultiDedup:
     @patch("ai_guardian.tui.ask_dialog._show_via_subprocess", return_value=None)
     def test_dedup_preserves_first_occurrence(self, _sub, _daemon):
         """Dedup keeps the first finding for each unique matched_text."""
-        from ai_guardian.hook_processing import _handle_ask_mode_multi
+        from ai_guardian.ask_mode import _handle_ask_mode_multi
         from ai_guardian.tui.ask_dialog import AskDecision
 
         findings = [

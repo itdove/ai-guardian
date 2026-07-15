@@ -34,22 +34,22 @@ def _is_blocked(result):
 
 # Common mock configuration to disable all scanners except the one under test
 DISABLE_ALL_SCANNERS = {
-    "ai_guardian.hook_processing._load_secret_scanning_config": (
+    "ai_guardian.config.loaders._load_secret_scanning_config": (
         {"enabled": False},
         None,
     ),
     "ai_guardian.hook_processing._load_pattern_server_config": None,
-    "ai_guardian.hook_processing._load_pii_config": ({"enabled": False}, None),
-    "ai_guardian.hook_processing._load_prompt_injection_config": (
+    "ai_guardian.config.loaders._load_pii_config": ({"enabled": False}, None),
+    "ai_guardian.config.loaders._load_prompt_injection_config": (
         {"enabled": False},
         None,
     ),
-    "ai_guardian.hook_processing._load_config_scanner_config": (
+    "ai_guardian.config.loaders._load_config_scanner_config": (
         {"enabled": False},
         None,
     ),
     "ai_guardian.hook_processing._load_permissions_config": ({"enabled": False}, None),
-    "ai_guardian.hook_processing._load_transcript_scanning_config": (
+    "ai_guardian.config.loaders._load_transcript_scanning_config": (
         {"enabled": False},
         None,
     ),
@@ -94,10 +94,10 @@ class TestOnScanErrorToolPolicy(TestCase):
     """Tests for on_scan_error behavior in tool policy check."""
 
     @patch("ai_guardian.hook_processing.extract_file_content_from_tool")
-    @patch("ai_guardian.hook_processing._load_pii_config")
-    @patch("ai_guardian.hook_processing._get_on_scan_error_action")
+    @patch("ai_guardian.config.loaders._load_pii_config")
+    @patch("ai_guardian.config.loaders._get_on_scan_error_action")
     @patch("ai_guardian.hook_processing._load_permissions_config")
-    @patch("ai_guardian.hook_processing._load_secret_scanning_config")
+    @patch("ai_guardian.config.loaders._load_secret_scanning_config")
     @patch("ai_guardian.hook_processing._load_pattern_server_config")
     def test_tool_policy_error_allow(
         self,
@@ -141,10 +141,10 @@ class TestOnScanErrorToolPolicy(TestCase):
             )
 
     @patch("ai_guardian.hook_processing.extract_file_content_from_tool")
-    @patch("ai_guardian.hook_processing._load_pii_config")
-    @patch("ai_guardian.hook_processing._get_on_scan_error_action")
+    @patch("ai_guardian.config.loaders._load_pii_config")
+    @patch("ai_guardian.config.loaders._get_on_scan_error_action")
     @patch("ai_guardian.hook_processing._load_permissions_config")
-    @patch("ai_guardian.hook_processing._load_secret_scanning_config")
+    @patch("ai_guardian.config.loaders._load_secret_scanning_config")
     @patch("ai_guardian.hook_processing._load_pattern_server_config")
     def test_tool_policy_error_block(
         self,
@@ -192,11 +192,11 @@ class TestOnScanErrorPromptInjection(TestCase):
     """Tests for on_scan_error behavior in prompt injection check."""
 
     @patch("ai_guardian.hook_processing.extract_file_content_from_tool")
-    @patch("ai_guardian.hook_processing._load_pii_config")
-    @patch("ai_guardian.hook_processing._get_on_scan_error_action")
-    @patch("ai_guardian.hook_processing._load_prompt_injection_config")
+    @patch("ai_guardian.config.loaders._load_pii_config")
+    @patch("ai_guardian.config.loaders._get_on_scan_error_action")
+    @patch("ai_guardian.config.loaders._load_prompt_injection_config")
     @patch("ai_guardian.hook_processing._load_permissions_config")
-    @patch("ai_guardian.hook_processing._load_secret_scanning_config")
+    @patch("ai_guardian.config.loaders._load_secret_scanning_config")
     @patch("ai_guardian.hook_processing._load_pattern_server_config")
     def test_prompt_injection_error_allow(
         self,
@@ -245,11 +245,11 @@ class TestOnScanErrorPromptInjection(TestCase):
             )
 
     @patch("ai_guardian.hook_processing.extract_file_content_from_tool")
-    @patch("ai_guardian.hook_processing._load_pii_config")
-    @patch("ai_guardian.hook_processing._get_on_scan_error_action")
-    @patch("ai_guardian.hook_processing._load_prompt_injection_config")
+    @patch("ai_guardian.config.loaders._load_pii_config")
+    @patch("ai_guardian.config.loaders._get_on_scan_error_action")
+    @patch("ai_guardian.config.loaders._load_prompt_injection_config")
     @patch("ai_guardian.hook_processing._load_permissions_config")
-    @patch("ai_guardian.hook_processing._load_secret_scanning_config")
+    @patch("ai_guardian.config.loaders._load_secret_scanning_config")
     @patch("ai_guardian.hook_processing._load_pattern_server_config")
     def test_prompt_injection_error_block(
         self,
@@ -348,11 +348,11 @@ class TestOnScanErrorSecretScanning(TestCase):
 class TestOnScanErrorConfigScanning(TestCase):
     """Tests for on_scan_error behavior in config file scanning."""
 
-    @patch("ai_guardian.hook_processing._load_pii_config")
-    @patch("ai_guardian.hook_processing._get_on_scan_error_action")
-    @patch("ai_guardian.hook_processing._load_config_scanner_config")
+    @patch("ai_guardian.config.loaders._load_pii_config")
+    @patch("ai_guardian.config.loaders._get_on_scan_error_action")
+    @patch("ai_guardian.config.loaders._load_config_scanner_config")
     @patch("ai_guardian.hook_processing._load_permissions_config")
-    @patch("ai_guardian.hook_processing._load_secret_scanning_config")
+    @patch("ai_guardian.config.loaders._load_secret_scanning_config")
     @patch("ai_guardian.hook_processing._load_pattern_server_config")
     @patch("ai_guardian.hook_processing.extract_file_content_from_tool")
     def test_config_scan_error_allow(
@@ -395,11 +395,11 @@ class TestOnScanErrorConfigScanning(TestCase):
                 _is_blocked(result), "Should fail-open when on_scan_error=allow"
             )
 
-    @patch("ai_guardian.hook_processing._load_pii_config")
-    @patch("ai_guardian.hook_processing._get_on_scan_error_action")
-    @patch("ai_guardian.hook_processing._load_config_scanner_config")
+    @patch("ai_guardian.config.loaders._load_pii_config")
+    @patch("ai_guardian.config.loaders._get_on_scan_error_action")
+    @patch("ai_guardian.config.loaders._load_config_scanner_config")
     @patch("ai_guardian.hook_processing._load_permissions_config")
-    @patch("ai_guardian.hook_processing._load_secret_scanning_config")
+    @patch("ai_guardian.config.loaders._load_secret_scanning_config")
     @patch("ai_guardian.hook_processing._load_pattern_server_config")
     @patch("ai_guardian.hook_processing.extract_file_content_from_tool")
     def test_config_scan_error_block(
@@ -446,10 +446,10 @@ class TestOnScanErrorConfigScanning(TestCase):
 class TestOnScanErrorTranscriptScanning(TestCase):
     """Tests for on_scan_error behavior in transcript scanning."""
 
-    @patch("ai_guardian.hook_processing._load_pii_config")
-    @patch("ai_guardian.hook_processing._get_on_scan_error_action")
-    @patch("ai_guardian.hook_processing._load_transcript_scanning_config")
-    @patch("ai_guardian.hook_processing._load_secret_scanning_config")
+    @patch("ai_guardian.config.loaders._load_pii_config")
+    @patch("ai_guardian.config.loaders._get_on_scan_error_action")
+    @patch("ai_guardian.config.loaders._load_transcript_scanning_config")
+    @patch("ai_guardian.config.loaders._load_secret_scanning_config")
     @patch("ai_guardian.hook_processing._load_pattern_server_config")
     def test_transcript_scan_error_allow(
         self, mock_pattern, mock_secret, mock_transcript, mock_on_error, mock_pii
@@ -467,7 +467,7 @@ class TestOnScanErrorTranscriptScanning(TestCase):
                 return_value="/tmp/transcript.jsonl",
             ),
             patch(
-                "ai_guardian.hook_processing.scan_transcript_incremental",
+                "ai_guardian.scanners.transcript.scan_transcript_incremental",
                 side_effect=Exception("Transcript scan crashed"),
             ),
         ):
@@ -481,10 +481,10 @@ class TestOnScanErrorTranscriptScanning(TestCase):
                 _is_blocked(result), "Should fail-open when on_scan_error=allow"
             )
 
-    @patch("ai_guardian.hook_processing._load_pii_config")
-    @patch("ai_guardian.hook_processing._get_on_scan_error_action")
-    @patch("ai_guardian.hook_processing._load_transcript_scanning_config")
-    @patch("ai_guardian.hook_processing._load_secret_scanning_config")
+    @patch("ai_guardian.config.loaders._load_pii_config")
+    @patch("ai_guardian.config.loaders._get_on_scan_error_action")
+    @patch("ai_guardian.config.loaders._load_transcript_scanning_config")
+    @patch("ai_guardian.config.loaders._load_secret_scanning_config")
     @patch("ai_guardian.hook_processing._load_pattern_server_config")
     def test_transcript_scan_error_block(
         self, mock_pattern, mock_secret, mock_transcript, mock_on_error, mock_pii
@@ -528,7 +528,7 @@ class TestOnScanErrorPiiScanning(TestCase):
 
         with (
             patch(
-                "ai_guardian.hook_processing._get_on_scan_error_action",
+                "ai_guardian.config.loaders._get_on_scan_error_action",
                 return_value="allow",
             ),
             patch(
@@ -549,7 +549,7 @@ class TestOnScanErrorPiiScanning(TestCase):
 
         with (
             patch(
-                "ai_guardian.hook_processing._get_on_scan_error_action",
+                "ai_guardian.config.loaders._get_on_scan_error_action",
                 return_value="block",
             ),
             patch(
@@ -565,9 +565,9 @@ class TestOnScanErrorPiiScanning(TestCase):
             self.assertIn("on_scan_error=block", warning)
 
     @patch("ai_guardian.hook_processing._scan_for_pii")
-    @patch("ai_guardian.hook_processing._load_pii_config")
-    @patch("ai_guardian.hook_processing.check_secrets_with_gitleaks")
-    @patch("ai_guardian.hook_processing._load_secret_scanning_config")
+    @patch("ai_guardian.config.loaders._load_pii_config")
+    @patch("ai_guardian.scanners.secret_scanning.check_secrets_with_gitleaks")
+    @patch("ai_guardian.config.loaders._load_secret_scanning_config")
     def test_pii_scan_error_no_violation_logged(
         self, mock_ss, mock_gitleaks, mock_pii, mock_scan
     ):
@@ -602,7 +602,7 @@ class TestOnScanErrorPiiScanning(TestCase):
 
         with patch("sys.stdin", StringIO(json.dumps(hook_data))):
             with patch(
-                "ai_guardian.violations.logger.ViolationLogger.log_violation"
+                "ai_guardian.hook_processing.ViolationLogger.log_violation"
             ) as mock_log:
                 result = ai_guardian.process_hook_input()
                 # Should block (scan error with on_scan_error=block)
@@ -621,9 +621,9 @@ class TestOnScanErrorPiiScanning(TestCase):
                     )
 
     @patch("ai_guardian.hook_processing._scan_for_pii")
-    @patch("ai_guardian.hook_processing._load_pii_config")
-    @patch("ai_guardian.hook_processing.check_secrets_with_gitleaks")
-    @patch("ai_guardian.hook_processing._load_secret_scanning_config")
+    @patch("ai_guardian.config.loaders._load_pii_config")
+    @patch("ai_guardian.scanners.secret_scanning.check_secrets_with_gitleaks")
+    @patch("ai_guardian.config.loaders._load_secret_scanning_config")
     def test_pii_scan_no_pii_no_violation(
         self, mock_ss, mock_gitleaks, mock_pii, mock_scan
     ):
@@ -653,7 +653,7 @@ class TestOnScanErrorPiiScanning(TestCase):
 
         with patch("sys.stdin", StringIO(json.dumps(hook_data))):
             with patch(
-                "ai_guardian.violations.logger.ViolationLogger.log_violation"
+                "ai_guardian.hook_processing.ViolationLogger.log_violation"
             ) as mock_log:
                 result = ai_guardian.process_hook_input()
                 self.assertFalse(
@@ -669,8 +669,8 @@ class TestOnScanErrorPiiScanning(TestCase):
                     )
 
     @patch("ai_guardian.hook_processing._scan_for_pii")
-    @patch("ai_guardian.hook_processing._load_pii_config")
-    @patch("ai_guardian.hook_processing._load_secret_scanning_config")
+    @patch("ai_guardian.config.loaders._load_pii_config")
+    @patch("ai_guardian.config.loaders._load_secret_scanning_config")
     @patch("ai_guardian.hook_processing._load_pattern_server_config")
     @patch("ai_guardian.hook_processing.extract_file_content_from_tool")
     def test_pretooluse_pii_scan_error_no_violation(
@@ -712,7 +712,7 @@ class TestOnScanErrorPiiScanning(TestCase):
 
         with patch("sys.stdin", StringIO(json.dumps(hook_data))):
             with patch(
-                "ai_guardian.violations.logger.ViolationLogger.log_violation"
+                "ai_guardian.hook_processing.ViolationLogger.log_violation"
             ) as mock_log:
                 result = ai_guardian.process_hook_input()
                 self.assertTrue(
@@ -733,7 +733,7 @@ class TestOnScanErrorBackwardCompatibility(TestCase):
     """Test backward compatibility - default behavior unchanged."""
 
     @patch("ai_guardian.hook_processing._load_config_file")
-    @patch("ai_guardian.hook_processing.check_secrets_with_gitleaks")
+    @patch("ai_guardian.scanners.secret_scanning.check_secrets_with_gitleaks")
     def test_default_behavior_unchanged(self, mock_check_secrets, mock_load_config):
         """Without on_scan_error config, behavior is fail-open (backward compatible)."""
         mock_load_config.return_value = ({"secret_scanning": {"enabled": True}}, None)

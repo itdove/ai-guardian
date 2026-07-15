@@ -1597,7 +1597,9 @@ class TestPromptInjectionViolationDetails(unittest.TestCase):
 
     def test_actual_pattern_logged(self):
         """Violation log should contain the actual matched pattern."""
-        with patch("ai_guardian.hook_processing.ViolationLogger") as MockLogger:
+        with patch(
+            "ai_guardian.hook_events.post_tool_use.ViolationLogger"
+        ) as MockLogger:
             mock_instance = MagicMock()
             MockLogger.return_value = mock_instance
             _log_prompt_injection_violation(
@@ -1620,7 +1622,9 @@ class TestPromptInjectionViolationDetails(unittest.TestCase):
 
     def test_actual_confidence_logged(self):
         """Violation log should contain the actual confidence score."""
-        with patch("ai_guardian.hook_processing.ViolationLogger") as MockLogger:
+        with patch(
+            "ai_guardian.hook_events.post_tool_use.ViolationLogger"
+        ) as MockLogger:
             mock_instance = MagicMock()
             MockLogger.return_value = mock_instance
             _log_prompt_injection_violation(
@@ -1642,7 +1646,9 @@ class TestPromptInjectionViolationDetails(unittest.TestCase):
 
     def test_matched_text_logged(self):
         """Violation log should contain the matched text."""
-        with patch("ai_guardian.hook_processing.ViolationLogger") as MockLogger:
+        with patch(
+            "ai_guardian.hook_events.post_tool_use.ViolationLogger"
+        ) as MockLogger:
             mock_instance = MagicMock()
             MockLogger.return_value = mock_instance
             _log_prompt_injection_violation(
@@ -1666,7 +1672,9 @@ class TestPromptInjectionViolationDetails(unittest.TestCase):
 
     def test_matched_text_truncated_to_100_chars(self):
         """Matched text should be truncated to 100 characters."""
-        with patch("ai_guardian.hook_processing.ViolationLogger") as MockLogger:
+        with patch(
+            "ai_guardian.hook_events.post_tool_use.ViolationLogger"
+        ) as MockLogger:
             mock_instance = MagicMock()
             MockLogger.return_value = mock_instance
             _log_prompt_injection_violation(
@@ -1688,7 +1696,9 @@ class TestPromptInjectionViolationDetails(unittest.TestCase):
 
     def test_backward_compat_no_params(self):
         """Without new params, pattern defaults to 'Unknown' and confidence to 0.0."""
-        with patch("ai_guardian.hook_processing.ViolationLogger") as MockLogger:
+        with patch(
+            "ai_guardian.hook_events.post_tool_use.ViolationLogger"
+        ) as MockLogger:
             mock_instance = MagicMock()
             MockLogger.return_value = mock_instance
             _log_prompt_injection_violation(
@@ -1709,7 +1719,9 @@ class TestPromptInjectionViolationDetails(unittest.TestCase):
 
     def test_no_matched_text_key_when_none(self):
         """When matched_text is None, the key should not appear."""
-        with patch("ai_guardian.hook_processing.ViolationLogger") as MockLogger:
+        with patch(
+            "ai_guardian.hook_events.post_tool_use.ViolationLogger"
+        ) as MockLogger:
             mock_instance = MagicMock()
             MockLogger.return_value = mock_instance
             _log_prompt_injection_violation(
@@ -1730,7 +1742,9 @@ class TestPromptInjectionViolationDetails(unittest.TestCase):
 
     def test_jailbreak_with_actual_details(self):
         """Jailbreak violations should also log actual pattern details."""
-        with patch("ai_guardian.hook_processing.ViolationLogger") as MockLogger:
+        with patch(
+            "ai_guardian.hook_events.post_tool_use.ViolationLogger"
+        ) as MockLogger:
             mock_instance = MagicMock()
             MockLogger.return_value = mock_instance
             _log_prompt_injection_violation(

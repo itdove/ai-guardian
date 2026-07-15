@@ -69,27 +69,84 @@ from ai_guardian.constants import ActionMode, ViolationType, HookEvent, AUGMENT_
 from ai_guardian.scanners.scan_result import ScanResult
 from ai_guardian.utils.path_matching import match_leading_doublestar_pattern
 
+import ai_guardian.config.loaders as _loaders
 from ai_guardian.config.loaders import (
-    _load_pattern_server_config,
-    _load_prompt_injection_config,
-    _load_config_scanner_config,
-    _load_permissions_config,
-    _load_secret_scanning_config,
-    _load_secret_redaction_config,
-    _load_pii_config,
-    _load_transcript_scanning_config,
-    _load_annotations_config,
-    _load_image_scanning_config,
-    _load_security_instructions_config,
-    _load_context_poisoning_config,
-    _load_supply_chain_config,
-    _load_code_scanning_config,
-    _load_offensive_language_config,
-    _load_canary_detection_config,
-    _load_exfil_detection_config,
-    _get_on_scan_error_action,
     _load_config_file,  # noqa: F401 — patched by tests via this namespace
 )
+
+
+def _load_pattern_server_config():
+    return _loaders._load_pattern_server_config()
+
+
+def _load_prompt_injection_config():
+    return _loaders._load_prompt_injection_config()
+
+
+def _load_config_scanner_config():
+    return _loaders._load_config_scanner_config()
+
+
+def _load_permissions_config():
+    return _loaders._load_permissions_config()
+
+
+def _load_secret_scanning_config():
+    return _loaders._load_secret_scanning_config()
+
+
+def _load_secret_redaction_config():
+    return _loaders._load_secret_redaction_config()
+
+
+def _load_pii_config():
+    return _loaders._load_pii_config()
+
+
+def _load_transcript_scanning_config():
+    return _loaders._load_transcript_scanning_config()
+
+
+def _load_annotations_config():
+    return _loaders._load_annotations_config()
+
+
+def _load_image_scanning_config():
+    return _loaders._load_image_scanning_config()
+
+
+def _load_security_instructions_config():
+    return _loaders._load_security_instructions_config()
+
+
+def _load_context_poisoning_config():
+    return _loaders._load_context_poisoning_config()
+
+
+def _load_supply_chain_config():
+    return _loaders._load_supply_chain_config()
+
+
+def _load_code_scanning_config():
+    return _loaders._load_code_scanning_config()
+
+
+def _load_offensive_language_config():
+    return _loaders._load_offensive_language_config()
+
+
+def _load_canary_detection_config():
+    return _loaders._load_canary_detection_config()
+
+
+def _load_exfil_detection_config():
+    return _loaders._load_exfil_detection_config()
+
+
+def _get_on_scan_error_action():
+    return _loaders._get_on_scan_error_action()
+
+
 from ai_guardian.constants import parse_ask_action
 
 from ai_guardian.response_format import (
@@ -232,98 +289,86 @@ except ImportError:
     HAS_AST_SCANNER = False
 
 
-# --- Re-exports from secret_scanning.py for backward compatibility ---
-from ai_guardian.scanners.secret_scanning import (  # noqa: F401
-    DEFAULT_ENGINES,
-    _AUTH_ERROR_KEYWORDS,
-    _NETWORK_ERROR_KEYWORDS,
+import ai_guardian.scanners.secret_scanning as _secret_scanning_mod
+from ai_guardian.scanners.secret_scanning import (
     _build_violation_context,
     _enrich_blocked_from_details,
     _log_secret_detection_violation,
-    _CATEGORY_VIOLATION_MAP,
-    _log_finding_violation,
-    _count_gitleaks_patterns,
-    _CATEGORY_BANNER,
     _build_secret_detected_message,
-    _describe_patterns,
-    _apply_secret_validation,
-    _run_secret_validation,
-    _extract_matched_text_for_ask,
     check_secrets_with_gitleaks,
 )
-import ai_guardian.scanners.secret_scanning as _secret_scanning_mod
-
-# --- Re-exports from transcript_scanning.py for backward compatibility ---
-from ai_guardian.scanners.transcript import (  # noqa: F401
-    _get_transcript_path,
-    _load_transcript_positions,
-    _save_transcript_positions,
+from ai_guardian.scanners.transcript import (
     _advance_transcript_position,
-    _load_seen_findings,
-    _save_seen_findings,
-    _finding_fingerprint,
-    _extract_secret_type_from_error,
-    _extract_text_from_transcript_line,
-    scan_transcript_incremental,
-    _scan_transcript_text,
-    scan_opencode_transcript_incremental,
-    _log_transcript_violation,
-)
-
-# --- Re-exports from ask_mode.py for backward compatibility ---
-from ai_guardian.ask_mode import (  # noqa: F401
-    _get_directory_action_from_config,
-    _build_permission_matched_text,
-    _handle_ask_mode,
-    _handle_ask_mode_multi,
-    _handle_ask_mode_auto,
-    _ASK_VIOLATION_LABELS,
-    _format_ask_info_message,
-    _log_ask_decision,
-    _record_allowed_for_transcript,
-    _compute_pii_transcript_fingerprints,
-)
-
-# --- Re-exports from hook_events/session_events.py for backward compatibility ---
-from ai_guardian.hook_events.session_events import (  # noqa: F401
-    _handle_session_end,
-    _handle_bootstrap_scan,
-    _run_bootstrap_scan,
-)
-
-# --- Re-exports from hook_events/post_tool_use.py for backward compatibility ---
-from ai_guardian.hook_events.post_tool_use import (  # noqa: F401
-    handle_post_tool_use,
-    _log_prompt_injection_violation,
-    _log_context_poisoning_violation,
-    _log_offensive_language_violation,
-    _log_pii_violation,
-)
-
-# --- Re-exports from hook_events/content_pipeline.py for backward compatibility ---
-from ai_guardian.hook_events.content_pipeline import (  # noqa: F401
-    run_content_pipeline,
-)
-
-# --- Re-exports from hook_events/scanners.py for backward compatibility ---
-from ai_guardian.hook_events.scanners import (  # noqa: F401
-    run_prompt_injection_scan,
-    run_context_poisoning_scan,
-    run_supply_chain_scan,
-    _should_skip_offensive_language_scan,
-    run_offensive_language_scan,
-    run_canary_detection_scan,
-    run_code_security_scan,
-    run_config_file_scan,
-    run_bash_exfil_scan,
-    run_exfil_detection_scan,
-    run_image_scan,
-    run_pii_scan,
-    run_secret_scan,
-    run_directory_check,
+    _get_transcript_path,
 )
 
 logger = logging.getLogger(__name__)
+
+
+# Deferred imports for hook_events and ask_mode modules — these modules import
+# from hook_processing, so module-level imports here would create circular deps.
+# Resolved lazily on first call to process_hook_data().
+_handle_ask_mode_auto = None
+_format_ask_info_message = None
+_log_ask_decision = None
+run_content_pipeline = None
+handle_post_tool_use = None
+_handle_session_end = None
+_handle_bootstrap_scan = None
+run_bash_exfil_scan = None
+run_exfil_detection_scan = None
+run_image_scan = None
+run_code_security_scan = None
+_build_permission_matched_text = None
+_get_directory_action_from_config = None
+
+
+def _ensure_hook_events_imported():
+    global _handle_ask_mode_auto, _format_ask_info_message, _log_ask_decision
+    global run_content_pipeline, handle_post_tool_use
+    global _handle_session_end, _handle_bootstrap_scan
+    global run_bash_exfil_scan, run_exfil_detection_scan
+    global run_image_scan, run_code_security_scan
+    global _build_permission_matched_text, _get_directory_action_from_config
+    if run_content_pipeline is not None:
+        return
+    from ai_guardian.ask_mode import (
+        _handle_ask_mode_auto as _ham,
+        _format_ask_info_message as _faim,
+        _log_ask_decision as _lad,
+        _build_permission_matched_text as _bpmt,
+        _get_directory_action_from_config as _gdafc,
+    )
+    from ai_guardian.hook_events.content_pipeline import (
+        run_content_pipeline as _rcp,
+    )
+    from ai_guardian.hook_events.post_tool_use import (
+        handle_post_tool_use as _hptu,
+    )
+    from ai_guardian.hook_events.scanners import (
+        run_bash_exfil_scan as _rbes,
+        run_exfil_detection_scan as _reds,
+        run_image_scan as _ris,
+        run_code_security_scan as _rcss,
+    )
+    from ai_guardian.hook_events.session_events import (
+        _handle_session_end as _hse,
+        _handle_bootstrap_scan as _hbs,
+    )
+
+    _handle_ask_mode_auto = _ham
+    _format_ask_info_message = _faim
+    _log_ask_decision = _lad
+    run_content_pipeline = _rcp
+    handle_post_tool_use = _hptu
+    _handle_session_end = _hse
+    _handle_bootstrap_scan = _hbs
+    run_bash_exfil_scan = _rbes
+    run_exfil_detection_scan = _reds
+    run_image_scan = _ris
+    run_code_security_scan = _rcss
+    _build_permission_matched_text = _bpmt
+    _get_directory_action_from_config = _gdafc
 
 
 def _is_latency_enabled():
@@ -1646,6 +1691,7 @@ def process_hook_data(hook_data, daemon_state=None):
               - For Claude Code: output=None, exit_code=0 (allow) or 2 (block)
               - For Cursor: output=JSON string, exit_code=0
     """
+    _ensure_hook_events_imported()
     _latency_timer = None
     _latency_event = None
     _latency_tool = ""

@@ -509,8 +509,8 @@ class TestConfigLoader(TestCase):
 class TestHookIntegration(TestCase):
     """Test image scanning integration in hook processing."""
 
-    @patch("ai_guardian.hook_processing._load_image_scanning_config")
-    @patch("ai_guardian.hook_processing._load_secret_scanning_config")
+    @patch("ai_guardian.config.loaders._load_image_scanning_config")
+    @patch("ai_guardian.config.loaders._load_secret_scanning_config")
     @patch("ai_guardian.hook_processing._load_pattern_server_config")
     def test_image_file_triggers_ocr(self, mock_ps, mock_ss, mock_img):
         """When a Read tool accesses an image file, OCR should run."""
@@ -563,7 +563,7 @@ class TestHookIntegration(TestCase):
                 self.assertEqual(result["exit_code"], 0)
                 mock_scan.assert_called_once()
 
-    @patch("ai_guardian.hook_processing._load_image_scanning_config")
+    @patch("ai_guardian.config.loaders._load_image_scanning_config")
     def test_image_scanning_disabled_skips_ocr(self, mock_img):
         """When image scanning is disabled, OCR should not run."""
         mock_img.return_value = ({"enabled": False}, None)

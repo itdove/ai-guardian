@@ -143,6 +143,35 @@ from ai_guardian.hook_processing import (  # noqa: F401
     _should_skip_pii_scan,
     _build_directory_denied_message,
     extract_file_content_from_tool,
+    _scan_for_pii,
+    _extract_block_reason,
+    _is_ai_guardian_test_file,
+    _annotation_hint,
+    _extract_context_snippet,
+    _log_directory_blocking_violation,
+    process_hook_data,
+    process_hook_input,
+    # HAS_* flags and conditionally-imported names
+    HAS_GITLEAKS_CONFIG,
+    HAS_TOOL_POLICY,
+    HAS_PATTERN_SERVER,
+    HAS_PROMPT_INJECTION,
+    HAS_CONFIG_SCANNER,
+    HAS_VIOLATION_LOGGER,
+    HAS_SCANNER_ENGINE,
+    HAS_ANNOTATIONS,
+)
+
+# --- scanners.secret_scanning ---
+from ai_guardian.scanners.secret_scanning import (  # noqa: F401
+    _log_secret_detection_violation,
+    _count_gitleaks_patterns,
+    _describe_patterns,
+    check_secrets_with_gitleaks,
+)
+
+# --- scanners.transcript ---
+from ai_guardian.scanners.transcript import (  # noqa: F401
     _advance_transcript_position,
     _get_transcript_path,
     _load_transcript_positions,
@@ -156,28 +185,11 @@ from ai_guardian.hook_processing import (  # noqa: F401
     _scan_transcript_text,
     scan_opencode_transcript_incremental,
     _log_transcript_violation,
-    _scan_for_pii,
-    _extract_block_reason,
-    _is_ai_guardian_test_file,
-    _annotation_hint,
-    _extract_context_snippet,
-    _log_directory_blocking_violation,
-    _log_secret_detection_violation,
+)
+
+# --- hook_events ---
+from ai_guardian.hook_events.post_tool_use import (  # noqa: F401
     _log_prompt_injection_violation,
-    _count_gitleaks_patterns,
-    _describe_patterns,
-    check_secrets_with_gitleaks,
-    process_hook_data,
-    process_hook_input,
-    # HAS_* flags and conditionally-imported names
-    HAS_GITLEAKS_CONFIG,
-    HAS_TOOL_POLICY,
-    HAS_PATTERN_SERVER,
-    HAS_PROMPT_INJECTION,
-    HAS_CONFIG_SCANNER,
-    HAS_VIOLATION_LOGGER,
-    HAS_SCANNER_ENGINE,
-    HAS_ANNOTATIONS,
 )
 
 # --- cli_handlers.py ---

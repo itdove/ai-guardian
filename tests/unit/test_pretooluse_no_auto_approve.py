@@ -20,7 +20,7 @@ from tests.fixtures.mock_mcp_server import create_hook_data
 class PreToolUseNoAutoApproveTests(TestCase):
     """Integration tests: PreToolUse doesn't auto-approve clean operations"""
 
-    @patch("ai_guardian.hook_processing._load_secret_redaction_config")
+    @patch("ai_guardian.config.loaders._load_secret_redaction_config")
     @patch("ai_guardian.hook_processing._load_pattern_server_config")
     def test_edit_operation_no_auto_approve_claude_code(
         self, mock_pattern_config, mock_redaction_config
@@ -70,7 +70,7 @@ class PreToolUseNoAutoApproveTests(TestCase):
             response == {} or "systemMessage" in response
         ), f"Response should be empty or only warnings, got: {response}"
 
-    @patch("ai_guardian.hook_processing._load_secret_redaction_config")
+    @patch("ai_guardian.config.loaders._load_secret_redaction_config")
     @patch("ai_guardian.hook_processing._load_pattern_server_config")
     @patch("ai_guardian.hook_processing.detect_adapter")
     def test_edit_operation_no_auto_approve_github_copilot(
@@ -122,7 +122,7 @@ class PreToolUseNoAutoApproveTests(TestCase):
         # Response should be empty
         assert response == {}, f"Response should be empty, got: {response}"
 
-    @patch("ai_guardian.hook_processing._load_secret_redaction_config")
+    @patch("ai_guardian.config.loaders._load_secret_redaction_config")
     @patch("ai_guardian.hook_processing._load_pattern_server_config")
     def test_write_operation_no_auto_approve_claude_code(
         self, mock_pattern_config, mock_redaction_config
@@ -161,7 +161,7 @@ class PreToolUseNoAutoApproveTests(TestCase):
             response == {} or "systemMessage" in response
         ), f"Response should be empty or only warnings, got: {response}"
 
-    @patch("ai_guardian.hook_processing._load_secret_redaction_config")
+    @patch("ai_guardian.config.loaders._load_secret_redaction_config")
     @patch("ai_guardian.hook_processing._load_pattern_server_config")
     @patch("ai_guardian.hook_processing.detect_adapter")
     def test_write_operation_no_auto_approve_github_copilot(
@@ -201,8 +201,8 @@ class PreToolUseNoAutoApproveTests(TestCase):
 
         assert response == {}, f"Response should be empty, got: {response}"
 
-    @patch("ai_guardian.hook_processing.check_secrets_with_gitleaks")
-    @patch("ai_guardian.hook_processing._load_secret_scanning_config")
+    @patch("ai_guardian.scanners.secret_scanning.check_secrets_with_gitleaks")
+    @patch("ai_guardian.config.loaders._load_secret_scanning_config")
     def test_read_with_secret_still_denies(self, mock_config, mock_check_secrets):
         """
         Verify PreToolUse still DENIES when secrets ARE detected.
@@ -244,7 +244,7 @@ class PreToolUseNoAutoApproveTests(TestCase):
 
             os.unlink(temp_path)
 
-    @patch("ai_guardian.hook_processing._load_secret_redaction_config")
+    @patch("ai_guardian.config.loaders._load_secret_redaction_config")
     @patch("ai_guardian.hook_processing._load_pattern_server_config")
     def test_e2e_edit_workflow_user_sees_prompt(
         self, mock_pattern_config, mock_redaction_config

@@ -2,15 +2,12 @@
 
 import logging
 
+import ai_guardian.config.loaders as _loaders
+from ai_guardian.config.utils import get_project_dir
 from ai_guardian.constants import ViolationType
+from ai_guardian.hook_events.scanners import run_config_file_scan
+from ai_guardian.hook_events.utils import _format_response
 from ai_guardian.scanners.transcript import _advance_transcript_position
-
-import ai_guardian.hook_processing as _hp
-
-
-def get_project_dir():
-    return _hp.get_project_dir()
-
 
 try:
     from ai_guardian.scanners.config_scanner import ConfigFileScanner  # noqa: F401
@@ -90,7 +87,7 @@ def _handle_bootstrap_scan(
         if not daemon_state.is_new_session(hook_session_id, _bs_cwd):
             return None
         logging.info(f"Bootstrap scan: new session detected (cwd={_bs_cwd})")
-        _bs_config, _ = _hp._load_config_scanner_config()
+        _bs_config, _ = _loaders._load_config_scanner_config()
         _bs_results = _run_bootstrap_scan(_bs_cwd, config=_bs_config)
         for _bs_result in _bs_results:
             _bs_action = _bs_result.extra.get("action", "block")
@@ -148,7 +145,7 @@ def _handle_bootstrap_scan(
                     f"  4. If false positive: add to config_file_scanning.ignore_files\n"
                     f"{'='*70}\n"
                 )
-                return _hp._format_response(
+                return _format_response(
                     adapter,
                     has_secrets=True,
                     error_message=_bs_formatted,
@@ -171,7 +168,7 @@ def _handle_bootstrap_scan(
                     f"  3. If false positive: add to config_file_scanning.ignore_files\n"
                     f"{'='*70}\n"
                 )
-                return _hp._format_response(
+                return _format_response(
                     adapter,
                     warning_message=_bs_formatted,
                     hook_event=hook_event,
@@ -195,7 +192,7 @@ def _run_bootstrap_scan(cwd: str, config=None) -> list:
     from pathlib import Path as _Path
 
     if config is None:
-        config, _ = _hp._load_config_scanner_config()
+        config, _ = _loaders._load_config_scanner_config()
 
     scanner = ConfigFileScanner(config)
     cwd_path = _Path(cwd)
@@ -209,7 +206,7 @@ def _run_bootstrap_scan(cwd: str, config=None) -> list:
             content = file_path.read_text(encoding="utf-8", errors="replace")
         except OSError:
             continue
-        result = _hp.run_config_file_scan(str(file_path), content, config=config)
+        result = run_config_file_scan(str(file_path), content, config=config)
         if result is not None and result.detected:
             results.append(result)
 

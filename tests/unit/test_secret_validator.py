@@ -503,7 +503,7 @@ class TestApplySecretValidation:
     """Test the _apply_secret_validation helper in hook_processing."""
 
     def test_disabled_returns_none(self):
-        from ai_guardian.hook_processing import _apply_secret_validation
+        from ai_guardian.scanners.secret_scanning import _apply_secret_validation
 
         result = _apply_secret_validation(
             {"validate_secrets": False},
@@ -513,13 +513,13 @@ class TestApplySecretValidation:
         assert result is None
 
     def test_no_config_returns_none(self):
-        from ai_guardian.hook_processing import _apply_secret_validation
+        from ai_guardian.scanners.secret_scanning import _apply_secret_validation
 
         result = _apply_secret_validation(None, [], "")
         assert result is None
 
     def test_no_secrets_returns_none(self):
-        from ai_guardian.hook_processing import _apply_secret_validation
+        from ai_guardian.scanners.secret_scanning import _apply_secret_validation
 
         result = _apply_secret_validation(
             {"validate_secrets": True},
@@ -529,7 +529,7 @@ class TestApplySecretValidation:
         assert result is None
 
     def test_no_validators_returns_unverified(self):
-        from ai_guardian.hook_processing import _apply_secret_validation
+        from ai_guardian.scanners.secret_scanning import _apply_secret_validation
 
         result = _apply_secret_validation(
             {"validate_secrets": True},
@@ -542,7 +542,7 @@ class TestApplySecretValidation:
 
     @patch("ai_guardian.scanners.secret_validator.requests.get")
     def test_all_inactive_returns_skip_block(self, mock_get):
-        from ai_guardian.hook_processing import _apply_secret_validation
+        from ai_guardian.scanners.secret_scanning import _apply_secret_validation
 
         mock_get.return_value = MagicMock(status_code=401)
         result = _apply_secret_validation(
@@ -562,7 +562,7 @@ class TestApplySecretValidation:
 
     @patch("ai_guardian.scanners.secret_validator.requests.get")
     def test_active_secret_returns_no_skip(self, mock_get):
-        from ai_guardian.hook_processing import _apply_secret_validation
+        from ai_guardian.scanners.secret_scanning import _apply_secret_validation
 
         mock_get.return_value = MagicMock(status_code=200)
         result = _apply_secret_validation(

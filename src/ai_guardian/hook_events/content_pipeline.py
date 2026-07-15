@@ -2,29 +2,22 @@
 
 import logging
 
+import ai_guardian.config.loaders as _loaders
 from ai_guardian.config.utils import is_feature_enabled
 from ai_guardian.constants import HookEvent, ViolationType, ActionMode
-from ai_guardian.hook_events.utils import (  # noqa: F401
-    _format_response,
-    _get_on_scan_error_action,
-    _load_secret_scanning_config,
-    _load_pii_config,
+from ai_guardian.hook_events.utils import (
+    _format_response,  # noqa: F401
     _extract_pii_matched_text,
     _pii_redactions_to_findings,
     _extract_file_path_from_pii_warning,
 )
 from ai_guardian.scanners.scan_result import ScanResult  # noqa: F401 — used by callers
 
-# _hp delegation for symbols unique to this module
-import ai_guardian.hook_processing as _hp
-
 
 def _matches_ignore_files(file_path, ignore_files):
-    return _hp._matches_ignore_files(file_path, ignore_files)
+    from ai_guardian.hook_processing import _matches_ignore_files as _mif
 
-
-def _load_transcript_scanning_config():
-    return _hp._load_transcript_scanning_config()
+    return _mif(file_path, ignore_files)
 
 
 # Scanner runner functions
@@ -188,7 +181,7 @@ def run_content_pipeline(
         elif HAS_PROMPT_INJECTION and ide_type != IDEType.CURSOR:
             logging.info("⚠️  Prompt injection detection temporarily disabled")
     except Exception as e:
-        on_error = _get_on_scan_error_action()
+        on_error = _loaders._get_on_scan_error_action()
         if on_error == ActionMode.BLOCK:
             logging.error(
                 f"Prompt injection check error (fail-closed, on_scan_error=block): {e}"
@@ -430,7 +423,7 @@ def run_content_pipeline(
             elif HAS_CONFIG_SCANNER and ide_type != IDEType.CURSOR:
                 logging.info("⚠️  Config file scanning temporarily disabled")
         except Exception as e:
-            on_error = _get_on_scan_error_action()
+            on_error = _loaders._get_on_scan_error_action()
             if on_error == ActionMode.BLOCK:
                 logging.error(
                     f"Config file scanning error (fail-closed, on_scan_error=block): {e}"
@@ -449,7 +442,7 @@ def run_content_pipeline(
             logging.warning(f"Config file scanning error (fail-open): {e}")
 
     # Check for secrets in the content
-    secret_config, config_error = _load_secret_scanning_config()
+    secret_config, config_error = _loaders._load_secret_scanning_config()
     if config_error:
         warning_messages.append(config_error)
 
@@ -569,7 +562,7 @@ def run_content_pipeline(
                 return (result, log_only_count)
 
             if has_pii and pii_redactions:
-                pii_config_for_log, _ = _load_pii_config()
+                pii_config_for_log, _ = _loaders._load_pii_config()
                 pii_action = (pii_config_for_log or {}).get("action", pii_action)
                 pii_types = list(set(r.get("type", "unknown") for r in pii_redactions))
                 logging.warning(f"PII detected: {pii_types}")
@@ -651,7 +644,7 @@ def run_content_pipeline(
                 continue
 
             try:
-                ts_config, ts_error = _load_transcript_scanning_config()
+                ts_config, ts_error = _loaders._load_transcript_scanning_config()
                 if ts_error:
                     logging.warning(f"Transcript scanning config error: {ts_error}")
 
@@ -665,11 +658,11 @@ def run_content_pipeline(
                     try:
                         ts_secret_config = secret_config
                     except NameError:
-                        ts_secret_config, _ = _load_secret_scanning_config()
+                        ts_secret_config, _ = _loaders._load_secret_scanning_config()
                     try:
                         ts_pii_config = pii_config  # noqa: F821 — NameError fallback
                     except NameError:
-                        ts_pii_config, _ = _load_pii_config()
+                        ts_pii_config, _ = _loaders._load_pii_config()
 
                     ts_allowed = _invocation_allowed or None
                     with _latency_timer.check("transcript_scanning"):
@@ -697,7 +690,7 @@ def run_content_pipeline(
                 elif ts_config:
                     logging.info("⚠️  Transcript scanning temporarily disabled")
             except Exception as e:
-                on_error = _get_on_scan_error_action()
+                on_error = _loaders._get_on_scan_error_action()
                 if on_error == ActionMode.BLOCK:
                     logging.error(
                         f"{ts_adapter.name} transcript scanning error "

@@ -204,7 +204,7 @@ class TestEventDetection(TestCase):
 class TestProcessHookDataStop(TestCase):
     """process_hook_data handles Stop event as no-op (Issue #1007)."""
 
-    @patch("ai_guardian.hook_processing._load_secret_redaction_config")
+    @patch("ai_guardian.config.loaders._load_secret_redaction_config")
     @patch("ai_guardian.hook_processing._load_pattern_server_config")
     def test_stop_returns_allow(self, mock_pattern_config, mock_redaction_config):
         mock_pattern_config.return_value = None
@@ -222,7 +222,7 @@ class TestProcessHookDataStop(TestCase):
         assert result["exit_code"] == 0
         assert result["output"] is None
 
-    @patch("ai_guardian.hook_processing._load_secret_redaction_config")
+    @patch("ai_guardian.config.loaders._load_secret_redaction_config")
     @patch("ai_guardian.hook_processing._load_pattern_server_config")
     def test_stop_without_session_id(self, mock_pattern_config, mock_redaction_config):
         mock_pattern_config.return_value = None
@@ -235,7 +235,7 @@ class TestProcessHookDataStop(TestCase):
         assert result["exit_code"] == 0
         assert result["output"] is None
 
-    @patch("ai_guardian.hook_processing._load_secret_redaction_config")
+    @patch("ai_guardian.config.loaders._load_secret_redaction_config")
     @patch("ai_guardian.hook_processing._load_pattern_server_config")
     @patch("ai_guardian.hook_events.session_events._advance_transcript_position")
     def test_stop_does_not_call_session_cleanup(
@@ -257,7 +257,7 @@ class TestProcessHookDataStop(TestCase):
         assert result["exit_code"] == 0
         mock_advance.assert_not_called()
 
-    @patch("ai_guardian.hook_processing._load_secret_redaction_config")
+    @patch("ai_guardian.config.loaders._load_secret_redaction_config")
     @patch("ai_guardian.hook_processing._load_pattern_server_config")
     def test_stop_with_opencode_session_end(
         self, mock_pattern_config, mock_redaction_config
@@ -283,7 +283,7 @@ class TestProcessHookDataStop(TestCase):
 class TestProcessHookDataSessionEnd(TestCase):
     """process_hook_data handles SessionEnd event with cleanup (Issue #1007)."""
 
-    @patch("ai_guardian.hook_processing._load_secret_redaction_config")
+    @patch("ai_guardian.config.loaders._load_secret_redaction_config")
     @patch("ai_guardian.hook_processing._load_pattern_server_config")
     @patch("ai_guardian.hook_events.session_events._advance_transcript_position")
     def test_session_end_calls_cleanup(
@@ -304,7 +304,7 @@ class TestProcessHookDataSessionEnd(TestCase):
         assert result["exit_code"] == 0
         mock_advance.assert_called_once_with(hook_data)
 
-    @patch("ai_guardian.hook_processing._load_secret_redaction_config")
+    @patch("ai_guardian.config.loaders._load_secret_redaction_config")
     @patch("ai_guardian.hook_processing._load_pattern_server_config")
     @patch(
         "ai_guardian.hook_events.session_events._advance_transcript_position",
@@ -331,7 +331,7 @@ class TestProcessHookDataSessionEnd(TestCase):
 class TestProcessHookDataPostCompact(TestCase):
     """process_hook_data handles PostCompact event (Issue #1007)."""
 
-    @patch("ai_guardian.hook_processing._load_secret_redaction_config")
+    @patch("ai_guardian.config.loaders._load_secret_redaction_config")
     @patch("ai_guardian.hook_processing._load_pattern_server_config")
     def test_post_compact_returns_allow(
         self, mock_pattern_config, mock_redaction_config
@@ -351,7 +351,7 @@ class TestProcessHookDataPostCompact(TestCase):
         assert result["exit_code"] == 0
         assert result["output"] is None
 
-    @patch("ai_guardian.hook_processing._load_secret_redaction_config")
+    @patch("ai_guardian.config.loaders._load_secret_redaction_config")
     @patch("ai_guardian.hook_processing._load_pattern_server_config")
     def test_post_compact_flags_reinject(
         self, mock_pattern_config, mock_redaction_config
@@ -376,7 +376,7 @@ class TestProcessHookDataPostCompact(TestCase):
             assert result["exit_code"] == 0
             mock_reinject.assert_called_once_with("compact-session-456")
 
-    @patch("ai_guardian.hook_processing._load_secret_redaction_config")
+    @patch("ai_guardian.config.loaders._load_secret_redaction_config")
     @patch("ai_guardian.hook_processing._load_pattern_server_config")
     def test_post_compact_without_session_id(
         self, mock_pattern_config, mock_redaction_config

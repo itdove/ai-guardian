@@ -281,10 +281,8 @@ class TestRecordAllowedForTranscript:
     """Tests for _record_allowed_for_transcript helper (#1439: uses plain set)."""
 
     def test_secret_fingerprint_recorded(self):
-        from ai_guardian.hook_processing import (
-            _record_allowed_for_transcript,
-            ViolationType,
-        )
+        from ai_guardian.ask_mode import _record_allowed_for_transcript
+        from ai_guardian.hook_processing import ViolationType
 
         result_set = set()
         _record_allowed_for_transcript(
@@ -298,10 +296,8 @@ class TestRecordAllowedForTranscript:
         assert expected_fp in result_set
 
     def test_pii_fingerprints_recorded(self):
-        from ai_guardian.hook_processing import (
-            _record_allowed_for_transcript,
-            ViolationType,
-        )
+        from ai_guardian.ask_mode import _record_allowed_for_transcript
+        from ai_guardian.hook_processing import ViolationType
 
         # ai-guardian:begin-allow
         pii_value = "078-05-1120"
@@ -320,10 +316,8 @@ class TestRecordAllowedForTranscript:
         assert fp in result_set
 
     def test_unknown_secret_type_not_recorded(self):
-        from ai_guardian.hook_processing import (
-            _record_allowed_for_transcript,
-            ViolationType,
-        )
+        from ai_guardian.ask_mode import _record_allowed_for_transcript
+        from ai_guardian.hook_processing import ViolationType
 
         result_set = set()
         _record_allowed_for_transcript(
@@ -336,10 +330,8 @@ class TestRecordAllowedForTranscript:
         assert result_set == set()
 
     def test_non_secret_violation_type_noop(self):
-        from ai_guardian.hook_processing import (
-            _record_allowed_for_transcript,
-            ViolationType,
-        )
+        from ai_guardian.ask_mode import _record_allowed_for_transcript
+        from ai_guardian.hook_processing import ViolationType
 
         result_set = set()
         _record_allowed_for_transcript(
@@ -356,9 +348,7 @@ class TestComputePiiTranscriptFingerprints:
     """Tests for _compute_pii_transcript_fingerprints helper."""
 
     def test_computes_from_redactions(self):
-        from ai_guardian.hook_processing import (
-            _compute_pii_transcript_fingerprints,
-        )
+        from ai_guardian.ask_mode import _compute_pii_transcript_fingerprints
 
         # ai-guardian:begin-allow
         content = "SSN is 078-05-1120 and email is test@example.com"
@@ -375,17 +365,13 @@ class TestComputePiiTranscriptFingerprints:
         assert fps[1] == _finding_fingerprint("pii", "EMAIL:test@example.com")
 
     def test_empty_redactions(self):
-        from ai_guardian.hook_processing import (
-            _compute_pii_transcript_fingerprints,
-        )
+        from ai_guardian.ask_mode import _compute_pii_transcript_fingerprints
 
         fps = _compute_pii_transcript_fingerprints([], "some content")
         assert fps == []
 
     def test_none_redactions(self):
-        from ai_guardian.hook_processing import (
-            _compute_pii_transcript_fingerprints,
-        )
+        from ai_guardian.ask_mode import _compute_pii_transcript_fingerprints
 
         fps = _compute_pii_transcript_fingerprints(None, "some content")
         assert fps == []
@@ -395,12 +381,13 @@ class TestLogAskDecisionAllowedFindings:
     """Tests for _log_ask_decision recording to invocation_allowed_findings set (#1439)."""
 
     def test_allow_once_records_finding(self):
-        from ai_guardian.hook_processing import _log_ask_decision, ViolationType
+        from ai_guardian.ask_mode import _log_ask_decision
+        from ai_guardian.hook_processing import ViolationType
         from ai_guardian.tui.ask_dialog import AskDecision
 
         allowed_set = set()
-        with mock.patch("ai_guardian.hook_processing.HAS_VIOLATION_LOGGER", True):
-            with mock.patch("ai_guardian.hook_processing.ViolationLogger"):
+        with mock.patch("ai_guardian.ask_mode.HAS_VIOLATION_LOGGER", True):
+            with mock.patch("ai_guardian.ask_mode.ViolationLogger"):
                 _log_ask_decision(
                     ViolationType.SECRET_DETECTED,
                     AskDecision.ALLOW_ONCE,
@@ -413,12 +400,13 @@ class TestLogAskDecisionAllowedFindings:
         assert expected_fp in allowed_set
 
     def test_block_does_not_record(self):
-        from ai_guardian.hook_processing import _log_ask_decision, ViolationType
+        from ai_guardian.ask_mode import _log_ask_decision
+        from ai_guardian.hook_processing import ViolationType
         from ai_guardian.tui.ask_dialog import AskDecision
 
         allowed_set = set()
-        with mock.patch("ai_guardian.hook_processing.HAS_VIOLATION_LOGGER", True):
-            with mock.patch("ai_guardian.hook_processing.ViolationLogger"):
+        with mock.patch("ai_guardian.ask_mode.HAS_VIOLATION_LOGGER", True):
+            with mock.patch("ai_guardian.ask_mode.ViolationLogger"):
                 _log_ask_decision(
                     ViolationType.SECRET_DETECTED,
                     AskDecision.BLOCK,
@@ -431,11 +419,12 @@ class TestLogAskDecisionAllowedFindings:
 
     def test_no_invocation_set_noop(self):
         """Without invocation_allowed_findings, allow decisions log without error."""
-        from ai_guardian.hook_processing import _log_ask_decision, ViolationType
+        from ai_guardian.ask_mode import _log_ask_decision
+        from ai_guardian.hook_processing import ViolationType
         from ai_guardian.tui.ask_dialog import AskDecision
 
-        with mock.patch("ai_guardian.hook_processing.HAS_VIOLATION_LOGGER", True):
-            with mock.patch("ai_guardian.hook_processing.ViolationLogger"):
+        with mock.patch("ai_guardian.ask_mode.HAS_VIOLATION_LOGGER", True):
+            with mock.patch("ai_guardian.ask_mode.ViolationLogger"):
                 _log_ask_decision(
                     ViolationType.SECRET_DETECTED,
                     AskDecision.ALLOW_ONCE,

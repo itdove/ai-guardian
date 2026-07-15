@@ -267,7 +267,7 @@ class TestViolationsEndpoint:
             },
         ]
         with mock.patch(
-            "ai_guardian.violations.logger.ViolationLogger.get_recent_violations",
+            "ai_guardian.hook_processing.ViolationLogger.get_recent_violations",
             return_value=mock_entries,
         ):
             url = f"http://127.0.0.1:{port}/api/violations"
@@ -286,7 +286,7 @@ class TestViolationsEndpoint:
     def test_get_violations_with_type_filter(self, rest_api):
         api, port, state = rest_api
         with mock.patch(
-            "ai_guardian.violations.logger.ViolationLogger.get_recent_violations",
+            "ai_guardian.hook_processing.ViolationLogger.get_recent_violations",
             return_value=[],
         ) as mock_get:
             url = f"http://127.0.0.1:{port}/api/violations?type=pii_detected&limit=10"
@@ -298,7 +298,7 @@ class TestViolationsEndpoint:
     def test_get_violations_empty(self, rest_api):
         api, port, state = rest_api
         with mock.patch(
-            "ai_guardian.violations.logger.ViolationLogger.get_recent_violations",
+            "ai_guardian.hook_processing.ViolationLogger.get_recent_violations",
             return_value=[],
         ):
             url = f"http://127.0.0.1:{port}/api/violations"

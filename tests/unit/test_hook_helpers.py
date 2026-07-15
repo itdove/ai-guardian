@@ -3,11 +3,9 @@
 from unittest.mock import MagicMock
 
 
-from ai_guardian.hook_processing import (
-    _build_secret_detected_message,
-    _log_pii_violation,
-    HookEvent,
-)
+from ai_guardian.hook_events.post_tool_use import _log_pii_violation
+from ai_guardian.hook_processing import HookEvent
+from ai_guardian.scanners.secret_scanning import _build_secret_detected_message
 from ai_guardian.constants import ViolationType
 
 # ---------------------------------------------------------------------------

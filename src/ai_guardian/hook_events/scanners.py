@@ -12,50 +12,8 @@ from ai_guardian.scanners.scan_result import ScanResult
 
 _NULL_TIMER = _CheckTimer(enabled=False)
 
+import ai_guardian.config.loaders as _loaders
 import ai_guardian.scanners.secret_scanning as _secret_scanning_mod
-
-# Import config loaders and check_secrets_with_gitleaks via hook_processing
-# module-attribute access so that test patches on hook_processing propagate here.
-import ai_guardian.hook_processing as _hp
-
-from ai_guardian.hook_events.utils import (
-    _load_secret_scanning_config,
-    _load_pii_config,
-    check_secrets_with_gitleaks,
-)
-
-
-def _load_prompt_injection_config():
-    return _hp._load_prompt_injection_config()
-
-
-def _load_config_scanner_config():
-    return _hp._load_config_scanner_config()
-
-
-def _load_image_scanning_config():
-    return _hp._load_image_scanning_config()
-
-
-def _load_context_poisoning_config():
-    return _hp._load_context_poisoning_config()
-
-
-def _load_supply_chain_config():
-    return _hp._load_supply_chain_config()
-
-
-def _load_offensive_language_config():
-    return _hp._load_offensive_language_config()
-
-
-def _load_canary_detection_config():
-    return _hp._load_canary_detection_config()
-
-
-def _load_exfil_detection_config():
-    return _hp._load_exfil_detection_config()
-
 
 # --- Conditional imports for scanner modules ---
 
@@ -161,7 +119,7 @@ def run_prompt_injection_scan(
 
     now = datetime.now(timezone.utc)
     if config is None:
-        config, config_error = _load_prompt_injection_config()
+        config, config_error = _loaders._load_prompt_injection_config()
         if config_error:
             logging.warning(f"PI config error: {config_error}")
     if not config or not is_feature_enabled(config.get("enabled"), now, default=True):
@@ -225,7 +183,7 @@ def run_context_poisoning_scan(
 
     now = datetime.now(timezone.utc)
     if config is None:
-        config, config_error = _load_context_poisoning_config()
+        config, config_error = _loaders._load_context_poisoning_config()
         if config_error:
             logging.warning(f"CP config error: {config_error}")
     if not config or not is_feature_enabled(config.get("enabled"), now, default=True):
@@ -288,7 +246,7 @@ def run_supply_chain_scan(
 
     now = datetime.now(timezone.utc)
     if config is None:
-        config, config_error = _load_supply_chain_config()
+        config, config_error = _loaders._load_supply_chain_config()
         if config_error:
             logging.warning(f"Supply chain config error: {config_error}")
     if not config or not is_feature_enabled(config.get("enabled"), now, default=True):
@@ -364,7 +322,7 @@ def run_offensive_language_scan(
 
     now = datetime.now(timezone.utc)
     if config is None:
-        config, config_error = _load_offensive_language_config()
+        config, config_error = _loaders._load_offensive_language_config()
         if config_error:
             logging.warning(f"Offensive language config error: {config_error}")
     if not config or not is_feature_enabled(config.get("enabled"), now, default=False):
@@ -413,7 +371,7 @@ def run_canary_detection_scan(
 
     now = datetime.now(timezone.utc)
     if config is None:
-        config, config_error = _load_canary_detection_config()
+        config, config_error = _loaders._load_canary_detection_config()
         if config_error:
             logging.warning(f"Canary detection config error: {config_error}")
     if not config or not is_feature_enabled(config.get("enabled"), now, default=False):
@@ -542,7 +500,7 @@ def run_config_file_scan(
 
     now = datetime.now(timezone.utc)
     if config is None:
-        config, config_error = _load_config_scanner_config()
+        config, config_error = _loaders._load_config_scanner_config()
         if config_error:
             logging.warning(f"Config scanner config error: {config_error}")
     is_enabled = is_feature_enabled(
@@ -591,7 +549,7 @@ def run_bash_exfil_scan(
 
     now = datetime.now(timezone.utc)
     if config is None:
-        config, config_error = _load_config_scanner_config()
+        config, config_error = _loaders._load_config_scanner_config()
         if config_error:
             logging.warning(f"Config scanner config error: {config_error}")
     if not config or not is_feature_enabled(config.get("enabled"), now, default=True):
@@ -631,7 +589,7 @@ def run_exfil_detection_scan(
 
     now = datetime.now(timezone.utc)
     if config is None:
-        config, config_error = _load_exfil_detection_config()
+        config, config_error = _loaders._load_exfil_detection_config()
         if config_error:
             logging.warning(f"Exfil detection config error: {config_error}")
     if not config or not is_feature_enabled(config.get("enabled"), now, default=True):
@@ -681,7 +639,7 @@ def run_image_scan(
 
     now = datetime.now(timezone.utc)
     if config is None:
-        config, config_error = _load_image_scanning_config()
+        config, config_error = _loaders._load_image_scanning_config()
         if config_error:
             logging.warning(f"Image scanning config error: {config_error}")
     if not config or not is_feature_enabled(
@@ -752,7 +710,7 @@ def run_pii_scan(
 
     now = datetime.now(timezone.utc)
     if config is None:
-        config, config_error = _load_pii_config()
+        config, config_error = _loaders._load_pii_config()
         if config_error:
             logging.warning(f"PII config error: {config_error}")
     if not config or not is_feature_enabled(config.get("enabled"), now, default=True):
@@ -813,7 +771,7 @@ def run_secret_scan(
 
     now = datetime.now(timezone.utc)
     if config is None:
-        config, config_error = _load_secret_scanning_config()
+        config, config_error = _loaders._load_secret_scanning_config()
         if config_error:
             logging.warning(f"Secret scanning config error: {config_error}")
     if config and not is_feature_enabled(config.get("enabled"), now, default=True):
@@ -827,7 +785,7 @@ def run_secret_scan(
         allowlist_patterns = config.get("allowlist_patterns", []) if config else []
 
     with (latency_timer or _NULL_TIMER).check("secret_scanning"):
-        has_secrets, error_message = check_secrets_with_gitleaks(
+        has_secrets, error_message = _secret_scanning_mod.check_secrets_with_gitleaks(
             content,
             filename,
             context=context,

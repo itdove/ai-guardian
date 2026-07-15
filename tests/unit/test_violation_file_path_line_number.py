@@ -145,12 +145,12 @@ class TestPromptInjectionViolationFilePath:
         with tempfile.TemporaryDirectory() as tmp:
             with mock.patch.dict(os.environ, {"AI_GUARDIAN_CONFIG_DIR": tmp}):
                 with mock.patch(
-                    "ai_guardian.hook_processing.HAS_VIOLATION_LOGGER", True
+                    "ai_guardian.hook_events.post_tool_use.HAS_VIOLATION_LOGGER", True
                 ):
                     from ai_guardian import _log_prompt_injection_violation
 
                     with mock.patch(
-                        "ai_guardian.hook_processing.ViolationLogger"
+                        "ai_guardian.hook_events.post_tool_use.ViolationLogger"
                     ) as mock_vl_class:
                         mock_logger = mock.MagicMock()
                         mock_vl_class.return_value = mock_logger
@@ -169,11 +169,13 @@ class TestPromptInjectionViolationFilePath:
                         assert blocked["file_path"] == "/full/path/malicious.md"
 
     def test_file_path_falls_back_to_filename(self):
-        with mock.patch("ai_guardian.hook_processing.HAS_VIOLATION_LOGGER", True):
+        with mock.patch(
+            "ai_guardian.hook_events.post_tool_use.HAS_VIOLATION_LOGGER", True
+        ):
             from ai_guardian import _log_prompt_injection_violation
 
             with mock.patch(
-                "ai_guardian.hook_processing.ViolationLogger"
+                "ai_guardian.hook_events.post_tool_use.ViolationLogger"
             ) as mock_vl_class:
                 mock_logger = mock.MagicMock()
                 mock_vl_class.return_value = mock_logger
@@ -187,11 +189,13 @@ class TestPromptInjectionViolationFilePath:
                 assert blocked["file_path"] == "malicious.md"
 
     def test_file_path_none_for_user_prompt(self):
-        with mock.patch("ai_guardian.hook_processing.HAS_VIOLATION_LOGGER", True):
+        with mock.patch(
+            "ai_guardian.hook_events.post_tool_use.HAS_VIOLATION_LOGGER", True
+        ):
             from ai_guardian import _log_prompt_injection_violation
 
             with mock.patch(
-                "ai_guardian.hook_processing.ViolationLogger"
+                "ai_guardian.hook_events.post_tool_use.ViolationLogger"
             ) as mock_vl_class:
                 mock_logger = mock.MagicMock()
                 mock_vl_class.return_value = mock_logger
@@ -209,11 +213,13 @@ class TestJailbreakViolationFilePath:
     """Test that jailbreak_detected violations include file_path from context."""
 
     def test_file_path_from_context(self):
-        with mock.patch("ai_guardian.hook_processing.HAS_VIOLATION_LOGGER", True):
+        with mock.patch(
+            "ai_guardian.hook_events.post_tool_use.HAS_VIOLATION_LOGGER", True
+        ):
             from ai_guardian import _log_prompt_injection_violation
 
             with mock.patch(
-                "ai_guardian.hook_processing.ViolationLogger"
+                "ai_guardian.hook_events.post_tool_use.ViolationLogger"
             ) as mock_vl_class:
                 mock_logger = mock.MagicMock()
                 mock_vl_class.return_value = mock_logger
@@ -649,10 +655,10 @@ class TestPIIWarningMessageFilePathLineNumber:
 class TestPIIViolationLineNumberPopulated:
     """Test that PII violation logging populates line_number from redactions (Issue #359)."""
 
-    @mock.patch("ai_guardian.hook_processing._load_pii_config")
-    @mock.patch("ai_guardian.hook_processing.check_secrets_with_gitleaks")
-    @mock.patch("ai_guardian.hook_processing._load_secret_scanning_config")
-    @mock.patch("ai_guardian.hook_processing._load_prompt_injection_config")
+    @mock.patch("ai_guardian.config.loaders._load_pii_config")
+    @mock.patch("ai_guardian.scanners.secret_scanning.check_secrets_with_gitleaks")
+    @mock.patch("ai_guardian.config.loaders._load_secret_scanning_config")
+    @mock.patch("ai_guardian.config.loaders._load_prompt_injection_config")
     def test_pretooluse_pii_line_number_populated(
         self, mock_pi, mock_ss, mock_gitleaks, mock_pii
     ):
@@ -680,7 +686,9 @@ class TestPIIViolationLineNumberPopulated:
             "tool_input": {"file_path": "/tmp/test_data.txt", "content": file_content},
         }
 
-        with mock.patch("ai_guardian.hook_processing.ViolationLogger") as mock_vl_class:
+        with mock.patch(
+            "ai_guardian.hook_events.post_tool_use.ViolationLogger"
+        ) as mock_vl_class:
             mock_logger = mock.MagicMock()
             mock_vl_class.return_value = mock_logger
 

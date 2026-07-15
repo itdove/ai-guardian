@@ -3,24 +3,17 @@
 import logging
 from typing import Dict, Optional
 
+import ai_guardian.config.loaders as _loaders
+import ai_guardian.scanners.secret_scanning as _secret_scanning_mod
 from ai_guardian.config.utils import get_project_dir, is_feature_enabled
 from ai_guardian.constants import ActionMode, ViolationType, HookEvent
-from ai_guardian.hook_events.utils import (  # noqa: F401
-    _format_response,
-    _load_annotations_config,
-    _load_secret_scanning_config,
-    _load_pii_config,
-    check_secrets_with_gitleaks,
-    _get_on_scan_error_action,
+from ai_guardian.hook_events.utils import (
+    _format_response,  # noqa: F401
     _extract_pii_matched_text,
     _pii_redactions_to_findings,
     _extract_file_path_from_pii_warning,
 )
 from ai_guardian.scanners.scan_result import ScanResult
-from ai_guardian.scanners.secret_scanning import (
-    _build_violation_context,
-    _enrich_blocked_from_details,
-)
 from ai_guardian.scanners.transcript import _advance_transcript_position
 
 from ai_guardian.ask_mode import (
@@ -38,29 +31,21 @@ from ai_guardian.hook_events.scanners import (
     run_pii_scan,
 )
 
-# _hp delegation keeps test patches on hook_processing propagating into this module
-import ai_guardian.hook_processing as _hp
-import ai_guardian.scanners.secret_scanning as _secret_scanning_mod
-
 logger = logging.getLogger(__name__)
 
 
-# ---------------------------------------------------------------------------
-# Module-attribute delegation wrappers — tests mock these on hook_processing,
-# so direct imports from canonical modules would break mock propagation.
-# ---------------------------------------------------------------------------
-
-
-def _load_secret_redaction_config():
-    return _hp._load_secret_redaction_config()
-
-
+# Deferred-import wrappers for functions defined in hook_processing.py.
+# Module-level imports would create a circular dependency.
 def extract_tool_result(hook_data):
-    return _hp.extract_tool_result(hook_data)
+    from ai_guardian.hook_processing import extract_tool_result as _etr
+
+    return _etr(hook_data)
 
 
 def _extract_context_snippet(text, line_number):
-    return _hp._extract_context_snippet(text, line_number)
+    from ai_guardian.hook_processing import _extract_context_snippet as _ecs
+
+    return _ecs(text, line_number)
 
 
 # ---------------------------------------------------------------------------
@@ -68,20 +53,12 @@ def _extract_context_snippet(text, line_number):
 # ---------------------------------------------------------------------------
 
 try:
-    from ai_guardian.violations.logger import ViolationLogger as _ViolationLoggerDirect
+    from ai_guardian.violations.logger import ViolationLogger
 
     HAS_VIOLATION_LOGGER = True
 except ImportError:
-    _ViolationLoggerDirect = None
+    ViolationLogger = None
     HAS_VIOLATION_LOGGER = False
-
-
-def _get_ViolationLogger():
-    return getattr(_hp, "ViolationLogger", _ViolationLoggerDirect)
-
-
-def _get_HAS_VIOLATION_LOGGER():
-    return getattr(_hp, "HAS_VIOLATION_LOGGER", HAS_VIOLATION_LOGGER)
 
 
 try:
@@ -125,7 +102,7 @@ def _log_prompt_injection_violation(
         end_column: 0-based end column within the line
         confidence: Actual confidence score from the detector
     """
-    if not _get_HAS_VIOLATION_LOGGER():
+    if not HAS_VIOLATION_LOGGER:
         return
 
     try:
@@ -158,11 +135,13 @@ def _log_prompt_injection_violation(
             blocked_entry["end_column"] = end_column
         if matched_text:
             blocked_entry["matched_text"] = matched_text[:100]
-        violation_logger = violation_logger or _get_ViolationLogger()()
+        violation_logger = violation_logger or ViolationLogger()
         violation_logger.log_violation(
             violation_type=vtype,
             blocked=blocked_entry,
-            context=_build_violation_context(context, hook_context),
+            context=_secret_scanning_mod._build_violation_context(
+                context, hook_context
+            ),
             suggestion={
                 "action": "add_allowlist_pattern",
                 "note": "If this is legitimate (e.g., documentation), add to allowlist in ai-guardian.json",
@@ -186,7 +165,7 @@ def _log_context_poisoning_violation(
     violation_logger=None,
 ):
     """Log a context poisoning violation."""
-    if not _get_HAS_VIOLATION_LOGGER():
+    if not HAS_VIOLATION_LOGGER:
         return
 
     try:
@@ -206,11 +185,13 @@ def _log_context_poisoning_violation(
             blocked_entry["end_column"] = end_column
         if matched_text:
             blocked_entry["matched_text"] = matched_text[:100]
-        violation_logger = violation_logger or _get_ViolationLogger()()
+        violation_logger = violation_logger or ViolationLogger()
         violation_logger.log_violation(
             violation_type=ViolationType.CONTEXT_POISONING,
             blocked=blocked_entry,
-            context=_build_violation_context(context, hook_context),
+            context=_secret_scanning_mod._build_violation_context(
+                context, hook_context
+            ),
             suggestion={
                 "action": "add_allowlist_pattern",
                 "note": "If this is a legitimate persistent instruction, add to context_poisoning.allowlist_patterns in ai-guardian.json",
@@ -231,7 +212,7 @@ def _log_offensive_language_violation(
     violation_logger=None,
 ):
     """Log an offensive language violation."""
-    if not _get_HAS_VIOLATION_LOGGER():
+    if not HAS_VIOLATION_LOGGER:
         return
     try:
         findings = result.findings or []
@@ -259,7 +240,7 @@ def _log_offensive_language_violation(
             ctx["tool_use_id"] = hook_tool_use_id
         if hook_session_id:
             ctx["session_id"] = hook_session_id
-        vl = violation_logger or _get_ViolationLogger()()
+        vl = violation_logger or ViolationLogger()
         vl.log_violation(
             violation_type=ViolationType.OFFENSIVE_LANGUAGE,
             blocked=blocked_entry,
@@ -455,7 +436,7 @@ def handle_post_tool_use(ctx=None, **kwargs):
     post_secret_suppressed = set()
     original_tool_output = tool_output
     if HAS_ANNOTATIONS and pretool_ctx and pretool_ctx.get("file_path") and tool_output:
-        post_annotations_config, _ = _load_annotations_config()
+        post_annotations_config, _ = _loaders._load_annotations_config()
         if post_annotations_config and is_feature_enabled(
             post_annotations_config.get("enabled"), now, default=True
         ):
@@ -476,7 +457,7 @@ def handle_post_tool_use(ctx=None, **kwargs):
                 )
 
     # Load secret scanning config for ignore lists
-    secret_config, config_error = _load_secret_scanning_config()
+    secret_config, config_error = _loaders._load_secret_scanning_config()
 
     # If config has errors, log warning and continue with defaults
     # (ignore lists default to [] when secret_config is None)
@@ -556,7 +537,7 @@ def handle_post_tool_use(ctx=None, **kwargs):
 
     if has_secrets:
         # Check if redaction is enabled
-        redaction_config, redaction_error = _load_secret_redaction_config()
+        redaction_config, redaction_error = _loaders._load_secret_redaction_config()
 
         if redaction_error:
             logging.warning(f"Config error loading secret_redaction: {redaction_error}")
@@ -587,7 +568,7 @@ def handle_post_tool_use(ctx=None, **kwargs):
                 from ai_guardian.scanners.secret_redactor import SecretRedactor
 
                 # Also load PII config so secrets+PII are handled in one pass
-                pii_config_for_redactor, _ = _load_pii_config()
+                pii_config_for_redactor, _ = _loaders._load_pii_config()
                 pii_cfg = (
                     pii_config_for_redactor
                     if pii_config_for_redactor
@@ -758,7 +739,7 @@ def handle_post_tool_use(ctx=None, **kwargs):
                 if not pii_file_path:
                     pii_file_path = _extract_file_path_from_pii_warning(pii_warning)
                 pii_snippet_text = redacted_text if redacted_text else tool_output
-                post_pii_config, _ = _load_pii_config()
+                post_pii_config, _ = _loaders._load_pii_config()
                 pii_action, pii_types = _log_pii_violation(
                     violation_logger,
                     post_pii_config
@@ -1031,7 +1012,7 @@ def handle_post_tool_use(ctx=None, **kwargs):
                             "PostToolUse: no prompt injection detected in output"
                         )
         except Exception as e:
-            on_error = _get_on_scan_error_action()
+            on_error = _loaders._get_on_scan_error_action()
             if on_error == ActionMode.BLOCK:
                 logging.error(f"PostToolUse PI check error (fail-closed): {e}")
                 result = _format_response(
