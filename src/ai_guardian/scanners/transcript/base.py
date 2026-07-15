@@ -3,6 +3,8 @@
 from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING, Dict, List, Optional
 
+from ai_guardian.scanners.transcript.common import _get_transcript_path
+
 if TYPE_CHECKING:
     from ai_guardian.hook_adapters.base import HookAdapter
 
@@ -13,6 +15,11 @@ class TranscriptAdapter(ABC):
     Each subclass knows how to locate, read, and incrementally scan
     conversation transcripts for a specific IDE storage format
     (JSONL files, SQLite databases, etc.).
+
+    The default :meth:`can_scan` matches when the hook adapter's name
+    equals :attr:`name` **and** no top-level ``transcript_path`` is
+    present in hook data.  Adapters with different matching logic
+    (e.g., JSONL) override :meth:`can_scan` directly.
     """
 
     @property
@@ -20,13 +27,19 @@ class TranscriptAdapter(ABC):
     def name(self) -> str:
         """Human-readable name (e.g., 'JSONL', 'OpenCode', 'Cursor IDE')."""
 
-    @abstractmethod
     def can_scan(
         self,
         hook_data: Dict,
-        adapter: Optional["HookAdapter"],
+        adapter: Optional["HookAdapter"] = None,
     ) -> bool:
-        """Return True if this transcript adapter applies to the current hook invocation."""
+        """Return True if this transcript adapter applies to the current hook invocation.
+
+        Default implementation matches on :attr:`name` and requires
+        that no ``transcript_path`` field is present in *hook_data*.
+        """
+        if adapter and adapter.name == self.name:
+            return not _get_transcript_path(hook_data)
+        return False
 
     @abstractmethod
     def scan_incremental(
