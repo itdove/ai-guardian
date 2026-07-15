@@ -17,11 +17,11 @@ class TestCategoryViolationRouting:
 
     @pytest.fixture(autouse=True)
     def _patch_logger(self):
-        with patch("ai_guardian.hook_processing.HAS_VIOLATION_LOGGER", True):
+        with patch("ai_guardian.scanners.secret_scanning.HAS_VIOLATION_LOGGER", True):
             yield
 
     def _call_log_finding(self, category, rule_id="test-rule", engine="toml-patterns"):
-        from ai_guardian.hook_processing import _log_finding_violation
+        from ai_guardian.scanners.secret_scanning import _log_finding_violation
 
         mock_logger = MagicMock()
         details = {
@@ -93,11 +93,11 @@ class TestSecretDetectionReasonString:
 
     @pytest.fixture(autouse=True)
     def _patch_logger(self):
-        with patch("ai_guardian.hook_processing.HAS_VIOLATION_LOGGER", True):
+        with patch("ai_guardian.scanners.secret_scanning.HAS_VIOLATION_LOGGER", True):
             yield
 
     def test_reason_uses_engine_name(self):
-        from ai_guardian.hook_processing import _log_secret_detection_violation
+        from ai_guardian.scanners.secret_scanning import _log_secret_detection_violation
 
         mock_logger = MagicMock()
         details = {"rule_id": "test", "engine": "toml-patterns"}
@@ -109,7 +109,7 @@ class TestSecretDetectionReasonString:
         assert "Gitleaks" not in blocked["reason"]
 
     def test_reason_defaults_to_gitleaks(self):
-        from ai_guardian.hook_processing import _log_secret_detection_violation
+        from ai_guardian.scanners.secret_scanning import _log_secret_detection_violation
 
         mock_logger = MagicMock()
         details = {"rule_id": "test"}
@@ -147,7 +147,7 @@ class TestErrorBannerCategoryAware:
     """Test _build_secret_detected_message shows category-specific banners."""
 
     def _build(self, category, rule_id="test-rule"):
-        from ai_guardian.hook_processing import _build_secret_detected_message
+        from ai_guardian.scanners.secret_scanning import _build_secret_detected_message
 
         details = {
             "rule_id": rule_id,

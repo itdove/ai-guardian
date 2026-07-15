@@ -157,7 +157,9 @@ class _DirectSession(GuardSession):
         secret_cfg = self._config.get("secret_scanning", {})
         if secret_cfg.get("enabled", True):
             try:
-                from ai_guardian.hook_processing import check_secrets_with_gitleaks
+                from ai_guardian.scanners.secret_scanning import (
+                    check_secrets_with_gitleaks,
+                )
 
                 has_secrets, msg = check_secrets_with_gitleaks(
                     text,

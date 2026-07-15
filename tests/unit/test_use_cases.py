@@ -239,7 +239,7 @@ class LegitimateWorkflowScenario(TestCase):
     Tests that there are no false positives.
     """
 
-    @patch("ai_guardian.hook_processing._load_secret_redaction_config")
+    @patch("ai_guardian.config.loaders._load_secret_redaction_config")
     @patch("ai_guardian.scanners.secret_scanning._load_pattern_server_config")
     def test_legitimate_research_workflow(
         self, mock_pattern_config, mock_redaction_config
@@ -448,7 +448,7 @@ class MultiStageAttackScenario(TestCase):
     Tests that defense-in-depth prevents complex attacks.
     """
 
-    @patch("ai_guardian.hook_processing._load_secret_redaction_config")
+    @patch("ai_guardian.config.loaders._load_secret_redaction_config")
     @patch("ai_guardian.hook_processing._load_pattern_server_config")
     def test_combined_injection_and_exfiltration_attack(
         self, mock_pattern_config, mock_redaction_config

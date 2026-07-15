@@ -191,7 +191,7 @@ class TestEdgeCases:
 class TestIntegration:
     def test_disabled_scanner_returns_empty(self):
         """run_offensive_language_scan respects enabled=false."""
-        from ai_guardian.hook_processing import run_offensive_language_scan
+        from ai_guardian.hook_events.scanners import run_offensive_language_scan
 
         config = {
             "enabled": False,
@@ -207,7 +207,7 @@ class TestIntegration:
 
     def test_enabled_scanner_detects(self):
         """run_offensive_language_scan detects when enabled=true."""
-        from ai_guardian.hook_processing import run_offensive_language_scan
+        from ai_guardian.hook_events.scanners import run_offensive_language_scan
 
         config = {
             "enabled": True,
@@ -225,7 +225,7 @@ class TestIntegration:
 
     def test_enabled_scanner_clean_content(self):
         """run_offensive_language_scan returns non-detected for clean content."""
-        from ai_guardian.hook_processing import run_offensive_language_scan
+        from ai_guardian.hook_events.scanners import run_offensive_language_scan
 
         config = {
             "enabled": True,

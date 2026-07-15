@@ -22,7 +22,7 @@ from tests.fixtures import attack_constants
 class E2ELegitimateWorkflowTests(TestCase):
     """Test complete legitimate workflows end-to-end"""
 
-    @patch("ai_guardian.hook_processing._load_secret_redaction_config")
+    @patch("ai_guardian.config.loaders._load_secret_redaction_config")
     @patch("ai_guardian.hook_processing._load_pattern_server_config")
     def test_e2e_legitimate_notebooklm_workflow(
         self, mock_pattern_config, mock_redaction_config
@@ -83,7 +83,7 @@ class E2ELegitimateWorkflowTests(TestCase):
 
         assert result["exit_code"] == 0, "Clean tool response should be allowed"
 
-    @patch("ai_guardian.hook_processing._load_secret_redaction_config")
+    @patch("ai_guardian.config.loaders._load_secret_redaction_config")
     @patch("ai_guardian.hook_processing._load_pattern_server_config")
     def test_e2e_legitimate_bash_workflow(
         self, mock_pattern_config, mock_redaction_config
@@ -137,7 +137,7 @@ class E2ELegitimateWorkflowTests(TestCase):
 
         assert result["exit_code"] == 0
 
-    @patch("ai_guardian.hook_processing._load_secret_redaction_config")
+    @patch("ai_guardian.config.loaders._load_secret_redaction_config")
     @patch("ai_guardian.hook_processing._load_pattern_server_config")
     def test_e2e_read_write_workflow_with_protections(
         self, mock_pattern_config, mock_redaction_config
@@ -223,7 +223,7 @@ class E2ELegitimateWorkflowTests(TestCase):
 
         # Complete workflow executed with protection at each stage
 
-    @patch("ai_guardian.hook_processing._load_secret_redaction_config")
+    @patch("ai_guardian.config.loaders._load_secret_redaction_config")
     @patch("ai_guardian.hook_processing._load_pattern_server_config")
     def test_e2e_secret_detected_in_output(
         self, mock_pattern_config, mock_redaction_config
@@ -292,7 +292,7 @@ class E2ELegitimateWorkflowTests(TestCase):
             attack_constants.SECRET_SLACK_TOKEN not in output_text
         ), "Secret should be redacted from output"
 
-    @patch("ai_guardian.hook_processing._load_secret_redaction_config")
+    @patch("ai_guardian.config.loaders._load_secret_redaction_config")
     @patch("ai_guardian.hook_processing._load_pattern_server_config")
     def test_e2e_multiple_tool_calls_in_sequence(
         self, mock_pattern_config, mock_redaction_config

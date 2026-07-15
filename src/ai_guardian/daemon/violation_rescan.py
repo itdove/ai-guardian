@@ -80,7 +80,7 @@ def _load_config() -> Dict:
 def _scan_secrets(content, file_path, line_number, sub_type, config):
     """Rescan for secrets, filter by sub_type near line_number."""
     try:
-        from ai_guardian.hook_processing import check_secrets_with_gitleaks
+        from ai_guardian.scanners.secret_scanning import check_secrets_with_gitleaks
     except ImportError:
         return {"status": "not_found", "message": "Scanner not available"}
 

@@ -371,7 +371,7 @@ class TestHandleAskModeMulti:
 
     @patch("ai_guardian.tui.ask_dialog.show_ask_dialog")
     def test_single_finding_delegates(self, mock_dialog):
-        from ai_guardian.hook_processing import _handle_ask_mode_multi
+        from ai_guardian.ask_mode import _handle_ask_mode_multi
         from ai_guardian.tui.ask_dialog import AskResult, AskDecision
 
         mock_dialog.return_value = AskResult(decision=AskDecision.ALLOW_ONCE)
@@ -389,7 +389,7 @@ class TestHandleAskModeMulti:
 
     @patch("ai_guardian.tui.ask_dialog.show_ask_dialog")
     def test_all_allowed(self, mock_dialog):
-        from ai_guardian.hook_processing import _handle_ask_mode_multi
+        from ai_guardian.ask_mode import _handle_ask_mode_multi
         from ai_guardian.tui.ask_dialog import AskResult, AskDecision
 
         mock_dialog.return_value = AskResult(decision=AskDecision.ALLOW_ONCE)
@@ -410,7 +410,7 @@ class TestHandleAskModeMulti:
 
     @patch("ai_guardian.tui.ask_dialog.show_ask_dialog")
     def test_block_on_second_stops(self, mock_dialog):
-        from ai_guardian.hook_processing import _handle_ask_mode_multi
+        from ai_guardian.ask_mode import _handle_ask_mode_multi
         from ai_guardian.tui.ask_dialog import AskResult, AskDecision
 
         mock_dialog.side_effect = [
@@ -434,7 +434,7 @@ class TestHandleAskModeMulti:
 
     @patch("ai_guardian.tui.ask_dialog.show_ask_dialog")
     def test_block_all_stops_immediately(self, mock_dialog):
-        from ai_guardian.hook_processing import _handle_ask_mode_multi
+        from ai_guardian.ask_mode import _handle_ask_mode_multi
         from ai_guardian.tui.ask_dialog import AskResult, AskDecision
 
         mock_dialog.return_value = AskResult(decision=AskDecision.BLOCK_ALL)
@@ -455,7 +455,7 @@ class TestHandleAskModeMulti:
     @patch("ai_guardian.tui.ask_dialog.show_ask_dialog")
     @patch("ai_guardian.config.writer.save_ask_pattern")
     def test_allow_always_saves_and_continues(self, mock_save, mock_dialog):
-        from ai_guardian.hook_processing import _handle_ask_mode_multi
+        from ai_guardian.ask_mode import _handle_ask_mode_multi
         from ai_guardian.tui.ask_dialog import AskResult, AskDecision
 
         mock_save.return_value = True
@@ -478,7 +478,7 @@ class TestHandleAskModeMulti:
         assert mock_dialog.call_count == 2
 
     def test_non_ask_mode_returns_none(self):
-        from ai_guardian.hook_processing import _handle_ask_mode_multi
+        from ai_guardian.ask_mode import _handle_ask_mode_multi
 
         findings = [{"matched_text": "s1"}]
         result = _handle_ask_mode_multi(
@@ -492,7 +492,7 @@ class TestHandleAskModeMulti:
 
     @patch("ai_guardian.tui.ask_dialog.show_ask_dialog")
     def test_empty_findings_returns_none_like_single(self, mock_dialog):
-        from ai_guardian.hook_processing import _handle_ask_mode_multi
+        from ai_guardian.ask_mode import _handle_ask_mode_multi
         from ai_guardian.tui.ask_dialog import AskResult, AskDecision
 
         mock_dialog.return_value = AskResult(decision=AskDecision.ALLOW_ONCE)
@@ -508,7 +508,7 @@ class TestHandleAskModeMulti:
 
     @patch("ai_guardian.tui.ask_dialog.show_ask_dialog")
     def test_finding_index_passed_to_dialog(self, mock_dialog):
-        from ai_guardian.hook_processing import _handle_ask_mode_multi
+        from ai_guardian.ask_mode import _handle_ask_mode_multi
         from ai_guardian.tui.ask_dialog import AskResult, AskDecision
 
         mock_dialog.return_value = AskResult(decision=AskDecision.ALLOW_ONCE)
@@ -538,7 +538,7 @@ class TestHandleAskModeMulti:
     @patch("ai_guardian.tui.ask_dialog.show_ask_dialog")
     @patch("ai_guardian.tui.ask_dialog._save_ignore_path")
     def test_ignore_file_skips_remaining_findings(self, mock_save, mock_dialog):
-        from ai_guardian.hook_processing import _handle_ask_mode_multi
+        from ai_guardian.ask_mode import _handle_ask_mode_multi
         from ai_guardian.tui.ask_dialog import AskResult, AskDecision
 
         mock_save.return_value = True
@@ -569,7 +569,7 @@ class TestHandleAskModeMulti:
     @patch("ai_guardian.tui.ask_dialog.show_ask_dialog")
     @patch("ai_guardian.tui.ask_dialog._save_ignore_path")
     def test_ignore_file_on_last_finding_still_allows(self, mock_save, mock_dialog):
-        from ai_guardian.hook_processing import _handle_ask_mode_multi
+        from ai_guardian.ask_mode import _handle_ask_mode_multi
         from ai_guardian.tui.ask_dialog import AskResult, AskDecision
 
         mock_save.return_value = True
@@ -596,7 +596,7 @@ class TestHandleAskModeMulti:
 
     @patch("ai_guardian.tui.ask_dialog.show_ask_dialog")
     def test_dialog_wait_ms_accumulated(self, mock_dialog):
-        from ai_guardian.hook_processing import _handle_ask_mode_multi
+        from ai_guardian.ask_mode import _handle_ask_mode_multi
         from ai_guardian.tui.ask_dialog import AskResult, AskDecision
 
         r1 = AskResult(decision=AskDecision.ALLOW_ONCE)

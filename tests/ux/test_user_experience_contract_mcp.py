@@ -95,8 +95,8 @@ class MCPUserExperienceContractTests(TestCase):
         # USER DOES NOT SEE: Permission prompt (operation blocked before prompt)
         # OPERATION: Denied, notebook not created, tool not executed
 
-    @patch("ai_guardian.hook_processing._load_secret_scanning_config")
-    @patch("ai_guardian.hook_processing._load_secret_redaction_config")
+    @patch("ai_guardian.config.loaders._load_secret_scanning_config")
+    @patch("ai_guardian.config.loaders._load_secret_redaction_config")
     @patch("ai_guardian.hook_processing._load_pattern_server_config")
     def test_user_experience_secret_in_mcp_output(
         self, mock_pattern_config, mock_redaction_config, mock_scan_config
@@ -562,7 +562,7 @@ class MCPAllowRuleActionModesUXTest(TestCase):
     not for tools that match.
     """
 
-    @patch("ai_guardian.hook_processing._load_secret_scanning_config")
+    @patch("ai_guardian.config.loaders._load_secret_scanning_config")
     @patch("ai_guardian.hook_processing._load_pattern_server_config")
     def test_user_experience_mcp_allow_action_block(
         self, mock_pattern_config, mock_scan_config
@@ -615,7 +615,7 @@ class MCPAllowRuleActionModesUXTest(TestCase):
         )
         self.assertIsNone(msg, "No warning for explicitly allowed tools")
 
-    @patch("ai_guardian.hook_processing._load_secret_scanning_config")
+    @patch("ai_guardian.config.loaders._load_secret_scanning_config")
     @patch("ai_guardian.hook_processing._load_pattern_server_config")
     def test_user_experience_mcp_allow_no_action_field(
         self, mock_pattern_config, mock_scan_config

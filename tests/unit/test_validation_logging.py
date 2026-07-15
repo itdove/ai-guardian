@@ -67,7 +67,7 @@ class TestApplySecretValidationReturnType:
             "sys.modules", {"ai_guardian.scanners.secret_validator": MagicMock()}
         ):
             with patch(
-                "ai_guardian.hook_processing._apply_secret_validation"
+                "ai_guardian.scanners.secret_scanning._apply_secret_validation"
             ) as mock_fn:
                 # Test the actual logic by importing fresh
                 pass
@@ -203,7 +203,7 @@ class TestValidationFieldInViolation:
 
     @pytest.fixture(autouse=True)
     def _patch_logger(self):
-        with patch("ai_guardian.hook_processing.HAS_VIOLATION_LOGGER", True):
+        with patch("ai_guardian.scanners.secret_scanning.HAS_VIOLATION_LOGGER", True):
             yield
 
     def test_secret_violation_includes_validation(self):

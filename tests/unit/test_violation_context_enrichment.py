@@ -85,10 +85,10 @@ class TestExtractContextSnippet(unittest.TestCase):
 class TestViolationCommandField(unittest.TestCase):
     """Test that command field is included for Bash PostToolUse violations."""
 
-    @patch("ai_guardian.hook_processing._load_pii_config")
-    @patch("ai_guardian.hook_processing._load_secret_scanning_config")
-    @patch("ai_guardian.hook_processing._load_secret_redaction_config")
-    @patch("ai_guardian.hook_processing.check_secrets_with_gitleaks")
+    @patch("ai_guardian.config.loaders._load_pii_config")
+    @patch("ai_guardian.config.loaders._load_secret_scanning_config")
+    @patch("ai_guardian.config.loaders._load_secret_redaction_config")
+    @patch("ai_guardian.scanners.secret_scanning.check_secrets_with_gitleaks")
     def test_pii_violation_includes_command_for_bash(
         self,
         mock_check_secrets,
@@ -118,7 +118,9 @@ class TestViolationCommandField(unittest.TestCase):
             }
         )
 
-        with patch("ai_guardian.hook_processing.ViolationLogger") as MockLogger:
+        with patch(
+            "ai_guardian.hook_events.post_tool_use.ViolationLogger"
+        ) as MockLogger:
             mock_instance = MagicMock()
             MockLogger.return_value = mock_instance
 
@@ -142,10 +144,10 @@ class TestViolationCommandField(unittest.TestCase):
                     )
                     self.assertEqual(blocked.get("command"), "cat /data/employees.csv")
 
-    @patch("ai_guardian.hook_processing._load_pii_config")
-    @patch("ai_guardian.hook_processing._load_secret_scanning_config")
-    @patch("ai_guardian.hook_processing._load_secret_redaction_config")
-    @patch("ai_guardian.hook_processing.check_secrets_with_gitleaks")
+    @patch("ai_guardian.config.loaders._load_pii_config")
+    @patch("ai_guardian.config.loaders._load_secret_scanning_config")
+    @patch("ai_guardian.config.loaders._load_secret_redaction_config")
+    @patch("ai_guardian.scanners.secret_scanning.check_secrets_with_gitleaks")
     def test_command_truncated_to_500_chars(
         self,
         mock_check_secrets,
@@ -172,7 +174,9 @@ class TestViolationCommandField(unittest.TestCase):
             }
         )
 
-        with patch("ai_guardian.hook_processing.ViolationLogger") as MockLogger:
+        with patch(
+            "ai_guardian.hook_events.post_tool_use.ViolationLogger"
+        ) as MockLogger:
             mock_instance = MagicMock()
             MockLogger.return_value = mock_instance
 
@@ -201,10 +205,10 @@ class TestViolationCommandField(unittest.TestCase):
 class TestViolationToolUseId(unittest.TestCase):
     """Test that tool_use_id and session_id are included in violation context."""
 
-    @patch("ai_guardian.hook_processing._load_pii_config")
-    @patch("ai_guardian.hook_processing._load_secret_scanning_config")
-    @patch("ai_guardian.hook_processing._load_secret_redaction_config")
-    @patch("ai_guardian.hook_processing.check_secrets_with_gitleaks")
+    @patch("ai_guardian.config.loaders._load_pii_config")
+    @patch("ai_guardian.config.loaders._load_secret_scanning_config")
+    @patch("ai_guardian.config.loaders._load_secret_redaction_config")
+    @patch("ai_guardian.scanners.secret_scanning.check_secrets_with_gitleaks")
     def test_posttooluse_pii_includes_ids(
         self,
         mock_check_secrets,
@@ -231,7 +235,9 @@ class TestViolationToolUseId(unittest.TestCase):
             }
         )
 
-        with patch("ai_guardian.hook_processing.ViolationLogger") as MockLogger:
+        with patch(
+            "ai_guardian.hook_events.post_tool_use.ViolationLogger"
+        ) as MockLogger:
             mock_instance = MagicMock()
             MockLogger.return_value = mock_instance
 
@@ -258,7 +264,9 @@ class TestViolationToolUseId(unittest.TestCase):
 
     def test_secret_detection_passes_ids_from_context(self):
         """_log_secret_detection_violation should include IDs from hook_context."""
-        with patch("ai_guardian.hook_processing.ViolationLogger") as MockLogger:
+        with patch(
+            "ai_guardian.scanners.secret_scanning.ViolationLogger"
+        ) as MockLogger:
             mock_instance = MagicMock()
             MockLogger.return_value = mock_instance
 
@@ -281,7 +289,9 @@ class TestViolationToolUseId(unittest.TestCase):
 
     def test_prompt_injection_passes_ids_from_hook_context(self):
         """_log_prompt_injection_violation should include IDs from hook_context."""
-        with patch("ai_guardian.hook_processing.ViolationLogger") as MockLogger:
+        with patch(
+            "ai_guardian.hook_events.post_tool_use.ViolationLogger"
+        ) as MockLogger:
             mock_instance = MagicMock()
             MockLogger.return_value = mock_instance
 
@@ -326,7 +336,9 @@ class TestViolationToolUseId(unittest.TestCase):
 
     def test_no_ids_when_not_in_hook_data(self):
         """When hook_data has no IDs, context should not contain them."""
-        with patch("ai_guardian.hook_processing.ViolationLogger") as MockLogger:
+        with patch(
+            "ai_guardian.scanners.secret_scanning.ViolationLogger"
+        ) as MockLogger:
             mock_instance = MagicMock()
             MockLogger.return_value = mock_instance
 
@@ -350,10 +362,10 @@ class TestViolationToolUseId(unittest.TestCase):
 class TestViolationContextSnippetInLog(unittest.TestCase):
     """Test that context_snippet is included in violation log entries."""
 
-    @patch("ai_guardian.hook_processing._load_pii_config")
-    @patch("ai_guardian.hook_processing._load_secret_scanning_config")
-    @patch("ai_guardian.hook_processing._load_secret_redaction_config")
-    @patch("ai_guardian.hook_processing.check_secrets_with_gitleaks")
+    @patch("ai_guardian.config.loaders._load_pii_config")
+    @patch("ai_guardian.config.loaders._load_secret_scanning_config")
+    @patch("ai_guardian.config.loaders._load_secret_redaction_config")
+    @patch("ai_guardian.scanners.secret_scanning.check_secrets_with_gitleaks")
     def test_pii_violation_includes_snippet(
         self,
         mock_check_secrets,
@@ -380,7 +392,9 @@ class TestViolationContextSnippetInLog(unittest.TestCase):
             }
         )
 
-        with patch("ai_guardian.hook_processing.ViolationLogger") as MockLogger:
+        with patch(
+            "ai_guardian.hook_events.post_tool_use.ViolationLogger"
+        ) as MockLogger:
             mock_instance = MagicMock()
             MockLogger.return_value = mock_instance
 

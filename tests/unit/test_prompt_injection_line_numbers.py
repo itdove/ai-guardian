@@ -190,10 +190,12 @@ class TestDetectStoresColumnNumbers:
 class TestLogPromptInjectionViolationLineNumber:
     """Tests that _log_prompt_injection_violation includes line_number and columns."""
 
-    @patch("ai_guardian.hook_processing.ViolationLogger")
-    @patch("ai_guardian.hook_processing.HAS_VIOLATION_LOGGER", True)
+    @patch("ai_guardian.hook_events.post_tool_use.ViolationLogger")
+    @patch("ai_guardian.hook_events.post_tool_use.HAS_VIOLATION_LOGGER", True)
     def test_line_number_in_blocked_entry(self, MockViolationLogger):
-        from ai_guardian.hook_processing import _log_prompt_injection_violation
+        from ai_guardian.hook_events.post_tool_use import (
+            _log_prompt_injection_violation,
+        )
 
         mock_logger = MagicMock()
         _log_prompt_injection_violation(
@@ -210,10 +212,12 @@ class TestLogPromptInjectionViolationLineNumber:
         call_kwargs = mock_logger.log_violation.call_args[1]
         assert call_kwargs["blocked"]["line_number"] == 42
 
-    @patch("ai_guardian.hook_processing.ViolationLogger")
-    @patch("ai_guardian.hook_processing.HAS_VIOLATION_LOGGER", True)
+    @patch("ai_guardian.hook_events.post_tool_use.ViolationLogger")
+    @patch("ai_guardian.hook_events.post_tool_use.HAS_VIOLATION_LOGGER", True)
     def test_line_number_none_when_not_provided(self, MockViolationLogger):
-        from ai_guardian.hook_processing import _log_prompt_injection_violation
+        from ai_guardian.hook_events.post_tool_use import (
+            _log_prompt_injection_violation,
+        )
 
         mock_logger = MagicMock()
         _log_prompt_injection_violation(
@@ -229,10 +233,12 @@ class TestLogPromptInjectionViolationLineNumber:
         call_kwargs = mock_logger.log_violation.call_args[1]
         assert call_kwargs["blocked"]["line_number"] is None
 
-    @patch("ai_guardian.hook_processing.ViolationLogger")
-    @patch("ai_guardian.hook_processing.HAS_VIOLATION_LOGGER", True)
+    @patch("ai_guardian.hook_events.post_tool_use.ViolationLogger")
+    @patch("ai_guardian.hook_events.post_tool_use.HAS_VIOLATION_LOGGER", True)
     def test_columns_in_blocked_entry(self, MockViolationLogger):
-        from ai_guardian.hook_processing import _log_prompt_injection_violation
+        from ai_guardian.hook_events.post_tool_use import (
+            _log_prompt_injection_violation,
+        )
 
         mock_logger = MagicMock()
         _log_prompt_injection_violation(
@@ -252,10 +258,12 @@ class TestLogPromptInjectionViolationLineNumber:
         assert call_kwargs["blocked"]["start_column"] == 10
         assert call_kwargs["blocked"]["end_column"] == 42
 
-    @patch("ai_guardian.hook_processing.ViolationLogger")
-    @patch("ai_guardian.hook_processing.HAS_VIOLATION_LOGGER", True)
+    @patch("ai_guardian.hook_events.post_tool_use.ViolationLogger")
+    @patch("ai_guardian.hook_events.post_tool_use.HAS_VIOLATION_LOGGER", True)
     def test_columns_absent_when_none(self, MockViolationLogger):
-        from ai_guardian.hook_processing import _log_prompt_injection_violation
+        from ai_guardian.hook_events.post_tool_use import (
+            _log_prompt_injection_violation,
+        )
 
         mock_logger = MagicMock()
         _log_prompt_injection_violation(
