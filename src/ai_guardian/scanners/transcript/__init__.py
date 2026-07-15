@@ -1,7 +1,8 @@
 """Transcript scanning subpackage — per-IDE adapters for incremental scanning.
 
 Provides a polymorphic TranscriptAdapter interface and concrete adapters
-for JSONL (Claude Code, Copilot, Codex), OpenCode (SQLite), and Cursor (SQLite).
+for JSONL (Claude Code, Copilot, Codex), OpenCode (SQLite), Cursor (SQLite),
+and Cline/ZooCode (JSON array).
 """
 
 from ai_guardian.scanners.transcript.base import TranscriptAdapter
@@ -15,6 +16,10 @@ from ai_guardian.scanners.transcript.common import (
     _save_seen_findings,
     _save_transcript_positions,
     _scan_transcript_text,
+)
+from ai_guardian.scanners.transcript.cline import (
+    ClineTranscriptAdapter,
+    scan_cline_transcript_incremental,
 )
 from ai_guardian.scanners.transcript.cursor import (
     CursorTranscriptAdapter,
@@ -32,6 +37,7 @@ from ai_guardian.scanners.transcript.opencode import (
 )
 
 TRANSCRIPT_ADAPTERS = [
+    ClineTranscriptAdapter(),
     JsonlTranscriptAdapter(),
     OpenCodeTranscriptAdapter(),
     CursorTranscriptAdapter(),
@@ -40,6 +46,7 @@ TRANSCRIPT_ADAPTERS = [
 __all__ = [
     "TranscriptAdapter",
     "TRANSCRIPT_ADAPTERS",
+    "ClineTranscriptAdapter",
     "_advance_transcript_position",
     "_extract_secret_type_from_error",
     "_extract_text_from_transcript_line",
@@ -51,6 +58,7 @@ __all__ = [
     "_save_seen_findings",
     "_save_transcript_positions",
     "_scan_transcript_text",
+    "scan_cline_transcript_incremental",
     "scan_cursor_transcript_incremental",
     "scan_opencode_transcript_incremental",
     "scan_transcript_incremental",

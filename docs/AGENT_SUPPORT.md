@@ -124,7 +124,7 @@ Claude Code binary file reads bypass hooks — image content may not pass throug
 
 ### Transcript scanning availability
 
-Claude Code exposes the conversation transcript to hooks via `UserPromptSubmit` (JSONL file). OpenCode and Cursor store sessions in SQLite databases; ai-guardian reads them directly to scan for secrets and PII. Copilot CLI and Codex store JSONL transcripts at known default locations; ai-guardian discovers these paths via the adapter when the IDE does not provide a `transcript_path` in hook data.
+Claude Code exposes the conversation transcript to hooks via `UserPromptSubmit` (JSONL file). OpenCode and Cursor store sessions in SQLite databases; Cline stores conversations as JSON arrays in per-task directories; ai-guardian reads them directly to scan for secrets and PII. Copilot CLI and Codex store JSONL transcripts at known default locations; ai-guardian discovers these paths via the adapter when the IDE does not provide a `transcript_path` in hook data.
 
 Transcript scanning uses a polymorphic `TranscriptAdapter` interface (`scanners/transcript/base.py`). Each IDE format has its own adapter that implements `can_scan()` and `scan_incremental()`.
 
@@ -135,8 +135,9 @@ Transcript scanning uses a polymorphic `TranscriptAdapter` interface (`scanners/
 | OpenCode | SQLite | `~/.opencode/sessions/*.db` |
 | Copilot CLI | JSONL | `~/.copilot/session-state/events.jsonl` |
 | Codex | JSONL | `~/.codex/sessions/YYYY/MM/DD/*.jsonl` |
+| Cline / ZooCode | JSON array | `~/Library/Application Support/Code/User/globalStorage/saoudrizwan.claude-dev/tasks/<task_id>/api_conversation_history.json` |
 
-Other agents without transcript access cannot perform transcript scanning.
+Agents not listed above do not have transcript scanning support.
 
 ### Crush (Charmbracelet) — PreToolUse only
 
