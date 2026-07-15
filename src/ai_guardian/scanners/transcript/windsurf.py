@@ -120,7 +120,7 @@ def scan_windsurf_transcript_incremental(
 
     combined_text = _scan_with_position_tracking(
         pos_key,
-        reader_fn=lambda seen: read_windsurf_transcript(transcript_path, seen),
+        reader_fn=lambda seen: read_windsurf_transcript(transcript_path, seen if isinstance(seen, int) else 0),
         label="Windsurf",
     )
 

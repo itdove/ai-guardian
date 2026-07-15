@@ -179,7 +179,7 @@ def scan_cline_transcript_incremental(
 
     combined_text = _scan_with_position_tracking(
         pos_key,
-        reader_fn=lambda seen: read_cline_task_transcript(task_dir, seen),
+        reader_fn=lambda seen: read_cline_task_transcript(task_dir, seen if isinstance(seen, int) else 0),
         label="Cline",
     )
 
