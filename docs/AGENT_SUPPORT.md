@@ -64,8 +64,8 @@ Agents with full hook support not shown individually (Windsurf, Gemini CLI, Clin
 | jailbreak_detected | Pre+Prompt | Enforce | Enforce | Partial | Advisory |
 | ssrf_blocked | Pre | Enforce | Enforce | Enforce | Advisory |
 | config_file_exfil | Pre | Enforce | Enforce | Enforce | No |
-| secret_in_transcript | Prompt | Enforce | No | Enforce | No |
-| pii_in_transcript | Prompt | Enforce | No | Enforce | No |
+| secret_in_transcript | Prompt | Enforce | Enforce | Enforce | No |
+| pii_in_transcript | Prompt | Enforce | Enforce | Enforce | No |
 | image_secret | Pre | Caution | Caution | Caution | No |
 | image_pii | Pre | Caution | Caution | Caution | No |
 | offensive_language | Pre+Post | Enforce | Enforce | Partial | Advisory |
@@ -124,11 +124,14 @@ Claude Code binary file reads bypass hooks — image content may not pass throug
 
 ### Transcript scanning availability
 
-Claude Code exposes the conversation transcript to hooks via `UserPromptSubmit` (JSONL file). OpenCode stores sessions in a SQLite database; ai-guardian reads it directly to scan for secrets and PII. Copilot CLI and Codex store JSONL transcripts at known default locations; ai-guardian discovers these paths via the adapter when the IDE does not provide a `transcript_path` in hook data.
+Claude Code exposes the conversation transcript to hooks via `UserPromptSubmit` (JSONL file). OpenCode and Cursor store sessions in SQLite databases; ai-guardian reads them directly to scan for secrets and PII. Copilot CLI and Codex store JSONL transcripts at known default locations; ai-guardian discovers these paths via the adapter when the IDE does not provide a `transcript_path` in hook data.
+
+Transcript scanning uses a polymorphic `TranscriptAdapter` interface (`scanners/transcript/base.py`). Each IDE format has its own adapter that implements `can_scan()` and `scan_incremental()`.
 
 | Agent | Format | Default Path |
 |-------|--------|-------------|
 | Claude Code | JSONL | Provided by IDE in hook data |
+| Cursor | SQLite | `~/Library/Application Support/Cursor/User/globalStorage/state.vscdb` |
 | OpenCode | SQLite | `~/.opencode/sessions/*.db` |
 | Copilot CLI | JSONL | `~/.copilot/session-state/events.jsonl` |
 | Codex | JSONL | `~/.codex/sessions/YYYY/MM/DD/*.jsonl` |

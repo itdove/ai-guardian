@@ -344,10 +344,16 @@ class DaemonServer:
 
     # --- Push notification subscribers (#650) ---
 
+    _MAX_SUBSCRIBERS = 32
+
     def _add_subscriber(self, sock):
         """Register a socket for push event notifications."""
         sock.settimeout(5.0)
         with self._subscribers_lock:
+            if len(self._subscribers) >= self._MAX_SUBSCRIBERS:
+                logger.warning("Subscriber limit reached (%d), rejecting", self._MAX_SUBSCRIBERS)
+                sock.close()
+                return
             self._subscribers.append(sock)
             count = len(self._subscribers)
         logger.info("Subscriber connected (total: %d)", count)

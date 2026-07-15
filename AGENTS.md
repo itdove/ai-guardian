@@ -416,7 +416,16 @@ See [RELEASING.md](RELEASING.md) for detailed instructions, or use the `/release
 
 ## REST API & Version Compatibility
 
-### Backward Compatibility Contract
+### Backward Compatibility Policy
+
+Backward compatibility is required **only** at two layers:
+
+1. **SDK level** — `ai_guardian.sdk` public API (`check_content`, `check_file`, `check_command`, etc.) must remain stable. Do not remove or rename public SDK functions.
+2. **Configuration level** — `ai-guardian.json` config files must remain forward-compatible. New config keys get sensible defaults; existing keys keep their semantics.
+
+Internal modules (scanners, hook adapters, hook events, etc.) may be freely reorganized, renamed, or restructured without backward-compat shims. Do not create shim modules for internal refactors.
+
+### Tray–Daemon Compatibility Contract
 
 The system tray is the controlling component and connects to daemons across local, container, and Kubernetes runtimes. The tray version MUST always be >= every connected daemon's version. The tray detects version mismatches and warns the user to upgrade outdated daemons.
 

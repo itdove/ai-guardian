@@ -1,4 +1,4 @@
-"""OpenCode transcript reading via SQLite session DB.
+"""OpenCode transcript adapter — SQLite session database.
 
 OpenCode stores conversation sessions in a SQLite database at
 ~/.local/share/opencode/opencode.db (or OPENCODE_HOME). This module
@@ -9,16 +9,20 @@ import json
 import logging
 import os
 import sqlite3
-from typing import Optional, Tuple
+from typing import Dict, List, Optional, Tuple
+
+from ai_guardian.scanners.transcript.base import TranscriptAdapter
+from ai_guardian.scanners.transcript.common import (
+    _load_transcript_positions,
+    _save_transcript_positions,
+    _scan_transcript_text,
+)
 
 
 def get_opencode_db_path() -> Optional[str]:
     """Find OpenCode SQLite database path.
 
     Checks OPENCODE_HOME env var first, then default XDG location.
-
-    Returns:
-        Absolute path to opencode.db, or None if not found.
     """
     home = os.environ.get("OPENCODE_HOME")
     if home:
@@ -34,14 +38,7 @@ def get_opencode_db_path() -> Optional[str]:
 
 
 def _extract_text_from_part(data: dict) -> str:
-    """Extract scannable text from an OpenCode part data dict.
-
-    Args:
-        data: Parsed JSON from part.data column.
-
-    Returns:
-        Extracted text, or empty string.
-    """
+    """Extract scannable text from an OpenCode part data dict."""
     part_type = data.get("type")
     texts = []
 
@@ -78,18 +75,7 @@ def read_opencode_transcript(
     """Read conversation text from OpenCode SQLite DB incrementally.
 
     Queries the ``part`` table for text and tool parts created after
-    the given timestamp cursor.  Returns combined text and the latest
-    timestamp seen so the caller can advance the cursor.
-
-    Args:
-        db_path: Absolute path to opencode.db.
-        session_id: OpenCode session ID to scan.
-        since_timestamp: Only read parts with time_created > this value
-            (epoch milliseconds).
-
-    Returns:
-        Tuple of (combined_text, latest_timestamp).  If nothing new,
-        combined_text is empty and latest_timestamp equals since_timestamp.
+    the given timestamp cursor.
     """
     texts = []
     latest_ts = since_timestamp
@@ -128,15 +114,7 @@ def read_opencode_transcript(
 
 
 def get_opencode_latest_timestamp(db_path: str, session_id: str) -> int:
-    """Get the latest part timestamp for a session (for first-scan skip).
-
-    Args:
-        db_path: Absolute path to opencode.db.
-        session_id: OpenCode session ID.
-
-    Returns:
-        Latest time_created value, or 0 if session has no parts.
-    """
+    """Get the latest part timestamp for a session (for first-scan skip)."""
     try:
         conn = sqlite3.connect(f"file:{db_path}?mode=ro", uri=True)
         try:
@@ -151,3 +129,85 @@ def get_opencode_latest_timestamp(db_path: str, session_id: str) -> int:
     except sqlite3.Error as e:
         logging.debug(f"OpenCode DB timestamp query error: {e}")
     return 0
+
+
+def scan_opencode_transcript_incremental(
+    db_path: str,
+    session_id: str,
+    secret_config: Optional[Dict] = None,
+    pii_config: Optional[Dict] = None,
+    hook_context: Optional[Dict] = None,
+    allowed_findings: Optional[set] = None,
+) -> list:
+    """Incrementally scan OpenCode session transcript via SQLite."""
+    warnings = []
+    pos_key = f"opencode:{session_id}"
+
+    positions = _load_transcript_positions()
+
+    if pos_key not in positions:
+        latest_ts = get_opencode_latest_timestamp(db_path, session_id)
+        positions[pos_key] = latest_ts
+        _save_transcript_positions(positions)
+        logging.debug(
+            f"OpenCode transcript first seen, initialized position to {latest_ts}"
+        )
+        return warnings
+
+    last_ts = positions[pos_key]
+    combined_text, new_ts = read_opencode_transcript(db_path, session_id, last_ts)
+
+    if not combined_text:
+        return warnings
+
+    warnings = _scan_transcript_text(
+        combined_text,
+        pos_key,
+        secret_config,
+        pii_config,
+        hook_context,
+        allowed_findings=allowed_findings,
+    )
+
+    positions[pos_key] = new_ts
+    _save_transcript_positions(positions)
+
+    return warnings
+
+
+class OpenCodeTranscriptAdapter(TranscriptAdapter):
+    """Transcript adapter for OpenCode SQLite session database."""
+
+    @property
+    def name(self) -> str:
+        return "OpenCode"
+
+    def can_scan(self, hook_data: Dict, adapter=None) -> bool:
+        if adapter and adapter.name == "OpenCode":
+            from ai_guardian.scanners.transcript.common import _get_transcript_path
+
+            return not _get_transcript_path(hook_data)
+        return False
+
+    def scan_incremental(
+        self,
+        hook_data: Dict,
+        secret_config: Optional[Dict] = None,
+        pii_config: Optional[Dict] = None,
+        hook_context: Optional[Dict] = None,
+        allowed_findings: Optional[set] = None,
+    ) -> List[str]:
+        db_path = get_opencode_db_path()
+        session_id = hook_data.get("session_id")
+        if not db_path or not session_id:
+            logging.debug("OpenCode transcript: no DB path or session_id available")
+            return []
+
+        return scan_opencode_transcript_incremental(
+            db_path,
+            session_id,
+            secret_config=secret_config,
+            pii_config=pii_config,
+            hook_context=hook_context,
+            allowed_findings=allowed_findings,
+        )

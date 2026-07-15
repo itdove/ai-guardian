@@ -180,13 +180,6 @@ from ai_guardian.hook_processing import (  # noqa: F401
     HAS_ANNOTATIONS,
 )
 
-# --- opencode_transcript.py ---
-from ai_guardian.opencode_transcript import (  # noqa: F401
-    get_opencode_db_path,
-    read_opencode_transcript,
-    get_opencode_latest_timestamp,
-)
-
 # --- cli_handlers.py ---
 from ai_guardian.cli_handlers import (  # noqa: F401
     _handle_violations_command,
