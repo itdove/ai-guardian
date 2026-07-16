@@ -486,18 +486,19 @@ Use `logging.getLogger(__name__)` in all modules. Choose levels as follows:
 The project uses multiple linters enforced by CI. **Run these after finishing all implementations:**
 
 ```bash
-# 1. Auto-fix formatting with black
-black src/ai_guardian/ tests/
+# 1. Auto-fix formatting with black (--target-version py39 required —
+#    without it, local Python < 3.15 skips reformatting silently and CI fails)
+black --target-version py39 src/ai_guardian/ tests/
 
 # 2. Auto-fix safe lint issues with ruff
 ruff check src/ai_guardian/ tests/ --fix
 
 # 3. Re-run black (ruff fixes may need reformatting)
-black src/ai_guardian/ tests/
+black --target-version py39 src/ai_guardian/ tests/
 
 # 4. Verify all checks pass
 ruff check src/ai_guardian/ tests/
-black --check src/ai_guardian/ tests/
+black --target-version py39 --check src/ai_guardian/ tests/
 pylint src/ai_guardian/ --disable=all --enable=E \
   --disable=E1101,E0611,E2515,E2502,E0602,E0601,E1123,E1120,E0213,E0102,E0203,E1129,E0401 \
   --output-format=text
