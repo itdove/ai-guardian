@@ -29,6 +29,56 @@ from ai_guardian.daemon.server import DaemonServer
 from ai_guardian.daemon.state import DaemonState
 
 
+def _wait_server_ready(sock_path, timeout=3.0):
+    """Wait until the daemon server is accepting connections and responds to ping."""
+    ping_data = encode_message(make_ping())
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+        try:
+            sock.settimeout(1.0)
+            sock.connect(str(sock_path))
+            sock.sendall(ping_data)
+            decode_message(sock, timeout=1.0)
+            return
+        except (ConnectionRefusedError, OSError):
+            pass
+        finally:
+            sock.close()
+        time.sleep(0.1)
+    raise RuntimeError(f"Server not ready after {timeout}s")
+
+
+def _connect(sock_path, timeout=2.0):
+    sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+    sock.settimeout(timeout)
+    sock.connect(str(sock_path))
+    return sock
+
+
+@pytest.fixture
+def running_server(monkeypatch):
+    """Shared fixture: start a DaemonServer in a temp dir, wait for readiness."""
+    d = tempfile.mkdtemp(prefix="ag")
+    monkeypatch.setenv("AI_GUARDIAN_STATE_DIR", d)
+    from pathlib import Path
+
+    server = DaemonServer(idle_timeout=30, enable_rest_api=False)
+    thread = threading.Thread(target=server.start, daemon=True)
+    thread.start()
+
+    sock_path = Path(d) / "daemon.sock"
+    _wait_server_ready(sock_path)
+
+    yield server, sock_path
+
+    server.stop()
+    thread.join(timeout=3)
+    import shutil
+
+    shutil.rmtree(d, ignore_errors=True)
+
+
 @pytest.fixture
 def short_state_dir(monkeypatch):
     """Use a short temp directory to avoid AF_UNIX path length limits."""
@@ -280,41 +330,10 @@ class TestDaemonServerLifecycle:
 
 
 class TestDaemonServerProtocol:
-    @pytest.fixture
-    def running_server(self, monkeypatch):
-        import tempfile
-
-        d = tempfile.mkdtemp(prefix="ag")
-        monkeypatch.setenv("AI_GUARDIAN_STATE_DIR", d)
-        from pathlib import Path
-
-        server = DaemonServer(idle_timeout=30, enable_rest_api=False)
-        thread = threading.Thread(target=server.start, daemon=True)
-        thread.start()
-
-        sock_path = Path(d) / "daemon.sock"
-        for _ in range(30):
-            if sock_path.exists():
-                break
-            time.sleep(0.1)
-
-        yield server, sock_path
-
-        server.stop()
-        thread.join(timeout=3)
-        import shutil
-
-        shutil.rmtree(d, ignore_errors=True)
-
-    def _connect(self, sock_path, timeout=2.0):
-        sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-        sock.settimeout(timeout)
-        sock.connect(str(sock_path))
-        return sock
 
     def test_ping_pong(self, running_server):
         server, sock_path = running_server
-        sock = self._connect(sock_path)
+        sock = _connect(sock_path)
         try:
             sock.sendall(encode_message(make_ping()))
             response = decode_message(sock, timeout=2.0)
@@ -324,7 +343,7 @@ class TestDaemonServerProtocol:
 
     def test_status_request(self, running_server):
         server, sock_path = running_server
-        sock = self._connect(sock_path)
+        sock = _connect(sock_path)
         try:
             sock.sendall(encode_message(make_status_request()))
             response = decode_message(sock, timeout=2.0)
@@ -349,7 +368,7 @@ class TestDaemonServerProtocol:
                 break
             time.sleep(0.1)
 
-        sock = self._connect(sock_path)
+        sock = _connect(sock_path)
         try:
             sock.sendall(encode_message(make_shutdown()))
             response = decode_message(sock, timeout=2.0)
@@ -361,7 +380,7 @@ class TestDaemonServerProtocol:
 
     def test_unknown_message_type(self, running_server):
         server, sock_path = running_server
-        sock = self._connect(sock_path)
+        sock = _connect(sock_path)
         try:
             msg = {"version": 1, "type": "unknown_type"}
             sock.sendall(encode_message(msg))
@@ -377,7 +396,7 @@ class TestDaemonServerProtocol:
             "hook_event_name": "UserPromptSubmit",
             "prompt": "hello world",
         }
-        sock = self._connect(sock_path)
+        sock = _connect(sock_path)
         try:
             sock.sendall(encode_message(make_hook_request(hook_data)))
             response = decode_message(sock, timeout=5.0)
@@ -396,7 +415,7 @@ class TestDaemonServerProtocol:
             "tool_name": "Bash",
             "tool_input": {"command": "ls"},
         }
-        sock = self._connect(sock_path)
+        sock = _connect(sock_path)
         try:
             sock.sendall(encode_message(make_hook_request(hook_data)))
             response = decode_message(sock, timeout=5.0)
@@ -417,7 +436,7 @@ class TestDaemonServerProtocol:
             "hook_event_name": "UserPromptSubmit",
             "prompt": "hello world",
         }
-        sock = self._connect(sock_path)
+        sock = _connect(sock_path)
         try:
             sock.sendall(encode_message(make_hook_request(hook_data)))
             response = decode_message(sock, timeout=5.0)
@@ -431,39 +450,9 @@ class TestDaemonServerProtocol:
 class TestDaemonServerSubscriber:
     """Tests for push event subscriber protocol (#650)."""
 
-    @pytest.fixture
-    def running_server(self, monkeypatch):
-        d = tempfile.mkdtemp(prefix="ag")
-        monkeypatch.setenv("AI_GUARDIAN_STATE_DIR", d)
-        from pathlib import Path
-
-        server = DaemonServer(idle_timeout=30, enable_rest_api=False)
-        thread = threading.Thread(target=server.start, daemon=True)
-        thread.start()
-
-        sock_path = Path(d) / "daemon.sock"
-        for _ in range(30):
-            if sock_path.exists():
-                break
-            time.sleep(0.1)
-
-        yield server, sock_path
-
-        server.stop()
-        thread.join(timeout=3)
-        import shutil
-
-        shutil.rmtree(d, ignore_errors=True)
-
-    def _connect(self, sock_path, timeout=2.0):
-        sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-        sock.settimeout(timeout)
-        sock.connect(str(sock_path))
-        return sock
-
     def test_subscribe_returns_ack(self, running_server):
         server, sock_path = running_server
-        sock = self._connect(sock_path)
+        sock = _connect(sock_path)
         try:
             sock.sendall(encode_message(make_subscribe()))
             response = decode_message(sock, timeout=2.0)
@@ -474,7 +463,7 @@ class TestDaemonServerSubscriber:
 
     def test_subscriber_receives_event_on_pause(self, running_server):
         server, sock_path = running_server
-        sock = self._connect(sock_path)
+        sock = _connect(sock_path)
         try:
             sock.sendall(encode_message(make_subscribe()))
             decode_message(sock, timeout=2.0)  # consume ack
@@ -490,7 +479,7 @@ class TestDaemonServerSubscriber:
 
     def test_subscriber_receives_event_on_resume(self, running_server):
         server, sock_path = running_server
-        sock = self._connect(sock_path)
+        sock = _connect(sock_path)
         try:
             sock.sendall(encode_message(make_subscribe()))
             decode_message(sock, timeout=2.0)
@@ -507,7 +496,7 @@ class TestDaemonServerSubscriber:
 
     def test_dead_subscriber_cleaned_on_broadcast(self, running_server):
         server, sock_path = running_server
-        sock = self._connect(sock_path)
+        sock = _connect(sock_path)
         sock.sendall(encode_message(make_subscribe()))
         decode_message(sock, timeout=2.0)
         sock.close()
@@ -522,7 +511,7 @@ class TestDaemonServerSubscriber:
         server, sock_path = running_server
         socks = []
         for _ in range(3):
-            s = self._connect(sock_path)
+            s = _connect(sock_path)
             s.sendall(encode_message(make_subscribe()))
             decode_message(s, timeout=2.0)
             socks.append(s)
@@ -537,11 +526,11 @@ class TestDaemonServerSubscriber:
 
     def test_one_shot_client_still_works_with_subscribers(self, running_server):
         server, sock_path = running_server
-        sub = self._connect(sock_path)
+        sub = _connect(sock_path)
         sub.sendall(encode_message(make_subscribe()))
         decode_message(sub, timeout=2.0)
 
-        ping_sock = self._connect(sock_path)
+        ping_sock = _connect(sock_path)
         try:
             ping_sock.sendall(encode_message(make_ping()))
             response = decode_message(ping_sock, timeout=2.0)
@@ -653,43 +642,11 @@ class TestDaemonServerPausedHook:
 class TestDaemonServerPauseResumeProtocol:
     """Test socket protocol handlers for pause and resume messages (issue #683)."""
 
-    @pytest.fixture
-    def running_server(self, monkeypatch):
-        import tempfile
-
-        d = tempfile.mkdtemp(prefix="ag")
-        monkeypatch.setenv("AI_GUARDIAN_STATE_DIR", d)
-        from pathlib import Path
-
-        server = DaemonServer(idle_timeout=30, enable_rest_api=False)
-        thread = threading.Thread(target=server.start, daemon=True)
-        thread.start()
-
-        sock_path = Path(d) / "daemon.sock"
-        for _ in range(30):
-            if sock_path.exists():
-                break
-            time.sleep(0.1)
-
-        yield server, sock_path
-
-        server.stop()
-        thread.join(timeout=3)
-        import shutil
-
-        shutil.rmtree(d, ignore_errors=True)
-
-    def _connect(self, sock_path, timeout=2.0):
-        sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-        sock.settimeout(timeout)
-        sock.connect(str(sock_path))
-        return sock
-
     def test_pause_message_pauses_daemon(self, running_server):
         server, sock_path = running_server
         assert not server.state.paused
 
-        sock = self._connect(sock_path)
+        sock = _connect(sock_path)
         try:
             msg = {"version": 1, "type": "pause", "data": {"minutes": 5}}
             sock.sendall(encode_message(msg))
@@ -707,7 +664,7 @@ class TestDaemonServerPauseResumeProtocol:
         server.state.pause(10)
         assert server.state.paused
 
-        sock = self._connect(sock_path)
+        sock = _connect(sock_path)
         try:
             msg = {"version": 1, "type": "resume"}
             sock.sendall(encode_message(msg))
@@ -721,7 +678,7 @@ class TestDaemonServerPauseResumeProtocol:
 
     def test_pause_indefinite(self, running_server):
         server, sock_path = running_server
-        sock = self._connect(sock_path)
+        sock = _connect(sock_path)
         try:
             msg = {"version": 1, "type": "pause", "data": {"minutes": 0}}
             sock.sendall(encode_message(msg))
@@ -738,7 +695,7 @@ class TestDaemonServerPauseResumeProtocol:
         server, sock_path = running_server
 
         # Pause via socket
-        sock = self._connect(sock_path)
+        sock = _connect(sock_path)
         try:
             msg = {"version": 1, "type": "pause", "data": {"minutes": 5}}
             sock.sendall(encode_message(msg))
@@ -747,7 +704,7 @@ class TestDaemonServerPauseResumeProtocol:
             sock.close()
 
         # Hook request should be bypassed
-        sock = self._connect(sock_path)
+        sock = _connect(sock_path)
         try:
             sock.sendall(
                 encode_message(
@@ -771,7 +728,7 @@ class TestDaemonServerPauseResumeProtocol:
         server.state.pause(5)
 
         # Resume via socket
-        sock = self._connect(sock_path)
+        sock = _connect(sock_path)
         try:
             msg = {"version": 1, "type": "resume"}
             sock.sendall(encode_message(msg))
@@ -780,7 +737,7 @@ class TestDaemonServerPauseResumeProtocol:
             sock.close()
 
         # Hook should be processed normally
-        sock = self._connect(sock_path)
+        sock = _connect(sock_path)
         try:
             sock.sendall(
                 encode_message(
@@ -801,41 +758,9 @@ class TestDaemonServerPauseResumeProtocol:
 class TestDaemonServerPerDirPauseProtocol:
     """Test socket protocol handlers for per-directory pause/resume (#958)."""
 
-    @pytest.fixture
-    def running_server(self, monkeypatch):
-        import tempfile
-
-        d = tempfile.mkdtemp(prefix="ag")
-        monkeypatch.setenv("AI_GUARDIAN_STATE_DIR", d)
-        from pathlib import Path
-
-        server = DaemonServer(idle_timeout=30, enable_rest_api=False)
-        thread = threading.Thread(target=server.start, daemon=True)
-        thread.start()
-
-        sock_path = Path(d) / "daemon.sock"
-        for _ in range(30):
-            if sock_path.exists():
-                break
-            time.sleep(0.1)
-
-        yield server, sock_path
-
-        server.stop()
-        thread.join(timeout=3)
-        import shutil
-
-        shutil.rmtree(d, ignore_errors=True)
-
-    def _connect(self, sock_path, timeout=2.0):
-        sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-        sock.settimeout(timeout)
-        sock.connect(str(sock_path))
-        return sock
-
     def test_pause_dir_message(self, running_server):
         server, sock_path = running_server
-        sock = self._connect(sock_path)
+        sock = _connect(sock_path)
         try:
             msg = {
                 "version": 1,
@@ -855,7 +780,7 @@ class TestDaemonServerPerDirPauseProtocol:
         server, sock_path = running_server
         server.state.pause_dir("/project/a")
 
-        sock = self._connect(sock_path)
+        sock = _connect(sock_path)
         try:
             msg = {"version": 1, "type": "resume_dir", "data": {"dir": "/project/a"}}
             sock.sendall(encode_message(msg))
@@ -868,7 +793,7 @@ class TestDaemonServerPerDirPauseProtocol:
 
     def test_pause_dir_missing_dir_returns_error(self, running_server):
         server, sock_path = running_server
-        sock = self._connect(sock_path)
+        sock = _connect(sock_path)
         try:
             msg = {"version": 1, "type": "pause_dir", "data": {}}
             sock.sendall(encode_message(msg))
@@ -891,7 +816,7 @@ class TestDaemonServerPerDirPauseProtocol:
         server, sock_path = running_server
         server.state.pause_dir("/project/a")
 
-        sock = self._connect(sock_path)
+        sock = _connect(sock_path)
         try:
             hook_data = {
                 "hook_event_name": "PreToolUse",
@@ -910,7 +835,7 @@ class TestDaemonServerPerDirPauseProtocol:
         server, sock_path = running_server
         server.state.pause_dir("/project/a")
 
-        sock = self._connect(sock_path)
+        sock = _connect(sock_path)
         try:
             sock.sendall(encode_message(make_status_request()))
             response = decode_message(sock, timeout=2.0)
