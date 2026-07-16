@@ -12,7 +12,7 @@ from ai_guardian.patterns.toml_parser import load_and_compile, load_toml_file
 PATTERNS_DIR = DATA_DIR
 
 EXPECTED_COUNTS = {
-    "secrets.toml": 59,
+    "secrets.toml": 80,
     "pii.toml": 13,
     "prompt-injection.toml": 73,
     "unicode.toml": 107,
@@ -110,13 +110,14 @@ class TestBundledTomlFiles:
         assert counts.get("suspicious", 0) == 7
 
 
+@pytest.fixture(scope="module")
+def secret_rules():
+    path = PATTERNS_DIR / "secrets.toml"
+    return {r.id: r for r in load_and_compile(path, "secrets")}
+
+
 class TestNewSecretPatterns:
     """Detection tests for the 6 new AI/cloud credential patterns (Issue #1482)."""
-
-    @pytest.fixture(scope="class")
-    def secret_rules(self):
-        path = PATTERNS_DIR / "secrets.toml"
-        return {r.id: r for r in load_and_compile(path, "secrets")}
 
     # --- HuggingFace Access Token ---
 
@@ -205,3 +206,69 @@ class TestNewSecretPatterns:
     def test_perplexity_api_key_no_false_positive_short(self, secret_rules):
         rule = secret_rules["perplexity-api-key"]
         assert not rule.compiled.search("pplx-tooshort")
+
+
+GITLEAKS_DETECTION_CASES = [
+    ("cohere-api-token", 'COHERE_API_KEY="' + "a" * 40 + '"'),
+    ("cohere-api-token", "cohere_token = '" + "B" * 40 + "'"),
+    ("doppler-api-token", 'TOKEN="dp.pt.' + "a" * 43 + '"'),
+    ("hashicorp-tf-api-token", 'token = "' + "a" * 14 + ".atlasv1." + "b" * 65 + '"'),
+    ("pulumi-api-token", 'PULUMI_ACCESS_TOKEN="pul-' + "a" * 40 + '"'),
+    ("grafana-cloud-api-token", 'token = "glc_' + "A" * 40 + '"'),
+    (
+        "grafana-service-account-token",
+        'token = "glsa_' + "A" * 32 + "_" + "a" * 8 + '"',
+    ),
+    ("sentry-org-token", 'token = "sntrys_eyJ' + "A" * 100 + '"'),
+    ("sentry-user-token", 'token = "sntryu_' + "a" * 64 + '"'),
+    ("sentry-access-token", 'SENTRY_AUTH_TOKEN="' + "a" * 64 + '"'),
+    ("datadog-access-token", 'DATADOG_API_KEY="' + "a" * 40 + '"'),
+    ("cloudflare-api-key", 'CLOUDFLARE_API_KEY="' + "a" * 40 + '"'),
+    ("digitalocean-access-token", 'token = "doo_v1_' + "a" * 64 + '"'),
+    ("digitalocean-pat", 'DO_TOKEN="dop_v1_' + "a" * 64 + '"'),
+    ("digitalocean-refresh-token", 'refresh = "dor_v1_' + "a" * 64 + '"'),
+    ("alibaba-access-key-id", 'key = "LTAI' + "A" * 20 + '"'),
+    ("snyk-api-token", 'SNYK_TOKEN="a1b2c3d4-e5f6-7890-abcd-ef1234567890"'),
+    ("sourcegraph-access-token", 'token = "sgp_' + "a" * 40 + '"'),
+    ("sourcegraph-access-token", 'token = "sgp_' + "a" * 16 + "_" + "b" * 40 + '"'),
+    ("linear-api-key", 'LINEAR_API_KEY="lin_api_' + "a" * 40 + '"'),
+    ("notion-api-token", 'token = "ntn_' + "1" * 11 + "A" * 35 + '"'),
+    ("postman-api-token", 'key = "PMAK-' + "a" * 24 + "-" + "b" * 34 + '"'),
+    ("1password-service-account-token", 'token = "ops_eyJ' + "A" * 260 + '"'),
+]
+
+GITLEAKS_FALSE_POSITIVE_CASES = [
+    ("cohere-api-token", 'cohere_key = "abc123"'),
+    ("doppler-api-token", "dp.pt.tooshort"),
+    ("hashicorp-tf-api-token", "# atlasv1 is the Terraform token prefix"),
+    ("pulumi-api-token", "pul-tooshort"),
+    ("grafana-cloud-api-token", "glc_short"),
+    ("grafana-service-account-token", "glsa_short_ab"),
+    ("sentry-org-token", "sntrys_eyJ" + "A" * 10),
+    ("sentry-user-token", "sntryu_tooshort"),
+    ("sentry-access-token", "a" * 64),
+    ("datadog-access-token", "a" * 40),
+    ("cloudflare-api-key", "a" * 40),
+    ("digitalocean-access-token", "doo_v1_short"),
+    ("digitalocean-pat", "dop_v1_short"),
+    ("digitalocean-refresh-token", "dor_v1_short"),
+    ("alibaba-access-key-id", "LTAIshort"),
+    ("snyk-api-token", "a1b2c3d4-e5f6-7890-abcd-ef1234567890"),
+    ("sourcegraph-access-token", "sgp_tooshort"),
+    ("linear-api-key", "lin_api_short"),
+    ("notion-api-token", "ntn_123short"),
+    ("postman-api-token", "PMAK-short-tooshort"),
+    ("1password-service-account-token", "ops_eyJ" + "A" * 10),
+]
+
+
+class TestGitleaksGapPatterns:
+    """Detection tests for Gitleaks gap-fill patterns (Issue #1618)."""
+
+    @pytest.mark.parametrize("rule_id,text", GITLEAKS_DETECTION_CASES)
+    def test_pattern_detected(self, secret_rules, rule_id, text):
+        assert secret_rules[rule_id].compiled.search(text)
+
+    @pytest.mark.parametrize("rule_id,text", GITLEAKS_FALSE_POSITIVE_CASES)
+    def test_no_false_positive(self, secret_rules, rule_id, text):
+        assert not secret_rules[rule_id].compiled.search(text)
