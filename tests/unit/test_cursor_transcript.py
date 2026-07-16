@@ -241,6 +241,23 @@ class TestReadCursorTranscript(unittest.TestCase):
         self.assertEqual(text, "")
         self.assertEqual(seen, set())
 
+    def test_underscore_composer_id_both_branches(self):
+        """Verify prefix vs raw_prefix bug (#1607): composer_id with _ (SQL LIKE metachar)."""
+        cid = "comp_with_underscore"
+        _insert_bubble(self.conn, cid, "b1", {"type": 1, "text": "First"})
+        _insert_bubble(self.conn, cid, "b2", {"type": 2, "text": "Second"})
+
+        # Main branch: new keys found, uses raw_prefix for bubble ID extraction
+        text, seen = read_cursor_transcript(self.db_path, cid)
+        self.assertIn("First", text)
+        self.assertIn("Second", text)
+        self.assertEqual(seen, {"b1", "b2"})
+
+        # Else branch: all keys already seen, rebuilds new_seen from all_keys
+        text2, seen2 = read_cursor_transcript(self.db_path, cid, seen_bubble_ids=seen)
+        self.assertEqual(text2, "")
+        self.assertEqual(seen2, {"b1", "b2"})
+
     def test_different_composer_isolated(self):
         _insert_bubble(self.conn, COMPOSER_ID, "b1", {"type": 1, "text": "Mine"})
         _insert_bubble(self.conn, "other-comp", "b2", {"type": 1, "text": "Theirs"})
