@@ -151,7 +151,7 @@ def read_cursor_transcript(
                         texts.append(extracted)
             else:
                 for (k,) in all_keys:
-                    new_seen.add(k[len(prefix) :])
+                    new_seen.add(k[len(raw_prefix) :])
         finally:
             conn.close()
     except sqlite3.Error as e:
