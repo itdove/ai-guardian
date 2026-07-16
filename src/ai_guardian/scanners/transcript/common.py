@@ -4,13 +4,6 @@ Position tracking, dedup, fingerprinting, core scanning, and violation logging
 used by all TranscriptAdapter implementations.
 """
 
-try:
-    import fcntl
-
-    _HAS_FCNTL = True
-except ImportError:
-    _HAS_FCNTL = False
-
 import hashlib
 import json
 import logging
@@ -57,6 +50,14 @@ def _get_transcript_path(hook_data: dict):
 # ---------------------------------------------------------------------------
 
 
+def _prune_stale_keys(data: dict) -> dict:
+    """Remove entries whose keys are plain file paths that no longer exist.
+
+    Prefixed keys (containing ``:``) are kept unconditionally.
+    """
+    return {k: v for k, v in data.items() if ":" in k or os.path.exists(k)}
+
+
 def _load_transcript_positions() -> Dict[str, object]:
     """Load transcript scanning positions from state dir.
 
@@ -78,18 +79,13 @@ def _load_transcript_positions() -> Dict[str, object]:
 
 
 def _save_transcript_positions(positions: Dict[str, object]) -> None:
-    """Save transcript scanning positions to state dir.
-
-    Prunes entries for files that no longer exist, but keeps prefixed
-    keys (opencode:, cursor:) unconditionally.
-    """
+    """Save transcript scanning positions to state dir."""
     state_dir = get_state_dir()
     state_dir.mkdir(parents=True, exist_ok=True)
     pos_file = state_dir / "transcript_positions.json"
     try:
-        pruned = {k: v for k, v in positions.items() if ":" in k or os.path.exists(k)}
         with open(pos_file, "w", encoding="utf-8") as f:
-            json.dump(pruned, f)
+            json.dump(positions, f)
     except Exception as e:
         logging.debug(f"Failed to save transcript positions: {e}")
 
@@ -201,13 +197,13 @@ def _load_seen_findings() -> Dict[str, Dict[str, str]]:
 def _save_seen_findings(seen: Dict[str, Dict[str, str]]) -> None:
     """Save seen transcript findings to state dir.
 
-    Prunes entries for files that no longer exist, but keeps prefixed keys.
+    Prunes stale file-path keys opportunistically (only called on dirty saves).
     """
     state_dir = get_state_dir()
     state_dir.mkdir(parents=True, exist_ok=True)
     sf_file = state_dir / "transcript_seen_findings.json"
     try:
-        pruned = {k: v for k, v in seen.items() if ":" in k or os.path.exists(k)}
+        pruned = _prune_stale_keys(seen)
         with open(sf_file, "w", encoding="utf-8") as f:
             json.dump(pruned, f)
     except Exception as e:
@@ -274,12 +270,14 @@ def _scan_transcript_text(
 
     seen_all = _load_seen_findings()
     seen = seen_all.get(transcript_key, {})
-    now_iso = datetime.now(timezone.utc).isoformat()
+    seen_count = len(seen)
+    now = datetime.now(timezone.utc)
+    now_iso = now.isoformat()
 
     # --- Secret scanning ---
     if secret_config is None or is_feature_enabled(
         secret_config.get("enabled") if secret_config else None,
-        datetime.now(timezone.utc),
+        now,
         default=True,
     ):
         try:
@@ -369,9 +367,7 @@ def _scan_transcript_text(
             logging.debug(f"Transcript secret scan error (fail-open): {e}")
 
     # --- PII scanning ---
-    if pii_config and is_feature_enabled(
-        pii_config.get("enabled"), datetime.now(timezone.utc), default=True
-    ):
+    if pii_config and is_feature_enabled(pii_config.get("enabled"), now, default=True):
         try:
             from ai_guardian.hook_processing import _scan_for_pii
 
@@ -419,9 +415,9 @@ def _scan_transcript_text(
         except Exception as e:
             logging.debug(f"Transcript PII scan error (fail-open): {e}")
 
-    # Persist seen findings
-    seen_all[transcript_key] = seen
-    _save_seen_findings(seen_all)
+    if len(seen) > seen_count:
+        seen_all[transcript_key] = seen
+        _save_seen_findings(seen_all)
 
     return warnings
 
