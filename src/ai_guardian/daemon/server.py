@@ -54,6 +54,7 @@ class DaemonServer:
         self._server_socket = None
         self._running = False
         self._shutdown_event = threading.Event()
+        self._ready_event = threading.Event()
         self._stop_lock = threading.Lock()
         self._rest_api = None
         self._rest_port = 0
@@ -105,6 +106,8 @@ class DaemonServer:
         logger.info(f"Daemon started (pid {os.getpid()}, {sock_info}{name_info})")
         print(f"ai-guardian daemon started (pid {os.getpid()}, {sock_info}{name_info})")
         print("Use 'ai-guardian tray' to start the system tray client")
+
+        self._ready_event.set()
 
         try:
             self._accept_loop()

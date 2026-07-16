@@ -7,6 +7,7 @@ import sys
 import tempfile
 import threading
 import time
+from pathlib import Path
 from unittest import mock
 
 import pytest
@@ -29,24 +30,10 @@ from ai_guardian.daemon.server import DaemonServer
 from ai_guardian.daemon.state import DaemonState
 
 
-def _wait_server_ready(sock_path, timeout=3.0):
-    """Wait until the daemon server is accepting connections and responds to ping."""
-    ping_data = encode_message(make_ping())
-    deadline = time.monotonic() + timeout
-    while time.monotonic() < deadline:
-        sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-        try:
-            sock.settimeout(1.0)
-            sock.connect(str(sock_path))
-            sock.sendall(ping_data)
-            decode_message(sock, timeout=1.0)
-            return
-        except (ConnectionRefusedError, OSError):
-            pass
-        finally:
-            sock.close()
-        time.sleep(0.1)
-    raise RuntimeError(f"Server not ready after {timeout}s")
+def _wait_server_ready(server, timeout=3.0):
+    """Wait until the daemon server is accepting connections."""
+    if not server._ready_event.wait(timeout=timeout):
+        raise RuntimeError(f"Server not ready after {timeout}s")
 
 
 def _connect(sock_path, timeout=2.0):
@@ -61,14 +48,13 @@ def running_server(monkeypatch):
     """Shared fixture: start a DaemonServer in a temp dir, wait for readiness."""
     d = tempfile.mkdtemp(prefix="ag")
     monkeypatch.setenv("AI_GUARDIAN_STATE_DIR", d)
-    from pathlib import Path
 
     server = DaemonServer(idle_timeout=30, enable_rest_api=False)
     thread = threading.Thread(target=server.start, daemon=True)
     thread.start()
 
     sock_path = Path(d) / "daemon.sock"
-    _wait_server_ready(sock_path)
+    _wait_server_ready(server)
 
     yield server, sock_path
 
@@ -94,69 +80,43 @@ class TestDaemonServerLifecycle:
         thread = threading.Thread(target=server.start, daemon=True)
         thread.start()
 
-        # Wait for socket to appear
-        from pathlib import Path
-
-        sock_path = Path(short_state_dir) / "daemon.sock"
-        for _ in range(20):
-            if sock_path.exists():
-                break
-            time.sleep(0.1)
-
-        assert sock_path.exists()
+    
+        _wait_server_ready(server)
+        assert (Path(short_state_dir) / "daemon.sock").exists()
         server.stop()
         thread.join(timeout=3)
 
     def test_server_creates_pid_file(self, short_state_dir, monkeypatch):
-        from pathlib import Path
-
+    
         server = DaemonServer(idle_timeout=5)
 
         thread = threading.Thread(target=server.start, daemon=True)
         thread.start()
 
+        _wait_server_ready(server)
         pid_path = Path(short_state_dir) / "daemon.pid"
-        pid_info = None
-        for _ in range(30):
-            if pid_path.exists():
-                try:
-                    content = pid_path.read_text()
-                    if content.strip():
-                        pid_info = json.loads(content)
-                        break
-                except (json.JSONDecodeError, OSError):
-                    pass
-            time.sleep(0.1)
-
-        assert pid_info is not None, "PID file not written in time"
+        pid_info = json.loads(pid_path.read_text())
         assert pid_info["pid"] == os.getpid()
 
         server.stop()
         thread.join(timeout=3)
 
     def test_server_cleans_up_on_stop(self, short_state_dir, monkeypatch):
-        from pathlib import Path
-
+    
         server = DaemonServer(idle_timeout=5)
 
         thread = threading.Thread(target=server.start, daemon=True)
         thread.start()
 
-        sock_path = Path(short_state_dir) / "daemon.sock"
-        for _ in range(20):
-            if sock_path.exists():
-                break
-            time.sleep(0.1)
-
+        _wait_server_ready(server)
         server.stop()
         thread.join(timeout=3)
 
-        assert not sock_path.exists()
+        assert not (Path(short_state_dir) / "daemon.sock").exists()
         assert not (Path(short_state_dir) / "daemon.pid").exists()
 
     def test_server_rejects_duplicate_start(self, short_state_dir, monkeypatch):
-        from pathlib import Path
-
+    
         pid_path = Path(short_state_dir) / "daemon.pid"
         pid_path.write_text(json.dumps({"pid": os.getpid()}))
 
@@ -171,8 +131,7 @@ class TestDaemonServerLifecycle:
         In containers, PIDs recycle quickly. _cleanup_stale() should verify
         socket connectivity, not just PID liveness.
         """
-        from pathlib import Path
-
+    
         pid_path = Path(short_state_dir) / "daemon.pid"
         # Use current process PID — it's alive but not a daemon
         pid_path.write_text(json.dumps({"pid": os.getpid()}))
@@ -185,8 +144,7 @@ class TestDaemonServerLifecycle:
 
     def test_server_cleans_stale_pid_with_dead_process(self, short_state_dir):
         """PID file references a dead process — straightforward stale case."""
-        from pathlib import Path
-
+    
         pid_path = Path(short_state_dir) / "daemon.pid"
         pid_path.write_text(json.dumps({"pid": 99999999}))
 
@@ -196,8 +154,7 @@ class TestDaemonServerLifecycle:
 
     def test_server_cleans_stale_socket_file(self, short_state_dir):
         """Stale socket file from crashed daemon is cleaned up."""
-        from pathlib import Path
-
+    
         sock_path = Path(short_state_dir) / "daemon.sock"
         sock_path.write_text("")  # Create a stale socket file
 
@@ -212,14 +169,7 @@ class TestDaemonServerLifecycle:
         thread = threading.Thread(target=server.start, daemon=True)
         thread.start()
 
-        from pathlib import Path
-
-        sock_path = Path(short_state_dir) / "daemon.sock"
-        for _ in range(20):
-            if sock_path.exists():
-                break
-            time.sleep(0.1)
-
+        _wait_server_ready(server)
         server.stop()
         server.stop()  # second call must be a no-op
         thread.join(timeout=3)
@@ -233,8 +183,7 @@ class TestDaemonServerLifecycle:
         PID file still exists, triggering a false 'PID recycled' path in
         _cleanup_stale() and orphaning the new daemon.
         """
-        from pathlib import Path
-
+    
         delete_order = []
         pid_path = Path(short_state_dir) / "daemon.pid"
         sock_path = Path(short_state_dir) / "daemon.sock"
@@ -263,19 +212,13 @@ class TestDaemonServerLifecycle:
 
     def test_stop_cleans_lock_file(self, short_state_dir, monkeypatch):
         """Lock file is deleted when daemon stops."""
-        from pathlib import Path
-
+    
         server = DaemonServer(idle_timeout=5, enable_rest_api=False)
 
         thread = threading.Thread(target=server.start, daemon=True)
         thread.start()
 
-        sock_path = Path(short_state_dir) / "daemon.sock"
-        for _ in range(20):
-            if sock_path.exists():
-                break
-            time.sleep(0.1)
-
+        _wait_server_ready(server)
         lock_path = Path(short_state_dir) / "daemon.pid.lock"
         assert lock_path.exists(), "Lock file should exist while running"
 
@@ -293,36 +236,19 @@ class TestDaemonServerLifecycle:
 
     def test_pid_file_not_written_before_socket(self, short_state_dir, monkeypatch):
         """PID file must not exist before the socket is ready (#1154)."""
-        from pathlib import Path
-
+    
         pid_path = Path(short_state_dir) / "daemon.pid"
         sock_path = Path(short_state_dir) / "daemon.sock"
 
-        # Track the order: which file appears first
-        first_file = []
-        original_write_text = Path.write_text
-
-        def tracking_write_text(self_path, *args, **kwargs):
-            if self_path.name in ("daemon.pid", "daemon.sock"):
-                first_file.append(self_path.name)
-            return original_write_text(self_path, *args, **kwargs)
-
-        # Simpler approach: just start the server and check that when
-        # socket appears, PID file has rest_port (or at least exists)
         server = DaemonServer(idle_timeout=5, enable_rest_api=False)
 
         thread = threading.Thread(target=server.start, daemon=True)
         thread.start()
 
-        for _ in range(30):
-            if pid_path.exists():
-                break
-            time.sleep(0.1)
-
+        _wait_server_ready(server)
         assert pid_path.exists()
         pid_info = json.loads(pid_path.read_text())
         assert pid_info["pid"] == os.getpid()
-        # Socket should already exist since PID is written after socket setup
         assert sock_path.exists()
 
         server.stop()
@@ -355,18 +281,14 @@ class TestDaemonServerProtocol:
             sock.close()
 
     def test_shutdown_request(self, short_state_dir, monkeypatch):
-        from pathlib import Path
-
+    
         server = DaemonServer(idle_timeout=30, enable_rest_api=False)
 
         thread = threading.Thread(target=server.start, daemon=True)
         thread.start()
 
         sock_path = Path(short_state_dir) / "daemon.sock"
-        for _ in range(30):
-            if sock_path.exists():
-                break
-            time.sleep(0.1)
+        _wait_server_ready(server)
 
         sock = _connect(sock_path)
         try:
@@ -547,20 +469,9 @@ class TestDaemonServerTCP:
         thread = threading.Thread(target=server.start, daemon=True)
         thread.start()
 
-        # Wait for PID file with port
-        from pathlib import Path
-
+    
+        _wait_server_ready(server)
         pid_path = Path(short_state_dir) / "daemon.pid"
-        for _ in range(30):
-            if pid_path.exists():
-                try:
-                    info = json.loads(pid_path.read_text())
-                    if "port" in info:
-                        break
-                except (json.JSONDecodeError, OSError):
-                    pass
-            time.sleep(0.1)
-
         pid_info = json.loads(pid_path.read_text())
         assert "port" in pid_info
         port = pid_info["port"]
@@ -956,21 +867,12 @@ class TestStartRestApiPortFallback:
 
 class TestDaemonServerIdleTimeout:
     def test_idle_timeout_stops_server(self, short_state_dir, monkeypatch):
-        from pathlib import Path
-
         server = DaemonServer(idle_timeout=0.5, enable_rest_api=False)
 
         thread = threading.Thread(target=server.start, daemon=True)
         thread.start()
 
-        sock_path = Path(short_state_dir) / "daemon.sock"
-        for _ in range(20):
-            if sock_path.exists():
-                break
-            time.sleep(0.1)
-
-        # Wait for idle timeout (0.5s + 60s check interval is too long)
-        # Instead verify the state tracks idle properly
+        _wait_server_ready(server)
         time.sleep(0.6)
         assert server.state.is_idle_timeout_expired()
 
