@@ -80,14 +80,13 @@ class TestDaemonServerLifecycle:
         thread = threading.Thread(target=server.start, daemon=True)
         thread.start()
 
-    
         _wait_server_ready(server)
         assert (Path(short_state_dir) / "daemon.sock").exists()
         server.stop()
         thread.join(timeout=3)
 
     def test_server_creates_pid_file(self, short_state_dir, monkeypatch):
-    
+
         server = DaemonServer(idle_timeout=5)
 
         thread = threading.Thread(target=server.start, daemon=True)
@@ -102,7 +101,7 @@ class TestDaemonServerLifecycle:
         thread.join(timeout=3)
 
     def test_server_cleans_up_on_stop(self, short_state_dir, monkeypatch):
-    
+
         server = DaemonServer(idle_timeout=5)
 
         thread = threading.Thread(target=server.start, daemon=True)
@@ -116,7 +115,7 @@ class TestDaemonServerLifecycle:
         assert not (Path(short_state_dir) / "daemon.pid").exists()
 
     def test_server_rejects_duplicate_start(self, short_state_dir, monkeypatch):
-    
+
         pid_path = Path(short_state_dir) / "daemon.pid"
         pid_path.write_text(json.dumps({"pid": os.getpid()}))
 
@@ -131,7 +130,7 @@ class TestDaemonServerLifecycle:
         In containers, PIDs recycle quickly. _cleanup_stale() should verify
         socket connectivity, not just PID liveness.
         """
-    
+
         pid_path = Path(short_state_dir) / "daemon.pid"
         # Use current process PID — it's alive but not a daemon
         pid_path.write_text(json.dumps({"pid": os.getpid()}))
@@ -144,7 +143,7 @@ class TestDaemonServerLifecycle:
 
     def test_server_cleans_stale_pid_with_dead_process(self, short_state_dir):
         """PID file references a dead process — straightforward stale case."""
-    
+
         pid_path = Path(short_state_dir) / "daemon.pid"
         pid_path.write_text(json.dumps({"pid": 99999999}))
 
@@ -154,7 +153,7 @@ class TestDaemonServerLifecycle:
 
     def test_server_cleans_stale_socket_file(self, short_state_dir):
         """Stale socket file from crashed daemon is cleaned up."""
-    
+
         sock_path = Path(short_state_dir) / "daemon.sock"
         sock_path.write_text("")  # Create a stale socket file
 
@@ -183,7 +182,7 @@ class TestDaemonServerLifecycle:
         PID file still exists, triggering a false 'PID recycled' path in
         _cleanup_stale() and orphaning the new daemon.
         """
-    
+
         delete_order = []
         pid_path = Path(short_state_dir) / "daemon.pid"
         sock_path = Path(short_state_dir) / "daemon.sock"
@@ -212,7 +211,7 @@ class TestDaemonServerLifecycle:
 
     def test_stop_cleans_lock_file(self, short_state_dir, monkeypatch):
         """Lock file is deleted when daemon stops."""
-    
+
         server = DaemonServer(idle_timeout=5, enable_rest_api=False)
 
         thread = threading.Thread(target=server.start, daemon=True)
@@ -236,7 +235,7 @@ class TestDaemonServerLifecycle:
 
     def test_pid_file_not_written_before_socket(self, short_state_dir, monkeypatch):
         """PID file must not exist before the socket is ready (#1154)."""
-    
+
         pid_path = Path(short_state_dir) / "daemon.pid"
         sock_path = Path(short_state_dir) / "daemon.sock"
 
@@ -281,7 +280,7 @@ class TestDaemonServerProtocol:
             sock.close()
 
     def test_shutdown_request(self, short_state_dir, monkeypatch):
-    
+
         server = DaemonServer(idle_timeout=30, enable_rest_api=False)
 
         thread = threading.Thread(target=server.start, daemon=True)
@@ -469,7 +468,6 @@ class TestDaemonServerTCP:
         thread = threading.Thread(target=server.start, daemon=True)
         thread.start()
 
-    
         _wait_server_ready(server)
         pid_path = Path(short_state_dir) / "daemon.pid"
         pid_info = json.loads(pid_path.read_text())
