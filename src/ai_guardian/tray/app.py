@@ -955,15 +955,18 @@ class DaemonTray:
                     self._dispatch_to_main(self._rebuild_tray)
 
                 if self._stats_refresh_running and self._icon:
-                    self._dispatch_to_main(self._sync_pause_state)
-                    self._health._check_config_error_notification()
-                    self._health._check_version_mismatch()
-                    self._health._check_stale_code()
-                    self._health._check_pypi_version()
-                    self._plugins._poll_plugins()
-                    self._anim._request_discovery_refresh(wait=False)
-                    self._register_tray_with_remotes()
-                    self._dispatch_to_main(self._refresh_menu_if_changed)
+                    try:
+                        self._dispatch_to_main(self._sync_pause_state)
+                        self._health._check_config_error_notification()
+                        self._health._check_version_mismatch()
+                        self._health._check_stale_code()
+                        self._health._check_pypi_version()
+                        self._plugins._poll_plugins()
+                        self._anim._request_discovery_refresh(wait=False)
+                        self._register_tray_with_remotes()
+                        self._dispatch_to_main(self._refresh_menu_if_changed)
+                    except Exception:
+                        logger.debug("Stats refresh tick failed", exc_info=True)
 
         thread = threading.Thread(target=_refresh, daemon=True, name="stats-refresh")
         thread.start()

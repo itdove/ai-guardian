@@ -1604,8 +1604,8 @@ class TestWakeDetection:
         tray._icon = mock_icon
         tray._rebuild_tray()  # Should not raise
 
-    def test_stats_refresh_detects_sleep_gap(self):
-        """Timer gap > 30s triggers _rebuild_tray."""
+    def _run_stats_refresh_tick(self, time_side_effect):
+        """Run one stats-refresh tick and return rebuild dispatch calls."""
         import time as time_mod
 
         tray = DaemonTray(
@@ -1620,76 +1620,50 @@ class TestWakeDetection:
             if func == tray._rebuild_tray:
                 rebuild_calls.append(True)
 
-        now = time_mod.time()
-        time_values = iter([now - 60, now])
-
         orig_wait = tray._refresh_event.wait
 
         def stop_after_one_wait(timeout=None):
             tray._stats_refresh_running = False
             return orig_wait(0)
 
-        with mock.patch.dict(
-            "sys.modules", {"PyObjCTools": None, "PyObjCTools.AppHelper": None}
+        with (
+            mock.patch.dict(
+                "sys.modules", {"PyObjCTools": None, "PyObjCTools.AppHelper": None}
+            ),
+            mock.patch.object(tray, "_dispatch_to_main", side_effect=tracking_dispatch),
+            mock.patch.object(
+                tray._refresh_event, "wait", side_effect=stop_after_one_wait
+            ),
+            mock.patch("ai_guardian.tray.app.time") as mock_time,
+            mock.patch.object(tray._health, "_check_config_error_notification"),
+            mock.patch.object(tray._health, "_check_version_mismatch"),
+            mock.patch.object(tray._health, "_check_stale_code"),
+            mock.patch.object(tray._health, "_check_pypi_version"),
+            mock.patch.object(tray._plugins, "_poll_plugins"),
+            mock.patch.object(tray._anim, "_request_discovery_refresh"),
+            mock.patch.object(tray, "_register_tray_with_remotes"),
         ):
-            with mock.patch.object(
-                tray, "_dispatch_to_main", side_effect=tracking_dispatch
-            ):
-                with mock.patch.object(
-                    tray._refresh_event, "wait", side_effect=stop_after_one_wait
-                ):
-                    with mock.patch("ai_guardian.tray.app.time") as mock_time:
-                        mock_time.time = mock.MagicMock(side_effect=time_values)
-                        tray._stats_refresh_running = True
-                        tray._start_stats_refresh()
-                        time_mod.sleep(0.3)
+            mock_time.time = mock.MagicMock(side_effect=time_side_effect)
+            tray._stats_refresh_running = True
+            tray._start_stats_refresh()
+            time_mod.sleep(0.3)
 
+        return rebuild_calls
+
+    def test_stats_refresh_detects_sleep_gap(self):
+        """Timer gap > 30s triggers _rebuild_tray."""
+        import time as time_mod
+
+        now = time_mod.time()
+        rebuild_calls = self._run_stats_refresh_tick([now - 60, now])
         assert len(rebuild_calls) > 0
 
     def test_stats_refresh_normal_tick_no_rebuild(self):
         """Normal 10s tick does not trigger _rebuild_tray."""
         import time as time_mod
 
-        tray = DaemonTray(
-            get_stats_callback=lambda: {},
-            stop_callback=lambda: None,
-            pause_callback=lambda mins: None,
-        )
-        tray._icon = mock.MagicMock()
-        rebuild_calls = []
-
-        def tracking_dispatch(func):
-            if func == tray._rebuild_tray:
-                rebuild_calls.append(True)
-            try:
-                func()
-            except Exception:
-                pass
-
         now = time_mod.time()
-
-        orig_wait = tray._refresh_event.wait
-
-        def stop_after_one_wait(timeout=None):
-            tray._stats_refresh_running = False
-            return orig_wait(0)
-
-        with mock.patch.dict(
-            "sys.modules", {"PyObjCTools": None, "PyObjCTools.AppHelper": None}
-        ):
-            with mock.patch.object(
-                tray, "_dispatch_to_main", side_effect=tracking_dispatch
-            ):
-                with mock.patch.object(
-                    tray._refresh_event, "wait", side_effect=stop_after_one_wait
-                ):
-                    with mock.patch("ai_guardian.tray.app.time") as mock_time:
-                        mock_time.time = mock.MagicMock(side_effect=[now, now + 10])
-                        tray._stats_refresh_running = True
-                        tray._last_refresh_wallclock = now
-                        tray._start_stats_refresh()
-                        time_mod.sleep(0.3)
-
+        rebuild_calls = self._run_stats_refresh_tick([now, now + 10])
         assert len(rebuild_calls) == 0
 
     @pytest.mark.parametrize(
