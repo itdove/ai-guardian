@@ -7,6 +7,7 @@ and Cline/ZooCode (JSON array).
 
 from ai_guardian.scanners.transcript.base import TranscriptAdapter
 from ai_guardian.scanners.transcript.common import (
+    _discover_path,
     _extract_secret_type_from_error,
     _finding_fingerprint,
     _get_transcript_path,
@@ -16,6 +17,7 @@ from ai_guardian.scanners.transcript.common import (
     _save_seen_findings,
     _save_transcript_positions,
     _scan_transcript_text,
+    _scan_with_position_tracking,
 )
 from ai_guardian.scanners.transcript.cline import (
     ClineTranscriptAdapter,
@@ -54,6 +56,7 @@ __all__ = [
     "ClineTranscriptAdapter",
     "WindsurfTranscriptAdapter",
     "_advance_transcript_position",
+    "_discover_path",
     "_extract_secret_type_from_error",
     "_extract_text_from_transcript_line",
     "_finding_fingerprint",
@@ -64,6 +67,7 @@ __all__ = [
     "_save_seen_findings",
     "_save_transcript_positions",
     "_scan_transcript_text",
+    "_scan_with_position_tracking",
     "scan_cline_transcript_incremental",
     "scan_cursor_transcript_incremental",
     "scan_opencode_transcript_incremental",

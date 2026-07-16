@@ -16,9 +16,8 @@ from ai_guardian.config.utils import get_state_dir
 from ai_guardian.scanners.transcript.base import TranscriptAdapter
 from ai_guardian.scanners.transcript.common import (
     _get_transcript_path,
-    _load_transcript_positions,
-    _save_transcript_positions,
     _scan_transcript_text,
+    _scan_with_position_tracking,
 )
 
 
@@ -76,70 +75,68 @@ def scan_transcript_incremental(
     Prompt injection scanning is intentionally excluded — conversation
     history naturally contains patterns that trigger false positives.
     """
-    warnings = []
-
     if not os.path.exists(transcript_path):
         logging.debug(f"Transcript file does not exist: {transcript_path}")
-        return warnings
+        return []
 
-    positions = _load_transcript_positions()
-
-    try:
-        file_size = os.path.getsize(transcript_path)
-    except OSError as e:
-        logging.debug(f"Cannot stat transcript file: {e}")
-        return warnings
-
-    if transcript_path not in positions:
-        positions[transcript_path] = file_size
-        _save_transcript_positions(positions)
-        logging.debug(f"Transcript first seen, initialized position to {file_size}")
-        return warnings
-
-    last_pos = positions[transcript_path]
-
-    if file_size < last_pos:
-        logging.debug("Transcript file truncated, advancing position to current size")
-        positions[transcript_path] = file_size
-        _save_transcript_positions(positions)
-        return warnings
-
-    if file_size <= last_pos:
-        return warnings
-
-    try:
-        with open(transcript_path, "rb") as f:
-            f.seek(last_pos)
-            new_bytes = f.read()
-            new_pos = f.tell()
-    except OSError as e:
-        logging.debug(f"Cannot read transcript file: {e}")
-        return warnings
-
-    new_content = new_bytes.decode("utf-8", errors="replace")
-
-    texts = []
-    for line in new_content.splitlines():
-        line = line.strip()
-        if not line:
-            continue
+    def _init_position():
         try:
-            line_data = json.loads(line)
-            if isinstance(line_data, dict):
-                extracted = _extract_text_from_transcript_line(line_data)
-                if extracted:
-                    texts.append(extracted)
-        except json.JSONDecodeError:
-            continue
+            return os.path.getsize(transcript_path)
+        except OSError:
+            return 0
 
-    combined_text = "\n".join(texts)
+    def _read_new(last_pos):
+        try:
+            file_size = os.path.getsize(transcript_path)
+        except OSError:
+            return "", last_pos
+
+        if file_size < last_pos:
+            logging.debug(
+                "Transcript file truncated, advancing position to current size"
+            )
+            return "", file_size
+
+        if file_size <= last_pos:
+            return "", last_pos
+
+        try:
+            with open(transcript_path, "rb") as f:
+                f.seek(last_pos)
+                new_bytes = f.read()
+                new_pos = f.tell()
+        except OSError as e:
+            logging.debug(f"Cannot read transcript file: {e}")
+            return "", last_pos
+
+        new_content = new_bytes.decode("utf-8", errors="replace")
+        texts = []
+        for line in new_content.splitlines():
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                line_data = json.loads(line)
+                if isinstance(line_data, dict):
+                    extracted = _extract_text_from_transcript_line(line_data)
+                    if extracted:
+                        texts.append(extracted)
+            except json.JSONDecodeError:
+                continue
+
+        return "\n".join(texts), new_pos
+
+    combined_text = _scan_with_position_tracking(
+        transcript_path,
+        _read_new,
+        init_position_fn=_init_position,
+        label="JSONL",
+    )
 
     if not combined_text:
-        positions[transcript_path] = new_pos
-        _save_transcript_positions(positions)
-        return warnings
+        return []
 
-    warnings = _scan_transcript_text(
+    return _scan_transcript_text(
         combined_text,
         transcript_path,
         secret_config,
@@ -147,11 +144,6 @@ def scan_transcript_incremental(
         hook_context,
         allowed_findings=allowed_findings,
     )
-
-    positions[transcript_path] = new_pos
-    _save_transcript_positions(positions)
-
-    return warnings
 
 
 def _advance_transcript_position(hook_data: dict) -> None:

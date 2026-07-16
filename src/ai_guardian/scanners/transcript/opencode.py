@@ -13,9 +13,9 @@ from typing import Dict, List, Optional, Tuple
 
 from ai_guardian.scanners.transcript.base import TranscriptAdapter
 from ai_guardian.scanners.transcript.common import (
-    _load_transcript_positions,
-    _save_transcript_positions,
+    _discover_path,
     _scan_transcript_text,
+    _scan_with_position_tracking,
 )
 
 
@@ -24,17 +24,12 @@ def get_opencode_db_path() -> Optional[str]:
 
     Checks OPENCODE_HOME env var first, then default XDG location.
     """
-    home = os.environ.get("OPENCODE_HOME")
-    if home:
-        db_path = os.path.join(home, "opencode.db")
-        if os.path.exists(db_path):
-            return db_path
-
-    default = os.path.expanduser("~/.local/share/opencode/opencode.db")
-    if os.path.exists(default):
-        return default
-
-    return None
+    return _discover_path(
+        "OPENCODE_HOME",
+        "~/.local/share/opencode/opencode.db",
+        check=os.path.exists,
+        env_suffix="opencode.db",
+    )
 
 
 def _extract_text_from_part(data: dict) -> str:
@@ -140,27 +135,21 @@ def scan_opencode_transcript_incremental(
     allowed_findings: Optional[set] = None,
 ) -> list:
     """Incrementally scan OpenCode session transcript via SQLite."""
-    warnings = []
     pos_key = f"opencode:{session_id}"
 
-    positions = _load_transcript_positions()
-
-    if pos_key not in positions:
-        latest_ts = get_opencode_latest_timestamp(db_path, session_id)
-        positions[pos_key] = latest_ts
-        _save_transcript_positions(positions)
-        logging.debug(
-            f"OpenCode transcript first seen, initialized position to {latest_ts}"
-        )
-        return warnings
-
-    last_ts = positions[pos_key]
-    combined_text, new_ts = read_opencode_transcript(db_path, session_id, last_ts)
+    combined_text = _scan_with_position_tracking(
+        pos_key,
+        reader_fn=lambda last_ts: read_opencode_transcript(
+            db_path, session_id, last_ts
+        ),
+        init_position_fn=lambda: get_opencode_latest_timestamp(db_path, session_id),
+        label="OpenCode",
+    )
 
     if not combined_text:
-        return warnings
+        return []
 
-    warnings = _scan_transcript_text(
+    return _scan_transcript_text(
         combined_text,
         pos_key,
         secret_config,
@@ -169,11 +158,6 @@ def scan_opencode_transcript_incremental(
         allowed_findings=allowed_findings,
     )
 
-    positions[pos_key] = new_ts
-    _save_transcript_positions(positions)
-
-    return warnings
-
 
 class OpenCodeTranscriptAdapter(TranscriptAdapter):
     """Transcript adapter for OpenCode SQLite session database."""
@@ -181,13 +165,6 @@ class OpenCodeTranscriptAdapter(TranscriptAdapter):
     @property
     def name(self) -> str:
         return "OpenCode"
-
-    def can_scan(self, hook_data: Dict, adapter=None) -> bool:
-        if adapter and adapter.name == "OpenCode":
-            from ai_guardian.scanners.transcript.common import _get_transcript_path
-
-            return not _get_transcript_path(hook_data)
-        return False
 
     def scan_incremental(
         self,

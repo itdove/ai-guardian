@@ -15,9 +15,9 @@ from typing import Dict, List, Optional, Set, Tuple
 
 from ai_guardian.scanners.transcript.base import TranscriptAdapter
 from ai_guardian.scanners.transcript.common import (
-    _load_transcript_positions,
-    _save_transcript_positions,
+    _discover_path,
     _scan_transcript_text,
+    _scan_with_position_tracking,
 )
 
 
@@ -26,28 +26,22 @@ def get_cursor_db_path() -> Optional[str]:
 
     Checks CURSOR_DATA_DIR env var first, then platform-specific defaults.
     """
-    custom = os.environ.get("CURSOR_DATA_DIR")
-    if custom:
-        db_path = os.path.join(custom, "state.vscdb")
-        if os.path.exists(db_path):
-            return db_path
-
     if sys.platform == "darwin":
-        default = os.path.expanduser(
-            "~/Library/Application Support/Cursor/User/globalStorage/state.vscdb"
-        )
+        default = "~/Library/Application Support/Cursor/User/globalStorage/state.vscdb"
     elif sys.platform == "win32":
         appdata = os.environ.get("APPDATA", "")
         default = os.path.join(
             appdata, "Cursor", "User", "globalStorage", "state.vscdb"
         )
     else:
-        default = os.path.expanduser("~/.config/Cursor/User/globalStorage/state.vscdb")
+        default = "~/.config/Cursor/User/globalStorage/state.vscdb"
 
-    if os.path.exists(default):
-        return default
-
-    return None
+    return _discover_path(
+        "CURSOR_DATA_DIR",
+        default,
+        check=os.path.exists,
+        env_suffix="state.vscdb",
+    )
 
 
 def _extract_text_from_bubble(data: dict) -> str:
@@ -197,32 +191,24 @@ def scan_cursor_transcript_incremental(
     allowed_findings: Optional[set] = None,
 ) -> list:
     """Incrementally scan Cursor session transcript via SQLite."""
-    warnings = []
     pos_key = f"cursor:{composer_id}"
 
-    positions = _load_transcript_positions()
+    def _reader(last_pos):
+        seen_ids = set(last_pos) if isinstance(last_pos, list) else set()
+        text, new_seen = read_cursor_transcript(db_path, composer_id, seen_ids)
+        return text, sorted(new_seen)
 
-    if pos_key not in positions:
-        initial_ids = get_cursor_bubble_ids(db_path, composer_id)
-        positions[pos_key] = sorted(initial_ids)
-        _save_transcript_positions(positions)
-        logging.debug(
-            f"Cursor transcript first seen, initialized with {len(initial_ids)} bubbles"
-        )
-        return warnings
-
-    seen_ids = (
-        set(positions[pos_key]) if isinstance(positions[pos_key], list) else set()
+    combined_text = _scan_with_position_tracking(
+        pos_key,
+        _reader,
+        init_position_fn=lambda: sorted(get_cursor_bubble_ids(db_path, composer_id)),
+        label="Cursor",
     )
-    combined_text, new_seen = read_cursor_transcript(db_path, composer_id, seen_ids)
 
     if not combined_text:
-        if new_seen != seen_ids:
-            positions[pos_key] = sorted(new_seen)
-            _save_transcript_positions(positions)
-        return warnings
+        return []
 
-    warnings = _scan_transcript_text(
+    return _scan_transcript_text(
         combined_text,
         pos_key,
         secret_config,
@@ -231,11 +217,6 @@ def scan_cursor_transcript_incremental(
         allowed_findings=allowed_findings,
     )
 
-    positions[pos_key] = sorted(new_seen)
-    _save_transcript_positions(positions)
-
-    return warnings
-
 
 class CursorTranscriptAdapter(TranscriptAdapter):
     """Transcript adapter for Cursor IDE SQLite database."""
@@ -243,13 +224,6 @@ class CursorTranscriptAdapter(TranscriptAdapter):
     @property
     def name(self) -> str:
         return "Cursor IDE"
-
-    def can_scan(self, hook_data: Dict, adapter=None) -> bool:
-        if adapter and adapter.name == "Cursor IDE":
-            from ai_guardian.scanners.transcript.common import _get_transcript_path
-
-            return not _get_transcript_path(hook_data)
-        return False
 
     def scan_incremental(
         self,

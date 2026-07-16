@@ -12,10 +12,9 @@ from typing import Dict, List, Optional, Tuple
 
 from ai_guardian.scanners.transcript.base import TranscriptAdapter
 from ai_guardian.scanners.transcript.common import (
-    _get_transcript_path,
-    _load_transcript_positions,
-    _save_transcript_positions,
+    _discover_path,
     _scan_transcript_text,
+    _scan_with_position_tracking,
 )
 
 
@@ -25,15 +24,7 @@ def get_windsurf_transcripts_dir() -> Optional[str]:
     Checks ``WINDSURF_TRANSCRIPTS_DIR`` env var first, then the default
     ``~/.windsurf/transcripts`` path (same across platforms per Windsurf docs).
     """
-    custom = os.environ.get("WINDSURF_TRANSCRIPTS_DIR")
-    if custom and os.path.isdir(custom):
-        return custom
-
-    default = os.path.expanduser("~/.windsurf/transcripts")
-    if os.path.isdir(default):
-        return default
-
-    return None
+    return _discover_path("WINDSURF_TRANSCRIPTS_DIR", "~/.windsurf/transcripts")
 
 
 _KNOWN_STEP_FIELDS = {
@@ -125,38 +116,25 @@ def scan_windsurf_transcript_incremental(
     allowed_findings: Optional[set] = None,
 ) -> list:
     """Incrementally scan a Windsurf transcript JSONL file."""
-    warnings: List[str] = []
     pos_key = f"windsurf:{trajectory_id}"
 
-    positions = _load_transcript_positions()
-    is_first_scan = pos_key not in positions
-
-    seen_count = (
-        positions[pos_key]
-        if not is_first_scan and isinstance(positions[pos_key], int)
-        else 0
+    combined_text = _scan_with_position_tracking(
+        pos_key,
+        reader_fn=lambda seen: read_windsurf_transcript(transcript_path, seen),
+        label="Windsurf",
     )
-    combined_text, new_count = read_windsurf_transcript(transcript_path, seen_count)
 
-    if is_first_scan:
-        logging.debug(
-            f"Windsurf transcript first seen, initialized with {new_count} lines"
-        )
-    elif combined_text:
-        warnings = _scan_transcript_text(
-            combined_text,
-            pos_key,
-            secret_config,
-            pii_config,
-            hook_context,
-            allowed_findings=allowed_findings,
-        )
+    if not combined_text:
+        return []
 
-    if new_count != seen_count or is_first_scan:
-        positions[pos_key] = new_count
-        _save_transcript_positions(positions)
-
-    return warnings
+    return _scan_transcript_text(
+        combined_text,
+        pos_key,
+        secret_config,
+        pii_config,
+        hook_context,
+        allowed_findings=allowed_findings,
+    )
 
 
 class WindsurfTranscriptAdapter(TranscriptAdapter):
@@ -165,11 +143,6 @@ class WindsurfTranscriptAdapter(TranscriptAdapter):
     @property
     def name(self) -> str:
         return "Windsurf"
-
-    def can_scan(self, hook_data: Dict, adapter=None) -> bool:
-        if adapter and adapter.name == "Windsurf":
-            return not _get_transcript_path(hook_data)
-        return False
 
     def scan_incremental(
         self,

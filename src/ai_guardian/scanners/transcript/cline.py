@@ -14,10 +14,8 @@ from typing import Dict, List, Optional, Tuple
 
 from ai_guardian.scanners.transcript.base import TranscriptAdapter
 from ai_guardian.scanners.transcript.common import (
-    _get_transcript_path,
-    _load_transcript_positions,
-    _save_transcript_positions,
     _scan_transcript_text,
+    _scan_with_position_tracking,
 )
 
 HISTORY_FILENAME = "api_conversation_history.json"
@@ -176,39 +174,26 @@ def scan_cline_transcript_incremental(
     allowed_findings: Optional[set] = None,
 ) -> list:
     """Incrementally scan a Cline task transcript."""
-    warnings: List[str] = []
     task_id = os.path.basename(task_dir)
     pos_key = f"cline:{task_id}"
 
-    positions = _load_transcript_positions()
-    is_first_scan = pos_key not in positions
-
-    seen_count = (
-        positions[pos_key]
-        if not is_first_scan and isinstance(positions[pos_key], int)
-        else 0
+    combined_text = _scan_with_position_tracking(
+        pos_key,
+        reader_fn=lambda seen: read_cline_task_transcript(task_dir, seen),
+        label="Cline",
     )
-    combined_text, new_count = read_cline_task_transcript(task_dir, seen_count)
 
-    if is_first_scan:
-        logging.debug(
-            f"Cline transcript first seen, initialized with {new_count} messages"
-        )
-    elif combined_text:
-        warnings = _scan_transcript_text(
-            combined_text,
-            pos_key,
-            secret_config,
-            pii_config,
-            hook_context,
-            allowed_findings=allowed_findings,
-        )
+    if not combined_text:
+        return []
 
-    if new_count != seen_count or is_first_scan:
-        positions[pos_key] = new_count
-        _save_transcript_positions(positions)
-
-    return warnings
+    return _scan_transcript_text(
+        combined_text,
+        pos_key,
+        secret_config,
+        pii_config,
+        hook_context,
+        allowed_findings=allowed_findings,
+    )
 
 
 class ClineTranscriptAdapter(TranscriptAdapter):
@@ -217,11 +202,6 @@ class ClineTranscriptAdapter(TranscriptAdapter):
     @property
     def name(self) -> str:
         return "Cline"
-
-    def can_scan(self, hook_data: Dict, adapter=None) -> bool:
-        if adapter and adapter.name == "Cline":
-            return not _get_transcript_path(hook_data)
-        return False
 
     def scan_incremental(
         self,

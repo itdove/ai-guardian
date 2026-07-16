@@ -17,7 +17,7 @@ import logging
 import os
 import re
 from datetime import datetime, timezone
-from typing import Dict, Optional
+from typing import Callable, Dict, Optional
 
 from ai_guardian.config.utils import get_project_dir, get_state_dir, is_feature_enabled
 from ai_guardian.constants import HookEvent, ViolationType
@@ -92,6 +92,85 @@ def _save_transcript_positions(positions: Dict[str, object]) -> None:
             json.dump(pruned, f)
     except Exception as e:
         logging.debug(f"Failed to save transcript positions: {e}")
+
+
+def _scan_with_position_tracking(
+    pos_key: str,
+    reader_fn: Callable,
+    default_position: object = 0,
+    init_position_fn: Optional[Callable] = None,
+    label: str = "Transcript",
+) -> str:
+    """Handle position loading/saving for incremental transcript scanning.
+
+    Args:
+        pos_key: Key for position tracking (e.g., ``"cline:<task_id>"``).
+        reader_fn: ``(last_position) -> (combined_text, new_position)``.
+        default_position: Initial position passed to *reader_fn* on first
+            scan when *init_position_fn* is not provided.
+        init_position_fn: Optional ``() -> initial_position``.  When given,
+            called on first scan instead of *reader_fn* to seed the position
+            without reading content.
+        label: Human-readable adapter name for debug logging.
+
+    Returns:
+        Combined text from new content, or ``""`` when there is nothing to
+        scan (first scan or no new data).  Position is persisted
+        automatically whenever it changes.
+    """
+    positions = _load_transcript_positions()
+
+    if pos_key not in positions:
+        if init_position_fn is not None:
+            positions[pos_key] = init_position_fn()
+        else:
+            _, new_pos = reader_fn(default_position)
+            positions[pos_key] = new_pos
+        _save_transcript_positions(positions)
+        logging.debug(f"{label} transcript first seen, initialized position")
+        return ""
+
+    last_pos = positions[pos_key]
+    combined_text, new_pos = reader_fn(last_pos)
+
+    if new_pos != last_pos:
+        positions[pos_key] = new_pos
+        _save_transcript_positions(positions)
+
+    return combined_text
+
+
+# ---------------------------------------------------------------------------
+# Path discovery
+# ---------------------------------------------------------------------------
+
+
+def _discover_path(
+    env_var: str,
+    default: str,
+    check: Callable[[str], bool] = os.path.isdir,
+    env_suffix: str = "",
+) -> Optional[str]:
+    """Discover a storage path via environment variable or platform default.
+
+    Args:
+        env_var: Environment variable to check first.
+        default: Default path (expanded with :func:`os.path.expanduser`).
+        check: Validation function (e.g., :func:`os.path.isdir`).
+        env_suffix: Filename appended to the env-var value via
+            :func:`os.path.join`.
+    """
+    custom = os.environ.get(env_var)
+    if custom:
+        path = os.path.join(custom, env_suffix) if env_suffix else custom
+        if check(path):
+            return path
+
+    expanded = os.path.expanduser(default)
+    if check(expanded):
+        return expanded
+
+    return None
 
 
 # ---------------------------------------------------------------------------
