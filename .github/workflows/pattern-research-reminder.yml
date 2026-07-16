@@ -112,12 +112,12 @@ jobs:
 
               Work through each scanner and record findings below:
 
-              ### 🔍 Prompt Injection (\`src/ai_guardian/prompt_injection.py\`)
+              ### 🔍 Prompt Injection (\`src/ai_guardian/scanners/prompt_injection.py\`)
               Sources: Hermes payloads, OWASP LLM Top 10, arXiv papers
               - [ ] Reviewed
               - New patterns found: _[yes/no — if yes, create enhancement issue]_
 
-              ### 🧠 Context Poisoning (\`src/ai_guardian/context_poisoning.py\`)
+              ### 🧠 Context Poisoning (\`src/ai_guardian/scanners/context_poisoning.py\`)
               Sources: Hermes context-injection payloads, OWASP LLM03, arXiv papers
               - [ ] Reviewed
               - New patterns found: _[yes/no]_
@@ -127,15 +127,35 @@ jobs:
               - [ ] Reviewed
               - New credential formats found: _[yes/no]_
 
-              ### 🌐 SSRF (\`src/ai_guardian/ssrf_protector.py\`)
+              ### 🌐 SSRF (\`src/ai_guardian/scanners/ssrf.py\`, \`src/ai_guardian/patterns/data/ssrf.toml\`)
               Sources: CVE database, security blogs — look for new cloud metadata endpoints, redirect bypass techniques, new internal IP ranges
               - [ ] Reviewed
               - New bypass techniques or endpoints found: _[yes/no]_
 
-              ### 📁 Config File Exfil (\`src/ai_guardian/config_scanner.py\`)
+              ### 📁 Config File Exfil (\`src/ai_guardian/scanners/config_scanner.py\`)
               Sources: Security blogs, cloud provider docs — look for new config file paths/formats that expose credentials
               - [ ] Reviewed
               - New config file patterns found: _[yes/no]_
+
+              ### 📦 Supply Chain (\`src/ai_guardian/scanners/supply_chain.py\`)
+              Sources: OWASP Agentic ASI04, security blogs — look for new MCP server poisoning techniques, malicious package patterns, agent config hijacking
+              - [ ] Reviewed
+              - New patterns found: _[yes/no]_
+
+              ### 🗣️ Offensive Language (\`src/ai_guardian/patterns/data/offensive-*.toml\`)
+              Sources: Community reports, inclusive language guides — look for new non-inclusive terminology or slur patterns
+              - [ ] Reviewed
+              - New patterns found: _[yes/no]_
+
+              ### 🐤 Canary Detection (\`src/ai_guardian/scanners/canary_detection.py\`)
+              Sources: Canary token services, security tools — look for new canary token formats or services
+              - [ ] Reviewed
+              - New token formats found: _[yes/no]_
+
+              ### 📤 Exfil Detection (\`src/ai_guardian/scanners/exfil_detection.py\`)
+              Sources: Security research, CVE database — look for new data exfiltration techniques via CLI commands, encoding tricks, or side channels
+              - [ ] Reviewed
+              - New exfil techniques found: _[yes/no]_
 
               ---
 
