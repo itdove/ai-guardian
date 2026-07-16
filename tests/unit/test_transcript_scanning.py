@@ -181,15 +181,16 @@ class TestTranscriptPositions(unittest.TestCase):
         result = _load_transcript_positions()
         self.assertEqual(result, {})
 
-    def test_save_prunes_stale_entries(
+    def test_save_preserves_stale_entries(
         self,
     ):
+        """Positions no longer prune stale keys — pruning is too expensive on the hot path."""
         positions = {
             "/tmp/nonexistent_file.jsonl": 500,
         }
         _save_transcript_positions(positions)
         loaded = _load_transcript_positions()
-        self.assertNotIn("/tmp/nonexistent_file.jsonl", loaded)
+        self.assertIn("/tmp/nonexistent_file.jsonl", loaded)
 
     def test_save_preserves_existing_files(self):
         import tempfile
