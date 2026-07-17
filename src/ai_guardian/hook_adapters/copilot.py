@@ -109,6 +109,7 @@ class CopilotAdapter(HookAdapter):
         modified_output: Optional[str] = None,
         violation_type: Optional[str] = None,
         security_message: Optional[str] = None,
+        redacted_output: Optional[str] = None,
     ) -> Dict:
         if hook_event == HookEvent.PRE_TOOL_USE:
             response = {}
@@ -141,8 +142,13 @@ class CopilotAdapter(HookAdapter):
                     error_message, warning_message
                 )
                 print(final_error, file=sys.stderr)
+                output = (
+                    json.dumps({"additionalContext": redacted_output})
+                    if redacted_output
+                    else None
+                )
                 return self._add_metadata(
-                    {"output": None, "exit_code": 2},
+                    {"output": output, "exit_code": 2},
                     has_secrets,
                     violation_type,
                 )

@@ -81,12 +81,13 @@ class WindsurfAdapter(BaseAgentAdapter):
         modified_output: Optional[str] = None,
         violation_type: Optional[str] = None,
         security_message: Optional[str] = None,
+        redacted_output: Optional[str] = None,
     ) -> Dict:
         if has_secrets and error_message:
             final_error = self._combine_error_messages(error_message, warning_message)
             print(final_error, file=sys.stderr)
             return self._add_metadata(
-                {"output": None, "exit_code": 2},
+                {"output": redacted_output, "exit_code": 2},
                 has_secrets,
                 violation_type,
             )

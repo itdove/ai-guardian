@@ -80,13 +80,15 @@ class ClineAdapter(HookAdapter):
         modified_output: Optional[str] = None,
         violation_type: Optional[str] = None,
         security_message: Optional[str] = None,
+        redacted_output: Optional[str] = None,
     ) -> Dict:
         if has_secrets and error_message:
             final_error = self._combine_error_messages(error_message, warning_message)
             response = {
                 "cancel": True,
                 "errorMessage": final_error,
-                "contextModification": self._sanitize_block_reason(violation_type),
+                "contextModification": redacted_output
+                or self._sanitize_block_reason(violation_type),
             }
         else:
             response = {}

@@ -86,13 +86,18 @@ class BaseAgentAdapter(HookAdapter):
         hook_event: HookEvent,
         error_message: str,
         violation_type: Optional[str] = None,
+        redacted_output: Optional[str] = None,
     ) -> Dict:
         sanitized = self._sanitize_block_reason(violation_type)
+        context = redacted_output if redacted_output is not None else sanitized
+        sys_msg = error_message
+        if redacted_output is not None:
+            sys_msg = f"{error_message}\n\nRedacted output provided in context."
         response: Dict = {
-            "systemMessage": error_message,
+            "systemMessage": sys_msg,
             "hookSpecificOutput": {
                 "hookEventName": self._event_name(hook_event),
-                "additionalContext": sanitized,
+                "additionalContext": context,
             },
         }
         if hook_event in _BLOCK_USES_PERMISSION_DECISION:
@@ -100,7 +105,7 @@ class BaseAgentAdapter(HookAdapter):
         else:
             response["decision"] = "block"
             if hook_event not in _BLOCK_OMITS_REASON:
-                response["reason"] = error_message
+                response["reason"] = sys_msg
         return response
 
     def _warn_response(
@@ -144,10 +149,13 @@ class BaseAgentAdapter(HookAdapter):
         modified_output: Optional[str] = None,
         violation_type: Optional[str] = None,
         security_message: Optional[str] = None,
+        redacted_output: Optional[str] = None,
     ) -> Dict:
         if has_secrets and error_message:
             final_error = self._combine_error_messages(error_message, warning_message)
-            response = self._block_response(hook_event, final_error, violation_type)
+            response = self._block_response(
+                hook_event, final_error, violation_type, redacted_output
+            )
         elif hook_event == HookEvent.POST_TOOL_USE:
             if has_secrets:
                 final_error = self._combine_error_messages(
@@ -157,6 +165,7 @@ class BaseAgentAdapter(HookAdapter):
                     hook_event,
                     final_error or "Secrets detected in tool output",
                     violation_type,
+                    redacted_output,
                 )
             else:
                 response = (

@@ -140,6 +140,10 @@ def parse_simulation_result(result):
         is_blocked = True
         reason = output.get("permissionDecisionReason")
 
+    if not is_blocked and (result.get("_blocked") or exit_code >= 2):
+        is_blocked = True
+        reason = reason or output.get("systemMessage", "Blocked")
+
     if not reason and output.get("systemMessage"):
         reason = output.get("systemMessage")
 
