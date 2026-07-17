@@ -6,7 +6,6 @@ exit 2 blocks (stderr reaches the agent), exit 0 allows.
 """
 
 import logging
-import sys
 from typing import ClassVar, Dict, List, Optional
 
 from ai_guardian.constants import HookEvent
@@ -84,10 +83,11 @@ class WindsurfAdapter(BaseAgentAdapter):
         redacted_output: Optional[str] = None,
     ) -> Dict:
         if has_secrets and error_message:
-            final_error = self._combine_error_messages(error_message, warning_message)
-            print(final_error, file=sys.stderr)
-            return self._add_metadata(
-                {"output": redacted_output, "exit_code": 2},
+            return self._stderr_block_response(
+                error_message,
+                warning_message,
+                redacted_output,
+                2,
                 has_secrets,
                 violation_type,
             )

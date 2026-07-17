@@ -6,7 +6,6 @@ agent context and stderr for error messages.
 Also used by AiderDesk and OpenClaw (via env var override).
 """
 
-import sys
 from typing import ClassVar, Dict, List, Optional
 
 from ai_guardian.constants import HookEvent
@@ -78,11 +77,12 @@ class KiroAdapter(HookAdapter):
         redacted_output: Optional[str] = None,
     ) -> Dict:
         if has_secrets and error_message:
-            final_error = self._combine_error_messages(error_message, warning_message)
-            print(final_error, file=sys.stderr)
             exit_code = 2 if hook_event == HookEvent.PRE_TOOL_USE else 1
-            return self._add_metadata(
-                {"output": redacted_output, "exit_code": exit_code},
+            return self._stderr_block_response(
+                error_message,
+                warning_message,
+                redacted_output,
+                exit_code,
                 has_secrets,
                 violation_type,
             )
