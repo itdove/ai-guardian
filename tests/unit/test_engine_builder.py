@@ -219,7 +219,7 @@ class TestBuildScannerCommand(unittest.TestCase):
         self.assertIn("leaktk", cmd)
         self.assertIn("scan", cmd)
         self.assertIn("--kind", cmd)
-        self.assertIn("File", cmd)
+        self.assertIn("Files", cmd)
         self.assertIn("/tmp/test.txt", cmd)
 
     def test_build_command_with_extra_flags(self):

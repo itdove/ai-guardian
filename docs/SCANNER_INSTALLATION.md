@@ -115,7 +115,7 @@ When GitHub API is unavailable (offline, network issues), ai-guardian falls back
 [tool.ai-guardian.scanners]
 gitleaks = "8.30.1"
 betterleaks = "1.1.2"
-leaktk = "0.2.10"
+leaktk = "0.3.4"
 ```
 
 These versions are tested with each ai-guardian release and guaranteed to work.
