@@ -158,6 +158,7 @@ from ai_guardian.reporting.latency import _CheckTimer
 
 
 from ai_guardian.hook_events.utils import _format_response  # noqa: F401, E402
+from ai_guardian.hook_events.utils import strip_system_tags  # noqa: E402
 
 # Conditional imports for optional features
 try:
@@ -2588,6 +2589,7 @@ def process_hook_data(hook_data, daemon_state=None):
             content_to_scan = hook_data.get(
                 "prompt", hook_data.get("userMessage", hook_data.get("message", ""))
             )
+            content_to_scan = strip_system_tags(content_to_scan)
             filename = "user_prompt"
 
             if not content_to_scan:
