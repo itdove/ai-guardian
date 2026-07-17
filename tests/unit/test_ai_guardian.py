@@ -663,7 +663,8 @@ Yyv2dJ5Y2LtZ7YywIDAQABAoIBADCNMXk8y5K6lVZMsEHHWpdGIyDyUPsryXctAJAc
         # UserPromptSubmit returns JSON with decision:block
         output = json.loads(response["output"])
         self.assertEqual(output["decision"], "block")
-        self.assertEqual(output["reason"], "Test error")
+        self.assertIn("blocked by ai-guardian", output["reason"])
+        self.assertNotEqual(output["reason"], output["systemMessage"])
         self.assertEqual(
             output["hookSpecificOutput"]["hookEventName"], "UserPromptSubmit"
         )
