@@ -75,6 +75,7 @@ def run_content_pipeline(
     tool_identifier,
     tool_name,
     warning_messages,
+    warn_violation_types=None,
     log_only_count,
     _registry,
     _post_scan_ctx,
@@ -150,6 +151,8 @@ def run_content_pipeline(
                     filename=filename,
                 )
                 warning_messages.extend(pi_decision.warnings)
+                if warn_violation_types is not None and pi_decision.warnings:
+                    warn_violation_types.append(ViolationType.PROMPT_INJECTION)
                 if pi_decision.should_block:
                     if ide_type != IDEType.CURSOR:
                         if file_path:
@@ -222,6 +225,8 @@ def run_content_pipeline(
                     filename=filename,
                 )
                 warning_messages.extend(cp_decision.warnings)
+                if warn_violation_types is not None and cp_decision.warnings:
+                    warn_violation_types.append(ViolationType.CONTEXT_POISONING)
                 if cp_decision.should_block:
                     logging.info(
                         "Blocking operation due to context poisoning detection"
@@ -266,6 +271,8 @@ def run_content_pipeline(
                 filename=filename,
             )
             warning_messages.extend(sc_decision.warnings)
+            if warn_violation_types is not None and sc_decision.warnings:
+                warn_violation_types.append(ViolationType.SUPPLY_CHAIN)
             if sc_decision.should_block:
                 logging.info("Blocking operation due to supply chain threat detection")
                 combined_warning = (
@@ -285,6 +292,8 @@ def run_content_pipeline(
                 )
         elif sc_result is not None and sc_result.error_message:
             warning_messages.append(sc_result.error_message)
+            if warn_violation_types is not None:
+                warn_violation_types.append(ViolationType.SUPPLY_CHAIN)
 
     except Exception as e:
         logging.warning(f"Supply chain check error (fail-open): {e}")
@@ -309,6 +318,8 @@ def run_content_pipeline(
                 filename=filename,
             )
             warning_messages.extend(ol_decision.warnings)
+            if warn_violation_types is not None and ol_decision.warnings:
+                warn_violation_types.append(ViolationType.OFFENSIVE_LANGUAGE)
             if ol_decision.should_block:
                 logging.info("Blocking operation due to offensive language detection")
                 combined_warning = (
@@ -328,6 +339,8 @@ def run_content_pipeline(
                 )
         elif ol_result is not None and ol_result.error_message:
             warning_messages.append(ol_result.error_message)
+            if warn_violation_types is not None:
+                warn_violation_types.append(ViolationType.OFFENSIVE_LANGUAGE)
 
     except Exception as e:
         logging.warning(f"Offensive language check error (fail-open): {e}")
@@ -352,6 +365,8 @@ def run_content_pipeline(
                 filename=filename,
             )
             warning_messages.extend(cd_decision.warnings)
+            if warn_violation_types is not None and cd_decision.warnings:
+                warn_violation_types.append(ViolationType.CANARY_DETECTED)
             if cd_decision.should_block:
                 logging.info("Blocking operation due to canary token detection")
                 combined_warning = (
@@ -371,6 +386,8 @@ def run_content_pipeline(
                 )
         elif cd_result is not None and cd_result.error_message:
             warning_messages.append(cd_result.error_message)
+            if warn_violation_types is not None:
+                warn_violation_types.append(ViolationType.CANARY_DETECTED)
 
     except Exception as e:
         logging.warning(f"Canary detection check error (fail-open): {e}")
@@ -397,6 +414,8 @@ def run_content_pipeline(
                         },
                     )
                     warning_messages.extend(cfs_decision.warnings)
+                    if warn_violation_types is not None and cfs_decision.warnings:
+                        warn_violation_types.append(ViolationType.CONFIG_FILE_EXFIL)
                     if cfs_decision.should_block:
                         if ide_type != IDEType.CURSOR:
                             logging.info(
@@ -417,6 +436,8 @@ def run_content_pipeline(
                         return (result, log_only_count)
                     elif cfs_result.error_message:
                         warning_messages.append(cfs_result.error_message)
+                        if warn_violation_types is not None:
+                            warn_violation_types.append(ViolationType.CONFIG_FILE_EXFIL)
                 else:
                     if ide_type != IDEType.CURSOR:
                         logging.debug("✓ No config file threats detected")
@@ -484,6 +505,8 @@ def run_content_pipeline(
 
         if not has_secrets and error_message:
             warning_messages.append(error_message)
+            if warn_violation_types is not None:
+                warn_violation_types.append(ViolationType.SECRET_DETECTED)
 
         if has_secrets:
             secret_decision = apply_post_scan_pipeline(
@@ -495,6 +518,8 @@ def run_content_pipeline(
                 skip_violation_log=True,
             )
             warning_messages.extend(secret_decision.warnings)
+            if warn_violation_types is not None and secret_decision.warnings:
+                warn_violation_types.append(ViolationType.SECRET_DETECTED)
             has_secrets = secret_decision.should_block
 
         if has_secrets:
@@ -604,6 +629,8 @@ def run_content_pipeline(
                     finding_fingerprints=pii_fps,
                 )
                 warning_messages.extend(pii_decision.warnings)
+                if warn_violation_types is not None and pii_decision.warnings:
+                    warn_violation_types.append(ViolationType.PII_DETECTED)
 
                 if not pii_decision.should_block:
                     pii_action = "warn"
@@ -626,6 +653,8 @@ def run_content_pipeline(
                     return (result, log_only_count)
                 elif pii_action == "warn":
                     warning_messages.append(pii_warning)
+                    if warn_violation_types is not None:
+                        warn_violation_types.append(ViolationType.PII_DETECTED)
                 elif pii_action == "log-only":
                     log_only_count += 1
                 else:
@@ -679,6 +708,10 @@ def run_content_pipeline(
                         )
                     if transcript_warnings:
                         warning_messages.extend(transcript_warnings)
+                        if warn_violation_types is not None:
+                            warn_violation_types.append(
+                                ViolationType.SECRET_IN_TRANSCRIPT
+                            )
                         logging.warning(
                             f"{ts_adapter.name} transcript scanning found "
                             f"{len(transcript_warnings)} issue(s)"

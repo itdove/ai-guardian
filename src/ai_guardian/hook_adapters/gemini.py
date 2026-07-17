@@ -102,7 +102,13 @@ class GeminiCLIAdapter(HookAdapter):
                 combined = "\n\n".join(parts)
                 response["systemMessage"] = combined
                 if hook_event != HookEvent.PRE_TOOL_USE:
-                    response["hookSpecificOutput"] = {"additionalContext": combined}
+                    sec = security_message if hook_event == HookEvent.PROMPT else None
+                    agent_ctx = self._build_warn_agent_context(
+                        warning_message, sec, violation_type
+                    )
+                    response["hookSpecificOutput"] = {
+                        "additionalContext": agent_ctx or combined
+                    }
             if hook_event == HookEvent.POST_TOOL_USE and modified_output is not None:
                 logger.warning(
                     "%s: modified_output provided but output replacement "

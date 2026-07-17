@@ -244,12 +244,49 @@ class HookAdapter(ABC):
         "pii_in_transcript": "PII detected in transcript",
         "image_secret_detected": "secret detected in image",
         "image_pii_detected": "PII detected in image",
+        "offensive_language": "offensive language detected",
+        "canary_detected": "canary token detected",
+        "code_security": "code security issue detected",
+        "exfil_detection": "exfiltration pattern detected",
+        "bash_exfil": "credential exfiltration detected",
     }
 
     @classmethod
     def _sanitize_block_reason(cls, violation_type: Optional[str]) -> str:
         label = cls._BLOCK_REASON_MAP.get(violation_type or "", "security violation")
         return f"Operation blocked by ai-guardian: {label}"
+
+    @classmethod
+    def _sanitize_warn_reason(cls, violation_type: Optional[str]) -> str:
+        """Generic agent-facing message for warn mode (no file/line/pattern)."""
+        if not violation_type:
+            label = "security violation"
+        elif "," in violation_type:
+            types = [t.strip() for t in violation_type.split(",")]
+            labels = list(
+                dict.fromkeys(
+                    cls._BLOCK_REASON_MAP.get(t, "security violation") for t in types
+                )
+            )
+            label = ", ".join(labels)
+        else:
+            label = cls._BLOCK_REASON_MAP.get(violation_type, "security violation")
+        return f"[ai-guardian] ⚠️  {label} (warn mode) - execution allowed"
+
+    def _build_warn_agent_context(
+        self,
+        warning_message: Optional[str],
+        security_message: Optional[str],
+        violation_type: Optional[str],
+    ) -> Optional[str]:
+        """Build agent-facing warning: sanitized when violation_type set, else raw."""
+        msg = (
+            self._sanitize_warn_reason(violation_type)
+            if warning_message and violation_type
+            else warning_message
+        )
+        parts = list(filter(None, [security_message, msg]))
+        return "\n\n".join(parts) if parts else None
 
     def _stderr_block_response(
         self,

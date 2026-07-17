@@ -120,13 +120,13 @@ class CursorAdapter(HookAdapter):
                     response["user_message"] = final_error
                 response["agent_message"] = self._sanitize_block_reason(violation_type)
             else:
-                agent_parts = []
-                if security_message:
-                    agent_parts.append(security_message)
+                agent_ctx = self._build_warn_agent_context(
+                    warning_message, security_message, violation_type
+                )
+                if agent_ctx:
+                    response["agent_message"] = agent_ctx
                 if warning_message:
-                    agent_parts.append(warning_message)
-                if agent_parts:
-                    response["agent_message"] = "\n\n".join(agent_parts)
+                    response["user_message"] = warning_message
         else:
             response = {"continue": not has_secrets}
             if has_secrets:
@@ -138,13 +138,13 @@ class CursorAdapter(HookAdapter):
                 if redacted_output:
                     response["agent_message"] = redacted_output
             else:
-                agent_parts = []
-                if security_message:
-                    agent_parts.append(security_message)
+                agent_ctx = self._build_warn_agent_context(
+                    warning_message, security_message, violation_type
+                )
+                if agent_ctx:
+                    response["agent_message"] = agent_ctx
                 if warning_message:
-                    agent_parts.append(warning_message)
-                if agent_parts:
-                    response["agent_message"] = "\n\n".join(agent_parts)
+                    response["user_message"] = warning_message
                 if (
                     hook_event == HookEvent.POST_TOOL_USE
                     and modified_output is not None
