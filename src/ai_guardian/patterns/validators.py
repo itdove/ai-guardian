@@ -226,10 +226,14 @@ def _is_container_image(value: str) -> bool:
     return bool(_CONTAINER_IMAGE_RE.match(value))
 
 
-def env_not_file_path(matched_text: str) -> bool:
+_ALL_CAPS_UNDERSCORES_RE = re.compile(r"^[A-Z0-9]+(?:_[A-Z0-9]+)+$")
+
+
+def env_not_false_positive(matched_text: str) -> bool:
     """Return False (skip) if the env var value is a filesystem path,
     starts with underscore (Python identifier), looks like a placeholder,
-    or is a container image reference.
+    an ALL_CAPS_IDENTIFIER (programming constant), or is a container
+    image reference.
     """
     eq_pos = matched_text.find("=")
     if eq_pos < 0:
@@ -239,6 +243,27 @@ def env_not_file_path(matched_text: str) -> bool:
         return True
     if value.startswith("_"):
         return False
+    if _is_placeholder(value):
+        return False
+    if _ALL_CAPS_UNDERSCORES_RE.match(value):
+        return False
+    if _is_container_image(value):
+        return False
+    return not _is_file_path(value)
+
+
+def password_not_false_positive(matched_text: str) -> bool:
+    """Return False (skip) if the password value is a placeholder,
+    container image, or file path. Unlike env_not_false_positive, does
+    not skip underscore-prefixed or ALL_CAPS values since those could
+    be real passwords in explicit password=/secret= fields.
+    """
+    eq_pos = matched_text.find("=")
+    if eq_pos < 0:
+        return True
+    value = matched_text[eq_pos + 1 :].strip().strip("'\"")
+    if not value:
+        return True
     if _is_placeholder(value):
         return False
     if _is_container_image(value):
@@ -291,8 +316,6 @@ _TOKEN_PREFIX_RE = re.compile(
 )
 
 _REPEATED_CHAR_TOKEN_RE = re.compile(r"^(.)\1{7,}$")
-
-_ALL_CAPS_UNDERSCORES_RE = re.compile(r"^[A-Z0-9]+(?:_[A-Z0-9]+)+$")
 
 _TEMPLATE_SYNTAX_RE = re.compile(r"<[^>]+>|\$\{[^}]+\}|\{\{[^}]+\}\}")
 
@@ -583,7 +606,9 @@ VALIDATOR_REGISTRY: dict = {
     "iban": iban_check,
     "credit_card": credit_card_check,
     "aadhaar": aadhaar_check,
-    "env_not_file_path": env_not_file_path,
+    "env_not_false_positive": env_not_false_positive,
+    "env_not_file_path": env_not_false_positive,
+    "password_not_false_positive": password_not_false_positive,
     "base64_not_file_path": base64_not_file_path,
     "connection_not_placeholder": connection_not_placeholder,
     "token_not_placeholder": token_not_placeholder,

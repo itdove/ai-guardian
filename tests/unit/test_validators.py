@@ -2,7 +2,8 @@
 
 from ai_guardian.patterns.validators import (
     connection_not_placeholder,
-    env_not_file_path,
+    env_not_false_positive,
+    password_not_false_positive,
     get_validator,
     token_not_placeholder,
     _is_connection_placeholder,
@@ -14,106 +15,164 @@ from ai_guardian.patterns.validators import (
 
 
 class TestEnvNotFilePath:
-    """Tests for the env_not_file_path validator."""
+    """Tests for the env_not_false_positive validator."""
 
     def test_unix_absolute_path_skipped(self):
-        assert env_not_file_path("PKGMGR=/usr/bin/microdnf") is False
+        assert env_not_false_positive("PKGMGR=/usr/bin/microdnf") is False
 
     def test_unix_deep_path_skipped(self):
-        assert env_not_file_path("APP_DIR=/opt/app-root/src/config") is False
+        assert env_not_false_positive("APP_DIR=/opt/app-root/src/config") is False
 
     def test_unix_local_path_skipped(self):
-        assert env_not_file_path("PYTHON=/usr/local/bin/python3") is False
+        assert env_not_false_positive("PYTHON=/usr/local/bin/python3") is False
 
     def test_windows_forward_slash_path_skipped(self):
-        assert env_not_file_path("APP_DIR=C:/Users/cesar/project") is False
+        assert env_not_false_positive("APP_DIR=C:/Users/cesar/project") is False
 
     def test_windows_backslash_path_skipped(self):
-        assert env_not_file_path("APP_DIR=C:\\Users\\cesar\\project") is False
+        assert env_not_false_positive("APP_DIR=C:\\Users\\cesar\\project") is False
 
     def test_relative_dot_path_skipped(self):
-        assert env_not_file_path("OUT_DIR=./out/build/artifact") is False
+        assert env_not_false_positive("OUT_DIR=./out/build/artifact") is False
 
     def test_relative_dotdot_path_skipped(self):
-        assert env_not_file_path("CFG=../config/settings/app") is False
+        assert env_not_false_positive("CFG=../config/settings/app") is False
 
     def test_quoted_path_skipped(self):
-        assert env_not_file_path('PKGMGR="/usr/bin/microdnf"') is False
+        assert env_not_false_positive('PKGMGR="/usr/bin/microdnf"') is False
 
     def test_single_quoted_path_skipped(self):
-        assert env_not_file_path("PKGMGR='/usr/bin/microdnf'") is False
+        assert env_not_false_positive("PKGMGR='/usr/bin/microdnf'") is False
 
     def test_real_secret_detected(self):
         assert (
-            env_not_file_path("AWS_SECRET_KEY=wJalrXUtnFEMIK7MDENGEXAMPLEKEY") is True
+            env_not_false_positive("AWS_SECRET_KEY=wJalrXUtnFEMIK7MDENGEXAMPLEKEY")
+            is True
         )
 
     def test_aws_key_with_slash_detected(self):
         assert (
-            env_not_file_path("AWS_SECRET_KEY=wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY")
+            env_not_false_positive(
+                "AWS_SECRET_KEY=wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"
+            )
             is True
         )
 
     def test_base64_token_detected(self):
-        assert env_not_file_path("TOKEN=dGhpcyBpcyBhIHRlc3QgdG9rZW4=") is True
+        assert env_not_false_positive("TOKEN=dGhpcyBpcyBhIHRlc3QgdG9rZW4=") is True
 
     def test_no_equals_sign_passes(self):
-        assert env_not_file_path("NOEQUALSSIGN") is True
+        assert env_not_false_positive("NOEQUALSSIGN") is True
 
     def test_empty_value_passes(self):
-        assert env_not_file_path("KEY=") is True
+        assert env_not_false_positive("KEY=") is True
 
     def test_short_single_segment_path_passes(self):
-        assert env_not_file_path("KEY=/verylongsinglesegment") is True
+        assert env_not_false_positive("KEY=/verylongsinglesegment") is True
 
     def test_underscore_value_skipped(self):
         """Issue #912: Python identifier starting with _ should not be flagged."""
-        assert env_not_file_path("CONFIG=_internal_function_name_here") is False
+        assert env_not_false_positive("CONFIG=_internal_function_name_here") is False
 
     def test_double_underscore_value_skipped(self):
-        assert env_not_file_path("HANDLER=__private_method_name_x") is False
+        assert env_not_false_positive("HANDLER=__private_method_name_x") is False
+
+    def test_all_caps_identifier_skipped(self):
+        """Issue #1627: Python constants like NEW_SECRET_DETECTION_CASES are not secrets."""
+        assert (
+            env_not_false_positive("ALL_DETECTION_CASES=NEW_SECRET_DETECTION_CASES")
+            is False
+        )
+
+    def test_all_caps_identifier_with_spaces_skipped(self):
+        assert env_not_false_positive("VAR = GITLEAKS_DETECTION_CASES") is False
+
+    def test_all_caps_identifier_with_digits_skipped(self):
+        assert env_not_false_positive("CFG=MAX_RETRY_COUNT_V2") is False
+
+    def test_all_caps_identifier_quoted_skipped(self):
+        assert env_not_false_positive('KEY="SOME_CONSTANT_VALUE"') is False
+
+    def test_single_uppercase_word_not_skipped(self):
+        """Single uppercase word without underscores could be a secret."""
+        assert env_not_false_positive("KEY=AKIAIOSFODNN7EXAMPLE") is True
 
     def test_placeholder_your_skipped(self):
         """Issue #912: placeholder 'your-...' should not be flagged."""
-        assert env_not_file_path('JIRA_API_TOKEN="your-personal-access-token"') is False
+        assert (
+            env_not_false_positive('JIRA_API_TOKEN="your-personal-access-token"')
+            is False
+        )
 
     def test_placeholder_example_skipped(self):
-        assert env_not_file_path("API_KEY=example-token-value-here") is False
+        assert env_not_false_positive("API_KEY=example-token-value-here") is False
 
     def test_placeholder_replace_skipped(self):
-        assert env_not_file_path("SECRET=replace-with-your-key") is False
+        assert env_not_false_positive("SECRET=replace-with-your-key") is False
 
     def test_placeholder_test_skipped(self):
-        assert env_not_file_path("TOKEN=test-api-key-value12345") is False
+        assert env_not_false_positive("TOKEN=test-api-key-value12345") is False
 
     def test_placeholder_here_suffix_skipped(self):
-        assert env_not_file_path("KEY=put-your-secret-here") is False
+        assert env_not_false_positive("KEY=put-your-secret-here") is False
 
     def test_container_image_localhost_skipped(self):
         """Issue #1019: container image references should not be flagged."""
-        assert env_not_file_path("CARBONITE_IMAGE=localhost/carbonite-dev") is False
+        assert (
+            env_not_false_positive("CARBONITE_IMAGE=localhost/carbonite-dev") is False
+        )
 
     def test_container_image_ghcr_skipped(self):
-        assert env_not_file_path("IMAGE=ghcr.io/org/my-image") is False
+        assert env_not_false_positive("IMAGE=ghcr.io/org/my-image") is False
 
     def test_container_image_registry_skipped(self):
-        assert env_not_file_path("IMG=registry.example.com/project/image") is False
+        assert env_not_false_positive("IMG=registry.example.com/project/image") is False
 
     def test_container_image_with_tag_skipped(self):
-        assert env_not_file_path("IMG=quay.io/namespace/app:latest") is False
+        assert env_not_false_positive("IMG=quay.io/namespace/app:latest") is False
 
     def test_container_image_quoted_skipped(self):
-        assert env_not_file_path('IMAGE="localhost/carbonite-dev"') is False
+        assert env_not_false_positive('IMAGE="localhost/carbonite-dev"') is False
 
     def test_container_image_nested_path_skipped(self):
-        assert env_not_file_path("IMG=registry.redhat.io/rhel9/python-312") is False
+        assert (
+            env_not_false_positive("IMG=registry.redhat.io/rhel9/python-312") is False
+        )
 
     def test_container_image_dot_local_skipped(self):
-        assert env_not_file_path("IMG=myregistry.local/team/service") is False
+        assert env_not_false_positive("IMG=myregistry.local/team/service") is False
 
     def test_registry_lookup(self):
+        validator = get_validator("env_not_false_positive")
+        assert validator is env_not_false_positive
+
+    def test_registry_backward_compat(self):
         validator = get_validator("env_not_file_path")
-        assert validator is env_not_file_path
+        assert validator is env_not_false_positive
+
+
+class TestPasswordNotFalsePositive:
+    """Tests for password_not_false_positive validator (Issue #1627)."""
+
+    def test_all_caps_password_detected(self):
+        """ALL_CAPS values in password= fields could be real passwords."""
+        assert password_not_false_positive('password="DB_ADMIN_PASS_1"') is True
+
+    def test_underscore_prefix_password_detected(self):
+        assert password_not_false_positive('secret_key="_INTERNAL_PASS"') is True
+
+    def test_placeholder_password_skipped(self):
+        assert password_not_false_positive('password="your-password-here"') is False
+
+    def test_file_path_password_skipped(self):
+        assert password_not_false_positive('password="/usr/local/etc/pass"') is False
+
+    def test_real_password_detected(self):
+        assert password_not_false_positive('password="MyS3cretP@ss!"') is True
+
+    def test_registry_lookup(self):
+        validator = get_validator("password_not_false_positive")
+        assert validator is password_not_false_positive
 
 
 class TestIsContainerImage:
