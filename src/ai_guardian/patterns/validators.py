@@ -318,8 +318,9 @@ _NEVER_MATCH_RE = re.compile(r"(?!)")
 def _build_token_prefix_re() -> re.Pattern:
     """Build token prefix regex from secrets.toml at module load time.
 
-    Collects keywords from all rules with validation="token_not_placeholder"
-    and compiles them into a single alternation anchored at ^.
+    Collects token prefixes (falling back to keywords) from all rules
+    with validation="token_not_placeholder" and compiles them into a
+    single alternation anchored at ^.
 
     Cannot use load_bundled_rules/BUNDLED_FILES here — circular import:
     __init__ → cache → validators → __init__.
@@ -340,7 +341,7 @@ def _build_token_prefix_re() -> re.Pattern:
         kw
         for rule in data.get("rules", [])
         if rule.get("validation") == "token_not_placeholder"
-        for kw in rule.get("keywords", [])
+        for kw in (rule.get("token_prefixes") or rule.get("keywords", []))
     ]
     if not prefixes:
         return _NEVER_MATCH_RE

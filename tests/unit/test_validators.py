@@ -521,8 +521,8 @@ class TestTokenNotPlaceholder:
 class TestTokenPrefixReSync:
     """Ensure _TOKEN_PREFIX_RE stays in sync with secrets.toml (#1636)."""
 
-    def test_every_keyword_matches_prefix_re(self):
-        """Every keyword from token_not_placeholder rules must match."""
+    def test_every_token_prefix_matches_prefix_re(self):
+        """Every token prefix from token_not_placeholder rules must match."""
         from ai_guardian.patterns import BUNDLED_FILES
 
         path = BUNDLED_FILES["secrets"]
@@ -533,7 +533,7 @@ class TestTokenPrefixReSync:
         for rule in data.get("rules", []):
             if rule.get("validation") != "token_not_placeholder":
                 continue
-            for kw in rule.get("keywords", []):
+            for kw in rule.get("token_prefixes") or rule.get("keywords", []):
                 if not _TOKEN_PREFIX_RE.match(kw):
                     missing.append((rule["id"], kw))
 
