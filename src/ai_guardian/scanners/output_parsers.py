@@ -114,22 +114,36 @@ class GitleaksOutputParser(ScannerOutputParser):
             return None
 
 
+def _normalize_leaktk_result(result: Dict[str, Any]) -> Dict[str, Any]:
+    """Normalize a single leaktk ScanResults finding to standardized format.
+
+    Handles leaktk 0.3.x format with nested rule/location objects.
+    Used by both LeakTKOutputParser (file-based) and listen mode (stdout).
+    """
+    rule = result.get("rule", {})
+    location = result.get("location", {})
+    start = location.get("start", {})
+    end = location.get("end", {})
+    return {
+        "rule_id": rule.get("id", "unknown"),
+        "file": location.get("path", "unknown"),
+        "line_number": start.get("line", 0),
+        "end_line": end.get("line", 0),
+        "description": rule.get("description", "Secret detected"),
+        "commit": location.get("version", "N/A"),
+        "matched_text": result.get("match", ""),
+        "start_column": start.get("column"),
+        "end_column": end.get("column"),
+    }
+
+
 class LeakTKOutputParser(ScannerOutputParser):
     """
     Parser for LeakTK output.
 
-    LeakTK uses a different JSON format:
-    {
-        "findings": [
-            {
-                "RuleID": "aws-access-key",
-                "File": "test.txt",
-                "StartLine": 5,
-                "Description": "AWS Access Key"
-            }
-        ],
-        "errors": []
-    }
+    Supports two formats:
+    - v0.3.x: {"kind":"ScanResults","results":[{"rule":{"id":...},"location":{...}}]}
+    - Legacy:  {"findings":[{"RuleID":...,"StartLine":...}],"errors":[]}
     """
 
     def parse(self, output_file: str) -> Optional[Dict[str, Any]]:
@@ -151,20 +165,32 @@ class LeakTKOutputParser(ScannerOutputParser):
             with open(output_file, "r", encoding="utf-8") as f:
                 data = json.load(f)
 
-            # Check for errors
+            # v0.3.x format: {"kind":"ScanResults","results":[...]}
+            if "results" in data:
+                results = data["results"]
+                if not results:
+                    return {
+                        "has_secrets": False,
+                        "findings": [],
+                        "total_findings": 0,
+                    }
+                standardized = [_normalize_leaktk_result(r) for r in results]
+                return {
+                    "has_secrets": True,
+                    "findings": standardized,
+                    "total_findings": len(standardized),
+                }
+
+            # Legacy format: {"findings":[...],"errors":[]}
             errors = data.get("errors", [])
             if errors:
                 for error in errors:
                     logging.warning(f"LeakTK scanner error: {error}")
 
-            # Get findings
             findings = data.get("findings", [])
-
-            # Empty findings means no secrets
             if not findings:
                 return {"has_secrets": False, "findings": [], "total_findings": 0}
 
-            # Convert to standardized format
             standardized_findings = []
             for finding in findings:
                 standardized_findings.append(

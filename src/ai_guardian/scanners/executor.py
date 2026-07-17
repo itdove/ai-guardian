@@ -15,6 +15,7 @@ import subprocess
 import time
 from typing import Optional
 
+from ai_guardian.daemon import get_daemon_state as _get_daemon_state
 from ai_guardian.scanners.engine_builder import EngineConfig, build_scanner_command
 from ai_guardian.scanners.output_parsers import get_parser
 from ai_guardian.scanners.strategies import ScanResult, SecretMatch
@@ -140,10 +141,13 @@ def run_single_engine(
             if stderr_lines:
                 stderr_preview = stderr_lines[0][:200]
 
-        logging.warning(
+        msg = (
             f"Engine {engine_config.type} returned unexpected exit code "
             f"{result.returncode}: {stderr_preview}"
         )
+        if engine_config.type == "leaktk":
+            msg += " (leaktk >= 0.3.0 required; run 'ai-guardian scanner install leaktk' to upgrade)"
+        logging.warning(msg)
         return ScanResult(
             has_secrets=False,
             secrets=[],
@@ -287,6 +291,42 @@ def run_python_scanner(
         )
 
 
+def _build_scan_result_from_dict(
+    engine_type: str, result_dict: dict, elapsed_ms: float
+) -> ScanResult:
+    """Convert a standardized findings dict into a ScanResult."""
+    if not result_dict or not result_dict.get("has_secrets"):
+        return ScanResult(
+            has_secrets=False,
+            secrets=[],
+            engine=engine_type,
+            scan_time_ms=elapsed_ms,
+        )
+    secrets = []
+    for finding in result_dict.get("findings", []):
+        secrets.append(
+            SecretMatch(
+                rule_id=finding.get("rule_id", "unknown"),
+                description=finding.get("description", "Secret detected"),
+                file=finding.get("file", "unknown"),
+                line_number=finding.get("line_number", 0),
+                end_line=finding.get("end_line"),
+                start_column=finding.get("start_column"),
+                end_column=finding.get("end_column"),
+                commit=finding.get("commit"),
+                engine=engine_type,
+                verified=finding.get("verified", False),
+                secret=finding.get("matched_text"),
+            )
+        )
+    return ScanResult(
+        has_secrets=True,
+        secrets=secrets,
+        engine=engine_type,
+        scan_time_ms=elapsed_ms,
+    )
+
+
 def run_engine(
     engine_config: EngineConfig,
     source_file: str,
@@ -299,8 +339,10 @@ def run_engine(
     """
     Run a scanner engine, dispatching to the correct executor.
 
-    Routes to run_python_scanner() for Python-based scanners or
-    run_single_engine() for subprocess-based scanners.
+    Routes to:
+    1. run_python_scanner() for Python-based scanners
+    2. Listen mode for leaktk when the daemon is running (#1590)
+    3. run_single_engine() for subprocess-based scanners (default)
 
     Args:
         engine_config: Engine configuration
@@ -324,6 +366,27 @@ def run_engine(
             cache,
             content_hash,
         )
+
+    # Try listen mode for leaktk when daemon is running (#1590)
+    if engine_config.type == "leaktk":
+        try:
+            daemon_state = _get_daemon_state()
+            if daemon_state is not None:
+                start = time.monotonic()
+                mgr = daemon_state.get_listen_manager()
+                result_dict = mgr.scan(engine_config.binary, source_file, config_path)
+                elapsed_ms = (time.monotonic() - start) * 1000
+                logging.info(
+                    "leaktk listen mode scan: %.1fms, findings=%d",
+                    elapsed_ms,
+                    result_dict.get("total_findings", 0),
+                )
+                return _build_scan_result_from_dict(
+                    engine_config.type, result_dict, elapsed_ms
+                )
+        except (RuntimeError, OSError, ValueError) as exc:
+            logging.warning("Listen mode failed, falling back to subprocess: %s", exc)
+
     return run_single_engine(
         engine_config,
         source_file,
@@ -343,48 +406,17 @@ def _parse_secrets_result(
         parser = get_parser(engine_config.output_parser)
         parsed = parser.parse(report_file)
 
-        if not parsed or not parsed.get("has_secrets"):
-            logging.info(
-                f"Engine scan complete: engine={engine_config.type} "
-                f"duration_ms={elapsed_ms:.1f} findings=0 has_secrets=False "
-                f"(exit code indicated secrets but parser found none)"
-            )
-            return ScanResult(
-                has_secrets=False,
-                secrets=[],
-                engine=engine_config.type,
-                scan_time_ms=elapsed_ms,
-            )
-
-        secrets = []
-        for finding in parsed.get("findings", []):
-            secrets.append(
-                SecretMatch(
-                    rule_id=finding.get("rule_id", "unknown"),
-                    description=finding.get("description", "Secret detected"),
-                    file=finding.get("file", "unknown"),
-                    line_number=finding.get("line_number", 0),
-                    end_line=finding.get("end_line"),
-                    start_column=finding.get("start_column"),
-                    end_column=finding.get("end_column"),
-                    commit=finding.get("commit"),
-                    engine=engine_config.type,
-                    verified=finding.get("verified", False),
-                    secret=finding.get("matched_text"),
-                )
-            )
-
+        result = _build_scan_result_from_dict(engine_config.type, parsed, elapsed_ms)
+        extra = ""
+        if not result.has_secrets:
+            extra = " (exit code indicated secrets but parser found none)"
         logging.info(
             f"Engine scan complete: engine={engine_config.type} "
-            f"duration_ms={elapsed_ms:.1f} findings={len(secrets)} has_secrets=True"
+            f"duration_ms={elapsed_ms:.1f} "
+            f"findings={len(result.secrets)} "
+            f"has_secrets={result.has_secrets}{extra}"
         )
-
-        return ScanResult(
-            has_secrets=True,
-            secrets=secrets,
-            engine=engine_config.type,
-            scan_time_ms=elapsed_ms,
-        )
+        return result
 
     except Exception as e:
         logging.error(f"Failed to parse {engine_config.type} output: {e}")

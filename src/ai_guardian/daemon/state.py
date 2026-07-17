@@ -156,6 +156,9 @@ class DaemonState:
         self._state_observers = []
         self._state_observers_lock = threading.Lock()
 
+        # Listen mode manager (#1590) — persistent leaktk process
+        self._listen_manager = None
+
         # ML engine manager (#185) — lazy-loaded on first ml_detect request
         self._ml_engine_manager = None
         self._ml_load_attempted = False
@@ -505,7 +508,9 @@ class DaemonState:
         with self._lock:
             reloaded = self._reload_config() if self._check_config_reload() else False
             config = self._config
+            listen_mgr = self._listen_manager if reloaded else None
         if reloaded:
+            self._restart_listen_manager(listen_mgr)
             self._notify_state_changed("config_reloaded")
         return config
 
@@ -514,8 +519,10 @@ class DaemonState:
         _clear_config_cache()
         with self._lock:
             reloaded = self._reload_config()
+            listen_mgr = self._listen_manager if reloaded else None
             logger.info("Config force-reloaded (global + per-project caches cleared)")
         if reloaded:
+            self._restart_listen_manager(listen_mgr)
             self._notify_state_changed("config_reloaded")
 
     def _check_config_reload(self):
@@ -1194,6 +1201,36 @@ class DaemonState:
         """Get current config error message, if any."""
         with self._lock:
             return self._config_error
+
+    # --- Listen mode management (#1590) ---
+
+    @staticmethod
+    def _restart_listen_manager(mgr):
+        """Restart a listen manager outside the state lock.
+
+        Called after config reload so the potentially blocking process
+        wait does not hold self._lock.
+        """
+        if mgr is None:
+            return
+        try:
+            mgr.restart()
+        except Exception as e:
+            logger.debug(f"Error restarting listen manager: {e}")
+
+    def stop_listen_manager(self):
+        """Stop the listen manager if it was created. Safe to call during shutdown."""
+        if self._listen_manager is not None:
+            self._listen_manager.stop()
+
+    def get_listen_manager(self):
+        """Get or lazily create the ListenModeManager for persistent leaktk."""
+        with self._lock:
+            if self._listen_manager is None:
+                from ai_guardian.scanners.listen_mode import ListenModeManager
+
+                self._listen_manager = ListenModeManager()
+            return self._listen_manager
 
     # --- ML engine management (#185) ---
 
