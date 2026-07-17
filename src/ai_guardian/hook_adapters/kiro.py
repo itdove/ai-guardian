@@ -91,7 +91,10 @@ class KiroAdapter(HookAdapter):
         if hook_event == HookEvent.PROMPT and security_message:
             parts.append(security_message)
         if warning_message:
-            parts.append(warning_message)
+            if violation_type:
+                parts.append(self._sanitize_warn_reason(violation_type))
+            else:
+                parts.append(warning_message)
         if hook_event == HookEvent.POST_TOOL_USE and modified_output is not None:
             parts.append(modified_output)
         output = "\n\n".join(parts) if parts else None

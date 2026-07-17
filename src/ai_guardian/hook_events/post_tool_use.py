@@ -536,6 +536,7 @@ def handle_post_tool_use(ctx=None, **kwargs):
             has_secrets=False,
             hook_event=hook_event,
             warning_message=error_message,
+            violation_type=ViolationType.SECRET_DETECTED,
         )
 
     if has_secrets:
@@ -885,6 +886,7 @@ def handle_post_tool_use(ctx=None, **kwargs):
                         hook_event=hook_event,
                         warning_message=pii_warning,
                         modified_output=redacted_text,
+                        violation_type=ViolationType.PII_DETECTED,
                     )
                     result["_warning"] = True
                     result["_violation_type"] = ViolationType.PII_DETECTED
@@ -896,6 +898,7 @@ def handle_post_tool_use(ctx=None, **kwargs):
                         has_secrets=False,
                         hook_event=hook_event,
                         warning_message=pii_warning,
+                        violation_type=ViolationType.PII_DETECTED,
                     )
                     result["_warning"] = True
                     result["_violation_type"] = ViolationType.PII_DETECTED
@@ -920,6 +923,7 @@ def handle_post_tool_use(ctx=None, **kwargs):
 
     # Prompt injection and context poisoning scanning on PostToolUse output (#1285)
     post_warning_messages = []
+    post_warn_types: list = []
     post_pi_cp_filename = (
         f"{tool_identifier}_output" if tool_identifier else "tool_output"
     )
@@ -1013,6 +1017,7 @@ def handle_post_tool_use(ctx=None, **kwargs):
                                     post_pi_ask.decision,
                                 )
                                 post_warning_messages.append(pi_info)
+                                post_warn_types.append(ViolationType.PROMPT_INJECTION)
                                 post_pi_block = False
                                 _log_ask_decision(
                                     ViolationType.PROMPT_INJECTION,
@@ -1039,6 +1044,7 @@ def handle_post_tool_use(ctx=None, **kwargs):
                             return result
                     elif post_pi_detected and post_pi_error_msg:
                         post_warning_messages.append(post_pi_error_msg)
+                        post_warn_types.append(ViolationType.PROMPT_INJECTION)
 
                     if not post_pi_detected:
                         logging.info(
@@ -1148,6 +1154,7 @@ def handle_post_tool_use(ctx=None, **kwargs):
                                     post_cp_ask.decision,
                                 )
                                 post_warning_messages.append(cp_info)
+                                post_warn_types.append(ViolationType.CONTEXT_POISONING)
                                 post_cp_block = False
                                 _log_ask_decision(
                                     ViolationType.CONTEXT_POISONING,
@@ -1174,6 +1181,7 @@ def handle_post_tool_use(ctx=None, **kwargs):
                             return result
                     elif post_cp_detected and post_cp_error_msg:
                         post_warning_messages.append(post_cp_error_msg)
+                        post_warn_types.append(ViolationType.CONTEXT_POISONING)
         except Exception as e:
             logging.warning(f"PostToolUse CP check error (fail-open): {e}")
 
@@ -1226,6 +1234,7 @@ def handle_post_tool_use(ctx=None, **kwargs):
                             post_ol_ask.decision,
                         )
                     )
+                    post_warn_types.append(ViolationType.OFFENSIVE_LANGUAGE)
                     _log_ask_decision(
                         ViolationType.OFFENSIVE_LANGUAGE,
                         post_ol_ask.decision,
@@ -1250,19 +1259,22 @@ def handle_post_tool_use(ctx=None, **kwargs):
                 return result
             elif post_ol_error_msg:
                 post_warning_messages.append(post_ol_error_msg)
+                post_warn_types.append(ViolationType.OFFENSIVE_LANGUAGE)
     except Exception as e:
         logging.warning(f"PostToolUse offensive language check error (fail-open): {e}")
 
     _advance_transcript_position(hook_data)
     if post_warning_messages:
         combined = "\n\n".join(post_warning_messages)
+        _vtype = ",".join(str(t) for t in post_warn_types) if post_warn_types else None
         result = _format_response(
             adapter,
             has_secrets=False,
             hook_event=hook_event,
             warning_message=combined,
+            violation_type=_vtype,
         )
         result["_warning"] = True
-        result["_violation_type"] = "mixed"
+        result["_violation_type"] = _vtype or "mixed"
         return result
     return _format_response(adapter, has_secrets=False, hook_event=hook_event)

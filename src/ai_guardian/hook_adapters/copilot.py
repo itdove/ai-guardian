@@ -123,13 +123,11 @@ class CopilotAdapter(HookAdapter):
                     violation_type
                 )
             else:
-                agent_parts = []
-                if security_message:
-                    agent_parts.append(security_message)
-                if warning_message:
-                    agent_parts.append(warning_message)
-                if agent_parts:
-                    response["additionalContext"] = "\n\n".join(agent_parts)
+                agent_ctx = self._build_warn_agent_context(
+                    warning_message, security_message, violation_type
+                )
+                if agent_ctx:
+                    response["additionalContext"] = agent_ctx
             return self._add_metadata(
                 {"output": json.dumps(response), "exit_code": 0},
                 has_secrets,
@@ -151,13 +149,11 @@ class CopilotAdapter(HookAdapter):
                     violation_type,
                 )
             response = {}
-            agent_parts = []
-            if security_message:
-                agent_parts.append(security_message)
-            if warning_message:
-                agent_parts.append(warning_message)
-            if agent_parts:
-                response["additionalContext"] = "\n\n".join(agent_parts)
+            agent_ctx = self._build_warn_agent_context(
+                warning_message, security_message, violation_type
+            )
+            if agent_ctx:
+                response["additionalContext"] = agent_ctx
             if hook_event == HookEvent.POST_TOOL_USE and modified_output is not None:
                 logger.warning(
                     "%s: modified_output provided but output replacement "

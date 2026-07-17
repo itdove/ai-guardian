@@ -15,6 +15,24 @@ from ai_guardian.scanners.scan_result import ScanResult
 
 logger = logging.getLogger(__name__)
 
+_VIOLATION_LABELS = {
+    "prompt_injection": "Prompt injection",
+    "context_poisoning": "Context poisoning",
+    "secret_detected": "Secret",
+    "pii_detected": "PII",
+    "ssrf_blocked": "SSRF threat",
+    "config_file_exfil": "Config file threat",
+    "supply_chain": "Supply chain threat",
+    "offensive_language": "Offensive language",
+    "canary_detected": "Canary token",
+    "code_security": "Code security issue",
+    "exfil_detection": "Exfiltration pattern",
+    "bash_exfil": "Credential exfiltration",
+    "directory_blocking": "Directory access violation",
+    "tool_permission": "Tool policy violation",
+    "secret_redaction": "Secret redaction",
+}
+
 
 @dataclass
 class PostScanContext:
@@ -46,6 +64,35 @@ class PostScanDecision:
     error_message: str = ""
     warnings: List[str] = field(default_factory=list)
     ask_decision: Any = None
+
+
+def build_detailed_warn_message(
+    entry: Any,
+    result: ScanResult,
+    file_path: Optional[str] = None,
+) -> str:
+    """Build a detailed user-facing warning with file, line, and pattern info.
+
+    Used for systemMessage (visible to user, not agent) in warn mode.
+    """
+    label = _VIOLATION_LABELS.get(
+        getattr(entry, "violation_type", "") or "", "Security violation"
+    )
+    parts = [f"{label} detected"]
+    fp = result.file_path or file_path
+    if fp:
+        loc = str(fp)
+        if result.line_number is not None:
+            loc += f":{result.line_number}"
+        parts.append(f"in {loc}")
+    detail_bits: List[str] = []
+    if result.rule_id:
+        detail_bits.append(result.rule_id)
+    if result.attack_type:
+        detail_bits.append(result.attack_type)
+    if detail_bits:
+        parts.append(f"({', '.join(detail_bits)})")
+    return " ".join(parts) + " — warn mode, execution allowed"
 
 
 def build_violation_blocked(
@@ -277,7 +324,8 @@ def apply_post_scan_pipeline(
             )
 
     if not should_block and error_msg:
-        warnings.append(error_msg)
+        detailed = build_detailed_warn_message(entry, result, file_path)
+        warnings.append(detailed)
 
     return PostScanDecision(
         should_block=should_block,

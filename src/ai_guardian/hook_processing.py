@@ -1915,6 +1915,7 @@ def process_hook_data(hook_data, daemon_state=None):
 
         # Accumulate warning messages from log mode checks (tool policy, prompt injection, etc.)
         warning_messages = []
+        warn_violation_types: list = []
         log_only_count = 0
 
         # Extract tool name for PreToolUse events (needed for permissions and prompt injection)
@@ -2008,6 +2009,9 @@ def process_hook_data(hook_data, daemon_state=None):
                                             detail=checked_tool_name,
                                         )
                                     )
+                                    warn_violation_types.append(
+                                        ViolationType.TOOL_PERMISSION
+                                    )
                                     _log_ask_decision(
                                         ViolationType.TOOL_PERMISSION,
                                         perm_ask_result.decision,
@@ -2079,6 +2083,7 @@ def process_hook_data(hook_data, daemon_state=None):
                         )
                         # Accumulate warning message to display at the end
                         warning_messages.append(error_message)
+                        warn_violation_types.append(ViolationType.TOOL_PERMISSION)
 
                     if checked_tool_name and ide_type != IDEType.CURSOR:
                         logging.info(f"✓ Tool '{checked_tool_name}' allowed by policy")
@@ -2163,6 +2168,8 @@ def process_hook_data(hook_data, daemon_state=None):
                             },
                         )
                         warning_messages.extend(be_decision.warnings)
+                        if be_decision.warnings:
+                            warn_violation_types.append(ViolationType.EXFIL_DETECTION)
                         if be_decision.should_block:
                             combined_warning = (
                                 "\n\n".join(warning_messages)
@@ -2202,6 +2209,8 @@ def process_hook_data(hook_data, daemon_state=None):
                             },
                         )
                         warning_messages.extend(ed_decision.warnings)
+                        if ed_decision.warnings:
+                            warn_violation_types.append(ViolationType.EXFIL_DETECTION)
                         if ed_decision.should_block:
                             combined_warning = (
                                 "\n\n".join(warning_messages)
@@ -2271,6 +2280,9 @@ def process_hook_data(hook_data, daemon_state=None):
                                     detail=file_path,
                                 )
                             )
+                            warn_violation_types.append(
+                                ViolationType.DIRECTORY_BLOCKING
+                            )
                             _log_ask_decision(
                                 ViolationType.DIRECTORY_BLOCKING,
                                 dir_ask_result.decision,
@@ -2299,6 +2311,7 @@ def process_hook_data(hook_data, daemon_state=None):
                     # Log mode: directory violation detected but execution allowed
                     # Accumulate warning message to display at the end
                     warning_messages.append(dir_warning)
+                    warn_violation_types.append(ViolationType.DIRECTORY_BLOCKING)
 
                 # Skip scanning ai-guardian's own test files (contain example secrets)
                 # IMPORTANT: Only skips ai-guardian tests, not user project tests
@@ -2316,6 +2329,11 @@ def process_hook_data(hook_data, daemon_state=None):
                         hook_event=hook_event,
                         warning_message=combined_warning,
                         security_message=security_message,
+                        violation_type=(
+                            ",".join(str(t) for t in warn_violation_types)
+                            if warn_violation_types
+                            else None
+                        ),
                     )
 
                 if content_to_scan is None:
@@ -2333,6 +2351,11 @@ def process_hook_data(hook_data, daemon_state=None):
                         hook_event=hook_event,
                         warning_message=combined_warning,
                         security_message=security_message,
+                        violation_type=(
+                            ",".join(str(t) for t in warn_violation_types)
+                            if warn_violation_types
+                            else None
+                        ),
                     )
 
                 # Image scanning: if file is an image, extract text via OCR (Issue #720)
@@ -2371,6 +2394,11 @@ def process_hook_data(hook_data, daemon_state=None):
                                     hook_event=hook_event,
                                     warning_message=combined_warning,
                                     security_message=security_message,
+                                    violation_type=(
+                                        ",".join(str(t) for t in warn_violation_types)
+                                        if warn_violation_types
+                                        else None
+                                    ),
                                 )
 
                     except Exception as e:
@@ -2395,6 +2423,11 @@ def process_hook_data(hook_data, daemon_state=None):
                             hook_event=hook_event,
                             warning_message=combined_warning,
                             security_message=security_message,
+                            violation_type=(
+                                ",".join(str(t) for t in warn_violation_types)
+                                if warn_violation_types
+                                else None
+                            ),
                         )
 
                 # Log with full path for debugging false positives
@@ -2540,6 +2573,10 @@ def process_hook_data(hook_data, daemon_state=None):
                                         skip_violation_log=True,
                                     )
                                     warning_messages.extend(cs_decision.warnings)
+                                    if cs_decision.warnings:
+                                        warn_violation_types.append(
+                                            ViolationType.CODE_SECURITY
+                                        )
                                     cs_action = cs_result.extra.get("action", "warn")
                                     if (
                                         cs_decision.should_block
@@ -2565,6 +2602,9 @@ def process_hook_data(hook_data, daemon_state=None):
                                             f"Code security: {n} issue(s) found in "
                                             f"{cs_file_path} — {cs_result.error_message}"
                                         )
+                                        warn_violation_types.append(
+                                            ViolationType.CODE_SECURITY
+                                        )
                             except Exception as e:
                                 logging.warning(
                                     f"Code security check error (fail-open): {e}"
@@ -2581,6 +2621,11 @@ def process_hook_data(hook_data, daemon_state=None):
                     hook_event=hook_event,
                     warning_message=combined_warning,
                     security_message=security_message,
+                    violation_type=(
+                        ",".join(str(t) for t in warn_violation_types)
+                        if warn_violation_types
+                        else None
+                    ),
                 )
 
         else:
@@ -2657,6 +2702,7 @@ def process_hook_data(hook_data, daemon_state=None):
             tool_identifier=tool_identifier,
             tool_name=tool_name,
             warning_messages=warning_messages,
+            warn_violation_types=warn_violation_types,
             log_only_count=log_only_count,
             _registry=_registry,
             _post_scan_ctx=_post_scan_ctx,
@@ -2667,19 +2713,25 @@ def process_hook_data(hook_data, daemon_state=None):
         # Combine all warning messages if any exist
         combined_warning = "\n\n".join(warning_messages) if warning_messages else None
 
+        _vtype = (
+            ",".join(str(t) for t in warn_violation_types)
+            if warn_violation_types
+            else None
+        )
         result = _format_response(
             adapter,
             has_secrets=False,
             hook_event=hook_event,
             warning_message=combined_warning,
             security_message=security_message,
+            violation_type=_vtype,
         )
         if combined_warning:
             result["_warning"] = True
-            result["_violation_type"] = "mixed"
+            result["_violation_type"] = _vtype or "mixed"
         if log_only_count > 0:
             result["_log_only"] = log_only_count
-            result["_violation_type"] = "mixed"
+            result["_violation_type"] = _vtype or "mixed"
         return result
 
     except Exception as e:

@@ -113,15 +113,19 @@ class BaseAgentAdapter(HookAdapter):
         hook_event: HookEvent,
         warning_message: Optional[str] = None,
         security_message: Optional[str] = None,
+        violation_type: Optional[str] = None,
     ) -> Dict:
-        combined = "\n\n".join(filter(None, [security_message, warning_message]))
-        if not combined:
+        user_msg = "\n\n".join(filter(None, [security_message, warning_message]))
+        if not user_msg:
             return {}
+        agent_ctx = self._build_warn_agent_context(
+            warning_message, security_message, violation_type
+        )
         return {
-            "systemMessage": combined,
+            "systemMessage": user_msg,
             "hookSpecificOutput": {
                 "hookEventName": self._event_name(hook_event),
-                "additionalContext": combined,
+                "additionalContext": agent_ctx or user_msg,
             },
         }
 
@@ -169,7 +173,11 @@ class BaseAgentAdapter(HookAdapter):
                 )
             else:
                 response = (
-                    self._warn_response(hook_event, warning_message)
+                    self._warn_response(
+                        hook_event,
+                        warning_message,
+                        violation_type=violation_type,
+                    )
                     if warning_message
                     else {}
                 )
@@ -186,7 +194,10 @@ class BaseAgentAdapter(HookAdapter):
                     ] = modified_output
         elif warning_message:
             response = self._warn_response(
-                hook_event, warning_message, security_message
+                hook_event,
+                warning_message,
+                security_message,
+                violation_type=violation_type,
             )
         else:
             response = self._allow_response(hook_event, security_message)

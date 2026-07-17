@@ -1340,6 +1340,195 @@ class TestAgentFacingMessages:
     def test_sanitize_block_reason_none(self):
         assert "security violation" in BaseAgentAdapter._sanitize_block_reason(None)
 
+    # -- Sanitized warn reason helper --
+
+    def test_sanitize_warn_reason_known_types(self):
+        adapter = BaseAgentAdapter()
+        msg = adapter._sanitize_warn_reason("prompt_injection")
+        assert "prompt injection detected" in msg
+        assert "warn mode" in msg
+        msg = adapter._sanitize_warn_reason("secret_detected")
+        assert "secret detected" in msg
+        assert "warn mode" in msg
+
+    def test_sanitize_warn_reason_unknown_type(self):
+        msg = BaseAgentAdapter._sanitize_warn_reason("unknown_type")
+        assert "security violation" in msg
+        assert "warn mode" in msg
+
+    def test_sanitize_warn_reason_none(self):
+        msg = BaseAgentAdapter._sanitize_warn_reason(None)
+        assert "security violation" in msg
+        assert "warn mode" in msg
+
+    def test_sanitize_warn_reason_comma_separated(self):
+        msg = BaseAgentAdapter._sanitize_warn_reason("prompt_injection,pii_detected")
+        assert "prompt injection detected" in msg
+        assert "PII detected" in msg
+        assert "warn mode" in msg
+
+    def test_sanitize_warn_reason_comma_deduplicates(self):
+        msg = BaseAgentAdapter._sanitize_warn_reason(
+            "prompt_injection,prompt_injection"
+        )
+        assert msg.count("prompt injection detected") == 1
+
+
+# ── Warn Message Split (Issue #1588) ───────────────────────────────────
+
+
+class TestWarnMessageSplit:
+    """Test that warn mode splits systemMessage (detailed) from additionalContext (sanitized)."""
+
+    # -- Claude Code --
+
+    def test_claude_code_warn_split_with_violation_type(self):
+        result = BaseAgentAdapter().format_response(
+            has_secrets=False,
+            hook_event=HookEvent.PRE_TOOL_USE,
+            warning_message="PI detected in lib/utils.py:42 — warn mode, execution allowed",
+            violation_type="prompt_injection",
+        )
+        data = json.loads(result["output"])
+        assert "lib/utils.py:42" in data["systemMessage"]
+        ctx = data["hookSpecificOutput"]["additionalContext"]
+        assert "lib/utils.py" not in ctx
+        assert "prompt injection detected" in ctx
+        assert "warn mode" in ctx
+
+    def test_claude_code_warn_no_violation_type_stays_same(self):
+        result = BaseAgentAdapter().format_response(
+            has_secrets=False,
+            hook_event=HookEvent.PRE_TOOL_USE,
+            warning_message="Generic warning",
+        )
+        data = json.loads(result["output"])
+        assert data["systemMessage"] == data["hookSpecificOutput"]["additionalContext"]
+
+    def test_claude_code_posttooluse_warn_split(self):
+        result = BaseAgentAdapter().format_response(
+            has_secrets=False,
+            hook_event=HookEvent.POST_TOOL_USE,
+            warning_message="Secret detected in output (file.py:10) — warn mode",
+            violation_type="secret_detected",
+        )
+        data = json.loads(result["output"])
+        assert "file.py:10" in data["systemMessage"]
+        ctx = data["hookSpecificOutput"]["additionalContext"]
+        assert "file.py" not in ctx
+        assert "secret detected" in ctx
+
+    def test_claude_code_warn_with_security_message(self):
+        result = BaseAgentAdapter().format_response(
+            has_secrets=False,
+            hook_event=HookEvent.PROMPT,
+            warning_message="PI detected in test.py:5 — warn mode",
+            security_message="SECURITY RULES",
+            violation_type="prompt_injection",
+        )
+        data = json.loads(result["output"])
+        assert "SECURITY RULES" in data["systemMessage"]
+        assert "test.py:5" in data["systemMessage"]
+        ctx = data["hookSpecificOutput"]["additionalContext"]
+        assert "SECURITY RULES" in ctx
+        assert "test.py" not in ctx
+
+    # -- Cursor --
+
+    def test_cursor_warn_split_with_violation_type(self):
+        result = CursorAdapter().format_response(
+            has_secrets=False,
+            hook_event=HookEvent.PRE_TOOL_USE,
+            warning_message="PI detected in lib/x.py:10 — warn mode",
+            violation_type="prompt_injection",
+        )
+        data = json.loads(result["output"])
+        assert "lib/x.py:10" in data.get("user_message", "")
+        assert "lib/x.py" not in data.get("agent_message", "")
+        assert "prompt injection" in data["agent_message"]
+
+    # -- Gemini CLI --
+
+    def test_gemini_warn_split_with_violation_type(self):
+        result = GeminiCLIAdapter().format_response(
+            has_secrets=False,
+            hook_event=HookEvent.POST_TOOL_USE,
+            warning_message="SSRF detected in cmd:3 — warn mode",
+            violation_type="ssrf_blocked",
+        )
+        data = json.loads(result["output"])
+        assert "cmd:3" in data["systemMessage"]
+        ctx = data["hookSpecificOutput"]["additionalContext"]
+        assert "cmd" not in ctx
+        assert "SSRF" in ctx
+
+    # -- Copilot --
+
+    def test_copilot_warn_sanitized_context(self):
+        result = CopilotAdapter().format_response(
+            has_secrets=False,
+            hook_event=HookEvent.PRE_TOOL_USE,
+            warning_message="Config threat in /etc/passwd:1 — warn mode",
+            violation_type="config_file_exfil",
+        )
+        data = json.loads(result["output"])
+        ctx = data["additionalContext"]
+        assert "/etc/passwd" not in ctx
+        assert "warn mode" in ctx
+
+    # -- Cline --
+
+    def test_cline_warn_sanitized_context(self):
+        result = ClineAdapter().format_response(
+            has_secrets=False,
+            hook_event=HookEvent.PRE_TOOL_USE,
+            warning_message="PI in file.py:5 — warn mode",
+            violation_type="prompt_injection",
+        )
+        data = json.loads(result["output"])
+        ctx = data["contextModification"]
+        assert "file.py" not in ctx
+        assert "prompt injection" in ctx
+
+    # -- Windsurf --
+
+    def test_windsurf_warn_sanitized_stdout(self):
+        result = WindsurfAdapter().format_response(
+            has_secrets=False,
+            hook_event=HookEvent.PRE_TOOL_USE,
+            warning_message="Secret in config.yaml:12 — warn mode",
+            violation_type="secret_detected",
+        )
+        assert "config.yaml" not in result["output"]
+        assert "secret detected" in result["output"]
+
+    # -- Kiro --
+
+    def test_kiro_warn_sanitized_stdout(self):
+        result = KiroAdapter().format_response(
+            has_secrets=False,
+            hook_event=HookEvent.PRE_TOOL_USE,
+            warning_message="PI in test.py:3 — warn mode",
+            violation_type="prompt_injection",
+        )
+        assert "test.py" not in result["output"]
+        assert "prompt injection" in result["output"]
+
+    # -- Block mode unchanged --
+
+    def test_block_mode_unchanged_by_split(self):
+        result = BaseAgentAdapter().format_response(
+            has_secrets=True,
+            error_message="Real error: secret AKIA1234 found",
+            hook_event=HookEvent.PRE_TOOL_USE,
+            violation_type="secret_detected",
+        )
+        data = json.loads(result["output"])
+        assert "AKIA1234" in data["systemMessage"]
+        ctx = data["hookSpecificOutput"]["additionalContext"]
+        assert "AKIA1234" not in ctx
+        assert "blocked by ai-guardian" in ctx
+
 
 # ── Warning + Error Combination ─────────────────────────────────────────
 

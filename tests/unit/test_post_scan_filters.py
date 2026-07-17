@@ -8,6 +8,7 @@ from ai_guardian.scanners.post_scan_filters import (
     PostScanContext,
     PostScanDecision,
     apply_post_scan_pipeline,
+    build_detailed_warn_message,
     build_violation_blocked,
     log_scan_violation,
     log_scan_violations_per_finding,
@@ -239,7 +240,8 @@ class TestApplyPostScanPipeline:
             decision = apply_post_scan_pipeline(entry, result, ctx)
         assert not decision.should_block
         ctx.handle_ask_mode_auto.assert_not_called()
-        assert result.error_message in decision.warnings
+        assert len(decision.warnings) == 1
+        assert "warn mode" in decision.warnings[0]
 
     def test_warnings_on_non_blocking_detection(self):
         ctx = _make_ctx()
@@ -247,7 +249,9 @@ class TestApplyPostScanPipeline:
         result = _detected_result(should_block=False, error_message="OL: slur found")
         with patch("ai_guardian.config.utils.get_project_dir", return_value="/proj"):
             decision = apply_post_scan_pipeline(entry, result, ctx)
-        assert "OL: slur found" in decision.warnings
+        assert len(decision.warnings) == 1
+        assert "warn mode" in decision.warnings[0]
+        assert "/tmp/test.py:42" in decision.warnings[0]
 
     def test_ask_decision_returned(self):
         from ai_guardian.tui.ask_dialog import AskDecision
@@ -391,3 +395,47 @@ class TestLogScanViolationsPerFinding:
             log_scan_violations_per_finding(entry, [finding], ctx)
         call_kwargs = ctx.violation_logger.log_violation.call_args[1]
         assert call_kwargs["severity"] == "medium"
+
+
+class TestBuildDetailedWarnMessage:
+
+    def test_includes_file_and_line(self):
+        entry = _make_entry(violation_type="prompt_injection")
+        result = _detected_result(
+            file_path="/src/app.py",
+            line_number=42,
+            rule_id="pi-001",
+            attack_type="Python dunder",
+        )
+        msg = build_detailed_warn_message(entry, result)
+        assert "Prompt injection detected" in msg
+        assert "/src/app.py:42" in msg
+        assert "pi-001" in msg
+        assert "Python dunder" in msg
+        assert "warn mode" in msg
+
+    def test_file_path_from_arg(self):
+        entry = _make_entry(violation_type="secret_detected")
+        result = _detected_result(file_path=None, line_number=None)
+        msg = build_detailed_warn_message(entry, result, file_path="/etc/config")
+        assert "/etc/config" in msg
+
+    def test_no_file_path(self):
+        entry = _make_entry(violation_type="ssrf_blocked")
+        result = _detected_result(file_path=None, line_number=None)
+        msg = build_detailed_warn_message(entry, result)
+        assert "warn mode" in msg
+        assert " in " not in msg
+
+    def test_no_rule_id_no_attack_type(self):
+        entry = _make_entry(violation_type="prompt_injection")
+        result = _detected_result(rule_id="", attack_type="")
+        msg = build_detailed_warn_message(entry, result)
+        assert "(" not in msg
+
+    def test_unknown_violation_type(self):
+        entry = _make_entry(violation_type="new_scanner")
+        result = _detected_result(file_path="/f.py", line_number=1)
+        msg = build_detailed_warn_message(entry, result)
+        assert "Security violation detected" in msg
+        assert "/f.py:1" in msg

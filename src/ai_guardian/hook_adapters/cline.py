@@ -92,14 +92,12 @@ class ClineAdapter(HookAdapter):
             }
         else:
             response = {}
-            parts = []
-            if hook_event == HookEvent.PROMPT and security_message:
-                parts.append(security_message)
-            if warning_message:
-                parts.append(warning_message)
-            if parts:
-                combined = "\n\n".join(parts)
-                response["contextModification"] = combined
+            sec = security_message if hook_event == HookEvent.PROMPT else None
+            agent_ctx = self._build_warn_agent_context(
+                warning_message, sec, violation_type
+            )
+            if agent_ctx:
+                response["contextModification"] = agent_ctx
             if hook_event == HookEvent.POST_TOOL_USE and modified_output is not None:
                 logger.warning(
                     "%s: modified_output provided but output replacement "
