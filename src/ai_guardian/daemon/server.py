@@ -139,6 +139,12 @@ class DaemonServer:
         except Exception as e:
             logger.debug(f"Error flushing session state: {e}")
 
+        # Stop persistent listen-mode process (#1590)
+        try:
+            self.state.stop_listen_manager()
+        except Exception as e:
+            logger.debug(f"Error stopping listen manager: {e}")
+
         # Close all subscriber connections (#650)
         with self._subscribers_lock:
             for sock in self._subscribers:

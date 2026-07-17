@@ -129,15 +129,13 @@ ENGINE_PRESETS = {
             "{binary}",
             "scan",
             "--kind",
-            "File",
+            "Files",
             "--format",
             "json",
-            "--output",
-            "{report_file}",
             "{source_file}",
         ],
         config_flag=None,  # LeakTK auto-manages patterns
-        output_parser="leaktk",  # Different output format
+        output_parser="leaktk",  # v0.3.x writes JSON to stdout
         success_exit_code=0,
         secrets_found_exit_code=1,
     ),

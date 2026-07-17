@@ -53,7 +53,7 @@ Default engine order: ["toml-patterns", "gitleaks"]
 |---------|-------|-------------------|---------------|--------------|
 | **Gitleaks** | Standard | Manual config | JSON | `brew install gitleaks` |
 | **BetterLeaks** | 20-40% faster | Manual config | JSON (same as Gitleaks) | `brew install betterleaks` |
-| **LeakTK** | Standard | Auto-managed | JSON (custom) | `brew install leaktk/tap/leaktk` |
+| **LeakTK** | Fast (listen mode) | Auto-managed | JSON (custom) | `brew install leaktk/tap/leaktk` |
 
 ### Configuration
 
@@ -91,6 +91,15 @@ Default engine order: ["toml-patterns", "gitleaks"]
   }
 }
 ```
+
+### LeakTK Listen Mode (v1.15.0+)
+
+When the ai-guardian daemon is running and LeakTK (v0.3.3+) is installed, secret scanning uses LeakTK's `listen` mode — a persistent process that stays alive between scans. This eliminates subprocess spawn overhead, reducing per-scan latency from ~200ms to ~5ms.
+
+- **Automatic:** No configuration needed. The daemon detects LeakTK and uses listen mode transparently.
+- **Fallback:** If listen mode fails or the daemon is not running (CLI mode), scanning falls back to the standard subprocess path.
+- **Config changes:** The listen process restarts automatically when `ai-guardian.json` is modified, picking up new allowlists and settings.
+- **Pattern refresh:** LeakTK manages pattern updates internally (default: every 12 hours).
 
 ### Advanced Configuration
 

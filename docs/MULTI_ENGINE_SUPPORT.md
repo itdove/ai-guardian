@@ -359,7 +359,7 @@ class ConsensusStrategy(ExecutionStrategy):
 |--------|--------|------|-------|---------------|---------|--------------|
 | **Gitleaks** | ✅ Supported | Binary | ⚡ Fast | 100+ | MIT | `brew install gitleaks` |
 | **BetterLeaks** | ✅ Supported | Binary | ⚡⚡ Faster | Same as Gitleaks | MIT | `brew install betterleaks` |
-| **LeakTK** | ✅ Supported | Binary | ⚡ Fast | Auto-managed | MIT | `go install github.com/immunefi-team/leaktk@latest` |
+| **LeakTK** | ✅ Supported | Binary | ⚡⚡ Listen mode | Auto-managed | MIT | `brew install leaktk/tap/leaktk` |
 | **Custom** | ✅ Supported | Any | Varies | User-defined | Any | User provides |
 | **TruffleHog** | ✅ Supported (v1.6.0) | Binary | ⚡ Fast | 700+ | AGPL | `brew install trufflesecurity/trufflehog/trufflehog` |
 | **detect-secrets** | ✅ Supported (v1.6.0) | Python | 🐢 Medium | 10+ plugins | Apache 2.0 | `pip install detect-secrets` |
@@ -367,13 +367,13 @@ class ConsensusStrategy(ExecutionStrategy):
 **Currently Supported (v1.5.0+):**
 - **Gitleaks** - Industry standard, fast, 100+ built-in patterns, works with pattern server
 - **BetterLeaks** - Fork by original Gitleaks maintainers, faster performance, same output format
-- **LeakTK** - Automatic pattern management, simpler configuration, no config file needed
+- **LeakTK** - Automatic pattern management, listen mode for near-zero overhead when daemon is running (~5ms vs ~200ms)
 - **Custom** - Bring your own scanner, define command template and output parser
 
 **Key Differences:**
 - **Gitleaks**: Best for known patterns (AWS keys, GitHub tokens), pattern server support
 - **BetterLeaks**: Same as Gitleaks but faster execution time
-- **LeakTK**: Best when you don't want to manage pattern files manually
+- **LeakTK**: Best when you don't want to manage pattern files manually. Uses `listen` mode as a persistent process when the daemon is running, eliminating subprocess spawn overhead
 
 ### License Considerations
 
