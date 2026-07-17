@@ -1606,6 +1606,7 @@ class TestWakeDetection:
 
     def _run_stats_refresh_tick(self, time_side_effect):
         """Run one stats-refresh tick and return rebuild dispatch calls."""
+        import threading as threading_mod
         import time as time_mod
 
         tray = DaemonTray(
@@ -1646,7 +1647,10 @@ class TestWakeDetection:
             mock_time.time = mock.MagicMock(side_effect=time_side_effect)
             tray._stats_refresh_running = True
             tray._start_stats_refresh()
-            time_mod.sleep(0.3)
+            for t in threading_mod.enumerate():
+                if t.name == "stats-refresh":
+                    t.join(timeout=2.0)
+                    break
 
         return rebuild_calls
 
