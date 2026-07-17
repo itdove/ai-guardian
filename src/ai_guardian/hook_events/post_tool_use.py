@@ -582,6 +582,20 @@ def handle_post_tool_use(ctx=None, **kwargs):
                 redacted_text = result["redacted_text"]
                 redactions = result["redactions"]
 
+                if not redactions:
+                    logging.warning(
+                        "Secret detected but redactor produced 0 redactions "
+                        f"for {tool_identifier} output — falling back to block"
+                    )
+                    _advance_transcript_position(hook_data)
+                    return _format_response(
+                        adapter,
+                        has_secrets=True,
+                        error_message=error_message,
+                        hook_event=hook_event,
+                        violation_type=ViolationType.SECRET_DETECTED,
+                    )
+
                 # Restore original content on annotation-suppressed lines
                 if post_all_suppressed or post_secret_suppressed:
                     all_post_suppressed = post_all_suppressed | post_secret_suppressed
@@ -650,16 +664,23 @@ def handle_post_tool_use(ctx=None, **kwargs):
                     )
                     logging.warning(f"WARN mode: {warning_msg}")
 
-                logging.info("✓ Secrets redacted, allowing output to continue")
+                # Block output containing detected secrets.
+                # Redaction produces correct modified_output, but upstream
+                # Claude Code ignores updatedToolOutput (anthropics/claude-code
+                # #68951). Block to prevent unredacted output reaching agent.
+                # When upstream is resolved, revert has_secrets to False.
+                logging.info(
+                    "Secrets redacted — blocking output (updatedToolOutput workaround)"
+                )
                 result = _format_response(
                     adapter,
-                    has_secrets=False,
+                    has_secrets=True,
+                    error_message=error_message,
                     hook_event=hook_event,
                     warning_message=warning_msg,
-                    modified_output=redacted_text,
+                    violation_type=ViolationType.SECRET_REDACTION,
                 )
                 result["_warning"] = True
-                result["_violation_type"] = ViolationType.SECRET_REDACTION
                 _advance_transcript_position(hook_data)
                 return result
 

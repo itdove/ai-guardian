@@ -17,6 +17,7 @@ from unittest import TestCase
 from unittest.mock import patch
 
 import ai_guardian
+from ai_guardian.hook_events.scanners import run_secret_scan as _run_secret_scan
 
 
 class PostToolUseSecretBlockingTests(TestCase):
@@ -77,7 +78,7 @@ class PostToolUseSecretBlockingTests(TestCase):
         self, mock_pattern, mock_scan, mock_gitleaks, mock_redact, mock_pii
     ):
         """
-        USER EXPERIENCE: Bash output with secret + redaction enabled -> REDACTED
+        USER EXPERIENCE: Bash output with secret + redaction enabled -> BLOCKED
 
         Scenario:
         1. User runs: cat credentials.txt
@@ -86,9 +87,9 @@ class PostToolUseSecretBlockingTests(TestCase):
         4. Secret detected, redaction enabled
 
         Expected User Experience:
-        Tool output is REDACTED (not blocked)
-        Secret value is replaced with masked text
-        Output DOES reach AI model (with secret masked)
+        Tool output is BLOCKED (workaround for upstream Claude Code bug
+        anthropics/claude-code#68951 — updatedToolOutput is ignored).
+        When upstream is fixed, this can revert to allow-with-redaction.
         """
         mock_pattern.return_value = (None, None)
         mock_scan.return_value = ({"enabled": True, "engines": ["gitleaks"]}, None)
@@ -119,12 +120,8 @@ class PostToolUseSecretBlockingTests(TestCase):
 
         output = json.loads(result["output"])
         assert (
-            output.get("decision") != "block"
-        ), f"PostToolUse should redact, not block, when redaction is enabled, got: {output}"
-        updated = output.get("hookSpecificOutput", {}).get("updatedToolOutput", "")
-        assert (
-            "FAKE_TEST_SECRET_VALUE_1234" not in updated
-        ), "Redacted output must not contain the raw secret"
+            output.get("decision") == "block"
+        ), f"PostToolUse must BLOCK secrets (updatedToolOutput workaround), got: {output}"
 
     @patch("ai_guardian.config.loaders._load_pii_config")
     @patch("ai_guardian.config.loaders._load_secret_redaction_config")
@@ -135,10 +132,11 @@ class PostToolUseSecretBlockingTests(TestCase):
         self, mock_pattern, mock_scan, mock_gitleaks, mock_redact, mock_pii
     ):
         """
-        USER EXPERIENCE: Secret detected + no redaction config -> defaults to redact
+        USER EXPERIENCE: Secret detected + no redaction config -> BLOCKED
 
         When secret_redaction config is None (not configured), enabled defaults
-        to True and the system uses redaction rather than blocking.
+        to True. Redaction runs but the response blocks (workaround for
+        upstream Claude Code bug anthropics/claude-code#68951).
         """
         mock_pattern.return_value = (None, None)
         mock_scan.return_value = ({"enabled": True, "engines": ["gitleaks"]}, None)
@@ -169,8 +167,8 @@ class PostToolUseSecretBlockingTests(TestCase):
 
         output = json.loads(result["output"])
         assert (
-            output.get("decision") != "block"
-        ), "When redaction config is None (default enabled=True), should redact not block"
+            output.get("decision") == "block"
+        ), "Secret detected must BLOCK (updatedToolOutput workaround)"
 
     @patch("ai_guardian.config.loaders._load_pii_config")
     @patch("ai_guardian.config.loaders._load_secret_redaction_config")
@@ -207,6 +205,53 @@ class PostToolUseSecretBlockingTests(TestCase):
         assert (
             output.get("decision") == "block"
         ), f"PostToolUse must BLOCK when redaction config has errors, got: {output}"
+
+    @patch("ai_guardian.config.loaders._load_pii_config")
+    @patch("ai_guardian.config.loaders._load_secret_redaction_config")
+    @patch("ai_guardian.scanners.secret_scanning.check_secrets_with_gitleaks")
+    @patch("ai_guardian.config.loaders._load_secret_scanning_config")
+    @patch("ai_guardian.hook_processing._load_pattern_server_config")
+    def test_posttooluse_blocks_when_redactor_finds_zero_redactions(
+        self, mock_pattern, mock_scan, mock_gitleaks, mock_redact, mock_pii
+    ):
+        """
+        USER EXPERIENCE: Secret detected + redaction enabled + 0 redactions -> BLOCKED
+
+        When detection finds a secret but the redactor's patterns don't match
+        it (0 redactions), PostToolUse must fall back to blocking to prevent
+        the unredacted secret from reaching the AI agent (#1624).
+        """
+        mock_pattern.return_value = (None, None)
+        mock_scan.return_value = ({"enabled": True, "engines": ["gitleaks"]}, None)
+        mock_gitleaks.return_value = (True, "Secret Detected - env-variable")
+        mock_redact.return_value = ({"enabled": True, "action": "warn"}, None)
+        mock_pii.return_value = (None, None)
+
+        hook_data = {
+            "hook_event_name": "PostToolUse",
+            "tool_name": "Bash",
+            "tool_use_id": "zero_redact_001",
+            "tool_input": {"command": "env | grep JIRA"},
+            "tool_response": {
+                "output": "JIRA_API_TOKEN=dGVzdHVzZXJAZXhhbXBsZS5jb206ZmFrZXRva2VuMTIz"
+            },
+        }
+
+        with patch("sys.stdin", StringIO(json.dumps(hook_data))):
+            with patch(
+                "ai_guardian.scanners.secret_redactor.SecretRedactor"
+            ) as MockRedactor:
+                mock_instance = MockRedactor.return_value
+                mock_instance.redact.return_value = {
+                    "redacted_text": "JIRA_API_TOKEN=dGVzdHVzZXJAZXhhbXBsZS5jb206ZmFrZXRva2VuMTIz",
+                    "redactions": [],
+                }
+                result = ai_guardian.process_hook_input()
+
+        output = json.loads(result["output"])
+        assert (
+            output.get("decision") == "block"
+        ), f"PostToolUse must BLOCK when redactor finds 0 redactions, got: {output}"
 
 
 class PostToolUseSecretBlockingUXContractTests(TestCase):
@@ -294,7 +339,7 @@ class PostToolUseSecretBlockingUXContractTests(TestCase):
         self, mock_pattern, mock_scan, mock_gitleaks, mock_redact, mock_pii
     ):
         """
-        USER EXPERIENCE: Bash output with secret + redaction enabled -> REDACTED
+        USER EXPERIENCE: Bash output with secret + redaction enabled -> BLOCKED
 
         Scenario:
         1. User asks Claude: "Show me what's in credentials.txt"
@@ -305,15 +350,14 @@ class PostToolUseSecretBlockingUXContractTests(TestCase):
         6. secret_redaction.enabled = true
 
         Expected User Experience:
-        Tool output is MODIFIED (secret masked)
-        Claude sees: AWS_ACCESS_KEY=***REDACTED***
-        User may see warning about redaction
-        Claude can continue working without seeing the real secret
+        Tool output is BLOCKED (workaround for upstream Claude Code bug
+        anthropics/claude-code#68951 — updatedToolOutput is ignored).
+        When upstream is fixed, revert to allow-with-redaction.
 
         MANUAL VERIFICATION:
         1. Configure ai-guardian.json with secret_redaction.enabled = true
         2. Ask Claude to "cat" a file with an AWS key
-        3. Verify output shows masked value, not the real key
+        3. Verify output is blocked, not shown to Claude
         """
         mock_pattern.return_value = (None, None)
         mock_scan.return_value = ({"enabled": True, "engines": ["gitleaks"]}, None)
@@ -346,17 +390,59 @@ class PostToolUseSecretBlockingUXContractTests(TestCase):
 
         response = json.loads(result["output"])
 
-        # CONTRACT: Response must NOT block
+        # CONTRACT: Response MUST block (updatedToolOutput workaround)
         assert (
-            response.get("decision") != "block"
-        ), "PostToolUse should NOT block when redaction is enabled - should redact instead"
+            response.get("decision") == "block"
+        ), f"PostToolUse must BLOCK secrets (updatedToolOutput workaround), got: {response}"
 
-        # CONTRACT: Response must include modified output
-        hook_output = response.get("hookSpecificOutput", {})
-        updated_output = hook_output.get("updatedToolOutput", "")
+
+class PostToolUseEnvVarDetectionTests(TestCase):
+    """
+    End-to-end tests for env var token detection (#1624).
+
+    Verifies that toml-patterns catches env var tokens in PostToolUse
+    output without relying on mocked scanners.
+    """
+
+    def test_run_secret_scan_detects_jira_api_token(self):
+        """
+        Toml-patterns env-variable rule catches JIRA_API_TOKEN=base64.
+        """
+        fake_token = "dGVzdHVzZXJAZXhhbXBsZS5jb206ZmFrZXRva2VuMTIz"
+        content = f"JIRA_API_TOKEN={fake_token}"
+
+        result = _run_secret_scan(
+            content,
+            "Bash_output",
+            config={"enabled": True, "engines": ["toml-patterns"]},
+            context={"hook_event": "PostToolUse"},
+            tool_name="Bash",
+        )
+        assert result is not None, "run_secret_scan must return a result"
+        assert result.detected, "env-variable pattern must detect JIRA_API_TOKEN"
+
+    def test_run_secret_scan_detects_env_output_with_multiple_vars(self):
+        """
+        Toml-patterns catches JIRA token in multi-line env output.
+        """
+        content = (
+            "JIRA_METHOD=curl\n"
+            "JIRA_USERNAME=\n"
+            "JIRA_API_TOKEN=dGVzdHVzZXJAZXhhbXBsZS5jb206ZmFrZXRva2VuMTIz\n"
+            "JIRA_URL=https://issues.example.com"
+        )
+
+        result = _run_secret_scan(
+            content,
+            "Bash_output",
+            config={"enabled": True, "engines": ["toml-patterns"]},
+            context={"hook_event": "PostToolUse"},
+            tool_name="Bash",
+        )
+        assert result is not None, "run_secret_scan must return a result"
         assert (
-            "FAKE_TEST_SECRET_VALUE_1234" not in updated_output
-        ), "Redacted output must not contain the raw secret value"
+            result.detected
+        ), "env-variable pattern must detect JIRA_API_TOKEN in env output"
 
 
 class GitleaksAllowGuidanceTests(TestCase):

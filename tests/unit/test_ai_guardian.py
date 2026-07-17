@@ -1457,7 +1457,12 @@ Yyv2dJ5Y2LtZ7YywIDAQABAoIBADCNMXk8y5K6lVZMsEHHWpdGIyDyUPsryXctAJAc
     def test_posttooluse_bash_with_secret(
         self, mock_pattern_config, mock_redaction_config
     ):
-        """Test PostToolUse redacts Bash output containing secrets"""
+        """Test PostToolUse blocks Bash output containing secrets.
+
+        Workaround for upstream Claude Code bug (anthropics/claude-code
+        #68951): updatedToolOutput is ignored, so we block instead of
+        redact-and-pass. When upstream is fixed, revert to allow-with-redaction.
+        """
         # Disable pattern server to use default gitleaks rules
         mock_pattern_config.return_value = None
         # Enable redaction with warn mode (default behavior)
@@ -1478,23 +1483,11 @@ Yyv2dJ5Y2LtZ7YywIDAQABAoIBADCNMXk8y5K6lVZMsEHHWpdGIyDyUPsryXctAJAc
 
         self.assertEqual(result["exit_code"], 0)
         response = json.loads(result["output"])
-        # Secrets are now redacted and allowed, not blocked
-        self.assertIsNone(response.get("decision"))  # No blocking decision
-        self.assertIsNotNone(
-            response.get("systemMessage")
-        )  # Warning message about redaction
-        # Verify systemMessage mentions the redaction
-        self.assertIn(
-            "Redacted",
-            response.get("systemMessage", ""),
-            "Warning should mention redaction",
-        )
-        # Verify secret was redacted from output (check both fields)
-        output_text = response.get("modified_output", response.get("output", ""))
-        self.assertNotIn(
-            "BEGIN RSA PRIVATE KEY",
-            output_text,
-            "Secret should be redacted from output",
+        # Block output containing secrets (updatedToolOutput workaround)
+        self.assertEqual(
+            response.get("decision"),
+            "block",
+            "PostToolUse must block secrets (updatedToolOutput workaround)",
         )
 
     def test_posttooluse_no_output_field(self):
