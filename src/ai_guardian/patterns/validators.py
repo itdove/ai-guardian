@@ -13,6 +13,7 @@ import math
 import re
 import sys
 from collections import Counter
+from pathlib import Path
 from typing import Callable, Dict, List, Optional, Tuple
 
 if sys.version_info >= (3, 11):
@@ -311,9 +312,45 @@ def connection_not_placeholder(matched_text: str) -> bool:
     return True
 
 
-_TOKEN_PREFIX_RE = re.compile(
-    r"^(?:sk-(?:proj-|ant-|or-v1-)?|gh[pors]_|glpat-|xox[baprs]-|sq0csp-|r8_|AQ\.|hv[sbr]\.|cflt)",
-)
+_NEVER_MATCH_RE = re.compile(r"(?!)")
+
+
+def _build_token_prefix_re() -> re.Pattern:
+    """Build token prefix regex from secrets.toml at module load time.
+
+    Collects keywords from all rules with validation="token_not_placeholder"
+    and compiles them into a single alternation anchored at ^.
+
+    Cannot use load_bundled_rules/BUNDLED_FILES here — circular import:
+    __init__ → cache → validators → __init__.
+    """
+    secrets_toml = Path(__file__).parent / "data" / "secrets.toml"
+    if not secrets_toml.exists():
+        logger.warning("secrets.toml not found; token prefix RE will be empty")
+        return _NEVER_MATCH_RE
+
+    try:
+        with open(secrets_toml, "rb") as f:
+            data = tomllib.load(f)
+    except Exception as e:
+        logger.warning(f"Failed to load secrets.toml for token prefixes: {e}")
+        return _NEVER_MATCH_RE
+
+    prefixes = [
+        kw
+        for rule in data.get("rules", [])
+        if rule.get("validation") == "token_not_placeholder"
+        for kw in rule.get("keywords", [])
+    ]
+    if not prefixes:
+        return _NEVER_MATCH_RE
+
+    unique = sorted(set(prefixes), key=len, reverse=True)
+    escaped = [re.escape(p) for p in unique]
+    return re.compile(r"^(?:" + "|".join(escaped) + ")")
+
+
+_TOKEN_PREFIX_RE = _build_token_prefix_re()
 
 _REPEATED_CHAR_TOKEN_RE = re.compile(r"^(.)\1{7,}$")
 

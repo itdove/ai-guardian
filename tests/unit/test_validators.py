@@ -1,6 +1,15 @@
 """Tests for pattern validation functions."""
 
+import sys
+
+if sys.version_info >= (3, 11):
+    import tomllib
+else:
+    import tomli as tomllib
+
 from ai_guardian.patterns.validators import (
+    _TOKEN_PREFIX_RE,
+    _build_token_prefix_re,
     connection_not_placeholder,
     env_not_false_positive,
     password_not_false_positive,
@@ -507,3 +516,73 @@ class TestTokenNotPlaceholder:
     def test_registry_lookup(self):
         validator = get_validator("token_not_placeholder")
         assert validator is token_not_placeholder
+
+
+class TestTokenPrefixReSync:
+    """Ensure _TOKEN_PREFIX_RE stays in sync with secrets.toml (#1636)."""
+
+    def test_every_keyword_matches_prefix_re(self):
+        """Every keyword from token_not_placeholder rules must match."""
+        from ai_guardian.patterns import BUNDLED_FILES
+
+        path = BUNDLED_FILES["secrets"]
+        with open(path, "rb") as f:
+            data = tomllib.load(f)
+
+        missing = []
+        for rule in data.get("rules", []):
+            if rule.get("validation") != "token_not_placeholder":
+                continue
+            for kw in rule.get("keywords", []):
+                if not _TOKEN_PREFIX_RE.match(kw):
+                    missing.append((rule["id"], kw))
+
+        assert missing == [], f"Keywords not in _TOKEN_PREFIX_RE: {missing}"
+
+    def test_build_returns_compiled_pattern(self):
+        regex = _build_token_prefix_re()
+        assert regex.pattern.startswith("^(?:")
+
+    def test_prefixes_match_known_tokens(self):
+        """Spot-check that dynamically built RE matches real token prefixes."""
+        for prefix in ["sk-", "ghp_", "glpat-", "hf_", "pplx-", "PMAK-", "ops_"]:
+            assert _TOKEN_PREFIX_RE.match(prefix), f"{prefix} should match"
+
+    def test_build_fallback_missing_file(self, monkeypatch):
+        """Fallback regex when secrets.toml is absent."""
+        from pathlib import Path as _Path
+
+        orig_exists = _Path.exists
+
+        def fake_exists(self):
+            if self.name == "secrets.toml":
+                return False
+            return orig_exists(self)
+
+        monkeypatch.setattr(_Path, "exists", fake_exists)
+        regex = _build_token_prefix_re()
+        assert regex.pattern == "(?!)"
+        assert not regex.match("sk-anything")
+
+    def test_build_fallback_malformed_toml(self, monkeypatch):
+        """Fallback regex when secrets.toml is unparseable."""
+        import ai_guardian.patterns.validators as mod
+
+        monkeypatch.setattr(
+            mod.tomllib, "load", lambda f: (_ for _ in ()).throw(Exception("bad"))
+        )
+        regex = _build_token_prefix_re()
+        assert regex.pattern == "(?!)"
+
+    def test_build_fallback_no_matching_rules(self, monkeypatch):
+        """Fallback regex when no rules have validation=token_not_placeholder."""
+        import ai_guardian.patterns.validators as mod
+
+        def fake_load(f):
+            return {"rules": [{"id": "test", "validation": "other", "keywords": ["x"]}]}
+
+        monkeypatch.setattr(
+            mod, "tomllib", type("M", (), {"load": staticmethod(fake_load)})()
+        )
+        regex = _build_token_prefix_re()
+        assert regex.pattern == "(?!)"
