@@ -1,4 +1,4 @@
-"""Tests for leaktk listen mode (#1590)."""
+"""Tests for listen mode (#1590)."""
 
 import json
 import threading
@@ -371,11 +371,42 @@ class TestRunEngineListenMode:
             run_engine(engine_config, "/tmp/test.txt", "/tmp/report.json")
             mock_single.assert_called_once()
 
-    def test_non_leaktk_engine_skips_listen_mode(self):
+    def test_version_hint_appended_on_unexpected_exit_code(self):
+        from ai_guardian.scanners.executor import run_single_engine
+        from ai_guardian.scanners.engine_builder import EngineConfig
+
+        config = EngineConfig(
+            type="test-engine",
+            binary="test-bin",
+            command_template=["{binary}", "{source_file}"],
+            output_parser="gitleaks",
+            version_hint="test-engine >= 2.0 required",
+        )
+        proc = mock.MagicMock()
+        proc.returncode = 99
+        proc.stderr = "something went wrong"
+        proc.stdout = ""
+
+        with (
+            mock.patch(
+                "ai_guardian.scanners.executor.subprocess.run",
+                return_value=proc,
+            ),
+            mock.patch("ai_guardian.scanners.executor.logging") as mock_logging,
+        ):
+            result = run_single_engine(config, "/tmp/test.txt", "/tmp/report.json")
+
+        assert result.has_secrets is False
+        assert result.error is not None
+        warning_msg = mock_logging.warning.call_args[0][0]
+        assert "test-engine >= 2.0 required" in warning_msg
+
+    def test_engine_without_listen_support_skips_listen_mode(self):
         from ai_guardian.scanners.executor import run_engine
         from ai_guardian.scanners.engine_builder import ENGINE_PRESETS
 
         engine_config = ENGINE_PRESETS["gitleaks"]
+        assert not engine_config.supports_listen_mode
 
         with mock.patch(
             "ai_guardian.scanners.executor.run_single_engine"

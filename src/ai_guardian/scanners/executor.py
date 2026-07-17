@@ -145,8 +145,8 @@ def run_single_engine(
             f"Engine {engine_config.type} returned unexpected exit code "
             f"{result.returncode}: {stderr_preview}"
         )
-        if engine_config.type == "leaktk":
-            msg += " (leaktk >= 0.3.0 required; run 'ai-guardian scanner install leaktk' to upgrade)"
+        if engine_config.version_hint:
+            msg += f" ({engine_config.version_hint})"
         logging.warning(msg)
         return ScanResult(
             has_secrets=False,
@@ -341,7 +341,7 @@ def run_engine(
 
     Routes to:
     1. run_python_scanner() for Python-based scanners
-    2. Listen mode for leaktk when the daemon is running (#1590)
+    2. Listen mode for engines that support it when the daemon is running (#1590)
     3. run_single_engine() for subprocess-based scanners (default)
 
     Args:
@@ -367,8 +367,8 @@ def run_engine(
             content_hash,
         )
 
-    # Try listen mode for leaktk when daemon is running (#1590)
-    if engine_config.type == "leaktk":
+    # Try listen mode when the engine supports it and daemon is running (#1590)
+    if engine_config.supports_listen_mode:
         try:
             daemon_state = _get_daemon_state()
             if daemon_state is not None:
@@ -377,7 +377,8 @@ def run_engine(
                 result_dict = mgr.scan(engine_config.binary, source_file, config_path)
                 elapsed_ms = (time.monotonic() - start) * 1000
                 logging.info(
-                    "leaktk listen mode scan: %.1fms, findings=%d",
+                    "%s listen mode scan: %.1fms, findings=%d",
+                    engine_config.type,
                     elapsed_ms,
                     result_dict.get("total_findings", 0),
                 )

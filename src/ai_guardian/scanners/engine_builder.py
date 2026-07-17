@@ -73,6 +73,8 @@ class EngineConfig:
     requires_consent: bool = False
     api_key_env: Optional[str] = None
     python_scanner: Optional[Any] = None
+    supports_listen_mode: bool = False
+    version_hint: Optional[str] = None
 
 
 # Built-in engine presets
@@ -138,6 +140,8 @@ ENGINE_PRESETS = {
         output_parser="leaktk",  # v0.3.x writes JSON to stdout
         success_exit_code=0,
         secrets_found_exit_code=1,
+        supports_listen_mode=True,
+        version_hint="leaktk >= 0.3.0 required; run 'ai-guardian scanner install leaktk' to upgrade",
     ),
     "trufflehog": EngineConfig(
         type="trufflehog",
