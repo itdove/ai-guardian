@@ -143,18 +143,6 @@ NEW_SECRET_FALSE_POSITIVE_CASES = [
 ]
 
 
-class TestNewSecretPatterns:
-    """Detection tests for the 6 new AI/cloud credential patterns (Issue #1482)."""
-
-    @pytest.mark.parametrize("rule_id,text", NEW_SECRET_DETECTION_CASES)
-    def test_pattern_detected(self, secret_rules, rule_id, text):
-        assert secret_rules[rule_id].compiled.search(text)
-
-    @pytest.mark.parametrize("rule_id,text", NEW_SECRET_FALSE_POSITIVE_CASES)
-    def test_no_false_positive(self, secret_rules, rule_id, text):
-        assert not secret_rules[rule_id].compiled.search(text)
-
-
 GITLEAKS_DETECTION_CASES = [
     ("cohere-api-token", 'COHERE_API_KEY="' + "a" * 40 + '"'),
     ("cohere-api-token", "cohere_token = '" + "B" * 40 + "'"),
@@ -208,14 +196,19 @@ GITLEAKS_FALSE_POSITIVE_CASES = [
     ("1password-service-account-token", "ops_eyJ" + "A" * 10),
 ]
 
+ALL_DETECTION_CASES = NEW_SECRET_DETECTION_CASES + GITLEAKS_DETECTION_CASES
+ALL_FALSE_POSITIVE_CASES = (
+    NEW_SECRET_FALSE_POSITIVE_CASES + GITLEAKS_FALSE_POSITIVE_CASES
+)
 
-class TestGitleaksGapPatterns:
-    """Detection tests for Gitleaks gap-fill patterns (Issue #1618)."""
 
-    @pytest.mark.parametrize("rule_id,text", GITLEAKS_DETECTION_CASES)
+class TestSecretPatterns:
+    """Detection and false-positive tests for secret patterns (#1482, #1618)."""
+
+    @pytest.mark.parametrize("rule_id,text", ALL_DETECTION_CASES)
     def test_pattern_detected(self, secret_rules, rule_id, text):
         assert secret_rules[rule_id].compiled.search(text)
 
-    @pytest.mark.parametrize("rule_id,text", GITLEAKS_FALSE_POSITIVE_CASES)
+    @pytest.mark.parametrize("rule_id,text", ALL_FALSE_POSITIVE_CASES)
     def test_no_false_positive(self, secret_rules, rule_id, text):
         assert not secret_rules[rule_id].compiled.search(text)
