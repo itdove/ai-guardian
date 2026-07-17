@@ -1043,7 +1043,9 @@ class TestRedactedOutputDelivery:
             violation_type="secret_detected",
         )
         data = json.loads(result["output"])
-        assert "blocked by ai-guardian" in data["hookSpecificOutput"]["additionalContext"]
+        assert (
+            "blocked by ai-guardian" in data["hookSpecificOutput"]["additionalContext"]
+        )
 
 
 # ── Agent-Facing Message Delivery (#1334) ──────────────────────────────
