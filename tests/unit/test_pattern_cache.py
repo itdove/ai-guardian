@@ -233,7 +233,7 @@ match_type = "regex"
 regex = '''([A-Z][A-Z0-9_]+)\\s*=\\s*(["']?)([A-Za-z0-9\\-_+/=]{16,})\\2'''
 redaction_strategy = "env_assignment"
 description = "Environment Variable"
-validation = "env_not_file_path"
+validation = "env_not_false_positive"
 
 [[rules]]
 id = "exported-env-variable"
@@ -241,7 +241,7 @@ match_type = "regex"
 regex = '''(export\\s+[A-Z][A-Z0-9_]+)\\s*=\\s*(["']?)([A-Za-z0-9\\-_+/=]{16,})\\2'''
 redaction_strategy = "env_assignment"
 description = "Exported Environment Variable"
-validation = "env_not_file_path"
+validation = "env_not_false_positive"
 """
         path = tmp_path / "secrets.toml"
         path.write_bytes(content)
@@ -313,6 +313,13 @@ validation = "env_not_file_path"
         cache = PatternCache()
         cache.load(env_var_toml)
         findings = cache.scan("MY_TOKEN=your-personal-access-token")
+        assert len(findings) == 0
+
+    def test_all_caps_identifier_not_flagged(self, env_var_toml):
+        """Issue #1627: ALL_CAPS_IDENTIFIER values are programming constants."""
+        cache = PatternCache()
+        cache.load(env_var_toml)
+        findings = cache.scan("ALL_DETECTION_CASES = NEW_SECRET_DETECTION_CASES")
         assert len(findings) == 0
 
 
