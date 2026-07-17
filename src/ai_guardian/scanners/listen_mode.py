@@ -11,7 +11,9 @@ is not running, the executor falls back to ``subprocess.run()`` automatically.
 
 import json
 import logging
+import select
 import subprocess
+import sys
 import threading
 import time
 import uuid
@@ -20,6 +22,8 @@ from typing import Any, Dict, List, Optional
 from ai_guardian.scanners.output_parsers import _normalize_leaktk_result
 
 logger = logging.getLogger(__name__)
+
+_LISTEN_SCAN_TIMEOUT = 30
 
 
 class LeakTKListenProcess:
@@ -89,6 +93,20 @@ class LeakTKListenProcess:
 
             self._process.stdin.write((request + "\n").encode("utf-8"))
             self._process.stdin.flush()
+
+            if sys.platform != "win32":
+                ready, _, _ = select.select(
+                    [self._process.stdout], [], [], _LISTEN_SCAN_TIMEOUT
+                )
+                if not ready:
+                    try:
+                        self._process.kill()
+                        self._process.wait(timeout=2)
+                    except OSError:
+                        pass
+                    raise RuntimeError(
+                        f"leaktk listen timed out after {_LISTEN_SCAN_TIMEOUT}s"
+                    )
 
             line = self._process.stdout.readline()
             elapsed_ms = (time.monotonic() - start) * 1000
@@ -194,10 +212,7 @@ class ListenModeManager:
 
     def restart(self) -> None:
         """Kill and clear the process so the next scan starts a fresh one."""
-        with self._lock:
-            if self._process is not None:
-                self._process.stop()
-                self._process = None
+        self.stop()
 
     def is_alive(self) -> bool:
         return self._process is not None and self._process.is_alive()
