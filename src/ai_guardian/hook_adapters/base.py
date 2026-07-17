@@ -83,6 +83,7 @@ class HookAdapter(ABC):
         modified_output: Optional[str] = None,
         violation_type: Optional[str] = None,
         security_message: Optional[str] = None,
+        redacted_output: Optional[str] = None,
     ) -> Dict:
         """Format a response dict in this IDE's expected output format.
 

@@ -254,6 +254,199 @@ class PostToolUseSecretBlockingTests(TestCase):
         ), f"PostToolUse must BLOCK when redactor finds 0 redactions, got: {output}"
 
 
+class PostToolUseRedactedOutputInContextTests(TestCase):
+    """
+    Tests verifying that redacted output is sent via additionalContext
+    when PostToolUse blocks secrets after successful redaction (#1630).
+    """
+
+    @patch("ai_guardian.config.loaders._load_pii_config")
+    @patch("ai_guardian.config.loaders._load_secret_redaction_config")
+    @patch("ai_guardian.scanners.secret_scanning.check_secrets_with_gitleaks")
+    @patch("ai_guardian.config.loaders._load_secret_scanning_config")
+    @patch("ai_guardian.hook_processing._load_pattern_server_config")
+    def test_posttooluse_sends_redacted_output_in_additional_context(
+        self, mock_pattern, mock_scan, mock_gitleaks, mock_redact, mock_pii
+    ):
+        """
+        USER EXPERIENCE: Redacted output appears in additionalContext
+
+        When secrets are detected and redaction succeeds, the agent
+        receives the redacted output via additionalContext so it can
+        continue working with sanitized content.
+        """
+        mock_pattern.return_value = (None, None)
+        mock_scan.return_value = ({"enabled": True, "engines": ["gitleaks"]}, None)
+        mock_gitleaks.return_value = (True, "Secret Detected - aws-access-token")
+        mock_redact.return_value = ({"enabled": True, "action": "warn"}, None)
+        mock_pii.return_value = (None, None)
+
+        hook_data = {
+            "hook_event_name": "PostToolUse",
+            "tool_name": "Bash",
+            "tool_use_id": "ctx_test_001",
+            "tool_input": {"command": "cat /tmp/test.txt"},
+            "tool_response": {"output": "SECRET_KEY=FAKE_TEST_SECRET_VALUE_1234"},
+        }
+
+        with patch("sys.stdin", StringIO(json.dumps(hook_data))):
+            with patch(
+                "ai_guardian.scanners.secret_redactor.SecretRedactor"
+            ) as MockRedactor:
+                mock_instance = MockRedactor.return_value
+                mock_instance.redact.return_value = {
+                    "redacted_text": "SECRET_KEY=***REDACTED***",
+                    "redactions": [
+                        {"type": "aws-access-token", "position": 11, "strategy": "mask"}
+                    ],
+                }
+                result = ai_guardian.process_hook_input()
+
+        output = json.loads(result["output"])
+        assert output.get("decision") == "block"
+        ctx = output.get("hookSpecificOutput", {}).get("additionalContext", "")
+        assert (
+            "***REDACTED***" in ctx
+        ), f"additionalContext must contain the redacted text, got: {ctx}"
+        assert (
+            "FAKE_TEST_SECRET_VALUE_1234" not in ctx
+        ), "additionalContext must NOT contain the raw secret"
+
+    @patch("ai_guardian.config.loaders._load_pii_config")
+    @patch("ai_guardian.config.loaders._load_secret_redaction_config")
+    @patch("ai_guardian.scanners.secret_scanning.check_secrets_with_gitleaks")
+    @patch("ai_guardian.config.loaders._load_secret_scanning_config")
+    @patch("ai_guardian.hook_processing._load_pattern_server_config")
+    def test_posttooluse_no_redacted_output_when_zero_redactions(
+        self, mock_pattern, mock_scan, mock_gitleaks, mock_redact, mock_pii
+    ):
+        """
+        USER EXPERIENCE: Zero redactions -> NO redacted output in context
+
+        When detection finds a secret but the redactor produces 0 redactions,
+        additionalContext must NOT contain the original (unredacted) output.
+        """
+        mock_pattern.return_value = (None, None)
+        mock_scan.return_value = ({"enabled": True, "engines": ["gitleaks"]}, None)
+        mock_gitleaks.return_value = (True, "Secret Detected - env-variable")
+        mock_redact.return_value = ({"enabled": True, "action": "warn"}, None)
+        mock_pii.return_value = (None, None)
+
+        hook_data = {
+            "hook_event_name": "PostToolUse",
+            "tool_name": "Bash",
+            "tool_use_id": "ctx_test_002",
+            "tool_input": {"command": "env | grep TOKEN"},
+            "tool_response": {"output": "MY_TOKEN=supersecretvalue"},
+        }
+
+        with patch("sys.stdin", StringIO(json.dumps(hook_data))):
+            with patch(
+                "ai_guardian.scanners.secret_redactor.SecretRedactor"
+            ) as MockRedactor:
+                mock_instance = MockRedactor.return_value
+                mock_instance.redact.return_value = {
+                    "redacted_text": "MY_TOKEN=supersecretvalue",
+                    "redactions": [],
+                }
+                result = ai_guardian.process_hook_input()
+
+        output = json.loads(result["output"])
+        assert output.get("decision") == "block"
+        ctx = output.get("hookSpecificOutput", {}).get("additionalContext", "")
+        assert (
+            "supersecretvalue" not in ctx
+        ), "additionalContext must NOT leak the original output on zero redactions"
+
+    @patch("ai_guardian.config.loaders._load_pii_config")
+    @patch("ai_guardian.config.loaders._load_secret_redaction_config")
+    @patch("ai_guardian.scanners.secret_scanning.check_secrets_with_gitleaks")
+    @patch("ai_guardian.config.loaders._load_secret_scanning_config")
+    @patch("ai_guardian.hook_processing._load_pattern_server_config")
+    def test_posttooluse_no_redacted_output_when_redaction_disabled(
+        self, mock_pattern, mock_scan, mock_gitleaks, mock_redact, mock_pii
+    ):
+        """
+        USER EXPERIENCE: Redaction disabled -> NO redacted output in context
+
+        When redaction is disabled, there is no redacted text to send.
+        additionalContext must contain only the sanitized block reason.
+        """
+        mock_pattern.return_value = (None, None)
+        mock_scan.return_value = ({"enabled": True, "engines": ["gitleaks"]}, None)
+        mock_gitleaks.return_value = (True, "Secret Detected - aws-access-token")
+        mock_redact.return_value = ({"enabled": False}, None)
+        mock_pii.return_value = (None, None)
+
+        hook_data = {
+            "hook_event_name": "PostToolUse",
+            "tool_name": "Bash",
+            "tool_use_id": "ctx_test_003",
+            "tool_input": {"command": "cat /tmp/test.txt"},
+            "tool_response": {"output": "SECRET_KEY=FAKE_TEST_SECRET_VALUE_1234"},
+        }
+
+        with patch("sys.stdin", StringIO(json.dumps(hook_data))):
+            result = ai_guardian.process_hook_input()
+
+        output = json.loads(result["output"])
+        assert output.get("decision") == "block"
+        ctx = output.get("hookSpecificOutput", {}).get("additionalContext", "")
+        assert (
+            "FAKE_TEST_SECRET_VALUE_1234" not in ctx
+        ), "additionalContext must NOT leak the raw secret"
+
+    @patch("ai_guardian.config.loaders._load_pii_config")
+    @patch("ai_guardian.config.loaders._load_secret_redaction_config")
+    @patch("ai_guardian.scanners.secret_scanning.check_secrets_with_gitleaks")
+    @patch("ai_guardian.config.loaders._load_secret_scanning_config")
+    @patch("ai_guardian.hook_processing._load_pattern_server_config")
+    def test_posttooluse_system_message_indicates_redacted_context(
+        self, mock_pattern, mock_scan, mock_gitleaks, mock_redact, mock_pii
+    ):
+        """
+        USER EXPERIENCE: systemMessage tells agent redacted content is in context
+
+        When redacted output is sent via additionalContext, the systemMessage
+        must indicate that redacted content is available.
+        """
+        mock_pattern.return_value = (None, None)
+        mock_scan.return_value = ({"enabled": True, "engines": ["gitleaks"]}, None)
+        mock_gitleaks.return_value = (True, "Secret Detected - aws-access-token")
+        mock_redact.return_value = ({"enabled": True, "action": "warn"}, None)
+        mock_pii.return_value = (None, None)
+
+        hook_data = {
+            "hook_event_name": "PostToolUse",
+            "tool_name": "Bash",
+            "tool_use_id": "ctx_test_004",
+            "tool_input": {"command": "cat /tmp/test.txt"},
+            "tool_response": {"output": "SECRET_KEY=FAKE_TEST_SECRET_VALUE_1234"},
+        }
+
+        with patch("sys.stdin", StringIO(json.dumps(hook_data))):
+            with patch(
+                "ai_guardian.scanners.secret_redactor.SecretRedactor"
+            ) as MockRedactor:
+                mock_instance = MockRedactor.return_value
+                mock_instance.redact.return_value = {
+                    "redacted_text": "SECRET_KEY=***REDACTED***",
+                    "redactions": [
+                        {"type": "aws-access-token", "position": 11, "strategy": "mask"}
+                    ],
+                }
+                result = ai_guardian.process_hook_input()
+
+        output = json.loads(result["output"])
+        sys_msg = output.get("systemMessage", "")
+        assert (
+            "redacted" in sys_msg.lower()
+        ), f"systemMessage must mention redacted content, got: {sys_msg}"
+        assert (
+            "context" in sys_msg.lower()
+        ), f"systemMessage must mention content is in context, got: {sys_msg}"
+
+
 class PostToolUseSecretBlockingUXContractTests(TestCase):
     """
     UX Contract tests documenting the full user experience flow for
@@ -352,12 +545,13 @@ class PostToolUseSecretBlockingUXContractTests(TestCase):
         Expected User Experience:
         Tool output is BLOCKED (workaround for upstream Claude Code bug
         anthropics/claude-code#68951 — updatedToolOutput is ignored).
-        When upstream is fixed, revert to allow-with-redaction.
+        Redacted output is sent via additionalContext so the agent can
+        continue working with sanitized content (#1630).
 
         MANUAL VERIFICATION:
         1. Configure ai-guardian.json with secret_redaction.enabled = true
         2. Ask Claude to "cat" a file with an AWS key
-        3. Verify output is blocked, not shown to Claude
+        3. Verify output is blocked but redacted content appears in context
         """
         mock_pattern.return_value = (None, None)
         mock_scan.return_value = ({"enabled": True, "engines": ["gitleaks"]}, None)
@@ -394,6 +588,12 @@ class PostToolUseSecretBlockingUXContractTests(TestCase):
         assert (
             response.get("decision") == "block"
         ), f"PostToolUse must BLOCK secrets (updatedToolOutput workaround), got: {response}"
+
+        # CONTRACT: Redacted output MUST appear in additionalContext (#1630)
+        ctx = response.get("hookSpecificOutput", {}).get("additionalContext", "")
+        assert (
+            "***REDACTED***" in ctx
+        ), f"additionalContext must contain redacted output, got: {ctx}"
 
 
 class PostToolUseEnvVarDetectionTests(TestCase):

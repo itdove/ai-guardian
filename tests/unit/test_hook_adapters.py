@@ -948,6 +948,106 @@ class TestModifiedOutputDelivery:
         assert "modifiedToolOutput" not in data
 
 
+# ── Redacted Output Delivery (#1630) ──────────────────────────────────
+
+
+class TestRedactedOutputDelivery:
+    """Test that redacted_output reaches each adapter's context field on PostToolUse block."""
+
+    _REDACTED = "SECRET_KEY=***REDACTED***"
+    _ERROR = "Secret Detected - aws-access-token"
+
+    def test_claude_code_redacted_output_in_additional_context(self):
+        result = BaseAgentAdapter().format_response(
+            has_secrets=True,
+            error_message=self._ERROR,
+            hook_event=HookEvent.POST_TOOL_USE,
+            violation_type="secret_detected",
+            redacted_output=self._REDACTED,
+        )
+        data = json.loads(result["output"])
+        assert data["hookSpecificOutput"]["additionalContext"] == self._REDACTED
+        assert self._ERROR in data["systemMessage"]
+        assert "Redacted output provided in context" in data["systemMessage"]
+
+    def test_copilot_redacted_output_in_context(self):
+        result = CopilotAdapter().format_response(
+            has_secrets=True,
+            error_message=self._ERROR,
+            hook_event=HookEvent.POST_TOOL_USE,
+            violation_type="secret_detected",
+            redacted_output=self._REDACTED,
+        )
+        assert result["exit_code"] == 2
+        data = json.loads(result["output"])
+        assert data["additionalContext"] == self._REDACTED
+
+    def test_cursor_redacted_output_in_agent_message(self):
+        result = CursorAdapter().format_response(
+            has_secrets=True,
+            error_message=self._ERROR,
+            hook_event=HookEvent.POST_TOOL_USE,
+            violation_type="secret_detected",
+            redacted_output=self._REDACTED,
+        )
+        data = json.loads(result["output"])
+        assert data["agent_message"] == self._REDACTED
+
+    def test_cline_redacted_output_in_context_modification(self):
+        result = ClineAdapter().format_response(
+            has_secrets=True,
+            error_message=self._ERROR,
+            hook_event=HookEvent.POST_TOOL_USE,
+            violation_type="secret_detected",
+            redacted_output=self._REDACTED,
+        )
+        data = json.loads(result["output"])
+        assert data["contextModification"] == self._REDACTED
+
+    def test_gemini_redacted_output_in_additional_context(self):
+        result = GeminiCLIAdapter().format_response(
+            has_secrets=True,
+            error_message=self._ERROR,
+            hook_event=HookEvent.POST_TOOL_USE,
+            violation_type="secret_detected",
+            redacted_output=self._REDACTED,
+        )
+        data = json.loads(result["output"])
+        assert data["additionalContext"] == self._REDACTED
+
+    def test_kiro_redacted_output_in_output(self):
+        result = KiroAdapter().format_response(
+            has_secrets=True,
+            error_message=self._ERROR,
+            hook_event=HookEvent.POST_TOOL_USE,
+            violation_type="secret_detected",
+            redacted_output=self._REDACTED,
+        )
+        assert result["output"] == self._REDACTED
+
+    def test_windsurf_redacted_output_in_output(self):
+        result = WindsurfAdapter().format_response(
+            has_secrets=True,
+            error_message=self._ERROR,
+            hook_event=HookEvent.POST_TOOL_USE,
+            violation_type="secret_detected",
+            redacted_output=self._REDACTED,
+        )
+        assert result["output"] == self._REDACTED
+
+    def test_no_redacted_output_uses_sanitized_reason(self):
+        result = BaseAgentAdapter().format_response(
+            has_secrets=True,
+            error_message=self._ERROR,
+            hook_event=HookEvent.POST_TOOL_USE,
+            violation_type="secret_detected",
+        )
+        data = json.loads(result["output"])
+        assert (
+            "blocked by ai-guardian" in data["hookSpecificOutput"]["additionalContext"]
+        )
+
+
 # ── Agent-Facing Message Delivery (#1334) ──────────────────────────────
 
 

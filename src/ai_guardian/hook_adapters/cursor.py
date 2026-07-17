@@ -108,6 +108,7 @@ class CursorAdapter(HookAdapter):
         modified_output: Optional[str] = None,
         violation_type: Optional[str] = None,
         security_message: Optional[str] = None,
+        redacted_output: Optional[str] = None,
     ) -> Dict:
         if hook_event == HookEvent.PRE_TOOL_USE:
             response = {"permission": "deny" if has_secrets else "allow"}
@@ -134,6 +135,8 @@ class CursorAdapter(HookAdapter):
                 )
                 if final_error:
                     response["user_message"] = final_error
+                if redacted_output:
+                    response["agent_message"] = redacted_output
             else:
                 agent_parts = []
                 if security_message:

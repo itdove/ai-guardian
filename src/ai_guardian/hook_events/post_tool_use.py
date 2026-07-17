@@ -34,6 +34,9 @@ from ai_guardian.hook_events.scanners import (
 logger = logging.getLogger(__name__)
 
 
+_MAX_REDACTED_CONTEXT_BYTES = 102400
+
+
 # Deferred-import wrappers for functions defined in hook_processing.py.
 # Module-level imports would create a circular dependency.
 def extract_tool_result(hook_data):
@@ -668,9 +671,17 @@ def handle_post_tool_use(ctx=None, **kwargs):
                 # Redaction produces correct modified_output, but upstream
                 # Claude Code ignores updatedToolOutput (anthropics/claude-code
                 # #68951). Block to prevent unredacted output reaching agent.
-                # When upstream is resolved, revert has_secrets to False.
+                # Send redacted output via additionalContext so the agent
+                # can continue working with sanitized content (#1630).
+                if len(redacted_text) > _MAX_REDACTED_CONTEXT_BYTES:
+                    orig_len = len(redacted_text)
+                    redacted_text = (
+                        redacted_text[:_MAX_REDACTED_CONTEXT_BYTES]
+                        + f"\n\n[Truncated: original output was {orig_len} bytes]"
+                    )
                 logging.info(
-                    "Secrets redacted — blocking output (updatedToolOutput workaround)"
+                    "Secrets redacted — blocking output, "
+                    "sending redacted content via additionalContext"
                 )
                 result = _format_response(
                     adapter,
@@ -679,6 +690,7 @@ def handle_post_tool_use(ctx=None, **kwargs):
                     hook_event=hook_event,
                     warning_message=warning_msg,
                     violation_type=ViolationType.SECRET_REDACTION,
+                    redacted_output=redacted_text,
                 )
                 result["_warning"] = True
                 _advance_transcript_position(hook_data)
