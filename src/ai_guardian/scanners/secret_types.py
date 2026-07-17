@@ -2,6 +2,7 @@
 
 SECRET_TYPE_NAMES = {
     # --- Bundled secrets.toml patterns ---
+    "openrouter-api-key": "OpenRouter API Key",
     "openai-api-key": "OpenAI API Key",
     "openai-project-key": "OpenAI Project Key",
     "github-personal-token": "GitHub Personal Token",
@@ -87,13 +88,16 @@ SECRET_TYPE_NAMES = {
     "hashicorp-tf-api-token": "HashiCorp Terraform API Token",
     "vault-batch-token": "HashiCorp Vault Token",
     "vault-service-token": "HashiCorp Vault Token",
+    "hashicorp-vault-token": "HashiCorp Vault Token",
     "doppler-api-token": "Doppler API Token",
     "linear-api-key": "Linear API Key",
     "postman-api-token": "Postman API Token",
     "confluent-secret-key": "Confluent Secret Key",
+    "confluent-cloud-api-key": "Confluent Cloud API Key",
     "datadog-access-token": "Datadog Access Token",
     "new-relic-user-api-key": "New Relic User API Key",
     "new-relic-browser-api-token": "New Relic Browser API Token",
+    "google-gemini-auth-key": "Google Gemini Auth Key",
     "gcp-api-key": "Google Cloud API Key",
     "telegram-bot-api-token": "Telegram Bot API Token",
     "huggingface-access-token": "Hugging Face Access Token",
