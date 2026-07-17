@@ -593,7 +593,9 @@ class TestSharedResponseMethods:
             assert "reason" not in resp
         else:
             assert resp["decision"] == "block"
-            assert resp["reason"] == "Error msg"
+            assert "blocked by ai-guardian" in resp["reason"]
+            assert "secret detected" in resp["reason"]
+            assert resp["reason"] != resp["systemMessage"]
             assert "permissionDecision" not in resp["hookSpecificOutput"]
 
     @pytest.mark.parametrize(
@@ -657,6 +659,8 @@ class TestSharedResponseMethods:
     def test_block_response_no_violation_type(self):
         resp = BaseAgentAdapter()._block_response(HookEvent.PROMPT, "Error")
         assert "security violation" in resp["hookSpecificOutput"]["additionalContext"]
+        assert "security violation" in resp["reason"]
+        assert resp["reason"] != resp["systemMessage"]
 
     def test_block_sanitizes_raw_error(self):
         """additionalContext uses sanitized label, not raw error message."""
@@ -707,7 +711,8 @@ class TestResponseFormatting:
         )
         data = json.loads(result["output"])
         assert data["decision"] == "block"
-        assert "Injection detected" in data["reason"]
+        assert "blocked by ai-guardian" in data["reason"]
+        assert "security violation" in data["reason"]
 
     def test_claude_code_prompt_security_message(self):
         result = BaseAgentAdapter().format_response(

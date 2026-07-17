@@ -219,14 +219,13 @@ class TestConfigErrorHandling(unittest.TestCase):
             warning_message=warning_msg,
         )
 
-        # Should include both warning and error
+        # reason is a short sanitized label, systemMessage has full details
         output = json.loads(result["output"])
-        self.assertIn(warning_msg, output["reason"])
-        self.assertIn(error_msg, output["reason"])
-        # Warning should appear before error
-        self.assertTrue(
-            output["reason"].index(warning_msg) < output["reason"].index(error_msg)
-        )
+        self.assertIn("blocked by ai-guardian", output["reason"])
+        self.assertNotEqual(output["reason"], output["systemMessage"])
+        # Full error and warning appear in systemMessage
+        self.assertIn(error_msg, output["systemMessage"])
+        self.assertIn(warning_msg, output["systemMessage"])
 
     def test_json_error_with_format_response_log_mode(self):
         """Test that JSON errors are shown in log mode (no blocking)."""

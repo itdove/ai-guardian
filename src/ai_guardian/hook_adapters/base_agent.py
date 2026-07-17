@@ -105,7 +105,7 @@ class BaseAgentAdapter(HookAdapter):
         else:
             response["decision"] = "block"
             if hook_event not in _BLOCK_OMITS_REASON:
-                response["reason"] = sys_msg
+                response["reason"] = sanitized
         return response
 
     def _warn_response(
