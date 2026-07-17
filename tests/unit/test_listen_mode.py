@@ -1,6 +1,7 @@
 """Tests for listen mode (#1590)."""
 
 import json
+import sys
 import threading
 from unittest import mock
 
@@ -112,6 +113,22 @@ class TestParseListenResults:
 # --- LeakTKListenProcess ---
 
 
+def _make_started_proc(**stdout_kwargs):
+    """Create a started LeakTKListenProcess with a mock subprocess."""
+    mock_proc = mock.MagicMock()
+    mock_proc.poll.return_value = None
+    mock_proc.stdin = mock.MagicMock()
+    for k, v in stdout_kwargs.items():
+        setattr(mock_proc.stdout, k, v)
+    mock_proc.stderr = iter([])
+
+    proc = LeakTKListenProcess("leaktk")
+    with mock.patch("ai_guardian.scanners.listen_mode.subprocess.Popen") as m:
+        m.return_value = mock_proc
+        proc.start()
+    return proc, mock_proc
+
+
 class TestLeakTKListenProcess:
     def test_start_spawns_process(self):
         with mock.patch("ai_guardian.scanners.listen_mode.subprocess.Popen") as m:
@@ -150,18 +167,15 @@ class TestLeakTKListenProcess:
         response_json = json.dumps(
             {"kind": "ScanResults", "request_id": "abc", "results": []}
         )
-        mock_proc = mock.MagicMock()
-        mock_proc.poll.return_value = None
-        mock_proc.stdin = mock.MagicMock()
-        mock_proc.stdout.readline.return_value = (response_json + "\n").encode()
-        mock_proc.stderr = iter([])
+        proc, mock_proc = _make_started_proc(
+            readline=mock.MagicMock(return_value=(response_json + "\n").encode())
+        )
 
-        proc = LeakTKListenProcess("leaktk")
-        with mock.patch("ai_guardian.scanners.listen_mode.subprocess.Popen") as m:
-            m.return_value = mock_proc
-            proc.start()
-
-        result = proc.scan("/tmp/test.txt", "req123")
+        with mock.patch(
+            "ai_guardian.scanners.listen_mode.select.select",
+            return_value=([mock_proc.stdout], [], []),
+        ):
+            result = proc.scan("/tmp/test.txt", "req123")
         assert result["has_secrets"] is False
 
         written = mock_proc.stdin.write.call_args[0][0].decode()
@@ -175,20 +189,29 @@ class TestLeakTKListenProcess:
         with pytest.raises(RuntimeError, match="not running"):
             proc.scan("/tmp/test.txt", "req1")
 
+    @pytest.mark.skipif(
+        sys.platform == "win32",
+        reason="select on pipes not supported on Windows",
+    )
+    def test_scan_raises_on_timeout(self):
+        proc, mock_proc = _make_started_proc()
+
+        with mock.patch(
+            "ai_guardian.scanners.listen_mode.select.select", return_value=([], [], [])
+        ):
+            with pytest.raises(RuntimeError, match="timed out"):
+                proc.scan("/tmp/test.txt", "req1")
+        mock_proc.kill.assert_called_once()
+
     def test_scan_raises_on_empty_response(self):
-        mock_proc = mock.MagicMock()
-        mock_proc.poll.return_value = None
-        mock_proc.stdin = mock.MagicMock()
-        mock_proc.stdout.readline.return_value = b""
-        mock_proc.stderr = iter([])
+        proc, mock_proc = _make_started_proc(readline=mock.MagicMock(return_value=b""))
 
-        proc = LeakTKListenProcess("leaktk")
-        with mock.patch("ai_guardian.scanners.listen_mode.subprocess.Popen") as m:
-            m.return_value = mock_proc
-            proc.start()
-
-        with pytest.raises(RuntimeError, match="empty response"):
-            proc.scan("/tmp/test.txt", "req1")
+        with mock.patch(
+            "ai_guardian.scanners.listen_mode.select.select",
+            return_value=([mock_proc.stdout], [], []),
+        ):
+            with pytest.raises(RuntimeError, match="empty response"):
+                proc.scan("/tmp/test.txt", "req1")
 
     def test_stop_closes_stdin_and_waits(self):
         mock_proc = mock.MagicMock()
