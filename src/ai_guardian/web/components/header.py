@@ -413,7 +413,7 @@ def _create_nav_menu(daemon_name: str):
     """Create the header navigation dropdown menu."""
     prefix = f"/{daemon_name}"
 
-    with ui.button("Menu", icon="menu").props("flat color=white"):
+    with ui.button("Quick Links", icon="link").props("flat color=white"):
         with ui.menu().classes("bg-blue-grey-9"):
             ui.menu_item(
                 "Dashboard",
