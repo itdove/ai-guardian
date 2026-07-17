@@ -6,6 +6,7 @@ dataclass that all concrete adapters produce.
 """
 
 import logging
+import sys
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from typing import Any, ClassVar, Dict, List, Optional
@@ -249,6 +250,24 @@ class HookAdapter(ABC):
     def _sanitize_block_reason(cls, violation_type: Optional[str]) -> str:
         label = cls._BLOCK_REASON_MAP.get(violation_type or "", "security violation")
         return f"Operation blocked by ai-guardian: {label}"
+
+    def _stderr_block_response(
+        self,
+        error_message: Optional[str],
+        warning_message: Optional[str],
+        output: Optional[str],
+        exit_code: int,
+        has_secrets: bool,
+        violation_type: Optional[str],
+    ) -> Dict:
+        """Shared block path: combine errors, print to stderr, return metadata."""
+        final_error = self._combine_error_messages(error_message, warning_message)
+        print(final_error, file=sys.stderr)
+        return self._add_metadata(
+            {"output": output, "exit_code": exit_code},
+            has_secrets,
+            violation_type,
+        )
 
     @staticmethod
     def _combine_error_messages(
