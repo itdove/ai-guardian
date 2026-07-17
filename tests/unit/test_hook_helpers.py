@@ -4,9 +4,76 @@ from unittest.mock import MagicMock
 
 
 from ai_guardian.hook_events.post_tool_use import _log_pii_violation
+from ai_guardian.hook_events.utils import strip_system_tags
 from ai_guardian.hook_processing import HookEvent
 from ai_guardian.scanners.secret_scanning import _build_secret_detected_message
 from ai_guardian.constants import ViolationType
+
+# ---------------------------------------------------------------------------
+# strip_system_tags
+# ---------------------------------------------------------------------------
+
+
+class TestStripSystemTags:
+
+    def test_strips_single_task_notification(self):
+        content = "hello <task-notification>secret stuff</task-notification> world"
+        assert strip_system_tags(content) == "hello  world"
+
+    def test_strips_multiline_task_notification(self):
+        content = (
+            "before\n"
+            "<task-notification>\n"
+            "ALL_DETECTION_CASES = NEW_SECRET_DETECTION_CASES\n"
+            "line2\n"
+            "</task-notification>\n"
+            "after"
+        )
+        result = strip_system_tags(content)
+        assert "ALL_DETECTION_CASES" not in result
+        assert "before" in result
+        assert "after" in result
+
+    def test_strips_multiple_task_notifications(self):
+        content = (
+            "a <task-notification>x</task-notification>"
+            " b <task-notification>y</task-notification> c"
+        )
+        assert strip_system_tags(content) == "a  b  c"
+
+    def test_strips_task_notification_with_attributes(self):
+        content = 'before <task-notification id="abc">data</task-notification> after'
+        assert strip_system_tags(content) == "before  after"
+
+    def test_no_tags_passthrough(self):
+        content = "normal prompt text with no tags"
+        assert strip_system_tags(content) == content
+
+    def test_empty_string(self):
+        assert strip_system_tags("") == ""
+
+    def test_none_returns_none(self):
+        assert strip_system_tags(None) is None
+
+    def test_preserves_other_xml_tags(self):
+        content = "text <other-tag>keep</other-tag> end"
+        assert strip_system_tags(content) == content
+
+    def test_strips_system_reminder(self):
+        content = "prompt <system-reminder>injected rules</system-reminder> text"
+        assert strip_system_tags(content) == "prompt  text"
+
+    def test_strips_mixed_system_tags(self):
+        content = (
+            "a <task-notification>n1</task-notification>"
+            " b <system-reminder>r1</system-reminder> c"
+        )
+        assert strip_system_tags(content) == "a  b  c"
+
+    def test_fast_path_no_tags(self):
+        content = "plain text without any angle brackets"
+        assert strip_system_tags(content) is content
+
 
 # ---------------------------------------------------------------------------
 # _build_secret_detected_message

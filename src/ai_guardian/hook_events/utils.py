@@ -1,5 +1,25 @@
 """Shared utilities for hook event handlers."""
 
+import re
+from typing import Optional
+
+_SYSTEM_TAGS_RE = re.compile(
+    r"<(?:task-notification|system-reminder)\b[^>]*>.*?</(?:task-notification|system-reminder)>",
+    re.DOTALL,
+)
+
+_SYSTEM_TAG_MARKER = "<task-notification"
+_SYSTEM_TAG_MARKER_ALT = "<system-reminder"
+
+
+def strip_system_tags(content: Optional[str]) -> Optional[str]:
+    """Strip system-injected tags from user prompt before scanning."""
+    if not content:
+        return content
+    if _SYSTEM_TAG_MARKER not in content and _SYSTEM_TAG_MARKER_ALT not in content:
+        return content
+    return _SYSTEM_TAGS_RE.sub("", content)
+
 
 def _format_response(adapter, **kwargs):
     """Call adapter.format_response() with [ai-guardian] prefix on warning_message.
