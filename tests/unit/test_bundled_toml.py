@@ -12,7 +12,7 @@ from ai_guardian.patterns.toml_parser import load_and_compile, load_toml_file
 PATTERNS_DIR = DATA_DIR
 
 EXPECTED_COUNTS = {
-    "secrets.toml": 80,
+    "secrets.toml": 84,
     "pii.toml": 13,
     "prompt-injection.toml": 73,
     "unicode.toml": 107,
@@ -143,6 +143,32 @@ NEW_SECRET_FALSE_POSITIVE_CASES = [
 ]
 
 
+ISSUE_1617_DETECTION_CASES = [
+    ("openrouter-api-key", 'OPENROUTER_API_KEY="sk-or-v1-' + "a" * 48 + '"'),
+    ("openrouter-api-key", "sk-or-v1-" + "A" * 64),
+    ("google-gemini-auth-key", 'GEMINI_KEY="AQ.Ab' + "x" * 35 + '"'),
+    ("google-gemini-auth-key", "AQ." + "A" * 37),
+    ("hashicorp-vault-token", 'VAULT_TOKEN="hvs.' + "A" * 30 + '"'),
+    ("hashicorp-vault-token", "hvb." + "A" * 24),
+    ("hashicorp-vault-token", "hvr." + "A" * 30),
+    ("confluent-cloud-api-key", "cflt" + "A" * 56),
+    ("confluent-cloud-api-key", "cflt" + "A" * 60),
+    ("confluent-cloud-api-key", "cflt" + "A" * 64),
+    ("confluent-cloud-api-key", 'key = "cflt' + "a" * 60 + '"'),
+]
+
+ISSUE_1617_FALSE_POSITIVE_CASES = [
+    ("openrouter-api-key", "sk-or-v1-tooshort"),
+    ("openrouter-api-key", "# sk-or-v1- is the OpenRouter prefix"),
+    ("google-gemini-auth-key", "AQ.short"),
+    ("google-gemini-auth-key", "# AQ. prefix is for Gemini auth keys"),
+    ("hashicorp-vault-token", "hvs.short"),
+    ("hashicorp-vault-token", "# hvs. prefix for Vault service tokens"),
+    ("confluent-cloud-api-key", "cflt" + "A" * 10),
+    ("confluent-cloud-api-key", "cflt" + "A" * 55),
+    ("confluent-cloud-api-key", "# cflt prefix for Confluent keys"),
+]
+
 GITLEAKS_DETECTION_CASES = [
     ("cohere-api-token", 'COHERE_API_KEY="' + "a" * 40 + '"'),
     ("cohere-api-token", "cohere_token = '" + "B" * 40 + "'"),
@@ -196,9 +222,13 @@ GITLEAKS_FALSE_POSITIVE_CASES = [
     ("1password-service-account-token", "ops_eyJ" + "A" * 10),
 ]
 
-ALL_DETECTION_CASES = NEW_SECRET_DETECTION_CASES + GITLEAKS_DETECTION_CASES
+ALL_DETECTION_CASES = (
+    NEW_SECRET_DETECTION_CASES + ISSUE_1617_DETECTION_CASES + GITLEAKS_DETECTION_CASES
+)
 ALL_FALSE_POSITIVE_CASES = (
-    NEW_SECRET_FALSE_POSITIVE_CASES + GITLEAKS_FALSE_POSITIVE_CASES
+    NEW_SECRET_FALSE_POSITIVE_CASES
+    + ISSUE_1617_FALSE_POSITIVE_CASES
+    + GITLEAKS_FALSE_POSITIVE_CASES
 )
 
 
