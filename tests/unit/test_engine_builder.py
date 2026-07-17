@@ -64,6 +64,52 @@ class TestEnginePresets(unittest.TestCase):
             self.assertTrue(config.output_parser, f"{name} missing output_parser")
 
 
+class TestCapabilityFlags(unittest.TestCase):
+    """Tests for supports_listen_mode and version_hint capability flags (#1644)."""
+
+    def test_leaktk_supports_listen_mode(self):
+        config = ENGINE_PRESETS["leaktk"]
+        self.assertTrue(config.supports_listen_mode)
+
+    def test_leaktk_has_version_hint(self):
+        config = ENGINE_PRESETS["leaktk"]
+        self.assertIsNotNone(config.version_hint)
+        self.assertIn("leaktk", config.version_hint)
+
+    def test_other_presets_no_listen_mode(self):
+        for name, config in ENGINE_PRESETS.items():
+            if name == "leaktk":
+                continue
+            self.assertFalse(
+                config.supports_listen_mode,
+                f"Preset '{name}' should not support listen mode",
+            )
+
+    def test_other_presets_no_version_hint(self):
+        for name, config in ENGINE_PRESETS.items():
+            if name == "leaktk":
+                continue
+            self.assertIsNone(
+                config.version_hint,
+                f"Preset '{name}' should not have version_hint",
+            )
+
+    def test_default_values(self):
+        config = EngineConfig(
+            type="test",
+            binary="test",
+            command_template=[],
+            output_parser="gitleaks",
+        )
+        self.assertFalse(config.supports_listen_mode)
+        self.assertIsNone(config.version_hint)
+
+    def test_dict_override_preserves_flags(self):
+        config = _build_engine_config({"type": "leaktk", "extra_flags": ["--verbose"]})
+        self.assertTrue(config.supports_listen_mode)
+        self.assertIsNotNone(config.version_hint)
+
+
 class TestSelectEngine(unittest.TestCase):
     """Tests for engine selection logic."""
 
