@@ -1009,7 +1009,10 @@ def check_secrets_with_gitleaks(
                         source_file=tmp_file_path,
                         report_file_prefix=report_file.replace(".json", ""),
                         config_path=gitleaks_config_path,
-                        context={"filename": filename},
+                        context={
+                            "filename": filename,
+                            "original_file_path": file_path,
+                        },
                     )
 
                     if strategy_result.has_secrets and strategy_result.secrets:
@@ -1487,7 +1490,10 @@ def check_secrets_with_gitleaks(
                                 source_file=tmp_file_path,
                                 report_file_prefix=report_file.replace(".json", ""),
                                 config_path=None,
-                                context={"filename": filename},
+                                context={
+                                    "filename": filename,
+                                    "original_file_path": file_path,
+                                },
                             )
                             if fallback_result.has_secrets and fallback_result.secrets:
                                 # Filter by stopwords/entropy (#1245) — fallthrough path 1
@@ -1853,7 +1859,10 @@ def check_secrets_with_gitleaks(
                             source_file=tmp_file_path,
                             report_file_prefix=report_file.replace(".json", ""),
                             config_path=None,
-                            context={"filename": filename},
+                            context={
+                                "filename": filename,
+                                "original_file_path": file_path,
+                            },
                         )
                         if fallback_result.has_secrets and fallback_result.secrets:
                             # Filter by stopwords/entropy (#1245) — fallthrough path 2

@@ -80,7 +80,7 @@ class ExecutionStrategy(ABC):
             source_file: Path to file being scanned
             report_file_prefix: Base path for report files (each engine gets a unique suffix)
             config_path: Optional scanner configuration file path
-            context: Optional metadata (ide_type, hook_event, etc.)
+            context: Optional metadata (ide_type, hook_event, original_file_path, etc.)
 
         Returns:
             ScanResult with combined findings
@@ -125,6 +125,7 @@ class FirstMatchStrategy(ExecutionStrategy):
         context: Optional[Dict] = None,
     ) -> ScanResult:
         filename = context.get("filename", "") if context else ""
+        orig_path = context.get("original_file_path") if context else None
         engines = self._filter_engines_for_file(engine_configs, filename)
 
         last_clean_result = None
@@ -134,7 +135,13 @@ class FirstMatchStrategy(ExecutionStrategy):
             logging.info(f"FirstMatchStrategy: trying engine {engine_config.type}")
 
             resolved_path = resolve_engine_config_path(engine_config, config_path)
-            result = scanner_fn(engine_config, source_file, report_file, resolved_path)
+            result = scanner_fn(
+                engine_config,
+                source_file,
+                report_file,
+                resolved_path,
+                original_file_path=orig_path,
+            )
 
             if result.error and "not found" in (result.error or "").lower():
                 logging.warning(f"Engine {engine_config.type} unavailable, trying next")
@@ -193,8 +200,14 @@ class AnyMatchStrategy(ExecutionStrategy):
                 error="No scanners available",
             )
 
+        orig_path = context.get("original_file_path") if context else None
         results = self._run_engines_parallel(
-            engines, scanner_fn, source_file, report_file_prefix, config_path
+            engines,
+            scanner_fn,
+            source_file,
+            report_file_prefix,
+            config_path,
+            original_file_path=orig_path,
         )
 
         all_secrets: List[SecretMatch] = []
@@ -228,7 +241,12 @@ class AnyMatchStrategy(ExecutionStrategy):
 
     @staticmethod
     def _run_engines_parallel(
-        engines, scanner_fn, source_file, report_file_prefix, config_path
+        engines,
+        scanner_fn,
+        source_file,
+        report_file_prefix,
+        config_path,
+        original_file_path=None,
     ) -> List[ScanResult]:
         max_workers = min(len(engines), 4)
         results: List[ScanResult] = []
@@ -239,7 +257,12 @@ class AnyMatchStrategy(ExecutionStrategy):
                 report_file = f"{report_file_prefix}_{engine_config.type}.json"
                 resolved_path = resolve_engine_config_path(engine_config, config_path)
                 future = pool.submit(
-                    scanner_fn, engine_config, source_file, report_file, resolved_path
+                    scanner_fn,
+                    engine_config,
+                    source_file,
+                    report_file,
+                    resolved_path,
+                    original_file_path=original_file_path,
                 )
                 futures[future] = engine_config.type
 
@@ -322,8 +345,14 @@ class ConsensusStrategy(ExecutionStrategy):
                 error="No scanners available",
             )
 
+        orig_path = context.get("original_file_path") if context else None
         results = AnyMatchStrategy._run_engines_parallel(
-            engines, scanner_fn, source_file, report_file_prefix, config_path
+            engines,
+            scanner_fn,
+            source_file,
+            report_file_prefix,
+            config_path,
+            original_file_path=orig_path,
         )
 
         all_secrets: List[SecretMatch] = []

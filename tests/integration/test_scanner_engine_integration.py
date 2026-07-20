@@ -576,7 +576,7 @@ class TestGuardClauseFallthrough(unittest.TestCase):
         config_paths_received = []
 
         def tracking_run_single(
-            engine_config, source_file, report_file, config_path=None
+            engine_config, source_file, report_file, config_path=None, **kwargs
         ):
             config_paths_received.append(config_path)
             if engine_config.type == "gitleaks":

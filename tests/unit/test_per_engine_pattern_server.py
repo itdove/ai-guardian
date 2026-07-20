@@ -25,21 +25,13 @@ from ai_guardian.scanners.strategies import (
 class TestPerEnginePatternServerInStrategy(unittest.TestCase):
     """Verify strategies resolve config_path per-engine."""
 
-    def _mock_scanner(self, engine_config, source_file, report_file, config_path):
-        """Mock scanner that records the config_path it received."""
-        return ScanResult(
-            has_secrets=False,
-            secrets=[],
-            engine=engine_config.type,
-            scan_time_ms=10.0,
-            error=None,
-        )
-
     def test_first_match_resolves_per_engine(self):
         """FirstMatch strategy should resolve config_path per engine."""
         calls = []
 
-        def tracking_scanner(engine_config, source_file, report_file, config_path):
+        def tracking_scanner(
+            engine_config, source_file, report_file, config_path, **kwargs
+        ):
             calls.append((engine_config.type, config_path))
             return ScanResult(
                 has_secrets=False,
@@ -75,7 +67,9 @@ class TestPerEnginePatternServerInStrategy(unittest.TestCase):
         """AnyMatch strategy should resolve config_path per engine."""
         calls = []
 
-        def tracking_scanner(engine_config, source_file, report_file, config_path):
+        def tracking_scanner(
+            engine_config, source_file, report_file, config_path, **kwargs
+        ):
             calls.append((engine_config.type, config_path))
             return ScanResult(
                 has_secrets=False,

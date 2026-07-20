@@ -15,6 +15,9 @@ from ai_guardian.scanners.transcript.common import (
     _discover_path,
     _read_jsonl_incremental,
     _scan_jsonl_incremental,
+    _get_most_recent_entry,
+    _scan_transcript_text,
+    _scan_with_position_tracking,
 )
 
 
@@ -70,22 +73,11 @@ def _extract_text_from_kiro_entry(entry: dict) -> str:
 
 def get_most_recent_session_file(sessions_dir: str) -> Optional[str]:
     """Find the most recently modified ``.jsonl`` session file."""
-    best_mtime = -1.0
-    best_path: Optional[str] = None
-    try:
-        with os.scandir(sessions_dir) as it:
-            for entry in it:
-                if not entry.is_file() or not entry.name.endswith(".jsonl"):
-                    continue
-                mtime = entry.stat().st_mtime
-                if mtime > best_mtime:
-                    best_mtime = mtime
-                    best_path = entry.path
-    except OSError as e:
-        logging.debug(f"Kiro sessions listing error: {e}")
-        return None
-
-    return best_path
+    return _get_most_recent_entry(
+        sessions_dir,
+        match_fn=lambda e: e.is_file() and e.name.endswith(".jsonl"),
+        label="Kiro",
+    )
 
 
 def read_kiro_transcript(

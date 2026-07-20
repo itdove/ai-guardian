@@ -368,7 +368,9 @@ class TestFirstMatchStrategyExecute(unittest.TestCase):
         """Bug #523: first engine finds nothing, second finds secrets."""
         engines = [self._make_engine("betterleaks"), self._make_engine("gitleaks")]
 
-        def scanner_fn(engine_config, source_file, report_file, config_path=None):
+        def scanner_fn(
+            engine_config, source_file, report_file, config_path=None, **kwargs
+        ):
             if engine_config.type == "betterleaks":
                 return ScanResult(
                     has_secrets=False,
@@ -402,7 +404,9 @@ class TestFirstMatchStrategyExecute(unittest.TestCase):
         """All engines find nothing → returns clean result."""
         engines = [self._make_engine("betterleaks"), self._make_engine("gitleaks")]
 
-        def scanner_fn(engine_config, source_file, report_file, config_path=None):
+        def scanner_fn(
+            engine_config, source_file, report_file, config_path=None, **kwargs
+        ):
             return ScanResult(
                 has_secrets=False,
                 secrets=[],
@@ -422,7 +426,9 @@ class TestFirstMatchStrategyExecute(unittest.TestCase):
         call_log = []
         engines = [self._make_engine("gitleaks"), self._make_engine("trufflehog")]
 
-        def scanner_fn(engine_config, source_file, report_file, config_path=None):
+        def scanner_fn(
+            engine_config, source_file, report_file, config_path=None, **kwargs
+        ):
             call_log.append(engine_config.type)
             if engine_config.type == "gitleaks":
                 return ScanResult(
@@ -456,7 +462,9 @@ class TestFirstMatchStrategyExecute(unittest.TestCase):
             self._make_engine("gitleaks"),
         ]
 
-        def scanner_fn(engine_config, source_file, report_file, config_path=None):
+        def scanner_fn(
+            engine_config, source_file, report_file, config_path=None, **kwargs
+        ):
             if engine_config.type == "missing":
                 return ScanResult(
                     has_secrets=False,
@@ -539,7 +547,7 @@ class TestPerEngineConfigPathResolution(unittest.TestCase):
         """FirstMatch should pass per-engine resolved config_path."""
         received = []
 
-        def tracking_fn(engine_config, source_file, report_file, config_path):
+        def tracking_fn(engine_config, source_file, report_file, config_path, **kwargs):
             received.append({"engine": engine_config.type, "config_path": config_path})
             return ScanResult(
                 has_secrets=False,
@@ -573,7 +581,7 @@ class TestPerEngineConfigPathResolution(unittest.TestCase):
         """AnyMatch should pass per-engine resolved config_path."""
         received = []
 
-        def tracking_fn(engine_config, source_file, report_file, config_path):
+        def tracking_fn(engine_config, source_file, report_file, config_path, **kwargs):
             received.append({"engine": engine_config.type, "config_path": config_path})
             return ScanResult(
                 has_secrets=False,
