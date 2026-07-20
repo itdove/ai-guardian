@@ -1258,6 +1258,18 @@ def main():
             default=".",
             help="Project directory to scan (default: current directory)",
         )
+        init_project_parser.add_argument(
+            "--scan",
+            action="store_true",
+            help="Run full scan and auto-generate config from false-positive analysis",
+        )
+        init_project_parser.add_argument(
+            "--threshold",
+            type=int,
+            default=10,
+            metavar="N",
+            help="Minimum file count to flag a pattern as false positive (default: 10)",
+        )
 
         args = parser.parse_args()
 
