@@ -455,6 +455,91 @@ jobs:
           fi
           rm -rf "$TEST_DIR"
 
+  init-scan:
+    name: Init Project Scan
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+          cache: 'pip'
+
+      - name: Install ai-guardian and scanners
+        run: |
+          python -m pip install --upgrade pip
+          pip install .
+          ai-guardian scanner install gitleaks --use-pinned
+
+      - name: Create config
+        run: |
+          export XDG_CONFIG_HOME=$(mktemp -d)
+          echo "XDG_CONFIG_HOME=$XDG_CONFIG_HOME" >> $GITHUB_ENV
+          ai-guardian setup --create-config
+
+      - name: "init-project --scan --dry-run → exits 0"
+        run: |
+          TEST_DIR=$(mktemp -d)
+          mkdir -p "$TEST_DIR/src" "$TEST_DIR/tests"
+          cat > "$TEST_DIR/pyproject.toml" << 'EOF'
+          [project]
+          name = "test-project"
+          EOF
+          for i in $(seq 1 15); do
+              echo "api_key = \"pk_test_XXXXXXXXXXXXXXXXXXXX${i}\"" > "$TEST_DIR/src/mod${i}.py"
+          done
+          for i in $(seq 1 10); do
+              echo "api_key = \"pk_test_YYYYYYYYYYYYYYYYYYYY${i}\"" > "$TEST_DIR/tests/test${i}.py"
+          done
+          OUTPUT=$(ai-guardian init-project --scan --dry-run --dir "$TEST_DIR" --threshold 5 2>&1)
+          echo "$OUTPUT"
+          echo "$OUTPUT" | grep -q "Scan Analysis" && echo "init-project --scan dry-run: PASS" || \
+            { echo "FAIL: no Scan Analysis in output"; exit 1; }
+          rm -rf "$TEST_DIR"
+
+      - name: "init-project --scan --json → valid JSON with scan_analysis"
+        run: |
+          TEST_DIR=$(mktemp -d)
+          mkdir -p "$TEST_DIR/src"
+          cat > "$TEST_DIR/pyproject.toml" << 'EOF'
+          [project]
+          name = "test-project"
+          EOF
+          for i in $(seq 1 12); do
+              echo "password = 'hunter2'" > "$TEST_DIR/src/file${i}.py"
+          done
+          OUTPUT=$(ai-guardian init-project --scan --json --dir "$TEST_DIR" --threshold 5 2>/dev/null)
+          echo "$OUTPUT" | python -c "
+          import json, sys
+          data = json.load(sys.stdin)
+          assert 'scan_analysis' in data, 'missing scan_analysis key'
+          assert data['scan_analysis']['total_findings'] >= 0, 'total_findings must be >= 0'
+          assert isinstance(data['scan_analysis']['high_frequency_clusters'], list), 'clusters must be list'
+          print('init-project --scan --json: PASS')
+          "
+          rm -rf "$TEST_DIR"
+
+      - name: "init-project without --scan → no scan_analysis in JSON"
+        run: |
+          TEST_DIR=$(mktemp -d)
+          cat > "$TEST_DIR/pyproject.toml" << 'EOF'
+          [project]
+          name = "test-project"
+          EOF
+          echo "x = 1" > "$TEST_DIR/app.py"
+          OUTPUT=$(ai-guardian init-project --json --dry-run --dir "$TEST_DIR" 2>/dev/null)
+          echo "$OUTPUT" | python -c "
+          import json, sys
+          data = json.load(sys.stdin)
+          assert 'scan_analysis' not in data, 'scan_analysis should not be present without --scan'
+          print('init-project without --scan: PASS')
+          "
+          rm -rf "$TEST_DIR"
+
   install-uninstall:
     name: Install/Uninstall Lifecycle
     runs-on: ubuntu-latest

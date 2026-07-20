@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **`init-project --scan` — auto-generate config from false positive analysis** (Issue #1584)
+  - Scans project with default config, clusters findings by pattern, identifies high-frequency patterns (10+ files) as likely false positives
+  - Generates tuned `.ai-guardian/ai-guardian.json` with allowlist patterns and `.aiguardignore.toml` with per-scanner directory ignores
+  - `--threshold N` flag to control false positive sensitivity (default: 10)
+  - Never auto-suppresses SSRF, Unicode attack, or canary token findings
+  - Interactive confirmation prompt before writing; auto-writes in `--json` mode
+  - New `scan_analyzer.py` module for reusable finding analysis
+
 ## [1.14.0] - 2026-07-13
 
 ### Changed
