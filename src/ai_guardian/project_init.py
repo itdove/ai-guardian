@@ -684,56 +684,69 @@ _language_fp_cache: Dict[str, tuple] = {}
 _LANGUAGE_FP_CACHE_TTL = 300.0
 
 
-def get_language_allowlist_patterns(project_dir: str) -> List[str]:
-    """Return auto-detected prompt injection allowlist patterns for a project.
+def get_language_allowlist_patterns(
+    project_dir: str, scanner_name: str = "prompt_injection"
+) -> List[str]:
+    """Return auto-detected allowlist patterns for a project and scanner.
 
     Scans the project root for language marker files (pyproject.toml, go.mod,
     etc.) and returns known false positive patterns for the detected languages.
-    Results are cached per project_dir with a 5-minute TTL.
+    Results are cached per project_dir with a 5-minute TTL.  The cache stores
+    patterns for *all* scanner keys so that ``detect_languages()`` only runs
+    once per TTL regardless of how many scanners request overlays.
     """
     cached = _language_fp_cache.get(project_dir)
     if cached is not None:
-        patterns, ts = cached
+        all_patterns, ts = cached
         if (time.monotonic() - ts) < _LANGUAGE_FP_CACHE_TTL:
-            return patterns
+            return list(all_patterns.get(scanner_name, []))
 
     if not project_dir:
-        _language_fp_cache[project_dir] = ([], time.monotonic())
+        _language_fp_cache[project_dir] = ({}, time.monotonic())
         return []
 
     try:
         initializer = ProjectInitializer(Path(project_dir))
         languages = initializer.detect_languages()
     except Exception:
-        _language_fp_cache[project_dir] = ([], time.monotonic())
+        _language_fp_cache[project_dir] = ({}, time.monotonic())
         return []
 
-    patterns: List[str] = []
+    all_patterns: Dict[str, List[str]] = {}
     lang_names: List[str] = []
     for lang in languages:
-        fp = lang.definition.false_positive_patterns.get("prompt_injection", [])
-        for p in fp:
-            try:
-                re.compile(p)
-                patterns.append(p)
-            except re.error:
-                logger.warning(
-                    "Invalid regex in %s false_positive_patterns: %s",
-                    lang.definition.name,
-                    p,
-                )
+        for key, fp_list in lang.definition.false_positive_patterns.items():
+            validated: List[str] = []
+            for p in fp_list:
+                try:
+                    re.compile(p)
+                    validated.append(p)
+                except re.error:
+                    logger.warning(
+                        "Invalid regex in %s false_positive_patterns[%s]: %s",
+                        lang.definition.name,
+                        key,
+                        p,
+                    )
+            if validated:
+                existing = all_patterns.get(key, [])
+                all_patterns[key] = existing + validated
 
-        if fp:
+        if scanner_name in lang.definition.false_positive_patterns:
             lang_names.append(lang.definition.name)
 
-    patterns = list(dict.fromkeys(patterns))
-    _language_fp_cache[project_dir] = (patterns, time.monotonic())
+    for key in all_patterns:
+        all_patterns[key] = list(dict.fromkeys(all_patterns[key]))
 
-    if patterns:
+    _language_fp_cache[project_dir] = (all_patterns, time.monotonic())
+
+    result = all_patterns.get(scanner_name, [])
+    if result:
         logger.info(
-            "Auto-detected %s project — suppressing %d false positive patterns",
+            "Auto-detected %s project — suppressing %d %s false positive patterns",
             ", ".join(lang_names),
-            len(patterns),
+            len(result),
+            scanner_name,
         )
 
-    return patterns
+    return list(result)

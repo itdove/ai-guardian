@@ -11,6 +11,7 @@ from ai_guardian.patterns.language import (
     SKIP_DIRS,
     LanguageDefinition,
 )
+from ai_guardian.hook_events.scanners import apply_language_overlays
 from ai_guardian.project_init import (
     AllowlistEntry,
     DetectedLanguage,
@@ -594,9 +595,15 @@ class TestGetLanguageAllowlistPatterns:
 
     def test_results_are_cached(self, tmp_path):
         (tmp_path / "pyproject.toml").write_text("[project]")
-        p1 = get_language_allowlist_patterns(str(tmp_path))
-        p2 = get_language_allowlist_patterns(str(tmp_path))
-        assert p1 is p2
+        with patch.object(
+            ProjectInitializer,
+            "detect_languages",
+            wraps=ProjectInitializer(tmp_path).detect_languages,
+        ) as spy:
+            p1 = get_language_allowlist_patterns(str(tmp_path))
+            p2 = get_language_allowlist_patterns(str(tmp_path))
+            assert p1 == p2
+            assert spy.call_count == 1
 
     def test_patterns_are_deduplicated(self, tmp_path):
         (tmp_path / "package.json").write_text("{}")
@@ -614,6 +621,75 @@ class TestGetLanguageAllowlistPatterns:
     def test_none_project_dir_returns_empty(self):
         patterns = get_language_allowlist_patterns("")
         assert patterns == []
+
+    def test_scanner_name_default_is_prompt_injection(self, tmp_path):
+        (tmp_path / "pyproject.toml").write_text("[project]")
+        default = get_language_allowlist_patterns(str(tmp_path))
+        explicit = get_language_allowlist_patterns(str(tmp_path), "prompt_injection")
+        assert default == explicit
+
+    def test_unknown_scanner_name_returns_empty(self, tmp_path):
+        (tmp_path / "pyproject.toml").write_text("[project]")
+        patterns = get_language_allowlist_patterns(str(tmp_path), "nonexistent_scanner")
+        assert patterns == []
+
+    def test_cache_serves_multiple_scanner_names(self, tmp_path):
+        (tmp_path / "pyproject.toml").write_text("[project]")
+        pi = get_language_allowlist_patterns(str(tmp_path), "prompt_injection")
+        empty = get_language_allowlist_patterns(str(tmp_path), "secret")
+        assert len(pi) > 0
+        assert empty == []
+
+
+class TestApplyLanguageOverlays:
+    """Tests for apply_language_overlays() shared helper."""
+
+    @pytest.fixture(autouse=True)
+    def clear_cache(self):
+        _language_fp_cache.clear()
+        yield
+        _language_fp_cache.clear()
+
+    def test_merges_patterns_into_config(self, tmp_path):
+        (tmp_path / "pyproject.toml").write_text("[project]")
+        with patch(
+            "ai_guardian.hook_events.scanners.get_project_dir",
+            return_value=str(tmp_path),
+        ):
+            config = {"enabled": True, "allowlist_patterns": ["existing"]}
+            result = apply_language_overlays(config, "prompt_injection")
+            assert "existing" in result["allowlist_patterns"]
+            assert "__init__" in result["allowlist_patterns"]
+
+    def test_does_not_mutate_original_config(self, tmp_path):
+        (tmp_path / "pyproject.toml").write_text("[project]")
+        with patch(
+            "ai_guardian.hook_events.scanners.get_project_dir",
+            return_value=str(tmp_path),
+        ):
+            config = {"enabled": True, "allowlist_patterns": ["existing"]}
+            result = apply_language_overlays(config, "prompt_injection")
+            assert config["allowlist_patterns"] == ["existing"]
+            assert result is not config
+
+    def test_no_project_dir_returns_unchanged(self):
+        with patch(
+            "ai_guardian.hook_events.scanners.get_project_dir",
+            return_value=None,
+        ):
+            config = {"enabled": True}
+            result = apply_language_overlays(config, "prompt_injection")
+            assert result is config
+
+    def test_unknown_scanner_returns_unchanged(self, tmp_path):
+        (tmp_path / "pyproject.toml").write_text("[project]")
+        with patch(
+            "ai_guardian.hook_events.scanners.get_project_dir",
+            return_value=str(tmp_path),
+        ):
+            config = {"enabled": True}
+            result = apply_language_overlays(config, "nonexistent_scanner")
+            assert result is config
 
 
 class TestAutoDetectionIntegration:
@@ -645,7 +721,7 @@ class TestAutoDetectionIntegration:
         config = {"enabled": True}
 
         with patch(
-            "ai_guardian.config.utils.get_project_dir",
+            "ai_guardian.hook_events.scanners.get_project_dir",
             return_value=str(tmp_path),
         ):
             from ai_guardian.hook_events.scanners import run_prompt_injection_scan
