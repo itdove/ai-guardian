@@ -137,6 +137,7 @@ Transcript scanning uses a polymorphic `TranscriptAdapter` interface (`scanners/
 | Codex | JSONL | `~/.codex/sessions/YYYY/MM/DD/*.jsonl` |
 | Cline / ZooCode | JSON array | `~/Library/Application Support/Code/User/globalStorage/saoudrizwan.claude-dev/tasks/<task_id>/api_conversation_history.json` |
 | Windsurf | JSONL | `~/.windsurf/transcripts/{trajectory_id}.jsonl` |
+| Kiro | JSONL | `~/.kiro/sessions/cli/{session_id}.jsonl` |
 
 Agents not listed above do not have transcript scanning support.
 
