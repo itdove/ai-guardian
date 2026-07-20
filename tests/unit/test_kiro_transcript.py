@@ -477,5 +477,38 @@ class TestKiroTranscriptAdapter(unittest.TestCase):
                 self.assertEqual(mock_scan.call_args[0][0], fallback_path)
 
 
+class TestGetMostRecentEntryOSError(unittest.TestCase):
+    """Test _get_most_recent_entry inner OSError guard on mtime."""
+
+    def test_skips_entry_with_mtime_oserror(self):
+        from ai_guardian.scanners.transcript.common import _get_most_recent_entry
+
+        tmpdir = tempfile.mkdtemp()
+        try:
+            good = os.path.join(tmpdir, "good.jsonl")
+            bad = os.path.join(tmpdir, "bad.jsonl")
+            _write_jsonl(good, [{"type": "user_message", "content": "ok"}])
+            _write_jsonl(bad, [{"type": "user_message", "content": "fail"}])
+
+            call_count = [0]
+
+            def failing_mtime(entry):
+                call_count[0] += 1
+                if entry.name == "bad.jsonl":
+                    raise OSError("file vanished")
+                return entry.stat().st_mtime
+
+            result = _get_most_recent_entry(
+                tmpdir,
+                match_fn=lambda e: e.is_file() and e.name.endswith(".jsonl"),
+                label="Test",
+                mtime_fn=failing_mtime,
+            )
+            self.assertEqual(result, good)
+            self.assertEqual(call_count[0], 2)
+        finally:
+            shutil.rmtree(tmpdir, ignore_errors=True)
+
+
 if __name__ == "__main__":
     unittest.main()
