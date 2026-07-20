@@ -9,7 +9,7 @@ and only generates allowlist entries for ones that actually trigger.
 """
 
 from dataclasses import dataclass, field
-from typing import List
+from typing import Dict, List
 
 
 @dataclass
@@ -20,6 +20,7 @@ class LanguageDefinition:
     file_extensions: List[str]
     config_files: List[str] = field(default_factory=list)
     identifiers: List[str] = field(default_factory=list)
+    false_positive_patterns: Dict[str, List[str]] = field(default_factory=dict)
 
 
 SKIP_DIRS = frozenset(
@@ -74,6 +75,17 @@ LANGUAGE_REGISTRY: List[LanguageDefinition] = [
             "__mro__",
             "__subclasses__",
         ],
+        false_positive_patterns={
+            "prompt_injection": [
+                "__init__",
+                "__import__",
+                "__class__",
+                "__globals__",
+                "__builtins__",
+                "__mro__",
+                "__subclasses__",
+            ],
+        },
     ),
     LanguageDefinition(
         name="JavaScript",
@@ -83,6 +95,12 @@ LANGUAGE_REGISTRY: List[LanguageDefinition] = [
             "<script>",
             '<script src="app.js">',
         ],
+        false_positive_patterns={
+            "prompt_injection": [
+                r"eval\(",
+                r"Function\(",
+            ],
+        },
     ),
     LanguageDefinition(
         name="TypeScript",
@@ -91,6 +109,12 @@ LANGUAGE_REGISTRY: List[LanguageDefinition] = [
         identifiers=[
             "<script>",
         ],
+        false_positive_patterns={
+            "prompt_injection": [
+                r"eval\(",
+                r"Function\(",
+            ],
+        },
     ),
     LanguageDefinition(
         name="HTML",
@@ -114,6 +138,15 @@ LANGUAGE_REGISTRY: List[LanguageDefinition] = [
             "__METHOD__",
             "__FUNCTION__",
         ],
+        false_positive_patterns={
+            "prompt_injection": [
+                "__CLASS__",
+                "__construct",
+                "__destruct",
+                "__METHOD__",
+                "__FUNCTION__",
+            ],
+        },
     ),
     LanguageDefinition(
         name="Ruby",
@@ -126,6 +159,16 @@ LANGUAGE_REGISTRY: List[LanguageDefinition] = [
             "__LINE__",
             "__ENCODING__",
         ],
+        false_positive_patterns={
+            "prompt_injection": [
+                "__send__",
+                "__method__",
+                "__dir__",
+                "__FILE__",
+                "__LINE__",
+                "__ENCODING__",
+            ],
+        },
     ),
     LanguageDefinition(
         name="C/C++",
@@ -139,12 +182,27 @@ LANGUAGE_REGISTRY: List[LanguageDefinition] = [
             "__TIME__",
             "__STDC__",
         ],
+        false_positive_patterns={
+            "prompt_injection": [
+                "__FILE__",
+                "__LINE__",
+                "__func__",
+                "__DATE__",
+                "__TIME__",
+                "__STDC__",
+            ],
+        },
     ),
     LanguageDefinition(
         name="Go",
         file_extensions=[".go"],
         config_files=["go.mod", "go.sum"],
         identifiers=[],
+        false_positive_patterns={
+            "prompt_injection": [
+                r"func init\(\)",
+            ],
+        },
     ),
     LanguageDefinition(
         name="Rust",
@@ -157,6 +215,12 @@ LANGUAGE_REGISTRY: List[LanguageDefinition] = [
         file_extensions=[".java"],
         config_files=["pom.xml", "build.gradle", "build.gradle.kts"],
         identifiers=[],
+        false_positive_patterns={
+            "prompt_injection": [
+                r"Class\.forName\s*\(",
+                r"Runtime\.exec\s*\(",
+            ],
+        },
     ),
     LanguageDefinition(
         name="Kotlin",
