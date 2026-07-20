@@ -12,6 +12,7 @@ Usage in ai-guardian.json:
 """
 
 import logging
+import os
 import re
 import sys
 from typing import List, Optional
@@ -134,7 +135,12 @@ class TomlPatternsScanner(Scanner):
             if matches_ignore_files(file_path, self._ignore_files):
                 return []
 
-        raw_findings = self._cache.scan(content, categories=["secrets"])
+        file_ext = None
+        if file_path:
+            file_ext = os.path.splitext(file_path)[1].lower() or None
+        raw_findings = self._cache.scan(
+            content, categories=["secrets"], file_ext=file_ext
+        )
         findings = []
         for f in raw_findings:
             if self._stopwords and f.category == "secrets":

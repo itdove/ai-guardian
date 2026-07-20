@@ -267,3 +267,30 @@ regex = "test"
         path.write_bytes(toml_content)
         compiled = load_and_compile(path, "my_category")
         assert compiled[0].category == "my_category"
+
+    def test_skip_file_types_in_metadata(self, tmp_path):
+        toml_content = b"""
+[[rules]]
+id = "yaml-only"
+match_type = "regex"
+regex = "password:\\\\s*\\\\S+"
+skip_file_types = [".py", ".js", ".go"]
+"""
+        path = tmp_path / "test.toml"
+        path.write_bytes(toml_content)
+        compiled = load_and_compile(path, "secrets")
+        assert compiled[0].metadata["skip_file_types"] == frozenset(
+            [".py", ".js", ".go"]
+        )
+
+    def test_no_skip_file_types_absent_from_metadata(self, tmp_path):
+        toml_content = b"""
+[[rules]]
+id = "universal"
+match_type = "regex"
+regex = "sk-[a-z]+"
+"""
+        path = tmp_path / "test.toml"
+        path.write_bytes(toml_content)
+        compiled = load_and_compile(path, "secrets")
+        assert "skip_file_types" not in compiled[0].metadata
