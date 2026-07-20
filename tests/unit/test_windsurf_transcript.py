@@ -308,7 +308,7 @@ class TestScanWindsurfTranscriptIncremental(unittest.TestCase):
             _write_jsonl(path, steps)
 
             with mock.patch(
-                "ai_guardian.scanners.transcript.windsurf._scan_transcript_text",
+                "ai_guardian.scanners.transcript.common._scan_transcript_text",
                 return_value=["WARNING: test"],
             ) as mock_scan:
                 warnings = scan_windsurf_transcript_incremental(path, TRAJECTORY_ID)
