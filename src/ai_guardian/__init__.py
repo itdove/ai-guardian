@@ -183,6 +183,8 @@ from ai_guardian.scanners.transcript import (  # noqa: F401
     _extract_text_from_transcript_line,
     scan_transcript_incremental,
     _scan_transcript_text,
+    scan_aiderdesk_transcript_incremental,
+    scan_openclaw_transcript_incremental,
     scan_opencode_transcript_incremental,
     _log_transcript_violation,
 )

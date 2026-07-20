@@ -3,9 +3,14 @@
 Provides a polymorphic TranscriptAdapter interface and concrete adapters
 for JSONL (Claude Code, Copilot, Codex), Copilot Chat (VS Code JSONL
 delta journal), OpenCode (SQLite), Cursor (SQLite),
-Cline/ZooCode (JSON array), Kiro (JSONL), and Windsurf (JSONL).
+Cline/ZooCode (JSON array), Kiro (JSONL), Windsurf (JSONL),
+AiderDesk (Markdown), and OpenClaw (JSONL).
 """
 
+from ai_guardian.scanners.transcript.aiderdesk import (
+    AiderDeskTranscriptAdapter,
+    scan_aiderdesk_transcript_incremental,
+)
 from ai_guardian.scanners.transcript.base import TranscriptAdapter
 from ai_guardian.scanners.transcript.common import (
     _discover_path,
@@ -46,12 +51,18 @@ from ai_guardian.scanners.transcript.opencode import (
     OpenCodeTranscriptAdapter,
     scan_opencode_transcript_incremental,
 )
+from ai_guardian.scanners.transcript.openclaw import (
+    OpenClawTranscriptAdapter,
+    scan_openclaw_transcript_incremental,
+)
 from ai_guardian.scanners.transcript.windsurf import (
     WindsurfTranscriptAdapter,
     scan_windsurf_transcript_incremental,
 )
 
 TRANSCRIPT_ADAPTERS = [
+    AiderDeskTranscriptAdapter(),
+    OpenClawTranscriptAdapter(),
     ClineTranscriptAdapter(),
     CopilotChatTranscriptAdapter(),
     KiroTranscriptAdapter(),
@@ -64,9 +75,11 @@ TRANSCRIPT_ADAPTERS = [
 __all__ = [
     "TranscriptAdapter",
     "TRANSCRIPT_ADAPTERS",
+    "AiderDeskTranscriptAdapter",
     "ClineTranscriptAdapter",
     "CopilotChatTranscriptAdapter",
     "KiroTranscriptAdapter",
+    "OpenClawTranscriptAdapter",
     "WindsurfTranscriptAdapter",
     "_advance_transcript_position",
     "_discover_path",
@@ -84,7 +97,9 @@ __all__ = [
     "scan_cline_transcript_incremental",
     "scan_copilot_chat_transcript_incremental",
     "scan_cursor_transcript_incremental",
+    "scan_aiderdesk_transcript_incremental",
     "scan_kiro_transcript_incremental",
+    "scan_openclaw_transcript_incremental",
     "scan_opencode_transcript_incremental",
     "scan_transcript_incremental",
     "scan_windsurf_transcript_incremental",
