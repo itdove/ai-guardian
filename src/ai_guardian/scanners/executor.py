@@ -48,6 +48,7 @@ def run_single_engine(
     timeout: int = 30,
     cache=None,
     content_hash: Optional[str] = None,
+    **kwargs,
 ) -> ScanResult:
     """
     Run a single scanner engine and return standardized results.
@@ -198,6 +199,7 @@ def run_python_scanner(
     timeout: int = 30,
     cache=None,
     content_hash: Optional[str] = None,
+    original_file_path: Optional[str] = None,
 ) -> ScanResult:
     """
     Run a Python-based scanner in-process and return standardized results.
@@ -230,7 +232,7 @@ def run_python_scanner(
         with open(source_file, "r", encoding="utf-8", errors="ignore") as f:
             content = f.read()
 
-        findings = scanner.scan(content, file_path=source_file)
+        findings = scanner.scan(content, file_path=original_file_path or source_file)
         elapsed_ms = (time.monotonic() - start_time) * 1000
 
         if not findings:
@@ -335,6 +337,7 @@ def run_engine(
     timeout: int = 30,
     cache=None,
     content_hash: Optional[str] = None,
+    original_file_path: Optional[str] = None,
 ) -> ScanResult:
     """
     Run a scanner engine, dispatching to the correct executor.
@@ -365,6 +368,7 @@ def run_engine(
             timeout,
             cache,
             content_hash,
+            original_file_path=original_file_path,
         )
 
     # Try listen mode when the engine supports it and daemon is running (#1590)
