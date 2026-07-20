@@ -32,7 +32,7 @@ def _make_engine(engine_type, file_patterns=None, ignore_files=None):
 def _make_scanner_fn(results_by_engine):
     """Create a mock scanner function that returns predefined results."""
 
-    def scanner_fn(engine_config, source_file, report_file, config_path=None):
+    def scanner_fn(engine_config, source_file, report_file, config_path=None, **kwargs):
         engine_type = engine_config.type
         if engine_type in results_by_engine:
             return results_by_engine[engine_type]
@@ -227,7 +227,7 @@ class TestFirstMatchFallthroughBehavior(unittest.TestCase):
         call_log = []
 
         def tracking_scanner_fn(
-            engine_config, source_file, report_file, config_path=None
+            engine_config, source_file, report_file, config_path=None, **kwargs
         ):
             call_log.append(engine_config.type)
             if engine_config.type == "betterleaks":
@@ -432,7 +432,7 @@ class TestFileTypeRouting(unittest.TestCase):
 
         call_log = []
 
-        def scanner_fn(config, src, report, path=None):
+        def scanner_fn(config, src, report, path=None, **kwargs):
             call_log.append(config.type)
             return ScanResult(has_secrets=False, secrets=[], engine=config.type)
 
@@ -454,7 +454,7 @@ class TestFileTypeRouting(unittest.TestCase):
 
         call_log = []
 
-        def scanner_fn(config, src, report, path=None):
+        def scanner_fn(config, src, report, path=None, **kwargs):
             call_log.append(config.type)
             return ScanResult(has_secrets=False, secrets=[], engine=config.type)
 
@@ -476,7 +476,7 @@ class TestFileTypeRouting(unittest.TestCase):
 
         call_log = []
 
-        def scanner_fn(config, src, report, path=None):
+        def scanner_fn(config, src, report, path=None, **kwargs):
             call_log.append(config.type)
             return ScanResult(has_secrets=False, secrets=[], engine=config.type)
 
