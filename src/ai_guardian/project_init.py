@@ -413,7 +413,11 @@ def get_language_allowlist_patterns(project_dir: str) -> List[str]:
                 re.compile(p)
                 patterns.append(p)
             except re.error:
-                logger.warning("Invalid regex in %s false_positive_patterns: %s", lang.definition.name, p)
+                logger.warning(
+                    "Invalid regex in %s false_positive_patterns: %s",
+                    lang.definition.name,
+                    p,
+                )
 
         if fp:
             lang_names.append(lang.definition.name)
