@@ -182,6 +182,8 @@ def _get_default_config_template(permissive: bool = False) -> Dict:
                 "allow_rtl_languages": True,
                 "allow_emoji": True,
             },
+            "_comment_auto_download_model": "Automatically download ML models when the daemon starts and ml_engines is configured. Set to false to disable outbound downloads.",
+            "auto_download_model": True,
         },
         "_comment_secret_redaction": "Redact secrets from tool outputs instead of blocking (NEW in v1.5.0, Phase 4)",
         "secret_redaction": {

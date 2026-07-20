@@ -81,7 +81,31 @@ def _handle_ml_command(args, ml_parser):
         ml_parser.print_help()
         return 1
 
-    if cmd == "download":
+    if cmd == "setup":
+        from ai_guardian.scanners.ml_detection import setup_ml
+
+        result = setup_ml(
+            detector=args.detector,
+            model=args.model,
+            threshold=args.threshold,
+            force=args.force,
+        )
+
+        for step_name, ok, msg in result["steps"]:
+            status = "ok" if ok else "FAILED"
+            print(f"  [{status}] {step_name}: {msg}")
+
+        if result["success"]:
+            print()
+            print("ML prompt injection detection is ready.")
+            print("Restart the daemon to load the model: ai-guardian daemon restart")
+            return 0
+        else:
+            print()
+            print("Setup incomplete. See errors above.", file=sys.stderr)
+            return 1
+
+    elif cmd == "download":
         from ai_guardian.scanners.ml_detection import is_ml_available, download_model
 
         if not is_ml_available():
@@ -696,6 +720,33 @@ def main():
             "ml", help="Manage ML models for prompt injection detection"
         )
         ml_sub = ml_parser.add_subparsers(dest="ml_command", help="ML model commands")
+
+        ml_setup_parser = ml_sub.add_parser(
+            "setup",
+            help="One-command ML detection setup (download model + configure)",
+        )
+        ml_setup_parser.add_argument(
+            "--detector",
+            choices=["hybrid", "ml"],
+            default="hybrid",
+            help="Detection mode: hybrid (heuristic+ML, recommended) or ml (ML only)",
+        )
+        ml_setup_parser.add_argument(
+            "--model",
+            default="protectai/deberta-v3-base-prompt-injection-v2",
+            help="Model name from registry",
+        )
+        ml_setup_parser.add_argument(
+            "--threshold",
+            type=float,
+            default=0.85,
+            help="Confidence threshold (0.0-1.0, default: 0.85)",
+        )
+        ml_setup_parser.add_argument(
+            "--force",
+            action="store_true",
+            help="Re-download model and overwrite existing config",
+        )
 
         ml_download_parser = ml_sub.add_parser(
             "download", help="Download ML model from HuggingFace"
