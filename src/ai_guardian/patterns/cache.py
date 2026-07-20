@@ -166,13 +166,19 @@ class PatternCache:
         return list(self._rules_by_category.keys())
 
     def scan(
-        self, content: str, categories: Optional[List[str]] = None
+        self,
+        content: str,
+        categories: Optional[List[str]] = None,
+        file_ext: Optional[str] = None,
     ) -> List[ScanFinding]:
         """Scan content against compiled patterns.
 
         Args:
             content: Text content to scan
             categories: If specified, only scan these categories
+            file_ext: Lowercase file extension (e.g. ".py"). When set,
+                rules whose ``skip_file_types`` metadata contains this
+                extension are skipped.
 
         Returns:
             List of ScanFinding objects for matches found
@@ -184,6 +190,11 @@ class PatternCache:
         rules = self._get_filtered_rules(categories)
 
         for rule in rules:
+            if file_ext:
+                skip_exts = rule.metadata.get("skip_file_types")
+                if skip_exts and file_ext in skip_exts:
+                    continue
+
             if rule.match_type == "regex":
                 findings.extend(self._scan_regex(content, rule))
             elif rule.match_type == "literal":

@@ -1,5 +1,6 @@
 """Tests for TomlPatternsScanner — Scanner SDK engine."""
 
+from ai_guardian.patterns.cache import PatternCache
 from ai_guardian.patterns.validators import shannon_entropy
 from ai_guardian.scanners.sdk import Scanner, Finding
 from ai_guardian.scanners.toml_patterns import TomlPatternsScanner
@@ -637,3 +638,136 @@ class TestTomlPatternsStopwords:
         scanner = TomlPatternsScanner()
         findings = scanner.scan("Contact: test@example.com")
         assert not any(f.rule_id.startswith("pii-") for f in findings)
+
+
+class TestTomlPatternsSkipFileTypes:
+    """Tests for per-rule skip_file_types filtering (Issue #1586)."""
+
+    def test_skip_file_types_skips_matching_extension(self):
+        """Rule with skip_file_types is skipped when file extension matches."""
+        cache = PatternCache()
+        cache.load_rules(
+            [
+                {
+                    "id": "yaml-only-rule",
+                    "match_type": "regex",
+                    "regex": r"password:\s*\S+",
+                    "skip_file_types": [".py", ".js"],
+                }
+            ],
+            category="secrets",
+        )
+        findings = cache.scan("password: mysecretvalue", file_ext=".py")
+        assert len(findings) == 0
+
+    def test_skip_file_types_allows_non_matching_extension(self):
+        """Rule fires when file extension is not in skip_file_types."""
+        cache = PatternCache()
+        cache.load_rules(
+            [
+                {
+                    "id": "yaml-only-rule",
+                    "match_type": "regex",
+                    "regex": r"password:\s*\S+",
+                    "skip_file_types": [".py", ".js"],
+                }
+            ],
+            category="secrets",
+        )
+        findings = cache.scan("password: mysecretvalue", file_ext=".yaml")
+        assert len(findings) >= 1
+
+    def test_skip_file_types_no_file_ext_runs_all(self):
+        """All rules run when file_ext is None (safe default)."""
+        cache = PatternCache()
+        cache.load_rules(
+            [
+                {
+                    "id": "yaml-only-rule",
+                    "match_type": "regex",
+                    "regex": r"password:\s*\S+",
+                    "skip_file_types": [".py", ".js"],
+                }
+            ],
+            category="secrets",
+        )
+        findings = cache.scan("password: mysecretvalue")
+        assert len(findings) >= 1
+
+    def test_skip_file_types_empty_list_runs_all(self):
+        """Rule without skip_file_types runs on all file types."""
+        cache = PatternCache()
+        cache.load_rules(
+            [
+                {
+                    "id": "universal-rule",
+                    "match_type": "regex",
+                    "regex": r"sk-[a-z]{20,}",
+                }
+            ],
+            category="secrets",
+        )
+        findings = cache.scan("sk-abcdefghijklmnopqrstuvwxyz", file_ext=".py")
+        assert len(findings) >= 1
+
+    def test_scanner_extracts_extension_from_file_path(self):
+        """TomlPatternsScanner passes file extension to cache."""
+        scanner = TomlPatternsScanner()
+        scanner._cache = PatternCache()
+        scanner._cache.load_rules(
+            [
+                {
+                    "id": "yaml-only-rule",
+                    "match_type": "regex",
+                    "regex": r"password:\s*\S{8,}",
+                    "skip_file_types": [".py"],
+                }
+            ],
+            category="secrets",
+        )
+        findings_py = scanner.scan(
+            "password: MySecret123", file_path="/tmp/aiguardian_config.py"
+        )
+        findings_yaml = scanner.scan(
+            "password: MySecret123", file_path="/tmp/aiguardian_config.yaml"
+        )
+        assert len(findings_py) == 0
+        assert len(findings_yaml) >= 1
+
+    def test_scanner_no_file_path_runs_all_rules(self):
+        """Scanner runs all rules when no file_path is provided."""
+        scanner = TomlPatternsScanner()
+        scanner._cache = PatternCache()
+        scanner._cache.load_rules(
+            [
+                {
+                    "id": "yaml-only-rule",
+                    "match_type": "regex",
+                    "regex": r"password:\s*\S{8,}",
+                    "skip_file_types": [".py"],
+                }
+            ],
+            category="secrets",
+        )
+        findings = scanner.scan("password: MySecret123")
+        assert len(findings) >= 1
+
+    def test_yaml_password_rule_skipped_on_python_file(self):
+        """Bundled yaml-password rule has skip_file_types including .py."""
+        scanner = TomlPatternsScanner()
+        findings = scanner.scan(
+            "password: SuperSecretPassword123",
+            file_path="/tmp/aiguardian_app.py",
+        )
+        yaml_pw = [f for f in findings if f.rule_id == "yaml-password"]
+        assert len(yaml_pw) == 0
+
+    def test_yaml_password_rule_fires_on_yaml_file(self):
+        """Bundled yaml-password rule fires on .yaml files."""
+        scanner = TomlPatternsScanner()
+        findings = scanner.scan(
+            "password: SuperSecretPassword123",
+            file_path="/tmp/aiguardian_config.yaml",
+        )
+        yaml_pw = [f for f in findings if f.rule_id == "yaml-password"]
+        assert len(yaml_pw) >= 1

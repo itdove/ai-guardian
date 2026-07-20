@@ -200,6 +200,9 @@ def compile_rule(raw: dict, category: str) -> CompiledRule:
 
     metadata = {k: v for k, v in raw.items() if k not in RESERVED_FIELDS}
 
+    if "skip_file_types" in metadata and isinstance(metadata["skip_file_types"], list):
+        metadata["skip_file_types"] = frozenset(metadata["skip_file_types"])
+
     return CompiledRule(
         id=rule_id,
         match_type=match_type,
