@@ -141,6 +141,46 @@ def _scan_with_position_tracking(
 # ---------------------------------------------------------------------------
 
 
+def _get_most_recent_entry(
+    directory: str,
+    match_fn: Callable[[os.DirEntry], bool],
+    label: str = "Transcript",
+    mtime_fn: Optional[Callable[[os.DirEntry], float]] = None,
+) -> Optional[str]:
+    """Find the most recently modified entry in *directory* matching *match_fn*.
+
+    Args:
+        directory: Directory to scan with :func:`os.scandir`.
+        match_fn: Predicate receiving an :class:`os.DirEntry`; return ``True``
+            for entries that should be considered.
+        label: Human-readable name for debug logging.
+        mtime_fn: Optional function to extract mtime from a matched entry.
+            Defaults to ``entry.stat().st_mtime``.
+
+    Returns:
+        Path of the most recently modified matching entry, or ``None``.
+    """
+    best_mtime = -1.0
+    best_path: Optional[str] = None
+    try:
+        with os.scandir(directory) as it:
+            for entry in it:
+                if not match_fn(entry):
+                    continue
+                try:
+                    mtime = mtime_fn(entry) if mtime_fn else entry.stat().st_mtime
+                except OSError:
+                    continue
+                if mtime > best_mtime:
+                    best_mtime = mtime
+                    best_path = entry.path
+    except OSError as e:
+        logging.debug(f"{label} directory listing error: {e}")
+        return None
+
+    return best_path
+
+
 def _discover_path(
     env_var: str,
     default: str,

@@ -14,6 +14,7 @@ from typing import Dict, List, Optional, Tuple
 
 from ai_guardian.scanners.transcript.base import TranscriptAdapter
 from ai_guardian.scanners.transcript.common import (
+    _get_most_recent_entry,
     _scan_transcript_text,
     _scan_with_position_tracking,
 )
@@ -103,24 +104,14 @@ def _extract_text_from_cline_message(message: dict) -> str:
 
 def get_most_recent_task_dir(storage_dir: str) -> Optional[str]:
     """Find the most recently modified task directory."""
-    best_mtime = -1.0
-    best_path: Optional[str] = None
-    try:
-        with os.scandir(storage_dir) as it:
-            for entry in it:
-                if not entry.is_dir():
-                    continue
-                history = os.path.join(entry.path, HISTORY_FILENAME)
-                if os.path.isfile(history):
-                    mtime = os.path.getmtime(history)
-                    if mtime > best_mtime:
-                        best_mtime = mtime
-                        best_path = entry.path
-    except OSError as e:
-        logging.debug(f"Cline storage listing error: {e}")
-        return None
-
-    return best_path
+    return _get_most_recent_entry(
+        storage_dir,
+        match_fn=lambda e: (
+            e.is_dir() and os.path.isfile(os.path.join(e.path, HISTORY_FILENAME))
+        ),
+        label="Cline",
+        mtime_fn=lambda e: os.path.getmtime(os.path.join(e.path, HISTORY_FILENAME)),
+    )
 
 
 def read_cline_task_transcript(
