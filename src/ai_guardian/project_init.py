@@ -15,8 +15,10 @@ Usage:
 import json
 import logging
 import os
+import re
 import shutil
 import sys
+import time
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Dict, List, Optional, Set, Tuple
@@ -372,3 +374,62 @@ def init_project_command(args) -> int:
         return 1
 
     return 0
+
+
+_language_fp_cache: Dict[str, tuple] = {}
+_LANGUAGE_FP_CACHE_TTL = 300.0
+
+
+def get_language_allowlist_patterns(project_dir: str) -> List[str]:
+    """Return auto-detected prompt injection allowlist patterns for a project.
+
+    Scans the project root for language marker files (pyproject.toml, go.mod,
+    etc.) and returns known false positive patterns for the detected languages.
+    Results are cached per project_dir with a 5-minute TTL.
+    """
+    cached = _language_fp_cache.get(project_dir)
+    if cached is not None:
+        patterns, ts = cached
+        if (time.monotonic() - ts) < _LANGUAGE_FP_CACHE_TTL:
+            return patterns
+
+    if not project_dir:
+        _language_fp_cache[project_dir] = ([], time.monotonic())
+        return []
+
+    try:
+        initializer = ProjectInitializer(Path(project_dir))
+        languages = initializer.detect_languages()
+    except Exception:
+        _language_fp_cache[project_dir] = ([], time.monotonic())
+        return []
+
+    patterns: List[str] = []
+    lang_names: List[str] = []
+    for lang in languages:
+        fp = lang.definition.false_positive_patterns.get("prompt_injection", [])
+        for p in fp:
+            try:
+                re.compile(p)
+                patterns.append(p)
+            except re.error:
+                logger.warning(
+                    "Invalid regex in %s false_positive_patterns: %s",
+                    lang.definition.name,
+                    p,
+                )
+
+        if fp:
+            lang_names.append(lang.definition.name)
+
+    patterns = list(dict.fromkeys(patterns))
+    _language_fp_cache[project_dir] = (patterns, time.monotonic())
+
+    if patterns:
+        logger.info(
+            "Auto-detected %s project — suppressing %d false positive patterns",
+            ", ".join(lang_names),
+            len(patterns),
+        )
+
+    return patterns

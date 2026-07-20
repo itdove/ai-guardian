@@ -125,6 +125,15 @@ def run_prompt_injection_scan(
     if not config or not is_feature_enabled(config.get("enabled"), now, default=True):
         return None
 
+    from ai_guardian.config.utils import get_project_dir
+    from ai_guardian.project_init import get_language_allowlist_patterns
+
+    project_dir = get_project_dir()
+    auto_patterns = get_language_allowlist_patterns(project_dir) if project_dir else []
+    if auto_patterns:
+        existing = config.get("allowlist_patterns", [])
+        config = {**config, "allowlist_patterns": existing + auto_patterns}
+
     detector = PromptInjectionDetector(config)
     with (latency_timer or _NULL_TIMER).check("prompt_injection"):
         should_block, error_msg, detected = detector.detect(
