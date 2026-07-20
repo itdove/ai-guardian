@@ -141,8 +141,13 @@ Transcript scanning uses a polymorphic `TranscriptAdapter` interface (`scanners/
 | Kiro | JSONL | `~/.kiro/sessions/cli/{session_id}.jsonl` |
 | AiderDesk | Markdown | `.aider.chat.history.md` (project root) |
 | OpenClaw | JSONL | `~/.openclaw/transcripts/YYYY-MM-DD/{session}/transcript.jsonl` |
+| Copilot Chat (VS Code) | JSONL delta journal | `workspaceStorage/*/chatSessions/*.jsonl` |
 
 Agents not listed above do not have transcript scanning support.
+
+#### Augment Code — transcript scanning not currently feasible
+
+Augment Code (Auggie CLI) stores conversation sessions server-side, not as local files. The only local files under `~/.augment/` are authentication (`session.json`), settings (`settings.json`), commands, and rules. Augment also does not implement a `UserPromptSubmit` hook event (only PreToolUse, PostToolUse, Stop, SessionStart, SessionEnd), and transcript scanning requires the PROMPT event to trigger. This can be revisited if Augment exposes local session files or adds a UserPromptSubmit-equivalent hook.
 
 ### Crush (Charmbracelet) — PreToolUse only
 
