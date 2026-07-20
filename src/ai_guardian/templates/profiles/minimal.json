@@ -64,7 +64,9 @@
       "detect_homoglyphs": true,
       "allow_rtl_languages": true,
       "allow_emoji": true
-    }
+    },
+    "_comment_auto_download_model": "Automatically download ML models when the daemon starts and ml_engines is configured. Set to false to disable outbound downloads.",
+    "auto_download_model": true
   },
   "_comment_secret_redaction": "Redact secrets from tool outputs instead of blocking (NEW in v1.5.0, Phase 4)",
   "secret_redaction": {

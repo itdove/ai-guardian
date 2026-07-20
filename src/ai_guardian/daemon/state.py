@@ -1257,6 +1257,7 @@ class DaemonState:
             from ai_guardian.scanners.ml_detection import (
                 is_ml_available,
                 MLEngineManager,
+                ensure_model_downloaded,
             )
 
             if not is_ml_available():
@@ -1276,6 +1277,14 @@ class DaemonState:
                         "No ml_engines configured in prompt_injection config"
                     )
                 return None
+
+            if pi_config.get("auto_download_model", True):
+                for eng in engines_config:
+                    model = eng.get("model", "")
+                    if model:
+                        downloaded, msg = ensure_model_downloaded(model)
+                        if downloaded:
+                            logger.info(f"Auto-downloaded ML model: {msg}")
 
             strategy = pi_config.get("ml_strategy", "any-match")
             consensus_threshold = pi_config.get("consensus_threshold", 2)

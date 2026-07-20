@@ -134,6 +134,163 @@ class TestModelManagement(unittest.TestCase):
         assert all("downloaded" in m for m in models)
 
 
+class TestEnsureModelDownloaded(unittest.TestCase):
+    """Test ensure_model_downloaded helper."""
+
+    def test_unknown_model(self):
+        from ai_guardian.scanners.ml_detection import ensure_model_downloaded
+
+        downloaded, msg = ensure_model_downloaded("unknown/model")
+        assert not downloaded
+        assert "Unknown model" in msg
+
+    @patch("ai_guardian.scanners.ml_detection.verify_model", return_value=(True, "ok"))
+    def test_already_downloaded(self, _):
+        from ai_guardian.scanners.ml_detection import ensure_model_downloaded
+
+        downloaded, msg = ensure_model_downloaded()
+        assert not downloaded
+        assert "already downloaded" in msg.lower()
+
+    @patch("ai_guardian.scanners.ml_detection.verify_model")
+    @patch("ai_guardian.scanners.ml_detection.download_model")
+    def test_downloads_when_missing(self, mock_download, mock_verify):
+        mock_verify.side_effect = [(False, "not downloaded"), (True, "verified")]
+        mock_download.return_value = Path("/tmp/model")
+
+        from ai_guardian.scanners.ml_detection import ensure_model_downloaded
+
+        downloaded, msg = ensure_model_downloaded()
+        assert downloaded
+        assert "verified" in msg.lower()
+        mock_download.assert_called_once()
+
+    @patch(
+        "ai_guardian.scanners.ml_detection.verify_model",
+        return_value=(False, "missing"),
+    )
+    @patch(
+        "ai_guardian.scanners.ml_detection.download_model",
+        side_effect=RuntimeError("network error"),
+    )
+    def test_download_failure(self, _, __):
+        from ai_guardian.scanners.ml_detection import ensure_model_downloaded
+
+        downloaded, msg = ensure_model_downloaded()
+        assert not downloaded
+        assert "failed" in msg.lower()
+
+
+class TestSetupML(unittest.TestCase):
+    """Test setup_ml one-command setup."""
+
+    @patch("ai_guardian.scanners.ml_detection.is_ml_available", return_value=False)
+    def test_fails_without_deps(self, _):
+        from ai_guardian.scanners.ml_detection import setup_ml
+
+        result = setup_ml()
+        assert not result["success"]
+        assert result["steps"][0][0] == "dependencies"
+        assert not result["steps"][0][1]
+
+    @patch("ai_guardian.scanners.ml_detection.is_ml_available", return_value=True)
+    @patch(
+        "ai_guardian.scanners.ml_detection.ensure_model_downloaded",
+        return_value=(True, "downloaded"),
+    )
+    @patch(
+        "ai_guardian.scanners.ml_detection.verify_model",
+        return_value=(True, "verified"),
+    )
+    @patch(
+        "ai_guardian.config.writer.write_scoped_config", return_value=(True, "saved")
+    )
+    @patch(
+        "ai_guardian.config.loaders._load_config_file",
+        return_value=({"prompt_injection": {}}, None),
+    )
+    def test_full_setup(
+        self, mock_load, mock_write, mock_verify, mock_download, mock_avail
+    ):
+        from ai_guardian.scanners.ml_detection import setup_ml
+
+        result = setup_ml()
+        assert result["success"]
+        step_names = [s[0] for s in result["steps"]]
+        assert "dependencies" in step_names
+        assert "download" in step_names
+        assert "verify" in step_names
+        assert "config_detector" in step_names
+        assert "config_engines" in step_names
+        assert "config_strategy" in step_names
+
+    @patch("ai_guardian.scanners.ml_detection.is_ml_available", return_value=True)
+    @patch(
+        "ai_guardian.scanners.ml_detection.ensure_model_downloaded",
+        return_value=(False, "already there"),
+    )
+    @patch(
+        "ai_guardian.scanners.ml_detection.verify_model",
+        return_value=(True, "verified"),
+    )
+    @patch(
+        "ai_guardian.config.writer.write_scoped_config", return_value=(True, "saved")
+    )
+    @patch(
+        "ai_guardian.config.loaders._load_config_file",
+        return_value=(
+            {
+                "prompt_injection": {
+                    "ml_engines": [
+                        {"type": "llm-guard", "model": "test", "threshold": 0.9}
+                    ]
+                }
+            },
+            None,
+        ),
+    )
+    def test_skips_existing_engines(self, *_):
+        from ai_guardian.scanners.ml_detection import setup_ml
+
+        result = setup_ml()
+        assert result["success"]
+        engines_step = [s for s in result["steps"] if s[0] == "config_engines"][0]
+        assert "already configured" in engines_step[2]
+
+    @patch("ai_guardian.scanners.ml_detection.is_ml_available", return_value=True)
+    @patch(
+        "ai_guardian.scanners.ml_detection.ensure_model_downloaded",
+        return_value=(False, "already there"),
+    )
+    @patch(
+        "ai_guardian.scanners.ml_detection.verify_model",
+        return_value=(True, "verified"),
+    )
+    @patch(
+        "ai_guardian.config.writer.write_scoped_config", return_value=(True, "saved")
+    )
+    @patch(
+        "ai_guardian.config.loaders._load_config_file",
+        return_value=(
+            {
+                "prompt_injection": {
+                    "ml_engines": [
+                        {"type": "llm-guard", "model": "old", "threshold": 0.5}
+                    ]
+                }
+            },
+            None,
+        ),
+    )
+    def test_force_overwrites_engines(self, mock_load, mock_write, *_):
+        from ai_guardian.scanners.ml_detection import setup_ml
+
+        result = setup_ml(force=True)
+        assert result["success"]
+        engines_step = [s for s in result["steps"] if s[0] == "config_engines"][0]
+        assert "already configured" not in engines_step[2]
+
+
 class TestMLEngine(unittest.TestCase):
     """Test MLEngine class with mocked ONNX session."""
 
@@ -363,3 +520,62 @@ class TestMLEngineManager(unittest.TestCase):
         assert result["available"] is True
         assert result["is_injection"] is False
         assert result["results"][0]["label"] == "ERROR"
+
+
+class TestDaemonAutoDownload(unittest.TestCase):
+    """Test auto-download behavior in daemon get_ml_engine_manager."""
+
+    @patch("ai_guardian.scanners.ml_detection.ensure_model_downloaded")
+    @patch(
+        "ai_guardian.scanners.ml_detection.verify_model",
+        return_value=(False, "missing"),
+    )
+    def test_ensure_called_for_known_model(self, mock_verify, mock_ensure):
+        mock_ensure.return_value = (True, "downloaded")
+
+        from ai_guardian.scanners.ml_detection import (
+            ensure_model_downloaded,
+            MODEL_REGISTRY,
+            DEFAULT_MODEL,
+        )
+
+        engines_config = [{"type": "llm-guard", "model": DEFAULT_MODEL}]
+        pi_config = {"ml_engines": engines_config, "auto_download_model": True}
+
+        for eng in engines_config:
+            model = eng.get("model", "")
+            if model and model in MODEL_REGISTRY:
+                downloaded, msg = ensure_model_downloaded(model)
+
+        mock_ensure.assert_called_once_with(DEFAULT_MODEL)
+
+    @patch("ai_guardian.scanners.ml_detection.ensure_model_downloaded")
+    def test_auto_download_disabled_skips(self, mock_ensure):
+        from ai_guardian.scanners.ml_detection import MODEL_REGISTRY, DEFAULT_MODEL
+
+        engines_config = [{"type": "llm-guard", "model": DEFAULT_MODEL}]
+        pi_config = {"ml_engines": engines_config, "auto_download_model": False}
+
+        if pi_config.get("auto_download_model", True):
+            for eng in engines_config:
+                model = eng.get("model", "")
+                if model and model in MODEL_REGISTRY:
+                    ensure_model_downloaded(model)
+
+        mock_ensure.assert_not_called()
+
+    @patch("ai_guardian.scanners.ml_detection.ensure_model_downloaded")
+    def test_unknown_model_skips_download(self, mock_ensure):
+        engines_config = [{"type": "custom", "model": "unknown/nonexistent"}]
+        pi_config = {"ml_engines": engines_config, "auto_download_model": True}
+
+        from ai_guardian.scanners.ml_detection import MODEL_REGISTRY
+
+        for eng in engines_config:
+            model = eng.get("model", "")
+            if model and model in MODEL_REGISTRY:
+                from ai_guardian.scanners.ml_detection import ensure_model_downloaded
+
+                ensure_model_downloaded(model)
+
+        mock_ensure.assert_not_called()

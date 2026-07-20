@@ -899,6 +899,11 @@
           "default": 2,
           "minimum": 1
         },
+        "auto_download_model": {
+          "type": "boolean",
+          "description": "Automatically download ML models from HuggingFace Hub when the daemon starts and ml_engines is configured. Only downloads models listed in the built-in registry. Set to false to disable outbound downloads.",
+          "default": true
+        },
         "fallback_on_error": {
           "type": "string",
           "enum": ["heuristic", "block", "allow"],

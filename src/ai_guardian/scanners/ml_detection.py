@@ -234,6 +234,107 @@ def verify_model(model_name=DEFAULT_MODEL):
     return True, f"Model verified: {model_name}"
 
 
+def ensure_model_downloaded(model_name=DEFAULT_MODEL, force=False):
+    """Download model if not already present. Safe for daemon auto-download.
+
+    Args:
+        model_name: Model name from registry
+        force: Re-download even if present
+
+    Returns:
+        (downloaded, message) — downloaded is True if a download occurred
+    """
+    if model_name not in MODEL_REGISTRY:
+        return False, f"Unknown model: {model_name}"
+
+    is_valid, _ = verify_model(model_name)
+    if is_valid and not force:
+        return False, f"Model already downloaded and verified: {model_name}"
+
+    try:
+        download_model(model_name, force=force)
+        is_valid, msg = verify_model(model_name)
+        if is_valid:
+            return True, f"Model downloaded and verified: {model_name}"
+        return False, f"Download completed but verification failed: {msg}"
+    except Exception as e:
+        return False, f"Download failed: {e}"
+
+
+def setup_ml(
+    detector="hybrid",
+    model=DEFAULT_MODEL,
+    threshold=0.85,
+    force=False,
+):
+    """One-command ML detection setup: check deps, download model, update config.
+
+    Args:
+        detector: Detection mode — "hybrid" (heuristic+ML) or "ml" (ML only)
+        model: Model name from registry
+        threshold: Confidence threshold (0.0-1.0)
+        force: Re-download model and overwrite existing config
+
+    Returns:
+        dict with keys: success, steps (list of (step_name, ok, message))
+    """
+    steps = []
+
+    if not is_ml_available():
+        steps.append(
+            (
+                "dependencies",
+                False,
+                "onnxruntime not available. Install with: pip install onnxruntime",
+            )
+        )
+        return {"success": False, "steps": steps}
+    steps.append(("dependencies", True, "onnxruntime and tokenizers available"))
+
+    downloaded, dl_msg = ensure_model_downloaded(model, force=force)
+    is_valid, verify_msg = verify_model(model)
+    if not is_valid:
+        steps.append(("download", False, dl_msg))
+        steps.append(("verify", False, verify_msg))
+        return {"success": False, "steps": steps}
+    steps.append(("download", True, dl_msg))
+    steps.append(("verify", True, verify_msg))
+
+    from ai_guardian.config.writer import write_scoped_config
+
+    ok, msg = write_scoped_config("global", "prompt_injection", "detector", detector)
+    steps.append(("config_detector", ok, msg))
+
+    from ai_guardian.config.loaders import _load_config_file
+
+    current_config, _ = _load_config_file()
+    current_config = current_config or {}
+    current_engines = current_config.get("prompt_injection", {}).get("ml_engines", [])
+
+    if current_engines and not force:
+        steps.append(
+            (
+                "config_engines",
+                True,
+                f"ml_engines already configured ({len(current_engines)} engine(s)), skipping (use --force to overwrite)",
+            )
+        )
+    else:
+        engines = [{"type": "llm-guard", "model": model, "threshold": threshold}]
+        ok, msg = write_scoped_config(
+            "global", "prompt_injection", "ml_engines", engines
+        )
+        steps.append(("config_engines", ok, msg))
+
+    ok, msg = write_scoped_config(
+        "global", "prompt_injection", "ml_strategy", "any-match"
+    )
+    steps.append(("config_strategy", ok, msg))
+
+    all_ok = all(s[1] for s in steps)
+    return {"success": all_ok, "steps": steps}
+
+
 class MLEngine:
     """Single ONNX model engine for prompt injection detection.
 
