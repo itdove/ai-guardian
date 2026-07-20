@@ -138,6 +138,7 @@ Transcript scanning uses a polymorphic `TranscriptAdapter` interface (`scanners/
 | Cline / ZooCode | JSON array | `~/Library/Application Support/Code/User/globalStorage/saoudrizwan.claude-dev/tasks/<task_id>/api_conversation_history.json` |
 | Windsurf | JSONL | `~/.windsurf/transcripts/{trajectory_id}.jsonl` |
 | Copilot Chat (VS Code) | JSONL (delta journal) | `~/Library/Application Support/Code/User/workspaceStorage/*/chatSessions/*.jsonl` |
+| Kiro | JSONL | `~/.kiro/sessions/cli/{session_id}.jsonl` |
 
 Agents not listed above do not have transcript scanning support.
 

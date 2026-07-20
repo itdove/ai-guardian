@@ -1,9 +1,9 @@
 """Transcript scanning subpackage — per-IDE adapters for incremental scanning.
 
 Provides a polymorphic TranscriptAdapter interface and concrete adapters
-for JSONL (Claude Code, Copilot CLI, Codex), Copilot Chat (VS Code JSONL
-delta journal), OpenCode (SQLite), Cursor (SQLite), and Cline/ZooCode
-(JSON array).
+for JSONL (Claude Code, Copilot, Codex), Copilot Chat (VS Code JSONL
+delta journal), OpenCode (SQLite), Cursor (SQLite),
+Cline/ZooCode (JSON array), Kiro (JSONL), and Windsurf (JSONL).
 """
 
 from ai_guardian.scanners.transcript.base import TranscriptAdapter
@@ -38,6 +38,10 @@ from ai_guardian.scanners.transcript.jsonl import (
     _extract_text_from_transcript_line,
     scan_transcript_incremental,
 )
+from ai_guardian.scanners.transcript.kiro import (
+    KiroTranscriptAdapter,
+    scan_kiro_transcript_incremental,
+)
 from ai_guardian.scanners.transcript.opencode import (
     OpenCodeTranscriptAdapter,
     scan_opencode_transcript_incremental,
@@ -50,6 +54,7 @@ from ai_guardian.scanners.transcript.windsurf import (
 TRANSCRIPT_ADAPTERS = [
     ClineTranscriptAdapter(),
     CopilotChatTranscriptAdapter(),
+    KiroTranscriptAdapter(),
     WindsurfTranscriptAdapter(),
     JsonlTranscriptAdapter(),
     OpenCodeTranscriptAdapter(),
@@ -61,6 +66,7 @@ __all__ = [
     "TRANSCRIPT_ADAPTERS",
     "ClineTranscriptAdapter",
     "CopilotChatTranscriptAdapter",
+    "KiroTranscriptAdapter",
     "WindsurfTranscriptAdapter",
     "_advance_transcript_position",
     "_discover_path",
@@ -78,6 +84,7 @@ __all__ = [
     "scan_cline_transcript_incremental",
     "scan_copilot_chat_transcript_incremental",
     "scan_cursor_transcript_incremental",
+    "scan_kiro_transcript_incremental",
     "scan_opencode_transcript_incremental",
     "scan_transcript_incremental",
     "scan_windsurf_transcript_incremental",

@@ -1,0 +1,212 @@
+"""Kiro (AWS) transcript adapter — JSONL session files.
+
+Kiro stores CLI conversation transcripts as JSONL files at
+``~/.kiro/sessions/cli/<session-id>.jsonl``.  Each line is a JSON
+object with a ``type`` field indicating the entry kind (user_message,
+agent_message_chunk, tool_call, tool_result).
+"""
+
+import json
+import logging
+import os
+from typing import Dict, List, Optional, Tuple
+
+from ai_guardian.scanners.transcript.base import TranscriptAdapter
+from ai_guardian.scanners.transcript.common import (
+    _discover_path,
+    _scan_transcript_text,
+    _scan_with_position_tracking,
+)
+
+
+def get_kiro_sessions_dir() -> Optional[str]:
+    """Find the Kiro CLI sessions directory.
+
+    Checks ``KIRO_SESSIONS_DIR`` env var first, then the default
+    ``~/.kiro/sessions/cli`` path.
+    """
+    return _discover_path("KIRO_SESSIONS_DIR", "~/.kiro/sessions/cli")
+
+
+def _extract_text_from_kiro_entry(entry: dict) -> str:
+    """Extract scannable text from a single Kiro JSONL entry.
+
+    Handles known entry types and falls back to extracting the
+    ``content`` field for unrecognised types.
+    """
+    entry_type = entry.get("type")
+    if not isinstance(entry_type, str):
+        return ""
+
+    if entry_type in ("user_message", "agent_message_chunk"):
+        content = entry.get("content")
+        return content if isinstance(content, str) else ""
+
+    if entry_type == "tool_call":
+        texts: List[str] = []
+        args = entry.get("arguments")
+        if isinstance(args, dict):
+            for field in ("command", "content", "text", "path"):
+                val = args.get(field)
+                if isinstance(val, str) and val:
+                    texts.append(val)
+        elif isinstance(args, str) and args:
+            texts.append(args)
+        return "\n".join(texts)
+
+    if entry_type == "tool_result":
+        content = entry.get("content")
+        if isinstance(content, str) and content:
+            return content
+        output = entry.get("output")
+        if isinstance(output, str) and output:
+            return output
+        return ""
+
+    content = entry.get("content")
+    if isinstance(content, str) and content:
+        return content
+    return ""
+
+
+def get_most_recent_session_file(sessions_dir: str) -> Optional[str]:
+    """Find the most recently modified ``.jsonl`` session file."""
+    best_mtime = -1.0
+    best_path: Optional[str] = None
+    try:
+        with os.scandir(sessions_dir) as it:
+            for entry in it:
+                if not entry.is_file() or not entry.name.endswith(".jsonl"):
+                    continue
+                mtime = entry.stat().st_mtime
+                if mtime > best_mtime:
+                    best_mtime = mtime
+                    best_path = entry.path
+    except OSError as e:
+        logging.debug(f"Kiro sessions listing error: {e}")
+        return None
+
+    return best_path
+
+
+def read_kiro_transcript(
+    transcript_path: str,
+    seen_count: int = 0,
+) -> Tuple[str, int]:
+    """Read conversation text from a Kiro JSONL transcript incrementally.
+
+    Uses line count as the position cursor.  Lines at indices
+    0..seen_count-1 are skipped.
+
+    Returns:
+        Tuple of (combined_new_text, total_line_count).
+    """
+    try:
+        with open(transcript_path, encoding="utf-8") as f:
+            skipped = 0
+            for _ in range(seen_count):
+                if not f.readline():
+                    break
+                skipped += 1
+
+            truncated = skipped < seen_count
+            if truncated:
+                f.seek(0)
+
+            texts = []
+            total = 0 if truncated else skipped
+            for raw_line in f:
+                total += 1
+                raw_line = raw_line.strip()
+                if not raw_line:
+                    continue
+                try:
+                    entry = json.loads(raw_line)
+                except json.JSONDecodeError:
+                    continue
+                if not isinstance(entry, dict):
+                    continue
+                extracted = _extract_text_from_kiro_entry(entry)
+                if extracted:
+                    texts.append(extracted)
+    except OSError as e:
+        logging.debug(f"Kiro transcript read error: {e}")
+        return "", 0
+
+    return "\n".join(texts), total
+
+
+def scan_kiro_transcript_incremental(
+    transcript_path: str,
+    session_id: str,
+    secret_config: Optional[Dict] = None,
+    pii_config: Optional[Dict] = None,
+    hook_context: Optional[Dict] = None,
+    allowed_findings: Optional[set] = None,
+) -> list:
+    """Incrementally scan a Kiro transcript JSONL file."""
+    pos_key = f"kiro:{session_id}"
+
+    combined_text = _scan_with_position_tracking(
+        pos_key,
+        reader_fn=lambda seen: read_kiro_transcript(transcript_path, seen),
+        label="Kiro",
+    )
+
+    if not combined_text:
+        return []
+
+    return _scan_transcript_text(
+        combined_text,
+        pos_key,
+        secret_config,
+        pii_config,
+        hook_context,
+        allowed_findings=allowed_findings,
+    )
+
+
+class KiroTranscriptAdapter(TranscriptAdapter):
+    """Transcript adapter for Kiro CLI JSONL session files."""
+
+    @property
+    def name(self) -> str:
+        return "Kiro"
+
+    def scan_incremental(
+        self,
+        hook_data: Dict,
+        secret_config: Optional[Dict] = None,
+        pii_config: Optional[Dict] = None,
+        hook_context: Optional[Dict] = None,
+        allowed_findings: Optional[set] = None,
+    ) -> List[str]:
+        sessions_dir = get_kiro_sessions_dir()
+        if not sessions_dir:
+            logging.debug("Kiro transcript: no sessions directory found")
+            return []
+
+        session_id = hook_data.get("session_id")
+        transcript_path = None
+        if session_id:
+            candidate = os.path.join(sessions_dir, f"{session_id}.jsonl")
+            if os.path.isfile(candidate):
+                transcript_path = candidate
+
+        if not transcript_path:
+            transcript_path = get_most_recent_session_file(sessions_dir)
+
+        if not transcript_path:
+            logging.debug("Kiro transcript: no session file found")
+            return []
+
+        session_id = os.path.splitext(os.path.basename(transcript_path))[0]
+
+        return scan_kiro_transcript_incremental(
+            transcript_path,
+            session_id,
+            secret_config=secret_config,
+            pii_config=pii_config,
+            hook_context=hook_context,
+            allowed_findings=allowed_findings,
+        )
