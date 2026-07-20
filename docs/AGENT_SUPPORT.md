@@ -124,7 +124,7 @@ Claude Code binary file reads bypass hooks — image content may not pass throug
 
 ### Transcript scanning availability
 
-Claude Code exposes the conversation transcript to hooks via `UserPromptSubmit` (JSONL file). OpenCode and Cursor store sessions in SQLite databases; Cline stores conversations as JSON arrays in per-task directories; Windsurf stores Cascade transcripts as JSONL step files; ai-guardian reads them directly to scan for secrets and PII. Copilot CLI and Codex store JSONL transcripts at known default locations; ai-guardian discovers these paths via the adapter when the IDE does not provide a `transcript_path` in hook data.
+Claude Code exposes the conversation transcript to hooks via `UserPromptSubmit` (JSONL file). OpenCode and Cursor store sessions in SQLite databases; Cline stores conversations as JSON arrays in per-task directories; Windsurf stores Cascade transcripts as JSONL step files; ai-guardian reads them directly to scan for secrets and PII. Copilot CLI and Codex store JSONL transcripts at known default locations; ai-guardian discovers these paths via the adapter when the IDE does not provide a `transcript_path` in hook data. Copilot Chat for VS Code stores sessions as JSONL delta journal files in VS Code's `workspaceStorage/*/chatSessions/` directories.
 
 Transcript scanning uses a polymorphic `TranscriptAdapter` interface (`scanners/transcript/base.py`). Each IDE format has its own adapter that implements `can_scan()` and `scan_incremental()`.
 
@@ -137,6 +137,7 @@ Transcript scanning uses a polymorphic `TranscriptAdapter` interface (`scanners/
 | Codex | JSONL | `~/.codex/sessions/YYYY/MM/DD/*.jsonl` |
 | Cline / ZooCode | JSON array | `~/Library/Application Support/Code/User/globalStorage/saoudrizwan.claude-dev/tasks/<task_id>/api_conversation_history.json` |
 | Windsurf | JSONL | `~/.windsurf/transcripts/{trajectory_id}.jsonl` |
+| Copilot Chat (VS Code) | JSONL (delta journal) | `~/Library/Application Support/Code/User/workspaceStorage/*/chatSessions/*.jsonl` |
 | Kiro | JSONL | `~/.kiro/sessions/cli/{session_id}.jsonl` |
 
 Agents not listed above do not have transcript scanning support.
