@@ -1,6 +1,8 @@
 """Tests for ai-guardian init-project command."""
 
 import json
+from io import StringIO
+from unittest.mock import patch, MagicMock
 
 import pytest
 
@@ -12,8 +14,11 @@ from ai_guardian.patterns.language import (
 from ai_guardian.project_init import (
     AllowlistEntry,
     DetectedLanguage,
+    InitResult,
     ProjectInitializer,
     _format_evidence,
+    _print_result,
+    _print_json,
     _language_fp_cache,
     get_language_allowlist_patterns,
     init_project_command,
@@ -664,3 +669,196 @@ class TestAutoDetectionIntegration:
             source_type="user_prompt",
         )
         assert detected
+
+
+class TestScanMode:
+    """Tests for ProjectInitializer with --scan mode."""
+
+    def _make_findings(self, count=15, rule_id="SECRET-001", dir_prefix="src"):
+        return [
+            {
+                "rule_id": rule_id,
+                "level": "error",
+                "message": f"Test: {rule_id}",
+                "file_path": f"{dir_prefix}/file{i}.py",
+                "line_number": 1,
+                "snippet": "test",
+                "details": {"secret_type": "generic-api-key"},
+            }
+            for i in range(count)
+        ]
+
+    def test_run_scan_mode_with_mock(self, tmp_path):
+        (tmp_path / "app.py").write_text("x = 1")
+        init = ProjectInitializer(tmp_path)
+
+        mock_findings = self._make_findings(12)
+        with patch.object(init, "scan_project", return_value=mock_findings):
+            result = init.run(scan=True, threshold=10)
+
+        assert result.scan_analysis is not None
+        assert result.scan_analysis.total_findings == 12
+        assert len(result.scan_analysis.high_frequency_clusters) == 1
+
+    def test_run_scan_writes_config(self, tmp_path):
+        (tmp_path / "app.py").write_text("x = 1")
+        init = ProjectInitializer(tmp_path)
+
+        mock_findings = self._make_findings(12)
+        with patch.object(init, "scan_project", return_value=mock_findings):
+            result = init.run(scan=True, threshold=10)
+
+        assert result.config_created is True
+        config_path = tmp_path / ".ai-guardian" / "ai-guardian.json"
+        assert config_path.is_file()
+        config = json.loads(config_path.read_text())
+        assert "secret_scanning" in config
+
+    def test_run_scan_dry_run(self, tmp_path):
+        (tmp_path / "app.py").write_text("x = 1")
+        init = ProjectInitializer(tmp_path)
+
+        mock_findings = self._make_findings(12)
+        with patch.object(init, "scan_project", return_value=mock_findings):
+            result = init.run(scan=True, dry_run=True, threshold=10)
+
+        assert result.scan_analysis is not None
+        assert not result.config_created
+        assert not (tmp_path / ".ai-guardian").exists()
+
+    def test_run_scan_empty_findings(self, tmp_path):
+        (tmp_path / "app.py").write_text("x = 1")
+        init = ProjectInitializer(tmp_path)
+
+        with patch.object(init, "scan_project", return_value=[]):
+            result = init.run(scan=True, threshold=10)
+
+        assert result.scan_analysis is not None
+        assert result.scan_analysis.total_findings == 0
+        assert result.scan_analysis.suppressed_count == 0
+
+    def test_scan_without_flag_skips_analysis(self, tmp_path):
+        (tmp_path / "app.py").write_text("x = 1")
+        init = ProjectInitializer(tmp_path)
+        result = init.run(scan=False)
+        assert result.scan_analysis is None
+
+
+class TestMergeConfigs:
+    def test_disjoint_sections(self):
+        init = ProjectInitializer()
+        lang = {"prompt_injection": {"allowlist_patterns": ["__init__"]}}
+        scan = {"secret_scanning": {"allowlist_patterns": ["key"]}}
+        merged = init.merge_configs(lang, scan)
+        assert "prompt_injection" in merged
+        assert "secret_scanning" in merged
+
+    def test_overlapping_lists_deduplicated(self):
+        init = ProjectInitializer()
+        lang = {"prompt_injection": {"allowlist_patterns": ["a", "b"]}}
+        scan = {"prompt_injection": {"allowlist_patterns": ["b", "c"]}}
+        merged = init.merge_configs(lang, scan)
+        patterns = merged["prompt_injection"]["allowlist_patterns"]
+        assert patterns == ["a", "b", "c"]
+
+    def test_empty_scan_config(self):
+        init = ProjectInitializer()
+        lang = {"prompt_injection": {"allowlist_patterns": ["a"]}}
+        merged = init.merge_configs(lang, {})
+        assert merged == lang
+
+
+class TestPrintWithScanAnalysis:
+    def _make_analysis(self):
+        from ai_guardian.scan_analyzer import (
+            FindingCluster,
+            DirectoryAnalysis,
+            ScanAnalysisResult,
+        )
+
+        return ScanAnalysisResult(
+            total_findings=25,
+            total_files_scanned=100,
+            clusters=[
+                FindingCluster(
+                    rule_id="SECRET-001",
+                    sub_type="generic-api-key",
+                    file_count=15,
+                    total_count=20,
+                    sample_files=["a.py", "b.py"],
+                ),
+            ],
+            high_frequency_clusters=[
+                FindingCluster(
+                    rule_id="SECRET-001",
+                    sub_type="generic-api-key",
+                    file_count=15,
+                    total_count=20,
+                    sample_files=["a.py", "b.py"],
+                ),
+            ],
+            directories_to_ignore=[
+                DirectoryAnalysis(
+                    directory="tests",
+                    total_findings=10,
+                    high_frequency_findings=10,
+                ),
+            ],
+            recommended_config={
+                "secret_scanning": {"allowlist_patterns": ["generic\\-api\\-key"]},
+            },
+            recommended_ignore_paths={
+                "secret_scanning": ["tests/**"],
+            },
+            suppressed_count=20,
+        )
+
+    def test_print_result_includes_scan(self, capsys, tmp_path):
+        result = InitResult(project_dir=tmp_path)
+        result.scan_analysis = self._make_analysis()
+        result.aiguardignore_path = tmp_path / ".aiguardignore.toml"
+
+        _print_result(result)
+
+        output = capsys.readouterr().out
+        assert "Scan Analysis" in output
+        assert "SECRET-001" in output
+        assert "generic-api-key" in output
+        assert "15 files" in output
+        assert "tests/" in output
+        assert "Would suppress: 20 of 25" in output
+
+    def test_print_result_dry_run_with_scan(self, capsys, tmp_path):
+        result = InitResult(project_dir=tmp_path, dry_run=True)
+        result.scan_analysis = self._make_analysis()
+        result.config_path = tmp_path / ".ai-guardian" / "ai-guardian.json"
+        result.aiguardignore_path = tmp_path / ".aiguardignore.toml"
+
+        _print_result(result)
+
+        output = capsys.readouterr().out
+        assert "[dry-run]" in output
+
+    def test_print_json_includes_scan(self, capsys, tmp_path):
+        result = InitResult(project_dir=tmp_path)
+        result.scan_analysis = self._make_analysis()
+        result.aiguardignore_path = tmp_path / ".aiguardignore.toml"
+        result.aiguardignore_created = True
+
+        _print_json(result)
+
+        output = json.loads(capsys.readouterr().out)
+        assert "scan_analysis" in output
+        assert output["scan_analysis"]["total_findings"] == 25
+        assert output["scan_analysis"]["suppressed_count"] == 20
+        assert output["scan_analysis"]["remaining_count"] == 5
+        assert len(output["scan_analysis"]["high_frequency_clusters"]) == 1
+        assert output["aiguardignore_created"] is True
+
+    def test_print_json_without_scan(self, capsys, tmp_path):
+        result = InitResult(project_dir=tmp_path)
+
+        _print_json(result)
+
+        output = json.loads(capsys.readouterr().out)
+        assert "scan_analysis" not in output
