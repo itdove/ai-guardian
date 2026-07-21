@@ -1,0 +1,18 @@
+# yaml-language-server: $schema=../../../src/ai_guardian/schemas/scenario.schema.json
+# Language overlay scenarios — profile-independent (identical across all profiles)
+# Tests that Python dunder patterns are suppressed in Python projects
+# but still detected in non-Python contexts.
+events:
+  - label: "Python dunder in Python project — FP suppressed"
+    workspace_files:
+      - path: pyproject.toml
+        content: "[project]\nname = \"test-project\""
+    prompt: "class App:\n    def __init__(self, name):\n        self.name = name\n        mod = __import__('os')"
+    expect: allow
+
+  - label: "Python dunder in non-Python project — still detected"
+    workspace_files:
+      - path: README.md
+        content: "# Test Project"
+    prompt: "class App:\n    def __init__(self, name):\n        self.name = name\n        mod = __import__('os')"
+    expect: block
