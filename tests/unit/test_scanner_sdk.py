@@ -602,6 +602,36 @@ class TestRunPythonScanner:
         finally:
             os.unlink(tmp_path)
 
+    @pytest.mark.parametrize(
+        "original_file_path, expect_original",
+        [("/real/path.txt", True), (None, False)],
+        ids=["with-original-path", "without-original-path"],
+    )
+    def test_run_python_scanner_file_path_in_result(
+        self, original_file_path, expect_original
+    ):
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".txt", delete=False) as f:
+            f.write("LEAK secret here\n")
+            f.flush()
+            tmp_path = f.name
+
+        try:
+            config = EngineConfig(
+                type="python",
+                binary="__python__",
+                command_template=[],
+                python_scanner=SampleScanner(),
+            )
+            kwargs = {}
+            if original_file_path is not None:
+                kwargs["original_file_path"] = original_file_path
+            result = run_python_scanner(config, tmp_path, "/dev/null", **kwargs)
+            assert result.has_secrets is True
+            expected = original_file_path if expect_original else tmp_path
+            assert result.secrets[0].file == expected
+        finally:
+            os.unlink(tmp_path)
+
 
 class TestRunEngine:
     """Tests for the run_engine dispatcher."""
