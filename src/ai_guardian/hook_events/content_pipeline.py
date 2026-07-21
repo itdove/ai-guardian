@@ -75,7 +75,9 @@ def _load_overlaid_config(entry, loader_fn):
         return None
     config, config_error = loader_fn()
     if config_error:
-        logging.warning("Config load warning for %s: %s", entry.name.value, config_error)
+        logging.warning(
+            "Config load warning for %s: %s", entry.name.value, config_error
+        )
     if not config:
         return None
     return apply_language_overlays(config, entry.name.value)
