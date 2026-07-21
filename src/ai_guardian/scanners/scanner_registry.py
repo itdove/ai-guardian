@@ -55,7 +55,9 @@ class ScannerEntry:
     violation_severity: str = "high"
     violation_suggestion: Optional[Dict[str, str]] = field(default=None)
 
-    # Language overlay: pipeline merges auto-detected false-positive patterns
+    # Language overlay: pipeline merges auto-detected false-positive patterns.
+    # When True, _load_overlaid_config() loads config via config_section and
+    # merges language-aware false-positive patterns before passing to the runner.
     supports_language_overlay: bool = False
 
 

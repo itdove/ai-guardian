@@ -720,12 +720,20 @@ class TestAutoDetectionIntegration:
 
         (tmp_path / "pyproject.toml").write_text("[project]")
 
-        with patch(
-            "ai_guardian.hook_events.scanners.get_project_dir",
-            return_value=str(tmp_path),
+        with (
+            patch(
+                "ai_guardian.hook_events.scanners.get_project_dir",
+                return_value=str(tmp_path),
+            ),
+            patch(
+                "ai_guardian.hook_events.scanners._loaders._load_config_section",
+                return_value=({"enabled": True}, None),
+            ),
         ):
-            from ai_guardian.hook_events.content_pipeline import _load_overlaid_config
-            from ai_guardian.hook_events.scanners import run_prompt_injection_scan
+            from ai_guardian.hook_events.scanners import (
+                _load_overlaid_config,
+                run_prompt_injection_scan,
+            )
             from ai_guardian.scanners.scanner_registry import (
                 get_default_registry,
                 ScannerName,
@@ -737,7 +745,7 @@ class TestAutoDetectionIntegration:
             entry = registry.get(ScannerName.PROMPT_INJECTION)
             assert entry.supports_language_overlay
 
-            config = _load_overlaid_config(entry, lambda: ({"enabled": True}, None))
+            config = _load_overlaid_config(entry)
             result = run_prompt_injection_scan(
                 "class with __init__ method", config=config
             )
