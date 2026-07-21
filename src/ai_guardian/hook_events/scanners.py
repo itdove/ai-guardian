@@ -149,8 +149,6 @@ def run_prompt_injection_scan(
     if not config or not is_feature_enabled(config.get("enabled"), now, default=True):
         return None
 
-    config = apply_language_overlays(config, "prompt_injection")
-
     detector = PromptInjectionDetector(config)
     with (latency_timer or _NULL_TIMER).check("prompt_injection"):
         should_block, error_msg, detected = detector.detect(

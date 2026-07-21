@@ -22,6 +22,7 @@ def _matches_ignore_files(file_path, ignore_files):
 
 # Scanner runner functions
 from ai_guardian.hook_events.scanners import (
+    apply_language_overlays,
     run_prompt_injection_scan,
     run_context_poisoning_scan,
     run_supply_chain_scan,
@@ -62,6 +63,22 @@ except ImportError:
 
 # IDEType for log-gating
 from ai_guardian.response_format import IDEType
+
+
+def _load_overlaid_config(entry, loader_fn):
+    """Load scanner config and apply language overlays if the entry supports it.
+
+    Returns the (possibly overlaid) config dict, or ``None`` when the entry
+    does not support overlays or when the loader returns no config.
+    """
+    if not entry or not entry.supports_language_overlay:
+        return None
+    config, config_error = loader_fn()
+    if config_error:
+        logging.warning("Config load warning for %s: %s", entry.name.value, config_error)
+    if not config:
+        return None
+    return apply_language_overlays(config, entry.name.value)
 
 
 def run_content_pipeline(
@@ -132,8 +149,13 @@ def run_content_pipeline(
             source_type = (
                 "user_prompt" if hook_event == HookEvent.PROMPT else "file_content"
             )
+            pi_config = _load_overlaid_config(
+                _registry.get(ScannerName.PROMPT_INJECTION),
+                _loaders._load_prompt_injection_config,
+            )
             pi_result = run_prompt_injection_scan(
                 content_to_scan,
+                config=pi_config,
                 file_path=file_path,
                 tool_name=tool_identifier,
                 source_type=source_type,
