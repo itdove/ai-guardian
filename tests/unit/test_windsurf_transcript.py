@@ -12,11 +12,11 @@ import tempfile
 import unittest
 from unittest import mock
 
+from ai_guardian.scanners.transcript.common import _read_jsonl_incremental
 from ai_guardian.scanners.transcript.windsurf import (
     WindsurfTranscriptAdapter,
     _extract_text_from_windsurf_step,
     get_windsurf_transcripts_dir,
-    read_windsurf_transcript,
     scan_windsurf_transcript_incremental,
 )
 from tests.unit.transcript_helpers import write_jsonl as _write_jsonl
@@ -165,10 +165,12 @@ class TestReadWindsurfTranscript(unittest.TestCase):
         ]
         _write_jsonl(path, steps)
 
-        text, count = read_windsurf_transcript(path)
+        text, new_pos = _read_jsonl_incremental(
+            path, 0, _extract_text_from_windsurf_step, label="Windsurf"
+        )
         self.assertIn("Hello", text)
         self.assertIn("World", text)
-        self.assertEqual(count, 2)
+        self.assertEqual(new_pos, os.path.getsize(path))
 
     def test_incremental_read_skips_seen(self):
         path = os.path.join(self.tmpdir, "transcript.jsonl")
@@ -178,24 +180,34 @@ class TestReadWindsurfTranscript(unittest.TestCase):
         ]
         _write_jsonl(path, steps)
 
-        text, count = read_windsurf_transcript(path, seen_count=1)
+        first_line_bytes = len(json.dumps(steps[0]).encode("utf-8")) + 1
+        text, new_pos = _read_jsonl_incremental(
+            path, first_line_bytes, _extract_text_from_windsurf_step, label="Windsurf"
+        )
         self.assertNotIn("Old", text)
         self.assertIn("New", text)
-        self.assertEqual(count, 2)
+        self.assertEqual(new_pos, os.path.getsize(path))
 
     def test_empty_file(self):
         path = os.path.join(self.tmpdir, "transcript.jsonl")
         with open(path, "w") as f:
             f.write("")
 
-        text, count = read_windsurf_transcript(path)
+        text, new_pos = _read_jsonl_incremental(
+            path, 0, _extract_text_from_windsurf_step, label="Windsurf"
+        )
         self.assertEqual(text, "")
-        self.assertEqual(count, 0)
+        self.assertEqual(new_pos, 0)
 
     def test_file_not_found(self):
-        text, count = read_windsurf_transcript("/nonexistent/transcript.jsonl")
+        text, new_pos = _read_jsonl_incremental(
+            "/nonexistent/transcript.jsonl",
+            0,
+            _extract_text_from_windsurf_step,
+            label="Windsurf",
+        )
         self.assertEqual(text, "")
-        self.assertEqual(count, 0)
+        self.assertEqual(new_pos, 0)
 
     def test_malformed_json_lines_skipped(self):
         path = os.path.join(self.tmpdir, "transcript.jsonl")
@@ -211,20 +223,24 @@ class TestReadWindsurfTranscript(unittest.TestCase):
                 + "\n"
             )
 
-        text, count = read_windsurf_transcript(path)
+        text, new_pos = _read_jsonl_incremental(
+            path, 0, _extract_text_from_windsurf_step, label="Windsurf"
+        )
         self.assertIn("Valid", text)
-        self.assertEqual(count, 2)
+        self.assertEqual(new_pos, os.path.getsize(path))
 
-    def test_truncated_file_resets(self):
+    def test_truncated_file_rereads_from_start(self):
         path = os.path.join(self.tmpdir, "transcript.jsonl")
         steps = [
             {"type": "user_input", "user_input": {"user_response": "Only"}},
         ]
         _write_jsonl(path, steps)
 
-        text, count = read_windsurf_transcript(path, seen_count=5)
+        text, new_pos = _read_jsonl_incremental(
+            path, 99999, _extract_text_from_windsurf_step, label="Windsurf"
+        )
         self.assertIn("Only", text)
-        self.assertEqual(count, 1)
+        self.assertEqual(new_pos, os.path.getsize(path))
 
     def test_nothing_new(self):
         path = os.path.join(self.tmpdir, "transcript.jsonl")
@@ -233,9 +249,12 @@ class TestReadWindsurfTranscript(unittest.TestCase):
         ]
         _write_jsonl(path, steps)
 
-        text, count = read_windsurf_transcript(path, seen_count=1)
+        file_size = os.path.getsize(path)
+        text, new_pos = _read_jsonl_incremental(
+            path, file_size, _extract_text_from_windsurf_step, label="Windsurf"
+        )
         self.assertEqual(text, "")
-        self.assertEqual(count, 1)
+        self.assertEqual(new_pos, file_size)
 
     def test_non_dict_lines_skipped(self):
         path = os.path.join(self.tmpdir, "transcript.jsonl")
@@ -251,9 +270,11 @@ class TestReadWindsurfTranscript(unittest.TestCase):
                 + "\n"
             )
 
-        text, count = read_windsurf_transcript(path)
+        text, new_pos = _read_jsonl_incremental(
+            path, 0, _extract_text_from_windsurf_step, label="Windsurf"
+        )
         self.assertIn("Valid", text)
-        self.assertEqual(count, 2)
+        self.assertEqual(new_pos, os.path.getsize(path))
 
 
 class TestScanWindsurfTranscriptIncremental(unittest.TestCase):

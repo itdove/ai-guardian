@@ -7,7 +7,6 @@ try:
 except ImportError:
     _HAS_FCNTL = False
 
-import json
 import logging
 import os
 from typing import Dict, List, Optional
@@ -16,8 +15,9 @@ from ai_guardian.config.utils import get_state_dir
 from ai_guardian.scanners.transcript.base import TranscriptAdapter
 from ai_guardian.scanners.transcript.common import (
     _get_transcript_path,
-    _scan_transcript_text,
-    _scan_with_position_tracking,
+    _load_transcript_positions,
+    _save_transcript_positions,
+    _scan_jsonl_incremental,
 )
 
 
@@ -79,69 +79,14 @@ def scan_transcript_incremental(
         logging.debug(f"Transcript file does not exist: {transcript_path}")
         return []
 
-    def _init_position():
-        try:
-            return os.path.getsize(transcript_path)
-        except OSError:
-            return 0
-
-    def _read_new(last_pos):
-        try:
-            file_size = os.path.getsize(transcript_path)
-        except OSError:
-            return "", last_pos
-
-        if file_size < last_pos:
-            logging.debug(
-                "Transcript file truncated, advancing position to current size"
-            )
-            return "", file_size
-
-        if file_size <= last_pos:
-            return "", last_pos
-
-        try:
-            with open(transcript_path, "rb") as f:
-                f.seek(last_pos)
-                new_bytes = f.read()
-                new_pos = f.tell()
-        except OSError as e:
-            logging.debug(f"Cannot read transcript file: {e}")
-            return "", last_pos
-
-        new_content = new_bytes.decode("utf-8", errors="replace")
-        texts = []
-        for line in new_content.splitlines():
-            line = line.strip()
-            if not line:
-                continue
-            try:
-                line_data = json.loads(line)
-                if isinstance(line_data, dict):
-                    extracted = _extract_text_from_transcript_line(line_data)
-                    if extracted:
-                        texts.append(extracted)
-            except json.JSONDecodeError:
-                continue
-
-        return "\n".join(texts), new_pos
-
-    combined_text = _scan_with_position_tracking(
+    return _scan_jsonl_incremental(
         transcript_path,
-        _read_new,
-        init_position_fn=_init_position,
+        pos_key=transcript_path,
+        extract_fn=_extract_text_from_transcript_line,
         label="JSONL",
-    )
-
-    if not combined_text:
-        return []
-
-    return _scan_transcript_text(
-        combined_text,
-        transcript_path,
-        secret_config,
-        pii_config,
-        hook_context,
+        secret_config=secret_config,
+        pii_config=pii_config,
+        hook_context=hook_context,
         allowed_findings=allowed_findings,
     )
 
@@ -164,7 +109,6 @@ def _advance_transcript_position(hook_data: dict) -> None:
         return
 
     state_dir = get_state_dir()
-    pos_file = state_dir / "transcript_positions.json"
     lock_file = state_dir / "transcript_positions.lock"
 
     try:
@@ -173,38 +117,12 @@ def _advance_transcript_position(hook_data: dict) -> None:
             if _HAS_FCNTL:
                 fcntl.flock(lf, fcntl.LOCK_EX)
             try:
-                positions = {}
-                try:
-                    with open(pos_file, "r", encoding="utf-8") as f:
-                        data = json.load(f)
-                    if isinstance(data, dict):
-                        positions = data
-                except (FileNotFoundError, json.JSONDecodeError):
-                    pass  # intentionally silent — file may not exist yet
-
+                positions = _load_transcript_positions()
                 if transcript_path not in positions:
                     return
-
-                old_pos = positions[transcript_path]
-                if file_size > old_pos:
+                if file_size > positions[transcript_path]:
                     positions[transcript_path] = file_size
-                    import tempfile as _tf
-
-                    fd, tmp_path = _tf.mkstemp(
-                        dir=str(state_dir), prefix=".transcript-pos-", suffix=".tmp"
-                    )
-                    closed = False
-                    try:
-                        os.write(fd, json.dumps(positions).encode("utf-8"))
-                        os.close(fd)
-                        closed = True
-                        os.replace(tmp_path, str(pos_file))
-                    except BaseException:
-                        if not closed:
-                            os.close(fd)
-                        if os.path.exists(tmp_path):
-                            os.unlink(tmp_path)
-                        raise
+                    _save_transcript_positions(positions)
             finally:
                 if _HAS_FCNTL:
                     fcntl.flock(lf, fcntl.LOCK_UN)

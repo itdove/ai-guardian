@@ -8,16 +8,13 @@ agent_message_chunk, tool_call, tool_result).
 
 import logging
 import os
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional
 
 from ai_guardian.scanners.transcript.base import TranscriptAdapter
 from ai_guardian.scanners.transcript.common import (
     _discover_path,
-    _read_jsonl_incremental,
-    _scan_jsonl_incremental,
     _get_most_recent_entry,
-    _scan_transcript_text,
-    _scan_with_position_tracking,
+    _scan_jsonl_incremental,
 )
 
 
@@ -81,26 +78,6 @@ def get_most_recent_session_file(sessions_dir: str) -> Optional[str]:
     return result[0] if result else None
 
 
-def read_kiro_transcript(
-    transcript_path: str,
-    seen_count: int = 0,
-) -> Tuple[str, int]:
-    """Read conversation text from a Kiro JSONL transcript incrementally.
-
-    Uses line count as the position cursor.  Lines at indices
-    0..seen_count-1 are skipped.
-
-    Returns:
-        Tuple of (combined_new_text, total_line_count).
-    """
-    return _read_jsonl_incremental(
-        transcript_path,
-        seen_count,
-        _extract_text_from_kiro_entry,
-        label="Kiro",
-    )
-
-
 def scan_kiro_transcript_incremental(
     transcript_path: str,
     session_id: str,
@@ -112,9 +89,8 @@ def scan_kiro_transcript_incremental(
     """Incrementally scan a Kiro transcript JSONL file."""
     return _scan_jsonl_incremental(
         transcript_path,
-        "kiro",
-        session_id,
-        _extract_text_from_kiro_entry,
+        pos_key=f"kiro:{session_id}",
+        extract_fn=_extract_text_from_kiro_entry,
         label="Kiro",
         secret_config=secret_config,
         pii_config=pii_config,

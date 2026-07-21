@@ -7,12 +7,11 @@ object with ``type``, ``status``, and type-specific data fields.
 
 import logging
 import os
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional
 
 from ai_guardian.scanners.transcript.base import TranscriptAdapter
 from ai_guardian.scanners.transcript.common import (
     _discover_path,
-    _read_jsonl_incremental,
     _scan_jsonl_incremental,
 )
 
@@ -59,26 +58,6 @@ def _extract_text_from_windsurf_step(step: dict) -> str:
     return "\n".join(texts)
 
 
-def read_windsurf_transcript(
-    transcript_path: str,
-    seen_count: int = 0,
-) -> Tuple[str, int]:
-    """Read conversation text from a Windsurf JSONL transcript incrementally.
-
-    Uses line count as the position cursor.  Lines at indices
-    0..seen_count-1 are skipped.
-
-    Returns:
-        Tuple of (combined_new_text, total_line_count).
-    """
-    return _read_jsonl_incremental(
-        transcript_path,
-        seen_count,
-        _extract_text_from_windsurf_step,
-        label="Windsurf",
-    )
-
-
 def scan_windsurf_transcript_incremental(
     transcript_path: str,
     trajectory_id: str,
@@ -90,9 +69,8 @@ def scan_windsurf_transcript_incremental(
     """Incrementally scan a Windsurf transcript JSONL file."""
     return _scan_jsonl_incremental(
         transcript_path,
-        "windsurf",
-        trajectory_id,
-        _extract_text_from_windsurf_step,
+        pos_key=f"windsurf:{trajectory_id}",
+        extract_fn=_extract_text_from_windsurf_step,
         label="Windsurf",
         secret_config=secret_config,
         pii_config=pii_config,

@@ -11,12 +11,11 @@ import glob
 import logging
 import os
 import sys
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional
 
 from ai_guardian.scanners.transcript.base import TranscriptAdapter
 from ai_guardian.scanners.transcript.common import (
     _get_most_recent_entry,
-    _read_jsonl_incremental,
     _scan_jsonl_incremental,
 )
 
@@ -169,27 +168,6 @@ def _extract_text_from_chat_entry(entry: dict) -> str:
     return ""
 
 
-def read_copilot_chat_transcript(
-    transcript_path: str,
-    seen_count: int = 0,
-) -> Tuple[str, int]:
-    """Read conversation text from a Copilot Chat JSONL file incrementally.
-
-    Uses line count as position cursor.  Lines at indices
-    0..seen_count-1 are skipped.
-
-    Returns:
-        Tuple of (combined_new_text, total_line_count).
-    """
-    return _read_jsonl_incremental(
-        transcript_path,
-        seen_count,
-        _extract_text_from_chat_entry,
-        label="Copilot Chat",
-        encoding="utf-8-sig",
-    )
-
-
 def scan_copilot_chat_transcript_incremental(
     transcript_path: str,
     session_id: str,
@@ -201,11 +179,10 @@ def scan_copilot_chat_transcript_incremental(
     """Incrementally scan a Copilot Chat JSONL session file."""
     return _scan_jsonl_incremental(
         transcript_path,
-        "copilot-chat",
-        session_id,
-        _extract_text_from_chat_entry,
+        pos_key=f"copilot-chat:{session_id}",
+        extract_fn=_extract_text_from_chat_entry,
         label="Copilot Chat",
-        encoding="utf-8-sig",
+        strip_bom=True,
         secret_config=secret_config,
         pii_config=pii_config,
         hook_context=hook_context,

@@ -8,14 +8,13 @@ and ``content`` (string or structured).
 
 import logging
 import os
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional
 
 from ai_guardian.scanners.transcript.base import TranscriptAdapter
 from ai_guardian.scanners.transcript.common import (
     _discover_path,
     _get_most_recent_entry,
     _get_transcript_path,
-    _read_jsonl_incremental,
     _scan_jsonl_incremental,
 )
 
@@ -96,25 +95,6 @@ def get_most_recent_transcript(transcripts_dir: str) -> Optional[str]:
             return os.path.join(result[0], "transcript.jsonl")
 
 
-def read_openclaw_transcript(
-    transcript_path: str,
-    seen_count: int = 0,
-) -> Tuple[str, int]:
-    """Read conversation text from an OpenClaw JSONL transcript incrementally.
-
-    Uses line count as the position cursor.
-
-    Returns:
-        Tuple of (combined_new_text, total_line_count).
-    """
-    return _read_jsonl_incremental(
-        transcript_path,
-        seen_count,
-        _extract_text_from_openclaw_entry,
-        label="OpenClaw",
-    )
-
-
 def scan_openclaw_transcript_incremental(
     transcript_path: str,
     session_id: str,
@@ -126,9 +106,8 @@ def scan_openclaw_transcript_incremental(
     """Incrementally scan an OpenClaw transcript JSONL file."""
     return _scan_jsonl_incremental(
         transcript_path,
-        "openclaw",
-        session_id,
-        _extract_text_from_openclaw_entry,
+        pos_key=f"openclaw:{session_id}",
+        extract_fn=_extract_text_from_openclaw_entry,
         label="OpenClaw",
         secret_config=secret_config,
         pii_config=pii_config,
