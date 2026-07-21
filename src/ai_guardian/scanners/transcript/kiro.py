@@ -73,11 +73,12 @@ def _extract_text_from_kiro_entry(entry: dict) -> str:
 
 def get_most_recent_session_file(sessions_dir: str) -> Optional[str]:
     """Find the most recently modified ``.jsonl`` session file."""
-    return _get_most_recent_entry(
+    result = _get_most_recent_entry(
         sessions_dir,
         match_fn=lambda e: e.is_file() and e.name.endswith(".jsonl"),
         label="Kiro",
     )
+    return result[0] if result else None
 
 
 def read_kiro_transcript(

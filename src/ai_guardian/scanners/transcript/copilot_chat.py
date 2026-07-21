@@ -15,6 +15,7 @@ from typing import Dict, List, Optional, Tuple
 
 from ai_guardian.scanners.transcript.base import TranscriptAdapter
 from ai_guardian.scanners.transcript.common import (
+    _get_most_recent_entry,
     _read_jsonl_incremental,
     _scan_jsonl_incremental,
 )
@@ -73,19 +74,21 @@ def _find_session_file(
             if os.path.isfile(candidate):
                 return candidate
 
-    most_recent: Optional[str] = None
-    most_recent_mtime = 0.0
+    best: Optional[str] = None
+    best_mtime = -1.0
     for d in chat_dirs:
-        for f in glob.glob(os.path.join(d, "*.jsonl")):
-            try:
-                mtime = os.path.getmtime(f)
-            except OSError:
-                continue
-            if mtime > most_recent_mtime:
-                most_recent = f
-                most_recent_mtime = mtime
+        result = _get_most_recent_entry(
+            d,
+            match_fn=lambda e: e.is_file() and e.name.endswith(".jsonl"),
+            label="Copilot Chat",
+        )
+        if result:
+            path, mtime = result
+            if mtime > best_mtime:
+                best = path
+                best_mtime = mtime
 
-    return most_recent
+    return best
 
 
 def _walk_strings(obj) -> List[str]:
