@@ -129,6 +129,7 @@ NAV_GROUPS = [
             ("Hook Simulator", "/hook-simulator"),
             ("Engine Tester", "/engine-tester"),
             ("Directory Scan", "/directory-scan"),
+            ("Scan Configure", "/scan-configure"),
         ],
     ),
 ]

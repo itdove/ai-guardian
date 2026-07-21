@@ -54,6 +54,7 @@ The web console binds to `127.0.0.1` (localhost only) for security.
 - **Permission Rules** — View and manage tool permission rules *(NEW in v1.11.0)*
 - **Context Poisoning** — Context poisoning detection settings with regex tester *(NEW in v1.11.0)*
 - **Logs** — Daemon log viewer
+- **Scan Configure** — Scan a project to detect false positives and auto-generate suppression config *(NEW in v1.15.0)*
 - **Daemon Detail** — Single daemon stats, controls (pause/resume/reload), recent violations
 
 ### System Tray Integration
@@ -2176,6 +2177,30 @@ AI Guardian uses JSON for configuration:
 - Debounced input validation
 
 ---
+
+### Scan Configure
+
+Available in both the **Web Console** (Tools > Scan Configure) and **TUI Console** (Tools > Scan Configure).
+
+Exposes the `ai-guardian init-project --scan` functionality in the console UI. Scans a project directory to detect false positive patterns and auto-generate suppression configuration.
+
+#### How It Works
+
+1. **Enter a project directory** and optional FP threshold (default: 10 files)
+2. **Click Run Scan** — the scanner runs all detection engines against the project
+3. **Review results** — findings are clustered by pattern fingerprint; high-frequency clusters (appearing in many files) are flagged as likely false positives
+4. **Preview config changes** — generated `ai-guardian.json` allowlist entries and `.aiguardignore.toml` ignore paths are shown before writing
+5. **Choose scope** — save config at **Project** level (in the scanned directory) or **Global** level (`~/.ai-guardian/`)
+6. **Apply or Discard** — write the configuration or cancel
+
+#### Key Details
+
+- **All scanners run** regardless of enabled/disabled settings — this discovers all potential false positives upfront so you don't get blocked later when enabling more scanners
+- **Progress bar** shows files scanned in real time with cancellation support
+- **Rule links** (web console) — each detected rule links to its scanner config page for more context
+- **Session persistence** (web console) — scan results survive page navigation; clicking a rule link and returning preserves your results
+- **Config merge** — generated config is merged into existing configuration (list values are deduplicated, not overwritten)
+- **CLI equivalent**: `ai-guardian init-project --scan --threshold 10`
 
 ## Summary
 

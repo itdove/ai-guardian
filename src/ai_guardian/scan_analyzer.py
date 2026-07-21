@@ -6,11 +6,85 @@ high-frequency patterns as likely false positives, and generates
 config recommendations for ai-guardian.json and .aiguardignore.toml.
 """
 
+import json
 import re
+import shutil
 from collections import defaultdict
 from dataclasses import dataclass, field
-from pathlib import PurePosixPath
+from pathlib import Path, PurePosixPath
 from typing import Any, Callable, Dict, List, Optional, Set, Tuple
+
+# --- Human-readable labels for rule IDs (shared by TUI + web) ---
+
+RULE_ID_LABELS = {
+    "SECRET-001": "Secrets",
+    "PII-001": "PII",
+    "PROMPT-INJECTION-001": "Prompt Injection",
+    "SSRF-001": "SSRF",
+    "CONFIG-001": "Config Exfiltration",
+    "SUPPLY-CHAIN-001": "Supply Chain",
+    "UNICODE-001": "Unicode Attacks",
+    "CODE-SECURITY-001": "Code Security",
+    "OFFENSIVE-001": "Offensive Language",
+    "EXFIL-001": "Exfil Detection",
+    "CANARY-001": "Canary Token",
+}
+
+
+def _deep_merge_configs(existing: Dict, new_config: Dict) -> Dict:
+    """Deep-merge *new_config* into *existing*, deduplicating list values."""
+    merged = dict(existing)
+    for section, values in new_config.items():
+        if section not in merged:
+            merged[section] = dict(values)
+        else:
+            target = dict(merged[section])
+            merged[section] = target
+            for key, val in values.items():
+                if key in target and isinstance(val, list):
+                    combined = list(target[key])
+                    for item in val:
+                        if item not in combined:
+                            combined.append(item)
+                    target[key] = combined
+                else:
+                    target[key] = val
+    return merged
+
+
+def merge_and_write_config(config_path: Path, new_config: Dict) -> None:
+    """Deep-merge *new_config* into an existing JSON config file.
+
+    Uses atomic config update with file locking when available.
+    List values are merged with deduplication; scalar values are overwritten.
+    """
+    try:
+        from ai_guardian.config.writer import _atomic_config_update
+
+        config_path.parent.mkdir(parents=True, exist_ok=True)
+
+        def updater(config):
+            merged = _deep_merge_configs(config, new_config)
+            config.clear()
+            config.update(merged)
+            return False, f"Merged scan config into {config_path}"
+
+        _atomic_config_update(config_path, updater)
+    except ImportError:
+        existing = {}
+        if config_path.exists():
+            with open(config_path, "r", encoding="utf-8") as f:
+                existing = json.load(f)
+
+        merged = _deep_merge_configs(existing, new_config)
+
+        config_path.parent.mkdir(parents=True, exist_ok=True)
+        if config_path.exists():
+            shutil.copy2(config_path, config_path.with_suffix(".json.backup"))
+        with open(config_path, "w", encoding="utf-8") as f:
+            json.dump(merged, f, indent=2)
+            f.write("\n")
+
 
 # --- Rule ID → Scanner routing ---
 

@@ -33,15 +33,7 @@ FORMAT_OPTIONS = [
     ("SARIF", "sarif"),
 ]
 
-RULE_ID_LABELS = {
-    "SECRET-001": "Secrets",
-    "PII-001": "PII",
-    "PROMPT-INJECTION-001": "Prompt Injection",
-    "SSRF-001": "SSRF",
-    "CONFIG-001": "Config Exfiltration",
-    "SUPPLY-CHAIN-001": "Supply Chain",
-    "UNICODE-001": "Unicode Attacks",
-}
+from ai_guardian.scan_analyzer import RULE_ID_LABELS
 
 
 class ExportModal(ModalScreen):
@@ -621,9 +613,10 @@ class DirectoryScanContent(ScrollableContainer):
                 from ai_guardian.tui.pattern_editor import config_section_for_rule_id
 
                 def on_progress(file_path, index, total):
-                    self.app.call_from_thread(
-                        self._update_progress, file_path, index, total
-                    )
+                    if index % 20 == 0 or index == total:
+                        self.app.call_from_thread(
+                            self._update_progress, file_path, index, total
+                        )
 
                 config = self._load_config()
                 scanner = FileScanner(config=config)

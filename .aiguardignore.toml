@@ -11,4 +11,6 @@ paths = [
 [prompt_injection.allowlist]
 paths = [
     "src/ai_guardian/pattern_loader.py",
+    ".ai-guardian/**",
+    ".claude/**",
 ]

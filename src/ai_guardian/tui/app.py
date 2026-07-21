@@ -228,6 +228,7 @@ NAV_GROUPS = [
             ("Hook Simulator", "panel-hook-simulator"),
             ("Engine Tester", "panel-engine-tester"),
             ("Directory Scan", "panel-directory-scan"),
+            ("Scan Configure", "panel-scan-configure"),
         ],
     ),
 ]
@@ -990,6 +991,24 @@ HELP_DOCS = {
         "[bold]Keyboard shortcuts:[/bold]\n"
         "  [bold]r[/bold]  Clear results"
     ),
+    "panel-scan-configure": (
+        "[bold]Scan Configure[/bold]\n\n"
+        "Scan a project to detect false positives and auto-generate "
+        "suppression config.\n\n"
+        "[bold]Note:[/bold] All scanners run regardless of enabled/disabled "
+        "settings to discover all potential false positives upfront.\n\n"
+        "[bold]Features:[/bold]\n"
+        "  - Scans project with all scanners\n"
+        "  - Clusters findings by pattern fingerprint\n"
+        "  - Identifies high-frequency patterns as false positives\n"
+        "  - Generates .ai-guardian/ai-guardian.json config\n"
+        "  - Generates .aiguardignore.toml ignore paths\n"
+        "  - Preview before applying\n\n"
+        "[bold]CLI equivalent:[/bold]\n"
+        "  ai-guardian init-project --scan\n\n"
+        "[bold]Keyboard shortcuts:[/bold]\n"
+        "  [bold]r[/bold]  Clear results"
+    ),
     "panel-health-check": (
         "[bold]Health Check (Doctor)[/bold]\n\n"
         "Verify your AI Guardian setup is working correctly. "
@@ -1576,6 +1595,13 @@ class AIGuardianTUI(App):
                     from ai_guardian.tui.directory_scan import DirectoryScanContent
 
                     yield DirectoryScanContent()
+
+                with Container(id="panel-scan-configure"):
+                    from ai_guardian.tui.scan_configure import (
+                        ScanConfigureContent,
+                    )
+
+                    yield ScanConfigureContent()
 
                 with Container(id="panel-health-check"):
                     from ai_guardian.tui.health_check import HealthCheckContent
