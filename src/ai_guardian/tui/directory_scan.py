@@ -7,7 +7,6 @@ of Type.
 """
 
 import json
-import logging
 import os
 import threading
 import time
@@ -28,12 +27,13 @@ from textual.containers import (
 from textual.screen import ModalScreen
 from textual.widgets import Static, Button, Input, Checkbox, Label, Select, TextArea
 
+from ai_guardian.scan_analyzer import RULE_ID_LABELS
+from ai_guardian.tui.utils import quiet_logging
+
 FORMAT_OPTIONS = [
     ("JSON", "json"),
     ("SARIF", "sarif"),
 ]
-
-from ai_guardian.scan_analyzer import RULE_ID_LABELS
 
 
 class ExportModal(ModalScreen):
@@ -563,17 +563,6 @@ class DirectoryScanContent(ScrollableContainer):
         except Exception:
             pass
 
-    @staticmethod
-    def _suppress_logging():
-        prev = logging.root.level
-        logging.disable(logging.CRITICAL)
-        return prev
-
-    @staticmethod
-    def _restore_logging(prev):
-        logging.disable(logging.NOTSET)
-        logging.root.setLevel(prev)
-
     def _load_config(self) -> Dict[str, Any]:
         try:
             from ai_guardian.config.utils import get_config_dir
@@ -607,52 +596,53 @@ class DirectoryScanContent(ScrollableContainer):
         self.query_one("#ds-stop-btn").display = True
 
         def worker():
-            prev = self._suppress_logging()
             try:
-                from ai_guardian.scanners.file_scanner import FileScanner
-                from ai_guardian.tui.pattern_editor import config_section_for_rule_id
-
-                def on_progress(file_path, index, total):
-                    if index % 20 == 0 or index == total:
-                        self.app.call_from_thread(
-                            self._update_progress, file_path, index, total
-                        )
-
-                config = self._load_config()
-                scanner = FileScanner(config=config)
-
-                start_ms = time.monotonic_ns() // 1_000_000
-                findings = scanner.scan_directory(
-                    path=self._scan_path,
-                    config_only=config_only,
-                    progress_callback=on_progress,
-                    cancel_event=self._cancel_event,
-                )
-                elapsed_ms = (time.monotonic_ns() // 1_000_000) - start_ms
-                cancelled = self._cancel_event.is_set()
-
-                for f in findings:
-                    f["config_section"] = config_section_for_rule_id(
-                        f.get("rule_id", "")
+                with quiet_logging():
+                    from ai_guardian.scanners.file_scanner import FileScanner
+                    from ai_guardian.tui.pattern_editor import (
+                        config_section_for_rule_id,
                     )
 
-                file_count = (
-                    len(scanner._discover_files(resolved, None, None, False))
-                    if resolved.is_dir()
-                    else 1
-                )
+                    def on_progress(file_path, index, total):
+                        if index % 20 == 0 or index == total:
+                            self.app.call_from_thread(
+                                self._update_progress, file_path, index, total
+                            )
 
-                self.app.call_from_thread(
-                    self._display_results,
-                    findings,
-                    file_count,
-                    elapsed_ms,
-                    cancelled,
-                )
+                    config = self._load_config()
+                    scanner = FileScanner(config=config)
+
+                    start_ms = time.monotonic_ns() // 1_000_000
+                    findings = scanner.scan_directory(
+                        path=self._scan_path,
+                        config_only=config_only,
+                        progress_callback=on_progress,
+                        cancel_event=self._cancel_event,
+                    )
+                    elapsed_ms = (time.monotonic_ns() // 1_000_000) - start_ms
+                    cancelled = self._cancel_event.is_set()
+
+                    for f in findings:
+                        f["config_section"] = config_section_for_rule_id(
+                            f.get("rule_id", "")
+                        )
+
+                    file_count = (
+                        len(scanner._discover_files(resolved, None, None, False))
+                        if resolved.is_dir()
+                        else 1
+                    )
+
+                    self.app.call_from_thread(
+                        self._display_results,
+                        findings,
+                        file_count,
+                        elapsed_ms,
+                        cancelled,
+                    )
             except Exception as exc:
                 self.app.call_from_thread(self._show_error, str(exc))
             finally:
-                self._restore_logging(prev)
                 self.app.call_from_thread(self._scan_finished)
 
         threading.Thread(target=worker, daemon=True).start()

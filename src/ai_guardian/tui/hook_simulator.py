@@ -7,7 +7,6 @@ violations.
 """
 
 import json
-import logging
 import os
 import tempfile
 from io import StringIO
@@ -18,6 +17,7 @@ from textual.containers import Container, Horizontal, Vertical, ScrollableContai
 from textual.widgets import Static, Input, Button, Select, TextArea
 
 from ai_guardian.constants import HookEvent
+from ai_guardian.logging_utils import quiet_logging
 
 HOOK_EVENTS = [
     (HookEvent.PROMPT.display_name, HookEvent.PROMPT.display_name),
@@ -417,15 +417,12 @@ class HookSimulatorContent(ScrollableContainer):
                     mock_patch("sys.stderr", devnull),
                     mock_patch("sys.stdout", devnull),
                 ):
-                    logging.disable(logging.CRITICAL)
                     try:
-                        result = ai_guardian.process_hook_input()
+                        with quiet_logging():
+                            result = ai_guardian.process_hook_input()
                     except Exception as exc:
-                        logging.disable(logging.NOTSET)
                         self._show_error(str(exc))
                         return None
-                    finally:
-                        logging.disable(logging.NOTSET)
 
         return result
 
