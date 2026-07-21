@@ -6,7 +6,6 @@ suppression config (.ai-guardian/ai-guardian.json and .aiguardignore.toml).
 """
 
 import json
-import logging
 import threading
 from pathlib import Path
 
@@ -21,6 +20,7 @@ from textual.containers import (
 from textual.widgets import Static, Button, Input
 
 from ai_guardian.scan_analyzer import RULE_ID_LABELS
+from ai_guardian.tui.utils import quiet_logging
 
 
 class ScanConfigureContent(ScrollableContainer):
@@ -199,89 +199,90 @@ class ScanConfigureContent(ScrollableContainer):
         self.query_one("#sc-details", Static).update("")
 
         def worker():
-            prev = self._suppress_logging()
             try:
-                from ai_guardian.project_init import ProjectInitializer
+                with quiet_logging():
+                    from ai_guardian.project_init import ProjectInitializer
 
-                initializer = ProjectInitializer(Path(project_dir))
+                    initializer = ProjectInitializer(Path(project_dir))
 
-                languages = initializer.detect_languages()
-                if self._cancel_event.is_set():
-                    self.app.call_from_thread(self._scan_cancelled)
-                    return
+                    languages = initializer.detect_languages()
+                    if self._cancel_event.is_set():
+                        self.app.call_from_thread(self._scan_cancelled)
+                        return
 
-                self.app.call_from_thread(
-                    summary.update,
-                    "[yellow]Detecting languages... generating allowlist...[/yellow]",
-                )
+                    self.app.call_from_thread(
+                        summary.update,
+                        "[yellow]Detecting languages... generating allowlist...[/yellow]",
+                    )
 
-                allowlist_entries, ignore_files = initializer.generate_allowlist(
-                    languages
-                )
-                if self._cancel_event.is_set():
-                    self.app.call_from_thread(self._scan_cancelled)
-                    return
+                    allowlist_entries, ignore_files = initializer.generate_allowlist(
+                        languages
+                    )
+                    if self._cancel_event.is_set():
+                        self.app.call_from_thread(self._scan_cancelled)
+                        return
 
-                language_config = initializer.generate_config(
-                    allowlist_entries, ignore_files
-                )
+                    language_config = initializer.generate_config(
+                        allowlist_entries, ignore_files
+                    )
 
-                self.app.call_from_thread(
-                    summary.update,
-                    "[yellow]Scanning project files...[/yellow]",
-                )
+                    self.app.call_from_thread(
+                        summary.update,
+                        "[yellow]Scanning project files...[/yellow]",
+                    )
 
-                from ai_guardian.scanners.file_scanner import FileScanner
+                    from ai_guardian.scanners.file_scanner import FileScanner
 
-                scan_state = {"index": 0, "total": 0, "file": ""}
+                    scan_state = {"index": 0, "total": 0, "file": ""}
 
-                def on_progress(file_path, index, total):
-                    scan_state["file"] = file_path
-                    scan_state["index"] = index
-                    scan_state["total"] = total
-                    if index % 20 == 0 or index == total:
-                        short = file_path
-                        if len(short) > 60:
-                            short = "..." + short[-57:]
-                        self.app.call_from_thread(
-                            summary.update,
-                            f"[yellow]Scanning {index}/{total}[/yellow]  "
-                            f"[dim]{escape(short)}[/dim]",
-                        )
+                    def on_progress(file_path, index, total):
+                        scan_state["file"] = file_path
+                        scan_state["index"] = index
+                        scan_state["total"] = total
+                        if index % 20 == 0 or index == total:
+                            short = file_path
+                            if len(short) > 60:
+                                short = "..." + short[-57:]
+                            self.app.call_from_thread(
+                                summary.update,
+                                f"[yellow]Scanning {index}/{total}[/yellow]  "
+                                f"[dim]{escape(short)}[/dim]",
+                            )
 
-                scanner = FileScanner(config={}, verbose=False)
-                findings = scanner.scan_directory(
-                    str(initializer.project_dir),
-                    progress_callback=on_progress,
-                    cancel_event=self._cancel_event,
-                )
-                if self._cancel_event.is_set():
-                    self.app.call_from_thread(self._scan_cancelled)
-                    return
+                    scanner = FileScanner(config={}, verbose=False)
+                    findings = scanner.scan_directory(
+                        str(initializer.project_dir),
+                        progress_callback=on_progress,
+                        cancel_event=self._cancel_event,
+                    )
+                    if self._cancel_event.is_set():
+                        self.app.call_from_thread(self._scan_cancelled)
+                        return
 
-                self.app.call_from_thread(
-                    summary.update,
-                    f"[yellow]Analyzing {len(findings)} findings...[/yellow]",
-                )
+                    self.app.call_from_thread(
+                        summary.update,
+                        f"[yellow]Analyzing {len(findings)} findings...[/yellow]",
+                    )
 
-                analysis = initializer.analyze_scan(findings, threshold=threshold)
-                scan_config = analysis.recommended_config
-                merged_config = initializer.merge_configs(language_config, scan_config)
+                    analysis = initializer.analyze_scan(findings, threshold=threshold)
+                    scan_config = analysis.recommended_config
+                    merged_config = initializer.merge_configs(
+                        language_config, scan_config
+                    )
 
-                result = {
-                    "languages": languages,
-                    "findings_count": len(findings),
-                    "analysis": analysis,
-                    "merged_config": merged_config,
-                    "project_dir": project_dir,
-                }
+                    result = {
+                        "languages": languages,
+                        "findings_count": len(findings),
+                        "analysis": analysis,
+                        "merged_config": merged_config,
+                        "project_dir": project_dir,
+                    }
 
-                self.app.call_from_thread(self._display_results, result)
+                    self.app.call_from_thread(self._display_results, result)
 
             except Exception as exc:
                 self.app.call_from_thread(self._show_error, str(exc))
             finally:
-                self._restore_logging(prev)
                 self.app.call_from_thread(self._scan_finished)
 
         threading.Thread(target=worker, daemon=True).start()
@@ -387,30 +388,28 @@ class ScanConfigureContent(ScrollableContainer):
         ignore_paths = result["analysis"].recommended_ignore_paths
 
         def worker():
-            prev = self._suppress_logging()
             try:
-                from ai_guardian.project_init import ProjectInitializer
-                from ai_guardian.scan_analyzer import merge_and_write_config
+                with quiet_logging():
+                    from ai_guardian.project_init import ProjectInitializer
+                    from ai_guardian.scan_analyzer import merge_and_write_config
 
-                initializer = ProjectInitializer(Path(project_dir))
+                    initializer = ProjectInitializer(Path(project_dir))
 
-                if merged_config:
-                    config_path = (
-                        Path(project_dir) / ".ai-guardian" / "ai-guardian.json"
+                    if merged_config:
+                        config_path = (
+                            Path(project_dir) / ".ai-guardian" / "ai-guardian.json"
+                        )
+                        merge_and_write_config(config_path, merged_config)
+                    if ignore_paths:
+                        initializer.write_aiguardignore(ignore_paths)
+
+                    self.app.call_from_thread(
+                        self.app.notify,
+                        "Config applied successfully",
+                        severity="information",
                     )
-                    merge_and_write_config(config_path, merged_config)
-                if ignore_paths:
-                    initializer.write_aiguardignore(ignore_paths)
-
-                self.app.call_from_thread(
-                    self.app.notify,
-                    "Config applied successfully",
-                    severity="information",
-                )
             except Exception as exc:
                 self.app.call_from_thread(self._show_error, str(exc))
-            finally:
-                self._restore_logging(prev)
 
         threading.Thread(target=worker, daemon=True).start()
 
@@ -419,14 +418,3 @@ class ScanConfigureContent(ScrollableContainer):
         self.query_one("#sc-results-section").display = False
         self.query_one("#sc-summary", Static).update("")
         self.query_one("#sc-details", Static).update("")
-
-    @staticmethod
-    def _suppress_logging():
-        prev = logging.root.level
-        logging.disable(logging.CRITICAL)
-        return prev
-
-    @staticmethod
-    def _restore_logging(prev):
-        logging.disable(logging.NOTSET)
-        logging.root.setLevel(prev)

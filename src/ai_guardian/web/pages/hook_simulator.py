@@ -1,7 +1,6 @@
 """Hook Simulator page — simulate hook events and see responses."""
 
 import json
-import logging
 import os
 import tempfile
 from io import StringIO
@@ -10,6 +9,7 @@ from unittest import mock as mock_patch
 from nicegui import run, ui
 
 from ai_guardian.constants import HookEvent
+from ai_guardian.logging_utils import quiet_logging
 from ai_guardian.web.components.header import create_header, create_sidebar
 from ai_guardian.tui.hook_simulator import (
     build_hook_data,
@@ -58,14 +58,11 @@ def _execute_simulation(hook_data, ide_type="claude"):
                 mock_patch.patch("sys.stderr", devnull),
                 mock_patch.patch("sys.stdout", devnull),
             ):
-                logging.disable(logging.CRITICAL)
                 try:
-                    result = ai_guardian.process_hook_input()
+                    with quiet_logging():
+                        result = ai_guardian.process_hook_input()
                 except Exception as exc:
-                    logging.disable(logging.NOTSET)
                     return {"error": str(exc)}
-                finally:
-                    logging.disable(logging.NOTSET)
 
     return result
 
