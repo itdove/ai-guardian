@@ -19,14 +19,7 @@ from ai_guardian.scanners.transcript.windsurf import (
     read_windsurf_transcript,
     scan_windsurf_transcript_incremental,
 )
-
-
-def _write_jsonl(path, steps):
-    """Write a list of step dicts as a JSONL file."""
-    with open(path, "w", encoding="utf-8") as f:
-        for step in steps:
-            f.write(json.dumps(step) + "\n")
-
+from tests.unit.transcript_helpers import write_jsonl as _write_jsonl
 
 TRAJECTORY_ID = "test-trajectory-001"
 

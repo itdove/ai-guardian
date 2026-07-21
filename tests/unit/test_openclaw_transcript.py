@@ -20,15 +20,7 @@ from ai_guardian.scanners.transcript.openclaw import (
     read_openclaw_transcript,
     scan_openclaw_transcript_incremental,
 )
-
-
-def _write_jsonl(path, entries):
-    """Write a list of entry dicts as a JSONL file."""
-    os.makedirs(os.path.dirname(path), exist_ok=True)
-    with open(path, "w", encoding="utf-8") as f:
-        for entry in entries:
-            f.write(json.dumps(entry) + "\n")
-
+from tests.unit.transcript_helpers import write_jsonl as _write_jsonl
 
 SESSION_ID = "transcript-2026-05-22T09-00-00-000Z-a1b2c3d4"
 
