@@ -5,12 +5,13 @@ Test strings against individual scanner engines to compare detection
 across engines and debug pattern differences.
 """
 
-import logging
 import threading
 
 from textual.app import ComposeResult
 from textual.containers import Container, Horizontal, Vertical, ScrollableContainer
 from textual.widgets import Static, Button, Select, TextArea, Checkbox
+
+from ai_guardian.tui.utils import quiet_logging
 
 
 class EngineTesterContent(ScrollableContainer):
@@ -227,18 +228,6 @@ class EngineTesterContent(ScrollableContainer):
         )
         self.query_one("#et-details", Static).update("")
 
-    @staticmethod
-    def _suppress_logging():
-        """Temporarily raise log level to avoid stdout noise in the TUI."""
-        prev = logging.root.level
-        logging.disable(logging.CRITICAL)
-        return prev
-
-    @staticmethod
-    def _restore_logging(prev):
-        logging.disable(logging.NOTSET)
-        logging.root.setLevel(prev)
-
     def _run_single(self):
         sel = self.query_one("#et-engine-select", Select)
         engine = sel.value
@@ -258,16 +247,14 @@ class EngineTesterContent(ScrollableContainer):
         use_ps = self._use_pattern_server()
 
         def worker():
-            prev = self._suppress_logging()
             try:
-                from ai_guardian.scanners.engine_tester import test_engine
+                with quiet_logging():
+                    from ai_guardian.scanners.engine_tester import test_engine
 
-                result = test_engine(engine, text, use_pattern_server=use_ps)
-                self.app.call_from_thread(self._display_single, result)
+                    result = test_engine(engine, text, use_pattern_server=use_ps)
+                    self.app.call_from_thread(self._display_single, result)
             except Exception as exc:
                 self.app.call_from_thread(self._show_error, str(exc))
-            finally:
-                self._restore_logging(prev)
 
         threading.Thread(target=worker, daemon=True).start()
 
@@ -282,20 +269,20 @@ class EngineTesterContent(ScrollableContainer):
         use_ps = self._use_pattern_server()
 
         def worker():
-            prev = self._suppress_logging()
             try:
-                from ai_guardian.scanners.engine_tester import (
-                    test_all_engines,
-                    apply_strategy,
-                )
+                with quiet_logging():
+                    from ai_guardian.scanners.engine_tester import (
+                        test_all_engines,
+                        apply_strategy,
+                    )
 
-                results = test_all_engines(text, use_pattern_server=use_ps)
-                verdict = apply_strategy(strategy, results)
-                self.app.call_from_thread(self._display_comparison, results, verdict)
+                    results = test_all_engines(text, use_pattern_server=use_ps)
+                    verdict = apply_strategy(strategy, results)
+                    self.app.call_from_thread(
+                        self._display_comparison, results, verdict
+                    )
             except Exception as exc:
                 self.app.call_from_thread(self._show_error, str(exc))
-            finally:
-                self._restore_logging(prev)
 
         threading.Thread(target=worker, daemon=True).start()
 
