@@ -13,13 +13,13 @@ from textual.app import ComposeResult
 from textual.containers import Container, Horizontal, VerticalScroll
 from textual.widgets import Static, Button, Input, Label, Checkbox
 
-from ai_guardian.config.utils import get_config_dir, get_project_config_path
 from ai_guardian.tui.schema_defaults import (
+    ConfigSaveMixin,
     SchemaDefaultsMixin,
     default_indicator,
     default_placeholder,
 )
-from ai_guardian.tui.widgets import TimeBasedToggle, sanitize_enabled_value
+from ai_guardian.tui.widgets import TimeBasedToggle
 
 ALL_LOG_TYPES = [
     ("tool_permission", "Tool Permission — blocked tool/skill invocations"),
@@ -43,9 +43,10 @@ ALL_LOG_TYPES = [
 ]
 
 
-class ViolationLoggingContent(SchemaDefaultsMixin, Container):
+class ViolationLoggingContent(ConfigSaveMixin, SchemaDefaultsMixin, Container):
     """Content widget for Violation Logging tab."""
 
+    CONFIG_SECTION = "violation_logging"
     SCHEMA_SECTION = "violation_logging"
     SCHEMA_FIELDS = [
         ("vlog-max-entries", "max_entries", "input"),
@@ -188,26 +189,6 @@ class ViolationLoggingContent(SchemaDefaultsMixin, Container):
                 yield Static("[bold]Log Statistics[/bold]", classes="section-title")
                 yield Static("", id="log-stats")
 
-    @property
-    def _is_project_scope(self) -> bool:
-        try:
-            return self.app.config_scope == "project"
-        except Exception:
-            return False
-
-    def _get_config_path(self):
-        from pathlib import Path
-
-        if self._is_project_scope:
-            project_path = get_project_config_path()
-            if project_path:
-                return project_path
-            from ai_guardian.config.utils import _find_git_root
-
-            root = _find_git_root() or Path.cwd()
-            return root / ".ai-guardian" / "ai-guardian.json"
-        return get_config_dir() / "ai-guardian.json"
-
     def on_mount(self) -> None:
         self.load_config()
 
@@ -294,29 +275,7 @@ class ViolationLoggingContent(SchemaDefaultsMixin, Container):
             )
 
     def _save_config(self, updates: Dict[str, Any]) -> bool:
-        config_path = self._get_config_path()
-
-        try:
-            config = {}
-            if config_path.exists():
-                with open(config_path, "r", encoding="utf-8") as f:
-                    config = json.load(f)
-
-            if "violation_logging" not in config:
-                config["violation_logging"] = {}
-
-            if "enabled" in updates:
-                updates["enabled"] = sanitize_enabled_value(updates["enabled"])
-            config["violation_logging"].update(updates)
-
-            config_dir.mkdir(parents=True, exist_ok=True)
-            with open(config_path, "w", encoding="utf-8") as f:
-                json.dump(config, f, indent=2)
-
-            return True
-        except Exception as e:
-            self.app.notify(f"Error saving config: {e}", severity="error")
-            return False
+        return self._save_config_updates(updates)
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         bid = event.button.id

@@ -6,7 +6,6 @@ Manage Skill permissions (allow/deny lists for Skill tools).
 """
 
 import json
-from pathlib import Path
 from datetime import datetime, timezone
 from typing import Union, Dict, Any
 
@@ -14,7 +13,7 @@ from textual.app import ComposeResult
 from textual.containers import Container, Horizontal, VerticalScroll
 from textual.widgets import Button, Static, Input
 
-from ai_guardian.config.utils import get_config_dir, get_project_config_path
+from ai_guardian.tui.schema_defaults import ConfigSaveMixin
 from ai_guardian.tui.widgets import (
     TimeBasedToggle,
     sanitize_enabled_value,
@@ -106,8 +105,10 @@ class PatternRow(Horizontal):
         yield Button("Remove", id=f"remove-{self.mode}-{self.index}", variant="error")
 
 
-class SkillsContent(Container):
+class SkillsContent(ConfigSaveMixin, Container):
     """Content widget for Skills tab."""
+
+    CONFIG_SECTION = "permissions"
 
     CSS = """
     SkillsContent {
@@ -226,24 +227,6 @@ class SkillsContent(Container):
         margin: 0 1 0 0;
     }
     """
-
-    @property
-    def _is_project_scope(self) -> bool:
-        try:
-            return self.app.config_scope == "project"
-        except Exception:
-            return False
-
-    def _get_config_path(self) -> Path:
-        if self._is_project_scope:
-            project_path = get_project_config_path()
-            if project_path:
-                return project_path
-            from ai_guardian.config.utils import _find_git_root
-
-            root = _find_git_root() or Path.cwd()
-            return root / ".ai-guardian" / "ai-guardian.json"
-        return get_config_dir() / "ai-guardian.json"
 
     def compose(self) -> ComposeResult:
         """Compose the skills tab content."""
@@ -444,26 +427,18 @@ class SkillsContent(Container):
 
     def _save_permissions_enabled(self, value: Union[bool, Dict[str, Any]]) -> None:
         """Save permissions.enabled to config."""
-        config_path = self._get_config_path()
-
         try:
-            if config_path.exists():
-                with open(config_path, "r", encoding="utf-8") as f:
-                    config = json.load(f)
-            else:
-                config = {}
+            # Ensure permissions.rules exists (mixin only creates empty dict)
+            config = self._load_full_config()
+            perm = config.get("permissions")
+            if not isinstance(perm, dict) or "rules" not in perm:
+                config.setdefault("permissions", {}).setdefault("rules", [])
+                self._write_full_config(config)
 
-            if "permissions" not in config or not isinstance(
-                config["permissions"], dict
-            ):
-                config["permissions"] = {"enabled": True, "rules": []}
+            if not self._save_config_field("enabled", value):
+                raise RuntimeError("config write failed")
 
             value = sanitize_enabled_value(value)
-            config["permissions"]["enabled"] = value
-
-            with open(config_path, "w", encoding="utf-8") as f:
-                json.dump(config, f, indent=2)
-
             if isinstance(value, bool):
                 status = "enabled" if value else "disabled"
                 self.app.notify(
@@ -492,14 +467,8 @@ class SkillsContent(Container):
             self.app.notify("Please enter a pattern", severity="error")
             return
 
-        config_path = self._get_config_path()
-
         try:
-            if config_path.exists():
-                with open(config_path, "r", encoding="utf-8") as f:
-                    config = json.load(f)
-            else:
-                config = {}
+            config = self._load_full_config()
 
             permissions_obj = config.get("permissions", {})
             if isinstance(permissions_obj, dict):
@@ -536,8 +505,7 @@ class SkillsContent(Container):
             else:
                 config["permissions"] = all_permissions
 
-            with open(config_path, "w", encoding="utf-8") as f:
-                json.dump(config, f, indent=2)
+            self._write_full_config(config)
 
             # Clear input
             self.query_one(f"#{input_id}", Input).value = ""
@@ -559,8 +527,7 @@ class SkillsContent(Container):
             return
 
         try:
-            with open(config_path, "r", encoding="utf-8") as f:
-                config = json.load(f)
+            config = self._load_full_config(config_path=config_path)
 
             # NEW unified structure in v1.4.0
             permissions_obj = config.get("permissions", {})
@@ -590,8 +557,7 @@ class SkillsContent(Container):
                                 "rules": all_permissions,
                             }
 
-                        with open(config_path, "w", encoding="utf-8") as f:
-                            json.dump(config, f, indent=2)
+                        self._write_full_config(config, config_path=config_path)
 
                         self.load_patterns()
                         self.app.notify(

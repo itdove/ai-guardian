@@ -42,9 +42,10 @@ class TestActionSaveField:
             content._loading = False
 
             with (
-                patch(
-                    "ai_guardian.tui.pi_detection.get_config_dir",
-                    return_value=Path(tmpdir),
+                patch.object(
+                    content,
+                    "_get_config_path",
+                    return_value=config_path,
                 ),
                 patch.object(
                     type(content),

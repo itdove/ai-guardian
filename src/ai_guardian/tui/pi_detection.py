@@ -14,17 +14,19 @@ from textual.widgets import Static, Button, Input, Label, Select
 
 from ai_guardian.config.utils import get_config_dir
 from ai_guardian.tui.schema_defaults import (
+    ConfigSaveMixin,
     SchemaDefaultsMixin,
     default_indicator,
     default_placeholder,
     select_options_with_default,
 )
-from ai_guardian.tui.widgets import TimeBasedToggle, sanitize_enabled_value
+from ai_guardian.tui.widgets import TimeBasedToggle
 
 
-class PIDetectionContent(SchemaDefaultsMixin, Container):
+class PIDetectionContent(ConfigSaveMixin, SchemaDefaultsMixin, Container):
     """Content widget for Prompt Injection Detection Settings."""
 
+    CONFIG_SECTION = "prompt_injection"
     SCHEMA_SECTION = "prompt_injection"
     SCHEMA_FIELDS = [
         ("detector-select", "detector", "select"),
@@ -312,44 +314,24 @@ class PIDetectionContent(SchemaDefaultsMixin, Container):
             )
 
     def _save_field(self, field: str, value) -> None:
-        if field == "enabled":
-            value = sanitize_enabled_value(value)
-        config_dir = get_config_dir()
-        config_path = config_dir / "ai-guardian.json"
-        try:
-            config = {}
-            if config_path.exists():
-                with open(config_path, "r", encoding="utf-8") as f:
-                    config = json.load(f)
-            if "prompt_injection" not in config:
-                config["prompt_injection"] = {}
-            config["prompt_injection"][field] = value
-            with open(config_path, "w", encoding="utf-8") as f:
-                json.dump(config, f, indent=2)
+        if self._save_config_field(field, value):
             self.app.notify(f"Saved {field}", severity="success")
-        except Exception as e:
-            self.app.notify(f"Error saving {field}: {e}", severity="error")
+        else:
+            self.app.notify(f"Error saving {field}", severity="error")
 
     def _save_settings(self) -> None:
         try:
             detector = self.query_one("#detector-select", Select).value
             sensitivity = self.query_one("#sensitivity-select", Select).value
-            config_dir = get_config_dir()
-            config_path = config_dir / "ai-guardian.json"
-            config = {}
-            if config_path.exists():
-                with open(config_path, "r", encoding="utf-8") as f:
-                    config = json.load(f)
-            if "prompt_injection" not in config:
-                config["prompt_injection"] = {}
-            config["prompt_injection"]["detector"] = detector
-            config["prompt_injection"]["sensitivity"] = sensitivity
-            with open(config_path, "w", encoding="utf-8") as f:
-                json.dump(config, f, indent=2)
-            self.app.notify(
-                f"Updated detector: {detector}, sensitivity: {sensitivity}",
-                severity="success",
-            )
+            if self._save_config_updates(
+                {"detector": detector, "sensitivity": sensitivity}
+            ):
+                self.app.notify(
+                    f"Updated detector: {detector}, sensitivity: {sensitivity}",
+                    severity="success",
+                )
+            else:
+                self.app.notify("Error saving settings", severity="error")
         except Exception as e:
             self.app.notify(f"Error: {e}", severity="error")
 
@@ -408,25 +390,4 @@ class PIDetectionContent(SchemaDefaultsMixin, Container):
         if not value:
             self.app.notify("Please enter a value", severity="error")
             return
-        config_dir = get_config_dir()
-        config_path = config_dir / "ai-guardian.json"
-        try:
-            config = {}
-            if config_path.exists():
-                with open(config_path, "r", encoding="utf-8") as f:
-                    config = json.load(f)
-            if "prompt_injection" not in config:
-                config["prompt_injection"] = {}
-            if field not in config["prompt_injection"]:
-                config["prompt_injection"][field] = []
-            if value in config["prompt_injection"][field]:
-                self.app.notify("Already in list", severity="warning")
-                return
-            config["prompt_injection"][field].append(value)
-            with open(config_path, "w", encoding="utf-8") as f:
-                json.dump(config, f, indent=2)
-            input_widget.value = ""
-            self.load_config()
-            self.app.notify(f"Added to {field}: {value}", severity="success")
-        except Exception as e:
-            self.app.notify(f"Error: {e}", severity="error")
+        self._add_config_list_item(field, value, input_widget)

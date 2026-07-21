@@ -6,23 +6,22 @@ View and configure SSRF (Server-Side Request Forgery) protection settings.
 """
 
 import json
-from pathlib import Path
 from typing import Dict, Any
 
 from textual.app import ComposeResult
 from textual.containers import Container, Horizontal, VerticalScroll
 from textual.widgets import Static, Button, Input, Label, Select, Checkbox
 
-from ai_guardian.config.utils import get_config_dir, get_project_config_path
 from ai_guardian.tui.schema_defaults import (
+    ConfigSaveMixin,
     SchemaDefaultsMixin,
     default_indicator,
     select_options_with_default,
 )
-from ai_guardian.tui.widgets import TimeBasedToggle, sanitize_enabled_value
+from ai_guardian.tui.widgets import TimeBasedToggle
 
 
-class SSRFContent(SchemaDefaultsMixin, Container):
+class SSRFContent(ConfigSaveMixin, SchemaDefaultsMixin, Container):
     """Content widget for SSRF Protection tab."""
 
     SCHEMA_SECTION = "ssrf_protection"
@@ -30,6 +29,7 @@ class SSRFContent(SchemaDefaultsMixin, Container):
         ("action-select", "action", "select"),
         ("allow-localhost-checkbox", "allow_localhost", "checkbox"),
     ]
+    CONFIG_SECTION = "ssrf_protection"
 
     CSS = """
     SSRFContent {
@@ -123,24 +123,6 @@ class SSRFContent(SchemaDefaultsMixin, Container):
         text-style: bold;
     }
     """
-
-    @property
-    def _is_project_scope(self) -> bool:
-        try:
-            return self.app.config_scope == "project"
-        except Exception:
-            return False
-
-    def _get_config_path(self) -> Path:
-        if self._is_project_scope:
-            project_path = get_project_config_path()
-            if project_path:
-                return project_path
-            from ai_guardian.config.utils import _find_git_root
-
-            root = _find_git_root() or Path.cwd()
-            return root / ".ai-guardian" / "ai-guardian.json"
-        return get_config_dir() / "ai-guardian.json"
 
     def compose(self) -> ComposeResult:
         """Compose the SSRF protection tab content."""
@@ -485,38 +467,7 @@ class SSRFContent(SchemaDefaultsMixin, Container):
         Returns:
             bool: True if successful, False otherwise
         """
-        config_path = self._get_config_path()
-
-        try:
-            # Load existing config
-            config = {}
-            if config_path.exists():
-                with open(config_path, "r", encoding="utf-8") as f:
-                    config = json.load(f)
-
-            # Ensure ssrf_protection section exists
-            if "ssrf_protection" not in config:
-                config["ssrf_protection"] = {}
-
-            if "enabled" in config_updates:
-                config_updates["enabled"] = sanitize_enabled_value(
-                    config_updates["enabled"]
-                )
-            config["ssrf_protection"].update(config_updates)
-
-            # Save config
-            config_path.parent.mkdir(parents=True, exist_ok=True)
-            with open(config_path, "w", encoding="utf-8") as f:
-                json.dump(config, f, indent=2)
-
-            self.app.notify(
-                "SSRF protection configuration saved", severity="information"
-            )
-            return True
-
-        except Exception as e:
-            self.app.notify(f"Error saving config: {e}", severity="error")
-            return False
+        return self._save_config_updates(config_updates)
 
     def on_checkbox_changed(self, event: Checkbox.Changed) -> None:
         """Handle checkbox changes - save immediately."""
@@ -614,14 +565,8 @@ class SSRFContent(SchemaDefaultsMixin, Container):
             self.app.notify("Invalid IP address or CIDR format", severity="error")
             return
 
-        config_path = self._get_config_path()
-
         try:
-            if config_path.exists():
-                with open(config_path, "r", encoding="utf-8") as f:
-                    config = json.load(f)
-            else:
-                config = {}
+            config = self._load_full_config()
 
             if "ssrf_protection" not in config:
                 config["ssrf_protection"] = {}
@@ -636,8 +581,7 @@ class SSRFContent(SchemaDefaultsMixin, Container):
 
             config["ssrf_protection"]["additional_blocked_ips"].append(ip_value)
 
-            with open(config_path, "w", encoding="utf-8") as f:
-                json.dump(config, f, indent=2)
+            self._write_full_config(config)
 
             # Clear input
             ip_input.value = ""
@@ -665,14 +609,8 @@ class SSRFContent(SchemaDefaultsMixin, Container):
             self.app.notify("Invalid domain format", severity="error")
             return
 
-        config_path = self._get_config_path()
-
         try:
-            if config_path.exists():
-                with open(config_path, "r", encoding="utf-8") as f:
-                    config = json.load(f)
-            else:
-                config = {}
+            config = self._load_full_config()
 
             if "ssrf_protection" not in config:
                 config["ssrf_protection"] = {}
@@ -687,8 +625,7 @@ class SSRFContent(SchemaDefaultsMixin, Container):
 
             config["ssrf_protection"]["additional_blocked_domains"].append(domain_value)
 
-            with open(config_path, "w", encoding="utf-8") as f:
-                json.dump(config, f, indent=2)
+            self._write_full_config(config)
 
             # Clear input
             domain_input.value = ""
@@ -718,14 +655,8 @@ class SSRFContent(SchemaDefaultsMixin, Container):
             self.app.notify("Invalid domain format", severity="error")
             return
 
-        config_path = self._get_config_path()
-
         try:
-            if config_path.exists():
-                with open(config_path, "r", encoding="utf-8") as f:
-                    config = json.load(f)
-            else:
-                config = {}
+            config = self._load_full_config()
 
             if "ssrf_protection" not in config:
                 config["ssrf_protection"] = {}
@@ -740,8 +671,7 @@ class SSRFContent(SchemaDefaultsMixin, Container):
 
             config["ssrf_protection"]["allowed_domains"].append(domain_value)
 
-            with open(config_path, "w", encoding="utf-8") as f:
-                json.dump(config, f, indent=2)
+            self._write_full_config(config)
 
             # Clear input
             domain_input.value = ""
@@ -762,12 +692,8 @@ class SSRFContent(SchemaDefaultsMixin, Container):
             self.app.notify("Please enter a pattern", severity="error")
             return
 
-        config_path = self._get_config_path()
         try:
-            config = {}
-            if config_path.exists():
-                with open(config_path, "r", encoding="utf-8") as f:
-                    config = json.load(f)
+            config = self._load_full_config()
 
             if "ssrf_protection" not in config:
                 config["ssrf_protection"] = {}
@@ -780,8 +706,7 @@ class SSRFContent(SchemaDefaultsMixin, Container):
 
             config["ssrf_protection"][field].append(value)
 
-            with open(config_path, "w", encoding="utf-8") as f:
-                json.dump(config, f, indent=2)
+            self._write_full_config(config)
 
             input_widget.value = ""
             self.load_config()

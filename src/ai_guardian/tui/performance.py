@@ -1,18 +1,19 @@
 """Performance (Hook Latency) panel for the TUI console."""
 
-import json
 from typing import Any, Dict
 
 from textual.app import ComposeResult
 from textual.containers import Container, Horizontal, VerticalScroll
 from textual.widgets import Button, Input, Static
 
-from ai_guardian.config.utils import get_config_dir
+from ai_guardian.tui.schema_defaults import ConfigSaveMixin
 from ai_guardian.tui.widgets import TimeBasedToggle, sanitize_enabled_value
 
 
-class PerformanceContent(Container):
+class PerformanceContent(ConfigSaveMixin, Container):
     """Content widget for Performance (Hook Latency) panel."""
+
+    CONFIG_SECTION = "latency_tracking"
 
     CSS = """
     PerformanceContent {
@@ -266,23 +267,7 @@ class PerformanceContent(Container):
             self.app.notify(f"Error: {e}", severity="error")
 
     def _save_config(self, updates: Dict[str, Any]) -> bool:
-        config_dir = get_config_dir()
-        config_path = config_dir / "ai-guardian.json"
-        try:
-            config = {}
-            if config_path.exists():
-                with open(config_path, "r", encoding="utf-8") as f:
-                    config = json.load(f)
-            if "latency_tracking" not in config:
-                config["latency_tracking"] = {}
-            config["latency_tracking"].update(updates)
-            config_dir.mkdir(parents=True, exist_ok=True)
-            with open(config_path, "w", encoding="utf-8") as f:
-                json.dump(config, f, indent=2)
-            return True
-        except Exception as e:
-            self.app.notify(f"Error saving config: {e}", severity="error")
-            return False
+        return self._save_config_updates(updates)
 
     def _load_data(self):
         try:

@@ -7,20 +7,20 @@ Uses a JSON editor for the rules array, matching the Config Editor pattern.
 """
 
 import json
-import shutil
-from pathlib import Path
 
 from textual.app import ComposeResult
 from textual.binding import Binding
 from textual.containers import Container, Horizontal
 from textual.widgets import Static, Label, Select, TextArea
 
-from ai_guardian.config.utils import get_config_dir, get_project_config_path
 from ai_guardian.tui.console_settings import load_editor_theme
+from ai_guardian.tui.schema_defaults import ConfigSaveMixin
 
 
-class DirectoryRulesContent(Container):
+class DirectoryRulesContent(ConfigSaveMixin, Container):
     """Content widget for Directory Rules tab."""
+
+    CONFIG_SECTION = "directory_rules"
 
     BINDINGS = [
         Binding("ctrl+s", "save", "Save", show=True),
@@ -89,24 +89,6 @@ class DirectoryRulesContent(Container):
         border: solid $primary;
     }
     """
-
-    @property
-    def _is_project_scope(self) -> bool:
-        try:
-            return self.app.config_scope == "project"
-        except Exception:
-            return False
-
-    def _get_config_path(self) -> Path:
-        if self._is_project_scope:
-            project_path = get_project_config_path()
-            if project_path:
-                return project_path
-            from ai_guardian.config.utils import _find_git_root
-
-            root = _find_git_root() or Path.cwd()
-            return root / ".ai-guardian" / "ai-guardian.json"
-        return get_config_dir() / "ai-guardian.json"
 
     def compose(self) -> ComposeResult:
         yield Static(
@@ -283,7 +265,7 @@ class DirectoryRulesContent(Container):
             return
 
         try:
-            config = self._load_config_dict()
+            config = self._load_full_config()
             dr = self._get_rules_section(config)
 
             # Preserve generated/immutable rules
@@ -295,7 +277,7 @@ class DirectoryRulesContent(Container):
 
             dr["rules"] = rules + preserved
             config["directory_rules"] = dr
-            self._save_config_dict(config)
+            self._write_full_config(config, backup=True)
             self.app.notify(f"Saved {len(rules)} rule(s)", severity="information")
         except Exception as e:
             self.app.notify(f"Save failed: {e}", severity="error")
@@ -309,31 +291,10 @@ class DirectoryRulesContent(Container):
         self.app.notify("Directory rules refreshed", severity="information")
 
     def _save_action(self, action: str) -> None:
-        try:
-            config = self._load_config_dict()
-            dr = self._get_rules_section(config)
-            dr["action"] = action
-            config["directory_rules"] = dr
-            self._save_config_dict(config)
+        if self._save_config_field("action", action, backup=True):
             self.app.notify(f"Action set to: {action}", severity="success")
-        except Exception as e:
-            self.app.notify(f"Error saving action: {e}", severity="error")
-
-    def _load_config_dict(self) -> dict:
-        config_path = self._get_config_path()
-        if config_path.exists():
-            with open(config_path, "r", encoding="utf-8") as f:
-                return json.load(f)
-        return {}
-
-    def _save_config_dict(self, config: dict) -> None:
-        config_path = self._get_config_path()
-        if config_path.exists():
-            backup_path = config_path.with_suffix(".json.bak")
-            shutil.copy2(config_path, backup_path)
-        config_path.parent.mkdir(parents=True, exist_ok=True)
-        with open(config_path, "w", encoding="utf-8") as f:
-            json.dump(config, f, indent=2)
+        else:
+            self.app.notify("Error saving action", severity="error")
 
     def _get_rules_section(self, config: dict) -> dict:
         dr = config.get("directory_rules", {})

@@ -13,11 +13,8 @@ from textual.app import ComposeResult
 from textual.containers import Container, Horizontal, VerticalScroll
 from textual.widgets import Static, Button, Input, Label, Checkbox, Select
 
-from ai_guardian.config.utils import (
-    get_config_dir,
-    get_project_config_path,
-)
 from ai_guardian.tui.schema_defaults import (
+    ConfigSaveMixin,
     default_indicator,
     default_placeholder,
 )
@@ -28,8 +25,10 @@ from ai_guardian.tui.widgets import (
 )
 
 
-class SecretsContent(Container):
+class SecretsContent(ConfigSaveMixin, Container):
     """Content widget for Secrets tab."""
+
+    CONFIG_SECTION = "secret_scanning"
 
     _PRIVACY_WARNING = (
         "[bold yellow]⚠ Privacy Warning:[/bold yellow] "
@@ -129,24 +128,6 @@ class SecretsContent(Container):
         text-style: bold;
     }
     """
-
-    @property
-    def _is_project_scope(self) -> bool:
-        try:
-            return self.app.config_scope == "project"
-        except Exception:
-            return False
-
-    def _get_config_path(self) -> Path:
-        if self._is_project_scope:
-            project_path = get_project_config_path()
-            if project_path:
-                return project_path
-            from ai_guardian.config.utils import _find_git_root
-
-            root = _find_git_root() or Path.cwd()
-            return root / ".ai-guardian" / "ai-guardian.json"
-        return get_config_dir() / "ai-guardian.json"
 
     def compose(self) -> ComposeResult:
         """Compose the secrets tab content."""
@@ -614,26 +595,13 @@ class SecretsContent(Container):
 
     def _save_secret_scanning_enabled(self, value: Union[bool, Dict[str, Any]]) -> None:
         """Save secret_scanning.enabled to config."""
-        config_path = self._get_config_path()
-
         try:
-            if config_path.exists():
-                with open(config_path, "r", encoding="utf-8") as f:
-                    config = json.load(f)
-            else:
-                config = {}
+            sanitized = sanitize_enabled_value(value)
+            if not self._save_config_field("enabled", value):
+                self.app.notify("Error saving config", severity="error")
+                return
 
-            if "secret_scanning" not in config or not isinstance(
-                config["secret_scanning"], dict
-            ):
-                config["secret_scanning"] = {}
-
-            value = sanitize_enabled_value(value)
-            config["secret_scanning"]["enabled"] = value
-
-            with open(config_path, "w", encoding="utf-8") as f:
-                json.dump(config, f, indent=2)
-
+            value = sanitized
             if isinstance(value, bool):
                 status = "enabled" if value else "disabled"
                 self.app.notify(f"✓ Secret scanning {status}", severity="success")
@@ -651,29 +619,10 @@ class SecretsContent(Container):
 
     def _save_secret_scanning_field(self, field: str, value) -> None:
         """Save a field under secret_scanning to config."""
-        config_path = self._get_config_path()
-
-        try:
-            if config_path.exists():
-                with open(config_path, "r", encoding="utf-8") as f:
-                    config = json.load(f)
-            else:
-                config = {}
-
-            if "secret_scanning" not in config or not isinstance(
-                config["secret_scanning"], dict
-            ):
-                config["secret_scanning"] = {}
-
-            config["secret_scanning"][field] = value
-
-            with open(config_path, "w", encoding="utf-8") as f:
-                json.dump(config, f, indent=2)
-
+        if self._save_config_field(field, value):
             self.app.notify(f"\u2713 Saved {field}", severity="success")
-
-        except Exception as e:
-            self.app.notify(f"Error saving {field}: {e}", severity="error")
+        else:
+            self.app.notify(f"Error saving {field}", severity="error")
 
     def _add_allowlist_pattern(self) -> None:
         """Add a regex pattern to the secret scanning allowlist."""
@@ -692,14 +641,8 @@ class SecretsContent(Container):
             self.app.notify(f"Invalid regex: {e}", severity="error")
             return
 
-        config_path = self._get_config_path()
-
         try:
-            config = {}
-            if config_path.exists():
-                with open(config_path, "r", encoding="utf-8") as f:
-                    config = json.load(f)
-
+            config = self._load_full_config()
             if "secret_scanning" not in config:
                 config["secret_scanning"] = {}
             if "allowlist_patterns" not in config["secret_scanning"]:
@@ -710,9 +653,7 @@ class SecretsContent(Container):
                 return
 
             config["secret_scanning"]["allowlist_patterns"].append(pattern)
-
-            with open(config_path, "w", encoding="utf-8") as f:
-                json.dump(config, f, indent=2)
+            self._write_full_config(config)
 
             input_widget.value = ""
             self.load_config()
@@ -734,14 +675,8 @@ class SecretsContent(Container):
             self.app.notify("Stopword must be at least 3 characters", severity="error")
             return
 
-        config_path = self._get_config_path()
-
         try:
-            config = {}
-            if config_path.exists():
-                with open(config_path, "r", encoding="utf-8") as f:
-                    config = json.load(f)
-
+            config = self._load_full_config()
             if "secret_scanning" not in config:
                 config["secret_scanning"] = {}
             if "stopwords" not in config["secret_scanning"]:
@@ -753,9 +688,7 @@ class SecretsContent(Container):
                 return
 
             config["secret_scanning"]["stopwords"].append(word)
-
-            with open(config_path, "w", encoding="utf-8") as f:
-                json.dump(config, f, indent=2)
+            self._write_full_config(config)
 
             input_widget.value = ""
             self.load_config()
@@ -771,13 +704,8 @@ class SecretsContent(Container):
             self.app.notify("Please enter a pattern", severity="error")
             return
 
-        config_path = self._get_config_path()
         try:
-            config = {}
-            if config_path.exists():
-                with open(config_path, "r", encoding="utf-8") as f:
-                    config = json.load(f)
-
+            config = self._load_full_config()
             if "secret_scanning" not in config:
                 config["secret_scanning"] = {}
             if field not in config["secret_scanning"]:
@@ -788,9 +716,7 @@ class SecretsContent(Container):
                 return
 
             config["secret_scanning"][field].append(value)
-
-            with open(config_path, "w", encoding="utf-8") as f:
-                json.dump(config, f, indent=2)
+            self._write_full_config(config)
 
             input_widget.value = ""
             self.load_config()

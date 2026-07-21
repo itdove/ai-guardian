@@ -108,9 +108,15 @@ class TestSaveEditorTheme:
 
     def test_save_to_new_config(self):
         with tempfile.TemporaryDirectory() as tmpdir:
-            with patch(
-                "ai_guardian.tui.console_settings.get_config_dir",
-                return_value=Path(tmpdir),
+            with (
+                patch(
+                    "ai_guardian.tui.console_settings.get_config_dir",
+                    return_value=Path(tmpdir),
+                ),
+                patch(
+                    "ai_guardian.config.utils.get_config_dir",
+                    return_value=Path(tmpdir),
+                ),
             ):
                 success, error = save_editor_theme("dracula")
                 assert success is True
@@ -132,9 +138,15 @@ class TestSaveEditorTheme:
                 ),
                 encoding="utf-8",
             )
-            with patch(
-                "ai_guardian.tui.console_settings.get_config_dir",
-                return_value=Path(tmpdir),
+            with (
+                patch(
+                    "ai_guardian.tui.console_settings.get_config_dir",
+                    return_value=Path(tmpdir),
+                ),
+                patch(
+                    "ai_guardian.config.utils.get_config_dir",
+                    return_value=Path(tmpdir),
+                ),
             ):
                 success, error = save_editor_theme("vscode_dark")
                 assert success is True
@@ -149,9 +161,15 @@ class TestSaveEditorTheme:
             config_path.write_text(
                 json.dumps({"permissions": {"enabled": True}}), encoding="utf-8"
             )
-            with patch(
-                "ai_guardian.tui.console_settings.get_config_dir",
-                return_value=Path(tmpdir),
+            with (
+                patch(
+                    "ai_guardian.tui.console_settings.get_config_dir",
+                    return_value=Path(tmpdir),
+                ),
+                patch(
+                    "ai_guardian.config.utils.get_config_dir",
+                    return_value=Path(tmpdir),
+                ),
             ):
                 success, error = save_editor_theme("github_light")
                 assert success is True
@@ -162,8 +180,15 @@ class TestSaveEditorTheme:
     def test_save_creates_parent_dirs(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             nested = Path(tmpdir) / "subdir"
-            with patch(
-                "ai_guardian.tui.console_settings.get_config_dir", return_value=nested
+            with (
+                patch(
+                    "ai_guardian.tui.console_settings.get_config_dir",
+                    return_value=nested,
+                ),
+                patch(
+                    "ai_guardian.config.utils.get_config_dir",
+                    return_value=nested,
+                ),
             ):
                 success, error = save_editor_theme("monokai")
                 assert success is True

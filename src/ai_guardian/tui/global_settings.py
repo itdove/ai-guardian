@@ -21,6 +21,7 @@ from ai_guardian.config.utils import (
     GLOBAL_ONLY_SECTIONS,
 )
 from ai_guardian.tui.schema_defaults import (
+    ConfigSaveMixin,
     SchemaDefaultsMixin,
     select_options_with_default,
 )
@@ -174,7 +175,7 @@ FEATURE_ACTIONS = {
 }
 
 
-class GlobalSettingsContent(SchemaDefaultsMixin, Container):
+class GlobalSettingsContent(ConfigSaveMixin, SchemaDefaultsMixin, Container):
     """Content widget for Global Settings tab."""
 
     SCHEMA_SECTION = ""
@@ -306,26 +307,6 @@ class GlobalSettingsContent(SchemaDefaultsMixin, Container):
 
     def refresh_content(self) -> None:
         self.load_config()
-
-    @property
-    def _is_project_scope(self) -> bool:
-        try:
-            return self.app.config_scope == "project"
-        except Exception:
-            return False
-
-    def _get_config_path(self) -> Path:
-        """Return the config path for the current scope."""
-        if self._is_project_scope:
-            project_path = get_project_config_path()
-            if project_path:
-                return project_path
-            from ai_guardian.config.utils import _find_git_root
-
-            root = _find_git_root() or Path.cwd()
-            return root / ".ai-guardian" / "ai-guardian.json"
-        config_dir = get_config_dir()
-        return config_dir / "ai-guardian.json"
 
     def _load_global_immutable_fields(self) -> dict:
         """Load immutable field lists from the global config."""
@@ -523,74 +504,24 @@ class GlobalSettingsContent(SchemaDefaultsMixin, Container):
 
     def _save_on_scan_error(self, value: str) -> None:
         """Save the global on_scan_error setting."""
-        config_path = self._get_config_path()
-
-        try:
-            if config_path.exists():
-                with open(config_path, "r", encoding="utf-8") as f:
-                    config = json.load(f)
-            else:
-                config_path.parent.mkdir(parents=True, exist_ok=True)
-                config = {}
-
-            config["on_scan_error"] = value
-
-            with open(config_path, "w", encoding="utf-8") as f:
-                json.dump(config, f, indent=2)
-
+        if self._save_config_field("on_scan_error", value, section=""):
             label = "fail-open" if value == "allow" else "fail-closed"
             self.app.notify(f"✓ On Scan Error: {value} ({label})", severity="success")
-
-        except Exception as e:
-            self.app.notify(f"Error saving: {e}", severity="error")
+        else:
+            self.app.notify("Error saving on_scan_error", severity="error")
 
     def _save_action(self, section: str, value: str, display: str) -> None:
         """Save an action value for a feature section."""
-        config_path = self._get_config_path()
-
-        try:
-            if config_path.exists():
-                with open(config_path, "r", encoding="utf-8") as f:
-                    config = json.load(f)
-            else:
-                config_path.parent.mkdir(parents=True, exist_ok=True)
-                config = {}
-
-            if section not in config or not isinstance(config[section], dict):
-                config[section] = {}
-
-            config[section]["action"] = value
-
-            with open(config_path, "w", encoding="utf-8") as f:
-                json.dump(config, f, indent=2)
-
+        if self._save_config_field("action", value, section=section):
             scope = "project" if self._is_project_scope else "global"
             self.app.notify(
                 f"✓ {display}: action = {value} [{scope}]", severity="success"
             )
-
-        except Exception as e:
-            self.app.notify(f"Error saving: {e}", severity="error")
+        else:
+            self.app.notify(f"Error saving: {display}", severity="error")
 
     def _save(self, section: str, value: Any, display: str) -> None:
-        config_path = self._get_config_path()
-
-        try:
-            if config_path.exists():
-                with open(config_path, "r", encoding="utf-8") as f:
-                    config = json.load(f)
-            else:
-                config_path.parent.mkdir(parents=True, exist_ok=True)
-                config = {}
-
-            if section not in config or not isinstance(config[section], dict):
-                config[section] = {}
-
-            config[section]["enabled"] = value
-
-            with open(config_path, "w", encoding="utf-8") as f:
-                json.dump(config, f, indent=2)
-
+        if self._save_config_field("enabled", value, section=section):
             scope = "project" if self._is_project_scope else "global"
             if isinstance(value, bool):
                 status = "enabled" if value else "disabled"
@@ -602,9 +533,8 @@ class GlobalSettingsContent(SchemaDefaultsMixin, Container):
                     f"✓ {display}: temp disabled until {format_local_time(value['disabled_until'])} [{scope}]",
                     severity="success",
                 )
-
-        except Exception as e:
-            self.app.notify(f"Error saving: {e}", severity="error")
+        else:
+            self.app.notify(f"Error saving: {display}", severity="error")
 
     def action_refresh(self) -> None:
         self.load_config()

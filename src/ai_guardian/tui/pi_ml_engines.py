@@ -7,7 +7,7 @@ for prompt injection detection.
 """
 
 import json
-import shutil
+
 import subprocess
 import sys
 
@@ -18,12 +18,14 @@ from textual.containers import Container, Horizontal, VerticalScroll
 from textual.widgets import Button, Input, Label, Select, Static, TextArea
 
 from ai_guardian.config.utils import get_config_dir
+from ai_guardian.tui.schema_defaults import ConfigSaveMixin
 from ai_guardian.tui.console_settings import load_editor_theme
 
 VALID_ML_ENGINE_TYPES = {"llm-guard"}
 
 
-class PIMLEnginesContent(Container):
+class PIMLEnginesContent(ConfigSaveMixin, Container):
+    CONFIG_SECTION = "prompt_injection"
     """Content widget for ML Prompt Injection Engines panel."""
 
     BINDINGS = [
@@ -592,7 +594,7 @@ class PIMLEnginesContent(Container):
             return
 
         try:
-            config = self._load_config_dict()
+            config = self._load_full_config()
             pi = config.get("prompt_injection", {})
             if not isinstance(pi, dict):
                 pi = {}
@@ -607,7 +609,7 @@ class PIMLEnginesContent(Container):
                 pass
 
             config["prompt_injection"] = pi
-            self._save_config_dict(config)
+            self._write_full_config(config, backup=True)
             self.app.notify(
                 f"Saved {len(engines)} ML engine(s)", severity="information"
             )
@@ -624,45 +626,13 @@ class PIMLEnginesContent(Container):
         self.app.notify("ML engines config refreshed", severity="information")
 
     def _save_strategy(self, strategy: str) -> None:
-        try:
-            config = self._load_config_dict()
-            pi = config.get("prompt_injection", {})
-            if not isinstance(pi, dict):
-                pi = {}
-            pi["ml_strategy"] = strategy
-            config["prompt_injection"] = pi
-            self._save_config_dict(config)
+        if self._save_config_field("ml_strategy", strategy):
             self.app.notify(f"Strategy set to: {strategy}", severity="success")
-        except Exception as e:
-            self.app.notify(f"Error saving strategy: {e}", severity="error")
+        else:
+            self.app.notify("Error saving strategy", severity="error")
 
     def _save_fallback(self, fallback: str) -> None:
-        try:
-            config = self._load_config_dict()
-            pi = config.get("prompt_injection", {})
-            if not isinstance(pi, dict):
-                pi = {}
-            pi["fallback_on_error"] = fallback
-            config["prompt_injection"] = pi
-            self._save_config_dict(config)
+        if self._save_config_field("fallback_on_error", fallback):
             self.app.notify(f"Fallback set to: {fallback}", severity="success")
-        except Exception as e:
-            self.app.notify(f"Error saving fallback: {e}", severity="error")
-
-    def _load_config_dict(self) -> dict:
-        config_dir = get_config_dir()
-        config_path = config_dir / "ai-guardian.json"
-        if config_path.exists():
-            with open(config_path, "r", encoding="utf-8") as f:
-                return json.load(f)
-        return {}
-
-    def _save_config_dict(self, config: dict) -> None:
-        config_dir = get_config_dir()
-        config_path = config_dir / "ai-guardian.json"
-        if config_path.exists():
-            backup_path = config_path.with_suffix(".json.bak")
-            shutil.copy2(config_path, backup_path)
-        config_path.parent.mkdir(parents=True, exist_ok=True)
-        with open(config_path, "w", encoding="utf-8") as f:
-            json.dump(config, f, indent=2)
+        else:
+            self.app.notify("Error saving fallback", severity="error")

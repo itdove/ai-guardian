@@ -6,19 +6,17 @@ Manage auto-generated directory rules from skill permissions.
 Toggle enabled/allow_symlinks and view discovered rules (read-only).
 """
 
-import logging
-import json
-from pathlib import Path
-
 from textual.app import ComposeResult
 from textual.containers import Container, Horizontal, VerticalScroll
 from textual.widgets import Static, Switch
 
-from ai_guardian.config.utils import get_config_dir, get_project_config_path
+from ai_guardian.tui.schema_defaults import ConfigSaveMixin
 
 
-class AutoDirectoryRulesContent(Container):
+class AutoDirectoryRulesContent(ConfigSaveMixin, Container):
     """Content widget for Auto Directory Rules tab."""
+
+    CONFIG_SECTION = "permissions.auto_directory_rules"
 
     CSS = """
     #auto-dir-header {
@@ -138,24 +136,6 @@ class AutoDirectoryRulesContent(Container):
                 id="auto-dir-info",
             )
 
-    @property
-    def _is_project_scope(self) -> bool:
-        try:
-            return self.app.config_scope == "project"
-        except Exception:
-            return False
-
-    def _get_config_path(self) -> Path:
-        if self._is_project_scope:
-            project_path = get_project_config_path()
-            if project_path:
-                return project_path
-            from ai_guardian.config.utils import _find_git_root
-
-            root = _find_git_root() or Path.cwd()
-            return root / ".ai-guardian" / "ai-guardian.json"
-        return get_config_dir() / "ai-guardian.json"
-
     def on_mount(self) -> None:
         """Load config on mount."""
         self.load_config()
@@ -166,15 +146,7 @@ class AutoDirectoryRulesContent(Container):
 
     def load_config(self) -> None:
         """Load configuration and update display."""
-        config_path = self._get_config_path()
-
-        config = {}
-        if config_path.exists():
-            try:
-                with open(config_path, "r", encoding="utf-8") as f:
-                    config = json.load(f)
-            except Exception as e:
-                logging.warning("Failed to read config: %s", e)
+        config = self._load_full_config()
 
         permissions = config.get("permissions", {})
         auto_config = (
@@ -331,28 +303,9 @@ class AutoDirectoryRulesContent(Container):
 
     def _save_field(self, field: str, value) -> None:
         """Save a single auto_directory_rules field."""
-        config_path = self._get_config_path()
-
         try:
-            config = {}
-            if config_path.exists():
-                with open(config_path, "r", encoding="utf-8") as f:
-                    config = json.load(f)
-
-            permissions = config.get("permissions", {})
-            if not isinstance(permissions, dict):
-                permissions = {"enabled": True, "rules": []}
-
-            auto_config = permissions.get("auto_directory_rules", {})
-            if not isinstance(auto_config, dict):
-                auto_config = {}
-
-            auto_config[field] = value
-            permissions["auto_directory_rules"] = auto_config
-            config["permissions"] = permissions
-
-            with open(config_path, "w", encoding="utf-8") as f:
-                json.dump(config, f, indent=2)
+            if not self._save_config_field(field, value):
+                raise RuntimeError("config write failed")
 
             label = field.replace("_", " ").title()
             self.app.notify(
