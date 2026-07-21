@@ -146,7 +146,7 @@ def _get_most_recent_entry(
     match_fn: Callable[[os.DirEntry], bool],
     label: str = "Transcript",
     mtime_fn: Optional[Callable[[os.DirEntry], float]] = None,
-) -> Optional[str]:
+) -> Optional[Tuple[str, float]]:
     """Find the most recently modified entry in *directory* matching *match_fn*.
 
     Args:
@@ -158,7 +158,8 @@ def _get_most_recent_entry(
             Defaults to ``entry.stat().st_mtime``.
 
     Returns:
-        Path of the most recently modified matching entry, or ``None``.
+        ``(path, mtime)`` of the most recently modified matching entry,
+        or ``None``.
     """
     best_mtime = -1.0
     best_path: Optional[str] = None
@@ -178,7 +179,9 @@ def _get_most_recent_entry(
         logging.debug(f"{label} directory listing error: {e}")
         return None
 
-    return best_path
+    if best_path is None:
+        return None
+    return best_path, best_mtime
 
 
 def _discover_path(

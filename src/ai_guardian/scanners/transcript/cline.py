@@ -104,14 +104,13 @@ def _extract_text_from_cline_message(message: dict) -> str:
 
 def get_most_recent_task_dir(storage_dir: str) -> Optional[str]:
     """Find the most recently modified task directory."""
-    return _get_most_recent_entry(
+    result = _get_most_recent_entry(
         storage_dir,
-        match_fn=lambda e: (
-            e.is_dir() and os.path.isfile(os.path.join(e.path, HISTORY_FILENAME))
-        ),
+        match_fn=lambda e: e.is_dir(),
         label="Cline",
         mtime_fn=lambda e: os.path.getmtime(os.path.join(e.path, HISTORY_FILENAME)),
     )
+    return result[0] if result else None
 
 
 def read_cline_task_transcript(

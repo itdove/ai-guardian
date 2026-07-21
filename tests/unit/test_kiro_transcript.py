@@ -497,7 +497,8 @@ class TestGetMostRecentEntryOSError(unittest.TestCase):
                 label="Test",
                 mtime_fn=failing_mtime,
             )
-            self.assertEqual(result, good)
+            self.assertIsNotNone(result)
+            self.assertEqual(result[0], good)
             self.assertEqual(call_count[0], 2)
         finally:
             shutil.rmtree(tmpdir, ignore_errors=True)

@@ -13,6 +13,7 @@ from typing import Dict, List, Optional, Tuple
 from ai_guardian.scanners.transcript.base import TranscriptAdapter
 from ai_guardian.scanners.transcript.common import (
     _discover_path,
+    _get_most_recent_entry,
     _get_transcript_path,
     _read_jsonl_incremental,
     _scan_jsonl_incremental,
@@ -73,30 +74,26 @@ def get_most_recent_transcript(transcripts_dir: str) -> Optional[str]:
     Walks date directories (``YYYY-MM-DD/``) and session subdirectories
     to find the newest transcript.
     """
-    best_mtime = -1.0
-    best_path: Optional[str] = None
     try:
-        for date_dir in sorted(os.listdir(transcripts_dir), reverse=True):
-            date_path = os.path.join(transcripts_dir, date_dir)
-            if not os.path.isdir(date_path):
-                continue
-            try:
-                for session_dir in os.listdir(date_path):
-                    candidate = os.path.join(date_path, session_dir, "transcript.jsonl")
-                    if not os.path.isfile(candidate):
-                        continue
-                    mtime = os.path.getmtime(candidate)
-                    if mtime > best_mtime:
-                        best_mtime = mtime
-                        best_path = candidate
-            except OSError:
-                continue
-            if best_path:
-                break
+        date_dirs = sorted(os.listdir(transcripts_dir), reverse=True)
     except OSError as e:
         logging.debug(f"OpenClaw transcripts listing error: {e}")
         return None
-    return best_path
+
+    for date_dir in date_dirs:
+        date_path = os.path.join(transcripts_dir, date_dir)
+        if not os.path.isdir(date_path):
+            continue
+        result = _get_most_recent_entry(
+            date_path,
+            match_fn=lambda e: e.is_dir(),
+            label="OpenClaw",
+            mtime_fn=lambda e: os.path.getmtime(
+                os.path.join(e.path, "transcript.jsonl")
+            ),
+        )
+        if result:
+            return os.path.join(result[0], "transcript.jsonl")
 
 
 def read_openclaw_transcript(
