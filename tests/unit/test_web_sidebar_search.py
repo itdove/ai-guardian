@@ -223,7 +223,7 @@ class TestSlugToConfigSection:
     """Verify SLUG_TO_CONFIG_SECTION mapping."""
 
     def test_mapping_has_expected_entries(self):
-        from ai_guardian.web.components.header import SLUG_TO_CONFIG_SECTION
+        from ai_guardian.constants import SLUG_TO_CONFIG_SECTION
 
         assert "/secrets" in SLUG_TO_CONFIG_SECTION
         assert "/pi-detection" in SLUG_TO_CONFIG_SECTION
@@ -231,7 +231,7 @@ class TestSlugToConfigSection:
         assert "/supply-chain" in SLUG_TO_CONFIG_SECTION
 
     def test_sub_pages_map_to_parent_scanner(self):
-        from ai_guardian.web.components.header import SLUG_TO_CONFIG_SECTION
+        from ai_guardian.constants import SLUG_TO_CONFIG_SECTION
 
         assert SLUG_TO_CONFIG_SECTION["/secret-engines"] == "secret_scanning"
         assert SLUG_TO_CONFIG_SECTION["/pi-ml-engines"] == "prompt_injection"
@@ -240,7 +240,7 @@ class TestSlugToConfigSection:
         assert SLUG_TO_CONFIG_SECTION["/pi-unicode"] == "prompt_injection"
 
     def test_always_visible_pages_not_in_mapping(self):
-        from ai_guardian.web.components.header import SLUG_TO_CONFIG_SECTION
+        from ai_guardian.constants import SLUG_TO_CONFIG_SECTION
 
         assert "" not in SLUG_TO_CONFIG_SECTION
         assert "/settings" not in SLUG_TO_CONFIG_SECTION

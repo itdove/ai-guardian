@@ -66,15 +66,7 @@ def config_section_for_violation(violation_type: str) -> str:
     return VIOLATION_TYPE_TO_CONFIG.get(violation_type, "")
 
 
-RULE_ID_TO_CONFIG_SECTION = {
-    "SECRET-001": "secret_scanning",
-    "PII-001": "scan_pii",
-    "PROMPT-INJECTION-001": "prompt_injection",
-    "SSRF-001": "ssrf_protection",
-    "CONFIG-001": "config_file_scanning",
-    "SUPPLY-CHAIN-001": "supply_chain",
-    "UNICODE-001": None,
-}
+from ai_guardian.constants import RULE_ID_TO_CONFIG_SECTION
 
 
 def config_section_for_rule_id(rule_id: str) -> Optional[str]:

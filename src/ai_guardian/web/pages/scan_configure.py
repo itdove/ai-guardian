@@ -6,24 +6,9 @@ from pathlib import Path
 
 from nicegui import run, ui
 
-from ai_guardian.scan_analyzer import RULE_ID_LABELS
+from ai_guardian.constants import RULE_ID_LABELS, RULE_ID_TO_SLUG
 from ai_guardian.web.components.header import create_header, create_sidebar
 from ai_guardian.web.pages.directory_scan import _open_browse_dialog
-
-RULE_ID_TO_SLUG = {
-    "SECRET-001": "/secrets",
-    "PII-001": "/scan-pii",
-    "PROMPT-INJECTION-001": "/pi-detection",
-    "SSRF-001": "/ssrf",
-    "CONFIG-001": "/config-scanner",
-    "SUPPLY-CHAIN-001": "/supply-chain",
-    "UNICODE-001": "/pi-unicode",
-    "CODE-SECURITY-001": "/code-security",
-    "OFFENSIVE-001": "/offensive-language",
-    "EXFIL-001": "/exfil-detection",
-    "CANARY-001": "/canary-detection",
-}
-
 
 _SESSION_KEY = "scan_configure_result"
 

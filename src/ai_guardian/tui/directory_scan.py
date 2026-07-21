@@ -33,7 +33,7 @@ FORMAT_OPTIONS = [
     ("SARIF", "sarif"),
 ]
 
-from ai_guardian.scan_analyzer import RULE_ID_LABELS
+from ai_guardian.constants import RULE_ID_LABELS
 
 
 class ExportModal(ModalScreen):

@@ -134,3 +134,95 @@ CRUSH_HOOK_EVENTS = ("PreToolUse",)
 ALL_VIOLATION_TYPES = tuple(v.value for v in ViolationType)
 ALL_HOOK_EVENTS = tuple(e.value for e in HookEvent)
 ALL_ACTION_MODES = tuple(a.value for a in ActionMode)
+
+# --- Rule ID mappings ---
+
+RULE_ID_LABELS = {
+    "SECRET-001": "Secrets",
+    "PII-001": "PII",
+    "PROMPT-INJECTION-001": "Prompt Injection",
+    "SSRF-001": "SSRF",
+    "CONFIG-001": "Config Exfiltration",
+    "SUPPLY-CHAIN-001": "Supply Chain",
+    "UNICODE-001": "Unicode Attacks",
+    "CODE-SECURITY-001": "Code Security",
+    "OFFENSIVE-001": "Offensive Language",
+    "EXFIL-001": "Exfil Detection",
+    "CANARY-001": "Canary Token",
+}
+
+RULE_ID_TO_SCANNER = {
+    "SECRET-001": "secret_scanning",
+    "PII-001": "scan_pii",
+    "PROMPT-INJECTION-001": "prompt_injection",
+    "CONFIG-001": "config_file_scanning",
+    "SUPPLY-CHAIN-001": "supply_chain",
+    "EXFIL-DETECTION-001": "exfil_detection",
+}
+
+RULE_ID_TO_VIOLATION_TYPE = {
+    "SECRET-001": "secret_detected",
+    "PII-001": "pii_detected",
+    "PROMPT-INJECTION-001": "prompt_injection",
+    "SSRF-001": "ssrf_blocked",
+    "CONFIG-001": "config_file_exfil",
+    "SUPPLY-CHAIN-001": "supply_chain",
+    "UNICODE-001": "prompt_injection",
+    "CODE-SECURITY-001": "code_security",
+    "OFFENSIVE-001": "offensive_language",
+    "EXFIL-001": "exfil_detection",
+    "CANARY-001": "canary_detected",
+}
+
+RULE_ID_TO_CONFIG_SECTION = {
+    "SECRET-001": "secret_scanning",
+    "PII-001": "scan_pii",
+    "PROMPT-INJECTION-001": "prompt_injection",
+    "SSRF-001": "ssrf_protection",
+    "CONFIG-001": "config_file_scanning",
+    "SUPPLY-CHAIN-001": "supply_chain",
+    "UNICODE-001": "prompt_injection",
+    "CODE-SECURITY-001": "code_scanning",
+    "OFFENSIVE-001": "scan_offensive",
+    "EXFIL-001": "exfil_detection",
+    "CANARY-001": "canary_detection",
+}
+
+SLUG_TO_CONFIG_SECTION = {
+    "/secrets": "secret_scanning",
+    "/secret-engines": "secret_scanning",
+    "/secret-redaction": "secret_redaction",
+    "/scan-pii": "scan_pii",
+    "/pi-detection": "prompt_injection",
+    "/pi-ml-engines": "prompt_injection",
+    "/pi-patterns": "prompt_injection",
+    "/pi-jailbreak": "prompt_injection",
+    "/pi-unicode": "prompt_injection",
+    "/ssrf": "ssrf_protection",
+    "/config-scanner": "config_file_scanning",
+    "/context-poisoning": "context_poisoning",
+    "/supply-chain": "supply_chain",
+    "/code-security": "code_scanning",
+    "/offensive-language": "scan_offensive",
+    "/canary-detection": "canary_detection",
+    "/exfil-detection": "exfil_detection",
+    "/annotations": "annotations",
+    "/permission-rules": "permissions",
+    "/directory-rules": "directory_rules",
+    "/violation-logging": "violation_logging",
+    "/performance": "latency_tracking",
+}
+
+RULE_ID_TO_SLUG = {
+    "SECRET-001": "/secrets",
+    "PII-001": "/scan-pii",
+    "PROMPT-INJECTION-001": "/pi-detection",
+    "SSRF-001": "/ssrf",
+    "CONFIG-001": "/config-scanner",
+    "SUPPLY-CHAIN-001": "/supply-chain",
+    "UNICODE-001": "/pi-unicode",
+    "CODE-SECURITY-001": "/code-security",
+    "OFFENSIVE-001": "/offensive-language",
+    "EXFIL-001": "/exfil-detection",
+    "CANARY-001": "/canary-detection",
+}

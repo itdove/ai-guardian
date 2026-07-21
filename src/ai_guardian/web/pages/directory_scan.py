@@ -98,17 +98,7 @@ def _format_severity(severity):
     return quasar_severity((severity or "").lower())
 
 
-RULE_ID_TO_VIOLATION_TYPE = {
-    "SECRET-001": "secret_detected",
-    "PII-001": "pii_detected",
-    "PROMPT-INJECTION-001": "prompt_injection",
-    "SSRF-001": "ssrf_blocked",
-    "CONFIG-001": "config_file_exfil",
-    "SUPPLY-CHAIN-001": "supply_chain",
-    "UNICODE-001": "unicode_attack",
-}
-
-from ai_guardian.scan_analyzer import RULE_ID_LABELS
+from ai_guardian.constants import RULE_ID_LABELS, RULE_ID_TO_VIOLATION_TYPE
 
 MAX_FINDINGS_DISPLAY = 200
 

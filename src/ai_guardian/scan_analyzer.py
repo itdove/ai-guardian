@@ -14,21 +14,7 @@ from dataclasses import dataclass, field
 from pathlib import Path, PurePosixPath
 from typing import Any, Callable, Dict, List, Optional, Set, Tuple
 
-# --- Human-readable labels for rule IDs (shared by TUI + web) ---
-
-RULE_ID_LABELS = {
-    "SECRET-001": "Secrets",
-    "PII-001": "PII",
-    "PROMPT-INJECTION-001": "Prompt Injection",
-    "SSRF-001": "SSRF",
-    "CONFIG-001": "Config Exfiltration",
-    "SUPPLY-CHAIN-001": "Supply Chain",
-    "UNICODE-001": "Unicode Attacks",
-    "CODE-SECURITY-001": "Code Security",
-    "OFFENSIVE-001": "Offensive Language",
-    "EXFIL-001": "Exfil Detection",
-    "CANARY-001": "Canary Token",
-}
+from ai_guardian.constants import RULE_ID_LABELS, RULE_ID_TO_SCANNER
 
 
 def _deep_merge_configs(existing: Dict, new_config: Dict) -> Dict:
@@ -85,17 +71,6 @@ def merge_and_write_config(config_path: Path, new_config: Dict) -> None:
             json.dump(merged, f, indent=2)
             f.write("\n")
 
-
-# --- Rule ID → Scanner routing ---
-
-RULE_ID_TO_SCANNER = {
-    "SECRET-001": "secret_scanning",
-    "PII-001": "scan_pii",
-    "PROMPT-INJECTION-001": "prompt_injection",
-    "CONFIG-001": "config_file_scanning",
-    "SUPPLY-CHAIN-001": "supply_chain",
-    "EXFIL-DETECTION-001": "exfil_detection",
-}
 
 _BANDIT_RULE_ID = re.compile(r"^B\d+")
 _OFFENSIVE_LANGUAGE_PREFIXES = re.compile(r"^(profanity|slur|inclusive)-")
