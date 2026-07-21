@@ -7,8 +7,14 @@ for Console panels to display defaults and highlight changed values.
 """
 
 import json
+import logging
+import shutil
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
+
+from ai_guardian.tui.widgets import sanitize_enabled_value
+
+logger = logging.getLogger(__name__)
 
 
 class _MissingSentinel:
@@ -207,3 +213,187 @@ class SchemaDefaultsMixin:
                 widget.remove_class("changed-from-default")
         except Exception:
             pass
+
+
+class ConfigSaveMixin:
+    """Mixin providing config load/save helpers for TUI panels.
+
+    Subclasses set CONFIG_SECTION (e.g. "prompt_injection") and inherit
+    _is_project_scope / _get_config_path for scope-aware path resolution.
+    """
+
+    CONFIG_SECTION: str = ""
+
+    @property
+    def _is_project_scope(self) -> bool:
+        try:
+            return self.app.config_scope == "project"
+        except Exception:
+            return False
+
+    def _get_config_path(self) -> Path:
+        from ai_guardian.config.utils import get_config_dir, get_project_config_path
+
+        if self._is_project_scope:
+            project_path = get_project_config_path()
+            if project_path:
+                return project_path
+            from ai_guardian.config.utils import _find_git_root
+
+            root = _find_git_root() or Path.cwd()
+            return root / ".ai-guardian" / "ai-guardian.json"
+        return get_config_dir() / "ai-guardian.json"
+
+    def _load_full_config(self, *, config_path: Optional[Path] = None) -> dict:
+        path = config_path or self._get_config_path()
+        try:
+            if path.exists():
+                with open(path, "r", encoding="utf-8") as f:
+                    return json.load(f)
+        except Exception as e:
+            logger.debug("Config load failed (%s): %s", path, e)
+        return {}
+
+    def _write_full_config(
+        self,
+        config: dict,
+        *,
+        config_path: Optional[Path] = None,
+        backup: bool = False,
+    ) -> bool:
+        path = config_path or self._get_config_path()
+        try:
+            path.parent.mkdir(parents=True, exist_ok=True)
+            if backup and path.exists():
+                shutil.copy2(path, path.with_suffix(".json.bak"))
+            with open(path, "w", encoding="utf-8") as f:
+                json.dump(config, f, indent=2)
+            return True
+        except Exception as e:
+            logger.debug("Config write failed (%s): %s", path, e)
+            return False
+
+    def _save_config_field(
+        self,
+        field: str,
+        value: Any,
+        *,
+        section: Optional[str] = None,
+        config_path: Optional[Path] = None,
+        backup: bool = False,
+    ) -> bool:
+        sect = section if section is not None else self.CONFIG_SECTION
+        try:
+            path = config_path or self._get_config_path()
+            config = self._load_full_config(config_path=path)
+            target = _ensure_section(config, sect)
+            if field == "enabled":
+                value = sanitize_enabled_value(value)
+            target[field] = value
+            return self._write_full_config(config, config_path=path, backup=backup)
+        except Exception as e:
+            logger.debug("Config field save failed (%s.%s): %s", sect, field, e)
+            return False
+
+    def _save_config_updates(
+        self,
+        updates: Dict[str, Any],
+        *,
+        section: Optional[str] = None,
+        config_path: Optional[Path] = None,
+        backup: bool = False,
+    ) -> bool:
+        sect = section if section is not None else self.CONFIG_SECTION
+        try:
+            path = config_path or self._get_config_path()
+            config = self._load_full_config(config_path=path)
+            target = _ensure_section(config, sect)
+            if "enabled" in updates:
+                updates["enabled"] = sanitize_enabled_value(updates["enabled"])
+            target.update(updates)
+            return self._write_full_config(config, config_path=path, backup=backup)
+        except Exception as e:
+            logger.debug("Config updates save failed (%s): %s", sect, e)
+            return False
+
+    def _add_config_list_item(
+        self,
+        field: str,
+        value: str,
+        input_widget=None,
+        *,
+        section: Optional[str] = None,
+    ) -> bool:
+        """Append a value to a list field, with dedup check.
+
+        Clears input_widget and calls self.load_config() on success.
+        """
+        sect = section if section is not None else self.CONFIG_SECTION
+        try:
+            config = self._load_full_config()
+            target = _ensure_section(config, sect)
+            if field not in target:
+                target[field] = []
+            if value in target[field]:
+                self.app.notify("Already in list", severity="warning")
+                return False
+            target[field].append(value)
+            if self._write_full_config(config):
+                if input_widget is not None:
+                    input_widget.value = ""
+                self.load_config()
+                self.app.notify(f"Added to {field}: {value}", severity="success")
+                return True
+            self.app.notify(f"Error adding to {field}", severity="error")
+            return False
+        except Exception as e:
+            self.app.notify(f"Error: {e}", severity="error")
+            return False
+
+
+def _ensure_section(config: dict, section: str) -> dict:
+    """Ensure nested section exists and return the innermost dict.
+
+    Supports dot-separated paths like "permissions.auto_directory_rules".
+    Empty/None section returns config root.
+    """
+    if not section:
+        return config
+    parts = [p for p in section.split(".") if p]
+    node = config
+    for part in parts:
+        if part not in node or not isinstance(node[part], dict):
+            node[part] = {}
+        node = node[part]
+    return node
+
+
+def save_global_config_field(
+    section: str,
+    field: str,
+    value: Any,
+    *,
+    config_dir: Optional[Path] = None,
+) -> Tuple[bool, Optional[str]]:
+    """Save a single field to the global config (no class instance needed).
+
+    Returns (success, error_message).
+    """
+    if config_dir is None:
+        from ai_guardian.config.utils import get_config_dir
+
+        config_dir = get_config_dir()
+    path = config_dir / "ai-guardian.json"
+    try:
+        config: dict = {}
+        if path.exists():
+            with open(path, "r", encoding="utf-8") as f:
+                config = json.load(f)
+        target = _ensure_section(config, section)
+        target[field] = value
+        path.parent.mkdir(parents=True, exist_ok=True)
+        with open(path, "w", encoding="utf-8") as f:
+            json.dump(config, f, indent=2)
+        return True, None
+    except Exception as e:
+        return False, str(e)

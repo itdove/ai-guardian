@@ -13,7 +13,10 @@ from textual.containers import Container, Horizontal, VerticalScroll
 from textual.widgets import Static, Select, Label
 
 from ai_guardian.config.utils import get_config_dir
-from ai_guardian.tui.schema_defaults import SchemaDefaultsMixin
+from ai_guardian.tui.schema_defaults import (
+    SchemaDefaultsMixin,
+    save_global_config_field,
+)
 
 THEME_OPTIONS = [
     ("Monokai", "monokai"),
@@ -97,68 +100,17 @@ def load_preferred_color_theme() -> str:
 
 def save_preferred_ui(value: str) -> tuple:
     """Save the preferred UI toolkit to config. Returns (success, error_message)."""
-    config_dir = get_config_dir()
-    config_path = config_dir / "ai-guardian.json"
-    try:
-        config = {}
-        if config_path.exists():
-            with open(config_path, "r", encoding="utf-8") as f:
-                config = json.load(f)
-
-        if "console" not in config or not isinstance(config["console"], dict):
-            config["console"] = {}
-        config["console"]["preferred_ui"] = value
-
-        config_path.parent.mkdir(parents=True, exist_ok=True)
-        with open(config_path, "w", encoding="utf-8") as f:
-            json.dump(config, f, indent=2)
-        return True, None
-    except Exception as e:
-        return False, str(e)
+    return save_global_config_field("console", "preferred_ui", value)
 
 
 def save_editor_theme(theme: str) -> tuple:
     """Save the editor theme to config. Returns (success, error_message)."""
-    config_dir = get_config_dir()
-    config_path = config_dir / "ai-guardian.json"
-    try:
-        config = {}
-        if config_path.exists():
-            with open(config_path, "r", encoding="utf-8") as f:
-                config = json.load(f)
-
-        if "console" not in config or not isinstance(config["console"], dict):
-            config["console"] = {}
-        config["console"]["editor_theme"] = theme
-
-        config_path.parent.mkdir(parents=True, exist_ok=True)
-        with open(config_path, "w", encoding="utf-8") as f:
-            json.dump(config, f, indent=2)
-        return True, None
-    except Exception as e:
-        return False, str(e)
+    return save_global_config_field("console", "editor_theme", theme)
 
 
 def save_preferred_color_theme(theme: str) -> tuple:
     """Save the preferred color theme to config. Returns (success, error_message)."""
-    config_dir = get_config_dir()
-    config_path = config_dir / "ai-guardian.json"
-    try:
-        config = {}
-        if config_path.exists():
-            with open(config_path, "r", encoding="utf-8") as f:
-                config = json.load(f)
-
-        if "console" not in config or not isinstance(config["console"], dict):
-            config["console"] = {}
-        config["console"]["preferred_theme"] = theme
-
-        config_path.parent.mkdir(parents=True, exist_ok=True)
-        with open(config_path, "w", encoding="utf-8") as f:
-            json.dump(config, f, indent=2)
-        return True, None
-    except Exception as e:
-        return False, str(e)
+    return save_global_config_field("console", "preferred_theme", theme)
 
 
 class ConsoleSettingsContent(SchemaDefaultsMixin, Container):

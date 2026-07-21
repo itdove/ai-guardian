@@ -13,7 +13,11 @@ from textual.containers import Container, Horizontal, VerticalScroll
 from textual.widgets import Static, Checkbox
 
 from ai_guardian.config.utils import get_config_dir
-from ai_guardian.tui.schema_defaults import SchemaDefaultsMixin, default_indicator
+from ai_guardian.tui.schema_defaults import (
+    ConfigSaveMixin,
+    SchemaDefaultsMixin,
+    default_indicator,
+)
 
 UNICODE_SETTINGS = [
     (
@@ -45,7 +49,8 @@ UNICODE_SETTINGS = [
 ]
 
 
-class PIUnicodeContent(SchemaDefaultsMixin, Container):
+class PIUnicodeContent(ConfigSaveMixin, SchemaDefaultsMixin, Container):
+    CONFIG_SECTION = "prompt_injection.unicode_detection"
     """Content widget for Unicode Attack Detection."""
 
     SCHEMA_SECTION = "prompt_injection.unicode_detection"
@@ -180,27 +185,8 @@ class PIUnicodeContent(SchemaDefaultsMixin, Container):
 
         config_key = checkbox_id.replace("unicode-", "")
 
-        config_dir = get_config_dir()
-        config_path = config_dir / "ai-guardian.json"
-
-        try:
-            config = {}
-            if config_path.exists():
-                with open(config_path, "r", encoding="utf-8") as f:
-                    config = json.load(f)
-
-            if "prompt_injection" not in config:
-                config["prompt_injection"] = {}
-            if "unicode_detection" not in config["prompt_injection"]:
-                config["prompt_injection"]["unicode_detection"] = {}
-
-            config["prompt_injection"]["unicode_detection"][config_key] = event.value
-
-            with open(config_path, "w", encoding="utf-8") as f:
-                json.dump(config, f, indent=2)
-
+        if self._save_config_field(config_key, event.value):
             label = config_key.replace("_", " ").title()
             self.app.notify(f"Unicode: {label} = {event.value}", severity="success")
-
-        except Exception as e:
-            self.app.notify(f"Error: {e}", severity="error")
+        else:
+            self.app.notify("Error saving setting", severity="error")

@@ -2,14 +2,14 @@
 
 import json
 import logging
-from pathlib import Path
+
 from typing import Any, Dict, Union
 
 from textual.app import ComposeResult
 from textual.containers import Container, VerticalScroll
 from textual.widgets import Static
 
-from ai_guardian.config.utils import get_config_dir, get_project_config_path
+from ai_guardian.tui.schema_defaults import ConfigSaveMixin
 
 
 def _format_enabled(value: Union[bool, Dict[str, Any]]) -> str:
@@ -18,7 +18,7 @@ def _format_enabled(value: Union[bool, Dict[str, Any]]) -> str:
     return "[green]Yes[/green]" if value else "[red]No[/red]"
 
 
-class CodeSecurityContent(Container):
+class CodeSecurityContent(ConfigSaveMixin, Container):
     """Content widget for Code Security (Bandit) tab."""
 
     CSS = """
@@ -90,24 +90,6 @@ class CodeSecurityContent(Container):
                     "  ai-guardian web  →  Code Security page\n"
                     "Or edit ai-guardian.json directly (code_scanning section).[/dim]"
                 )
-
-    @property
-    def _is_project_scope(self) -> bool:
-        try:
-            return self.app.config_scope == "project"
-        except Exception:
-            return False
-
-    def _get_config_path(self) -> Path:
-        if self._is_project_scope:
-            project_path = get_project_config_path()
-            if project_path:
-                return project_path
-            from ai_guardian.config.utils import _find_git_root
-
-            root = _find_git_root() or Path.cwd()
-            return root / ".ai-guardian" / "ai-guardian.json"
-        return get_config_dir() / "ai-guardian.json"
 
     def on_mount(self) -> None:
         self.load_config()

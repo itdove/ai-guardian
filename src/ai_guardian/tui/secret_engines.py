@@ -7,20 +7,20 @@ engines array and dropdowns for execution strategy settings.
 """
 
 import json
-import shutil
-from pathlib import Path
 
 from textual.app import ComposeResult
 from textual.binding import Binding
 from textual.containers import Container, Horizontal
 from textual.widgets import Static, Label, Select, Input, TextArea
 
-from ai_guardian.config.utils import get_config_dir, get_project_config_path
 from ai_guardian.tui.console_settings import load_editor_theme
+from ai_guardian.tui.schema_defaults import ConfigSaveMixin
 
 
-class SecretEnginesContent(Container):
+class SecretEnginesContent(ConfigSaveMixin, Container):
     """Content widget for Secret Engine Configuration panel."""
+
+    CONFIG_SECTION = "secret_scanning"
 
     BINDINGS = [
         Binding("ctrl+s", "save", "Save", show=True),
@@ -101,24 +101,6 @@ class SecretEnginesContent(Container):
         display: block;
     }
     """
-
-    @property
-    def _is_project_scope(self) -> bool:
-        try:
-            return self.app.config_scope == "project"
-        except Exception:
-            return False
-
-    def _get_config_path(self) -> Path:
-        if self._is_project_scope:
-            project_path = get_project_config_path()
-            if project_path:
-                return project_path
-            from ai_guardian.config.utils import _find_git_root
-
-            root = _find_git_root() or Path.cwd()
-            return root / ".ai-guardian" / "ai-guardian.json"
-        return get_config_dir() / "ai-guardian.json"
 
     def compose(self) -> ComposeResult:
         yield Static(
@@ -324,7 +306,7 @@ class SecretEnginesContent(Container):
             return
 
         try:
-            config = self._load_config_dict()
+            config = self._load_full_config()
             ss = config.get("secret_scanning", {})
             if not isinstance(ss, dict):
                 ss = {"enabled": True}
@@ -340,7 +322,7 @@ class SecretEnginesContent(Container):
                 pass
 
             config["secret_scanning"] = ss
-            self._save_config_dict(config)
+            self._write_full_config(config, backup=True)
             self.app.notify(f"Saved {len(engines)} engine(s)", severity="information")
         except Exception as e:
             self.app.notify(f"Save failed: {e}", severity="error")
@@ -354,30 +336,7 @@ class SecretEnginesContent(Container):
         self.app.notify("Engine config refreshed", severity="information")
 
     def _save_strategy(self, strategy: str) -> None:
-        try:
-            config = self._load_config_dict()
-            ss = config.get("secret_scanning", {})
-            if not isinstance(ss, dict):
-                ss = {"enabled": True}
-            ss["execution_strategy"] = strategy
-            config["secret_scanning"] = ss
-            self._save_config_dict(config)
+        if self._save_config_field("execution_strategy", strategy, backup=True):
             self.app.notify(f"Strategy set to: {strategy}", severity="success")
-        except Exception as e:
-            self.app.notify(f"Error saving strategy: {e}", severity="error")
-
-    def _load_config_dict(self) -> dict:
-        config_path = self._get_config_path()
-        if config_path.exists():
-            with open(config_path, "r", encoding="utf-8") as f:
-                return json.load(f)
-        return {}
-
-    def _save_config_dict(self, config: dict) -> None:
-        config_path = self._get_config_path()
-        if config_path.exists():
-            backup_path = config_path.with_suffix(".json.bak")
-            shutil.copy2(config_path, backup_path)
-        config_path.parent.mkdir(parents=True, exist_ok=True)
-        with open(config_path, "w", encoding="utf-8") as f:
-            json.dump(config, f, indent=2)
+        else:
+            self.app.notify("Error saving strategy", severity="error")

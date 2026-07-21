@@ -14,10 +14,12 @@ from textual.containers import Container, VerticalScroll
 from textual.widgets import Static, Input
 
 from ai_guardian.config.utils import get_config_dir
+from ai_guardian.tui.schema_defaults import ConfigSaveMixin
 from ai_guardian.tui.widgets import format_local_time
 
 
-class PIPatternsContent(Container):
+class PIPatternsContent(ConfigSaveMixin, Container):
+    CONFIG_SECTION = "prompt_injection"
     """Content widget for Prompt Injection Patterns."""
 
     CSS = """
@@ -195,37 +197,7 @@ class PIPatternsContent(Container):
     def _add_pattern(self, field: str, input_id: str, label: str) -> None:
         input_widget = self.query_one(f"#{input_id}", Input)
         pattern = input_widget.value.strip()
-
         if not pattern:
             self.app.notify("Please enter a pattern", severity="error")
             return
-
-        config_dir = get_config_dir()
-        config_path = config_dir / "ai-guardian.json"
-
-        try:
-            config = {}
-            if config_path.exists():
-                with open(config_path, "r", encoding="utf-8") as f:
-                    config = json.load(f)
-
-            if "prompt_injection" not in config:
-                config["prompt_injection"] = {}
-            if field not in config["prompt_injection"]:
-                config["prompt_injection"][field] = []
-
-            if pattern in config["prompt_injection"][field]:
-                self.app.notify(f"Pattern already in {label}", severity="warning")
-                return
-
-            config["prompt_injection"][field].append(pattern)
-
-            with open(config_path, "w", encoding="utf-8") as f:
-                json.dump(config, f, indent=2)
-
-            input_widget.value = ""
-            self.load_config()
-            self.app.notify(f"Added to {label}: {pattern}", severity="success")
-
-        except Exception as e:
-            self.app.notify(f"Error adding pattern: {e}", severity="error")
+        self._add_config_list_item(field, pattern, input_widget)

@@ -16,6 +16,7 @@ from textual.widgets import Static, Button, Input, Label, Select, Checkbox
 
 from ai_guardian.config.utils import get_config_dir, get_project_config_path
 from ai_guardian.tui.schema_defaults import (
+    ConfigSaveMixin,
     SchemaDefaultsMixin,
     select_options_with_default,
 )
@@ -47,7 +48,8 @@ PHASE2_PII_TYPES = [
 ALL_PII_TYPES = PHASE1_PII_TYPES + PHASE2_PII_TYPES
 
 
-class ScanPIIContent(SchemaDefaultsMixin, Container):
+class ScanPIIContent(ConfigSaveMixin, SchemaDefaultsMixin, Container):
+    CONFIG_SECTION = "scan_pii"
     """Content widget for PII Detection tab."""
 
     SCHEMA_SECTION = "scan_pii"
@@ -139,24 +141,6 @@ class ScanPIIContent(SchemaDefaultsMixin, Container):
         text-style: bold;
     }
     """
-
-    @property
-    def _is_project_scope(self) -> bool:
-        try:
-            return self.app.config_scope == "project"
-        except Exception:
-            return False
-
-    def _get_config_path(self) -> Path:
-        if self._is_project_scope:
-            project_path = get_project_config_path()
-            if project_path:
-                return project_path
-            from ai_guardian.config.utils import _find_git_root
-
-            root = _find_git_root() or Path.cwd()
-            return root / ".ai-guardian" / "ai-guardian.json"
-        return get_config_dir() / "ai-guardian.json"
 
     def compose(self) -> ComposeResult:
         yield Static("[bold]PII Detection Settings[/bold]", id="pii-header")
@@ -415,29 +399,7 @@ class ScanPIIContent(SchemaDefaultsMixin, Container):
         self._apply_default_indicators(pii_config)
 
     def _save_config(self, updates: Dict[str, Any]) -> bool:
-        config_path = self._get_config_path()
-
-        try:
-            config = {}
-            if config_path.exists():
-                with open(config_path, "r", encoding="utf-8") as f:
-                    config = json.load(f)
-
-            if "scan_pii" not in config:
-                config["scan_pii"] = {}
-
-            if "enabled" in updates:
-                updates["enabled"] = sanitize_enabled_value(updates["enabled"])
-            config["scan_pii"].update(updates)
-
-            config_path.parent.mkdir(parents=True, exist_ok=True)
-            with open(config_path, "w", encoding="utf-8") as f:
-                json.dump(config, f, indent=2)
-
-            return True
-        except Exception as e:
-            self.app.notify(f"Error saving config: {e}", severity="error")
-            return False
+        return self._save_config_updates(updates)
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         if getattr(self, "_loading", False):

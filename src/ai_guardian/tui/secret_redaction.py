@@ -7,15 +7,14 @@ Redacts sensitive information from tool outputs instead of blocking operations.
 """
 
 import json
-from pathlib import Path
 from typing import Dict, Any
 
 from textual.app import ComposeResult
 from textual.containers import Container, Horizontal, VerticalScroll
 from textual.widgets import Static, Button, Input, Label, Select, Checkbox
 
-from ai_guardian.config.utils import get_config_dir, get_project_config_path
 from ai_guardian.tui.schema_defaults import (
+    ConfigSaveMixin,
     SchemaDefaultsMixin,
     default_indicator,
     select_options_with_default,
@@ -23,33 +22,16 @@ from ai_guardian.tui.schema_defaults import (
 from ai_guardian.tui.widgets import TimeBasedToggle
 
 
-class SecretRedactionContent(SchemaDefaultsMixin, Container):
+class SecretRedactionContent(ConfigSaveMixin, SchemaDefaultsMixin, Container):
     """Content widget for Secret Redaction tab."""
 
+    CONFIG_SECTION = "secret_redaction"
     SCHEMA_SECTION = "secret_redaction"
     SCHEMA_FIELDS = [
         ("action-select", "action", "select"),
         ("preserve-format-checkbox", "preserve_format", "checkbox"),
         ("log-redactions-checkbox", "log_redactions", "checkbox"),
     ]
-
-    @property
-    def _is_project_scope(self) -> bool:
-        try:
-            return self.app.config_scope == "project"
-        except Exception:
-            return False
-
-    def _get_config_path(self) -> Path:
-        if self._is_project_scope:
-            project_path = get_project_config_path()
-            if project_path:
-                return project_path
-            from ai_guardian.config.utils import _find_git_root
-
-            root = _find_git_root() or Path.cwd()
-            return root / ".ai-guardian" / "ai-guardian.json"
-        return get_config_dir() / "ai-guardian.json"
 
     CSS = """
     SecretRedactionContent {
@@ -373,34 +355,13 @@ class SecretRedactionContent(SchemaDefaultsMixin, Container):
         Returns:
             bool: True if successful, False otherwise
         """
-        config_path = self._get_config_path()
-
-        try:
-            # Load existing config
-            config = {}
-            if config_path.exists():
-                with open(config_path, "r", encoding="utf-8") as f:
-                    config = json.load(f)
-
-            # Ensure secret_redaction section exists
-            if "secret_redaction" not in config:
-                config["secret_redaction"] = {}
-
-            # Update configuration
-            config["secret_redaction"].update(config_updates)
-
-            # Save config
-            config_path.parent.mkdir(parents=True, exist_ok=True)
-            with open(config_path, "w", encoding="utf-8") as f:
-                json.dump(config, f, indent=2)
-
+        if self._save_config_updates(config_updates):
             self.app.notify(
                 "Secret redaction configuration saved", severity="information"
             )
             return True
-
-        except Exception as e:
-            self.app.notify(f"Error saving config: {e}", severity="error")
+        else:
+            self.app.notify("Error saving config", severity="error")
             return False
 
     def on_checkbox_changed(self, event: Checkbox.Changed) -> None:
@@ -474,15 +435,8 @@ class SecretRedactionContent(SchemaDefaultsMixin, Container):
             self.app.notify(f"Invalid regex pattern: {e}", severity="error")
             return
 
-        config_path = self._get_config_path()
-
         try:
-            if config_path.exists():
-                with open(config_path, "r", encoding="utf-8") as f:
-                    config = json.load(f)
-            else:
-                config = {}
-
+            config = self._load_full_config()
             if "secret_redaction" not in config:
                 config["secret_redaction"] = {}
 
@@ -495,9 +449,7 @@ class SecretRedactionContent(SchemaDefaultsMixin, Container):
                 return
 
             config["secret_redaction"]["additional_patterns"].append(pattern_value)
-
-            with open(config_path, "w", encoding="utf-8") as f:
-                json.dump(config, f, indent=2)
+            self._write_full_config(config)
 
             # Clear input
             pattern_input.value = ""

@@ -64,9 +64,10 @@ class TestSaveLogic:
             content._loading = False
 
             with (
-                patch(
-                    "ai_guardian.tui.global_settings.get_config_dir",
-                    return_value=Path(tmpdir),
+                patch.object(
+                    content,
+                    "_get_config_path",
+                    return_value=config_path,
                 ),
                 patch.object(
                     type(content),
@@ -150,9 +151,10 @@ class TestActionSaveLogic:
             content._loading = False
 
             with (
-                patch(
-                    "ai_guardian.tui.global_settings.get_config_dir",
-                    return_value=Path(tmpdir),
+                patch.object(
+                    content,
+                    "_get_config_path",
+                    return_value=config_path,
                 ),
                 patch.object(
                     type(content),

@@ -408,8 +408,14 @@ class TestConsoleSettingsPreferredUi:
 
         config_path = tmp_path / "ai-guardian.json"
         config_path.write_text(json.dumps({}))
-        with patch(
-            "ai_guardian.tui.console_settings.get_config_dir", return_value=tmp_path
+        with (
+            patch(
+                "ai_guardian.tui.console_settings.get_config_dir", return_value=tmp_path
+            ),
+            patch(
+                "ai_guardian.config.utils.get_config_dir",
+                return_value=tmp_path,
+            ),
         ):
             success, error = save_preferred_ui("nicegui")
             assert success is True
@@ -428,8 +434,14 @@ class TestConsoleSettingsPreferredUi:
                 }
             )
         )
-        with patch(
-            "ai_guardian.tui.console_settings.get_config_dir", return_value=tmp_path
+        with (
+            patch(
+                "ai_guardian.tui.console_settings.get_config_dir", return_value=tmp_path
+            ),
+            patch(
+                "ai_guardian.config.utils.get_config_dir",
+                return_value=tmp_path,
+            ),
         ):
             success, _ = save_preferred_ui("textual")
             assert success is True

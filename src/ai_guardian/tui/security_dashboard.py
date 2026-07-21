@@ -16,6 +16,7 @@ from textual.widgets import Static, Button
 from textual.widgets import ContentSwitcher
 
 from ai_guardian.config.utils import get_config_dir
+from ai_guardian.tui.schema_defaults import ConfigSaveMixin, _ensure_section
 from ai_guardian.tui.widgets import format_local_time
 
 FEATURE_GROUPS = [
@@ -187,7 +188,9 @@ def _get_action(config, key):
     return _DEFAULT_ACTIONS.get(key)
 
 
-class SecurityDashboardContent(Container):
+class SecurityDashboardContent(ConfigSaveMixin, Container):
+    # No CONFIG_SECTION — enable/disable all passes section= per feature.
+    # Uses ConfigSaveMixin for scope-aware path (project or global).
     """Content widget for Security Dashboard tab."""
 
     CSS = """
@@ -598,83 +601,43 @@ class SecurityDashboardContent(Container):
         elif button_id == "export-config-btn":
             self.export_security_config()
 
+    _ALL_FEATURES = [
+        "ssrf_protection",
+        "prompt_injection",
+        "config_file_scanning",
+        "secret_redaction",
+        "context_poisoning",
+        "supply_chain",
+        "scan_pii",
+        "image_scanning",
+        "secret_scanning",
+        "directory_rules",
+    ]
+
     def enable_all_features(self) -> None:
-        """Enable all security features."""
-        config_dir = get_config_dir()
-        config_path = config_dir / "ai-guardian.json"
-
-        try:
-            if config_path.exists():
-                with open(config_path, "r", encoding="utf-8") as f:
-                    config = json.load(f)
-            else:
-                config = {}
-
-            features_to_enable = [
-                "ssrf_protection",
-                "prompt_injection",
-                "config_file_scanning",
-                "secret_redaction",
-                "context_poisoning",
-                "supply_chain",
-                "scan_pii",
-                "image_scanning",
-                "secret_scanning",
-                "directory_rules",
-            ]
-
-            for feature in features_to_enable:
-                if feature not in config:
-                    config[feature] = {}
-                config[feature]["enabled"] = True
-
-            with open(config_path, "w", encoding="utf-8") as f:
-                json.dump(config, f, indent=2)
-
-            self.load_dashboard()
-            self.app.notify("✓ All security features enabled", severity="success")
-
-        except Exception as e:
-            self.app.notify(f"Error enabling features: {e}", severity="error")
+        """Enable all security features in a single write."""
+        self._set_all_features(True)
 
     def disable_all_features(self) -> None:
-        """Disable all security features."""
-        config_dir = get_config_dir()
-        config_path = config_dir / "ai-guardian.json"
+        """Disable all security features in a single write."""
+        self._set_all_features(False)
 
+    def _set_all_features(self, enabled: bool) -> None:
         try:
-            if config_path.exists():
-                with open(config_path, "r", encoding="utf-8") as f:
-                    config = json.load(f)
-            else:
-                config = {}
-
-            features_to_disable = [
-                "ssrf_protection",
-                "prompt_injection",
-                "config_file_scanning",
-                "secret_redaction",
-                "context_poisoning",
-                "supply_chain",
-                "scan_pii",
-                "image_scanning",
-                "secret_scanning",
-                "directory_rules",
-            ]
-
-            for feature in features_to_disable:
-                if feature not in config:
-                    config[feature] = {}
-                config[feature]["enabled"] = False
-
-            with open(config_path, "w", encoding="utf-8") as f:
-                json.dump(config, f, indent=2)
-
+            config = self._load_full_config()
+            for feature in self._ALL_FEATURES:
+                target = _ensure_section(config, feature)
+                target["enabled"] = enabled
+            if not self._write_full_config(config):
+                self.app.notify("Error saving config", severity="error")
+                return
             self.load_dashboard()
-            self.app.notify("⚠ All security features disabled", severity="warning")
-
+            if enabled:
+                self.app.notify("✓ All security features enabled", severity="success")
+            else:
+                self.app.notify("⚠ All security features disabled", severity="warning")
         except Exception as e:
-            self.app.notify(f"Error disabling features: {e}", severity="error")
+            self.app.notify(f"Error updating features: {e}", severity="error")
 
     def export_security_config(self) -> None:
         """Export security configuration to a file."""
