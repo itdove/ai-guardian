@@ -10,7 +10,7 @@ import logging
 import os
 import re
 from datetime import datetime, timezone
-from typing import Callable, Dict, Optional
+from typing import Callable, Dict, Optional, Tuple
 
 from ai_guardian.config.utils import get_project_dir, get_state_dir, is_feature_enabled
 from ai_guardian.constants import HookEvent, ViolationType
@@ -207,6 +207,114 @@ def _discover_path(
         return expanded
 
     return None
+
+
+# ---------------------------------------------------------------------------
+# Shared JSONL incremental reader
+# ---------------------------------------------------------------------------
+
+
+def _read_jsonl_incremental(
+    path: str,
+    seen_count: int,
+    extract_fn: Callable[[dict], str],
+    label: str = "Transcript",
+    encoding: str = "utf-8",
+) -> Tuple[str, int]:
+    """Read a JSONL transcript file incrementally, skipping already-seen lines.
+
+    Handles line skip, truncation reset (when the file was rewritten shorter),
+    JSON parse, dict type check, and per-entry text extraction.
+
+    Args:
+        path: Path to the JSONL file.
+        seen_count: Number of lines already processed in prior scans.
+        extract_fn: Per-adapter callable that extracts scannable text from
+            a parsed JSON dict.
+        label: Human-readable adapter name for debug logging.
+        encoding: File encoding (``"utf-8-sig"`` for Copilot Chat BOM handling).
+
+    Returns:
+        Tuple of (combined_new_text, total_line_count).
+    """
+    try:
+        with open(path, encoding=encoding) as f:
+            skipped = 0
+            for _ in range(seen_count):
+                if not f.readline():
+                    break
+                skipped += 1
+
+            truncated = skipped < seen_count
+            if truncated:
+                f.seek(0)
+
+            texts = []
+            total = 0 if truncated else skipped
+            for raw_line in f:
+                total += 1
+                raw_line = raw_line.strip()
+                if not raw_line:
+                    continue
+                try:
+                    entry = json.loads(raw_line)
+                except json.JSONDecodeError:
+                    continue
+                if not isinstance(entry, dict):
+                    continue
+                extracted = extract_fn(entry)
+                if extracted:
+                    texts.append(extracted)
+    except OSError as e:
+        logging.debug(f"{label} transcript read error: {e}")
+        return "", 0
+
+    return "\n".join(texts), total
+
+
+# ---------------------------------------------------------------------------
+# Shared JSONL scan orchestrator
+# ---------------------------------------------------------------------------
+
+
+def _scan_jsonl_incremental(
+    transcript_path: str,
+    pos_prefix: str,
+    session_id: str,
+    extract_fn: Callable[[dict], str],
+    label: str = "Transcript",
+    encoding: str = "utf-8",
+    secret_config: Optional[Dict] = None,
+    pii_config: Optional[Dict] = None,
+    hook_context: Optional[Dict] = None,
+    allowed_findings: Optional[set] = None,
+) -> list:
+    """Orchestrate incremental JSONL transcript scanning.
+
+    Composes position tracking, JSONL reading, and content scanning into
+    a single call.  Used by all JSONL-based transcript adapters.
+    """
+    pos_key = f"{pos_prefix}:{session_id}"
+
+    combined_text = _scan_with_position_tracking(
+        pos_key,
+        reader_fn=lambda seen: _read_jsonl_incremental(
+            transcript_path, seen, extract_fn, label, encoding
+        ),
+        label=label,
+    )
+
+    if not combined_text:
+        return []
+
+    return _scan_transcript_text(
+        combined_text,
+        pos_key,
+        secret_config,
+        pii_config,
+        hook_context,
+        allowed_findings=allowed_findings,
+    )
 
 
 # ---------------------------------------------------------------------------

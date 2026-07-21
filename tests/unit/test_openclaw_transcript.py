@@ -299,7 +299,7 @@ class TestScanOpenClawTranscriptIncremental(unittest.TestCase):
             _write_jsonl(path, entries)
 
             with mock.patch(
-                "ai_guardian.scanners.transcript.openclaw._scan_transcript_text",
+                "ai_guardian.scanners.transcript.common._scan_transcript_text",
                 return_value=["WARNING: test"],
             ) as mock_scan:
                 warnings = scan_openclaw_transcript_incremental(path, SESSION_ID)

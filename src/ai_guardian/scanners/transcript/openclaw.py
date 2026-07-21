@@ -6,7 +6,6 @@ Each line is a JSON object with a ``role`` field (user/assistant/tool)
 and ``content`` (string or structured).
 """
 
-import json
 import logging
 import os
 from typing import Dict, List, Optional, Tuple
@@ -15,8 +14,8 @@ from ai_guardian.scanners.transcript.base import TranscriptAdapter
 from ai_guardian.scanners.transcript.common import (
     _discover_path,
     _get_transcript_path,
-    _scan_transcript_text,
-    _scan_with_position_tracking,
+    _read_jsonl_incremental,
+    _scan_jsonl_incremental,
 )
 
 
@@ -111,39 +110,12 @@ def read_openclaw_transcript(
     Returns:
         Tuple of (combined_new_text, total_line_count).
     """
-    try:
-        with open(transcript_path, encoding="utf-8") as f:
-            skipped = 0
-            for _ in range(seen_count):
-                if not f.readline():
-                    break
-                skipped += 1
-
-            truncated = skipped < seen_count
-            if truncated:
-                f.seek(0)
-
-            texts = []
-            total = 0 if truncated else skipped
-            for raw_line in f:
-                total += 1
-                raw_line = raw_line.strip()
-                if not raw_line:
-                    continue
-                try:
-                    entry = json.loads(raw_line)
-                except json.JSONDecodeError:
-                    continue
-                if not isinstance(entry, dict):
-                    continue
-                extracted = _extract_text_from_openclaw_entry(entry)
-                if extracted:
-                    texts.append(extracted)
-    except OSError as e:
-        logging.debug(f"OpenClaw transcript read error: {e}")
-        return "", 0
-
-    return "\n".join(texts), total
+    return _read_jsonl_incremental(
+        transcript_path,
+        seen_count,
+        _extract_text_from_openclaw_entry,
+        label="OpenClaw",
+    )
 
 
 def scan_openclaw_transcript_incremental(
@@ -155,23 +127,15 @@ def scan_openclaw_transcript_incremental(
     allowed_findings: Optional[set] = None,
 ) -> list:
     """Incrementally scan an OpenClaw transcript JSONL file."""
-    pos_key = f"openclaw:{session_id}"
-
-    combined_text = _scan_with_position_tracking(
-        pos_key,
-        reader_fn=lambda seen: read_openclaw_transcript(transcript_path, seen),
+    return _scan_jsonl_incremental(
+        transcript_path,
+        "openclaw",
+        session_id,
+        _extract_text_from_openclaw_entry,
         label="OpenClaw",
-    )
-
-    if not combined_text:
-        return []
-
-    return _scan_transcript_text(
-        combined_text,
-        pos_key,
-        secret_config,
-        pii_config,
-        hook_context,
+        secret_config=secret_config,
+        pii_config=pii_config,
+        hook_context=hook_context,
         allowed_findings=allowed_findings,
     )
 

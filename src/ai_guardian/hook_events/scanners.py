@@ -5,8 +5,9 @@ import logging
 import os
 from datetime import datetime, timezone
 
-from ai_guardian.config.utils import is_feature_enabled
+from ai_guardian.config.utils import get_project_dir, is_feature_enabled
 from ai_guardian.constants import HookEvent
+from ai_guardian.project_init import get_language_allowlist_patterns
 from ai_guardian.reporting.latency import _CheckTimer
 from ai_guardian.scanners.scan_result import ScanResult
 
@@ -85,6 +86,29 @@ except ImportError:
 
 
 # ---------------------------------------------------------------------------
+# Language overlay helper
+# ---------------------------------------------------------------------------
+
+
+def apply_language_overlays(config: dict, scanner_name: str) -> dict:
+    """Merge auto-detected language false positive patterns into scanner config.
+
+    Returns a shallow copy of *config* with ``allowlist_patterns`` extended,
+    or the original dict unchanged if no patterns apply.
+    """
+    project_dir = get_project_dir()
+    auto_patterns = (
+        get_language_allowlist_patterns(project_dir, scanner_name)
+        if project_dir
+        else []
+    )
+    if auto_patterns:
+        existing = config.get("allowlist_patterns", [])
+        config = {**config, "allowlist_patterns": existing + auto_patterns}
+    return config
+
+
+# ---------------------------------------------------------------------------
 # Scanner runner functions
 # ---------------------------------------------------------------------------
 
@@ -125,14 +149,7 @@ def run_prompt_injection_scan(
     if not config or not is_feature_enabled(config.get("enabled"), now, default=True):
         return None
 
-    from ai_guardian.config.utils import get_project_dir
-    from ai_guardian.project_init import get_language_allowlist_patterns
-
-    project_dir = get_project_dir()
-    auto_patterns = get_language_allowlist_patterns(project_dir) if project_dir else []
-    if auto_patterns:
-        existing = config.get("allowlist_patterns", [])
-        config = {**config, "allowlist_patterns": existing + auto_patterns}
+    config = apply_language_overlays(config, "prompt_injection")
 
     detector = PromptInjectionDetector(config)
     with (latency_timer or _NULL_TIMER).check("prompt_injection"):
