@@ -685,11 +685,8 @@ HELP_DOCS = {
         "  - BetterLeaks — Enhanced detection with fewer false positives\n"
         "  - LeakTK — Pattern server with community-maintained rules\n\n"
         "[bold]Configuration:[/bold]\n"
-        "  - Pattern server URL and version\n"
         "  - Scanner selection and priority\n"
-        "  - Custom allowlist for known false positives\n\n"
-        "[bold]Keyboard shortcuts:[/bold]\n"
-        "  [bold]t[/bold]  Test pattern server connection"
+        "  - Custom allowlist for known false positives"
     ),
     "panel-secret-engines": (
         "[bold]Engine Configuration[/bold]\n\n"
@@ -1274,7 +1271,6 @@ class AIGuardianTUI(App):
         Binding("c", "add_custom", "Custom", show=True),
         Binding("d", "add_deny_pattern", "Deny", show=True),
         Binding("s", "save_setting", "Save", show=True),
-        Binding("t", "test_connection", "Test", show=True),
         Binding("ctrl+d", "nav_dashboard", "Dashboard", show=False),
         Binding("ctrl+v", "nav_violations", "Violations", show=False),
         Binding("ctrl+l", "nav_logs", "Logs", show=False),
@@ -1630,7 +1626,7 @@ class AIGuardianTUI(App):
             "panel-mcp": ["add_allow_pattern"],
             "panel-pi-detection": ["save_setting"],
             "panel-pi-patterns": ["add_allow_pattern", "add_custom"],
-            "panel-secrets": ["test_connection"],
+            "panel-secrets": [],
             "panel-ssrf": ["save_setting"],
             "panel-config-scanner": ["save_setting"],
             "panel-secret-redaction": ["save_setting"],
@@ -1779,14 +1775,6 @@ class AIGuardianTUI(App):
         content = self._get_current_content()
         if content and hasattr(content, "action_update_sensitivity"):
             content.action_update_sensitivity()
-
-    def action_test_connection(self) -> None:
-        """Test connection (only works on Secrets panel)."""
-        if self._get_current_panel_id() != "panel-secrets":
-            return
-        content = self._get_current_content()
-        if content and hasattr(content, "action_test_server"):
-            content.action_test_server()
 
     def _navigate_to_panel(self, panel_id: str) -> None:
         """Switch the content switcher to a panel by ID."""
