@@ -23,8 +23,8 @@ from ai_guardian.ask_mode import (
     _compute_pii_transcript_fingerprints,
 )
 
-from ai_guardian.hook_events.content_pipeline import _load_overlaid_config
 from ai_guardian.hook_events.scanners import (
+    _load_overlaid_config,
     run_secret_scan,
     run_prompt_injection_scan,
     run_context_poisoning_scan,
@@ -929,6 +929,15 @@ def handle_post_tool_use(ctx=None, **kwargs):
     post_pi_cp_filename = (
         f"{tool_identifier}_output" if tool_identifier else "tool_output"
     )
+
+    # Generic overlay pre-compute — same pattern as content_pipeline (#1682).
+    _ptu_registry = get_default_registry()
+    ptu_overlaid_configs = {
+        e.name: oc
+        for e in _ptu_registry.get_pipeline(hook_event, has_content=True)
+        if (oc := _load_overlaid_config(e)) is not None
+    }
+
     if tool_output:
         try:
             # Cross-hook optimization: skip if PreToolUse already scanned clean (#366)
@@ -947,10 +956,7 @@ def handle_post_tool_use(ctx=None, **kwargs):
                 if not post_pi_file and pretool_ctx:
                     post_pi_file = pretool_ctx.get("file_path")
 
-                post_pi_config = _load_overlaid_config(
-                    get_default_registry().get(ScannerName.PROMPT_INJECTION),
-                    _loaders._load_prompt_injection_config,
-                )
+                post_pi_config = ptu_overlaid_configs.get(ScannerName.PROMPT_INJECTION)
                 post_pi_result = run_prompt_injection_scan(
                     tool_output,
                     config=post_pi_config,

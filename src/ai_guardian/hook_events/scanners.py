@@ -5,6 +5,7 @@ import logging
 import os
 from datetime import datetime, timezone
 
+import ai_guardian.config.loaders as _loaders
 from ai_guardian.config.utils import get_project_dir, is_feature_enabled
 from ai_guardian.constants import HookEvent
 from ai_guardian.project_init import get_language_allowlist_patterns
@@ -106,6 +107,28 @@ def apply_language_overlays(config: dict, scanner_name: str) -> dict:
         existing = config.get("allowlist_patterns", [])
         config = {**config, "allowlist_patterns": existing + auto_patterns}
     return config
+
+
+def _load_overlaid_config(entry):
+    """Load scanner config and apply language overlays if the entry supports it.
+
+    Uses ``entry.config_section`` to load from ai-guardian.json, so no
+    per-scanner loader function is needed.  Returns the (possibly overlaid)
+    config dict, or ``None`` when the entry does not support overlays, has
+    no ``config_section``, or when the section is absent/empty.
+    """
+    if not entry or not entry.supports_language_overlay or not entry.config_section:
+        return None
+    config, config_error = _loaders._load_config_section(
+        entry.config_section, merge_ignore=True
+    )
+    if config_error:
+        logging.warning(
+            "Config load warning for %s: %s", entry.name.value, config_error
+        )
+    if not config:
+        return None
+    return apply_language_overlays(config, entry.name.value)
 
 
 # ---------------------------------------------------------------------------
