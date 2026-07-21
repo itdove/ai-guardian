@@ -786,7 +786,6 @@ class TestSecretValidationConfigLogic:
                     "secret_scanning": {
                         "enabled": True,
                         "allowlist_patterns": ["pk_test_.*"],
-                        "pattern_server": {"enabled": False},
                     }
                 }
             )
@@ -817,7 +816,6 @@ class TestSecretValidationConfigLogic:
             # Existing fields preserved
             assert ss["enabled"] is True
             assert ss["allowlist_patterns"] == ["pk_test_.*"]
-            assert ss["pattern_server"]["enabled"] is False
 
     def test_validation_fields_in_empty_config(self, tmp_path):
         """Saving validation fields works when starting from empty config."""

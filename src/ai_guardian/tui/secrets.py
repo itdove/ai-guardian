@@ -14,12 +14,10 @@ from textual.containers import Container, Horizontal, VerticalScroll
 from textual.widgets import Static, Button, Input, Label, Checkbox, Select
 
 from ai_guardian.config.utils import (
-    get_cache_dir,
     get_config_dir,
     get_project_config_path,
 )
 from ai_guardian.tui.schema_defaults import (
-    SchemaDefaultsMixin,
     default_indicator,
     default_placeholder,
 )
@@ -30,13 +28,16 @@ from ai_guardian.tui.widgets import (
 )
 
 
-class SecretsContent(SchemaDefaultsMixin, Container):
+class SecretsContent(Container):
     """Content widget for Secrets tab."""
 
-    SCHEMA_SECTION = "secret_scanning.pattern_server"
-    SCHEMA_FIELDS = [
-        ("pattern-server-warn-on-failure", "warn_on_failure", "checkbox"),
-    ]
+    _PRIVACY_WARNING = (
+        "[bold yellow]⚠ Privacy Warning:[/bold yellow] "
+        "[yellow]Detected secrets will be sent to external provider "
+        "APIs for liveness validation. This happens automatically on "
+        "every detection. By enabling this feature you consent to "
+        "outbound network calls with sensitive data.[/yellow]"
+    )
 
     CSS = """
     SecretsContent {
@@ -168,7 +169,7 @@ class SecretsContent(SchemaDefaultsMixin, Container):
                 yield Static("", id="gitleaks-status")
                 yield Static(
                     "[dim]Detection sources (in priority order):\n"
-                    "  1. Pattern server: Organization patterns (if enabled below)\n"
+                    "  1. Per-engine pattern server (if configured on Engine Config page)\n"
                     "  2. Project-specific: .gitleaks.toml (if exists)\n"
                     "  3. Built-in: Gitleaks default rules (AWS, GitHub, SSH keys, etc.)[/dim]",
                     id="gitleaks-config",
@@ -250,112 +251,6 @@ class SecretsContent(SchemaDefaultsMixin, Container):
                     placeholder="Enter tool pattern (e.g. mcp__*)",
                     id="secret-ignore-tool-input",
                 )
-
-            # Pattern server toggle section (standalone)
-            yield TimeBasedToggle(
-                title="Pattern Server (Optional - Enhanced Patterns)",
-                config_key="pattern_server_enabled",
-                current_value=False,
-                help_text="Enable to use custom security patterns from a remote server in addition to built-in scanner rules",
-                id="pattern_server_enabled_toggle",
-            )
-
-            # Pattern server settings section
-            with Container(classes="section"):
-                yield Static(
-                    "[bold]Pattern Server Settings[/bold]", classes="section-title"
-                )
-
-                with Horizontal(classes="setting-row"):
-                    yield Label("Server URL:")
-                    yield Input(
-                        placeholder="https://pattern-server.example.com",
-                        id="pattern-server-url",
-                    )
-                    yield Static("[dim](Press Enter to save)[/dim]")
-
-                with Horizontal(classes="setting-row"):
-                    yield Label("Patterns Endpoint:")
-                    yield Input(
-                        placeholder=default_placeholder(
-                            "secret_scanning.pattern_server.patterns_endpoint"
-                        ),
-                        id="pattern-server-endpoint",
-                    )
-                    yield Static("[dim](Press Enter to save)[/dim]")
-
-                with Horizontal(classes="setting-row"):
-                    yield Label("Warn on Failure:")
-                    yield Checkbox("", id="pattern-server-warn-on-failure", value=True)
-                    yield Static(
-                        f"[dim]Show warnings when pattern server fails (auth, network, etc)[/dim] "
-                        f"{default_indicator('secret_scanning.pattern_server.warn_on_failure')}"
-                    )
-
-                with Horizontal(classes="setting-row"):
-                    yield Label("Auth Method:")
-                    yield Input(placeholder="bearer", id="pattern-server-auth-method")
-                    yield Static("[dim](Press Enter to save)[/dim]")
-
-                with Horizontal(classes="setting-row"):
-                    yield Label("Token Env Var:")
-                    yield Input(
-                        placeholder="AI_GUARDIAN_PATTERN_TOKEN",
-                        id="pattern-server-token-env",
-                    )
-                    yield Static("[dim](Press Enter to save)[/dim]")
-
-                with Horizontal(classes="setting-row"):
-                    yield Label("Token File:")
-                    yield Input(
-                        placeholder="~/.config/ai-guardian/pattern-token",
-                        id="pattern-server-token-file",
-                    )
-                    yield Static("[dim](Press Enter to save)[/dim]")
-
-                yield Static(
-                    "[dim]Press 't' to test connection[/dim]", classes="setting-row"
-                )
-
-            # Cache settings section
-            with Container(classes="section"):
-                yield Static(
-                    "[bold]Pattern Cache Settings[/bold]", classes="section-title"
-                )
-
-                with Horizontal(classes="setting-row"):
-                    yield Label("Cache Path:")
-                    yield Input(
-                        placeholder=str(get_cache_dir() / "patterns.toml"),
-                        id="cache-path",
-                    )
-                    yield Static("[dim](Press Enter to save)[/dim]")
-
-                with Horizontal(classes="setting-row"):
-                    yield Label("Refresh Interval:")
-                    yield Input(
-                        placeholder=default_placeholder(
-                            "secret_scanning.pattern_server.cache.refresh_interval_hours"
-                        ),
-                        id="cache-refresh-interval",
-                    )
-                    yield Static(
-                        f"[dim]hours (Press Enter to save)[/dim] "
-                        f"{default_indicator('secret_scanning.pattern_server.cache.refresh_interval_hours')}"
-                    )
-
-                with Horizontal(classes="setting-row"):
-                    yield Label("Expire After:")
-                    yield Input(
-                        placeholder=default_placeholder(
-                            "secret_scanning.pattern_server.cache.expire_after_hours"
-                        ),
-                        id="cache-expire-after",
-                    )
-                    yield Static(
-                        f"[dim]hours (Press Enter to save)[/dim] "
-                        f"{default_indicator('secret_scanning.pattern_server.cache.expire_after_hours')}"
-                    )
 
             # Secret Validation section (Issue #976)
             with Container(classes="section"):
@@ -461,42 +356,7 @@ class SecretsContent(SchemaDefaultsMixin, Container):
             except Exception as e:
                 self.app.notify(f"Error loading config: {e}", severity="error")
 
-        # Pattern server status - read from secret_scanning.pattern_server (new location)
-        # with fallback to root-level pattern_server (deprecated) for backward compatibility
         secret_scanning = config.get("secret_scanning", {})
-
-        # Only fall back to root level if key is absent (not if explicitly null)
-        if "pattern_server" in secret_scanning:
-            pattern_server = secret_scanning["pattern_server"]
-        elif "pattern_server" in config:
-            pattern_server = config["pattern_server"]
-        else:
-            pattern_server = {}
-
-        if pattern_server is None:
-            enabled_value = False
-        elif not isinstance(pattern_server, dict):
-            enabled_value = False
-        elif "enabled" in pattern_server:
-            enabled_value = pattern_server["enabled"]
-        elif not pattern_server:
-            enabled_value = False
-        elif "disabled_until" in pattern_server:
-            enabled_value = {
-                "value": False,
-                "disabled_until": pattern_server["disabled_until"],
-                "reason": pattern_server.get("disabled_reason", ""),
-            }
-        else:
-            enabled_value = True
-        ps = pattern_server if isinstance(pattern_server, dict) else {}
-        server_url = ps.get("url", ps.get("server_url", ""))
-        patterns_endpoint = ps.get("patterns_endpoint", "/patterns/gitleaks/8.18.1")
-        warn_on_failure = ps.get("warn_on_failure", True)
-        auth = ps.get("auth", {})
-        auth_method = auth.get("method", "bearer")
-        token_env = auth.get("token_env", "AI_GUARDIAN_PATTERN_TOKEN")
-        token_file = auth.get("token_file", "~/.config/ai-guardian/pattern-token")
 
         # Load secret_scanning.enabled toggle
         scanning_enabled = secret_scanning.get("enabled", True)
@@ -508,40 +368,11 @@ class SecretsContent(SchemaDefaultsMixin, Container):
         except Exception:
             pass
 
-        # Update time-based toggle and inputs
-        try:
-            toggle = self.query_one("#pattern_server_enabled_toggle", TimeBasedToggle)
-            toggle.load_value(enabled_value)
-
-            self.query_one("#pattern-server-url", Input).value = server_url
-            self.query_one("#pattern-server-endpoint", Input).value = patterns_endpoint
-            self.query_one("#pattern-server-warn-on-failure", Checkbox).value = (
-                warn_on_failure
-            )
-            self.query_one("#pattern-server-auth-method", Input).value = auth_method
-            self.query_one("#pattern-server-token-env", Input).value = token_env
-            self.query_one("#pattern-server-token-file", Input).value = token_file
-        except Exception:
-            pass  # Widgets may not be mounted yet
-
-        # Determine if pattern server is actually enabled (check time-based expiration)
-        is_enabled = False
-        if isinstance(enabled_value, dict):
-            is_enabled = enabled_value.get("value", False)
-        else:
-            is_enabled = enabled_value
-
         # Gitleaks status - check for project config
-        from pathlib import Path
-
         project_config = Path.cwd() / ".gitleaks.toml"
         if project_config.exists():
             gitleaks_status = (
                 f"[status-ok]✓[/status-ok] Using project config: {project_config}"
-            )
-        elif is_enabled:
-            gitleaks_status = (
-                "[status-ok]✓[/status-ok] Using pattern server (enhanced patterns)"
             )
         else:
             gitleaks_status = "[status-ok]✓[/status-ok] Using Gitleaks built-in rules"
@@ -665,21 +496,6 @@ class SecretsContent(SchemaDefaultsMixin, Container):
         except Exception:
             pass
 
-        # Cache settings
-        cache = ps.get("cache", {})
-        cache_path = cache.get("path", str(get_cache_dir() / "patterns.toml"))
-        refresh_interval = cache.get("refresh_interval_hours", 12)
-        expire_after = cache.get("expire_after_hours", 168)
-
-        try:
-            self.query_one("#cache-path", Input).value = cache_path
-            self.query_one("#cache-refresh-interval", Input).value = str(
-                refresh_interval
-            )
-            self.query_one("#cache-expire-after", Input).value = str(expire_after)
-        except Exception:
-            pass  # Widgets may not be mounted yet
-
         # Secret validation settings (Issue #976)
         validate_on = secret_scanning.get("validate_secrets", False)
         timeout_ms = secret_scanning.get("validation_timeout_ms", 3000)
@@ -698,25 +514,15 @@ class SecretsContent(SchemaDefaultsMixin, Container):
         try:
             warning_widget = self.query_one("#validate-secrets-privacy-warning", Static)
             if validate_on:
-                warning_widget.update(
-                    "[bold yellow]⚠ Privacy Warning:[/bold yellow] "
-                    "[yellow]Detected secrets will be sent to external provider "
-                    "APIs for liveness validation. This happens automatically on "
-                    "every detection. By enabling this feature you consent to "
-                    "outbound network calls with sensitive data.[/yellow]"
-                )
+                warning_widget.update(self._PRIVACY_WARNING)
             else:
                 warning_widget.update("")
         except Exception:
             pass
 
-        self._apply_default_indicators(ps)
-
     def on_checkbox_changed(self, event: Checkbox.Changed) -> None:
         """Handle checkbox toggle."""
-        if event.checkbox.id == "pattern-server-warn-on-failure":
-            self.save_pattern_server_field("warn_on_failure", event.value)
-        elif event.checkbox.id == "validate-secrets-checkbox":
+        if event.checkbox.id == "validate-secrets-checkbox":
             self._save_secret_scanning_field("validate_secrets", event.value)
             # Update privacy warning visibility
             try:
@@ -724,13 +530,7 @@ class SecretsContent(SchemaDefaultsMixin, Container):
                     "#validate-secrets-privacy-warning", Static
                 )
                 if event.value:
-                    warning_widget.update(
-                        "[bold yellow]\u26a0 Privacy Warning:[/bold yellow] "
-                        "[yellow]Detected secrets will be sent to external provider "
-                        "APIs for liveness validation. This happens automatically on "
-                        "every detection. By enabling this feature you consent to "
-                        "outbound network calls with sensitive data.[/yellow]"
-                    )
+                    warning_widget.update(self._PRIVACY_WARNING)
                 else:
                     warning_widget.update("")
             except Exception:
@@ -747,12 +547,6 @@ class SecretsContent(SchemaDefaultsMixin, Container):
             if toggle.current_mode == "temp_disabled":
                 return
             self._save_secret_scanning_enabled(toggle.get_value())
-        elif bid and "pattern_server_enabled" in bid:
-            toggle = self.query_one("#pattern_server_enabled_toggle", TimeBasedToggle)
-            if toggle.current_mode == "temp_disabled":
-                return
-            value = toggle.get_value()
-            self.save_pattern_server_enabled_value(value)
 
     def on_input_submitted(self, event: Input.Submitted) -> None:
         """Handle Enter key in input fields - save the value."""
@@ -766,36 +560,7 @@ class SecretsContent(SchemaDefaultsMixin, Container):
             self._save_secret_scanning_enabled(toggle.get_value())
             return
 
-        # Handle TimeBasedToggle inputs
-        if input_id and "pattern_server_enabled" in input_id:
-            toggle = self.query_one("#pattern_server_enabled_toggle", TimeBasedToggle)
-            value = toggle.get_value()
-            self.save_pattern_server_enabled_value(value)
-        elif event.input.id == "pattern-server-url":
-            self.save_pattern_server_field("url", event.value)
-        elif event.input.id == "pattern-server-endpoint":
-            self.save_pattern_server_field("patterns_endpoint", event.value)
-        elif event.input.id == "pattern-server-auth-method":
-            self.save_pattern_server_auth_field("method", event.value)
-        elif event.input.id == "pattern-server-token-env":
-            self.save_pattern_server_auth_field("token_env", event.value)
-        elif event.input.id == "pattern-server-token-file":
-            self.save_pattern_server_auth_field("token_file", event.value)
-        elif event.input.id == "cache-path":
-            self.save_cache_field("path", event.value)
-        elif event.input.id == "cache-refresh-interval":
-            try:
-                hours = int(event.value)
-                self.save_cache_field("refresh_interval_hours", hours)
-            except ValueError:
-                self.app.notify("Refresh interval must be a number", severity="error")
-        elif event.input.id == "cache-expire-after":
-            try:
-                hours = int(event.value)
-                self.save_cache_field("expire_after_hours", hours)
-            except ValueError:
-                self.app.notify("Expire after must be a number", severity="error")
-        elif event.input.id == "validation-timeout-ms":
+        if event.input.id == "validation-timeout-ms":
             try:
                 val = int(event.value)
                 if val < 500 or val > 30000:
@@ -841,10 +606,6 @@ class SecretsContent(SchemaDefaultsMixin, Container):
         if event.select.id == "on-inactive-select":
             if event.value is not Select.BLANK:
                 self._save_secret_scanning_field("on_inactive", event.value)
-
-    def action_test_server(self) -> None:
-        """Test pattern server connection (triggered by 't' key)."""
-        self.test_pattern_server()
 
     def action_refresh(self) -> None:
         """Refresh configuration (triggered by 'r' key)."""
@@ -913,142 +674,6 @@ class SecretsContent(SchemaDefaultsMixin, Container):
 
         except Exception as e:
             self.app.notify(f"Error saving {field}: {e}", severity="error")
-
-    def save_pattern_server_enabled_value(
-        self, value: Union[bool, Dict[str, Any]]
-    ) -> None:
-        """Save pattern server enabled state to config (supports time-based format).
-
-        Only writes the 'enabled' field — never modifies, deletes, or nullifies
-        any other field in the pattern_server section (url, auth, cache, etc.).
-        """
-        config_path = self._get_config_path()
-
-        try:
-            if config_path.exists():
-                with open(config_path, "r", encoding="utf-8") as f:
-                    config = json.load(f)
-            else:
-                config = {}
-
-            if "secret_scanning" not in config:
-                config["secret_scanning"] = {}
-
-            value = sanitize_enabled_value(value)
-
-            self._ensure_pattern_server_section(config)
-            config["secret_scanning"]["pattern_server"]["enabled"] = value
-
-            with open(config_path, "w", encoding="utf-8") as f:
-                json.dump(config, f, indent=2)
-
-            # Show status message
-            if isinstance(value, bool):
-                status = "enabled" if value else "disabled"
-                self.app.notify(f"✓ Pattern server {status}", severity="success")
-            else:
-                if value.get("disabled_until"):
-                    self.app.notify(
-                        f"✓ Pattern server temporarily disabled until {format_local_time(value['disabled_until'])}",
-                        severity="success",
-                    )
-                else:
-                    self.app.notify("✓ Pattern server disabled", severity="success")
-
-            # Reload to update status
-            self.load_config()
-
-        except Exception as e:
-            self.app.notify(f"Error saving config: {e}", severity="error")
-
-    def _ensure_pattern_server_section(self, config: dict) -> None:
-        """Ensure secret_scanning.pattern_server exists as a dict."""
-        if "secret_scanning" not in config:
-            config["secret_scanning"] = {}
-        if config["secret_scanning"].get("pattern_server") is None:
-            config["secret_scanning"]["pattern_server"] = {}
-        if "pattern_server" not in config["secret_scanning"]:
-            config["secret_scanning"]["pattern_server"] = {}
-
-    def save_pattern_server_field(self, field: str, value: str) -> None:
-        """Save a pattern server field to config."""
-        config_path = self._get_config_path()
-
-        try:
-            if config_path.exists():
-                with open(config_path, "r", encoding="utf-8") as f:
-                    config = json.load(f)
-            else:
-                config = {}
-
-            self._ensure_pattern_server_section(config)
-
-            # Save to secret_scanning.pattern_server (new location)
-            config["secret_scanning"]["pattern_server"][field] = value
-
-            with open(config_path, "w", encoding="utf-8") as f:
-                json.dump(config, f, indent=2)
-
-            self.app.notify(f"✓ Saved {field}", severity="success")
-
-        except Exception as e:
-            self.app.notify(f"Error saving {field}: {e}", severity="error")
-
-    def save_pattern_server_auth_field(self, field: str, value: str) -> None:
-        """Save a pattern server auth field to config."""
-        config_path = self._get_config_path()
-
-        try:
-            if config_path.exists():
-                with open(config_path, "r", encoding="utf-8") as f:
-                    config = json.load(f)
-            else:
-                config = {}
-
-            self._ensure_pattern_server_section(config)
-
-            # Ensure auth section exists under pattern_server
-            if "auth" not in config["secret_scanning"]["pattern_server"]:
-                config["secret_scanning"]["pattern_server"]["auth"] = {}
-
-            # Save to secret_scanning.pattern_server.auth (new location)
-            config["secret_scanning"]["pattern_server"]["auth"][field] = value
-
-            with open(config_path, "w", encoding="utf-8") as f:
-                json.dump(config, f, indent=2)
-
-            self.app.notify(f"✓ Saved auth {field}", severity="success")
-
-        except Exception as e:
-            self.app.notify(f"Error saving auth {field}: {e}", severity="error")
-
-    def save_cache_field(self, field: str, value) -> None:
-        """Save a cache field to config."""
-        config_path = self._get_config_path()
-
-        try:
-            if config_path.exists():
-                with open(config_path, "r", encoding="utf-8") as f:
-                    config = json.load(f)
-            else:
-                config = {}
-
-            self._ensure_pattern_server_section(config)
-
-            # Ensure cache section exists under pattern_server
-            if "cache" not in config["secret_scanning"]["pattern_server"]:
-                config["secret_scanning"]["pattern_server"]["cache"] = {}
-
-            # Save to secret_scanning.pattern_server.cache (new location)
-            config["secret_scanning"]["pattern_server"]["cache"][field] = value
-
-            with open(config_path, "w", encoding="utf-8") as f:
-                json.dump(config, f, indent=2)
-
-            self.app.notify(f"✓ Saved cache {field}", severity="success")
-
-        except Exception as e:
-            self.app.notify(f"Error saving cache {field}: {e}", severity="error")
 
     def _add_allowlist_pattern(self) -> None:
         """Add a regex pattern to the secret scanning allowlist."""
@@ -1173,34 +798,3 @@ class SecretsContent(SchemaDefaultsMixin, Container):
 
         except Exception as e:
             self.app.notify(f"Error adding pattern: {e}", severity="error")
-
-    def test_pattern_server(self) -> None:
-        """Test connection to pattern server."""
-        server_url = self.query_one("#pattern-server-url", Input).value.strip()
-
-        if not server_url:
-            self.app.notify("Please enter a server URL", severity="error")
-            return
-
-        try:
-            import requests
-
-            response = requests.get(f"{server_url}/health", timeout=5)
-            if response.status_code == 200:
-                self.app.notify(
-                    f"✓ Pattern server is reachable at {server_url}", severity="success"
-                )
-            else:
-                self.app.notify(
-                    f"Pattern server returned status {response.status_code}",
-                    severity="warning",
-                )
-        except ImportError:
-            self.app.notify(
-                "requests library not installed - cannot test connection",
-                severity="error",
-            )
-        except Exception as e:
-            self.app.notify(
-                f"✗ Cannot connect to pattern server: {e}", severity="error"
-            )
