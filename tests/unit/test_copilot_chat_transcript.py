@@ -23,14 +23,7 @@ from ai_guardian.scanners.transcript.copilot_chat import (
     read_copilot_chat_transcript,
     scan_copilot_chat_transcript_incremental,
 )
-
-
-def _write_jsonl(path, entries):
-    """Write a list of entry dicts as a JSONL file."""
-    with open(path, "w", encoding="utf-8") as f:
-        for entry in entries:
-            f.write(json.dumps(entry) + "\n")
-
+from tests.unit.transcript_helpers import write_jsonl as _write_jsonl
 
 SESSION_ID = "test-session-001"
 
