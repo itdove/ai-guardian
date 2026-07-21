@@ -9,7 +9,7 @@ config recommendations for ai-guardian.json and .aiguardignore.toml.
 import re
 from collections import defaultdict
 from dataclasses import dataclass, field
-from pathlib import PurePath
+from pathlib import PurePosixPath
 from typing import Any, Callable, Dict, List, Optional, Set, Tuple
 
 # --- Rule ID → Scanner routing ---
@@ -164,7 +164,7 @@ def analyze_directories(
         if not file_path:
             continue
 
-        parts = PurePath(file_path).parts
+        parts = PurePosixPath(file_path).parts
         if not parts:
             continue
         top_dir = parts[0] if len(parts) > 1 else ""
@@ -242,7 +242,7 @@ def _build_dir_globs(
     seen = set(entries)
     for c in clusters:
         for fp in c.sample_files:
-            dir_part = str(PurePath(fp).parent)
+            dir_part = str(PurePosixPath(fp).parent)
             if dir_part == ".":
                 continue
             pattern = f"{dir_part}/**"
@@ -301,7 +301,7 @@ def build_recommendations(
     dir_scanner_map: Dict[str, Set[str]] = defaultdict(set)
     for finding in findings:
         fp = finding.get("file_path") or ""
-        parts = PurePath(fp).parts
+        parts = PurePosixPath(fp).parts
         if parts and len(parts) > 1:
             scanner = _scanner_for_rule_id(finding.get("rule_id", ""))
             if scanner:
