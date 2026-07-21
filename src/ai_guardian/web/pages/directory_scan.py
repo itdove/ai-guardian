@@ -108,15 +108,7 @@ RULE_ID_TO_VIOLATION_TYPE = {
     "UNICODE-001": "unicode_attack",
 }
 
-RULE_ID_LABELS = {
-    "SECRET-001": "Secrets",
-    "PII-001": "PII",
-    "PROMPT-INJECTION-001": "Prompt Injection",
-    "SSRF-001": "SSRF",
-    "CONFIG-001": "Config Exfiltration",
-    "SUPPLY-CHAIN-001": "Supply Chain",
-    "UNICODE-001": "Unicode Attacks",
-}
+from ai_guardian.scan_analyzer import RULE_ID_LABELS
 
 MAX_FINDINGS_DISPLAY = 200
 
@@ -223,11 +215,15 @@ def create_directory_scan_page(service, daemon_name: str):
             stop_btn.set_visibility(True)
             results_container.clear()
             with results_container:
-                with ui.row().classes("items-center gap-4 py-8"):
-                    ui.spinner("dots", size="lg")
-                    progress_label = ui.label(f"Scanning {path}...").classes(
-                        "text-grey-4"
-                    )
+                with ui.column().classes("w-full gap-2 py-4"):
+                    with ui.row().classes("items-center gap-4"):
+                        ui.spinner("dots", size="lg")
+                        progress_label = ui.label(f"Scanning {path}...").classes(
+                            "text-grey-4"
+                        )
+                    progress_bar = ui.linear_progress(
+                        value=0, show_value=False
+                    ).classes("w-full")
                     progress_file = (
                         ui.label("")
                         .classes("text-xs text-grey-6")
@@ -246,6 +242,9 @@ def create_directory_scan_page(service, daemon_name: str):
                         f"Scanning... "
                         f"{progress_state['index']}"
                         f"/{progress_state['total']} files"
+                    )
+                    progress_bar.value = (
+                        progress_state["index"] / progress_state["total"]
                     )
                     progress_file.text = progress_state["file"]
 

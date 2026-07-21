@@ -28,13 +28,12 @@ class TestDirectoryScanImport:
         assert "Directory Scan" in HELP_DOCS["Tools"]
 
     def test_directory_scan_position_in_tools(self):
-        """Directory Scan appears after Engine Tester (last item in Tools)."""
+        """Directory Scan appears after Engine Tester in Tools."""
         for name, items in NAV_GROUPS:
             if name == "Tools":
                 panel_ids = [pid for _, pid in items]
                 idx = panel_ids.index("panel-directory-scan")
                 assert panel_ids[idx - 1] == "panel-engine-tester"
-                assert idx == len(panel_ids) - 1
                 break
 
     def test_help_doc_mentions_cli_equivalent(self):

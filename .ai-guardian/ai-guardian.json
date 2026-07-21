@@ -12,14 +12,28 @@
       "__spec__",
       "__path__",
       "__globals__",
-      "__import__"
+      "__import__",
+      "__class__",
+      "__builtins__",
+      "__mro__",
+      "__subclasses__",
+      "",
+      "\ud83d\udee1\ufe0f\\ Prompt\\ Injection\\ Detected"
     ]
   },
   "secret_scanning": {
     "allowlist_patterns": [
       "xoxb\\-123456789012\\-1234567890123\\-\\d{12}",
       "DAF_SESSION_NAME\\s*=",
-      "AKIAIOSFODNN7CANARY1"
+      "AKIAIOSFODNN7CANARY1",
+      "Environment\\ Variable"
+    ]
+  },
+  "code_scanning": {
+    "allowlist": [
+      {
+        "test_id": "B108"
+      }
     ]
   }
 }

@@ -472,6 +472,14 @@ class WebConsole:
 
             create_directory_scan_page(service, daemon_name)
 
+        @ui.page("/{daemon_name}/scan-configure")
+        def scan_configure_page(daemon_name: str):
+            from ai_guardian.web.pages.scan_configure import (
+                create_scan_configure_page,
+            )
+
+            create_scan_configure_page(service, daemon_name)
+
         @ui.page("/{daemon_name}/health-check")
         def health_check_page(daemon_name: str):
             from ai_guardian.web.pages.health_check import (
