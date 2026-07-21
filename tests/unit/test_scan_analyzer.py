@@ -27,6 +27,18 @@ def _make_finding(rule_id, file_path, **details_kwargs):
 
 
 class TestFingerprintFinding:
+    def test_offensive_language_finding(self):
+        f = _make_finding("profanity-fword", "a.py", category="profanity")
+        assert fingerprint_finding(f) == ("profanity-fword", "profanity")
+
+    def test_offensive_language_slur(self):
+        f = _make_finding("slur-racial-1", "a.py", category="slurs")
+        assert fingerprint_finding(f) == ("slur-racial-1", "slurs")
+
+    def test_offensive_language_inclusive(self):
+        f = _make_finding("inclusive-ableist-1", "a.py", category="inclusive")
+        assert fingerprint_finding(f) == ("inclusive-ableist-1", "inclusive")
+
     def test_secret_finding(self):
         f = _make_finding("SECRET-001", "a.py", secret_type="generic-api-key")
         assert fingerprint_finding(f) == ("SECRET-001", "generic-api-key")
@@ -244,6 +256,82 @@ class TestBuildRecommendations:
         assert result.total_findings == 0
         assert result.suppressed_count == 0
         assert result.high_frequency_clusters == []
+
+    def test_config_generation_supply_chain(self):
+        findings = [
+            _make_finding(
+                "SUPPLY-CHAIN-001",
+                f"tools/configs/agent{i}.json",
+                category="agent_config",
+            )
+            for i in range(12)
+        ]
+        result = build_recommendations(findings, threshold=10)
+        config = result.recommended_config
+        assert "supply_chain" in config
+        assert "allowlist_paths" in config["supply_chain"]
+        assert "tools/configs/**" in config["supply_chain"]["allowlist_paths"]
+
+    def test_config_generation_config_file(self):
+        findings = [
+            _make_finding("CONFIG-001", f"scripts/helper{i}.sh", pattern="cat ~/.ssh")
+            for i in range(11)
+        ]
+        result = build_recommendations(findings, threshold=10)
+        config = result.recommended_config
+        assert "config_file_scanning" in config
+        assert "ignore_files" in config["config_file_scanning"]
+        assert "scripts/**" in config["config_file_scanning"]["ignore_files"]
+
+    def test_root_level_files_skipped_in_path_generation(self):
+        findings = [
+            _make_finding(
+                "SUPPLY-CHAIN-001", f"root_file{i}.json", category="agent_config"
+            )
+            for i in range(12)
+        ]
+        result = build_recommendations(findings, threshold=10)
+        config = result.recommended_config
+        if "supply_chain" in config:
+            paths = config["supply_chain"].get("allowlist_paths", [])
+            assert "**" not in paths
+
+    def test_config_generation_exfil(self):
+        findings = [
+            _make_finding(
+                "EXFIL-DETECTION-001", f"tests/t{i}.sh", category="base64_encoding"
+            )
+            for i in range(10)
+        ]
+        result = build_recommendations(findings, threshold=10)
+        config = result.recommended_config
+        assert "exfil_detection" in config
+        assert "base64_encoding" in config["exfil_detection"]["allowlist_patterns"]
+
+    def test_offensive_language_excluded_until_scanner_supports_allowlist(self):
+        findings = [
+            _make_finding("profanity-fword", f"docs/d{i}.md", category="profanity")
+            for i in range(11)
+        ]
+        result = build_recommendations(findings, threshold=10)
+        assert len(result.high_frequency_clusters) == 0
+        assert "scan_offensive" not in result.recommended_config
+
+    def test_config_generation_code_scanning(self):
+        findings = [_make_finding("B108", f"src/mod{i}.py") for i in range(10)]
+        result = build_recommendations(findings, threshold=10)
+        config = result.recommended_config
+        assert "code_scanning" in config
+        assert {"test_id": "B108"} in config["code_scanning"]["allowlist"]
+
+    def test_pii_still_excluded(self):
+        findings = [
+            _make_finding("PII-001", f"data/f{i}.csv", pii_type="email")
+            for i in range(20)
+        ]
+        result = build_recommendations(findings, threshold=10)
+        assert len(result.high_frequency_clusters) == 0
+        assert "scan_pii" not in result.recommended_config
 
     def test_multiple_scanner_types(self):
         findings = [

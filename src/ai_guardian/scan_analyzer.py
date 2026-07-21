@@ -9,8 +9,10 @@ config recommendations for ai-guardian.json and .aiguardignore.toml.
 import re
 from collections import defaultdict
 from dataclasses import dataclass, field
-from pathlib import PurePath
-from typing import Any, Dict, List, Optional, Set, Tuple
+from pathlib import PurePosixPath
+from typing import Any, Callable, Dict, List, Optional, Set, Tuple
+
+# --- Rule ID → Scanner routing ---
 
 RULE_ID_TO_SCANNER = {
     "SECRET-001": "secret_scanning",
@@ -21,9 +23,30 @@ RULE_ID_TO_SCANNER = {
     "EXFIL-DETECTION-001": "exfil_detection",
 }
 
+_BANDIT_RULE_ID = re.compile(r"^B\d+")
+_OFFENSIVE_LANGUAGE_PREFIXES = re.compile(r"^(profanity|slur|inclusive)-")
+
+_RULE_ID_PATTERNS: List[Tuple["re.Pattern[str]", str]] = [
+    (_BANDIT_RULE_ID, "code_scanning"),
+    (_OFFENSIVE_LANGUAGE_PREFIXES, "offensive_language"),
+]
+
+_SCANNER_TO_CONFIG_SECTION = {
+    "offensive_language": "scan_offensive",
+}
+
 NEVER_SUPPRESS = frozenset({"SSRF-001", "UNICODE-001", "canary_detected"})
 
 MAX_SAMPLE_FILES = 5
+
+# --- Fingerprinting ---
+
+_FINGERPRINT_DETAIL_KEY = {
+    "SECRET-001": "secret_type",
+    "PII-001": "pii_type",
+    "SUPPLY-CHAIN-001": "category",
+    "EXFIL-DETECTION-001": "category",
+}
 
 
 @dataclass
@@ -72,18 +95,15 @@ def fingerprint_finding(finding: Dict[str, Any]) -> Tuple[str, str]:
     rule_id = finding.get("rule_id", "")
     details = finding.get("details", {})
 
-    if rule_id == "SECRET-001":
-        return (rule_id, details.get("secret_type", "unknown"))
-    if rule_id == "PII-001":
-        return (rule_id, details.get("pii_type", "unknown"))
+    detail_key = _FINGERPRINT_DETAIL_KEY.get(rule_id)
+    if detail_key:
+        return (rule_id, details.get(detail_key, "unknown"))
+
     if rule_id == "PROMPT-INJECTION-001":
-        desc = details.get("description", "")
-        return (rule_id, _normalize_pi_description(desc))
-    if rule_id == "SUPPLY-CHAIN-001":
-        return (rule_id, details.get("category", "unknown"))
+        return (rule_id, _normalize_pi_description(details.get("description", "")))
     if rule_id == "CONFIG-001":
         return (rule_id, details.get("pattern", details.get("category", "unknown")))
-    if rule_id == "EXFIL-DETECTION-001":
+    if _OFFENSIVE_LANGUAGE_PREFIXES.match(rule_id):
         return (rule_id, details.get("category", "unknown"))
 
     return (rule_id, "")
@@ -144,7 +164,7 @@ def analyze_directories(
         if not file_path:
             continue
 
-        parts = PurePath(file_path).parts
+        parts = PurePosixPath(file_path).parts
         if not parts:
             continue
         top_dir = parts[0] if len(parts) > 1 else ""
@@ -170,7 +190,7 @@ def analyze_directories(
     return analyses
 
 
-_NO_CONFIG_SCANNERS = frozenset({"scan_pii", "code_scanning"})
+# --- Scanner routing ---
 
 
 def _scanner_for_rule_id(rule_id: str) -> Optional[str]:
@@ -180,9 +200,84 @@ def _scanner_for_rule_id(rule_id: str) -> Optional[str]:
     scanner = RULE_ID_TO_SCANNER.get(rule_id)
     if scanner:
         return scanner
-    if re.match(r"^B\d+", rule_id):
-        return "code_scanning"
+    for pattern, scanner_name in _RULE_ID_PATTERNS:
+        if pattern.match(rule_id):
+            return scanner_name
     return None
+
+
+def _can_generate_config(rule_id: str) -> bool:
+    """Check if a rule_id's scanner supports config generation."""
+    if rule_id in NEVER_SUPPRESS:
+        return False
+    scanner = _scanner_for_rule_id(rule_id)
+    return scanner is not None and scanner in _SCANNER_CONFIG_SPEC
+
+
+# --- Config builders ---
+
+
+def _build_escaped_patterns(
+    section: Dict[str, Any],
+    key: str,
+    clusters: List[FindingCluster],
+) -> None:
+    """Build allowlist_patterns from escaped sub_type values."""
+    entries = section.setdefault(key, [])
+    seen = set(entries)
+    for c in clusters:
+        pattern = re.escape(c.sub_type)
+        if pattern not in seen:
+            seen.add(pattern)
+            entries.append(pattern)
+
+
+def _build_dir_globs(
+    section: Dict[str, Any],
+    key: str,
+    clusters: List[FindingCluster],
+) -> None:
+    """Build path globs from sample file directories."""
+    entries = section.setdefault(key, [])
+    seen = set(entries)
+    for c in clusters:
+        for fp in c.sample_files:
+            dir_part = str(PurePosixPath(fp).parent)
+            if dir_part == ".":
+                continue
+            pattern = f"{dir_part}/**"
+            if pattern not in seen:
+                seen.add(pattern)
+                entries.append(pattern)
+
+
+def _build_rule_allowlist(
+    section: Dict[str, Any],
+    key: str,
+    clusters: List[FindingCluster],
+) -> None:
+    """Build allowlist from rule IDs (Bandit format)."""
+    rules = section.setdefault(key, [])
+    seen_ids: Set[str] = {r["test_id"] for r in rules if "test_id" in r}
+    for c in clusters:
+        if c.rule_id not in seen_ids:
+            seen_ids.add(c.rule_id)
+            rules.append({"test_id": c.rule_id})
+
+
+_BuilderFn = Callable[[Dict[str, Any], str, List[FindingCluster]], None]
+
+_SCANNER_CONFIG_SPEC: Dict[str, Tuple[str, _BuilderFn]] = {
+    "secret_scanning": ("allowlist_patterns", _build_escaped_patterns),
+    "prompt_injection": ("allowlist_patterns", _build_escaped_patterns),
+    "exfil_detection": ("allowlist_patterns", _build_escaped_patterns),
+    "supply_chain": ("allowlist_paths", _build_dir_globs),
+    "config_file_scanning": ("ignore_files", _build_dir_globs),
+    "code_scanning": ("allowlist", _build_rule_allowlist),
+}
+
+
+# --- Recommendation engine ---
 
 
 def build_recommendations(
@@ -195,9 +290,7 @@ def build_recommendations(
     high_freq = [
         c
         for c in clusters
-        if c.file_count >= threshold
-        and c.rule_id not in NEVER_SUPPRESS
-        and _scanner_for_rule_id(c.rule_id) not in _NO_CONFIG_SCANNERS
+        if c.file_count >= threshold and _can_generate_config(c.rule_id)
     ]
 
     high_freq_fps: Set[Tuple[str, str]] = {(c.rule_id, c.sub_type) for c in high_freq}
@@ -208,7 +301,7 @@ def build_recommendations(
     dir_scanner_map: Dict[str, Set[str]] = defaultdict(set)
     for finding in findings:
         fp = finding.get("file_path") or ""
-        parts = PurePath(fp).parts
+        parts = PurePosixPath(fp).parts
         if parts and len(parts) > 1:
             scanner = _scanner_for_rule_id(finding.get("rule_id", ""))
             if scanner:
@@ -244,21 +337,13 @@ def _build_config(high_freq_clusters: List[FindingCluster]) -> Dict[str, Any]:
             by_scanner[scanner].append(cluster)
 
     for scanner, clusters_list in sorted(by_scanner.items()):
-        section = config.setdefault(scanner, {})
-
-        if scanner == "secret_scanning":
-            patterns = section.setdefault("allowlist_patterns", [])
-            for c in clusters_list:
-                pattern = re.escape(c.sub_type)
-                if pattern not in patterns:
-                    patterns.append(pattern)
-
-        elif scanner == "prompt_injection":
-            patterns = section.setdefault("allowlist_patterns", [])
-            for c in clusters_list:
-                pattern = re.escape(c.sub_type)
-                if pattern not in patterns:
-                    patterns.append(pattern)
+        spec = _SCANNER_CONFIG_SPEC.get(scanner)
+        if not spec:
+            continue
+        config_key = _SCANNER_TO_CONFIG_SECTION.get(scanner, scanner)
+        section = config.setdefault(config_key, {})
+        key, builder_fn = spec
+        builder_fn(section, key, clusters_list)
 
     return config
 
