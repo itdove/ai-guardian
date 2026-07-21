@@ -79,13 +79,32 @@ def _load_transcript_positions() -> Dict[str, object]:
 
 
 def _save_transcript_positions(positions: Dict[str, object]) -> None:
-    """Save transcript scanning positions to state dir."""
+    """Save transcript scanning positions to state dir.
+
+    Uses tempfile + ``os.replace`` for atomic write so a crash mid-write
+    never leaves a truncated positions file.
+    """
+    import tempfile as _tf
+
     state_dir = get_state_dir()
     state_dir.mkdir(parents=True, exist_ok=True)
     pos_file = state_dir / "transcript_positions.json"
     try:
-        with open(pos_file, "w", encoding="utf-8") as f:
-            json.dump(positions, f)
+        fd, tmp_path = _tf.mkstemp(
+            dir=str(state_dir), prefix=".transcript-pos-", suffix=".tmp"
+        )
+        closed = False
+        try:
+            os.write(fd, json.dumps(positions).encode("utf-8"))
+            os.close(fd)
+            closed = True
+            os.replace(tmp_path, str(pos_file))
+        except BaseException:
+            if not closed:
+                os.close(fd)
+            if os.path.exists(tmp_path):
+                os.unlink(tmp_path)
+            raise
     except Exception as e:
         logging.debug(f"Failed to save transcript positions: {e}")
 
@@ -219,60 +238,73 @@ def _discover_path(
 
 def _read_jsonl_incremental(
     path: str,
-    seen_count: int,
+    last_pos: int,
     extract_fn: Callable[[dict], str],
     label: str = "Transcript",
-    encoding: str = "utf-8",
+    strip_bom: bool = False,
 ) -> Tuple[str, int]:
-    """Read a JSONL transcript file incrementally, skipping already-seen lines.
+    """Read a JSONL transcript file incrementally using byte-offset tracking.
 
-    Handles line skip, truncation reset (when the file was rewritten shorter),
-    JSON parse, dict type check, and per-entry text extraction.
+    Uses ``f.seek()`` for O(1) skip to new content regardless of file size.
+    Detects truncation via file-size comparison.
 
     Args:
         path: Path to the JSONL file.
-        seen_count: Number of lines already processed in prior scans.
+        last_pos: Byte offset of the last read position.
         extract_fn: Per-adapter callable that extracts scannable text from
             a parsed JSON dict.
         label: Human-readable adapter name for debug logging.
-        encoding: File encoding (``"utf-8-sig"`` for Copilot Chat BOM handling).
+        strip_bom: Strip a leading UTF-8 BOM when reading from offset 0.
 
     Returns:
-        Tuple of (combined_new_text, total_line_count).
+        Tuple of (combined_new_text, new_byte_position).
     """
     try:
-        with open(path, encoding=encoding) as f:
-            skipped = 0
-            for _ in range(seen_count):
-                if not f.readline():
-                    break
-                skipped += 1
-
-            truncated = skipped < seen_count
-            if truncated:
-                f.seek(0)
-
-            texts = []
-            total = 0 if truncated else skipped
-            for raw_line in f:
-                total += 1
-                raw_line = raw_line.strip()
-                if not raw_line:
-                    continue
-                try:
-                    entry = json.loads(raw_line)
-                except json.JSONDecodeError:
-                    continue
-                if not isinstance(entry, dict):
-                    continue
-                extracted = extract_fn(entry)
-                if extracted:
-                    texts.append(extracted)
+        file_size = os.path.getsize(path)
     except OSError as e:
         logging.debug(f"{label} transcript read error: {e}")
-        return "", 0
+        return "", last_pos
 
-    return "\n".join(texts), total
+    if file_size < last_pos:
+        logging.debug(
+            f"{label} transcript file truncated (size={file_size}, "
+            f"last_pos={last_pos}), re-reading from start"
+        )
+        last_pos = 0
+
+    if file_size <= last_pos:
+        return "", last_pos
+
+    try:
+        with open(path, "rb") as f:
+            f.seek(last_pos)
+            new_bytes = f.read()
+            new_pos = f.tell()
+    except OSError as e:
+        logging.debug(f"{label} transcript read error: {e}")
+        return "", last_pos
+
+    if strip_bom and last_pos == 0:
+        new_bytes = new_bytes.removeprefix(b"\xef\xbb\xbf")
+
+    new_content = new_bytes.decode("utf-8", errors="replace")
+
+    texts = []
+    for raw_line in new_content.splitlines():
+        raw_line = raw_line.strip()
+        if not raw_line:
+            continue
+        try:
+            entry = json.loads(raw_line)
+        except json.JSONDecodeError:
+            continue
+        if not isinstance(entry, dict):
+            continue
+        extracted = extract_fn(entry)
+        if extracted:
+            texts.append(extracted)
+
+    return "\n".join(texts), new_pos
 
 
 # ---------------------------------------------------------------------------
@@ -282,11 +314,10 @@ def _read_jsonl_incremental(
 
 def _scan_jsonl_incremental(
     transcript_path: str,
-    pos_prefix: str,
-    session_id: str,
+    pos_key: str,
     extract_fn: Callable[[dict], str],
     label: str = "Transcript",
-    encoding: str = "utf-8",
+    strip_bom: bool = False,
     secret_config: Optional[Dict] = None,
     pii_config: Optional[Dict] = None,
     hook_context: Optional[Dict] = None,
@@ -297,13 +328,12 @@ def _scan_jsonl_incremental(
     Composes position tracking, JSONL reading, and content scanning into
     a single call.  Used by all JSONL-based transcript adapters.
     """
-    pos_key = f"{pos_prefix}:{session_id}"
-
     combined_text = _scan_with_position_tracking(
         pos_key,
-        reader_fn=lambda seen: _read_jsonl_incremental(
-            transcript_path, seen, extract_fn, label, encoding
+        reader_fn=lambda last_pos: _read_jsonl_incremental(
+            transcript_path, last_pos, extract_fn, label, strip_bom
         ),
+        init_position_fn=lambda: os.path.getsize(transcript_path),
         label=label,
     )
 

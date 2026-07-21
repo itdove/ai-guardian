@@ -12,12 +12,12 @@ import tempfile
 import unittest
 from unittest import mock
 
+from ai_guardian.scanners.transcript.common import _read_jsonl_incremental
 from ai_guardian.scanners.transcript.openclaw import (
     OpenClawTranscriptAdapter,
     _extract_text_from_openclaw_entry,
     get_most_recent_transcript,
     get_openclaw_transcripts_dir,
-    read_openclaw_transcript,
     scan_openclaw_transcript_incremental,
 )
 from tests.unit.transcript_helpers import write_jsonl as _write_jsonl
@@ -185,10 +185,12 @@ class TestReadOpenClawTranscript(unittest.TestCase):
         ]
         _write_jsonl(path, entries)
 
-        text, count = read_openclaw_transcript(path)
+        text, new_pos = _read_jsonl_incremental(
+            path, 0, _extract_text_from_openclaw_entry, label="OpenClaw"
+        )
         self.assertIn("Hello", text)
         self.assertIn("World", text)
-        self.assertEqual(count, 2)
+        self.assertEqual(new_pos, os.path.getsize(path))
 
     def test_incremental_read_skips_seen(self):
         path = os.path.join(self.tmpdir, "transcript.jsonl")
@@ -198,24 +200,34 @@ class TestReadOpenClawTranscript(unittest.TestCase):
         ]
         _write_jsonl(path, entries)
 
-        text, count = read_openclaw_transcript(path, seen_count=1)
+        first_line_bytes = len(json.dumps(entries[0]).encode("utf-8")) + 1
+        text, new_pos = _read_jsonl_incremental(
+            path, first_line_bytes, _extract_text_from_openclaw_entry, label="OpenClaw"
+        )
         self.assertNotIn("Old", text)
         self.assertIn("New", text)
-        self.assertEqual(count, 2)
+        self.assertEqual(new_pos, os.path.getsize(path))
 
     def test_empty_file(self):
         path = os.path.join(self.tmpdir, "transcript.jsonl")
         with open(path, "w") as f:
             f.write("")
 
-        text, count = read_openclaw_transcript(path)
+        text, new_pos = _read_jsonl_incremental(
+            path, 0, _extract_text_from_openclaw_entry, label="OpenClaw"
+        )
         self.assertEqual(text, "")
-        self.assertEqual(count, 0)
+        self.assertEqual(new_pos, 0)
 
     def test_file_not_found(self):
-        text, count = read_openclaw_transcript("/nonexistent/transcript.jsonl")
+        text, new_pos = _read_jsonl_incremental(
+            "/nonexistent/transcript.jsonl",
+            0,
+            _extract_text_from_openclaw_entry,
+            label="OpenClaw",
+        )
         self.assertEqual(text, "")
-        self.assertEqual(count, 0)
+        self.assertEqual(new_pos, 0)
 
     def test_malformed_json_lines_skipped(self):
         path = os.path.join(self.tmpdir, "transcript.jsonl")
@@ -223,27 +235,34 @@ class TestReadOpenClawTranscript(unittest.TestCase):
             f.write("not valid json\n")
             f.write(json.dumps({"content": "Valid"}) + "\n")
 
-        text, count = read_openclaw_transcript(path)
+        text, new_pos = _read_jsonl_incremental(
+            path, 0, _extract_text_from_openclaw_entry, label="OpenClaw"
+        )
         self.assertIn("Valid", text)
-        self.assertEqual(count, 2)
+        self.assertEqual(new_pos, os.path.getsize(path))
 
-    def test_truncated_file_resets(self):
+    def test_truncated_file_rereads_from_start(self):
         path = os.path.join(self.tmpdir, "transcript.jsonl")
         entries = [{"content": "Only"}]
         _write_jsonl(path, entries)
 
-        text, count = read_openclaw_transcript(path, seen_count=5)
+        text, new_pos = _read_jsonl_incremental(
+            path, 99999, _extract_text_from_openclaw_entry, label="OpenClaw"
+        )
         self.assertIn("Only", text)
-        self.assertEqual(count, 1)
+        self.assertEqual(new_pos, os.path.getsize(path))
 
     def test_nothing_new(self):
         path = os.path.join(self.tmpdir, "transcript.jsonl")
         entries = [{"content": "Done"}]
         _write_jsonl(path, entries)
 
-        text, count = read_openclaw_transcript(path, seen_count=1)
+        file_size = os.path.getsize(path)
+        text, new_pos = _read_jsonl_incremental(
+            path, file_size, _extract_text_from_openclaw_entry, label="OpenClaw"
+        )
         self.assertEqual(text, "")
-        self.assertEqual(count, 1)
+        self.assertEqual(new_pos, file_size)
 
     def test_non_dict_lines_skipped(self):
         path = os.path.join(self.tmpdir, "transcript.jsonl")
@@ -251,9 +270,11 @@ class TestReadOpenClawTranscript(unittest.TestCase):
             f.write('"just a string"\n')
             f.write(json.dumps({"content": "Valid"}) + "\n")
 
-        text, count = read_openclaw_transcript(path)
+        text, new_pos = _read_jsonl_incremental(
+            path, 0, _extract_text_from_openclaw_entry, label="OpenClaw"
+        )
         self.assertIn("Valid", text)
-        self.assertEqual(count, 2)
+        self.assertEqual(new_pos, os.path.getsize(path))
 
 
 class TestScanOpenClawTranscriptIncremental(unittest.TestCase):
