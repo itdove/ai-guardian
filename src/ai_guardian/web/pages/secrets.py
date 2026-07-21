@@ -1,4 +1,4 @@
-"""Secret Scanning page — secret detection settings and pattern server config."""
+"""Secret Scanning page — secret detection settings and allowlist config."""
 
 import re as re_mod
 from datetime import datetime, timedelta, timezone
@@ -148,9 +148,9 @@ def create_secrets_page(service, daemon_name: str):
         with ui.row().classes("items-center gap-2"):
             ui.label("Secret Detection Settings").classes("text-2xl font-bold")
             add_help_button("secret_scanning")
-        ui.label(
-            "Configure secret scanning, allowlist patterns, and pattern server."
-        ).classes("text-xs text-grey-6")
+        ui.label("Configure secret scanning and allowlist patterns.").classes(
+            "text-xs text-grey-6"
+        )
 
         content = ui.column().classes("w-full gap-4")
 
@@ -588,176 +588,6 @@ def create_secrets_page(service, daemon_name: str):
                         ui.button("Add", icon="add", on_click=add_ignore_tool).props(
                             "dense"
                         )
-
-                # --- Pattern server toggle ---
-                ps = ss.get("pattern_server", {})
-                if not isinstance(ps, dict):
-                    ps = {}
-
-                ps_temp, ps_until, ps_reason, ps_on = _parse_enabled(
-                    ps.get("enabled", False)
-                )
-
-                def save_ps_enabled(value):
-                    cfg = load_web_config()
-                    sect = cfg.get("secret_scanning", {})
-                    if not isinstance(sect, dict):
-                        sect = {}
-                    if "pattern_server" not in sect or not isinstance(
-                        sect["pattern_server"], dict
-                    ):
-                        sect["pattern_server"] = {}
-                    sect["pattern_server"]["enabled"] = value
-                    cfg["secret_scanning"] = sect
-                    save_web_config(cfg)
-
-                _render_toggle(
-                    "Pattern Server (Enhanced Patterns)",
-                    "Enable remote pattern server for extended detection rules.",
-                    ps_temp,
-                    ps_until,
-                    ps_reason,
-                    ps_on,
-                    save_ps_enabled,
-                    refresh,
-                )
-
-                # --- Pattern server settings ---
-                with ui.card().classes("w-full"):
-                    ui.label("Pattern Server Settings").classes("text-lg font-bold")
-                    ps_url = (
-                        ui.input(
-                            label="Server URL",
-                            value=ps.get("url", ""),
-                            placeholder="https://patterns.example.com",
-                        )
-                        .props("outlined dense")
-                        .classes("w-full")
-                    )
-                    ps_endpoint = (
-                        ui.input(
-                            label="Patterns Endpoint",
-                            value=ps.get(
-                                "patterns_endpoint", "/patterns/gitleaks/8.18.1"
-                            ),
-                        )
-                        .props("outlined dense")
-                        .classes("w-full")
-                    )
-
-                    auth = ps.get("auth", {})
-                    if not isinstance(auth, dict):
-                        auth = {}
-                    ps_auth_method = (
-                        ui.input(
-                            label="Auth Method",
-                            value=auth.get("method", ""),
-                            placeholder="bearer",
-                        )
-                        .props("outlined dense")
-                        .classes("w-48")
-                    )
-                    ps_token_env = (
-                        ui.input(
-                            label="Token Env Var",
-                            value=auth.get("token_env", ""),
-                            placeholder="AI_GUARDIAN_PATTERN_TOKEN",
-                        )
-                        .props("outlined dense")
-                        .classes("w-64")
-                    )
-                    ps_token_file = (
-                        ui.input(
-                            label="Token File",
-                            value=auth.get("token_file", ""),
-                        )
-                        .props("outlined dense")
-                        .classes("w-full")
-                    )
-
-                    ps_warn = ui.switch(
-                        "Warn on Failure", value=ps.get("warn_on_failure", True)
-                    )
-
-                    async def save_ps_settings():
-                        cfg = await run.io_bound(load_web_config)
-                        sect = cfg.get("secret_scanning", {})
-                        if not isinstance(sect, dict):
-                            sect = {}
-                        if "pattern_server" not in sect or not isinstance(
-                            sect["pattern_server"], dict
-                        ):
-                            sect["pattern_server"] = {}
-                        psc = sect["pattern_server"]
-                        psc["url"] = ps_url.value.strip()
-                        psc["patterns_endpoint"] = ps_endpoint.value.strip()
-                        psc["warn_on_failure"] = ps_warn.value
-                        psc["auth"] = {
-                            "method": ps_auth_method.value.strip(),
-                            "token_env": ps_token_env.value.strip(),
-                            "token_file": ps_token_file.value.strip(),
-                        }
-                        cfg["secret_scanning"] = sect
-                        await run.io_bound(save_web_config, cfg)
-                        ui.notify("Pattern server settings saved", type="positive")
-
-                    ui.button(
-                        "Save Settings", icon="save", on_click=save_ps_settings
-                    ).props("dense").classes("mt-2")
-
-                # --- Cache settings ---
-                with ui.card().classes("w-full"):
-                    ui.label("Pattern Cache Settings").classes("text-lg font-bold")
-                    cache = ps.get("cache", {})
-                    if not isinstance(cache, dict):
-                        cache = {}
-                    cache_path = (
-                        ui.input(
-                            label="Cache Path",
-                            value=cache.get("path", ""),
-                            placeholder="~/.config/ai-guardian/pattern-cache.json",
-                        )
-                        .props("outlined dense")
-                        .classes("w-full")
-                    )
-                    cache_refresh = (
-                        ui.input(
-                            label="Refresh Interval (hours)",
-                            value=str(cache.get("refresh_interval_hours", 12)),
-                        )
-                        .props("outlined dense")
-                        .classes("w-48")
-                    )
-                    cache_expire = (
-                        ui.input(
-                            label="Expire After (hours)",
-                            value=str(cache.get("expire_after_hours", 168)),
-                        )
-                        .props("outlined dense")
-                        .classes("w-48")
-                    )
-
-                    async def save_cache():
-                        cfg = await run.io_bound(load_web_config)
-                        sect = cfg.get("secret_scanning", {})
-                        if not isinstance(sect, dict):
-                            sect = {}
-                        if "pattern_server" not in sect or not isinstance(
-                            sect["pattern_server"], dict
-                        ):
-                            sect["pattern_server"] = {}
-                        sect["pattern_server"]["cache"] = {
-                            "path": cache_path.value.strip(),
-                            "refresh_interval_hours": int(cache_refresh.value or 12),
-                            "expire_after_hours": int(cache_expire.value or 168),
-                        }
-                        cfg["secret_scanning"] = sect
-                        await run.io_bound(save_web_config, cfg)
-                        ui.notify("Cache settings saved", type="positive")
-
-                    ui.button(
-                        "Save Cache Settings", icon="save", on_click=save_cache
-                    ).props("dense").classes("mt-2")
 
                 # --- Secret Validation (opt-in, Issue #976) ---
                 validate_on = ss.get("validate_secrets", False)

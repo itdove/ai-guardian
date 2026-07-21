@@ -55,6 +55,9 @@ class ScannerEntry:
     violation_severity: str = "high"
     violation_suggestion: Optional[Dict[str, str]] = field(default=None)
 
+    # Language overlay: pipeline merges auto-detected false-positive patterns
+    supports_language_overlay: bool = False
+
 
 class ScannerRegistry:
     """Registry mapping hook events to ordered scanner pipelines.
@@ -233,6 +236,7 @@ def _build_default_registry() -> ScannerRegistry:
             hook_events=CONTENT_EVENTS | {HookEvent.POST_TOOL_USE},
             order=10,
             config_section="prompt_injection",
+            supports_language_overlay=True,
             violation_suggestion={
                 "action": "add_allowlist_pattern",
                 "note": (

@@ -714,20 +714,56 @@ class TestAutoDetectionIntegration:
         )
         assert not should_block
 
-    def test_run_prompt_injection_scan_injects_auto_patterns(self, tmp_path):
+    def test_pipeline_level_overlay_injects_auto_patterns(self, tmp_path):
+        """Overlays are applied at the pipeline level, not inside the runner."""
         from unittest.mock import patch
 
         (tmp_path / "pyproject.toml").write_text("[project]")
-        config = {"enabled": True}
 
         with patch(
             "ai_guardian.hook_events.scanners.get_project_dir",
             return_value=str(tmp_path),
         ):
+            from ai_guardian.hook_events.content_pipeline import _load_overlaid_config
             from ai_guardian.hook_events.scanners import run_prompt_injection_scan
+            from ai_guardian.scanners.scanner_registry import (
+                get_default_registry,
+                ScannerName,
+                reset_default_registry,
+            )
 
+            reset_default_registry()
+            registry = get_default_registry()
+            entry = registry.get(ScannerName.PROMPT_INJECTION)
+            assert entry.supports_language_overlay
+
+            config = _load_overlaid_config(entry, lambda: ({"enabled": True}, None))
             result = run_prompt_injection_scan(
                 "class with __init__ method", config=config
+            )
+            if result is not None:
+                assert not result.should_block
+
+    def test_post_tool_use_overlay_applied(self, tmp_path):
+        """PostToolUse PI scans also receive language overlay allowlisting."""
+        from unittest.mock import patch
+
+        (tmp_path / "pyproject.toml").write_text("[project]")
+        with patch(
+            "ai_guardian.hook_events.scanners.get_project_dir",
+            return_value=str(tmp_path),
+        ):
+            from ai_guardian.hook_events.scanners import (
+                apply_language_overlays,
+                run_prompt_injection_scan,
+            )
+
+            pi_cfg = {"enabled": True}
+            overlaid = apply_language_overlays(pi_cfg, "prompt_injection")
+            assert "__init__" in overlaid.get("allowlist_patterns", [])
+
+            result = run_prompt_injection_scan(
+                "class with __init__ method", config=overlaid
             )
             if result is not None:
                 assert not result.should_block
