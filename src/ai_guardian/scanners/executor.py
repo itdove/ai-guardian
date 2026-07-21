@@ -48,7 +48,7 @@ def run_single_engine(
     timeout: int = 30,
     cache=None,
     content_hash: Optional[str] = None,
-    **kwargs,
+    original_file_path: Optional[str] = None,
 ) -> ScanResult:
     """
     Run a single scanner engine and return standardized results.
@@ -115,7 +115,9 @@ def run_single_engine(
         )
 
         if is_secrets_found:
-            scan_result = _parse_secrets_result(engine_config, report_file, elapsed_ms)
+            scan_result = _parse_secrets_result(
+                engine_config, report_file, elapsed_ms, original_file_path
+            )
             _cache_put(cache, content_hash, engine_config.type, cfg_hash, scan_result)
             return scan_result
 
@@ -228,11 +230,13 @@ def run_python_scanner(
 
     start_time = time.monotonic()
 
+    resolved_path = original_file_path or source_file
+
     try:
         with open(source_file, "r", encoding="utf-8", errors="ignore") as f:
             content = f.read()
 
-        findings = scanner.scan(content, file_path=original_file_path or source_file)
+        findings = scanner.scan(content, file_path=resolved_path)
         elapsed_ms = (time.monotonic() - start_time) * 1000
 
         if not findings:
@@ -255,7 +259,7 @@ def run_python_scanner(
                 SecretMatch(
                     rule_id=finding.rule_id,
                     description=finding.description,
-                    file=source_file,
+                    file=resolved_path,
                     line_number=finding.line_number,
                     end_line=finding.end_line,
                     start_column=finding.start_column,
@@ -294,7 +298,10 @@ def run_python_scanner(
 
 
 def _build_scan_result_from_dict(
-    engine_type: str, result_dict: dict, elapsed_ms: float
+    engine_type: str,
+    result_dict: dict,
+    elapsed_ms: float,
+    original_file_path: Optional[str] = None,
 ) -> ScanResult:
     """Convert a standardized findings dict into a ScanResult."""
     if not result_dict or not result_dict.get("has_secrets"):
@@ -310,7 +317,7 @@ def _build_scan_result_from_dict(
             SecretMatch(
                 rule_id=finding.get("rule_id", "unknown"),
                 description=finding.get("description", "Secret detected"),
-                file=finding.get("file", "unknown"),
+                file=original_file_path or finding.get("file", "unknown"),
                 line_number=finding.get("line_number", 0),
                 end_line=finding.get("end_line"),
                 start_column=finding.get("start_column"),
@@ -387,7 +394,7 @@ def run_engine(
                     result_dict.get("total_findings", 0),
                 )
                 return _build_scan_result_from_dict(
-                    engine_config.type, result_dict, elapsed_ms
+                    engine_config.type, result_dict, elapsed_ms, original_file_path
                 )
         except (RuntimeError, OSError, ValueError) as exc:
             logging.warning("Listen mode failed, falling back to subprocess: %s", exc)
@@ -400,18 +407,24 @@ def run_engine(
         timeout,
         cache,
         content_hash,
+        original_file_path=original_file_path,
     )
 
 
 def _parse_secrets_result(
-    engine_config: EngineConfig, report_file: str, elapsed_ms: float
+    engine_config: EngineConfig,
+    report_file: str,
+    elapsed_ms: float,
+    original_file_path: Optional[str] = None,
 ) -> ScanResult:
     """Parse scanner output into ScanResult with SecretMatch objects."""
     try:
         parser = get_parser(engine_config.output_parser)
         parsed = parser.parse(report_file)
 
-        result = _build_scan_result_from_dict(engine_config.type, parsed, elapsed_ms)
+        result = _build_scan_result_from_dict(
+            engine_config.type, parsed, elapsed_ms, original_file_path
+        )
         extra = ""
         if not result.has_secrets:
             extra = " (exit code indicated secrets but parser found none)"
