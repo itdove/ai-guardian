@@ -240,8 +240,11 @@ def _run_session_start_event(
     )
 
     with tempfile.TemporaryDirectory() as tmpdir:
+        tmpdir_resolved = _Path(tmpdir).resolve()
         for sf in session_files:
-            dest = _Path(tmpdir) / sf["path"]
+            dest = (tmpdir_resolved / sf["path"]).resolve()
+            if not dest.is_relative_to(tmpdir_resolved):
+                raise ValueError(f"session_files path escapes temp dir: {sf['path']}")
             dest.parent.mkdir(parents=True, exist_ok=True)
             dest.write_text(sf["content"], encoding="utf-8")
 
@@ -424,52 +427,45 @@ def _run_scenario_event(
     colors: bool,
     fake_output: str = "<simulated output>",
     daemon_state=None,
+    workspace_files: Optional[List[Dict]] = None,
 ) -> bool:
-    """Fire UserPromptSubmit + PreToolUse/PostToolUse per tool. Returns True if blocked."""
-    print(
-        f"→ {_color('UserPromptSubmit', _CYAN, colors)} fired"
-        f" (transcript: {repr(prompt[:60])})"
-    )
-    result = _run_hook(
-        _make_hook_payload(
-            HookEvent.PROMPT.display_name, session_id, cwd, prompt=prompt
-        ),
-        daemon_state=daemon_state,
-    )
-    blocked = _is_blocked(result)
-    if blocked:
-        print(f"  {_color('🚨 BLOCKED', _RED, colors)}: {_block_reason(result)}")
-        return True
-    warn = _warn_message(result)
-    if warn:
-        print(f"  {_color('⚠️  WARNING', _YELLOW, colors)}: {warn}")
-    else:
-        print(f"  {_color('✅ Allowed', _GREEN, colors)}")
+    """Fire UserPromptSubmit + PreToolUse/PostToolUse per tool. Returns True if blocked.
 
-    if tools is None:
-        tools = [
-            {"name": t["name"], "input": t["input"], "fake_output": t["fake_output"]}
-            for t in _guess_tools(prompt)
-        ]
+    When *workspace_files* is provided, a temp directory is created with those
+    files and ``project_dir_override`` is set so that language detection sees
+    the simulated project structure (e.g. ``pyproject.toml`` → Python overlay).
+    """
+    _workspace_ctx = None
+    if workspace_files:
+        import tempfile
+        from pathlib import Path as _Path
 
-    for tool_spec in tools:
-        tool_name = tool_spec.get("name", "Bash")
-        tool_input = tool_spec.get("input", {})
-        tool_use_id = str(uuid.uuid4())
-        tool_fake_out = tool_spec.get("fake_output", fake_output)
+        from ai_guardian.config.utils import (
+            clear_project_dir_override,
+            set_project_dir_override,
+        )
+        from ai_guardian.project_init import _language_fp_cache
 
+        _workspace_ctx = tempfile.TemporaryDirectory()
+        cwd = _workspace_ctx.name
+        tmpdir_resolved = _Path(cwd).resolve()
+        for wf in workspace_files:
+            dest = (tmpdir_resolved / wf["path"]).resolve()
+            if not dest.is_relative_to(tmpdir_resolved):
+                _workspace_ctx.cleanup()
+                raise ValueError(f"workspace_files path escapes temp dir: {wf['path']}")
+            dest.parent.mkdir(parents=True, exist_ok=True)
+            dest.write_text(wf.get("content", ""), encoding="utf-8")
+        set_project_dir_override(cwd)
+
+    try:
         print(
-            f"→ {_color('PreToolUse', _CYAN, colors)} fired"
-            f" ({tool_name}, input={json.dumps(tool_input)[:80]})"
+            f"→ {_color('UserPromptSubmit', _CYAN, colors)} fired"
+            f" (transcript: {repr(prompt[:60])})"
         )
         result = _run_hook(
             _make_hook_payload(
-                HookEvent.PRE_TOOL_USE.display_name,
-                session_id,
-                cwd,
-                tool_name=tool_name,
-                tool_input=tool_input,
-                tool_use_id=tool_use_id,
+                HookEvent.PROMPT.display_name, session_id, cwd, prompt=prompt
             ),
             daemon_state=daemon_state,
         )
@@ -483,33 +479,88 @@ def _run_scenario_event(
         else:
             print(f"  {_color('✅ Allowed', _GREEN, colors)}")
 
-        print(
-            f"→ {_color('PostToolUse', _CYAN, colors)} fired"
-            f" ({tool_name}, response={repr(str(tool_fake_out)[:60])})"
-        )
-        result = _run_hook(
-            _make_hook_payload(
-                HookEvent.POST_TOOL_USE.display_name,
-                session_id,
-                cwd,
-                tool_name=tool_name,
-                tool_input=tool_input,
-                tool_response=tool_fake_out,
-                tool_use_id=tool_use_id,
-            ),
-            daemon_state=daemon_state,
-        )
-        blocked = _is_blocked(result)
-        if blocked:
-            print(f"  {_color('🚨 BLOCKED', _RED, colors)}: {_block_reason(result)}")
-            return True
-        warn = _warn_message(result)
-        if warn:
-            print(f"  {_color('⚠️  WARNING', _YELLOW, colors)}: {warn}")
-        else:
-            print(f"  {_color('✅ Allowed', _GREEN, colors)}")
+        if tools is None:
+            tools = [
+                {
+                    "name": t["name"],
+                    "input": t["input"],
+                    "fake_output": t["fake_output"],
+                }
+                for t in _guess_tools(prompt)
+            ]
 
-    return False
+        for tool_spec in tools:
+            tool_name = tool_spec.get("name", "Bash")
+            tool_input = tool_spec.get("input", {})
+            tool_use_id = str(uuid.uuid4())
+            tool_fake_out = tool_spec.get("fake_output", fake_output)
+
+            print(
+                f"→ {_color('PreToolUse', _CYAN, colors)} fired"
+                f" ({tool_name}, input={json.dumps(tool_input)[:80]})"
+            )
+            result = _run_hook(
+                _make_hook_payload(
+                    HookEvent.PRE_TOOL_USE.display_name,
+                    session_id,
+                    cwd,
+                    tool_name=tool_name,
+                    tool_input=tool_input,
+                    tool_use_id=tool_use_id,
+                ),
+                daemon_state=daemon_state,
+            )
+            blocked = _is_blocked(result)
+            if blocked:
+                print(
+                    f"  {_color('🚨 BLOCKED', _RED, colors)}:"
+                    f" {_block_reason(result)}"
+                )
+                return True
+            warn = _warn_message(result)
+            if warn:
+                print(f"  {_color('⚠️  WARNING', _YELLOW, colors)}: {warn}")
+            else:
+                print(f"  {_color('✅ Allowed', _GREEN, colors)}")
+
+            print(
+                f"→ {_color('PostToolUse', _CYAN, colors)} fired"
+                f" ({tool_name}, response={repr(str(tool_fake_out)[:60])})"
+            )
+            result = _run_hook(
+                _make_hook_payload(
+                    HookEvent.POST_TOOL_USE.display_name,
+                    session_id,
+                    cwd,
+                    tool_name=tool_name,
+                    tool_input=tool_input,
+                    tool_response=tool_fake_out,
+                    tool_use_id=tool_use_id,
+                ),
+                daemon_state=daemon_state,
+            )
+            blocked = _is_blocked(result)
+            if blocked:
+                print(
+                    f"  {_color('🚨 BLOCKED', _RED, colors)}:"
+                    f" {_block_reason(result)}"
+                )
+                return True
+            warn = _warn_message(result)
+            if warn:
+                print(f"  {_color('⚠️  WARNING', _YELLOW, colors)}: {warn}")
+            else:
+                print(f"  {_color('✅ Allowed', _GREEN, colors)}")
+
+        return False
+    finally:
+        if _workspace_ctx is not None:
+            from ai_guardian.config.utils import clear_project_dir_override
+            from ai_guardian.project_init import _language_fp_cache
+
+            _language_fp_cache.pop(cwd, None)
+            clear_project_dir_override()
+            _workspace_ctx.cleanup()
 
 
 def run_script(script_path: str, colors: bool = True) -> int:
@@ -572,6 +623,7 @@ def run_script(script_path: str, colors: bool = True) -> int:
                 cwd=cwd,
                 colors=colors,
                 daemon_state=daemon_state,
+                workspace_files=event.get("workspace_files"),
             )
 
         expected_block = expect == "block"

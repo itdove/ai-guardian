@@ -48,6 +48,27 @@
               }
             }
           },
+          "workspace_files": {
+            "type": "array",
+            "description": "Files to create in a temp workspace to simulate project structure. Sets project_dir_override for the event so language detection sees these marker files (e.g. pyproject.toml for Python).",
+            "items": {
+              "type": "object",
+              "required": ["path"],
+              "additionalProperties": false,
+              "properties": {
+                "path": {
+                  "type": "string",
+                  "description": "Relative path of the file within the temp workspace (e.g. pyproject.toml). Must not contain '..' or start with '/'.",
+                  "pattern": "^(?!/)(?!.*\\.\\./)"
+                },
+                "content": {
+                  "type": "string",
+                  "description": "File content to write. Defaults to empty string.",
+                  "default": ""
+                }
+              }
+            }
+          },
           "tools": {
             "type": "array",
             "description": "Optional list of tool calls (PreToolUse + PostToolUse) to fire after the prompt.",

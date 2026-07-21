@@ -1,6 +1,7 @@
 """Tests for dummy-agent — adapter, REPL, and script runner (Issue #1438)."""
 
 import json
+import os
 import sys
 import tempfile
 import textwrap
@@ -363,3 +364,120 @@ class TestScriptMode:
             run_script(str(path), colors=False)
 
         assert file_content_during_hook == ["test content"]
+
+    def test_workspace_files_sets_project_dir_override(self, tmp_path):
+        """workspace_files must create temp dir, write files, and set project_dir_override."""
+        yaml_content = textwrap.dedent("""\
+            events:
+              - label: workspace test
+                workspace_files:
+                  - path: pyproject.toml
+                    content: "[project]\\nname = \\"test\\""
+                  - path: src/main.py
+                    content: "print('hello')"
+                prompt: "show the code"
+                tools:
+                  - name: Read
+                    input: {file_path: "src/main.py"}
+                    fake_output: "print('hello')"
+                expect: allow
+            """)
+        path = tmp_path / "workspace.yaml"
+        path.write_text(yaml_content)
+
+        allow_response = {"output": "{}", "exit_code": 0, "_blocked": False}
+        captured_cwds = []
+
+        def fake_process(payload, daemon_state=None):
+            captured_cwds.append(payload.get("cwd", ""))
+            return allow_response
+
+        with patch(
+            "ai_guardian.dummy_agent.process_hook_data", side_effect=fake_process
+        ):
+            from ai_guardian.dummy_agent import run_script
+
+            exit_code = run_script(str(path), colors=False)
+
+        assert exit_code == 0
+        assert len(captured_cwds) >= 1
+        workspace_cwd = captured_cwds[0]
+        assert workspace_cwd != str(tmp_path)
+        assert "pyproject.toml" not in workspace_cwd
+
+    def test_workspace_files_writes_marker_files(self, tmp_path):
+        """workspace_files marker files must exist during hook execution."""
+        yaml_content = textwrap.dedent("""\
+            events:
+              - label: marker file check
+                workspace_files:
+                  - path: pyproject.toml
+                    content: "[project]\\nname = \\"test\\""
+                prompt: "check project"
+                expect: allow
+            """)
+        path = tmp_path / "workspace.yaml"
+        path.write_text(yaml_content)
+
+        allow_response = {"output": "{}", "exit_code": 0, "_blocked": False}
+        found_files = []
+
+        def fake_process(payload, daemon_state=None):
+            import os
+
+            cwd = payload.get("cwd", "")
+            pyproject = os.path.join(cwd, "pyproject.toml")
+            if os.path.isfile(pyproject):
+                with open(pyproject) as f:
+                    found_files.append(f.read())
+            return allow_response
+
+        with patch(
+            "ai_guardian.dummy_agent.process_hook_data", side_effect=fake_process
+        ):
+            from ai_guardian.dummy_agent import run_script
+
+            exit_code = run_script(str(path), colors=False)
+
+        assert exit_code == 0
+        assert len(found_files) >= 1
+        assert "[project]" in found_files[0]
+
+    @pytest.mark.parametrize(
+        "mock_side_effect",
+        [
+            {"output": "{}", "exit_code": 0, "_blocked": False},
+            RuntimeError("boom"),
+        ],
+        ids=["normal", "exception"],
+    )
+    def test_workspace_files_clears_override(self, tmp_path, mock_side_effect):
+        """project_dir_override must be cleared after workspace_files event (even on error)."""
+        yaml_content = textwrap.dedent("""\
+            events:
+              - label: workspace event
+                workspace_files:
+                  - path: pyproject.toml
+                    content: "[project]"
+                prompt: "test"
+                expect: allow
+            """)
+        path = tmp_path / "workspace.yaml"
+        path.write_text(yaml_content)
+
+        kwargs = (
+            {"side_effect": mock_side_effect}
+            if isinstance(mock_side_effect, Exception)
+            else {"return_value": mock_side_effect}
+        )
+        with patch("ai_guardian.dummy_agent.process_hook_data", **kwargs):
+            from ai_guardian.dummy_agent import run_script
+
+            try:
+                run_script(str(path), colors=False)
+            except RuntimeError:
+                pass
+
+        from ai_guardian.config.utils import get_project_dir
+
+        assert get_project_dir() == os.getcwd()
