@@ -23,6 +23,7 @@ from ai_guardian.ask_mode import (
     _compute_pii_transcript_fingerprints,
 )
 
+from ai_guardian.hook_events.content_pipeline import _load_overlaid_config
 from ai_guardian.hook_events.scanners import (
     run_secret_scan,
     run_prompt_injection_scan,
@@ -30,6 +31,7 @@ from ai_guardian.hook_events.scanners import (
     run_offensive_language_scan,
     run_pii_scan,
 )
+from ai_guardian.scanners.scanner_registry import ScannerName, get_default_registry
 
 logger = logging.getLogger(__name__)
 
@@ -945,8 +947,13 @@ def handle_post_tool_use(ctx=None, **kwargs):
                 if not post_pi_file and pretool_ctx:
                     post_pi_file = pretool_ctx.get("file_path")
 
+                post_pi_config = _load_overlaid_config(
+                    get_default_registry().get(ScannerName.PROMPT_INJECTION),
+                    _loaders._load_prompt_injection_config,
+                )
                 post_pi_result = run_prompt_injection_scan(
                     tool_output,
+                    config=post_pi_config,
                     file_path=post_pi_file,
                     tool_name=tool_identifier,
                     latency_timer=_latency_timer,
