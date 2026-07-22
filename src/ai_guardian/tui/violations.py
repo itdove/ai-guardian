@@ -8,11 +8,12 @@ Display all recent violations with filtering and resolution instructions.
 import json
 from typing import Dict
 
-from ai_guardian.constants import HookEvent
+from ai_guardian.constants import HookEvent, VIOLATION_FILTER_TYPES
 from rich.markup import escape
 from textual.app import ComposeResult
 from textual.containers import Container, Horizontal, VerticalScroll, Vertical
-from textual.widgets import Button, Static, TabbedContent, TabPane
+from textual.css.query import NoMatches
+from textual.widgets import Button, Static, TabbedContent, Tab, TabPane
 from textual.screen import ModalScreen
 from textual.binding import Binding
 from textual import events
@@ -29,6 +30,38 @@ from ai_guardian.tui.pattern_editor import (
     prepare_config_with_pattern,
     PATTERN_TYPES,
 )
+
+_TUI_SLUGS = {
+    "tool_permission": ("tool-permission", "tool"),
+    "secret_detected": ("secret", "secret"),
+    "secret_redaction": ("redaction", "redaction"),
+    "directory_blocking": ("directory", "directory"),
+    "prompt_injection": ("injection", "injection"),
+    "jailbreak_detected": ("jailbreak", "jailbreak"),
+    "ssrf_blocked": ("ssrf", "ssrf"),
+    "config_file_exfil": ("config-exfil", "config-exfil"),
+    "pii_detected": ("pii", "pii"),
+    "secret_in_transcript": ("transcript-secret", "transcript-secret"),
+    "pii_in_transcript": ("transcript-pii", "transcript-pii"),
+    "prompt_injection_in_transcript": ("transcript-pi", "transcript-pi"),
+    "annotation_suppressed": ("annotation", "annotation"),
+    "image_secret_detected": ("image-secret", "image-secret"),
+    "image_pii_detected": ("image-pii", "image-pii"),
+    "code_security": ("code-security", "code-security"),
+    "offensive_language": ("offensive-language", "offensive-language"),
+    "canary_detected": ("canary-detected", "canary-detected"),
+    "exfil_detection": ("exfil-detection", "exfil-detection"),
+}
+
+_VIOLATION_TAB_TYPES = [("filter-all", "All", None, "#violations-list-all")] + [
+    (
+        f"filter-{_TUI_SLUGS[vt][0]}",
+        label,
+        vt,
+        f"#violations-list-{_TUI_SLUGS[vt][1]}",
+    )
+    for label, vt, _tooltip in VIOLATION_FILTER_TYPES
+]
 
 _ALLOWLIST_TYPES = frozenset(
     {
@@ -1098,47 +1131,11 @@ class ViolationsContent(Container):
                 variant="primary",
             )
 
-        # Sub-tabs for filtering
+        # Sub-tabs for filtering — driven by _TAB_TYPES
         with TabbedContent(id="filter-tabs"):
-            with TabPane("All", id="filter-all"):
-                yield VerticalScroll(id="violations-list-all")
-            with TabPane("Tool Permission", id="filter-tool-permission"):
-                yield VerticalScroll(id="violations-list-tool")
-            with TabPane("Secrets", id="filter-secret"):
-                yield VerticalScroll(id="violations-list-secret")
-            with TabPane("Secret Redaction", id="filter-redaction"):
-                yield VerticalScroll(id="violations-list-redaction")
-            with TabPane("Directories", id="filter-directory"):
-                yield VerticalScroll(id="violations-list-directory")
-            with TabPane("Prompt Injection", id="filter-injection"):
-                yield VerticalScroll(id="violations-list-injection")
-            with TabPane("Jailbreak", id="filter-jailbreak"):
-                yield VerticalScroll(id="violations-list-jailbreak")
-            with TabPane("SSRF Blocked", id="filter-ssrf"):
-                yield VerticalScroll(id="violations-list-ssrf")
-            with TabPane("Config Exfil", id="filter-config-exfil"):
-                yield VerticalScroll(id="violations-list-config-exfil")
-            with TabPane("PII Detected", id="filter-pii"):
-                yield VerticalScroll(id="violations-list-pii")
-            with TabPane("Transcript Secret", id="filter-transcript-secret"):
-                yield VerticalScroll(id="violations-list-transcript-secret")
-            with TabPane("Transcript PII", id="filter-transcript-pii"):
-                yield VerticalScroll(id="violations-list-transcript-pii")
-            with TabPane("Transcript PI", id="filter-transcript-pi"):
-                yield VerticalScroll(id="violations-list-transcript-pi")
-            with TabPane("Annotation", id="filter-annotation"):
-                yield VerticalScroll(id="violations-list-annotation")
-            with TabPane("Image Secret", id="filter-image-secret"):
-                yield VerticalScroll(id="violations-list-image-secret")
-            with TabPane("Image PII", id="filter-image-pii"):
-                yield VerticalScroll(id="violations-list-image-pii")
-            with TabPane("Code Security", id="filter-code-security"):
-                yield VerticalScroll(id="violations-list-code-security")
-            with TabPane("Offensive Language", id="filter-offensive-language"):
-                yield VerticalScroll(id="violations-list-offensive-language")
-
-            with TabPane("Canary Detection", id="filter-canary-detected"):
-                yield VerticalScroll(id="violations-list-canary-detected")
+            for pane_id, label, _vtype, list_id in self._TAB_TYPES:
+                with TabPane(label, id=pane_id):
+                    yield VerticalScroll(id=list_id.lstrip("#"))
 
     def on_mount(self) -> None:
         """Load violations when mounted."""
@@ -1150,123 +1147,19 @@ class ViolationsContent(Container):
 
     def load_all_filters(self) -> None:
         """Load violations into all filter tabs."""
-        # Load all violations
-        all_violations = self.violation_logger.get_recent_violations(
-            limit=50, resolved=None
-        )
-        self._populate_list("#violations-list-all", all_violations)
+        type_counts: Dict[str, int] = {}
+        total = 0
+        for _pane_id, _label, vtype, list_id in self._TAB_TYPES:
+            violations = self.violation_logger.get_recent_violations(
+                limit=50, violation_type=vtype, resolved=None
+            )
+            self._populate_list(list_id, violations)
+            if vtype is None:
+                total = len(violations)
+            else:
+                type_counts[vtype] = len(violations)
 
-        # Load tool permission violations
-        tool_violations = self.violation_logger.get_recent_violations(
-            limit=50, violation_type="tool_permission", resolved=None
-        )
-        self._populate_list("#violations-list-tool", tool_violations)
-
-        # Load secret violations
-        secret_violations = self.violation_logger.get_recent_violations(
-            limit=50, violation_type="secret_detected", resolved=None
-        )
-        self._populate_list("#violations-list-secret", secret_violations)
-
-        # Load secret redaction violations
-        redaction_violations = self.violation_logger.get_recent_violations(
-            limit=50, violation_type="secret_redaction", resolved=None
-        )
-        self._populate_list("#violations-list-redaction", redaction_violations)
-
-        # Load directory violations
-        directory_violations = self.violation_logger.get_recent_violations(
-            limit=50, violation_type="directory_blocking", resolved=None
-        )
-        self._populate_list("#violations-list-directory", directory_violations)
-
-        # Load prompt injection violations
-        injection_violations = self.violation_logger.get_recent_violations(
-            limit=50, violation_type="prompt_injection", resolved=None
-        )
-        self._populate_list("#violations-list-injection", injection_violations)
-
-        # Load jailbreak detected violations
-        jailbreak_violations = self.violation_logger.get_recent_violations(
-            limit=50, violation_type="jailbreak_detected", resolved=None
-        )
-        self._populate_list("#violations-list-jailbreak", jailbreak_violations)
-
-        # Load SSRF blocked violations
-        ssrf_violations = self.violation_logger.get_recent_violations(
-            limit=50, violation_type="ssrf_blocked", resolved=None
-        )
-        self._populate_list("#violations-list-ssrf", ssrf_violations)
-
-        # Load config file exfil violations
-        config_exfil_violations = self.violation_logger.get_recent_violations(
-            limit=50, violation_type="config_file_exfil", resolved=None
-        )
-        self._populate_list("#violations-list-config-exfil", config_exfil_violations)
-
-        # Load PII detected violations
-        pii_violations = self.violation_logger.get_recent_violations(
-            limit=50, violation_type="pii_detected", resolved=None
-        )
-        self._populate_list("#violations-list-pii", pii_violations)
-
-        # Load transcript secret violations
-        transcript_secret_violations = self.violation_logger.get_recent_violations(
-            limit=50, violation_type="secret_in_transcript", resolved=None
-        )
-        self._populate_list(
-            "#violations-list-transcript-secret", transcript_secret_violations
-        )
-
-        # Load transcript PII violations
-        transcript_pii_violations = self.violation_logger.get_recent_violations(
-            limit=50, violation_type="pii_in_transcript", resolved=None
-        )
-        self._populate_list(
-            "#violations-list-transcript-pii", transcript_pii_violations
-        )
-
-        # Load transcript prompt injection violations
-        transcript_pi_violations = self.violation_logger.get_recent_violations(
-            limit=50, violation_type="prompt_injection_in_transcript", resolved=None
-        )
-        self._populate_list("#violations-list-transcript-pi", transcript_pi_violations)
-
-        # Load annotation suppressed violations
-        annotation_violations = self.violation_logger.get_recent_violations(
-            limit=50, violation_type="annotation_suppressed", resolved=None
-        )
-        self._populate_list("#violations-list-annotation", annotation_violations)
-
-        # Load image secret violations
-        image_secret_violations = self.violation_logger.get_recent_violations(
-            limit=50, violation_type="image_secret_detected", resolved=None
-        )
-        self._populate_list("#violations-list-image-secret", image_secret_violations)
-
-        # Load image PII violations
-        image_pii_violations = self.violation_logger.get_recent_violations(
-            limit=50, violation_type="image_pii_detected", resolved=None
-        )
-        self._populate_list("#violations-list-image-pii", image_pii_violations)
-
-        # Load code security violations
-        code_security_violations = self.violation_logger.get_recent_violations(
-            limit=50, violation_type="code_security", resolved=None
-        )
-        self._populate_list("#violations-list-code-security", code_security_violations)
-
-        # Load offensive language violations
-        offensive_violations = self.violation_logger.get_recent_violations(
-            limit=50, violation_type="offensive_language", resolved=None
-        )
-        self._populate_list("#violations-list-offensive-language", offensive_violations)
-
-        # Load canary detection violations
-        canary_violations = self.violation_logger.get_recent_violations(
-            limit=50, violation_type="canary_detected", resolved=None
-        )
-        self._populate_list("#violations-list-canary-detected", canary_violations)
+        self._update_tab_counts(type_counts, total)
 
     def _populate_list(self, list_id: str, violations: list) -> None:
         """Populate a violations list."""
@@ -1288,6 +1181,20 @@ class ViolationsContent(Container):
                 violations_list.mount(ViolationCard(violation))
         except Exception:
             pass
+
+    _TAB_TYPES = _VIOLATION_TAB_TYPES
+
+    def _update_tab_counts(self, type_counts: Dict[str, int], total: int) -> None:
+        """Update tab labels with violation counts."""
+        for pane_id, label, vtype, _list_id in self._TAB_TYPES:
+            try:
+                tab = self.query_one(f"#--content-tab-{pane_id}", Tab)
+                if vtype is None:
+                    tab.label = f"{label} ({total})"
+                else:
+                    tab.label = f"{label} ({type_counts.get(vtype, 0)})"
+            except NoMatches:
+                pass
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         """Handle button presses (details and correlated on violation cards)."""

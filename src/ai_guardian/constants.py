@@ -131,6 +131,96 @@ CURSOR_HOOK_EVENTS = (
 
 CRUSH_HOOK_EVENTS = ("PreToolUse",)
 
+VIOLATION_FILTER_TYPES = [
+    (
+        "Tool Permission",
+        "tool_permission",
+        "Blocked tool/MCP server execution (permission rules)",
+    ),
+    (
+        "Secrets",
+        "secret_detected",
+        "Hard-coded secrets detected in files or prompts (API keys, tokens, passwords)",
+    ),
+    (
+        "Secret Redaction",
+        "secret_redaction",
+        "Secrets found in tool output and redacted before reaching the AI model",
+    ),
+    (
+        "Directories",
+        "directory_blocking",
+        "File access blocked by directory protection rules",
+    ),
+    (
+        "Prompt Injection",
+        "prompt_injection",
+        "Attempts to manipulate AI behavior detected in prompts or files",
+    ),
+    ("Jailbreak", "jailbreak_detected", "Attempts to bypass AI safety constraints"),
+    (
+        "SSRF Blocked",
+        "ssrf_blocked",
+        "Blocked access to private networks, metadata endpoints, or dangerous URLs",
+    ),
+    (
+        "Config Exfil",
+        "config_file_exfil",
+        "Credential exfiltration commands detected in AI config files",
+    ),
+    (
+        "PII Detected",
+        "pii_detected",
+        "Personal Identifiable Information found in files or prompts",
+    ),
+    (
+        "Transcript Secret",
+        "secret_in_transcript",
+        "Secret found in conversation history",
+    ),
+    (
+        "Transcript PII",
+        "pii_in_transcript",
+        "Personal Identifiable Information found in conversation history",
+    ),
+    (
+        "Transcript PI",
+        "prompt_injection_in_transcript",
+        "Prompt injection pattern found in conversation history",
+    ),
+    (
+        "Annotation",
+        "annotation_suppressed",
+        "Finding suppressed by an inline annotation",
+    ),
+    (
+        "Image Secret",
+        "image_secret_detected",
+        "Secret detected in image via OCR scanning",
+    ),
+    ("Image PII", "image_pii_detected", "PII detected in image via OCR scanning"),
+    (
+        "Code Security",
+        "code_security",
+        "Insecure Python code patterns detected by Bandit",
+    ),
+    (
+        "Offensive Language",
+        "offensive_language",
+        "Profanity, slurs, or non-inclusive terminology detected",
+    ),
+    (
+        "Canary Detected",
+        "canary_detected",
+        "User-registered canary token found in AI output",
+    ),
+    (
+        "Exfil Detection",
+        "exfil_detection",
+        "Bash command blocked due to credential exfiltration behavior",
+    ),
+]
+
 ALL_VIOLATION_TYPES = tuple(v.value for v in ViolationType)
 ALL_HOOK_EVENTS = tuple(e.value for e in HookEvent)
 ALL_ACTION_MODES = tuple(a.value for a in ActionMode)
