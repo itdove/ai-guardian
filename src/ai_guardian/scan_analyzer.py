@@ -6,13 +6,18 @@ high-frequency patterns as likely false positives, and generates
 config recommendations for ai-guardian.json and .aiguardignore.toml.
 """
 
+from __future__ import annotations
+
 import json
 import re
 import shutil
 from collections import defaultdict
 from dataclasses import dataclass, field
 from pathlib import Path, PurePosixPath
-from typing import Any, Callable, Dict, List, Optional, Set, Tuple
+from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Set, Tuple
+
+if TYPE_CHECKING:
+    import threading
 
 # --- Human-readable labels for rule IDs (shared by TUI + web) ---
 
@@ -29,6 +34,73 @@ RULE_ID_LABELS = {
     "EXFIL-001": "Exfil Detection",
     "CANARY-001": "Canary Token",
 }
+
+
+@dataclass
+class ScanPipelineResult:
+    """Result of run_scan_pipeline."""
+
+    language_names: List[str]
+    findings_count: int
+    analysis: ScanAnalysisResult
+    merged_config: Dict[str, Any]
+    project_dir: str
+
+
+def run_scan_pipeline(
+    project_dir: str,
+    threshold: int,
+    cancel_event: "threading.Event",
+    on_phase: Optional[Callable[[str], None]] = None,
+    on_file_progress: Optional[Callable[[str, int, int], None]] = None,
+) -> Optional[ScanPipelineResult]:
+    """Run the full scan-and-analyze pipeline.
+
+    Returns *None* when *cancel_event* is set, otherwise a
+    :class:`ScanPipelineResult`.
+    """
+    from ai_guardian.project_init import ProjectInitializer
+    from ai_guardian.scanners.file_scanner import FileScanner
+
+    _phase = on_phase or (lambda _msg: None)
+
+    initializer = ProjectInitializer(Path(project_dir))
+
+    _phase("Detecting languages...")
+    languages = initializer.detect_languages()
+    if cancel_event.is_set():
+        return None
+
+    _phase("Generating allowlist...")
+    allowlist_entries, ignore_files = initializer.generate_allowlist(languages)
+    if cancel_event.is_set():
+        return None
+
+    language_config = initializer.generate_config(allowlist_entries, ignore_files)
+
+    _phase("Scanning files...")
+    scanner = FileScanner(config={}, verbose=False)
+    findings = scanner.scan_directory(
+        str(initializer.project_dir),
+        progress_callback=on_file_progress,
+        cancel_event=cancel_event,
+    )
+    if cancel_event.is_set():
+        return None
+
+    _phase(f"Analyzing {len(findings)} findings...")
+    analysis = initializer.analyze_scan(findings, threshold=threshold)
+    merged_config = initializer.merge_configs(
+        language_config, analysis.recommended_config
+    )
+
+    return ScanPipelineResult(
+        language_names=[lang.definition.name for lang in languages],
+        findings_count=len(findings),
+        analysis=analysis,
+        merged_config=merged_config,
+        project_dir=str(project_dir),
+    )
 
 
 def _deep_merge_configs(existing: Dict, new_config: Dict) -> Dict:

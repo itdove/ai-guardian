@@ -201,44 +201,15 @@ class ScanConfigureContent(ScrollableContainer):
         def worker():
             try:
                 with quiet_logging():
-                    from ai_guardian.project_init import ProjectInitializer
+                    from ai_guardian.scan_analyzer import run_scan_pipeline
 
-                    initializer = ProjectInitializer(Path(project_dir))
+                    def on_phase(msg):
+                        self.app.call_from_thread(
+                            summary.update,
+                            f"[yellow]{escape(msg)}[/yellow]",
+                        )
 
-                    languages = initializer.detect_languages()
-                    if self._cancel_event.is_set():
-                        self.app.call_from_thread(self._scan_cancelled)
-                        return
-
-                    self.app.call_from_thread(
-                        summary.update,
-                        "[yellow]Detecting languages... generating allowlist...[/yellow]",
-                    )
-
-                    allowlist_entries, ignore_files = initializer.generate_allowlist(
-                        languages
-                    )
-                    if self._cancel_event.is_set():
-                        self.app.call_from_thread(self._scan_cancelled)
-                        return
-
-                    language_config = initializer.generate_config(
-                        allowlist_entries, ignore_files
-                    )
-
-                    self.app.call_from_thread(
-                        summary.update,
-                        "[yellow]Scanning project files...[/yellow]",
-                    )
-
-                    from ai_guardian.scanners.file_scanner import FileScanner
-
-                    scan_state = {"index": 0, "total": 0, "file": ""}
-
-                    def on_progress(file_path, index, total):
-                        scan_state["file"] = file_path
-                        scan_state["index"] = index
-                        scan_state["total"] = total
+                    def on_file_progress(file_path, index, total):
                         if index % 20 == 0 or index == total:
                             short = file_path
                             if len(short) > 60:
@@ -249,36 +220,19 @@ class ScanConfigureContent(ScrollableContainer):
                                 f"[dim]{escape(short)}[/dim]",
                             )
 
-                    scanner = FileScanner(config={}, verbose=False)
-                    findings = scanner.scan_directory(
-                        str(initializer.project_dir),
-                        progress_callback=on_progress,
-                        cancel_event=self._cancel_event,
+                    pipeline_result = run_scan_pipeline(
+                        project_dir,
+                        threshold,
+                        self._cancel_event,
+                        on_phase=on_phase,
+                        on_file_progress=on_file_progress,
                     )
-                    if self._cancel_event.is_set():
+
+                    if pipeline_result is None:
                         self.app.call_from_thread(self._scan_cancelled)
                         return
 
-                    self.app.call_from_thread(
-                        summary.update,
-                        f"[yellow]Analyzing {len(findings)} findings...[/yellow]",
-                    )
-
-                    analysis = initializer.analyze_scan(findings, threshold=threshold)
-                    scan_config = analysis.recommended_config
-                    merged_config = initializer.merge_configs(
-                        language_config, scan_config
-                    )
-
-                    result = {
-                        "languages": languages,
-                        "findings_count": len(findings),
-                        "analysis": analysis,
-                        "merged_config": merged_config,
-                        "project_dir": project_dir,
-                    }
-
-                    self.app.call_from_thread(self._display_results, result)
+                    self.app.call_from_thread(self._display_results, pipeline_result)
 
             except Exception as exc:
                 self.app.call_from_thread(self._show_error, str(exc))
@@ -296,14 +250,13 @@ class ScanConfigureContent(ScrollableContainer):
 
     def _display_results(self, result) -> None:
         self._scan_result = result
-        analysis = result["analysis"]
-        languages = result["languages"]
-        findings_count = result["findings_count"]
-        merged_config = result["merged_config"]
+        analysis = result.analysis
+        findings_count = result.findings_count
+        merged_config = result.merged_config
 
         remaining = findings_count - analysis.suppressed_count
 
-        lang_names = [lang.definition.name for lang in languages] if languages else []
+        lang_names = result.language_names
         lang_text = f"  Languages: {', '.join(lang_names)}" if lang_names else ""
 
         summary_text = (
@@ -383,9 +336,9 @@ class ScanConfigureContent(ScrollableContainer):
             return
 
         result = self._scan_result
-        project_dir = result["project_dir"]
-        merged_config = result["merged_config"]
-        ignore_paths = result["analysis"].recommended_ignore_paths
+        project_dir = result.project_dir
+        merged_config = result.merged_config
+        ignore_paths = result.analysis.recommended_ignore_paths
 
         def worker():
             try:
