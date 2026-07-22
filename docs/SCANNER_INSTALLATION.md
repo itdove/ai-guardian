@@ -349,6 +349,18 @@ The scanner is installed once and reused across all workflow runs.
 
 **Recommendation**: Use BetterLeaks for best performance, or LeakTK for automatic pattern updates.
 
+## ML Prompt Injection Setup (v1.15.0+)
+
+AI Guardian supports ML-based prompt injection detection using a local model. One command downloads and configures the engine:
+
+```bash
+ai-guardian ml setup
+```
+
+This downloads the ML model, verifies integrity, and updates your config to enable ML-based detection. No external API calls are made — inference runs locally.
+
+For details on model architecture, performance benchmarks, and advanced configuration, see [ML_ENGINE_SUPPORT.md](ML_ENGINE_SUPPORT.md).
+
 ## Next Steps
 
 - See [README.md](../README.md) for general AI Guardian setup

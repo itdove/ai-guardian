@@ -431,7 +431,7 @@ This means plugins work uniformly across all daemon types:
 | Container | `/home/user/.config/ai-guardian/tray-plugins/` inside the container |
 | Remote | `~/.config/ai-guardian/tray-plugins/` on the remote host |
 
-The tray polls plugins alongside the stats refresh (every 10 seconds). Local plugins load even when the daemon is stopped.
+The tray receives real-time updates from each daemon via SSE (Server-Sent Events) push notifications. Violations, stats changes, and pause/resume state changes are pushed to the tray instantly — no polling delay. Tray plugins are refreshed alongside these event-driven updates. If SSE is unavailable (e.g., older daemon version or network interruption), the tray falls back to polling every 10 seconds. Local plugins load even when the daemon is stopped.
 
 ### Tag-Based Filtering
 
