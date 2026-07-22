@@ -213,16 +213,13 @@ SLUG_TO_CONFIG_SECTION = {
     "/performance": "latency_tracking",
 }
 
+_SECTION_TO_SLUG: dict[str, str] = {}
+for _slug, _section in SLUG_TO_CONFIG_SECTION.items():
+    _SECTION_TO_SLUG.setdefault(_section, _slug)
+del _slug, _section
+
 RULE_ID_TO_SLUG = {
-    "SECRET-001": "/secrets",
-    "PII-001": "/scan-pii",
-    "PROMPT-INJECTION-001": "/pi-detection",
-    "SSRF-001": "/ssrf",
-    "CONFIG-001": "/config-scanner",
-    "SUPPLY-CHAIN-001": "/supply-chain",
-    "UNICODE-001": "/pi-unicode",
-    "CODE-SECURITY-001": "/code-security",
-    "OFFENSIVE-001": "/offensive-language",
-    "EXFIL-001": "/exfil-detection",
-    "CANARY-001": "/canary-detection",
+    rule_id: ("/pi-unicode" if rule_id == "UNICODE-001" else _SECTION_TO_SLUG[section])
+    for rule_id, section in RULE_ID_TO_CONFIG_SECTION.items()
 }
+del _SECTION_TO_SLUG
