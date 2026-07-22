@@ -167,7 +167,6 @@ NAV_GROUPS = [
         [
             ("Skills", "panel-skills"),
             ("MCP Servers", "panel-mcp"),
-            ("MCP Security", "panel-mcp-security"),
             ("Permissions Discovery", "panel-permissions-discovery"),
             ("Auto Directory Rules", "panel-auto-directory-rules"),
             ("Directory Rules", "panel-directory-rules"),
@@ -229,6 +228,7 @@ NAV_GROUPS = [
             ("Engine Tester", "panel-engine-tester"),
             ("Directory Scan", "panel-directory-scan"),
             ("Scan Configure", "panel-scan-configure"),
+            ("MCP Security", "panel-mcp-security"),
         ],
     ),
 ]
@@ -258,8 +258,6 @@ HELP_DOCS = {
         "Code skills (slash commands)\n"
         "  [bold]MCP Servers[/bold] — Manage permissions for MCP server "
         "tool invocations\n"
-        "  [bold]MCP Security[/bold] — Audit MCP server configurations "
-        "for credential exposure and supply chain risks\n"
         "  [bold]Permissions Discovery[/bold] — Review tool calls that "
         "don't match any existing rule\n"
         "  [bold]Directory Rules[/bold] — Control which file paths "
@@ -322,7 +320,9 @@ HELP_DOCS = {
         "  [bold]Engine Tester[/bold] — Test strings against individual "
         "scanner engines to compare detection results\n"
         "  [bold]Directory Scan[/bold] — Scan directories for security "
-        "issues with interactive results and export"
+        "issues with interactive results and export\n"
+        "  [bold]MCP Security[/bold] — Audit MCP server configurations "
+        "for credential exposure and supply chain risks"
     ),
     # Panel-level help
     "panel-security-dashboard": (
