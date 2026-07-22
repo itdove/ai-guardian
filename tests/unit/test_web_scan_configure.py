@@ -91,11 +91,9 @@ class TestRunScan:
             result = _run_scan(str(tmp_path), 10, cancel, progress)
 
         assert result is not None
-        assert result["findings_count"] == 5
-        assert result["analysis"].suppressed_count == 3
-        assert result["merged_config"] == {
-            "prompt_injection": {"allowlist_patterns": []}
-        }
+        assert result.findings_count == 5
+        assert result.analysis.suppressed_count == 3
+        assert result.merged_config == {"prompt_injection": {"allowlist_patterns": []}}
 
     def test_run_scan_cancelled(self, tmp_path):
         from ai_guardian.web.pages.scan_configure import _run_scan

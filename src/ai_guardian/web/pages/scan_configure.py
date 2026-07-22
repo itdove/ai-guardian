@@ -14,15 +14,13 @@ _SESSION_KEY = "scan_configure_result"
 
 
 def _serialize_result(result):
-    """Convert scan result with dataclass objects to JSON-safe dict."""
-    analysis = result["analysis"]
+    """Convert ScanPipelineResult with dataclass objects to JSON-safe dict."""
+    analysis = result.analysis
     return {
-        "findings_count": result["findings_count"],
-        "merged_config": result["merged_config"],
-        "project_dir": result["project_dir"],
-        "language_names": [
-            lang.definition.name for lang in result.get("languages", [])
-        ],
+        "findings_count": result.findings_count,
+        "merged_config": result.merged_config,
+        "project_dir": result.project_dir,
+        "language_names": result.language_names,
         "analysis": {
             "suppressed_count": analysis.suppressed_count,
             "high_frequency_clusters": [
@@ -50,11 +48,12 @@ def _serialize_result(result):
 
 
 def _deserialize_result(data):
-    """Reconstruct a render-compatible result from stored session data."""
+    """Reconstruct a ScanPipelineResult from stored session data."""
     from ai_guardian.scan_analyzer import (
         FindingCluster,
         DirectoryAnalysis,
         ScanAnalysisResult,
+        ScanPipelineResult,
     )
 
     a = data["analysis"]
@@ -71,87 +70,57 @@ def _deserialize_result(data):
         recommended_ignore_paths=a.get("recommended_ignore_paths", {}),
     )
 
-    return {
-        "findings_count": data["findings_count"],
-        "merged_config": data["merged_config"],
-        "project_dir": data["project_dir"],
-        "language_names": data.get("language_names", []),
-        "analysis": analysis,
-    }
+    return ScanPipelineResult(
+        findings_count=data["findings_count"],
+        merged_config=data["merged_config"],
+        project_dir=data["project_dir"],
+        language_names=data.get("language_names", []),
+        analysis=analysis,
+    )
 
 
 def _run_scan(project_dir, threshold, cancel_event, progress_state):
     """Run project scan and analysis in a background thread."""
-    from ai_guardian.project_init import ProjectInitializer
-    from ai_guardian.scanners.file_scanner import FileScanner
+    from ai_guardian.scan_analyzer import run_scan_pipeline
 
-    initializer = ProjectInitializer(Path(project_dir))
+    def on_phase(msg):
+        progress_state["phase"] = msg
 
-    progress_state["phase"] = "Detecting languages..."
-    languages = initializer.detect_languages()
-    if cancel_event.is_set():
-        return None
-
-    progress_state["phase"] = "Generating allowlist..."
-    allowlist_entries, ignore_files = initializer.generate_allowlist(languages)
-    if cancel_event.is_set():
-        return None
-
-    language_config = initializer.generate_config(allowlist_entries, ignore_files)
-
-    progress_state["phase"] = "Scanning files..."
-
-    def on_progress(file_path, index, total):
+    def on_file_progress(file_path, index, total):
         progress_state["file"] = file_path
         progress_state["index"] = index
         progress_state["total"] = total
 
-    scanner = FileScanner(config={}, verbose=False)
-    findings = scanner.scan_directory(
-        str(initializer.project_dir),
-        progress_callback=on_progress,
-        cancel_event=cancel_event,
+    return run_scan_pipeline(
+        project_dir,
+        threshold,
+        cancel_event,
+        on_phase=on_phase,
+        on_file_progress=on_file_progress,
     )
-    if cancel_event.is_set():
-        return None
-
-    progress_state["phase"] = f"Analyzing {len(findings)} findings..."
-    analysis = initializer.analyze_scan(findings, threshold=threshold)
-
-    scan_config = analysis.recommended_config
-    merged_config = initializer.merge_configs(language_config, scan_config)
-
-    return {
-        "languages": languages,
-        "language_names": [lang.definition.name for lang in languages],
-        "findings_count": len(findings),
-        "analysis": analysis,
-        "merged_config": merged_config,
-        "project_dir": str(project_dir),
-    }
 
 
 def _render_results(container, result, daemon_name):
     """Render scan analysis results with preview and apply/discard buttons."""
     container.clear()
-    analysis = result["analysis"]
-    merged_config = result["merged_config"]
+    analysis = result.analysis
+    merged_config = result.merged_config
 
-    lang_names = result.get("language_names", [])
+    lang_names = result.language_names
 
     with container:
         with ui.card().classes("w-full"):
             ui.label("Scan Results").classes("text-lg font-bold")
             with ui.row().classes("items-center gap-4 flex-wrap"):
                 ui.badge(
-                    f"{result['findings_count']} findings",
+                    f"{result.findings_count} findings",
                     color="blue",
                 ).classes("text-sm")
                 ui.badge(
                     f"{analysis.suppressed_count} auto-suppressed",
                     color="green",
                 ).classes("text-sm")
-                remaining = result["findings_count"] - analysis.suppressed_count
+                remaining = result.findings_count - analysis.suppressed_count
                 if remaining > 0:
                     ui.badge(
                         f"{remaining} remaining",
@@ -304,13 +273,12 @@ def create_scan_configure_page(service, daemon_name: str):
                 ).classes("text-xs text-grey-6")
 
         results_container = ui.column().classes("w-full gap-4")
-        scan_result = {}
+        scan_result = [None]
         cancel_event = threading.Event()
 
         def _show_result_with_actions(result):
             """Render result + action buttons (used for both fresh and restored)."""
-            scan_result.clear()
-            scan_result.update(result)
+            scan_result[0] = result
             _render_results(results_container, result, daemon_name)
 
             with results_container:
@@ -329,7 +297,7 @@ def create_scan_configure_page(service, daemon_name: str):
                             .classes("text-xs")
                         )
 
-                    scanned_dir = scan_result.get("project_dir", "")
+                    scanned_dir = scan_result[0].project_dir if scan_result[0] else ""
 
                     project_row = ui.row().classes("items-center gap-2 w-full")
                     with project_row:
@@ -386,8 +354,8 @@ def create_scan_configure_page(service, daemon_name: str):
                             await run.io_bound(
                                 _apply_config,
                                 target_dir,
-                                scan_result["merged_config"],
-                                scan_result["analysis"].recommended_ignore_paths,
+                                scan_result[0].merged_config,
+                                scan_result[0].analysis.recommended_ignore_paths,
                                 scope,
                             )
                             _clear_session()
@@ -397,7 +365,7 @@ def create_scan_configure_page(service, daemon_name: str):
 
                     def do_discard():
                         results_container.clear()
-                        scan_result.clear()
+                        scan_result[0] = None
                         _clear_session()
                         ui.notify("Changes discarded", type="info")
 
