@@ -405,12 +405,16 @@ class DaemonServer:
         Returns:
             dict: Response with 'output' and 'exit_code'
         """
+        cwd = hook_data.pop("_daemon_cwd", None)
+        try:
+            self.state.check_project_config(cwd)
+        except Exception:
+            pass
+
         if self.state.paused:
             return {"output": "{}", "exit_code": 0}
 
         self.state.record_activity()
-
-        cwd = hook_data.pop("_daemon_cwd", None)
 
         # Per-directory pause (#958): skip scanning if this directory is paused
         if cwd and self.state.is_dir_paused(cwd):
@@ -425,7 +429,6 @@ class DaemonServer:
 
         try:
             self.state.get_config()
-            self.state.check_project_config(cwd)
 
             from ai_guardian import process_hook_data
 
