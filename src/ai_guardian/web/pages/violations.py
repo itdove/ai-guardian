@@ -1,6 +1,7 @@
 """Violations page — tabbed browser with details/correlation matching TUI."""
 
 import json
+from collections import Counter
 
 from nicegui import run, ui
 
@@ -9,100 +10,11 @@ from ai_guardian.web.components.local_time import (
     local_time_label,
 )
 
-from ai_guardian.constants import HookEvent
+from ai_guardian.constants import HookEvent, VIOLATION_FILTER_TYPES
 from ai_guardian.violations.guidance import get_resolution_instructions
 from ai_guardian.web.components.header import create_header, create_sidebar
 
-FILTER_TABS = [
-    ("All", None, "Show all violation types"),
-    (
-        "Tool Permission",
-        "tool_permission",
-        "Blocked tool/MCP server execution (permission rules)",
-    ),
-    (
-        "Secrets",
-        "secret_detected",
-        "Hard-coded secrets detected in files or prompts (API keys, tokens, passwords)",
-    ),
-    (
-        "Secret Redaction",
-        "secret_redaction",
-        "Secrets found in tool output and redacted before reaching the AI model",
-    ),
-    (
-        "Directories",
-        "directory_blocking",
-        "File access blocked by directory protection rules",
-    ),
-    (
-        "Prompt Injection",
-        "prompt_injection",
-        "Attempts to manipulate AI behavior detected in prompts or files",
-    ),
-    ("Jailbreak", "jailbreak_detected", "Attempts to bypass AI safety constraints"),
-    (
-        "SSRF Blocked",
-        "ssrf_blocked",
-        "Blocked access to private networks, metadata endpoints, or dangerous URLs",
-    ),
-    (
-        "Config Exfil",
-        "config_file_exfil",
-        "Credential exfiltration commands detected in AI config files (CLAUDE.md, AGENTS.md)",
-    ),
-    (
-        "PII Detected",
-        "pii_detected",
-        "Personal Identifiable Information found in files or prompts (SSN, credit card, phone)",
-    ),
-    (
-        "Secret in Transcript",
-        "secret_in_transcript",
-        "Secret found in conversation history (possibly from ! shell command)",
-    ),
-    (
-        "PII in Transcript",
-        "pii_in_transcript",
-        "Personal Identifiable Information found in conversation history",
-    ),
-    (
-        "Injection in Transcript",
-        "prompt_injection_in_transcript",
-        "Prompt injection pattern found in conversation history",
-    ),
-    (
-        "Annotation Suppressed",
-        "annotation_suppressed",
-        "Finding suppressed by an inline annotation (ai-guardian:allow, gitleaks:allow)",
-    ),
-    (
-        "Image Secret",
-        "image_secret_detected",
-        "Secret detected in image via OCR scanning",
-    ),
-    ("Image PII", "image_pii_detected", "PII detected in image via OCR scanning"),
-    (
-        "Code Security",
-        "code_security",
-        "Insecure Python code patterns detected by Bandit (eval, shell injection, weak crypto)",
-    ),
-    (
-        "Offensive Language",
-        "offensive_language",
-        "Profanity, slurs, or non-inclusive terminology detected",
-    ),
-    (
-        "Canary Detected",
-        "canary_detected",
-        "User-registered canary token found in AI output — possible data exfiltration",
-    ),
-    (
-        "Exfil Detection",
-        "exfil_detection",
-        "Bash command blocked due to credential exfiltration behavior",
-    ),
-]
+FILTER_TABS = [("All", None, "Show all violation types")] + list(VIOLATION_FILTER_TYPES)
 
 DETAIL_FIELDS = {
     "tool_permission": [
@@ -314,13 +226,13 @@ def create_violations_page(service, daemon_name: str):
 
         active_filter = {"vtype": None}
         active_dir_filter = {"dir": None}
+        cached_violations: list = []
 
         filter_options = {label: vtype for label, vtype, _ in FILTER_TABS}
-        sorted_options = ["All"] + sorted(k for k in filter_options if k != "All")
 
         with ui.row().classes("items-end gap-2 flex-wrap"):
             filter_select = ui.select(
-                options=sorted_options,
+                options=["All"],
                 value="All",
                 label="Filter by type",
             ).classes("w-64")
@@ -366,14 +278,14 @@ def create_violations_page(service, daemon_name: str):
 
         async def on_filter_change(e):
             active_filter["vtype"] = filter_options.get(e.value)
-            await load_violations()
+            _render_filtered()
 
         filter_select.on_value_change(on_filter_change)
 
         async def on_dir_filter_change(e):
             val = e.value or ""
             active_dir_filter["dir"] = val.strip() if val else None
-            await load_violations()
+            _render_filtered()
 
         dir_select.on_value_change(on_dir_filter_change)
 
@@ -389,43 +301,61 @@ def create_violations_page(service, daemon_name: str):
 
         cards_container = ui.column().classes("w-full gap-1")
 
-        async def load_violations():
+        def _update_filter_counts():
+            type_counts = Counter(
+                v.get("violation_type", "") for v in cached_violations
+            )
+            opts = {"All": f"All ({len(cached_violations)})"}
+            for label, vt, _ in FILTER_TABS:
+                if vt is not None:
+                    opts[label] = f"{label} ({type_counts.get(vt, 0)})"
+            sorted_opts = {"All": opts["All"]}
+            for k in sorted(k for k in opts if k != "All"):
+                sorted_opts[k] = opts[k]
+            filter_select.options = sorted_opts
+            filter_select.update()
+
+        def _render_filtered():
             cards_container.clear()
             vtype = active_filter["vtype"]
             dir_filter = active_dir_filter["dir"]
-            await run.io_bound(service.refresh_targets)
-            target = service.get_target_by_name(daemon_name)
 
-            all_violations = []
-            if target:
-                if target.runtime == "local":
-                    raw = await run.io_bound(_load_local_violations, 50, vtype)
-                else:
-                    raw = await run.io_bound(
-                        service.get_daemon_violations, target, 50, vtype
-                    )
-                if raw:
-                    vlist = raw if isinstance(raw, list) else raw.get("violations", [])
-                    all_violations.extend(vlist)
-
-            all_violations.sort(key=lambda v: v.get("timestamp", ""), reverse=True)
-
-            if dir_filter:
-                all_violations = [
-                    v for v in all_violations if _violation_matches_dir(v, dir_filter)
-                ]
+            filtered = [
+                v
+                for v in cached_violations
+                if (not vtype or v.get("violation_type") == vtype)
+                and (not dir_filter or _violation_matches_dir(v, dir_filter))
+            ]
+            filtered.sort(key=lambda v: v.get("timestamp", ""), reverse=True)
 
             with cards_container:
-                if not all_violations:
+                if not filtered:
                     ui.label("No violations found.").classes("text-grey-6 mt-4")
                     return
-                ui.label(f"{len(all_violations)} violations").classes(
-                    "text-xs text-grey-6"
-                )
-                for v in all_violations:
+                ui.label(f"{len(filtered)} violations").classes("text-xs text-grey-6")
+                for v in filtered:
                     _render_violation_card(v, service, daemon_name)
 
             inject_local_time_js()
+
+        async def load_violations():
+            await run.io_bound(service.refresh_targets)
+            target = service.get_target_by_name(daemon_name)
+
+            cached_violations.clear()
+            if target:
+                if target.runtime == "local":
+                    raw = await run.io_bound(_load_local_violations, 500, None)
+                else:
+                    raw = await run.io_bound(
+                        service.get_daemon_violations, target, 500, None
+                    )
+                if raw:
+                    vlist = raw if isinstance(raw, list) else raw.get("violations", [])
+                    cached_violations.extend(vlist)
+
+            _update_filter_counts()
+            _render_filtered()
 
         with ui.row().classes("gap-2"):
             ui.button(
