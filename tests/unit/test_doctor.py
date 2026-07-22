@@ -434,6 +434,87 @@ class TestCheckHooks:
                 assert result.status == CheckStatus.PASS
                 assert "5/5" in result.message
 
+    def test_missing_config_file_not_failure(self, _isolate_config_dir, tmp_path):
+        """IDE detected but config file missing → not FAIL (e.g. Crush on CI)."""
+        nonexistent = tmp_path / "nonexistent" / ".crush.json"
+
+        with mock.patch(
+            "ai_guardian.setup.IDESetup.list_detected_ides",
+            return_value=["crush"],
+        ):
+            with mock.patch(
+                "ai_guardian.setup.IDESetup.get_config_path",
+                return_value=str(nonexistent),
+            ):
+                doctor = Doctor()
+                result = doctor.check_hooks()
+                assert result.status != CheckStatus.FAIL
+                assert "not installed" in result.message
+
+    def test_mixed_configured_and_missing_config(self, _isolate_config_dir, tmp_path):
+        """One IDE configured + another with missing config → PASS, not FAIL."""
+        claude_dir = tmp_path / ".claude"
+        claude_dir.mkdir()
+        settings_path = claude_dir / "settings.json"
+        settings_path.write_text(
+            json.dumps(
+                {
+                    "hooks": {
+                        "UserPromptSubmit": [
+                            {
+                                "matcher": "*",
+                                "hooks": [
+                                    {"type": "command", "command": "ai-guardian"}
+                                ],
+                            }
+                        ],
+                        "PreToolUse": [
+                            {
+                                "matcher": "*",
+                                "hooks": [
+                                    {"type": "command", "command": "ai-guardian"}
+                                ],
+                            }
+                        ],
+                        "PostToolUse": [
+                            {
+                                "matcher": "*",
+                                "hooks": [
+                                    {"type": "command", "command": "ai-guardian"}
+                                ],
+                            }
+                        ],
+                        "SessionEnd": [
+                            {"hooks": [{"type": "command", "command": "ai-guardian"}]}
+                        ],
+                        "PostCompact": [
+                            {"hooks": [{"type": "command", "command": "ai-guardian"}]}
+                        ],
+                    }
+                }
+            )
+        )
+        nonexistent = tmp_path / ".crush.json"
+
+        def fake_config_path(ide_type):
+            if ide_type == "claude":
+                return str(settings_path)
+            return str(nonexistent)
+
+        with mock.patch(
+            "ai_guardian.setup.IDESetup.list_detected_ides",
+            return_value=["claude", "crush"],
+        ):
+            with mock.patch(
+                "ai_guardian.setup.IDESetup.get_config_path",
+                side_effect=fake_config_path,
+            ):
+                doctor = Doctor()
+                result = doctor.check_hooks()
+                assert result.status == CheckStatus.PASS
+                assert "5/5" in result.message
+                assert "not installed" in result.message
+
 
 class TestCheckStateDir:
     def test_exists_writable(self, _isolate_config_dir):

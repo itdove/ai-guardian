@@ -858,8 +858,7 @@ class Doctor:
             ide_name = setup.IDE_CONFIGS[ide_type]["name"]
 
             if not config_path.exists():
-                results.append(f"{ide_name}: no config file")
-                all_configured = False
+                results.append(f"{ide_name}: not installed (no config)")
                 continue
 
             configured = setup.check_hooks_configured(config_path, ide_type)
