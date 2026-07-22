@@ -12,7 +12,7 @@ from ai_guardian.patterns.toml_parser import load_and_compile, load_toml_file
 PATTERNS_DIR = DATA_DIR
 
 EXPECTED_COUNTS = {
-    "secrets.toml": 84,
+    "secrets.toml": 85,
     "pii.toml": 13,
     "prompt-injection.toml": 73,
     "unicode.toml": 107,
@@ -198,6 +198,42 @@ GITLEAKS_DETECTION_CASES = [
     ("1password-service-account-token", 'token = "ops_eyJ' + "A" * 260 + '"'),
 ]
 
+ISSUE_1678_DETECTION_CASES = [
+    (
+        "credentials-in-git-url",
+        "https://x-access-token:eyJhbGciOiJSUzI1NiJ9.eyJzdWI@github.com/org/repo.git",
+    ),
+    (
+        "credentials-in-git-url",
+        "https://oauth2:some-long-pat-value@gitlab.com/org/repo.git",
+    ),
+    (
+        "credentials-in-git-url",
+        "https://user:" + "supersecret" + "password" + "@bitbucket.org/team/repo.git",
+    ),
+    (
+        "credentials-in-git-url",
+        "https://token:" + "A" * 40 + "@dev.azure.com/org/project/_git/repo",
+    ),
+    (
+        "credentials-in-git-url",
+        "http://deploy:ghp_" + "A" * 36 + "@github.com/org/repo.git",
+    ),
+]
+
+ISSUE_1678_FALSE_POSITIVE_CASES = [
+    ("credentials-in-git-url", "https://user:short@github.com/org/repo.git"),
+    ("credentials-in-git-url", "https://user:PASSWORD@github.com/example"),
+    ("credentials-in-git-url", "https://user:TOKEN@gitlab.com/example"),
+    ("credentials-in-git-url", "https://user:YOUR_TOKEN@bitbucket.org/example"),
+    ("credentials-in-git-url", "https://user:xxxxxxxx@github.com/example"),
+    ("credentials-in-git-url", "https://registry.npmjs.org/@scope/package"),
+    ("credentials-in-git-url", "https://user:port@randomhost.com/path"),
+    ("credentials-in-git-url", "https://user:$GITHUB_TOKEN@github.com/org/repo"),
+    ("credentials-in-git-url", "https://user:${GIT_PASSWORD}@gitlab.com/org/repo"),
+    ("credentials-in-git-url", "https://user:%GIT_TOKEN%@github.com/org/repo"),
+]
+
 GITLEAKS_FALSE_POSITIVE_CASES = [
     ("cohere-api-token", 'cohere_key = "abc123"'),
     ("doppler-api-token", "dp.pt.tooshort"),
@@ -223,12 +259,16 @@ GITLEAKS_FALSE_POSITIVE_CASES = [
 ]
 
 ALL_DETECTION_CASES = (
-    NEW_SECRET_DETECTION_CASES + ISSUE_1617_DETECTION_CASES + GITLEAKS_DETECTION_CASES
+    NEW_SECRET_DETECTION_CASES
+    + ISSUE_1617_DETECTION_CASES
+    + GITLEAKS_DETECTION_CASES
+    + ISSUE_1678_DETECTION_CASES
 )
 ALL_FALSE_POSITIVE_CASES = (
     NEW_SECRET_FALSE_POSITIVE_CASES
     + ISSUE_1617_FALSE_POSITIVE_CASES
     + GITLEAKS_FALSE_POSITIVE_CASES
+    + ISSUE_1678_FALSE_POSITIVE_CASES
 )
 
 
