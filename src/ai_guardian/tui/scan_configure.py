@@ -19,7 +19,7 @@ from textual.containers import (
 )
 from textual.widgets import Static, Button, Input
 
-from ai_guardian.scan_analyzer import RULE_ID_LABELS
+from ai_guardian.constants import RULE_ID_LABELS
 from ai_guardian.tui.utils import quiet_logging
 
 

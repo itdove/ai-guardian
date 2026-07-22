@@ -4,31 +4,7 @@ from nicegui import ui
 
 from ai_guardian import __version__
 
-SLUG_TO_CONFIG_SECTION = {
-    "/secrets": "secret_scanning",
-    "/secret-engines": "secret_scanning",
-    "/secret-redaction": "secret_redaction",
-    "/scan-pii": "scan_pii",
-    "/pi-detection": "prompt_injection",
-    "/pi-ml-engines": "prompt_injection",
-    "/pi-patterns": "prompt_injection",
-    "/pi-jailbreak": "prompt_injection",
-    "/pi-unicode": "prompt_injection",
-    "/ssrf": "ssrf_protection",
-    "/config-scanner": "config_file_scanning",
-    "/context-poisoning": "context_poisoning",
-    "/supply-chain": "supply_chain",
-    "/code-security": "code_scanning",
-    "/offensive-language": "scan_offensive",
-    "/canary-detection": "canary_detection",
-    "/exfil-detection": "exfil_detection",
-    "/annotations": "annotations",
-    "/permission-rules": "permissions",
-    "/directory-rules": "directory_rules",
-    "/violation-logging": "violation_logging",
-    "/performance": "latency_tracking",
-}
-
+from ai_guardian.constants import SLUG_TO_CONFIG_SECTION
 
 _show_disabled_scanners = True
 

@@ -30,8 +30,8 @@ class TestConfigSectionForRuleId:
     def test_supply_chain(self):
         assert config_section_for_rule_id("SUPPLY-CHAIN-001") == "supply_chain"
 
-    def test_unicode_returns_none(self):
-        assert config_section_for_rule_id("UNICODE-001") is None
+    def test_unicode_maps_to_prompt_injection(self):
+        assert config_section_for_rule_id("UNICODE-001") == "prompt_injection"
 
     def test_unknown_returns_none(self):
         assert config_section_for_rule_id("UNKNOWN-999") is None

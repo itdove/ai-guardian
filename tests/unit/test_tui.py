@@ -160,7 +160,7 @@ class TestPanelToConfigSection:
     def test_mapping_consistent_with_web(self):
         """Web and TUI mappings should cover same config sections."""
         try:
-            from ai_guardian.web.components.header import SLUG_TO_CONFIG_SECTION
+            from ai_guardian.constants import SLUG_TO_CONFIG_SECTION
 
             web_sections = set(SLUG_TO_CONFIG_SECTION.values())
             tui_sections = set(PANEL_TO_CONFIG_SECTION.values())

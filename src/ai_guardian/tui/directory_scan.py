@@ -27,7 +27,7 @@ from textual.containers import (
 from textual.screen import ModalScreen
 from textual.widgets import Static, Button, Input, Checkbox, Label, Select, TextArea
 
-from ai_guardian.scan_analyzer import RULE_ID_LABELS
+from ai_guardian.constants import RULE_ID_LABELS
 from ai_guardian.tui.utils import quiet_logging
 
 FORMAT_OPTIONS = [
