@@ -44,7 +44,6 @@ NAV_GROUPS = [
         [
             ("Permission Rules", "/permission-rules"),
             ("MCP Settings", "/mcp-servers"),
-            ("MCP Security", "/mcp-security"),
             ("Permissions Discovery", "/permissions-discovery"),
             ("Auto Directory Rules", "/auto-directory-rules"),
             ("Directory Rules", "/directory-rules"),
@@ -106,6 +105,7 @@ NAV_GROUPS = [
             ("Engine Tester", "/engine-tester"),
             ("Directory Scan", "/directory-scan"),
             ("Scan Configure", "/scan-configure"),
+            ("MCP Security", "/mcp-security"),
         ],
     ),
 ]
