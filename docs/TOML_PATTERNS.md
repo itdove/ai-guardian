@@ -85,6 +85,8 @@ keywords = ["sk-"]
 | `entropy` | No | Minimum Shannon entropy for matched text (rejects low-entropy matches) |
 | `pii_type` | No | PII category for `scan_pii.types` filtering |
 | `group` | No | Confidence group for prompt injection rules |
+| `skip_file_types` | No | Array of file extensions to skip for this rule (e.g., `[".py", ".go"]`). The scanner executor skips the rule entirely when the scanned file matches any listed extension. |
+| `token_prefixes` | No | Array of known token prefixes for prefix-based detection (e.g., `["sk-or-", "hvs.", "AIza"]`). Used for fast prefix matching separate from keyword pre-filtering. |
 
 ## Pattern Servers
 

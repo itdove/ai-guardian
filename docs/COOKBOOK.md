@@ -23,6 +23,7 @@ For full configuration reference, see [CONFIGURATION.md](CONFIGURATION.md). For 
 - [Pattern Server](#pattern-server)
 - [Image Scanning](#image-scanning)
 - [Tray Plugins](#tray-plugins)
+- [Project Setup (v1.15.0)](#project-setup-v1150)
 - [Profiles](#profiles)
 - [MCP Server](#mcp-server)
 
@@ -1857,6 +1858,43 @@ The `import` field references another JSON file in `tray-plugins/`. The imported
   ]
 }
 ```
+
+---
+
+## Project Setup (v1.15.0)
+
+### How do I auto-generate config for my project?
+
+```bash
+ai-guardian init-project --scan
+```
+
+Scans your codebase for false positives and generates an `.ai-guardian/ai-guardian.json` with appropriate `allowlist_patterns`, `ignore_files`, and `stopwords`. Use `--threshold N` to only suppress patterns seen N or more times (default: 1).
+
+### How do I skip certain file types for a pattern?
+
+In a TOML pattern rule, add the `skip_file_types` field:
+
+```toml
+[[rules]]
+id = "generic-api-key"
+regex = '''(?i)api[_-]?key\s*[:=]\s*['"]?([A-Za-z0-9]{20,})['"]?'''
+skip_file_types = [".py", ".go"]
+```
+
+The scanner executor skips this rule entirely for files matching the listed extensions. This is a per-rule setting in TOML pattern files, not in `ai-guardian.json`. See [TOML_PATTERNS.md](TOML_PATTERNS.md) for the full field reference.
+
+### What is listen mode for LeakTK?
+
+When the ai-guardian daemon is running and LeakTK (v0.3.3+) is installed, secret scanning uses LeakTK's `listen` mode — a persistent background process that stays alive between scans. This eliminates subprocess spawn overhead, reducing per-scan latency from ~200ms to ~5ms (approximately 40x improvement). Listen mode activates automatically when the daemon detects LeakTK; no configuration is needed. If listen mode is unavailable, scanning falls back to the standard subprocess path.
+
+### How do I set up ML prompt injection detection?
+
+```bash
+ai-guardian ml setup
+```
+
+One command downloads a local ML model for prompt injection detection and configures it in your `ai-guardian.json`. Inference runs locally with no external API calls. For model details and advanced configuration, see [ML_ENGINE_SUPPORT.md](ML_ENGINE_SUPPORT.md).
 
 ---
 

@@ -525,6 +525,44 @@ Configure within the `secret_scanning` section:
 
 View with: `ai-guardian metrics --latency`. Data stored in `~/.local/state/ai-guardian/latency.jsonl`.
 
+## Project Config Generation (v1.15.0+)
+
+### init-project --scan
+
+Auto-generate a project-level config by scanning your codebase for false positives:
+
+```bash
+ai-guardian init-project --scan
+```
+
+This analyzes your project files, identifies likely false positives, and generates an `.ai-guardian/ai-guardian.json` with appropriate `allowlist_patterns`, `ignore_files`, and `stopwords` entries. Use the `--threshold` flag to control how aggressively patterns are suppressed:
+
+```bash
+ai-guardian init-project --scan --threshold 3    # Only suppress patterns seen 3+ times
+```
+
+Lower thresholds produce more permissive configs; higher thresholds are more conservative.
+
+### Language Overlay System
+
+AI Guardian auto-detects your project's primary language (Python, Go, JavaScript, etc.) and injects language-specific false positive suppressions. For example, Go projects automatically suppress common Go test patterns, and Python projects suppress Django/Flask placeholder patterns.
+
+Language detection runs during `init-project --scan` and during normal scanning when a project config is present. The overlays are additive — they extend your existing config without replacing user-defined rules.
+
+## Per-Rule File Type Skipping (v1.15.0+)
+
+Individual TOML pattern rules can declare `skip_file_types` to exclude specific file extensions:
+
+```json
+{
+  "secret_scanning": {
+    "engines": ["toml-patterns"]
+  }
+}
+```
+
+The `skip_file_types` field is set per-rule in TOML pattern files (not in `ai-guardian.json`). See [TOML_PATTERNS.md](TOML_PATTERNS.md) for the rule field reference.
+
 ---
 
 ## Related Documentation

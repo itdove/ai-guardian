@@ -101,6 +101,12 @@ When the ai-guardian daemon is running and LeakTK (v0.3.3+) is installed, secret
 - **Config changes:** The listen process restarts automatically when `ai-guardian.json` is modified, picking up new allowlists and settings.
 - **Pattern refresh:** LeakTK manages pattern updates internally (default: every 12 hours).
 
+### Detection Techniques (v1.15.0+)
+
+**Prefix-based token detection** — TOML rules can declare `token_prefixes` for fast prefix matching, separate from keyword-based pre-filtering. This enables detection of tokens with known prefixes (e.g., `sk-or-`, `hvs.`, `AIza`) without running the full regex against all content. See [TOML_PATTERNS.md](../TOML_PATTERNS.md) for field documentation.
+
+**Credentials in git remote URLs** — AI Guardian detects credentials embedded in git remote URLs (e.g., `https://user:token@github.com/org/repo`). This pattern catches a common source of credential leaks where tokens are hardcoded into remote URLs instead of using credential helpers. The detection runs automatically as part of the secret scanning pipeline.
+
 ### Advanced Configuration
 
 **Custom Binary Path:**
