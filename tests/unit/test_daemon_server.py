@@ -740,6 +740,35 @@ class TestDaemonServerPerDirPauseProtocol:
         finally:
             sock.close()
 
+    @pytest.mark.parametrize(
+        "pause_mode, cwd",
+        [("dir", "/project/a"), ("global", "/project/b")],
+        ids=["per-dir-pause", "global-pause"],
+    )
+    def test_paused_still_tracks_project_dir(self, running_server, pause_mode, cwd):
+        """Pause (dir or global) still updates _project_dir_last_seen (#1700)."""
+        server, sock_path = running_server
+        if pause_mode == "dir":
+            server.state.pause_dir(cwd)
+        else:
+            server.state.pause()
+
+        sock = _connect(sock_path)
+        try:
+            hook_data = {
+                "hook_event_name": "PreToolUse",
+                "tool_name": "Bash",
+                "tool_input": {"command": "ls"},
+                "_daemon_cwd": cwd,
+            }
+            sock.sendall(encode_message(make_hook_request(hook_data)))
+            response = decode_message(sock, timeout=5.0)
+            assert response["data"]["exit_code"] == 0
+        finally:
+            sock.close()
+
+        assert cwd in server.state._project_dir_last_seen
+
     def test_status_includes_paused_dirs(self, running_server):
         server, sock_path = running_server
         server.state.pause_dir("/project/a")
