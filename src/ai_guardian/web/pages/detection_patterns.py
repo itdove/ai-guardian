@@ -118,7 +118,6 @@ def create_detection_patterns_page(service, daemon_name: str):
 
         mode_hint = ui.label("").classes("text-xs text-grey-6 -mt-2")
 
-        badge_row = ui.row().classes("gap-2 flex-wrap")
         content = ui.column().classes("w-full gap-4")
 
         def _update_mode_hint():
@@ -157,12 +156,6 @@ def create_detection_patterns_page(service, daemon_name: str):
                 src_opts[s] = f"{s} ({src_counts[s]})"
             src_select.options = src_opts
             src_select.update()
-
-            badge_row.clear()
-            with badge_row:
-                for c in categories:
-                    color = "red" if c == "self_protection" else "blue"
-                    ui.badge(f"{c}: {counts[c]}", color=color).classes("text-xs")
 
             _render_table(all_rules)
 
