@@ -119,7 +119,7 @@ The tray auto-discovers running daemons and shows per-daemon submenus with Stati
 
 ### Container
 
-A pre-built container image is published to [quay.io/itdove/ai-guardian](https://quay.io/itdove/ai-guardian) with all headless-capable IDEs (Claude Code, OpenCode, Gemini CLI, Codex CLI, Kiro CLI, OpenClaw):
+A pre-built container image is published to [quay.io/itdove/ai-guardian](https://quay.io/itdove/ai-guardian) with all headless-capable IDEs (Claude Code, OpenCode, Gemini CLI, Codex CLI, Kiro CLI, OpenClaw, Crush):
 
 ```bash
 # Latest (tracks main branch)
@@ -127,8 +127,8 @@ podman pull quay.io/itdove/ai-guardian:latest
 podman run -it -p 63152:63152 -e AI_GUARDIAN_IDE=claude quay.io/itdove/ai-guardian:latest
 
 # Pinned release
-podman pull quay.io/itdove/ai-guardian:latest
-podman run -it -p 63152:63152 -e AI_GUARDIAN_IDE=claude quay.io/itdove/ai-guardian:latest
+podman pull quay.io/itdove/ai-guardian:v1.15.0
+podman run -it -p 63152:63152 -e AI_GUARDIAN_IDE=claude quay.io/itdove/ai-guardian:v1.15.0
 
 # Or build from source
 podman build -t ai-guardian container/
@@ -179,8 +179,8 @@ ai-guardian setup --ide claude --create-config --profile @strict --install-scann
 | Multi-Daemon Tray | Discover and manage daemons across local, Podman/Docker, and Kubernetes | [docs/MULTI_DAEMON_TRAY.md](https://github.com/itdove/ai-guardian/blob/main/docs/MULTI_DAEMON_TRAY.md) |
 | Desktop Shortcut & Autostart | Install tray as desktop app with optional login startup | [docs/MULTI_DAEMON_TRAY.md](https://github.com/itdove/ai-guardian/blob/main/docs/MULTI_DAEMON_TRAY.md#desktop-shortcuts) |
 | Tray Plugins | Custom menu items with native tkinter popup forms (Textual terminal fallback), platform-aware commands | [docs/MULTI_DAEMON_TRAY.md](https://github.com/itdove/ai-guardian/blob/main/docs/MULTI_DAEMON_TRAY.md#tray-plugins) |
-| TOML Pattern Engine | Built-in Python scanner with 267 pre-compiled patterns, no binary required | [docs/TOML_PATTERNS.md](https://github.com/itdove/ai-guardian/blob/main/docs/TOML_PATTERNS.md) |
-| Multi-Agent Support | Hook adapters for 12 AI coding agents with normalized input/output | [docs/AGENT_SUPPORT.md](https://github.com/itdove/ai-guardian/blob/main/docs/AGENT_SUPPORT.md) |
+| TOML Pattern Engine | Built-in Python scanner with 425 pre-compiled patterns, no binary required | [docs/TOML_PATTERNS.md](https://github.com/itdove/ai-guardian/blob/main/docs/TOML_PATTERNS.md) |
+| Multi-Agent Support | Hook adapters for 14 AI coding agents with normalized input/output | [docs/AGENT_SUPPORT.md](https://github.com/itdove/ai-guardian/blob/main/docs/AGENT_SUPPORT.md) |
 | Container Image | UBI-based image with all headless IDEs and scanners, published to quay.io | [container/README.md](https://github.com/itdove/ai-guardian/blob/main/container/README.md) |
 | Supply Chain Scanning | Detect malicious patterns in agent hooks, MCP configs, and plugin files | [docs/CONFIGURATION.md](https://github.com/itdove/ai-guardian/blob/main/docs/CONFIGURATION.md#supply-chain-scanning) |
 | Context Poisoning Detection | Detect persistent instruction injection in conversation context (OWASP LLM03) | [docs/security/CONTEXT_POISONING.md](https://github.com/itdove/ai-guardian/blob/main/docs/security/CONTEXT_POISONING.md) |
@@ -194,6 +194,14 @@ ai-guardian setup --ide claude --create-config --profile @strict --install-scann
 | Dummy Agent | LLM-free hook testing via interactive REPL with YAML scenario files | [docs/AGENT_SUPPORT.md](https://github.com/itdove/ai-guardian/blob/main/docs/AGENT_SUPPORT.md) |
 | Kubernetes Deployment | Kustomize manifests for Kind, OpenShift, and production deployments | [docs/kubernetes.md](https://github.com/itdove/ai-guardian/blob/main/docs/kubernetes.md) |
 | Security Instructions | Configurable agent context injection rules via TUI and web console | [docs/CONFIGURATION.md](https://github.com/itdove/ai-guardian/blob/main/docs/CONFIGURATION.md) |
+| Transcript Scanning | Scan IDE conversation transcripts for secrets/PII across 7+ IDEs | [docs/AGENT_SUPPORT.md](https://github.com/itdove/ai-guardian/blob/main/docs/AGENT_SUPPORT.md#transcript-scanning-availability) |
+| LeakTK Listen Mode | Event-driven scanning with 40x latency reduction vs polling | [docs/SCANNER_INSTALLATION.md](https://github.com/itdove/ai-guardian/blob/main/docs/SCANNER_INSTALLATION.md) |
+| Zero-Config Onboarding | `init --scan` scans the project and generates a tuned config | [docs/CONFIGURATION.md](https://github.com/itdove/ai-guardian/blob/main/docs/CONFIGURATION.md) |
+| Language-Aware FP Suppression | Tree-sitter AST parsing reduces false positives in code | [docs/security/PROMPT_INJECTION.md](https://github.com/itdove/ai-guardian/blob/main/docs/security/PROMPT_INJECTION.md) |
+| ML Prompt Injection Setup | One-command `ai-guardian ml setup` installs model + dependencies | [docs/security/PROMPT_INJECTION.md](https://github.com/itdove/ai-guardian/blob/main/docs/security/PROMPT_INJECTION.md) |
+| Crush IDE Support | Hook adapter for Charmbracelet Crush with MCP advisory | [docs/AGENT_SUPPORT.md](https://github.com/itdove/ai-guardian/blob/main/docs/AGENT_SUPPORT.md) |
+| Event-Driven Tray Updates | Tray refreshes on daemon state changes instead of polling | [docs/MULTI_DAEMON_TRAY.md](https://github.com/itdove/ai-guardian/blob/main/docs/MULTI_DAEMON_TRAY.md) |
+| Scan & Configure UI | Web console workflow to scan a project and generate config | [docs/CONSOLE.md](https://github.com/itdove/ai-guardian/blob/main/docs/CONSOLE.md) |
 
 ## Default Behavior (No Configuration File)
 
@@ -266,13 +274,22 @@ See [docs/CONFIGURATION.md](https://github.com/itdove/ai-guardian/blob/main/docs
 
 ## Integration
 
-| IDE | Prompt Scanning | File Scanning | Output Scanning | Status |
-|-----|----------------|---------------|-----------------|--------|
-| Claude Code CLI | Yes | Yes | PostToolUse (ready) | Full support |
-| VS Code Claude | Yes | Yes | PostToolUse (ready) | Full support |
-| Cursor IDE | Yes | Yes | Yes | Full support |
-| GitHub Copilot | Yes | Yes | Planned | Full support |
-| Aider | No | Yes (commit-time) | No | Git hook |
+| Agent | Setup Command | Hooks | MCP | Status |
+|-------|--------------|-------|-----|--------|
+| Claude Code | `--ide claude` | Full | Full | Complete |
+| Cursor | `--ide cursor` | Full | N/A | Complete |
+| GitHub Copilot | `--ide copilot` | Full | N/A | Complete |
+| OpenAI Codex | `--ide codex` | Full | N/A | Complete |
+| Windsurf | `--ide windsurf` | Full | N/A | Complete |
+| Gemini CLI | `--ide gemini` | Full | N/A | Complete |
+| Cline / ZooCode | `--ide cline` | Full | N/A | Complete |
+| Kiro (AWS) | `--ide kiro` | Full | N/A | Complete |
+| Augment Code | `--ide augment` | Full | N/A | Complete |
+| AiderDesk | `--ide aiderdesk` | Extension | N/A | Complete |
+| OpenClaw | `--ide openclaw` | Plugin | N/A | Complete |
+| OpenCode | `--ide opencode` | Plugin | N/A | Complete |
+| Crush (Charmbracelet) | `--ide crush` | Partial | Full | Complete |
+| Junie (JetBrains) | `--ide junie` | N/A | Full | MCP-only |
 
 - [GitHub Copilot Setup](https://github.com/itdove/ai-guardian/blob/main/docs/GITHUB_COPILOT.md)
 - [Aider Setup](https://github.com/itdove/ai-guardian/blob/main/docs/AIDER.md)
@@ -333,7 +350,7 @@ ai-guardian works out of the box with built-in Python-native scanners, NiceGUI/T
 | **gitleaks** | Additional secret scanner engine | `ai-guardian scanner install gitleaks` |
 | **betterleaks** | Additional secret scanner engine | `ai-guardian scanner install betterleaks` |
 | **trufflehog** | Additional secret scanner engine (AGPL, subprocess) | `ai-guardian scanner install trufflehog` |
-| **ML model** | ML-based prompt injection detection | `ai-guardian ml download` |
+| **ML model** | ML-based prompt injection detection | `ai-guardian ml setup` (or `ml download` for model only) |
 
 ### tkinter Install by Platform
 
@@ -805,6 +822,7 @@ AI Guardian protects multiple AI coding agents through a unified hook adapter ar
 | AiderDesk | `--ide aiderdesk` | Extension | N/A | **Complete** |
 | OpenClaw | `--ide openclaw` | Plugin | N/A | **Complete** |
 | OpenCode | `--ide opencode` | Plugin | N/A | **Complete** |
+| Crush (Charmbracelet) | `--ide crush` | Partial | Full | **Complete** |
 | Junie (JetBrains) | `--ide junie` | N/A | Full | **MCP-only** |
 
 ## Hook Capability Matrix
@@ -821,6 +839,7 @@ AI Guardian protects multiple AI coding agents through a unified hook adapter ar
 | Kiro | N/A | Yes | Yes | Yes | N/A | N/A | N/A |
 | Augment Code | N/A | N/A | Yes | Yes | N/A | N/A | N/A |
 | OpenCode | N/A | Yes (chat.message) | Yes | Yes | N/A | N/A | N/A |
+| Crush | N/A | N/A | Yes | N/A | N/A | N/A | N/A |
 | Junie | N/A | N/A | N/A | N/A | N/A | N/A | N/A |
 
 ## Protection Level by Hook Availability
@@ -849,8 +868,8 @@ Agents with full hook support not shown individually (Windsurf, Gemini CLI, Clin
 | jailbreak_detected | Pre+Prompt | Enforce | Enforce | Partial | Advisory |
 | ssrf_blocked | Pre | Enforce | Enforce | Enforce | Advisory |
 | config_file_exfil | Pre | Enforce | Enforce | Enforce | No |
-| secret_in_transcript | Prompt | Enforce | No | Enforce | No |
-| pii_in_transcript | Prompt | Enforce | No | Enforce | No |
+| secret_in_transcript | Prompt | Enforce | Enforce | Enforce | No |
+| pii_in_transcript | Prompt | Enforce | Enforce | Enforce | No |
 | image_secret | Pre | Caution | Caution | Caution | No |
 | image_pii | Pre | Caution | Caution | Caution | No |
 | offensive_language | Pre+Post | Enforce | Enforce | Partial | Advisory |
@@ -909,16 +928,36 @@ Claude Code binary file reads bypass hooks — image content may not pass throug
 
 ### Transcript scanning availability
 
-Claude Code exposes the conversation transcript to hooks via `UserPromptSubmit` (JSONL file). OpenCode stores sessions in a SQLite database; ai-guardian reads it directly to scan for secrets and PII. Copilot CLI and Codex store JSONL transcripts at known default locations; ai-guardian discovers these paths via the adapter when the IDE does not provide a `transcript_path` in hook data.
+Claude Code exposes the conversation transcript to hooks via `UserPromptSubmit` (JSONL file). OpenCode and Cursor store sessions in SQLite databases; Cline stores conversations as JSON arrays in per-task directories; Windsurf stores Cascade transcripts as JSONL step files; ai-guardian reads them directly to scan for secrets and PII. Copilot CLI and Codex store JSONL transcripts at known default locations; ai-guardian discovers these paths via the adapter when the IDE does not provide a `transcript_path` in hook data. Copilot Chat for VS Code stores sessions as JSONL delta journal files in VS Code's `workspaceStorage/*/chatSessions/` directories. AiderDesk stores Markdown chat history at `.aider.chat.history.md` in the project root. OpenClaw stores JSONL transcripts at `~/.openclaw/transcripts/`.
+
+Transcript scanning uses a polymorphic `TranscriptAdapter` interface (`scanners/transcript/base.py`). Each IDE format has its own adapter that implements `can_scan()` and `scan_incremental()`.
 
 | Agent | Format | Default Path |
 |-------|--------|-------------|
 | Claude Code | JSONL | Provided by IDE in hook data |
+| Cursor | SQLite | `~/Library/Application Support/Cursor/User/globalStorage/state.vscdb` |
 | OpenCode | SQLite | `~/.opencode/sessions/*.db` |
 | Copilot CLI | JSONL | `~/.copilot/session-state/events.jsonl` |
 | Codex | JSONL | `~/.codex/sessions/YYYY/MM/DD/*.jsonl` |
+| Cline / ZooCode | JSON array | `~/Library/Application Support/Code/User/globalStorage/saoudrizwan.claude-dev/tasks/<task_id>/api_conversation_history.json` |
+| Windsurf | JSONL | `~/.windsurf/transcripts/{trajectory_id}.jsonl` |
+| Copilot Chat (VS Code) | JSONL (delta journal) | `~/Library/Application Support/Code/User/workspaceStorage/*/chatSessions/*.jsonl` |
+| Kiro | JSONL | `~/.kiro/sessions/cli/{session_id}.jsonl` |
+| AiderDesk | Markdown | `.aider.chat.history.md` (project root) |
+| OpenClaw | JSONL | `~/.openclaw/transcripts/YYYY-MM-DD/{session}/transcript.jsonl` |
+| Copilot Chat (VS Code) | JSONL delta journal | `workspaceStorage/*/chatSessions/*.jsonl` |
 
-Other agents without transcript access cannot perform transcript scanning.
+Agents not listed above do not have transcript scanning support.
+
+#### Augment Code — transcript scanning not currently feasible
+
+Augment Code (Auggie CLI) stores conversation sessions server-side, not as local files. The only local files under `~/.augment/` are authentication (`session.json`), settings (`settings.json`), commands, and rules. Augment also does not implement a `UserPromptSubmit` hook event (only PreToolUse, PostToolUse, Stop, SessionStart, SessionEnd), and transcript scanning requires the PROMPT event to trigger. This can be revisited if Augment exposes local session files or adds a UserPromptSubmit-equivalent hook.
+
+### Crush (Charmbracelet) — PreToolUse only
+
+Crush currently implements only the `PreToolUse` hook event. PostToolUse, UserPromptSubmit, and other events are proposed but not yet available (see their `docs/hooks/FUTURE.md`). This means post-tool redaction, prompt scanning, and transcript scanning are not enforced. ai-guardian's MCP advisory server provides supplementary coverage.
+
+Crush uses the FSL-1.1-MIT license (Functional Source License) — not OSI-approved open source. The license auto-converts to MIT on the second anniversary of each release. ai-guardian's integration (writing hook configs and adapters) is unaffected.
 
 ### MCP-only agents
 
@@ -943,6 +982,7 @@ Testing depth varies by agent. Confidence reflects how thoroughly the hook adapt
 | AiderDesk | Low | Extension-based, limited testing |
 | OpenClaw | Low | Plugin-based, limited testing |
 | OpenCode | Low | Plugin-based, limited testing |
+| Crush | Low | Compatible with Claude Code format; only PreToolUse available |
 
 ## Community Testing Feedback
 
@@ -958,12 +998,12 @@ Report via [GitHub Discussions](https://github.com/itdove/ai-guardian/discussion
 
 Each agent uses different event names. The adapter layer normalizes these.
 
-| Concept | Claude Code | Copilot | Cursor | Windsurf | Gemini CLI | Cline | Kiro | OpenCode |
-|---------|------------|---------|--------|----------|-----------|-------|------|----------|
-| Session start | `SessionStart` | N/A | N/A | N/A | `SessionStart` | N/A | N/A | N/A |
-| Before tool | `PreToolUse` | `preToolUse` | `beforeShellExecution` | `pre_run_command` | `BeforeTool` | `PreToolUse` | `pre_tool_use` | `tool.execute.before` |
-| After tool | `PostToolUse` | `postToolUse` | `postToolUse` | `post_run_command` | `AfterTool` | `PostToolUse` | `post_tool_use` | `tool.execute.after` |
-| User prompt | `UserPromptSubmit` | `userPromptSubmitted` | `beforeSubmitPrompt` | `pre_user_prompt` | `BeforeAgent` | `UserPromptSubmit` | `prompt_submit` | `message.submit` |
+| Concept | Claude Code | Copilot | Cursor | Windsurf | Gemini CLI | Cline | Kiro | OpenCode | Crush |
+|---------|------------|---------|--------|----------|-----------|-------|------|----------|-------|
+| Session start | `SessionStart` | N/A | N/A | N/A | `SessionStart` | N/A | N/A | N/A | N/A |
+| Before tool | `PreToolUse` | `preToolUse` | `beforeShellExecution` | `pre_run_command` | `BeforeTool` | `PreToolUse` | `pre_tool_use` | `tool.execute.before` | `PreToolUse` |
+| After tool | `PostToolUse` | `postToolUse` | `postToolUse` | `post_run_command` | `AfterTool` | `PostToolUse` | `post_tool_use` | `tool.execute.after` | N/A (proposed) |
+| User prompt | `UserPromptSubmit` | `userPromptSubmitted` | `beforeSubmitPrompt` | `pre_user_prompt` | `BeforeAgent` | `UserPromptSubmit` | `prompt_submit` | `message.submit` | N/A (proposed) |
 
 ## Response Format Differences
 
@@ -978,6 +1018,7 @@ Each agent uses different event names. The adapter layer normalizes these.
 | Windsurf | Exit code 2 + stderr | stderr = error message |
 | Codex | Same as Claude Code | Same as Claude Code |
 | OpenCode | Same as Claude Code | Same as Claude Code |
+| Crush | Same as Claude Code | Same as Claude Code |
 
 ## Agent-Facing Message Delivery
 
@@ -991,6 +1032,7 @@ When ai-guardian detects a non-blocking issue (warn/log mode) or injects securit
 | Augment | `systemMessage` | `hookSpecificOutput.additionalContext` | All (incl. PreToolUse deny) | Confirmed (inherits Claude Code) |
 | Codex | `systemMessage` | `hookSpecificOutput.additionalContext` | All (incl. PreToolUse deny) | Confirmed (inherits Claude Code) |
 | OpenCode | `systemMessage` | `hookSpecificOutput.additionalContext` | All (incl. PreToolUse deny) | Best-effort (bridge plugin) |
+| Crush | `systemMessage` | `hookSpecificOutput.additionalContext` | PreToolUse (incl. deny) | Best-effort (compatible format) |
 | Cursor | `user_message` | `agent_message` | All (incl. PreToolUse deny) | Confirmed |
 | Gemini CLI | `systemMessage` | `additionalContext` | Prompt, PostToolUse, PreToolUse deny (best-effort) | Confirmed |
 | Cline | `errorMessage` (block) | `contextModification` | All (incl. block) | Confirmed |
@@ -1027,6 +1069,7 @@ hook_adapters/
 ├── kiro.py              # Kiro + AiderDesk + OpenClaw
 ├── augment.py           # Augment Code (extends ClaudeCodeAdapter)
 ├── opencode.py          # OpenCode (extends ClaudeCodeAdapter)
+├── crush.py             # Crush (extends ClaudeCodeAdapter)
 └── junie.py             # Junie (MCP-only placeholder)
 ```
 
@@ -1045,6 +1088,7 @@ Detection priority checks unique fields:
 - `kiro_hook_type` → Kiro
 - `is_mcp_tool` → Augment Code
 - `opencode_version` → OpenCode
+- `CRUSH` env var or `event`+`tool_input` → Crush
 
 ### NormalizedHookInput
 
@@ -1072,7 +1116,7 @@ Install hooks for any supported agent:
 ai-guardian setup --ide <agent-name>
 ```
 
-Agent names: `claude`, `cursor`, `copilot`, `codex`, `windsurf`, `gemini`, `cline`, `zoocode`, `kiro`, `augment`, `aiderdesk`, `openclaw`, `opencode`, `junie`
+Agent names: `claude`, `cursor`, `copilot`, `codex`, `windsurf`, `gemini`, `cline`, `zoocode`, `kiro`, `augment`, `aiderdesk`, `openclaw`, `opencode`, `crush`, `junie`
 
 ### Config File Locations
 
@@ -1088,6 +1132,7 @@ Agent names: `claude`, `cursor`, `copilot`, `codex`, `windsurf`, `gemini`, `clin
 | Kiro | `.kiro/hooks/` (scripts) |
 | Augment Code | `~/.augment/settings.json` |
 | OpenCode | `~/.config/opencode/plugins/ai-guardian.ts` (plugin) |
+| Crush | `.crush.json` (project) or `~/.config/crush/crush.json` (global) |
 | Junie | `.junie/guidelines` (MCP only) |
 
 ## Per-Agent Deep-Dive Guides
@@ -2398,6 +2443,44 @@ Configure within the `secret_scanning` section:
 
 View with: `ai-guardian metrics --latency`. Data stored in `~/.local/state/ai-guardian/latency.jsonl`.
 
+## Project Config Generation (v1.15.0+)
+
+### init-project --scan
+
+Auto-generate a project-level config by scanning your codebase for false positives:
+
+```bash
+ai-guardian init-project --scan
+```
+
+This analyzes your project files, identifies likely false positives, and generates an `.ai-guardian/ai-guardian.json` with appropriate `allowlist_patterns`, `ignore_files`, and `stopwords` entries. Use the `--threshold` flag to control how aggressively patterns are suppressed:
+
+```bash
+ai-guardian init-project --scan --threshold 3    # Only suppress patterns seen 3+ times
+```
+
+Lower thresholds produce more permissive configs; higher thresholds are more conservative.
+
+### Language Overlay System
+
+AI Guardian auto-detects your project's primary language (Python, Go, JavaScript, etc.) and injects language-specific false positive suppressions. For example, Go projects automatically suppress common Go test patterns, and Python projects suppress Django/Flask placeholder patterns.
+
+Language detection runs during `init-project --scan` and during normal scanning when a project config is present. The overlays are additive — they extend your existing config without replacing user-defined rules.
+
+## Per-Rule File Type Skipping (v1.15.0+)
+
+Individual TOML pattern rules can declare `skip_file_types` to exclude specific file extensions:
+
+```json
+{
+  "secret_scanning": {
+    "engines": ["toml-patterns"]
+  }
+}
+```
+
+The `skip_file_types` field is set per-rule in TOML pattern files (not in `ai-guardian.json`). See [TOML_PATTERNS.md](TOML_PATTERNS.md) for the rule field reference.
+
 ---
 
 ## Related Documentation
@@ -2466,6 +2549,7 @@ The web console binds to `127.0.0.1` (localhost only) for security.
 - **Permission Rules** — View and manage tool permission rules *(NEW in v1.11.0)*
 - **Context Poisoning** — Context poisoning detection settings with regex tester *(NEW in v1.11.0)*
 - **Logs** — Daemon log viewer
+- **Scan Configure** — Scan a project to detect false positives and auto-generate suppression config *(NEW in v1.15.0)*
 - **Daemon Detail** — Single daemon stats, controls (pause/resume/reload), recent violations
 
 ### System Tray Integration
@@ -4589,6 +4673,30 @@ AI Guardian uses JSON for configuration:
 
 ---
 
+### Scan Configure
+
+Available in both the **Web Console** (Tools > Scan Configure) and **TUI Console** (Tools > Scan Configure).
+
+Exposes the `ai-guardian init-project --scan` functionality in the console UI. Scans a project directory to detect false positive patterns and auto-generate suppression configuration.
+
+#### How It Works
+
+1. **Enter a project directory** and optional FP threshold (default: 10 files)
+2. **Click Run Scan** — the scanner runs all detection engines against the project
+3. **Review results** — findings are clustered by pattern fingerprint; high-frequency clusters (appearing in many files) are flagged as likely false positives
+4. **Preview config changes** — generated `ai-guardian.json` allowlist entries and `.aiguardignore.toml` ignore paths are shown before writing
+5. **Choose scope** — save config at **Project** level (in the scanned directory) or **Global** level (`~/.ai-guardian/`)
+6. **Apply or Discard** — write the configuration or cancel
+
+#### Key Details
+
+- **All scanners run** regardless of enabled/disabled settings — this discovers all potential false positives upfront so you don't get blocked later when enabling more scanners
+- **Progress bar** shows files scanned in real time with cancellation support
+- **Rule links** (web console) — each detected rule links to its scanner config page for more context
+- **Session persistence** (web console) — scan results survive page navigation; clicking a rule link and returning preserves your results
+- **Config merge** — generated config is merged into existing configuration (list values are deduplicated, not overwritten)
+- **CLI equivalent**: `ai-guardian init-project --scan --threshold 10`
+
 ## Summary
 
 The AI Guardian Console provides a comprehensive, user-friendly interface for managing security policies:
@@ -4630,6 +4738,7 @@ For full configuration reference, see [CONFIGURATION.md](CONFIGURATION.md). For 
 - [Pattern Server](#pattern-server)
 - [Image Scanning](#image-scanning)
 - [Tray Plugins](#tray-plugins)
+- [Project Setup (v1.15.0)](#project-setup-v1150)
 - [Profiles](#profiles)
 - [MCP Server](#mcp-server)
 
@@ -6464,6 +6573,43 @@ The `import` field references another JSON file in `tray-plugins/`. The imported
   ]
 }
 ```
+
+---
+
+## Project Setup (v1.15.0)
+
+### How do I auto-generate config for my project?
+
+```bash
+ai-guardian init-project --scan
+```
+
+Scans your codebase for false positives and generates an `.ai-guardian/ai-guardian.json` with appropriate `allowlist_patterns`, `ignore_files`, and `stopwords`. Use `--threshold N` to only suppress patterns seen N or more times (default: 1).
+
+### How do I skip certain file types for a pattern?
+
+In a TOML pattern rule, add the `skip_file_types` field:
+
+```toml
+[[rules]]
+id = "generic-api-key"
+regex = '''(?i)api[_-]?key\s*[:=]\s*['"]?([A-Za-z0-9]{20,})['"]?'''
+skip_file_types = [".py", ".go"]
+```
+
+The scanner executor skips this rule entirely for files matching the listed extensions. This is a per-rule setting in TOML pattern files, not in `ai-guardian.json`. See [TOML_PATTERNS.md](TOML_PATTERNS.md) for the full field reference.
+
+### What is listen mode for LeakTK?
+
+When the ai-guardian daemon is running and LeakTK (v0.3.3+) is installed, secret scanning uses LeakTK's `listen` mode — a persistent background process that stays alive between scans. This eliminates subprocess spawn overhead, reducing per-scan latency from ~200ms to ~5ms (approximately 40x improvement). Listen mode activates automatically when the daemon detects LeakTK; no configuration is needed. If listen mode is unavailable, scanning falls back to the standard subprocess path.
+
+### How do I set up ML prompt injection detection?
+
+```bash
+ai-guardian ml setup
+```
+
+One command downloads a local ML model for prompt injection detection and configures it in your `ai-guardian.json`. Inference runs locally with no external API calls. For model details and advanced configuration, see [ML_ENGINE_SUPPORT.md](ML_ENGINE_SUPPORT.md).
 
 ---
 
@@ -9209,7 +9355,7 @@ This means plugins work uniformly across all daemon types:
 | Container | `/home/user/.config/ai-guardian/tray-plugins/` inside the container |
 | Remote | `~/.config/ai-guardian/tray-plugins/` on the remote host |
 
-The tray polls plugins alongside the stats refresh (every 10 seconds). Local plugins load even when the daemon is stopped.
+The tray receives real-time updates from each daemon via SSE (Server-Sent Events) push notifications. Violations, stats changes, and pause/resume state changes are pushed to the tray instantly — no polling delay. Tray plugins are refreshed alongside these event-driven updates. If SSE is unavailable (e.g., older daemon version or network interruption), the tray falls back to polling every 10 seconds. Local plugins load even when the daemon is stopped.
 
 ### Tag-Based Filtering
 
@@ -9835,7 +9981,7 @@ class ConsensusStrategy(ExecutionStrategy):
 |--------|--------|------|-------|---------------|---------|--------------|
 | **Gitleaks** | ✅ Supported | Binary | ⚡ Fast | 100+ | MIT | `brew install gitleaks` |
 | **BetterLeaks** | ✅ Supported | Binary | ⚡⚡ Faster | Same as Gitleaks | MIT | `brew install betterleaks` |
-| **LeakTK** | ✅ Supported | Binary | ⚡ Fast | Auto-managed | MIT | `go install github.com/immunefi-team/leaktk@latest` |
+| **LeakTK** | ✅ Supported | Binary | ⚡⚡ Listen mode | Auto-managed | MIT | `brew install leaktk/tap/leaktk` |
 | **Custom** | ✅ Supported | Any | Varies | User-defined | Any | User provides |
 | **TruffleHog** | ✅ Supported (v1.6.0) | Binary | ⚡ Fast | 700+ | AGPL | `brew install trufflesecurity/trufflehog/trufflehog` |
 | **detect-secrets** | ✅ Supported (v1.6.0) | Python | 🐢 Medium | 10+ plugins | Apache 2.0 | `pip install detect-secrets` |
@@ -9843,13 +9989,13 @@ class ConsensusStrategy(ExecutionStrategy):
 **Currently Supported (v1.5.0+):**
 - **Gitleaks** - Industry standard, fast, 100+ built-in patterns, works with pattern server
 - **BetterLeaks** - Fork by original Gitleaks maintainers, faster performance, same output format
-- **LeakTK** - Automatic pattern management, simpler configuration, no config file needed
+- **LeakTK** - Automatic pattern management, listen mode for near-zero overhead when daemon is running (~5ms vs ~200ms)
 - **Custom** - Bring your own scanner, define command template and output parser
 
 **Key Differences:**
 - **Gitleaks**: Best for known patterns (AWS keys, GitHub tokens), pattern server support
 - **BetterLeaks**: Same as Gitleaks but faster execution time
-- **LeakTK**: Best when you don't want to manage pattern files manually
+- **LeakTK**: Best when you don't want to manage pattern files manually. Uses `listen` mode as a persistent process when the daemon is running, eliminating subprocess spawn overhead
 
 ### License Considerations
 
@@ -12162,7 +12308,7 @@ When GitHub API is unavailable (offline, network issues), ai-guardian falls back
 [tool.ai-guardian.scanners]
 gitleaks = "8.30.1"
 betterleaks = "1.1.2"
-leaktk = "0.2.10"
+leaktk = "0.3.4"
 ```
 
 These versions are tested with each ai-guardian release and guaranteed to work.
@@ -12395,6 +12541,18 @@ The scanner is installed once and reused across all workflow runs.
 | LeakTK | Standard | ~30MB | Automatic |
 
 **Recommendation**: Use BetterLeaks for best performance, or LeakTK for automatic pattern updates.
+
+## ML Prompt Injection Setup (v1.15.0+)
+
+AI Guardian supports ML-based prompt injection detection using a local model. One command downloads and configures the engine:
+
+```bash
+ai-guardian ml setup
+```
+
+This downloads the ML model, verifies integrity, and updates your config to enable ML-based detection. No external API calls are made — inference runs locally.
+
+For details on model architecture, performance benchmarks, and advanced configuration, see [ML_ENGINE_SUPPORT.md](ML_ENGINE_SUPPORT.md).
 
 ## Next Steps
 
@@ -16382,7 +16540,7 @@ Default engine order: ["toml-patterns", "gitleaks"]
 |---------|-------|-------------------|---------------|--------------|
 | **Gitleaks** | Standard | Manual config | JSON | `brew install gitleaks` |
 | **BetterLeaks** | 20-40% faster | Manual config | JSON (same as Gitleaks) | `brew install betterleaks` |
-| **LeakTK** | Standard | Auto-managed | JSON (custom) | `brew install leaktk/tap/leaktk` |
+| **LeakTK** | Fast (listen mode) | Auto-managed | JSON (custom) | `brew install leaktk/tap/leaktk` |
 
 ### Configuration
 
@@ -16420,6 +16578,21 @@ Default engine order: ["toml-patterns", "gitleaks"]
   }
 }
 ```
+
+### LeakTK Listen Mode (v1.15.0+)
+
+When the ai-guardian daemon is running and LeakTK (v0.3.3+) is installed, secret scanning uses LeakTK's `listen` mode — a persistent process that stays alive between scans. This eliminates subprocess spawn overhead, reducing per-scan latency from ~200ms to ~5ms.
+
+- **Automatic:** No configuration needed. The daemon detects LeakTK and uses listen mode transparently.
+- **Fallback:** If listen mode fails or the daemon is not running (CLI mode), scanning falls back to the standard subprocess path.
+- **Config changes:** The listen process restarts automatically when `ai-guardian.json` is modified, picking up new allowlists and settings.
+- **Pattern refresh:** LeakTK manages pattern updates internally (default: every 12 hours).
+
+### Detection Techniques (v1.15.0+)
+
+**Prefix-based token detection** — TOML rules can declare `token_prefixes` for fast prefix matching, separate from keyword-based pre-filtering. This enables detection of tokens with known prefixes (e.g., `sk-or-`, `hvs.`, `AIza`) without running the full regex against all content. See [TOML_PATTERNS.md](../TOML_PATTERNS.md) for field documentation.
+
+**Credentials in git remote URLs** — AI Guardian detects credentials embedded in git remote URLs (e.g., `https://user:token@github.com/org/repo`). This pattern catches a common source of credential leaks where tokens are hardcoded into remote URLs instead of using credential helpers. The detection runs automatically as part of the secret scanning pipeline.
 
 ### Advanced Configuration
 
@@ -19015,6 +19188,8 @@ keywords = ["sk-"]
 | `entropy` | No | Minimum Shannon entropy for matched text (rejects low-entropy matches) |
 | `pii_type` | No | PII category for `scan_pii.types` filtering |
 | `group` | No | Confidence group for prompt injection rules |
+| `skip_file_types` | No | Array of file extensions to skip for this rule (e.g., `[".py", ".go"]`). The scanner executor skips the rule entirely when the scanned file matches any listed extension. |
+| `token_prefixes` | No | Array of known token prefixes for prefix-based detection (e.g., `["sk-or-", "hvs.", "AIza"]`). Used for fast prefix matching separate from keyword pre-filtering. |
 
 ## Pattern Servers
 
@@ -22113,6 +22288,110 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.15.0] - 2026-07-22
+
+### Added
+
+- **Transcript scanning for 7 new IDEs** — Cursor (SQLite), Cline/ZooCode (JSON), Windsurf (JSONL), Kiro (JSONL), Copilot Chat (VS Code delta journal), AiderDesk (Markdown chat history), and OpenClaw (JSONL). New `scanners/transcript/` subpackage with adapter pattern: `base.py` (ABC), `common.py` (shared scanning/dedup), per-IDE adapters. Content pipeline uses polymorphic `can_scan()`/`scan_incremental()` loop (#936, #937, #938, #939, #940, #942)
+
+- **LeakTK listen mode — 40x scanner latency reduction** — persistent LeakTK process accepts scan requests over stdin/stdout instead of spawning a new process per hook. Reduces secret scan latency from ~200ms to ~5ms. Automatic fallback to one-shot mode if listen mode unavailable. Timeout guard prevents hangs (#1590)
+
+- **`init-project --scan` — auto-generate config from false positive analysis** — scans project with default config, clusters findings by pattern, identifies high-frequency patterns (10+ files) as likely false positives. Generates tuned `.ai-guardian/ai-guardian.json` with allowlist patterns and `.aiguardignore.toml` with per-scanner directory ignores. `--threshold N` flag to control sensitivity. Config generation for all scanner types. TUI and web console UI for interactive configuration (#1584, #1665, #1677)
+
+- **Language-aware false positive suppression** — auto-detects project language (Python, Go, JavaScript, TypeScript, Java, C#, Ruby, Rust, PHP) and injects language-specific overlay patterns to suppress known false positives. Pipeline-level overlay injection via `ScannerEntry` flag. Generalized to all scanners (#1585, #1662, #1674)
+
+- **Per-file-type scanner dispatch (`skip_file_types`)** — pattern rules in secrets.toml can specify file extensions to skip (e.g., skip `.py` for patterns that only match config files). Scanner executor threads original `file_path` through to skip logic (#1586, #1653)
+
+- **ML prompt injection one-command setup** — `ai-guardian ml setup` downloads ONNX model and tokenizer in one step. Auto-detects platform and configures ML detection (#1587)
+
+- **PostToolUse redacted output via `additionalContext`** — when a secret is detected in tool output, redacted content is sent to the AI agent via `additionalContext` since `updatedToolOutput` is silently ignored by some IDEs. Sanitized block reason prevents leaking detection patterns (#1630)
+
+- **Crush (Charmbracelet) IDE hook adapter** — full hook support for Crush IDE including PreToolUse, PostToolUse, Prompt, and Stop events. Config path auto-detection, response formatting, and confidence levels (#928)
+
+- **Event-driven tray updates via push notifications** — daemon server emits SSE events on state changes (violations, stats, pause/resume). Tray client subscribes instead of polling. Reduces CPU usage and provides instant UI updates. Readiness event for deterministic startup detection (#650, #1610)
+
+- **Scan & Configure UI in TUI and web console** — new page for running `init --scan` interactively, viewing analysis results, and applying generated configuration. Shared scan pipeline extracted for reuse (#1677, #1690)
+
+- **Credentials-in-git-URL detection** — new pattern detects credentials embedded in `git remote` URLs (e.g., `https://user:token@github.com/...`) (#1709)
+
+- **`token_prefixes` field in secrets.toml** — separates prefix-based token matching from keyword matching. Prefix regex derived from secrets.toml at load time (#1639)
+
+- **`workspace_files` support and path traversal guards** — hook data can include `workspace_files` for context-aware scanning with protection against path traversal attacks (#1694)
+
+- **30 new secret detection patterns** — coverage for HashiCorp Vault, Confluent Cloud, OpenRouter, Google Gemini API, Databricks, Datadog, DigitalOcean, Elastic, Fastly, Grafana, Linear, Netlify, PlanetScale, Pulumi, Railway, Render, Sentry, Snyk, Supabase, Terraform Cloud, Vercel, and more (#1617, #1618)
+
+- **4 new credential format patterns** — Gemini API keys (AIza prefix), OpenRouter keys (sk-or- prefix), Vault tokens (hvs. prefix), Confluent Cloud API keys (#1633)
+
+- **Cursor preToolUse hook event** — Cursor IDE now fires preToolUse events, enabling pre-execution scanning (#1592)
+
+### Changed
+
+- **Refactor: centralize language overlay config loading** — shared overlay logic moved to pipeline level via `ScannerEntry` flag instead of per-scanner implementation (#1674, #1675, #1696)
+
+- **Refactor: switch transcript scanning to byte-offset tracking** — JSONL adapters use byte offsets instead of line counts for more reliable incremental scanning (#1672, #1695)
+
+- **Refactor: extract shared JSONL scan logic** — `_scan_with_position_tracking()` and `_discover_path()` helpers in `common.py` reduce duplication across transcript adapters (#1604, #1608, #1673)
+
+- **Refactor: extract shared scan pipeline** — `run_scan_pipeline()` in `scan_analyzer.py` extracted from TUI and web console for reuse (#1689, #1702)
+
+- **Refactor: centralize rule ID mappings** — `RULE_ID_LABELS`, `RULE_ID_TO_SLUG`, and related mappings consolidated in `constants.py`. `RULE_ID_TO_SLUG` derived from existing mappings (#1687, #1688, #1699, #1703)
+
+- **Refactor: deduplicate TUI config I/O** — `ConfigSaveMixin` extracted to eliminate repeated save/load boilerplate across TUI pages (#1684, #1697)
+
+- **Refactor: centralize logging suppression** — `quiet_logging()` context manager extracted to shared TUI utility (#1686, #1698)
+
+- **Refactor: centralize violation filter types** — filter type constants consolidated for consistency across TUI and web console (#1707)
+
+- **Refactor: move MCP Security panel to Tools section** — MCP Security nav item relocated under Scanning & Analysis group in console sidebar (#1708)
+
+- **Refactor: remove pattern server from secrets panel** — deprecated global pattern server UI removed (#1680, #1685)
+
+- **Refactor: remove `_hp` delegation shims** — leftover hook_processing delegation wrappers removed after Phase 5 extraction (#1599, #1602)
+
+- **Refactor: derive token prefix regex from secrets.toml** — hardcoded prefix list replaced with data-driven derivation (#1640)
+
+- **Refactor: replace LeakTK hardcoding with capability flags** — `EngineConfig` dataclass gains data-driven capability flags instead of engine name checks (#1644, #1648)
+
+- **Refactor: extract stderr block response into base adapter** — shared error handling moved to `BaseAgentAdapter` (#1638)
+
+- **Refactor: rename nav menu button to Quick Links** (#1646)
+
+- **Refactor: extract Crush hook events constant** — `CURSOR_HOOK_EVENTS` used as single source of truth (#1597, #1598)
+
+### Fixed
+
+- **Doctor: treat missing IDE config as "not installed"** — missing Crush/Cursor config files now report as "not installed" (skip) instead of failure, fixing false failures on CI and systems without those IDEs (#1712, #1713)
+
+- **Daemon: load project config before pause check** — project-specific configuration now loaded before the pause guard, preventing paused daemons from dropping project directory tracking (#1700, #1705)
+
+- **PostToolUse: duplicate block message** — `reason` and `systemMessage` no longer contain the same text when blocking tool output (#1642, #1647)
+
+- **PostToolUse: secret scan misses env var tokens** — TOML patterns now wired into output scanning path (#1624, #1625)
+
+- **UserPromptSubmit: scans task-notifications** — task notification content no longer triggers false positive scans (#1628, #1631)
+
+- **Scanner executor: thread original file_path** — `skip_file_types` now uses the original filename instead of temp file path (#1653, #1668, #1679)
+
+- **Secret scanning: reduce env var false positives** — `ALL_CAPS_IDENTIFIER` pattern no longer triggers on Python constants and shell variable assignments (#1627, #1632)
+
+- **Warn mode: sanitize context sent to AI agents** — detection patterns, confidence scores, and matched text stripped from warn-mode messages (#1642, #1651)
+
+- **LeakTK listen mode: timeout guard** — prevents daemon hangs if LeakTK process becomes unresponsive (#1650)
+
+- **Stats refresh: guard against unhandled exceptions** — stats tick no longer crashes on transient errors (#1614, #1615)
+
+- **Cursor scanner: use raw_prefix for bubble ID extraction** — fixes incorrect position tracking in Cursor SQLite adapter (#1613)
+
+- **Flaky test: thread join instead of sleep** — `test_stats_refresh_normal_tick_no_rebuild` uses deterministic thread join (#1626, #1635)
+
+### Security
+
+- **30 new secret detection patterns** for cloud providers and SaaS platforms (#1617, #1618, #1621)
+- **4 new credential format patterns** — Gemini API (AIza prefix), OpenRouter (sk-or-), Vault (hvs.), Confluent Cloud (#1633, #1637)
+- **Credentials-in-git-URL detection** — catches `https://user:token@host` in git remote URLs (#1709)
+- **Detailed `systemMessage` for warn mode** — user sees full violation details while agent receives sanitized version (#1588, #1651)
+- **Verified Cursor hook compatibility with Cursor v3.11.19** — all 6 hook events confirmed firing correctly
+
 ## [1.14.0] - 2026-07-13
 
 ### Changed
@@ -22154,48 +22433,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Docs: stale module paths** — updated 14 references across 6 documentation files to reflect the v1.14.0 package reorganization (mcp_server → mcp/, prompt_injection → scanners/, tool_policy → tools/policy, setup.py → setup/, daemon/tray → tray/, violation_logger → violations/logger).
 
 - **Verified Cursor hook compatibility with Cursor v3.10.20** — `beforeSubmitPrompt`, `beforeReadFile`, and `postToolUse` confirmed firing correctly. Shell execution hooks (`beforeShellExecution`, `afterShellExecution`) verified via #1531 fix in this release.
-
-## [1.13.3] - 2026-07-08
-
-### Added
-
-- **Scenario tests in CI/CD** — new `scenario-tests.yml` workflow runs all YAML-based dummy-agent scenarios (minimal, standard, strict, moderator profiles) in CI on every push and PR. Covers secret detection, PII, SSRF, tool policy, prompt injection, config exfil, and bootstrap scan (#1497).
-
-- **Violations page: directory filter** — dropdown with browse button lets users filter the violations list to a specific daemon project directory (#1503).
-
-- **Per-daemon stale-code indicator in tray** — each daemon entry in the tray menu now shows an orange dot when stale code is detected, making it clear which daemon needs a restart (#1510).
-
-- **In-progress guard and restart polling in tray** — restart actions now show a spinner and poll until the daemon is back online, preventing double-clicks and giving clear feedback (#1512).
-
-- **SessionStart support in dummy-agent** — `ai-guardian dummy-agent` can now emit SessionStart events; includes a new `bootstrap-scan.yaml` scenario demonstrating AGENTS.md poisoning detection (#1517).
-
-- **Rebuild-image hint for remote/container daemons** — stale-code tray indicator for container/Kubernetes daemons now shows a rebuild hint instead of a restart action, which is not applicable to remote daemons (#1521).
-
-### Fixed
-
-- **Cursor shell execution hooks silent failure** — `beforeShellExecution` and `afterShellExecution` events were silently broken: `afterShellExecution` was misrouted to `HookEvent.PROMPT` instead of `POST_TOOL_USE`; top-level `command` field was not extracted so Bash commands were not scanned; `can_handle()` did not recognize these events when sent via `hook_event_name`. Shell commands run by Cursor are now fully scanned by tool policy and secret scanner (#1531).
-
-- **Doctor cache path failure before first hook call** — `ai-guardian setup` now creates the cache directory proactively so `ai-guardian doctor` does not report a false failure before any hook has run (#1499).
-
-- **Bandit silent failure** — `ai-guardian scan` now shows `⚠️  Code security scanner (Bandit) unavailable` instead of silently reporting `✅ No security issues detected` when Bandit is not importable. `ai-guardian doctor` reports `[FAIL] Bandit (code security) not found` with a reinstall hint (#1504).
-
-- **Doctor hook coverage** — `ai-guardian doctor` now checks all 5 hook event types (UserPromptSubmit, PreToolUse, PostToolUse, SessionEnd, PostCompact) instead of only the first 3 (#1505).
-
-- **Bootstrap scan block message formatting** — block and warn messages from bootstrap scanning now use the consistent `🚨 BLOCKED BY POLICY` style matching other violation outputs (#1513).
-
-- **Setup: abort on config failure** — `ai-guardian setup` now exits with an error when global config cannot be written instead of silently continuing; also accepts bare profile names (e.g., `minimal`) in addition to `@minimal` (#1501).
-
-- **SessionStart camelCase detection** — SessionStart events sent by Claude Code use `hookEventName` (camelCase) but the adapter only checked `hook_event_name` (snake_case). Both are now handled (#1522).
-
-- **Transcript secret warnings: per-finding dedup and count** — repeated identical secret findings in a single transcript scan are now deduplicated and reported with a count instead of flooding the output (#1500).
-
-- **SessionStart block: full message shown** — block responses from the SessionStart hook now include `systemMessage` and `additionalContext` fields so the full error message appears in the Claude Code startup hook error UI (#1526).
-
-### Documentation
-
-- **Hook regression testing guide** — new `docs/hook-regression-testing.md` covers dummy-agent container setup, scenario authoring, and CI integration (#1496).
-
-- **Bootstrap scan limitation documented** — Claude Code does not support a true SessionStart hook; bootstrap scanning fires on the first UserPromptSubmit instead. This limitation is now documented in AGENTS.md and the bootstrap-scan config page (#1506).
 
 
 *(Earlier versions omitted — see CHANGELOG.md for full history)*
