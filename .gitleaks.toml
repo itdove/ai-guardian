@@ -19,5 +19,6 @@
         "container/scenarios/strict/tool-policy.yaml",
         "container/scenarios/moderator/secret-scanning.yaml",
         "container/scenarios/moderator/tool-policy.yaml",
-        ".ai-guardian/ai-guardian.json"
+        ".ai-guardian/ai-guardian.json",
+        "tests/unit/test_bundled_toml.py"
     ]
