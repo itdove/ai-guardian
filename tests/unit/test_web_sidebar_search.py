@@ -261,6 +261,32 @@ class TestSlugToConfigSection:
             assert slug in all_suffixes, f"{slug} not found in NAV_GROUPS"
 
 
+class TestRuleIdToSlug:
+    """Verify RULE_ID_TO_SLUG is correctly derived from the other two mappings."""
+
+    def test_every_rule_id_maps_to_a_valid_slug(self):
+        from ai_guardian.constants import RULE_ID_TO_SLUG, SLUG_TO_CONFIG_SECTION
+
+        for rule_id, slug in RULE_ID_TO_SLUG.items():
+            assert (
+                slug in SLUG_TO_CONFIG_SECTION
+            ), f"{rule_id} maps to {slug} which is not in SLUG_TO_CONFIG_SECTION"
+
+    def test_unicode_override_preserved(self):
+        from ai_guardian.constants import RULE_ID_TO_SLUG
+
+        assert RULE_ID_TO_SLUG["UNICODE-001"] == "/pi-unicode"
+
+    def test_expected_values(self):
+        from ai_guardian.constants import RULE_ID_TO_SLUG
+
+        assert RULE_ID_TO_SLUG["SECRET-001"] == "/secrets"
+        assert RULE_ID_TO_SLUG["PII-001"] == "/scan-pii"
+        assert RULE_ID_TO_SLUG["PROMPT-INJECTION-001"] == "/pi-detection"
+        assert RULE_ID_TO_SLUG["SSRF-001"] == "/ssrf"
+        assert RULE_ID_TO_SLUG["CANARY-001"] == "/canary-detection"
+
+
 class TestIsFeatureEnabled:
     """Verify _is_feature_enabled helper logic."""
 
